@@ -85,8 +85,7 @@ time_series_agg_res = df.analytics.time_series_agg(
     time_col="ORDERDATE",
     aggs={"SALESAMOUNT": ["SUM", "MAX"]},
     windows=["1D", "-1D"],
-    group_by=["PRODUCTKEY"],
-    sliding_interval="12H"
+    group_by=["PRODUCTKEY"]
 )
 
 def custom_formatter(input_col, agg, window):
@@ -97,8 +96,7 @@ time_series_agg_res2 = df.analytics.time_series_agg(
     aggs={"SALESAMOUNT": ["SUM", "MAX"]},
     windows=["1D", "-1D"],
     group_by=["PRODUCTKEY"],
-    sliding_interval="12H",
-    col_formatter=custom_formatter,
+    col_formatter=custom_formatter
 )
 
 ## EXPECTED UNPARSER OUTPUT
@@ -127,9 +125,9 @@ compute_lead_res2 = df.analytics.compute_lead(cols=["SALESAMOUNT"], leads=[1, 2]
 
 df = df.with_column("ORDERDATE", to_timestamp(df["ORDERDATE"]))
 
-time_series_agg_res = df.analytics.time_series_agg(time_col="ORDERDATE", aggs={"SALESAMOUNT": ["SUM", "MAX"]}, windows=["1D", "-1D"], group_by=["PRODUCTKEY"], sliding_interval="12H")
+time_series_agg_res = df.analytics.time_series_agg(time_col="ORDERDATE", aggs={"SALESAMOUNT": ["SUM", "MAX"]}, windows=["1D", "-1D"], group_by=["PRODUCTKEY"])
 
-time_series_agg_res2 = df.analytics.time_series_agg(time_col="ORDERDATE", aggs={"SALESAMOUNT": ["SUM", "MAX"]}, windows=["1D", "-1D"], group_by=["PRODUCTKEY"], sliding_interval="12H", col_formatter=lambda column, agg, window: {"SALESAMOUNT": {"1D": {"SUM": "SUM_SALESAMOUNT_1D", "MAX": "MAX_SALESAMOUNT_1D"}, "-1D": {"SUM": "SUM_SALESAMOUNT_-1D", "MAX": "MAX_SALESAMOUNT_-1D"}}}[column][window][agg])
+time_series_agg_res2 = df.analytics.time_series_agg(time_col="ORDERDATE", aggs={"SALESAMOUNT": ["SUM", "MAX"]}, windows=["1D", "-1D"], group_by=["PRODUCTKEY"], col_formatter=lambda column, agg, window: {"SALESAMOUNT": {"1D": {"SUM": "SUM_SALESAMOUNT_1D", "MAX": "MAX_SALESAMOUNT_1D"}, "-1D": {"SUM": "SUM_SALESAMOUNT_-1D", "MAX": "MAX_SALESAMOUNT_-1D"}}}[column][window][agg])
 
 ## EXPECTED ENCODED AST
 
@@ -878,7 +876,6 @@ body {
           }
         }
         group_by: "PRODUCTKEY"
-        sliding_interval: "12H"
         src {
           end_column: 9
           end_line: 112
@@ -917,7 +914,6 @@ body {
         formatted_col_names: "SUM_SALESAMOUNT_-1D"
         formatted_col_names: "MAX_SALESAMOUNT_-1D"
         group_by: "PRODUCTKEY"
-        sliding_interval: "12H"
         src {
           end_column: 9
           end_line: 124

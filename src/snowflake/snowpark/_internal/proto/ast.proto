@@ -948,7 +948,7 @@ message DataframeAnalyticsTimeSeriesAgg {
   Expr df = 2;
   repeated string formatted_col_names = 3;
   repeated string group_by = 4;
-  string sliding_interval = 5;
+  reserved 5; // sliding_interval removed in 1.32.0
   SrcPosition src = 6;
   string time_col = 7;
   repeated string windows = 8;
