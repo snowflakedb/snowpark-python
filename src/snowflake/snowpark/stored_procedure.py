@@ -522,6 +522,7 @@ class StoredProcedureRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
+        preserve_parameter_names: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
@@ -602,6 +603,8 @@ class StoredProcedureRegistration:
             resource_constraint: A dictionary containing a resource properties of a warehouse and then
                 constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
                 warehouse be used for execution.
+            preserve_parameter_names: Whether to preserve the parameter names of ``func`` in the created stored procedure.
+                If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.sproc`
@@ -649,6 +652,7 @@ class StoredProcedureRegistration:
                 native_app_params=kwargs.pop("native_app_params", None),
                 artifact_repository=artifact_repository,
                 resource_constraint=resource_constraint,
+                preserve_parameter_names=preserve_parameter_names,
                 _emit_ast=_emit_ast,
                 **kwargs,
             )
@@ -680,6 +684,7 @@ class StoredProcedureRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
+        preserve_parameter_names: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
@@ -769,6 +774,8 @@ class StoredProcedureRegistration:
             resource_constraint: A dictionary containing a resource properties of a warehouse and then
                 constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
                 warehouse be used for execution.
+            preserve_parameter_names: Whether to preserve the parameter names of ``func`` in the created stored procedure.
+                If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -814,6 +821,7 @@ class StoredProcedureRegistration:
                 is_permanent=is_permanent,
                 artifact_repository=artifact_repository,
                 resource_constraint=resource_constraint,
+                preserve_parameter_names=preserve_parameter_names,
                 _emit_ast=_emit_ast,
                 **kwargs,
             )
@@ -847,6 +855,7 @@ class StoredProcedureRegistration:
         copy_grants: bool = False,
         artifact_repository: Optional[str] = None,
         resource_constraint: Optional[Dict[str, str]] = None,
+        preserve_parameter_names: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
@@ -923,7 +932,7 @@ class StoredProcedureRegistration:
             raise TypeError("pandas stored procedure is not supported")
 
         arg_names = ["session"] + get_func_arg_names(
-            func, TempObjectType.PROCEDURE, len(input_types)
+            func, TempObjectType.PROCEDURE, len(input_types), preserve_parameter_names
         )
         input_args = [
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names[1:])

@@ -10593,6 +10593,7 @@ def sproc(
     _emit_ast: bool = True,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -10678,6 +10679,8 @@ def sproc(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of ``func`` in the created stored procedure.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A stored procedure function that can be called with python value.
@@ -10769,6 +10772,7 @@ def sproc(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10794,6 +10798,7 @@ def sproc(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )

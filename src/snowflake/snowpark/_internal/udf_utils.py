@@ -498,8 +498,11 @@ def get_func_arg_names(
     func: Union[Callable, Tuple[str, str]],
     object_type: TempObjectType,
     num_args: int,
+    preserve_parameter_names: bool,
 ) -> List[str]:
     default_arg_names = [f"arg{i + 1}" for i in range(num_args)]
+    if not preserve_parameter_names:
+        return default_arg_names
 
     def get_arg_names_from_callable() -> List[str]:
         return inspect.getfullargspec(func).args

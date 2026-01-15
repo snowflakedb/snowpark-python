@@ -360,22 +360,26 @@ def test_get_func_arg_names():
     def my_no_arg_sproc(session):
         pass
 
-    arg_names = get_func_arg_names(my_no_arg_sproc, TempObjectType.PROCEDURE, 0)
+    arg_names = get_func_arg_names(my_no_arg_sproc, TempObjectType.PROCEDURE, 0, False)
+    assert arg_names == []
+    arg_names = get_func_arg_names(my_no_arg_sproc, TempObjectType.PROCEDURE, 0, True)
     assert arg_names == []
 
     def my_sproc(session, first_arg, second_arg):
         pass
 
-    arg_names = get_func_arg_names(my_sproc, TempObjectType.PROCEDURE, 2)
+    arg_names = get_func_arg_names(my_sproc, TempObjectType.PROCEDURE, 2, True)
     assert arg_names == ["first_arg", "second_arg"]
+    arg_names = get_func_arg_names(my_sproc, TempObjectType.PROCEDURE, 2, False)
+    assert arg_names == ["arg1", "arg2"]
 
     def my_udf(x, y, z):
         pass
 
-    arg_names = get_func_arg_names(my_udf, TempObjectType.FUNCTION, 3)
+    arg_names = get_func_arg_names(my_udf, TempObjectType.FUNCTION, 3, True)
     assert arg_names == ["x", "y", "z"]
 
     # failures should fallback to default arg names
     # we can reproduce failure by passing in a python builtin function, which cannot be inspected
-    arg_names = get_func_arg_names(min, TempObjectType.FUNCTION, 2)
+    arg_names = get_func_arg_names(min, TempObjectType.FUNCTION, 2, True)
     assert arg_names == ["arg1", "arg2"]

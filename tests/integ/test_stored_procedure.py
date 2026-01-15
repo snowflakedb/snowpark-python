@@ -238,11 +238,15 @@ def test_basic_stored_procedure(session, local_testing_mode):
 
     pow_sp = sproc(
         sp_pow,
+        name="sp_pow",
         return_type=DoubleType(),
         input_types=[IntegerType(), IntegerType()],
+        preserve_parameter_names=True,
     )
     assert pow_sp(2, 10) == 1024
     assert pow_sp(2, 10, session=session) == 1024
+    # assert parameter names are preserved by issuing a SQL CALL with named parameters
+    assert session.sql("call sp_pow(y=>3, x=>2)").collect()[0][0] == 8
 
 
 def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode):
