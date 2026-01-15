@@ -39,6 +39,7 @@ from snowflake.snowpark._internal.type_utils import (
     python_type_str_to_object,
     python_type_to_snow_type,
     python_value_str_to_object,
+    retrieve_func_arg_names_from_source,
     retrieve_func_defaults_from_source,
     retrieve_func_type_hints_from_source,
 )
@@ -491,6 +492,47 @@ def get_opt_arg_defaults(
             "Proceeding without creating optional arguments"
         )
         return EMPTY_DEFAULT_VALUES
+
+
+def get_func_arg_names(
+    func: Union[Callable, Tuple[str, str]],
+    object_type: TempObjectType,
+    num_args: int,
+) -> List[str]:
+    default_arg_names = [f"arg{i + 1}" for i in range(num_args)]
+
+    def get_arg_names_from_callable() -> List[str]:
+        return inspect.getfullargspec(func).args
+
+    def get_arg_names_from_file() -> List[str]:
+        filename, func_name = func[0], func[1]
+        if not is_local_python_file(filename):
+            return default_arg_names
+
+        arg_names = retrieve_func_arg_names_from_source(filename, func_name)
+        if arg_names is None:
+            return default_arg_names
+
+        return arg_names
+
+    try:
+        arg_names = (
+            get_arg_names_from_callable()
+            if isinstance(func, Callable)
+            else get_arg_names_from_file()
+        )
+
+        # For stored procedures, skip the first 'session' argument
+        if object_type == TempObjectType.PROCEDURE:
+            arg_names = arg_names[1:]
+
+        return arg_names
+    except Exception as e:
+        logger.warning(
+            f"Got error {e} when trying to read argument names from function: {func}. "
+            "Proceeding with generic argument names."
+        )
+        return default_arg_names
 
 
 def get_error_message_abbr(object_type: TempObjectType) -> str:

@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.udf_utils import (
     generate_anonymous_python_sp_sql,
     generate_python_code,
     get_error_message_abbr,
+    get_func_arg_names,
     pickle_function,
     resolve_imports_and_packages,
     resolve_packages_in_client_side_sandbox,
@@ -353,3 +354,28 @@ def test_generate_anonymous_python_sp_sql_with_none_session():
         )
 
     mock_callback.assert_called_once()
+
+
+def test_get_func_arg_names():
+    def my_no_arg_sproc(session):
+        pass
+
+    arg_names = get_func_arg_names(my_no_arg_sproc, TempObjectType.PROCEDURE, 0)
+    assert arg_names == []
+
+    def my_sproc(session, first_arg, second_arg):
+        pass
+
+    arg_names = get_func_arg_names(my_sproc, TempObjectType.PROCEDURE, 2)
+    assert arg_names == ["first_arg", "second_arg"]
+
+    def my_udf(x, y, z):
+        pass
+
+    arg_names = get_func_arg_names(my_udf, TempObjectType.FUNCTION, 3)
+    assert arg_names == ["x", "y", "z"]
+
+    # failures should fallback to default arg names
+    # we can reproduce failure by passing in a python builtin function, which cannot be inspected
+    arg_names = get_func_arg_names(min, TempObjectType.FUNCTION, 2)
+    assert arg_names == ["arg1", "arg2"]

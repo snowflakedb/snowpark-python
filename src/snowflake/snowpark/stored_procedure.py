@@ -34,6 +34,7 @@ from snowflake.snowpark._internal.udf_utils import (
     create_python_udf_or_sp,
     generate_anonymous_python_sp_sql,
     generate_call_python_sp_sql,
+    get_func_arg_names,
     process_file_path,
     process_registration_inputs,
     resolve_imports_and_packages,
@@ -921,7 +922,9 @@ class StoredProcedureRegistration:
         if is_pandas_udf:
             raise TypeError("pandas stored procedure is not supported")
 
-        arg_names = ["session"] + [f"arg{i+1}" for i in range(len(input_types))]
+        arg_names = ["session"] + get_func_arg_names(
+            func, TempObjectType.PROCEDURE, len(input_types)
+        )
         input_args = [
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names[1:])
         ]
