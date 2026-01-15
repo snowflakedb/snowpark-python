@@ -672,11 +672,12 @@ def test_create_from_pandas_basic_pandas_types(session):
     # blocks us from using it.
     if is_in_stored_procedure():
         max_size = "134217728"
-    assert (
-        str(sp_df.schema)
-        == f"""\
+
+    # 2025_07 BCR bundle changes the default max string size to 128MB in preprod, but prod is not changed yet.
+    allowed_schema = [
+        f"""\
 StructType([\
-StructField('"sTr"', StringType({max_size}), nullable=True), \
+StructField('"sTr"', StringType({allowed_holder}), nullable=True), \
 StructField('"dOublE"', DoubleType(), nullable=True), \
 StructField('"LoNg"', LongType(), nullable=True), \
 StructField('"booL"', BooleanType(), nullable=True), \
@@ -684,7 +685,10 @@ StructField('"timestamp"', TimestampType(timezone=TimestampTimeZone('ntz')), nul
 StructField('TIMEDELTA', LongType(), nullable=True)\
 ])\
 """
-    )
+        for allowed_holder in ["", max_size]
+    ]
+
+    assert str(sp_df.schema) in allowed_schema
     assert sp_df.select('"sTr"').collect() == [Row("Name1"), Row("nAme_2")]
     assert sp_df.select('"dOublE"').collect() == [Row(1.2), Row(20)]
     assert sp_df.select('"LoNg"').collect() == [Row(1234567890), Row(1)]
