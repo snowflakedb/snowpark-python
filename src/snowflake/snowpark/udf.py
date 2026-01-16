@@ -961,6 +961,7 @@ class UDFRegistration:
                 statement_params=statement_params,
                 source_code_display=source_code_display,
                 is_permanent=is_permanent,
+                preserve_parameter_names=preserve_parameter_names,
                 session=self._session,
                 _registered_object_name=udf_name,
                 **kwargs,

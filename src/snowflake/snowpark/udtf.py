@@ -1035,6 +1035,7 @@ class UDTFRegistration:
                 comment=comment,
                 statement_params=statement_params,
                 is_permanent=is_permanent,
+                preserve_parameter_names=preserve_parameter_names,
                 session=self._session,
                 _registered_object_name=object_name,
                 **kwargs,
