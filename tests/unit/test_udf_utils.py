@@ -392,7 +392,7 @@ def test_get_func_arg_names():
     assert arg_names == ["x", "y", "z"]
 
     class SumUDAF:
-        def __init__(self):
+        def __init__(self) -> None:
             self._partial_sum = 0
 
         @property
