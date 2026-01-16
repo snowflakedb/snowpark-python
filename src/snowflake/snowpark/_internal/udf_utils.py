@@ -505,17 +505,31 @@ def get_func_arg_names(
         return default_arg_names
 
     def get_arg_names_from_callable() -> List[str]:
-        return inspect.getfullargspec(func).args
+        target_func = None
+        if object_type == TempObjectType.TABLE_FUNCTION:
+            if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+                target_func = getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
+        if object_type in (TempObjectType.PROCEDURE, TempObjectType.FUNCTION):
+            target_func = func
+
+        if target_func is None:
+            return default_arg_names
+        return inspect.getfullargspec(target_func).args
 
     def get_arg_names_from_file() -> List[str]:
         filename, func_name = func[0], func[1]
         if not is_local_python_file(filename):
             return default_arg_names
 
-        arg_names = retrieve_func_arg_names_from_source(filename, func_name)
+        if object_type == TempObjectType.TABLE_FUNCTION:
+            arg_names = retrieve_func_arg_names_from_source(
+                filename, TABLE_FUNCTION_PROCESS_METHOD, func_name
+            )
+        elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
+            arg_names = retrieve_func_arg_names_from_source(filename, func_name)
+
         if arg_names is None:
             return default_arg_names
-
         return arg_names
 
     try:
@@ -525,8 +539,10 @@ def get_func_arg_names(
             else get_arg_names_from_file()
         )
 
-        # For stored procedures, skip the first 'session' argument
-        if object_type == TempObjectType.PROCEDURE:
+        # Skip the first argument when:
+        # 1. It's a stored procedure, ignore the "session" argument
+        # 2. It's a table function, ignore the "self" argument of the method
+        if object_type in (TempObjectType.PROCEDURE, TempObjectType.TABLE_FUNCTION):
             arg_names = arg_names[1:]
 
         return arg_names

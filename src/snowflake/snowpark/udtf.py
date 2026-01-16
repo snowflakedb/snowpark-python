@@ -44,6 +44,7 @@ from snowflake.snowpark._internal.udf_utils import (
     check_register_args,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
+    get_func_arg_names,
     process_file_path,
     process_registration_inputs,
     resolve_imports_and_packages,
@@ -591,6 +592,7 @@ class UDTFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         artifact_repository: Optional[str] = None,
         resource_constraint: Optional[Dict[str, str]] = None,
+        preserve_parameter_names: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedTableFunction:
@@ -678,6 +680,9 @@ class UDTFRegistration:
             resource_constraint: A dictionary containing a resource properties of a warehouse and then
                 constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
                 warehouse be used for execution.
+            preserve_parameter_names: Whether to preserve the parameter names of the ``process`` method of ``handler`` in the created UDTF.
+                If ``False``, the parameters will be named as `arg1`, `arg2`, etc. If ``input_names`` is provided, this argument will be ignored.
+                The default is ``False``.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udtf`
@@ -731,6 +736,7 @@ class UDTFRegistration:
                 copy_grants=copy_grants,
                 artifact_repository=artifact_repository,
                 resource_constraint=resource_constraint,
+                preserve_parameter_names=preserve_parameter_names,
                 _emit_ast=_emit_ast,
                 **kwargs,
             )
@@ -763,6 +769,7 @@ class UDTFRegistration:
         skip_upload_on_content_match: bool = False,
         artifact_repository: Optional[str] = None,
         resource_constraint: Optional[Dict[str, str]] = None,
+        preserve_parameter_names: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedTableFunction:
@@ -853,6 +860,9 @@ class UDTFRegistration:
             resource_constraint: A dictionary containing a resource properties of a warehouse and then
                 constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
                 warehouse be used for execution.
+            preserve_parameter_names: Whether to preserve the parameter names of the ``process`` method of ``handler`` in the created UDTF.
+                If ``False``, the parameters will be named as `arg1`, `arg2`, etc. If ``input_names`` is provided, this argument will be ignored.
+                The default is ``False``.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -905,6 +915,7 @@ class UDTFRegistration:
                 copy_grants=copy_grants,
                 artifact_repository=artifact_repository,
                 resource_constraint=resource_constraint,
+                preserve_parameter_names=preserve_parameter_names,
                 _emit_ast=_emit_ast,
                 **kwargs,
             )
@@ -938,6 +949,7 @@ class UDTFRegistration:
         copy_grants: bool = False,
         artifact_repository: Optional[str] = None,
         resource_constraint: Optional[Dict[str, str]] = None,
+        preserve_parameter_names: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedTableFunction:
@@ -1028,7 +1040,12 @@ class UDTFRegistration:
                 **kwargs,
             )
 
-        arg_names = input_names or [f"arg{i + 1}" for i in range(len(input_types))]
+        arg_names = input_names or get_func_arg_names(
+            handler,
+            TempObjectType.TABLE_FUNCTION,
+            len(input_types),
+            preserve_parameter_names,
+        )
         input_args = [
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
         ]

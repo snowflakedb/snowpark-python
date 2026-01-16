@@ -383,3 +383,10 @@ def test_get_func_arg_names():
     # we can reproduce failure by passing in a python builtin function, which cannot be inspected
     arg_names = get_func_arg_names(min, TempObjectType.FUNCTION, 2, True)
     assert arg_names == ["arg1", "arg2"]
+
+    class MyUDTF:
+        def process(self, x, y, z):
+            return [(x, y, z)]
+
+    arg_names = get_func_arg_names(MyUDTF, TempObjectType.TABLE_FUNCTION, 3, True)
+    assert arg_names == ["x", "y", "z"]

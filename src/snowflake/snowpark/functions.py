@@ -9632,6 +9632,7 @@ def udtf(
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
@@ -9711,6 +9712,8 @@ def udtf(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of the ``process`` method of ``handler`` in the created UDTF.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -9824,6 +9827,7 @@ def udtf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9849,6 +9853,7 @@ def udtf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
