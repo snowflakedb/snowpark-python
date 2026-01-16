@@ -509,6 +509,9 @@ def get_func_arg_names(
         if object_type == TempObjectType.TABLE_FUNCTION:
             if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
                 target_func = getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
+        if object_type == TempObjectType.AGGREGATE_FUNCTION:
+            if hasattr(func, AGGREGATE_FUNCTION_ACCULUMATE_METHOD):
+                target_func = getattr(func, AGGREGATE_FUNCTION_ACCULUMATE_METHOD)
         if object_type in (TempObjectType.PROCEDURE, TempObjectType.FUNCTION):
             target_func = func
 
@@ -524,6 +527,10 @@ def get_func_arg_names(
         if object_type == TempObjectType.TABLE_FUNCTION:
             arg_names = retrieve_func_arg_names_from_source(
                 filename, TABLE_FUNCTION_PROCESS_METHOD, func_name
+            )
+        if object_type == TempObjectType.AGGREGATE_FUNCTION:
+            arg_names = retrieve_func_arg_names_from_source(
+                filename, AGGREGATE_FUNCTION_ACCULUMATE_METHOD, func_name
             )
         elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
             arg_names = retrieve_func_arg_names_from_source(filename, func_name)
@@ -541,8 +548,12 @@ def get_func_arg_names(
 
         # Skip the first argument when:
         # 1. It's a stored procedure, ignore the "session" argument
-        # 2. It's a table function, ignore the "self" argument of the method
-        if object_type in (TempObjectType.PROCEDURE, TempObjectType.TABLE_FUNCTION):
+        # 2. It's a table/aggregate function, ignore the "self" argument of the method
+        if object_type in (
+            TempObjectType.PROCEDURE,
+            TempObjectType.TABLE_FUNCTION,
+            TempObjectType.AGGREGATE_FUNCTION,
+        ):
             arg_names = arg_names[1:]
 
         if len(arg_names) != num_args:

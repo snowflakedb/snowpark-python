@@ -390,3 +390,23 @@ def test_get_func_arg_names():
 
     arg_names = get_func_arg_names(MyUDTF, TempObjectType.TABLE_FUNCTION, 3, True)
     assert arg_names == ["x", "y", "z"]
+
+    class SumUDAF:
+        def __init__(self):
+            self._partial_sum = 0
+
+        @property
+        def aggregate_state(self):
+            return self._partial_sum
+
+        def accumulate(self, input_value, input_value2):
+            self._partial_sum += input_value + input_value2
+
+        def merge(self, other_partial_sum):
+            self._partial_sum += other_partial_sum
+
+        def finish(self):
+            return self._partial_sum
+
+    arg_names = get_func_arg_names(SumUDAF, TempObjectType.AGGREGATE_FUNCTION, 2, True)
+    assert arg_names == ["input_value", "input_value2"]
