@@ -545,6 +545,9 @@ def get_func_arg_names(
         if object_type in (TempObjectType.PROCEDURE, TempObjectType.TABLE_FUNCTION):
             arg_names = arg_names[1:]
 
+        if len(arg_names) != num_args:
+            return default_arg_names
+
         return arg_names
     except Exception as e:
         logger.warning(
