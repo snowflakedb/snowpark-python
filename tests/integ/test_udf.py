@@ -1213,6 +1213,10 @@ def return_all_datatypes(
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql not supported in local testing",
+)
 def test_register_udf_with_preserve_parameter_names(session, resources_path):
     pow_udf = udf(
         lambda x, y: x**y,

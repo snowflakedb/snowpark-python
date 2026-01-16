@@ -518,7 +518,6 @@ def test_register_sp_from_file(session, resources_path, tmpdir):
     )
     assert isinstance(mod5_sp.func, tuple)
     assert mod5_sp(3) == 3
-    assert session.sql("call mod5(x=>3)").collect()[0][0] == 3
 
     # test zip file
     from zipfile import ZipFile
@@ -979,6 +978,10 @@ def return_all_datatypes(
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql not supported in local testing",
+)
 def test_register_sp_with_preserve_parameter_names(session, resources_path):
     def sp_pow(session_, x, y):
         return (
