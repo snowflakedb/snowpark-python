@@ -524,19 +524,18 @@ def get_func_arg_names(
         if not is_local_python_file(filename):
             return default_arg_names
 
+        arg_names = default_arg_names
         if object_type == TempObjectType.TABLE_FUNCTION:
             arg_names = retrieve_func_arg_names_from_source(
                 filename, TABLE_FUNCTION_PROCESS_METHOD, func_name
             )
-        if object_type == TempObjectType.AGGREGATE_FUNCTION:
+        elif object_type == TempObjectType.AGGREGATE_FUNCTION:
             arg_names = retrieve_func_arg_names_from_source(
                 filename, AGGREGATE_FUNCTION_ACCULUMATE_METHOD, func_name
             )
         elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
             arg_names = retrieve_func_arg_names_from_source(filename, func_name)
 
-        if arg_names is None:
-            return default_arg_names
         return arg_names
 
     try:
