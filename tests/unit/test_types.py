@@ -2508,3 +2508,14 @@ class MyClass:
         "", "process", class_name="MyClass", _source=source
     )
     assert arg_names == ["self", "input_a", "input_b"]
+
+    # class not found
+    source = """
+class MyClass:
+    def process(self, input_a, input_b):
+        return input_a * input_b
+"""
+    arg_names = retrieve_func_arg_names_from_source(
+        "", "process", class_name="MyOtherClass", _source=source
+    )
+    assert arg_names is None

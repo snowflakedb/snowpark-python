@@ -379,6 +379,10 @@ def test_get_func_arg_names():
     arg_names = get_func_arg_names(my_udf, TempObjectType.FUNCTION, 3, True)
     assert arg_names == ["x", "y", "z"]
 
+    # wrong number of arguments found should fallback to default arg names
+    arg_names = get_func_arg_names(my_udf, TempObjectType.FUNCTION, 2, True)
+    assert arg_names == ["arg1", "arg2"]
+
     # failures should fallback to default arg names
     # we can reproduce failure by passing in a python builtin function, which cannot be inspected
     arg_names = get_func_arg_names(min, TempObjectType.FUNCTION, 2, True)
