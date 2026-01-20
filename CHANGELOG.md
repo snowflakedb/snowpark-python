@@ -27,6 +27,7 @@
 #### Improvements
 - `snowflake.snowpark.context.configure_development_features` is effective for multiple sessions including newly created sessions after the configuration. No duplicate experimental warning any more.
 - Removed experimental warning from `DataFrame.to_arrow` and `DataFrame.to_arrow_batches`.
+- When both `Session.reduce_describe_query_enabled` and `Session.cte_optimization_enabled` are enabled, fewer DESCRIBE queries are issued when resolving table attributes.
 
 ### Snowpark pandas API Updates
 

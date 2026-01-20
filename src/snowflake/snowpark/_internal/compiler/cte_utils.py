@@ -20,6 +20,8 @@ from snowflake.snowpark._internal.utils import is_sql_select_statement
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.compiler.utils import TreeNode  # pragma: no cover
 
+HASH_LENGTH = 10
+
 
 def find_duplicate_subtrees(
     root: "TreeNode", propagate_complexity_hist: bool = False
@@ -272,7 +274,7 @@ def encode_query_id(node: "TreeNode") -> Optional[str]:
         string = f"{string}#{stringify(node.df_aliased_col_name_to_real_col_name)}"
 
     try:
-        return hashlib.sha256(string.encode()).hexdigest()[:10]
+        return hashlib.sha256(string.encode()).hexdigest()[:HASH_LENGTH]
     except Exception as ex:
         logging.warning(f"Encode SnowflakePlan ID failed: {ex}")
         return None
