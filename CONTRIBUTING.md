@@ -33,32 +33,14 @@ cd snowpark-python
 
 #### Install the library in edit mode and install its dependencies
 
-- Create a new Python virtual environment with any Python version that we support.
-  - The Snowpark Python API supports **Python 3.9, Python 3.10, Python 3.11, Python 3.12 and Python 3.13**.
-  - The Snowpark pandas API supports **Python 3.9, Python 3.10, and Python 3.11**. Additionally, Snowpark pandas requires **Modin 0.36.x or 0.37.x**, and **pandas 2.2.x or 2.3.x**.
+Install [`uv`](https://docs.astral.sh/uv/) and run
 
-    ```bash
-    conda create --name snowpark-dev python=3.9
-    ```
+```console
+uv sync --all-extras  
+```
 
-- Activate the new Python virtual environment. For example,
-
-  ```bash
-  conda activate snowpark-dev
-  ```
-
-- Go to the cloned repository root folder.
-  - To install the Snowpark Python API in edit/development mode, use:
-
-      ```bash
-      python -m pip install -e ".[development, pandas]"
-      ```
-  - To install the Snowpark pandas API in edit/development mode, use:
-      ```bash
-      python -m pip install -e ".[modin-development]"
-      ```
-
-  The `-e` tells `pip` to install the library in [edit, or development mode](https://pip.pypa.io/en/stable/cli/pip_install/#editable-installs).
+This will create a virtual environment that your IDE can find to offer
+language server features during development.
 
 #### Setup your IDE
 
