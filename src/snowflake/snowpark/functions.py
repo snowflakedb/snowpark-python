@@ -11891,7 +11891,7 @@ def regr_syy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column
     Example::
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-        >>> df.groupBy("v").agg(regr_syy(df["v"], df["v2"]).alias("regr_syy")).collect()
+        >>> df.groupBy("v").agg(regr_syy(df["v"], df["v2"]).alias("regr_syy")).orderBy("v").collect()
         [Row(V=10, REGR_SYY=0.0), Row(V=20, REGR_SYY=0.0), Row(V=25, REGR_SYY=None), Row(V=30, REGR_SYY=0.0)]
     """
     c1 = _to_col_if_str(y, "regr_syy")
