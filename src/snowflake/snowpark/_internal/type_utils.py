@@ -51,6 +51,7 @@ from snowflake.snowpark.types import (
     DateType,
     DayTimeInterval,
     DayTimeIntervalType,
+    DecFloatType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -188,7 +189,7 @@ def convert_metadata_to_sp_type(
         return convert_sf_to_sp_type(
             column_type_name,
             metadata.precision or 0,
-            metadata.scale or 0,
+            metadata.scale,
             metadata.internal_size or 0,
             max_string_size,
         )
@@ -197,7 +198,7 @@ def convert_metadata_to_sp_type(
 def convert_sf_to_sp_type(
     column_type_name: str,
     precision: int,
-    scale: int,
+    scale: int | None,
     internal_size: int,
     max_string_size: int,
 ) -> DataType:
@@ -291,6 +292,8 @@ def convert_sf_to_sp_type(
         return TimestampType(timezone=TimestampTimeZone.TZ)
     if column_type_name == "DATE":
         return DateType()
+    if column_type_name == "FIXED" and scale is None:
+        return DecFloatType()
     if column_type_name == "DECIMAL" or (
         (column_type_name == "FIXED" or column_type_name == "NUMBER") and scale != 0
     ):
@@ -333,6 +336,8 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
         return "FLOAT"
     if isinstance(datatype, DoubleType):
         return "DOUBLE"
+    if isinstance(datatype, DecFloatType):
+        return "DECFLOAT"
     # We regard NullType as String, which is required when creating
     # a dataframe from local data with all None values
     if isinstance(datatype, StringType):
@@ -845,6 +850,7 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
             BooleanType,
             FloatType,
             DoubleType,
+            DecFloatType,
             DateType,
             TimestampType,
             TimeType,

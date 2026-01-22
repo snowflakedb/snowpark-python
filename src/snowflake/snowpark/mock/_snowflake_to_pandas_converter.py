@@ -21,6 +21,7 @@ from snowflake.snowpark.types import (
     ByteType,
     DataType,
     DateType,
+    DecFloatType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -91,6 +92,19 @@ def _decimal_converter(
             return integer_part
         remaining_decimal_len = min(precision - len(str(integer_part)), scale)
         return Decimal(str(round(float(value), remaining_decimal_len)))
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"Numeric value '{value}' is not recognized."
+        )
+
+
+def _decfloat_converter(
+    value: str, datatype: DataType, field_optionally_enclosed_by=None, null_if=None
+):
+    if value is None or value == "" or (null_if is not None and value in null_if):
+        return None
+    try:
+        return Decimal(value)
     except Exception as exc:
         SnowparkLocalTestingException.raise_from_error(
             exc, error_message=f"Numeric value '{value}' is not recognized."
@@ -189,6 +203,7 @@ CONVERT_MAP = {
     ShortType: _integer_converter,
     DoubleType: _fraction_converter,
     FloatType: _fraction_converter,
+    DecFloatType: _decfloat_converter,
     DecimalType: _decimal_converter,
     BooleanType: _bool_converter,
     DateType: _date_converter,

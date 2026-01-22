@@ -461,6 +461,13 @@ class DoubleType(_FractionalType):
         ast.double_type = True
 
 
+class DecFloatType(_FractionalType):
+    """DecFloat data type. This maps to the DECFLOAT data type in Snowflake."""
+
+    def _fill_ast(self, ast: proto.DataType) -> None:
+        ast.decfloat_type = True
+
+
 class DecimalType(_FractionalType):
     """Decimal data type. This maps to the NUMBER data type in Snowflake."""
 
@@ -1108,6 +1115,7 @@ _atomic_types: List[Type[DataType]] = [
     BinaryType,
     BooleanType,
     DecimalType,
+    DecFloatType,
     FloatType,
     DoubleType,
     ByteType,
