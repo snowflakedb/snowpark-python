@@ -51,9 +51,9 @@ def test_literal():
         assert isinstance(Literal(d).datatype, infer_type(d).__class__)
 
     # check explicitly setting the datatype
-    l = Literal(decimal.Decimal(0.5), datatype=DecFloatType())
-    assert l.datatype == DecFloatType()
-    assert l.value == decimal.Decimal(0.5)
+    explicit_literal = Literal(decimal.Decimal(0.5), datatype=DecFloatType())
+    assert explicit_literal.datatype == DecFloatType()
+    assert explicit_literal.value == decimal.Decimal(0.5)
 
     for d in invalid_data:
         with pytest.raises(SnowparkPlanException) as ex_info:
