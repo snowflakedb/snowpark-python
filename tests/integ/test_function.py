@@ -170,7 +170,6 @@ from snowflake.snowpark.types import (
     ArrayType,
     BooleanType,
     DateType,
-    DecFloatType,
     DecimalType,
     DoubleType,
     FloatType,
