@@ -13,7 +13,7 @@ import operator
 import re
 import string
 import threading
-from decimal import Decimal
+from decimal import Decimal, Context, ROUND_HALF_UP
 from functools import partial, reduce
 from numbers import Real
 from random import randint
@@ -44,6 +44,7 @@ from snowflake.snowpark.types import (
     DateType,
     DecimalType,
     DoubleType,
+    DecFloatType,
     FloatType,
     LongType,
     MapType,
@@ -1355,6 +1356,48 @@ def mock_to_double(
         )
 
 
+@patch("to_decfloat")
+def mock_to_decfloat(
+    column: ColumnEmulator, fmt: Optional[str] = None, try_cast: bool = False
+) -> ColumnEmulator:
+    """
+    [x] Fixed-point and floating-point numbers are converted to decimal floating-point number; using DECFLOAT's 38 digits of precision and exponent range.
+
+    [x] Strings are converted as decimal integer or fractional numbers, scientific notation are accepted.
+
+    [x] Boolean values are converted to 0 or 1 (for false and true, correspondingly).
+    """
+    if isinstance(column.sf_type.datatype, (DecFloatType)):
+        return column.copy()
+    if fmt is not None:
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="Using format strings in TO_DECFLOAT",
+            internal_feature_name="mock_to_decfloat",
+            parameters_info={"fmt": str(fmt)},
+            raise_error=NotImplementedError,
+        )
+    DECFLOAT_CONTEXT = Context(
+        prec=38,
+        Emin=-16383,
+        Emax=16384,
+        rounding=ROUND_HALF_UP,
+    )
+    if isinstance(
+        column.sf_type.datatype, (_NumericType, StringType, BooleanType, NullType)
+    ):
+        res = column.apply(
+            lambda x: try_convert(DECFLOAT_CONTEXT.create_decimal, try_cast, x)
+        )
+        res.sf_type = ColumnType(DecFloatType(), column.sf_type.nullable or res.hasnans)
+        return res
+    else:
+        SnowparkLocalTestingException.raise_from_error(
+            TypeError(
+                f"[Local Testing] Invalid type {column.sf_type.datatype} for parameter 'TO_DECFLOAT'"
+            )
+        )
+
+
 @patch("to_boolean")
 def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmulator:
     """
@@ -2173,6 +2216,8 @@ def cast_column_to(
         return mock_to_boolean(col, try_cast=try_cast)
     if isinstance(target_data_type, StringType):
         return mock_to_char(col, try_cast=try_cast)
+    if isinstance(target_data_type, DecFloatType):
+        return mock_to_decfloat(col, try_cast=try_cast)
     if isinstance(target_data_type, _FractionalType):
         return mock_to_double(col, try_cast=try_cast)
     if isinstance(target_data_type, MapType):
