@@ -967,8 +967,6 @@ body {
         input_types {
           integer_type: true
         }
-        max_batch_size {
-        }
         parallel: 4
         return_type {
           integer_type: true
@@ -1186,8 +1184,6 @@ body {
         }
         input_types {
           integer_type: true
-        }
-        max_batch_size {
         }
         parallel: 4
         return_type {
