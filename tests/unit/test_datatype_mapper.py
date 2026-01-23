@@ -700,6 +700,8 @@ def test_numeric_to_sql_without_cast():
     assert numeric_to_sql_without_cast(float("nan"), FloatType()) == "'NAN' :: FLOAT"
     assert numeric_to_sql_without_cast(float("inf"), DoubleType()) == "'INF' :: FLOAT"
 
+    assert numeric_to_sql_without_cast(Decimal(0.5), DecFloatType()) == "0.5"
+
 
 @pytest.mark.parametrize(
     "value, datatype",

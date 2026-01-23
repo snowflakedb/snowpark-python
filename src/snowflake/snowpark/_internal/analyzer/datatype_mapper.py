@@ -606,15 +606,8 @@ def numeric_to_sql_without_cast(value: Any, datatype: DataType) -> str:
 
     if not isinstance(datatype, _NumericType):
         # if the value is not numeric or the datatype is not numeric, fallback to the
-        # regular to_sql generation
+        # regular to_sql generation.
         return to_sql(value, datatype)
-
-    # DecFloatType must always use DECFLOAT 'value' syntax to preserve precision
-    if isinstance(datatype, DecFloatType):
-        if isinstance(value, str):
-            return f"DECFLOAT {str_to_sql(value)}"
-        else:
-            return f"DECFLOAT '{value}'"
 
     if isinstance(value, float) and isinstance(datatype, _FractionalType):
         # when the float value is NAN or INF, a cast is still required
