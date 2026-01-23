@@ -31,6 +31,10 @@
 - Removed experimental warning from `DataFrame.to_arrow` and `DataFrame.to_arrow_batches`.
 - When both `Session.reduce_describe_query_enabled` and `Session.cte_optimization_enabled` are enabled, fewer DESCRIBE queries are issued when resolving table attributes.
 
+#### Dependency Updates
+
+- Added a dependency on `protobuf<7.35` (was `<6.34`).
+
 ### Snowpark pandas API Updates
 
 #### New Features
