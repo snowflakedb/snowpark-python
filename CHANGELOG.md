@@ -19,6 +19,7 @@
       - `rtrimmed_length`
       - `space`
       - `split_part`
+- Added support for the `DECFLOAT` data type
 
 #### Bug Fixes
 
