@@ -2127,7 +2127,7 @@ def to_decfloat(
     Example::
         >>> df = session.create_dataframe(['12', '11.3', '-90.12345'], schema=['a'])
         >>> df.select(to_decfloat(col('a')).as_('ans')).collect()
-        [Row(ANS=Decimal('12.0')), Row(ANS=Decimal('11.3')), Row(ANS=Decimal('-90.12345'))]
+        [Row(ANS=Decimal('12')), Row(ANS=Decimal('11.3')), Row(ANS=Decimal('-90.12345'))]
     """
     ast = (
         build_function_expr("to_decfloat", [e] if fmt is None else [e, fmt])
