@@ -72,7 +72,7 @@ message ColumnAliasFn {
   }
 }
 
-// type.ir:34
+// type.ir:35
 message ColumnRef {
   oneof sealed_value {
     ColumnIdentifier column_identifier = 1;
@@ -80,12 +80,12 @@ message ColumnRef {
   }
 }
 
-// type.ir:35
+// type.ir:36
 message ColumnIdentifier {
   string name = 1;
 }
 
-// type.ir:36
+// type.ir:37
 message ColumnName {
   string name = 1;
 }
@@ -99,27 +99,28 @@ message DataType {
     bool byte_type = 4;
     bool date_type = 5;
     DayTimeIntervalType day_time_interval_type = 6;
-    DecimalType decimal_type = 7;
-    bool double_type = 8;
-    bool file_type = 9;
-    bool float_type = 10;
-    bool geography_type = 11;
-    bool geometry_type = 12;
-    bool integer_type = 13;
-    bool long_type = 14;
-    MapType map_type = 15;
-    bool null_type = 16;
-    PandasDataFrameType pandas_data_frame_type = 17;
-    PandasSeriesType pandas_series_type = 18;
-    bool short_type = 19;
-    StringType string_type = 20;
-    StructField struct_field = 21;
-    StructType struct_type = 22;
-    bool time_type = 23;
-    TimestampType timestamp_type = 24;
-    bool variant_type = 25;
-    VectorType vector_type = 26;
-    YearMonthIntervalType year_month_interval_type = 27;
+    bool dec_float_type = 7;
+    DecimalType decimal_type = 8;
+    bool double_type = 9;
+    bool file_type = 10;
+    bool float_type = 11;
+    bool geography_type = 12;
+    bool geometry_type = 13;
+    bool integer_type = 14;
+    bool long_type = 15;
+    MapType map_type = 16;
+    bool null_type = 17;
+    PandasDataFrameType pandas_data_frame_type = 18;
+    PandasSeriesType pandas_series_type = 19;
+    bool short_type = 20;
+    StringType string_type = 21;
+    StructField struct_field = 22;
+    StructType struct_type = 23;
+    bool time_type = 24;
+    TimestampType timestamp_type = 25;
+    bool variant_type = 26;
+    VectorType vector_type = 27;
+    YearMonthIntervalType year_month_interval_type = 28;
   }
 }
 
@@ -141,54 +142,54 @@ message DecimalType {
   int64 scale = 2;
 }
 
-// type.ir:17
+// type.ir:18
 message MapType {
   DataType key_ty = 1;
   bool structured = 2;
   DataType value_ty = 3;
 }
 
-// type.ir:20
+// type.ir:21
 message StringType {
   google.protobuf.Int64Value length = 1;
 }
 
-// type.ir:21
+// type.ir:22
 message StructField {
   ColumnRef column_identifier = 1;
   DataType data_type = 2;
   bool nullable = 3;
 }
 
-// type.ir:22
+// type.ir:23
 message StructType {
   repeated StructField fields = 1;
   bool structured = 2;
 }
 
-// type.ir:24
+// type.ir:25
 message TimestampType {
   TimestampTimeZone time_zone = 1;
 }
 
-// type.ir:26
+// type.ir:27
 message VectorType {
   int64 dimension = 1;
   DataType ty = 2;
 }
 
-// type.ir:27
+// type.ir:28
 message YearMonthIntervalType {
   int64 end_field = 1;
   int64 start_field = 2;
 }
 
-// type.ir:29
+// type.ir:30
 message PandasSeriesType {
   DataType el_ty = 1;
 }
 
-// type.ir:30
+// type.ir:31
 message PandasDataFrameType {
   repeated string col_names = 1;
   repeated DataType col_types = 2;
@@ -218,7 +219,7 @@ message DataframeData_Pandas {
   StagedPandasDataframe v = 1;
 }
 
-// type.ir:46
+// type.ir:47
 message DataframeSchema {
   oneof sealed_value {
     DataframeSchema_List dataframe_schema__list = 1;
@@ -226,12 +227,12 @@ message DataframeSchema {
   }
 }
 
-// type.ir:47
+// type.ir:48
 message DataframeSchema_List {
   repeated string vs = 1;
 }
 
-// type.ir:48
+// type.ir:49
 message DataframeSchema_Struct {
   StructType v = 1;
 }
@@ -349,7 +350,7 @@ message TableVariant {
   }
 }
 
-// type.ir:39
+// type.ir:40
 message TimestampTimeZone {
   oneof variant {
     bool timestamp_time_zone_default = 1;

@@ -1759,6 +1759,14 @@ def test_type_string_to_type_object_numeric_decimal(upper_case):
 
 
 @pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_decfloat(upper_case):
+    base_string = "decfloat"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
+    assert isinstance(dt, DecFloatType), f"Expected DecFloatType, got {dt}"
+
+
+@pytest.mark.parametrize("upper_case", [False, True])
 def test_type_string_to_type_object_decimal_spaces(upper_case):
     # Check spaces inside parentheses
     base_string = "  decimal  (  2  ,  1  )  "
