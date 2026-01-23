@@ -15,6 +15,7 @@ import datetime
 from decimal import Decimal
 from typing import List, Optional, Union
 
+from snowflake.snowpark.mock._util import DECFLOAT_CONTEXT
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     BooleanType,
@@ -104,7 +105,7 @@ def _decfloat_converter(
     if value is None or value == "" or (null_if is not None and value in null_if):
         return None
     try:
-        return Decimal(value)
+        return DECFLOAT_CONTEXT.create_decimal(value)
     except Exception as exc:
         SnowparkLocalTestingException.raise_from_error(
             exc, error_message=f"Numeric value '{value}' is not recognized."

@@ -13,7 +13,7 @@ import operator
 import re
 import string
 import threading
-from decimal import Decimal, Context, ROUND_HALF_UP
+from decimal import Decimal
 from functools import partial, reduce
 from numbers import Real
 from random import randint
@@ -61,6 +61,7 @@ from snowflake.snowpark.types import (
 
 from ._telemetry import LocalTestOOBTelemetryService
 from ._util import (
+    DECFLOAT_CONTEXT,
     convert_numeric_string_value_to_float_seconds,
     convert_snowflake_datetime_format,
     process_string_time_with_fractional_seconds,
@@ -1376,12 +1377,6 @@ def mock_to_decfloat(
             parameters_info={"fmt": str(fmt)},
             raise_error=NotImplementedError,
         )
-    DECFLOAT_CONTEXT = Context(
-        prec=38,
-        Emin=-16383,
-        Emax=16384,
-        rounding=ROUND_HALF_UP,
-    )
     if isinstance(
         column.sf_type.datatype, (_NumericType, StringType, BooleanType, NullType)
     ):

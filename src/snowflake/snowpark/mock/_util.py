@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from decimal import ROUND_HALF_UP, Context
 import math
 import os
 import shutil
@@ -334,3 +335,13 @@ class ImportContext:
 
     def __exit__(self, type, value, traceback):
         self._callback()
+
+
+# context to instantiate decimal.Decimal values comforming to SF DECFLOAT data type
+# https://docs.snowflake.com/en/sql-reference/data-types-numeric#label-data-type-decfloat
+DECFLOAT_CONTEXT = Context(
+    prec=38,
+    Emin=-16383,
+    Emax=16384,
+    rounding=ROUND_HALF_UP,
+)
