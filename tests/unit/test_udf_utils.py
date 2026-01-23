@@ -414,3 +414,7 @@ def test_get_func_arg_names():
 
     arg_names = get_func_arg_names(SumUDAF, TempObjectType.AGGREGATE_FUNCTION, 2, True)
     assert arg_names == ["input_value", "input_value2"]
+
+    # wrong class type should fallback to default arg names
+    arg_names = get_func_arg_names(SumUDAF, TempObjectType.TABLE_FUNCTION, 2, True)
+    assert arg_names == ["arg1", "arg2"]
