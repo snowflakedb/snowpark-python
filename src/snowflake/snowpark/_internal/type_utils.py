@@ -198,7 +198,7 @@ def convert_metadata_to_sp_type(
 def convert_sf_to_sp_type(
     column_type_name: str,
     precision: int,
-    scale: int | None,
+    scale: Optional[int],
     internal_size: int,
     max_string_size: int,
 ) -> DataType:
