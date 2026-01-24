@@ -559,6 +559,8 @@ def get_func_arg_names(
             arg_names = arg_names[1:]
 
         if len(arg_names) != num_args:
+            # This could happen for vectorized UDxFs, since there could be a single dataframe argument
+            # but potentially more than one column. We will do best-effort preservation but fallback if needed.
             return default_arg_names
 
         return arg_names
