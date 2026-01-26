@@ -19,6 +19,7 @@
       - `rtrimmed_length`
       - `space`
       - `split_part`
+- Added `preserve_parameter_names` flag to sproc, UDF, UDTF, and UDAF creation
 
 #### Bug Fixes
 
