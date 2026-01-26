@@ -9399,6 +9399,7 @@ def udf(
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
@@ -9492,6 +9493,8 @@ def udf(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of the referenced function in the created UDF.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -9596,6 +9599,7 @@ def udf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9623,6 +9627,7 @@ def udf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9652,6 +9657,7 @@ def udtf(
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
@@ -9731,6 +9737,8 @@ def udtf(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of the ``process`` method of ``handler`` in the created UDTF.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -9844,6 +9852,7 @@ def udtf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9869,6 +9878,7 @@ def udtf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9896,6 +9906,7 @@ def udaf(
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
@@ -9975,6 +9986,8 @@ def udaf(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of the ``accumulate`` method of ``handler`` in the created UDAF.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -10094,6 +10107,7 @@ def udaf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10117,6 +10131,7 @@ def udaf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10618,6 +10633,7 @@ def sproc(
     _emit_ast: bool = True,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -10703,6 +10719,8 @@ def sproc(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of ``func`` in the created stored procedure.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A stored procedure function that can be called with python value.
@@ -10794,6 +10812,7 @@ def sproc(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10819,6 +10838,7 @@ def sproc(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )

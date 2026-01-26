@@ -39,6 +39,7 @@ from snowflake.snowpark._internal.type_utils import (
     python_type_str_to_object,
     python_type_to_snow_type,
     python_value_str_to_object,
+    retrieve_func_arg_names_from_source,
     retrieve_func_defaults_from_source,
     retrieve_func_type_hints_from_source,
 )
@@ -491,6 +492,84 @@ def get_opt_arg_defaults(
             "Proceeding without creating optional arguments"
         )
         return EMPTY_DEFAULT_VALUES
+
+
+def get_func_arg_names(
+    func: Union[Callable, Tuple[str, str]],
+    object_type: TempObjectType,
+    num_args: int,
+    preserve_parameter_names: bool,
+) -> List[str]:
+    default_arg_names = [f"arg{i + 1}" for i in range(num_args)]
+    if not preserve_parameter_names:
+        return default_arg_names
+
+    def get_arg_names_from_callable() -> Optional[List[str]]:
+        target_func = None
+        if object_type == TempObjectType.TABLE_FUNCTION:
+            if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+                target_func = getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
+        if object_type == TempObjectType.AGGREGATE_FUNCTION:
+            if hasattr(func, AGGREGATE_FUNCTION_ACCULUMATE_METHOD):
+                target_func = getattr(func, AGGREGATE_FUNCTION_ACCULUMATE_METHOD)
+        if object_type in (TempObjectType.PROCEDURE, TempObjectType.FUNCTION):
+            target_func = func
+
+        if target_func is None:
+            return None
+        return inspect.getfullargspec(target_func).args
+
+    def get_arg_names_from_file() -> Optional[List[str]]:
+        filename, func_name = func[0], func[1]
+        if not is_local_python_file(filename):
+            return None
+
+        arg_names = None
+        if object_type == TempObjectType.TABLE_FUNCTION:
+            arg_names = retrieve_func_arg_names_from_source(
+                filename, TABLE_FUNCTION_PROCESS_METHOD, func_name
+            )
+        elif object_type == TempObjectType.AGGREGATE_FUNCTION:
+            arg_names = retrieve_func_arg_names_from_source(
+                filename, AGGREGATE_FUNCTION_ACCULUMATE_METHOD, func_name
+            )
+        elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
+            arg_names = retrieve_func_arg_names_from_source(filename, func_name)
+
+        return arg_names
+
+    try:
+        arg_names = (
+            get_arg_names_from_callable()
+            if isinstance(func, Callable)
+            else get_arg_names_from_file()
+        )
+
+        if arg_names is None:
+            return default_arg_names
+
+        # Skip the first argument when:
+        # 1. It's a stored procedure, ignore the "session" argument
+        # 2. It's a table/aggregate function, ignore the "self" argument of the method
+        if object_type in (
+            TempObjectType.PROCEDURE,
+            TempObjectType.TABLE_FUNCTION,
+            TempObjectType.AGGREGATE_FUNCTION,
+        ):
+            arg_names = arg_names[1:]
+
+        if len(arg_names) != num_args:
+            # This could happen for vectorized UDxFs, since there could be a single dataframe argument
+            # but potentially more than one column. We will do best-effort preservation but fallback if needed.
+            return default_arg_names
+
+        return arg_names
+    except Exception as e:
+        logger.warning(
+            f"Got error {e} when trying to read argument names from function: {func}. "
+            "Proceeding with generic argument names."
+        )
+        return default_arg_names
 
 
 def get_error_message_abbr(object_type: TempObjectType) -> str:

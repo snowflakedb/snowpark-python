@@ -127,6 +127,7 @@ my_udtf = session.udtf.register_from_file(
         BinaryType(),
     ],
     immutable=True,
+    preserve_parameter_names=True,
 )
 df = session.table_function(
       my_udtf(
@@ -176,25 +177,25 @@ ar_udtf = session.udtf.register(
 
 ## EXPECTED UNPARSER OUTPUT
 
-prime_udtf = udtf("PrimeSieve", output_schema=StructType(fields=[StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+prime_udtf = udtf("PrimeSieve", output_schema=StructType(fields=[StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 session.table_function(prime_udtf(lit(20))).collect()
 
 df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-df.with_column("total", udtf("sum_udtf", output_schema=StructType(fields=[StructField("number", LongType(), nullable=True)], structured=False), input_types=[LongType(), LongType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")(df["a"], df["b"])).sort(df["a"], ascending=True).show()
+df.with_column("total", udtf("sum_udtf", output_schema=StructType(fields=[StructField("number", LongType(), nullable=True)], structured=False), input_types=[LongType(), LongType()], copy_grants=False, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")(df["a"], df["b"])).sort(df["a"], ascending=True).show()
 
-generator_udtf = udtf("GeneratorUDTF", output_schema=StructType(fields=[StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+generator_udtf = udtf("GeneratorUDTF", output_schema=StructType(fields=[StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 session.table_function(generator_udtf(lit(3))).collect()
 
-foo = udtf("Foo", output_schema=StructType(fields=[StructField("a", LongType(), nullable=True), StructField("b", LongType(), nullable=True)], structured=False), input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", copy_grants=False, force_inline_code=True, _registered_object_name="foo")
+foo = udtf("Foo", output_schema=StructType(fields=[StructField("a", LongType(), nullable=True), StructField("b", LongType(), nullable=True)], structured=False), input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", copy_grants=False, force_inline_code=True, preserve_parameter_names=False, _registered_object_name="foo")
 
 df = session.create_dataframe([(1, "one o one", 10), (2, "twenty two", 20), (3, "thirty three", 30)])
 
 df = df.to_df(["a", "b", "c"])
 
-twox_udtf = udtf("TwoXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+twox_udtf = udtf("TwoXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.select((twox_udtf("a"))).collect()
 
@@ -202,7 +203,7 @@ df = session.create_dataframe([(1, "one o one", 10), (2, "twenty two", 20), (3, 
 
 df = df.to_df(["a", "b", "c"])
 
-twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.select(df["a"], (twoxsix_udtf(df["a"]))).collect()
 
@@ -210,19 +211,19 @@ df = session.create_dataframe([(1, "one o one", 10), (2, "twenty two", 20), (3, 
 
 df = df.to_df(["a", "b", "c"])
 
-twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.select("a", (twoxsix_udtf("a").alias("double", "six_x")), "c").collect()
 
-my_udtf = udtf("MyUDTFWithoutTypeHints", output_schema=StructType(fields=[StructField("int_", IntegerType(), nullable=True), StructField("float_", FloatType(), nullable=True), StructField("bool_", BooleanType(), nullable=True), StructField("decimal_", DecimalType(10, 2), nullable=True), StructField("str_", StringType(), nullable=True), StructField("bytes_", BinaryType(), nullable=True), StructField("bytearray_", BinaryType(), nullable=True)], structured=False), input_types=[IntegerType(), FloatType(), BooleanType(), DecimalType(10, 2), StringType(), BinaryType(), BinaryType()], immutable=True, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+my_udtf = udtf("MyUDTFWithoutTypeHints", output_schema=StructType(fields=[StructField("int_", IntegerType(), nullable=True), StructField("float_", FloatType(), nullable=True), StructField("bool_", BooleanType(), nullable=True), StructField("decimal_", DecimalType(10, 2), nullable=True), StructField("str_", StringType(), nullable=True), StructField("bytes_", BinaryType(), nullable=True), StructField("bytearray_", BinaryType(), nullable=True)], structured=False), input_types=[IntegerType(), FloatType(), BooleanType(), DecimalType(10, 2), StringType(), BinaryType(), BinaryType()], immutable=True, copy_grants=False, preserve_parameter_names=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df = session.table_function(my_udtf(lit(1), lit(2.2), lit(True), lit(Decimal("3.33")).cast(DecimalType(10, 2)), lit("python"), lit(bytes("bytes", "utf-8")), lit(bytes("bytearray", "utf-8"))))
 
-my_udtf = udtf("MyUDTFWithTypeHints", output_schema=StructType(fields=[StructField("int_", LongType(), nullable=True), StructField("float_", FloatType(), nullable=True), StructField("bool_", BooleanType(), nullable=True), StructField("decimal_", DecimalType(38, 18), nullable=True), StructField("str_", StringType(), nullable=True), StructField("bytes_", BinaryType(), nullable=True), StructField("bytearray_", BinaryType(), nullable=True)], structured=False), input_types=[LongType(), FloatType(), BooleanType(), DecimalType(38, 18), StringType(), BinaryType(), BinaryType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+my_udtf = udtf("MyUDTFWithTypeHints", output_schema=StructType(fields=[StructField("int_", LongType(), nullable=True), StructField("float_", FloatType(), nullable=True), StructField("bool_", BooleanType(), nullable=True), StructField("decimal_", DecimalType(38, 18), nullable=True), StructField("str_", StringType(), nullable=True), StructField("bytes_", BinaryType(), nullable=True), StructField("bytearray_", BinaryType(), nullable=True)], structured=False), input_types=[LongType(), FloatType(), BooleanType(), DecimalType(38, 18), StringType(), BinaryType(), BinaryType()], copy_grants=False, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df = session.table_function(my_udtf(lit(1), lit(2.2), lit(True), lit(Decimal("3.33")), lit("python"), lit(bytes("bytes", "utf-8")), lit(bytes("bytearray", "utf-8"))))
 
-ar_udtf = udtf("ArtifactRepositoryUDTF", output_schema=StructType(fields=[StructField("a", StringType(), nullable=True)], structured=False), packages=["urllib3", "requests"], artifact_repository="EXAMPLE_REPO", resource_constraint={"architecture": "x86"}, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+ar_udtf = udtf("ArtifactRepositoryUDTF", output_schema=StructType(fields=[StructField("a", StringType(), nullable=True)], structured=False), packages=["urllib3", "requests"], artifact_repository="EXAMPLE_REPO", resource_constraint={"architecture": "x86"}, copy_grants=False, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 ## EXPECTED ENCODED AST
 
@@ -254,6 +255,20 @@ body {
         }
         kwargs {
           _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 132
+                end_line: 48
+                file: 2
+                start_column: 21
+                start_line: 48
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
           _2 {
             bool_val {
               src {
@@ -449,6 +464,20 @@ body {
         }
         kwargs {
           _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 39
+                end_line: 52
+                file: 2
+                start_column: 9
+                start_line: 52
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
           _2 {
             bool_val {
               src {
@@ -782,6 +811,20 @@ body {
             }
           }
         }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 139
+                end_line: 65
+                file: 2
+                start_column: 25
+                start_line: 65
+              }
+            }
+          }
+        }
         output_schema {
           udtf_schema__type {
             return_type {
@@ -1010,6 +1053,20 @@ body {
                 start_line: 74
               }
               v: true
+            }
+          }
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 40
+                end_line: 91
+                file: 2
+                start_column: 14
+                start_line: 74
+              }
             }
           }
         }
@@ -1328,6 +1385,20 @@ body {
         }
         kwargs {
           _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 106
+                file: 2
+                start_column: 20
+                start_line: 102
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
           _2 {
             bool_val {
               src {
@@ -1734,6 +1805,20 @@ body {
         }
         kwargs {
           _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 120
+                file: 2
+                start_column: 23
+                start_line: 114
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
           _2 {
             bool_val {
               src {
@@ -2185,6 +2270,20 @@ body {
             }
           }
         }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 120
+                file: 2
+                start_column: 23
+                start_line: 114
+              }
+            }
+          }
+        }
         output_schema {
           udtf_schema__type {
             return_type {
@@ -2453,11 +2552,26 @@ body {
             bool_val {
               src {
                 end_column: 9
-                end_line: 152
+                end_line: 153
                 file: 2
                 start_column: 18
                 start_line: 138
               }
+            }
+          }
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 153
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+              v: true
             }
           }
         }
@@ -2555,7 +2669,7 @@ body {
         parallel: 4
         src {
           end_column: 9
-          end_line: 152
+          end_line: 153
           file: 2
           start_column: 18
           start_line: 138
@@ -2595,50 +2709,16 @@ body {
               int64_val {
                 src {
                   end_column: 24
-                  end_line: 155
+                  end_line: 156
                   file: 2
                   start_column: 18
-                  start_line: 155
+                  start_line: 156
                 }
                 v: 1
               }
             }
             src {
               end_column: 24
-              end_line: 155
-              file: 2
-              start_column: 18
-              start_line: 155
-            }
-          }
-        }
-        pos_args {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    name_flat {
-                      name: "lit"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              float64_val {
-                src {
-                  end_column: 26
-                  end_line: 156
-                  file: 2
-                  start_column: 18
-                  start_line: 156
-                }
-                v: 2.2
-              }
-            }
-            src {
-              end_column: 26
               end_line: 156
               file: 2
               start_column: 18
@@ -2660,23 +2740,57 @@ body {
               }
             }
             pos_args {
-              bool_val {
+              float64_val {
                 src {
-                  end_column: 27
+                  end_column: 26
                   end_line: 157
                   file: 2
                   start_column: 18
                   start_line: 157
+                }
+                v: 2.2
+              }
+            }
+            src {
+              end_column: 26
+              end_line: 157
+              file: 2
+              start_column: 18
+              start_line: 157
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              bool_val {
+                src {
+                  end_column: 27
+                  end_line: 158
+                  file: 2
+                  start_column: 18
+                  start_line: 158
                 }
                 v: true
               }
             }
             src {
               end_column: 27
-              end_line: 157
+              end_line: 158
               file: 2
               start_column: 18
-              start_line: 157
+              start_line: 158
             }
           }
         }
@@ -2700,29 +2814,29 @@ body {
                     scale: -2
                     src {
                       end_column: 46
-                      end_line: 158
+                      end_line: 159
                       file: 2
                       start_column: 18
-                      start_line: 158
+                      start_line: 159
                     }
                     unscaled_value: "\001M"
                   }
                 }
                 src {
                   end_column: 46
-                  end_line: 158
+                  end_line: 159
                   file: 2
                   start_column: 18
-                  start_line: 158
+                  start_line: 159
                 }
               }
             }
             src {
               end_column: 68
-              end_line: 158
+              end_line: 159
               file: 2
               start_column: 18
-              start_line: 158
+              start_line: 159
             }
             to {
               decimal_type {
@@ -2749,46 +2863,12 @@ body {
               string_val {
                 src {
                   end_column: 31
-                  end_line: 159
-                  file: 2
-                  start_column: 18
-                  start_line: 159
-                }
-                v: "python"
-              }
-            }
-            src {
-              end_column: 31
-              end_line: 159
-              file: 2
-              start_column: 18
-              start_line: 159
-            }
-          }
-        }
-        pos_args {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    name_flat {
-                      name: "lit"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              binary_val {
-                src {
-                  end_column: 31
                   end_line: 160
                   file: 2
                   start_column: 18
                   start_line: 160
                 }
-                v: "bytes"
+                v: "python"
               }
             }
             src {
@@ -2816,17 +2896,17 @@ body {
             pos_args {
               binary_val {
                 src {
-                  end_column: 54
+                  end_column: 31
                   end_line: 161
                   file: 2
                   start_column: 18
                   start_line: 161
                 }
-                v: "bytearray"
+                v: "bytes"
               }
             }
             src {
-              end_column: 54
+              end_column: 31
               end_line: 161
               file: 2
               start_column: 18
@@ -2834,12 +2914,46 @@ body {
             }
           }
         }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              binary_val {
+                src {
+                  end_column: 54
+                  end_line: 162
+                  file: 2
+                  start_column: 18
+                  start_line: 162
+                }
+                v: "bytearray"
+              }
+            }
+            src {
+              end_column: 54
+              end_line: 162
+              file: 2
+              start_column: 18
+              start_line: 162
+            }
+          }
+        }
         src {
           end_column: 15
-          end_line: 162
+          end_line: 163
           file: 2
           start_column: 14
-          start_line: 154
+          start_line: 155
         }
       }
     }
@@ -2862,19 +2976,19 @@ body {
             }
             src {
               end_column: 9
-              end_line: 163
+              end_line: 164
               file: 2
               start_column: 13
-              start_line: 153
+              start_line: 154
             }
           }
         }
         src {
           end_column: 9
-          end_line: 163
+          end_line: 164
           file: 2
           start_column: 13
-          start_line: 153
+          start_line: 154
         }
       }
     }
@@ -2933,10 +3047,24 @@ body {
             bool_val {
               src {
                 end_column: 9
-                end_line: 171
+                end_line: 172
                 file: 2
                 start_column: 18
-                start_line: 167
+                start_line: 168
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 172
+                file: 2
+                start_column: 18
+                start_line: 168
               }
             }
           }
@@ -3035,10 +3163,10 @@ body {
         parallel: 4
         src {
           end_column: 9
-          end_line: 171
+          end_line: 172
           file: 2
           start_column: 18
-          start_line: 167
+          start_line: 168
         }
       }
     }
@@ -3075,50 +3203,16 @@ body {
               int64_val {
                 src {
                   end_column: 22
-                  end_line: 174
+                  end_line: 175
                   file: 2
                   start_column: 16
-                  start_line: 174
+                  start_line: 175
                 }
                 v: 1
               }
             }
             src {
               end_column: 22
-              end_line: 174
-              file: 2
-              start_column: 16
-              start_line: 174
-            }
-          }
-        }
-        pos_args {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    name_flat {
-                      name: "lit"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              float64_val {
-                src {
-                  end_column: 24
-                  end_line: 175
-                  file: 2
-                  start_column: 16
-                  start_line: 175
-                }
-                v: 2.2
-              }
-            }
-            src {
-              end_column: 24
               end_line: 175
               file: 2
               start_column: 16
@@ -3140,19 +3234,19 @@ body {
               }
             }
             pos_args {
-              bool_val {
+              float64_val {
                 src {
-                  end_column: 25
+                  end_column: 24
                   end_line: 176
                   file: 2
                   start_column: 16
                   start_line: 176
                 }
-                v: true
+                v: 2.2
               }
             }
             src {
-              end_column: 25
+              end_column: 24
               end_line: 176
               file: 2
               start_column: 16
@@ -3174,20 +3268,19 @@ body {
               }
             }
             pos_args {
-              big_decimal_val {
-                scale: -2
+              bool_val {
                 src {
-                  end_column: 44
+                  end_column: 25
                   end_line: 177
                   file: 2
                   start_column: 16
                   start_line: 177
                 }
-                unscaled_value: "\001M"
+                v: true
               }
             }
             src {
-              end_column: 44
+              end_column: 25
               end_line: 177
               file: 2
               start_column: 16
@@ -3209,19 +3302,20 @@ body {
               }
             }
             pos_args {
-              string_val {
+              big_decimal_val {
+                scale: -2
                 src {
-                  end_column: 29
+                  end_column: 44
                   end_line: 178
                   file: 2
                   start_column: 16
                   start_line: 178
                 }
-                v: "python"
+                unscaled_value: "\001M"
               }
             }
             src {
-              end_column: 29
+              end_column: 44
               end_line: 178
               file: 2
               start_column: 16
@@ -3243,7 +3337,7 @@ body {
               }
             }
             pos_args {
-              binary_val {
+              string_val {
                 src {
                   end_column: 29
                   end_line: 179
@@ -3251,7 +3345,7 @@ body {
                   start_column: 16
                   start_line: 179
                 }
-                v: "bytes"
+                v: "python"
               }
             }
             src {
@@ -3279,17 +3373,17 @@ body {
             pos_args {
               binary_val {
                 src {
-                  end_column: 52
+                  end_column: 29
                   end_line: 180
                   file: 2
                   start_column: 16
                   start_line: 180
                 }
-                v: "bytearray"
+                v: "bytes"
               }
             }
             src {
-              end_column: 52
+              end_column: 29
               end_line: 180
               file: 2
               start_column: 16
@@ -3297,12 +3391,46 @@ body {
             }
           }
         }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              binary_val {
+                src {
+                  end_column: 52
+                  end_line: 181
+                  file: 2
+                  start_column: 16
+                  start_line: 181
+                }
+                v: "bytearray"
+              }
+            }
+            src {
+              end_column: 52
+              end_line: 181
+              file: 2
+              start_column: 16
+              start_line: 181
+            }
+          }
+        }
         src {
           end_column: 13
-          end_line: 181
+          end_line: 182
           file: 2
           start_column: 12
-          start_line: 173
+          start_line: 174
         }
       }
     }
@@ -3325,19 +3453,19 @@ body {
             }
             src {
               end_column: 9
-              end_line: 182
+              end_line: 183
               file: 2
               start_column: 13
-              start_line: 172
+              start_line: 173
             }
           }
         }
         src {
           end_column: 9
-          end_line: 182
+          end_line: 183
           file: 2
           start_column: 13
-          start_line: 172
+          start_line: 173
         }
       }
     }
@@ -3372,10 +3500,24 @@ body {
             bool_val {
               src {
                 end_column: 9
-                end_line: 197
+                end_line: 198
                 file: 2
                 start_column: 18
-                start_line: 191
+                start_line: 192
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 198
+                file: 2
+                start_column: 18
+                start_line: 192
               }
             }
           }
@@ -3411,10 +3553,10 @@ body {
         }
         src {
           end_column: 9
-          end_line: 197
+          end_line: 198
           file: 2
           start_column: 18
-          start_line: 191
+          start_line: 192
         }
       }
     }

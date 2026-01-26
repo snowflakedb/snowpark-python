@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.udf_utils import (
     generate_anonymous_python_sp_sql,
     generate_python_code,
     get_error_message_abbr,
+    get_func_arg_names,
     pickle_function,
     resolve_imports_and_packages,
     resolve_packages_in_client_side_sandbox,
@@ -353,3 +354,67 @@ def test_generate_anonymous_python_sp_sql_with_none_session():
         )
 
     mock_callback.assert_called_once()
+
+
+def test_get_func_arg_names():
+    def my_no_arg_sproc(session):
+        pass
+
+    arg_names = get_func_arg_names(my_no_arg_sproc, TempObjectType.PROCEDURE, 0, False)
+    assert arg_names == []
+    arg_names = get_func_arg_names(my_no_arg_sproc, TempObjectType.PROCEDURE, 0, True)
+    assert arg_names == []
+
+    def my_sproc(session, first_arg, second_arg):
+        pass
+
+    arg_names = get_func_arg_names(my_sproc, TempObjectType.PROCEDURE, 2, True)
+    assert arg_names == ["first_arg", "second_arg"]
+    arg_names = get_func_arg_names(my_sproc, TempObjectType.PROCEDURE, 2, False)
+    assert arg_names == ["arg1", "arg2"]
+
+    def my_udf(x, y, z):
+        pass
+
+    arg_names = get_func_arg_names(my_udf, TempObjectType.FUNCTION, 3, True)
+    assert arg_names == ["x", "y", "z"]
+
+    # wrong number of arguments found should fallback to default arg names
+    arg_names = get_func_arg_names(my_udf, TempObjectType.FUNCTION, 2, True)
+    assert arg_names == ["arg1", "arg2"]
+
+    # failures should fallback to default arg names
+    # we can reproduce failure by passing in a python builtin function, which cannot be inspected
+    arg_names = get_func_arg_names(min, TempObjectType.FUNCTION, 2, True)
+    assert arg_names == ["arg1", "arg2"]
+
+    class MyUDTF:
+        def process(self, x, y, z):
+            return [(x, y, z)]
+
+    arg_names = get_func_arg_names(MyUDTF, TempObjectType.TABLE_FUNCTION, 3, True)
+    assert arg_names == ["x", "y", "z"]
+
+    class SumUDAF:
+        def __init__(self) -> None:
+            self._partial_sum = 0
+
+        @property
+        def aggregate_state(self):
+            return self._partial_sum
+
+        def accumulate(self, input_value, input_value2):
+            self._partial_sum += input_value + input_value2
+
+        def merge(self, other_partial_sum):
+            self._partial_sum += other_partial_sum
+
+        def finish(self):
+            return self._partial_sum
+
+    arg_names = get_func_arg_names(SumUDAF, TempObjectType.AGGREGATE_FUNCTION, 2, True)
+    assert arg_names == ["input_value", "input_value2"]
+
+    # wrong class type should fallback to default arg names
+    arg_names = get_func_arg_names(SumUDAF, TempObjectType.TABLE_FUNCTION, 2, True)
+    assert arg_names == ["arg1", "arg2"]

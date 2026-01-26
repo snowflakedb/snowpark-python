@@ -1052,6 +1052,54 @@ def retrieve_func_type_hints_from_source(
     return visitor.type_hints
 
 
+def retrieve_func_arg_names_from_source(
+    file_path: str,
+    func_name: str,
+    class_name: Optional[str] = None,
+    _source: Optional[str] = None,
+) -> Optional[List[str]]:
+    """
+    Retrieve argument names of a function from a source file, or a source string (test only).
+    Returns None if the function is not found.
+    """
+
+    class FuncNodeVisitor(ast.NodeVisitor):
+        arg_names: List[str] = []
+        func_exist = False
+
+        def visit_FunctionDef(self, node):
+            if node.name == func_name:
+                self.arg_names = [arg.arg for arg in node.args.args]
+                self.func_exist = True
+
+    if not _source:
+        with open(file_path) as f:
+            _source = f.read()
+
+    if class_name:
+
+        class ClassNodeVisitor(ast.NodeVisitor):
+            class_node = None
+
+            def visit_ClassDef(self, node):
+                if node.name == class_name:
+                    self.class_node = node
+
+        class_visitor = ClassNodeVisitor()
+        class_visitor.visit(ast.parse(_source))
+        if class_visitor.class_node is None:
+            return None
+        to_visit_node_for_func = class_visitor.class_node
+    else:
+        to_visit_node_for_func = ast.parse(_source)
+
+    visitor = FuncNodeVisitor()
+    visitor.visit(to_visit_node_for_func)
+    if not visitor.func_exist:
+        return None
+    return visitor.arg_names
+
+
 # Get a mapping from type string to type object, for cast() function
 def get_data_type_string_object_mappings(
     to_fill_dict: Dict[str, Type[DataType]],

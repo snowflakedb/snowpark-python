@@ -45,6 +45,7 @@ from snowflake.snowpark._internal.type_utils import (
     parse_struct_field_list,
     python_type_to_snow_type,
     python_value_str_to_object,
+    retrieve_func_arg_names_from_source,
     retrieve_func_defaults_from_source,
     retrieve_func_type_hints_from_source,
     snow_type_to_dtype_str,
@@ -2498,3 +2499,41 @@ def test_most_permissive_type():
 
     assert most_permissive_type(StringType(5)) == StringType()
     assert most_permissive_type(VectorType("int", 2)) == VectorType("int", 2)
+
+
+def test_retrieve_arg_names_from_source():
+    # from top-level function
+    source = """
+def my_function(session, first_param, second_param):
+    return first_param + second_param
+"""
+    arg_names = retrieve_func_arg_names_from_source("", "my_function", _source=source)
+    assert arg_names == ["session", "first_param", "second_param"]
+
+    # not found
+    arg_names = retrieve_func_arg_names_from_source(
+        "", "nonexistent_function", _source=source
+    )
+    assert arg_names is None
+
+    # from class method
+    source = """
+class MyClass:
+    def process(self, input_a, input_b):
+        return input_a * input_b
+"""
+    arg_names = retrieve_func_arg_names_from_source(
+        "", "process", class_name="MyClass", _source=source
+    )
+    assert arg_names == ["self", "input_a", "input_b"]
+
+    # class not found
+    source = """
+class MyClass:
+    def process(self, input_a, input_b):
+        return input_a * input_b
+"""
+    arg_names = retrieve_func_arg_names_from_source(
+        "", "process", class_name="MyOtherClass", _source=source
+    )
+    assert arg_names is None
