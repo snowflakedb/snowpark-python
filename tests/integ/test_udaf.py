@@ -747,6 +747,9 @@ def test_udaf_artifact_repository_from_file(session, tmpdir):
 
 
 def test_register_udaf_with_preserve_parameter_names(session, resources_path):
+    sum_udaf_name = Utils.random_name_for_temp_object(TempObjectType.AGGREGATE_FUNCTION)
+    my_udaf_name = Utils.random_name_for_temp_object(TempObjectType.AGGREGATE_FUNCTION)
+
     class PythonSumUDAFHandler:
         def __init__(self) -> None:
             self._sum = 0
@@ -766,24 +769,26 @@ def test_register_udaf_with_preserve_parameter_names(session, resources_path):
 
     sum_udaf = udaf(
         PythonSumUDAFHandler,
-        name="sum_udaf",
+        name=sum_udaf_name,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
         preserve_parameter_names=True,
     )
     df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
     Utils.check_answer(df.agg(sum_udaf("a", "b")), [Row(24)])
-    describe_udaf = session.sql("describe function sum_udaf(int, int)").collect()
+    describe_udaf = session.sql(
+        f"describe function {sum_udaf_name}(int, int)"
+    ).collect()
     assert describe_udaf[0][1] == "(INPUT_VALUE1 NUMBER, INPUT_VALUE2 NUMBER)"
 
     test_files = TestFiles(resources_path)
     session.udaf.register_from_file(
         test_files.test_udaf_py_file,
         "MyUDAFWithTypeHints",
-        name="my_udaf",
+        name=my_udaf_name,
         input_types=[IntegerType()],
         return_type=IntegerType(),
         preserve_parameter_names=True,
     )
-    describe_udaf = session.sql("describe function my_udaf(int)").collect()
+    describe_udaf = session.sql(f"describe function {my_udaf_name}(int)").collect()
     assert describe_udaf[0][1] == "(INPUT_VALUE NUMBER)"
