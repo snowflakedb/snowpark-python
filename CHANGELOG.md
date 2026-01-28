@@ -20,6 +20,7 @@
       - `space`
       - `split_part`
 - Added `preserve_parameter_names` flag to sproc, UDF, UDTF, and UDAF creation
+- Added support for the `DECFLOAT` data type that allows users to represent decimal numbers exactly with 38 digits of precision and a dynamic base-10 exponent.
 
 #### Bug Fixes
 

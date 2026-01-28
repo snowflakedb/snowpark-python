@@ -13,6 +13,7 @@ from snowflake.snowpark import DataFrame, Row, context
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
     BooleanType,
+    DecFloatType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -51,13 +52,14 @@ def test_basic_filter(session):
 
 def test_plus_basic(session):
     df = session.create_dataframe(
-        [[1, 1.1, 2.2, 3.3]],
+        [[1, 1.1, 2.2, 3.3, 4.4]],
         schema=StructType(
             [
                 StructField("a", LongType(), nullable=False),
                 StructField("b", DecimalType(3, 1), nullable=False),
                 StructField("c", DoubleType(), nullable=False),
                 StructField("d", DecimalType(4, 2), nullable=False),
+                StructField("e", DecFloatType(), nullable=False),
             ]
         ),
     )
@@ -66,6 +68,7 @@ def test_plus_basic(session):
         (df["a"] + 1).as_("new_a"),
         (df["b"] + df["d"]).as_("new_b"),
         (df["c"] + 3).as_("new_c"),
+        (df["e"] + df["c"]).as_("new_e"),
     )
     assert repr(df.schema) == repr(
         StructType(
@@ -73,6 +76,7 @@ def test_plus_basic(session):
                 StructField("NEW_A", LongType(), nullable=False),
                 StructField("NEW_B", DecimalType(5, 2), nullable=False),
                 StructField("NEW_C", DoubleType(), nullable=False),
+                StructField("NEW_E", DecFloatType(), nullable=False),
             ]
         )
     )
@@ -80,13 +84,14 @@ def test_plus_basic(session):
 
 def test_minus_basic(session):
     df = session.create_dataframe(
-        [[1, 1.1, 2.2, 3.3]],
+        [[1, 1.1, 2.2, 3.3, 4.4]],
         schema=StructType(
             [
                 StructField("a", LongType(), nullable=False),
                 StructField("b", DecimalType(3, 1), nullable=False),
                 StructField("c", DoubleType(), nullable=False),
                 StructField("d", DecimalType(4, 2), nullable=False),
+                StructField("e", DecFloatType(), nullable=False),
             ]
         ),
     )
@@ -95,6 +100,7 @@ def test_minus_basic(session):
         (df["a"] - 1).as_("new_a"),
         (df["b"] - df["d"]).as_("new_b"),
         (df["c"] - 3).as_("new_c"),
+        (df["e"] - df["a"]).as_("new_e"),
     )
     assert repr(df.schema) == repr(
         StructType(
@@ -102,6 +108,7 @@ def test_minus_basic(session):
                 StructField("NEW_A", LongType(), nullable=False),
                 StructField("NEW_B", DecimalType(5, 2), nullable=False),
                 StructField("NEW_C", DoubleType(), nullable=False),
+                StructField("NEW_E", DecFloatType(), nullable=False),
             ]
         )
     )
@@ -109,13 +116,14 @@ def test_minus_basic(session):
 
 def test_multiple_basic(session):
     df = session.create_dataframe(
-        [[1, 1.1, 2.2, 3.3]],
+        [[1, 1.1, 2.2, 3.3, 4.4]],
         schema=StructType(
             [
                 StructField("a", LongType(), nullable=False),
                 StructField("b", DecimalType(3, 1), nullable=False),
                 StructField("c", FloatType(), nullable=False),
                 StructField("d", DecimalType(4, 2), nullable=False),
+                StructField("e", DecFloatType(), nullable=False),
             ]
         ),
     )
@@ -124,6 +132,7 @@ def test_multiple_basic(session):
         (df["a"] * 1).as_("new_a"),
         (df["b"] * df["d"]).as_("new_b"),
         (df["c"] * 3).as_("new_c"),
+        (df["e"] * df["b"]).as_("new_e"),
     )
     assert repr(df.schema) == repr(
         StructType(
@@ -131,6 +140,7 @@ def test_multiple_basic(session):
                 StructField("NEW_A", LongType(), nullable=False),
                 StructField("NEW_B", DecimalType(7, 3), nullable=False),
                 StructField("NEW_C", DoubleType(), nullable=False),
+                StructField("NEW_E", DecFloatType(), nullable=False),
             ]
         )
     )

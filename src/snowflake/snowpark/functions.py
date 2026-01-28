@@ -2119,6 +2119,31 @@ def to_double(
 
 
 @publicapi
+def to_decfloat(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None, _emit_ast: bool = True
+) -> Column:
+    """Converts an input expression to a decimal floating-point number.
+
+    Example::
+        >>> df = session.create_dataframe(['12', '11.3', '-90.12345'], schema=['a'])
+        >>> df.select(to_decfloat(col('a')).as_('ans')).collect()
+        [Row(ANS=Decimal('12')), Row(ANS=Decimal('11.3')), Row(ANS=Decimal('-90.12345'))]
+    """
+    ast = (
+        build_function_expr("to_decfloat", [e] if fmt is None else [e, fmt])
+        if _emit_ast
+        else None
+    )
+    c = _to_col_if_str(e, "to_decfloat")
+    fmt_col = _to_col_if_lit(fmt, "to_decfloat") if fmt is not None else None
+    return (
+        _call_function("to_decfloat", c, _ast=ast, _emit_ast=_emit_ast)
+        if fmt_col is None
+        else _call_function("to_decfloat", c, fmt_col, _ast=ast, _emit_ast=_emit_ast)
+    )
+
+
+@publicapi
 def div0(
     dividend: Union[ColumnOrName, int, float],
     divisor: Union[ColumnOrName, int, float],

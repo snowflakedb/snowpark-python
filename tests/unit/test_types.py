@@ -62,6 +62,7 @@ from snowflake.snowpark.types import (
     DateType,
     DayTimeInterval,
     DayTimeIntervalType,
+    DecFloatType,
     DecimalType,
     DoubleType,
     FileType,
@@ -239,6 +240,7 @@ def test_sf_datatype_names():
     assert str(LongType()) == "LongType()"
     assert str(FloatType()) == "FloatType()"
     assert str(DoubleType()) == "DoubleType()"
+    assert str(DecFloatType()) == "DecFloatType()"
     assert str(DecimalType(1, 2)) == "DecimalType(1, 2)"
     assert (
         str(TimestampType(TimestampTimeZone.TZ))
@@ -270,6 +272,7 @@ def test_sf_datatype_hashes():
     assert hash(LongType()) == hash("LongType()")
     assert hash(FloatType()) == hash("FloatType()")
     assert hash(DoubleType()) == hash("DoubleType()")
+    assert hash(DecFloatType()) == hash("DecFloatType()")
     assert hash(DecimalType(1, 2)) == hash("DecimalType(1, 2)")
     assert hash(TimestampType(TimestampTimeZone.TZ)) == hash(
         "TimestampType(timezone=TimestampTimeZone('tz'))"
@@ -715,6 +718,8 @@ def {func_name}(x, y {datatype_str} = {annotated_value}) -> None:
         ("1.0", FloatType(), 1.0),
         ("decimal.Decimal('3.14')", DecimalType(), decimal.Decimal("3.14")),
         ("decimal.Decimal(1.0)", DecimalType(), decimal.Decimal(1.0)),
+        ("decimal.Decimal('3.14')", DecFloatType(), decimal.Decimal("3.14")),
+        ("decimal.Decimal(1.0)", DecFloatType(), decimal.Decimal(1.0)),
         ("one", StringType(), "one"),
         (None, StringType(), None),
         ("None", StringType(), "None"),
@@ -772,6 +777,7 @@ def test_python_value_str_to_object(value_str, datatype, expected_value):
         BooleanType(),
         FloatType(),
         DecimalType(),
+        DecFloatType(),
         BinaryType(),
         DateType(),
         TimeType(),
@@ -905,6 +911,7 @@ def test_convert_sf_to_sp_type_basic():
     assert isinstance(convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0, 0, 0), TimestampType)
     assert isinstance(convert_sf_to_sp_type("DATE", 0, 0, 0, 0), DateType)
     assert isinstance(convert_sf_to_sp_type("REAL", 0, 0, 0, 0), DoubleType)
+    assert isinstance(convert_sf_to_sp_type("FIXED", 0, None, 0, 0), DecFloatType)
 
     with pytest.raises(NotImplementedError, match="Unsupported type"):
         convert_sf_to_sp_type("FAKE", 0, 0, 0, 0)
@@ -1048,6 +1055,7 @@ def test_convert_sp_to_sf_type():
     assert convert_sp_to_sf_type(ByteType()) == "BYTEINT"
     assert convert_sp_to_sf_type(LongType()) == "BIGINT"
     assert convert_sp_to_sf_type(FloatType()) == "FLOAT"
+    assert convert_sp_to_sf_type(DecFloatType()) == "DECFLOAT"
     assert convert_sp_to_sf_type(DoubleType()) == "DOUBLE"
     assert convert_sp_to_sf_type(StringType()) == "STRING"
     assert convert_sp_to_sf_type(StringType(77)) == "STRING(77)"
@@ -1136,6 +1144,7 @@ def test_snow_type_to_dtype_str():
     assert snow_type_to_dtype_str(BooleanType()) == "boolean"
     assert snow_type_to_dtype_str(FloatType()) == "float"
     assert snow_type_to_dtype_str(DoubleType()) == "double"
+    assert snow_type_to_dtype_str(DecFloatType()) == "decfloat"
     assert snow_type_to_dtype_str(StringType(35)) == "string(35)"
     assert snow_type_to_dtype_str(DateType()) == "date"
     assert snow_type_to_dtype_str(TimestampType()) == "timestamp"
@@ -1203,6 +1212,7 @@ def test_snow_type_to_dtype_str():
         ),
         (DoubleType(), "double", '"double"', "double", "double"),
         (FloatType(), "float", '"float"', "float", "float"),
+        (DecFloatType(), "decfloat", '"decfloat"', "decfloat", "decfloat"),
         (IntegerType(), "int", '"integer"', "integer", "integer"),
         (LongType(), "bigint", '"long"', "long", "long"),
         (ShortType(), "smallint", '"short"', "short", "short"),
@@ -1747,6 +1757,14 @@ def test_type_string_to_type_object_numeric_decimal(upper_case):
     assert isinstance(dt, DecimalType), f"Expected DecimalType, got {dt}"
     assert dt.precision == 20, f"Expected precision=20, got {dt.precision}"
     assert dt.scale == 5, f"Expected scale=5, got {dt.scale}"
+
+
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_decfloat(upper_case):
+    base_string = "decfloat"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
+    assert isinstance(dt, DecFloatType), f"Expected DecFloatType, got {dt}"
 
 
 @pytest.mark.parametrize("upper_case", [False, True])
