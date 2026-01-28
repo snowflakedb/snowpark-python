@@ -385,7 +385,7 @@ class DataFrame:
         >>> with tempfile.NamedTemporaryFile(mode="w+t") as t:
         ...     t.writelines(["id1, Product A", "\\n" "id2, Product B"])
         ...     t.flush()
-        ...     create_stage_result = session.sql("create temp stage if not exists test_stage").collect()
+        ...     create_stage_result = session.sql("create or replace temp stage test_stage").collect()
         ...     put_result = session.file.put(t.name, "@test_stage/test_dir")
 
     Example 1
@@ -4641,7 +4641,7 @@ class DataFrame:
             |3    |4    |
             -------------
             <BLANKLINE>
-            >>> stage_created_result = session.sql("create temp stage if not exists test_stage").collect()
+            >>> stage_created_result = session.sql("create or replace temp stage test_stage").collect()
             >>> df.write.copy_into_location("@test_stage/copied_from_dataframe")  # default CSV
             [Row(rows_unloaded=2, input_bytes=8, output_bytes=28)]
         """
@@ -4689,7 +4689,7 @@ class DataFrame:
             >>> with tempfile.NamedTemporaryFile(mode="w+t") as t:
             ...     t.writelines(["id1, Product A", "\\n" "id2, Product B"])
             ...     t.flush()
-            ...     create_stage_result = session.sql("create temp stage if not exists test_stage").collect()
+            ...     create_stage_result = session.sql("create or replace temp stage test_stage").collect()
             ...     put_result = session.file.put(t.name, "@test_stage/copy_into_table_dir", overwrite=True)
             >>> # user_schema is used to read from CSV files. For other files it's not needed.
             >>> from snowflake.snowpark.types import StringType, StructField, StringType
