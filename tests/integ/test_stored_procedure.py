@@ -983,6 +983,9 @@ def return_all_datatypes(
     reason="session.sql not supported in local testing",
 )
 def test_register_sp_with_preserve_parameter_names(session, resources_path):
+    sp_pow_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    mod5_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+
     def sp_pow(session_, x, y):
         return (
             session_.create_dataframe([[x, y]])
@@ -993,7 +996,7 @@ def test_register_sp_with_preserve_parameter_names(session, resources_path):
 
     pow_sp = sproc(
         sp_pow,
-        name="sp_pow",
+        name=sp_pow_name,
         return_type=DoubleType(),
         input_types=[IntegerType(), IntegerType()],
         preserve_parameter_names=True,
@@ -1003,7 +1006,7 @@ def test_register_sp_with_preserve_parameter_names(session, resources_path):
     mod5_sp = session.sproc.register_from_file(
         test_files.test_sp_py_file,
         "mod5",
-        name="mod5",
+        name=mod5_name,
         return_type=IntegerType(),
         input_types=[IntegerType()],
         preserve_parameter_names=True,
@@ -1012,8 +1015,8 @@ def test_register_sp_with_preserve_parameter_names(session, resources_path):
     assert pow_sp(2, 10) == 1024
     assert mod5_sp(3) == 3
     # assert parameter names preserved by issuing a SQL CALL with named arguments
-    assert session.sql("call sp_pow(y=>3, x=>2)").collect()[0][0] == 8
-    assert session.sql("call mod5(x=>3)").collect()[0][0] == 3
+    assert session.sql(f"call {sp_pow_name}(y=>3, x=>2)").collect()[0][0] == 8
+    assert session.sql(f"call {mod5_name}(x=>3)").collect()[0][0] == 3
 
 
 @pytest.mark.xfail(
