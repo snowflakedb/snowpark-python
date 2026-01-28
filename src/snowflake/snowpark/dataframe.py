@@ -385,7 +385,7 @@ class DataFrame:
         >>> with tempfile.NamedTemporaryFile(mode="w+t") as t:
         ...     t.writelines(["id1, Product A", "\\n" "id2, Product B"])
         ...     t.flush()
-        ...     create_stage_result = session.sql("create temp stage test_stage").collect()
+        ...     create_stage_result = session.sql("create temp stage if not exists test_stage").collect()
         ...     put_result = session.file.put(t.name, "@test_stage/test_dir")
 
     Example 1
