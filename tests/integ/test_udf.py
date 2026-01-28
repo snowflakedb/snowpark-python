@@ -1218,9 +1218,13 @@ def return_all_datatypes(
     reason="session.sql not supported in local testing",
 )
 def test_register_udf_with_preserve_parameter_names(session, resources_path):
+    pow_udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    pow_udf_name2 = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    mod5_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
     pow_udf = udf(
         lambda x, y: x**y,
-        name="pow_udf",
+        name=pow_udf_name,
         return_type=DoubleType(),
         input_types=[IntegerType(), IntegerType()],
         preserve_parameter_names=True,
@@ -1232,7 +1236,7 @@ def test_register_udf_with_preserve_parameter_names(session, resources_path):
     mod5_udf = session.udf.register_from_file(
         test_files.test_udf_py_file,
         "mod5",
-        name="mod5",
+        name=mod5_name,
         return_type=IntegerType(),
         input_types=[IntegerType()],
         preserve_parameter_names=True,
@@ -1245,7 +1249,7 @@ def test_register_udf_with_preserve_parameter_names(session, resources_path):
             Row(0, 1),
         ],
     )
-    assert session.sql("select mod5(x=>2)").collect()[0][0] == 2
+    assert session.sql(f"select {mod5_name}(x=>2)").collect()[0][0] == 2
 
     Utils.check_answer(
         df.select(pow_udf(col("a"), "b"), "b"),
@@ -1254,16 +1258,16 @@ def test_register_udf_with_preserve_parameter_names(session, resources_path):
             Row(15625.0, 6),
         ],
     )
-    assert session.sql("select pow_udf(y=>3, x=>2)").collect()[0][0] == 8
+    assert session.sql(f"select {pow_udf_name}(y=>3, x=>2)").collect()[0][0] == 8
 
     # without preserve_parameter_names, it should use arg1 and arg2 as parameter names
     udf(
         lambda x, y: x**y,
-        name="pow_udf2",
+        name=pow_udf_name2,
         return_type=DoubleType(),
         input_types=[IntegerType(), IntegerType()],
     )
-    assert session.sql("select pow_udf2(arg2=>3, arg1=>2)").collect()[0][0] == 8
+    assert session.sql(f"select {pow_udf_name2}(arg2=>3, arg1=>2)").collect()[0][0] == 8
 
 
 @pytest.mark.xfail(
