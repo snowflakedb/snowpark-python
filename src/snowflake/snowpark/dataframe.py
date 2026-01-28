@@ -418,7 +418,7 @@ class DataFrame:
             |2        |two      |
             ---------------------
             <BLANKLINE>
-            >>> session.range(1, 10, 2).to_df("col1").show()
+            >>> session.range(1, 10, 2).to_df("col1").sort("col1").show()
             ----------
             |"COL1"  |
             ----------
