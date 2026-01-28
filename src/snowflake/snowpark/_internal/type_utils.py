@@ -1468,18 +1468,25 @@ def format_year_month_interval_for_display(
     # Default initialization
     years = "0"
     months = "0"
-    is_negative = False
+    is_negative = cell.startswith("-")
+    # Remove the sign prefix and parse the remaining part
+    remaining = cell[1:]  # Remove the "+" or "-" prefix: "1-6"
 
     if has_internal_dash:
         # Format like "+1-03" or "-1-03" or "-1-6" (compound year-month)
-        is_negative = cell.startswith("-")
-
-        # Remove the sign prefix and parse the remaining "year-month" part
-        remaining = cell[1:]  # Remove the "+" or "-" prefix: "1-6"
         if "-" in remaining:
             parts = remaining.split("-", 1)  # Split only on first dash: ["1", "6"]
             years = str(int(parts[0]))
             months = str(int(parts[1]))
+    else:
+        # Format like "+2" or "-3"
+        if (
+            start_field == YearMonthIntervalType.YEAR
+            and end_field == YearMonthIntervalType.YEAR
+        ):
+            years = str(int(remaining))
+        else:
+            months = str(int(remaining))
 
     # Format based on start/end field
     sign_prefix = "-" if is_negative else ""
@@ -1502,9 +1509,7 @@ def format_year_month_interval_for_display(
     ):
         # Months only: MONTH - calculate total months
         total_months = int(years) * 12 + int(months)
-        if is_negative:
-            total_months = -total_months
-        return f"INTERVAL '{total_months}' MONTH"
+        return f"INTERVAL '{sign_prefix}{total_months}' MONTH"
 
 
 def format_day_time_interval_for_display(
