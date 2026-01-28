@@ -2856,7 +2856,7 @@ class Session:
         Example 1
             >>> from snowflake.snowpark.functions import seq1, seq8, uniform
             >>> df = session.generator(seq1(1).as_("sequence one"), uniform(1, 10, 2).as_("uniform"), rowcount=3)
-            >>> df.show()
+            >>> df.sort("sequence one").show()
             ------------------------------
             |"sequence one"  |"UNIFORM"  |
             ------------------------------
