@@ -1,6 +1,6 @@
 # Release History
 
-## 1.45.0 (2026-01-26)
+## 1.45.0 (2026-01-29)
 
 ### Snowpark Python API Updates
 
@@ -29,15 +29,6 @@
 - `snowflake.snowpark.context.configure_development_features` is effective for multiple sessions including newly created sessions after the configuration. No duplicate experimental warning any more.
 - Removed experimental warning from `DataFrame.to_arrow` and `DataFrame.to_arrow_batches`.
 - When both `Session.reduce_describe_query_enabled` and `Session.cte_optimization_enabled` are enabled, fewer DESCRIBE queries are issued when resolving table attributes.
-
-### Snowpark pandas API Updates
-
-#### New Features
-
-#### Bug Fixes
-
-#### Improvements
-
 
 ## 1.44.0 (2025-12-15)
 
