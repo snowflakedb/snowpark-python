@@ -444,16 +444,31 @@ def test_time_series_agg(session):
         "PRODUCTKEY": [101, 101, 101, 102],
         "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
         "SALESAMOUNT": [200, 100, 300, 250],
-        "SUM_SALESAMOUNT_1D": [300, 400, 300, 250],
-        "MAX_SALESAMOUNT_1D": [200, 300, 300, 250],
-        "SUM_SALESAMOUNT_-1D": [200, 300, 400, 250],
-        "MAX_SALESAMOUNT_-1D": [200, 200, 300, 250],
-        "SUM_SALESAMOUNT_2D": [600, 400, 300, 250],
-        "MAX_SALESAMOUNT_2D": [300, 300, 300, 250],
-        "SUM_SALESAMOUNT_-2D": [200, 300, 600, 250],
-        "MAX_SALESAMOUNT_-2D": [200, 200, 300, 250],
-        "SUM_SALESAMOUNT_-1W": [200, 300, 600, 250],
-        "MAX_SALESAMOUNT_-1W": [200, 200, 300, 250],
+        # 1D (future): next day only
+        "SUM_SALESAMOUNT_1D": [
+            100,
+            300,
+            None,
+            None,
+        ],  # [100(next), 300(next), NULL, NULL]
+        "MAX_SALESAMOUNT_1D": [100, 300, None, None],
+        # -1D (past): previous day only
+        "SUM_SALESAMOUNT_-1D": [
+            None,
+            200,
+            100,
+            None,
+        ],  # [NULL, 200(prev), 100(prev), NULL]
+        "MAX_SALESAMOUNT_-1D": [None, 200, 100, None],
+        # 2D (future): next 2 days
+        "SUM_SALESAMOUNT_2D": [400, 300, None, None],  # [100+300, 300, NULL, NULL]
+        "MAX_SALESAMOUNT_2D": [300, 300, None, None],
+        # -2D (past): previous 2 days
+        "SUM_SALESAMOUNT_-2D": [None, 200, 300, None],  # [NULL, 200, 200+100, NULL]
+        "MAX_SALESAMOUNT_-2D": [None, 200, 200, None],
+        # -1W (past): previous week
+        "SUM_SALESAMOUNT_-1W": [None, 200, 300, None],  # [NULL, 200, 200+100, NULL]
+        "MAX_SALESAMOUNT_-1W": [None, 200, 200, None],
     }
     expected_df = pd.DataFrame(expected_data)
 
@@ -500,9 +515,27 @@ def test_time_series_agg_sub_day_sliding_windows(session):
             ]
         ),
         "SALESAMOUNT": [400, 300, 200, 100],
-        "SALESAMOUNT_MAX_-1s": [400, 400, 200, 100],
-        "SALESAMOUNT_MAX_-1m": [400, 400, 300, 100],
-        "SALESAMOUNT_MAX_-1h": [400, 400, 400, 200],
+        # -1s: previous 1 second only (excludes current)
+        "SALESAMOUNT_MAX_-1s": [
+            None,
+            400,
+            None,
+            None,
+        ],  # [NULL, 400(1s before), NULL(>1s gap), NULL(>1s gap)]
+        # -1m: previous 1 minute (excludes current)
+        "SALESAMOUNT_MAX_-1m": [
+            None,
+            400,
+            300,
+            None,
+        ],  # [NULL, 400(1s<1m), 300(60s=1m), NULL(>1m gap)]
+        # -1h: previous 1 hour (excludes current)
+        "SALESAMOUNT_MAX_-1h": [
+            None,
+            400,
+            400,
+            200,
+        ],  # [NULL, 400, MAX(400,300), 200(exactly 1h)]
     }
     expected_df = pd.DataFrame(expected_data)
 
@@ -552,8 +585,20 @@ def test_time_series_aggregation_grouping_bug_fix(session):
             "transaction_4",
         ],
         "QUANTITY": [10, 15, 7, 3],
-        "QUANTITY_SUM_-1D": [10, 15, 22, 3],
-        "QUANTITY_SUM_-7D": [10, 15, 22, 25],
+        # -1D: previous 1 day (excludes current)
+        "QUANTITY_SUM_-1D": [
+            None,
+            None,
+            15,
+            None,
+        ],  # [NULL, NULL, 15(8h earlier), NULL(>1D gap)]
+        # -7D: previous 7 days (excludes current)
+        "QUANTITY_SUM_-7D": [
+            None,
+            None,
+            15,
+            22,
+        ],  # [NULL, NULL, 15(same day), 15+7(2D ago)]
     }
 
     expected_df = pd.DataFrame(expected_data)
@@ -596,6 +641,8 @@ def test_time_series_agg_month_sliding_window(session):
         col_formatter=custom_formatter,
     )
 
+    # BREAKING CHANGE in v1.45.0: Current row excluded from aggregations
+    # -2mm: previous 2 months (excludes current)
     expected_data = {
         "PRODUCTKEY": [101, 101, 101, 101, 102, 102, 102, 102],
         "ORDERDATE": [
@@ -609,8 +656,10 @@ def test_time_series_agg_month_sliding_window(session):
             "2023-04-20",
         ],
         "SALESAMOUNT": [100, 200, 300, 400, 150, 250, 350, 450],
-        "SUM_SALESAMOUNT_-2mm": [100, 300, 600, 900, 150, 400, 750, 1050],
-        "MAX_SALESAMOUNT_-2mm": [100, 200, 300, 400, 150, 250, 350, 450],
+        # SUM excluding current row
+        "SUM_SALESAMOUNT_-2mm": [None, 100, 300, 500, None, 150, 400, 600],
+        # MAX excluding current row
+        "MAX_SALESAMOUNT_-2mm": [None, 100, 200, 300, None, 150, 250, 350],
     }
     expected_df = pd.DataFrame(expected_data)
     expected_df["ORDERDATE"] = pd.to_datetime(expected_df["ORDERDATE"])
@@ -655,6 +704,8 @@ def test_time_series_agg_year_sliding_window(session):
         col_formatter=custom_formatter,
     )
 
+    # BREAKING CHANGE in v1.45.0: Current row excluded from aggregations
+    # -1Y: previous 1 year (excludes current)
     expected_data = {
         "PRODUCTKEY": [101, 101, 101, 101, 102, 102, 102, 102],
         "ORDERDATE": [
@@ -668,8 +719,10 @@ def test_time_series_agg_year_sliding_window(session):
             "2024-01-20",
         ],
         "SALESAMOUNT": [100, 200, 300, 400, 150, 250, 350, 450],
-        "SUM_SALESAMOUNT_-1Y": [100, 300, 500, 700, 150, 400, 600, 800],
-        "MAX_SALESAMOUNT_-1Y": [100, 200, 300, 400, 150, 250, 350, 450],
+        # SUM excluding current row
+        "SUM_SALESAMOUNT_-1Y": [None, 100, 200, 300, None, 150, 250, 350],
+        # MAX excluding current row
+        "MAX_SALESAMOUNT_-1Y": [None, 100, 200, 300, None, 150, 250, 350],
     }
     expected_df = pd.DataFrame(expected_data)
     expected_df["ORDERDATE"] = pd.to_datetime(expected_df["ORDERDATE"])

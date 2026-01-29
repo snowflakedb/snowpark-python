@@ -24,6 +24,13 @@
 
 - Fixed a bug that opentelemetry is not correctly import when using `Session.client_telemetry.enable_event_table_telemetry_collection`.
 
+#### Breaking Changes
+
+- **`DataFrameAnalyticsFunctions.time_series_agg()`**: The current row is now excluded from window aggregations to prevent data leakage in ML use cases. 
+  - For past windows (negative), the range is now from `-interval` to `1 PRECEDING` (was `-interval` to `CURRENT ROW`).
+  - For future windows (positive), the range is now from `1 FOLLOWING` to `interval` (was `CURRENT ROW` to `interval`).
+  - This change affects the computed aggregation values. Update your queries accordingly if you rely on the old behavior.
+
 #### Improvements
 - `snowflake.snowpark.context.configure_development_features` is effective for multiple sessions including newly created sessions after the configuration. No duplicate experimental warning any more.
 - Removed experimental warning from `DataFrame.to_arrow` and `DataFrame.to_arrow_batches`.
