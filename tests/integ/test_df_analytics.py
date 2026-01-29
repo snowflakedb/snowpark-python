@@ -641,8 +641,6 @@ def test_time_series_agg_month_sliding_window(session):
         col_formatter=custom_formatter,
     )
 
-    # BREAKING CHANGE in v1.45.0: Current row excluded from aggregations
-    # -2mm: previous 2 months (excludes current)
     expected_data = {
         "PRODUCTKEY": [101, 101, 101, 101, 102, 102, 102, 102],
         "ORDERDATE": [
@@ -704,8 +702,6 @@ def test_time_series_agg_year_sliding_window(session):
         col_formatter=custom_formatter,
     )
 
-    # BREAKING CHANGE in v1.45.0: Current row excluded from aggregations
-    # -1Y: previous 1 year (excludes current)
     expected_data = {
         "PRODUCTKEY": [101, 101, 101, 101, 102, 102, 102, 102],
         "ORDERDATE": [
