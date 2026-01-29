@@ -346,7 +346,8 @@ def _disambiguate(
         # Optimization: No column name conflicts, so we can skip aliasing and the select() wrapping.
         # But we still need to populate expr_to_alias for column lineage tracking,
         # so that df["column_name"] can resolve correctly after the join.
-        # This is identified by the test case test_name_alias_on_multiple_join.
+        # This is identified by the test case
+        # tests/integ/scala/test_dataframe_join_suite.py::test_name_alias_on_multiple_join.
         _populate_expr_to_alias(lhs)
         _populate_expr_to_alias(rhs)
         return lhs, rhs

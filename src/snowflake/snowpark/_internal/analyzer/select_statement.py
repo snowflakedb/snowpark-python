@@ -2250,6 +2250,7 @@ def derive_column_states_from_subquery(
         if from_c_state and from_c_state.change_state != ColumnChangeState.DROPPED:
             # review later. should use parse_column_name
             # SNOW-2895675: Always treat Aliases as "changed", even if it is an identity.
+            # The fact this check is needed may be a bug in column state analysis, and we should revisit it later.
             if c_name != result_name or isinstance(c, Alias):
                 column_states[quoted_c_name] = ColumnState(
                     quoted_c_name,
