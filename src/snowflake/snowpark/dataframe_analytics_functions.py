@@ -10,7 +10,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
     with_src_position,
 )
-from snowflake.snowpark._internal.utils import experimental, publicapi, warning
+from snowflake.snowpark._internal.utils import publicapi, warning
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (
     _call_function,
@@ -629,7 +629,6 @@ class DataFrameAnalyticsFunctions:
 
         return df
 
-    @experimental(version="1.12.0")
     @publicapi
     def time_series_agg(
         self,

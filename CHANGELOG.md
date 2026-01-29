@@ -27,6 +27,7 @@
 #### Improvements
 - `snowflake.snowpark.context.configure_development_features` is effective for multiple sessions including newly created sessions after the configuration. No duplicate experimental warning any more.
 - Removed experimental warning from `DataFrame.to_arrow` and `DataFrame.to_arrow_batches`.
+- Removed experimental warning from `DataFrameAnalyticsFunctions.time_series_agg()`.
 
 ### Snowpark pandas API Updates
 
