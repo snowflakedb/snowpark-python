@@ -943,8 +943,6 @@ message DataframeAnalyticsMovingAgg {
 }
 
 // dataframe-analytics.ir:45
-// BREAKING CHANGE in v1.45.0: Current row is now excluded from aggregations
-// to prevent data leakage. Window ranges changed from CURRENT_ROW to PRECEDING/FOLLOWING.
 message DataframeAnalyticsTimeSeriesAgg {
   repeated Tuple_String_List_String aggs = 1;
   Expr df = 2;

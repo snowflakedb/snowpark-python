@@ -642,7 +642,10 @@ class DataFrameAnalyticsFunctions:
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Applies aggregations to the specified columns of the DataFrame over specified time windows,
-        and grouping criteria. The current row is excluded from the aggregation to prevent data leakage to models.
+        and grouping criteria.
+
+        .. note::
+            Aggregations exclude rows within 1 second of the current timestamp to prevent data leakage.
 
         Args:
             aggs: A dictionary where keys are column names and values are lists of the desired aggregation functions.
@@ -775,12 +778,13 @@ class DataFrameAnalyticsFunctions:
                 years=interval_args.get("y"),
             )
 
+            one_second = make_interval(seconds=1)
             if window_sign > 0:
-                # Future windows: from 1 row ahead to interval
-                range_start, range_end = Window.FOLLOWING, interval
+                range_start = one_second
+                range_end = interval
             else:
-                # Past windows: from -interval to 1 row before
-                range_start, range_end = -interval, Window.PRECEDING
+                range_start = -interval
+                range_end = -one_second
 
             window_spec = (
                 Window.partition_by(group_by)
