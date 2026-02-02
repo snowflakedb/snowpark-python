@@ -346,16 +346,22 @@ def element_to_dict_or_str(
         for child in children:
             tag = child.tag
             child_result_template = None
+            child_exclude_attributes = exclude_attributes
             if result_template is not None:
                 # skip if not in custom schema
                 if tag.lower() not in norm_name_to_ori_name:
                     continue
                 tag = norm_name_to_ori_name[tag.lower()]
                 child_result_template = result_template[tag]
+                # result_template is not None means custom schema is present
+                # child_result_template is None in this case means that
+                # child schema not treated as struct type, thus element attributes should be excluded
+                if child_result_template is None:
+                    child_exclude_attributes = True
             child_dict = element_to_dict_or_str(
                 child,
                 attribute_prefix=attribute_prefix,
-                exclude_attributes=exclude_attributes,
+                exclude_attributes=child_exclude_attributes,
                 value_tag=value_tag,
                 null_value=null_value,
                 ignore_surrounding_whitespace=ignore_surrounding_whitespace,
@@ -640,3 +646,12 @@ class XMLReader:
             result_template=result_template,
         ):
             yield (element,)
+
+
+class XMLSchemaInference:
+    def process(
+        self,
+        filename: str,
+        row_tag: str,
+    ):
+        pass
