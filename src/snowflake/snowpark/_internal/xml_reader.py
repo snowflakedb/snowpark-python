@@ -646,12 +646,3 @@ class XMLReader:
             result_template=result_template,
         ):
             yield (element,)
-
-
-class XMLSchemaInference:
-    def process(
-        self,
-        filename: str,
-        row_tag: str,
-    ):
-        pass
