@@ -26,12 +26,12 @@
 
 #### Breaking Changes
 
-- **`DataFrameAnalyticsFunctions.time_series_agg()`**: The current row is now excluded from window aggregations to prevent data leakage.
 
 #### Improvements
 - `snowflake.snowpark.context.configure_development_features` is effective for multiple sessions including newly created sessions after the configuration. No duplicate experimental warning any more.
 - Removed experimental warning from `DataFrame.to_arrow` and `DataFrame.to_arrow_batches`.
 - Removed experimental warning from `DataFrameAnalyticsFunctions.time_series_agg()`.
+- **`DataFrameAnalyticsFunctions.time_series_agg()`**: The current row is now excluded from window aggregations to prevent data leakage.
 
 ### Snowpark pandas API Updates
 
