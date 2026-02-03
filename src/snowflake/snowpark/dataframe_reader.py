@@ -1076,7 +1076,7 @@ class DataFrameReader:
 
         # cast to input custom schema type
         # TODO: SNOW-2923003: remove single quote after server side BCR is done
-        if self._user_schema:
+        if self._user_schema or self._infer_schema:
             cols = [
                 df[single_quote(field._name)]
                 .cast(field.datatype)
@@ -1536,12 +1536,18 @@ class DataFrameReader:
                 replace=True,
                 _suppress_local_package_warnings=True,
             )
-            if self._infer_schema:
-                schema = StructType._to_attributes(
-                    type_string_to_type_object(self._infer_schema_for_xml(path))
-                )
+
         else:
             xml_reader_udtf = None
+
+        if (
+            format == "XML"
+            and XML_ROW_TAG_STRING in self._cur_options
+            and self._infer_schema
+        ):
+            res = self._infer_schema_for_xml(path)
+            schema = StructType._to_attributes(type_string_to_type_object(res))
+            self._user_schema = schema
 
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
