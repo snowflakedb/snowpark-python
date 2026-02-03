@@ -2920,6 +2920,46 @@ def test_register_artifact_repository(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",
 )
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_register_artifact_repository_with_packages_includes_cloudpickle(session):
+    """Test that cloudpickle is available when using artifact_repository with packages."""
+
+    def test_cloudpickle() -> str:
+        import cloudpickle
+
+        # Test that cloudpickle is available and works
+        def test_func(x):
+            return x + 1
+
+        pickled = cloudpickle.dumps(test_func)
+        unpickled = cloudpickle.loads(pickled)
+        return str(unpickled(5))
+
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    try:
+        # Test function registration with packages list
+        udf(
+            func=test_cloudpickle,
+            name=temp_func_name,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            packages=["urllib3", "requests"],  # cloudpickle should be auto-added
+        )
+
+        # Test UDF call - should return "6" if cloudpickle works
+        df = session.create_dataframe([1]).to_df(["a"])
+        Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("6")])
+    finally:
+        session._run_query(f"drop function if exists {temp_func_name}()")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Stored proc env does not have permissions to look up warehouse details",

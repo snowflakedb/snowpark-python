@@ -26,6 +26,7 @@ from typing import (
 )
 
 import cloudpickle
+from packaging.requirements import Requirement
 
 import snowflake.snowpark
 from snowflake.connector.options import installed_pandas, pandas
@@ -1234,7 +1235,12 @@ def resolve_imports_and_packages(
                 raise TypeError(
                     "Artifact repository requires that all packages be passed as str."
                 )
-            resolved_packages = packages
+            resolved_packages = list(packages)
+            if not any(
+                Requirement(pkg).name.lower() == "cloudpickle"
+                for pkg in resolved_packages
+            ):
+                resolved_packages.append(f"cloudpickle=={cloudpickle.__version__}")
     else:
         # resolve packages
         if session is None:  # In case of sandbox

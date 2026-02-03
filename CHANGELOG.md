@@ -1,5 +1,13 @@
 # Release History
 
+## 1.46.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where `cloudpickle` was not automatically added to the package list when using `artifact_repository` with custom packages, causing `ModuleNotFoundError` at runtime.
+
 ## 1.45.0 (TBD)
 
 ### Snowpark Python API Updates
