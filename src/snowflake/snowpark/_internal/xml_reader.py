@@ -920,6 +920,8 @@ class XMLSchemaInference:
         self,
         file_path: str,
         row_tag: str,
+        num_workers: int,
+        i: int,
         sampling_ratio: float,
         charset: str,
         ignore_namespace: bool,
@@ -937,19 +939,44 @@ class XMLSchemaInference:
         closing_tag = f"</{row_tag}>".encode()
 
         file_size = get_file_size(file_path) or 0
-        if file_size == 0:
-            return None
+        if file_size <= 0:
+            yield (None,)
+            return
+
+        # Compute this worker's approximate byte range (same pattern as XMLReader).
+        if num_workers is None or num_workers <= 0:
+            num_workers = 1
+        if i is None or i < 0:
+            i = 0
+        if i >= num_workers:
+            # No work for out-of-range worker id.
+            yield (None,)
+            return
+
+        approx_chunk_size = file_size // num_workers
+        approx_start = approx_chunk_size * i
+        approx_end = approx_chunk_size * (i + 1) if i < num_workers - 1 else file_size
+
+        # Guard against weird tiny files / integer division producing start==end for some workers.
+        approx_start = max(0, min(approx_start, file_size))
+        approx_end = max(0, min(approx_end, file_size))
+        if approx_start >= approx_end:
+            yield (None,)
+            return
 
         with SnowflakeFile.open(file_path, "rb", require_scoped_url=False) as f:
-            f.seek(0)
+            f.seek(approx_start)
 
             while True:
-                # 1) Find next opening <row_tag ...> within the file
+                # 1) Find next opening <row_tag ...> within THIS byte range
                 try:
                     open_pos = find_next_opening_tag_pos(
-                        f, tag_start_1, tag_start_2, file_size, chunk_size
+                        f, tag_start_1, tag_start_2, approx_end, chunk_size
                     )
                 except EOFError:
+                    break
+
+                if open_pos >= approx_end:
                     break
 
                 record_start = open_pos
@@ -970,12 +997,12 @@ class XMLSchemaInference:
                 except Exception:
                     # Malformed tag boundaries -> skip and keep scanning forward
                     try:
-                        f.seek(min(record_start + 1, file_size))
+                        f.seek(min(record_start + 1, approx_end))
                     except Exception:
                         break
                     continue
 
-                # 3) Read full record bytes and parse using the SAME logic as process_xml_range
+                # 3) Read full record bytes and parse (same logic pattern as process_xml_range)
                 try:
                     f.seek(record_start)
                     record_bytes = f.read(record_end - record_start)
@@ -1000,12 +1027,13 @@ class XMLSchemaInference:
 
                     if ignore_namespace:
                         element = strip_xml_namespaces(element)
-
                 except Exception:
                     # Malformed record -> ALWAYS skip it
                     try:
-                        f.seek(min(record_end, file_size))
+                        f.seek(min(record_end, approx_end))
                     except Exception:
+                        break
+                    if record_end > approx_end:
                         break
                     continue
 
@@ -1025,10 +1053,12 @@ class XMLSchemaInference:
                         )
                     result = merge_struct(result, schema)
 
-                # 5) Move to end of record and continue
+                # 5) Move to end of record and continue (and stop if record crosses boundary)
+                if record_end > approx_end:
+                    break
                 try:
-                    f.seek(min(record_end, file_size))
+                    f.seek(min(record_end, approx_end))
                 except Exception:
                     break
 
-            yield (result.simple_string(),)
+        yield (result.simple_string(),)

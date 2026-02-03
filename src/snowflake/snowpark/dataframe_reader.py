@@ -76,6 +76,7 @@ from snowflake.snowpark._internal.utils import (
     warning,
     experimental,
 )
+from snowflake.snowpark._internal.xml_reader import merge_struct
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
@@ -1214,10 +1215,25 @@ class DataFrameReader:
             _suppress_local_package_warnings=True,
         )
 
-        df = self._session.table_function(
+        try:
+            file_size = int(
+                self._session.sql(f"ls {path}", _emit_ast=False).collect(
+                    _emit_ast=False
+                )[0]["size"]
+            )  # type: ignore
+        except IndexError:
+            raise ValueError(f"{path} does not exist")
+        num_workers = min(16, file_size // 1024 + 1)
+        worker_column_name = "WORKER"
+        # Create a range from 0 to N-1
+        df = self._session.range(num_workers).to_df(worker_column_name)
+        df = df.select(
+            worker_column_name,
             xml_infer_schema_udtf(
                 lit(path),
                 lit(row_tag),
+                lit(num_workers),
+                col(worker_column_name),
                 lit(sampling_ratio),
                 lit(charset),
                 lit(ignore_namespace),
@@ -1226,9 +1242,10 @@ class DataFrameReader:
                 lit(value_tag),
                 lit(ignore_surrounding_whitespace),
                 lit(exclude_attributes),
-            )
+            ),
         )
-        return df.collect()[0][0]
+
+        return df.collect()
 
     def _infer_schema_for_file_format(
         self,
@@ -1552,8 +1569,11 @@ class DataFrameReader:
             and self._infer_schema
         ):
             res = self._infer_schema_for_xml(path)
-            schema = StructType._to_attributes(type_string_to_type_object(res))
-            self._user_schema = type_string_to_type_object(res)
+            result = None
+            for r in res:
+                result = merge_struct(result, type_string_to_type_object(r[1]))
+            schema = StructType._to_attributes(result)
+            self._user_schema = result
 
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
