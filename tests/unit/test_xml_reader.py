@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.xml_reader import (
     DEFAULT_CHUNK_SIZE,
     struct_type_to_result_template,
     schema_string_to_result_dict_and_struct_type,
+    infer_schema,
 )
 from snowflake.snowpark.types import (
     StructType,
@@ -925,3 +926,34 @@ def test_schema_string_to_result_dict_and_struct_type(session):
         "description": None,
         "map_type": None,
     }
+
+
+def test_schema_inference():
+    xml_string = """
+  <book id="1">
+    <title>The Art of Snowflake</title>
+    <author>Jane Doe</author>
+    <price>29.99</price>
+    <reviews>
+      <review>
+        <user>tech_guru_87</user>
+        <rating>5</rating>
+        <comment>Very insightful and practical.</comment>
+      </review>
+      <review>
+        <user>datawizard</user>
+        <rating>4</rating>
+        <comment>Great read for data engineers.</comment>
+      </review>
+    </reviews>
+    <editions>
+      <edition year="2023" format="Hardcover"/>
+      <edition year="2024" format="eBook"/>
+    </editions>
+  </book>
+     """
+    element = ET.fromstring(xml_string)
+    res = infer_schema(element, False, "_", "", "_VALUE", False)
+    print(res)
+    for f in res.fields:
+        print(f)

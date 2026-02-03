@@ -7,12 +7,33 @@ import re
 import html.entities
 import struct
 import copy
-from typing import Optional, Dict, Any, Iterator, BinaryIO, Union, Tuple
+import random
 
+from typing import Optional, Dict, Any, Iterator, BinaryIO, Union, Tuple
+from datetime import datetime, date, time
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark.files import SnowflakeFile
-from snowflake.snowpark.types import StructType, ArrayType, DataType, MapType
+from snowflake.snowpark.types import (
+    StructType,
+    ArrayType,
+    DataType,
+    MapType,
+    NullType,
+    StringType,
+    BooleanType,
+    IntegerType,
+    LongType,
+    DoubleType,
+    DecimalType,
+    DateType,
+    TimestampType,
+    TimeType,
+    StructField,
+)
+
+
+_DECIMAL_RE = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$")
 
 # lxml is only a dev dependency so use try/except to import it if available
 try:
@@ -640,3 +661,371 @@ class XMLReader:
             result_template=result_template,
         ):
             yield (element,)
+
+
+def norm_text(
+    ignore_surrounding_whitespace: bool, text: Optional[str]
+) -> Optional[str]:
+    if text is None:
+        return None
+    return text.strip() if ignore_surrounding_whitespace else text
+
+
+def infer_type(
+    text: str, ignore_surrounding_whitespace: bool, null_value: Optional[str]
+) -> DataType:
+    t = norm_text(ignore_surrounding_whitespace, text)
+    if t is None:
+        return NullType()
+
+    # Apply null_value rule consistent with element_to_dict_or_str/get_text
+    if t == null_value:
+        return NullType()
+
+    # Keep empty string as String unless user explicitly chose null_value=""
+    # In ElementTree, empty tags often yield text=None; but if we do get "", honor null_value behavior above.
+    if t == "":
+        return StringType()
+
+    low = t.lower()
+
+    # boolean
+    if low in ("true", "false"):
+        return BooleanType()
+
+    # integer / long (no underscores, no decimals)
+    try:
+        # reject things like "01.0"
+        if all(c.isdigit() for c in (t[1:] if t.startswith(("+", "-")) else t)):
+            int(t, 10)
+            return IntegerType()
+    except Exception:
+        pass
+
+    # decimal
+    if _DECIMAL_RE.match(t):
+        if t[0] in "+-":
+            t = t[1:]
+
+        if "." in t:
+            left, right = t.split(".", 1)
+            scale = len(right)
+            precision = len(left) + len(right)
+            if not (0 <= scale <= precision):
+                scale = 0
+            if not (0 <= precision <= 38):
+                precision = 38
+            return DecimalType(precision, scale)
+
+    # time
+    try:
+        time.fromisoformat(t)
+        return TimeType()
+    except Exception:
+        pass
+
+    # date
+    try:
+        date.fromisoformat(t)
+        return DateType()
+    except Exception:
+        pass
+
+    # timestamp
+    try:
+        datetime.fromisoformat(t)
+        return TimestampType()
+    except Exception:
+        pass
+
+    return StringType()
+
+
+def merge_decimal(a: DecimalType, b: DecimalType) -> DecimalType:
+    # Merge by taking max precision and max scale (clamped).
+    precision = max(a.precision, b.precision)
+    scale = max(a.scale, b.scale)
+    precision = min(38, max(precision, scale))
+    scale = min(38, scale)
+    return DecimalType(precision, scale)
+
+
+def rank(dt: DataType) -> int:
+    # Lower rank = "narrower"/preferred; higher = "wider"/more general
+    if isinstance(dt, NullType):
+        return 0
+    if isinstance(dt, BooleanType):
+        return 1
+    if isinstance(dt, IntegerType):
+        return 2
+    if isinstance(dt, LongType):
+        return 3
+    if isinstance(dt, DecimalType):
+        return 4
+    if isinstance(dt, DoubleType):
+        return 5
+    if isinstance(dt, DateType):
+        return 6
+    if isinstance(dt, TimestampType):
+        return 7
+    if isinstance(dt, StringType):
+        return 100
+    if isinstance(dt, StructType):
+        return 200
+    if isinstance(dt, ArrayType):
+        return 300
+    return 1000
+
+
+def merge_struct(a: StructType, b: StructType) -> StructType:
+    if a is None:
+        return b
+    # Merge fields by name (case-sensitive), preserving first-seen order.
+    a_fields = {f.name: f.datatype for f in a.fields}
+    out_order = [f.name for f in a.fields]
+
+    for f in b.fields:
+        if f.name not in a_fields:
+            a_fields[f.name] = f.datatype
+            out_order.append(f.name)
+        else:
+            a_fields[f.name] = merge_types(a_fields[f.name], f.datatype)
+
+    return StructType([StructField(name, a_fields[name], True) for name in out_order])
+
+
+def merge_types(a: DataType, b: DataType) -> DataType:
+    # Handle arrays first
+    if isinstance(a, ArrayType) and isinstance(b, ArrayType):
+        return ArrayType(merge_types(a.element_type, b.element_type))
+    if isinstance(a, ArrayType):
+        return ArrayType(merge_types(a.element_type, b))
+    if isinstance(b, ArrayType):
+        return ArrayType(merge_types(a, b.element_type))
+
+    # Structs
+    if isinstance(a, StructType) and isinstance(b, StructType):
+        return merge_struct(a, b)
+
+    # Nulls
+    if isinstance(a, NullType):
+        return b
+    if isinstance(b, NullType):
+        return a
+
+    # Date/timestamp promotion
+    if isinstance(a, TimestampType) and isinstance(b, DateType):
+        return a
+    if isinstance(a, DateType) and isinstance(b, TimestampType):
+        return b
+
+    # Numeric merging
+    if isinstance(a, DecimalType) and isinstance(b, DecimalType):
+        return merge_decimal(a, b)
+    if isinstance(a, DecimalType) and isinstance(b, (IntegerType, LongType)):
+        return a
+    if isinstance(b, DecimalType) and isinstance(a, (IntegerType, LongType)):
+        return b
+    if isinstance(a, DoubleType) and isinstance(
+        b, (IntegerType, LongType, DecimalType)
+    ):
+        return a
+    if isinstance(b, DoubleType) and isinstance(
+        a, (IntegerType, LongType, DecimalType)
+    ):
+        return b
+    if isinstance(a, LongType) and isinstance(b, IntegerType):
+        return a
+    if isinstance(b, LongType) and isinstance(a, IntegerType):
+        return b
+
+    # If types are identical, keep one
+    if type(a) is type(b):
+        return a
+
+    # Otherwise choose the "wider" by rank; anything conflicting often ends up as string.
+    # (e.g., boolean + number, date + number, etc.)
+    if rank(a) == 100 or rank(b) == 100:
+        return StringType()
+    return a if rank(a) >= rank(b) else b
+
+
+def infer_schema(
+    element: ET.Element,
+    exclude_attributes: bool,
+    attribute_prefix: str,
+    null_value: str,
+    value_tag: str,
+    ignore_surrounding_whitespace: bool,
+):
+    children = list(element)
+
+    # Case: no children and (no attributes OR attributes excluded) -> scalar
+    if not children and (not element.attrib or exclude_attributes):
+        return infer_type(element.text, ignore_surrounding_whitespace, null_value)
+
+    fields = []
+
+    # Attributes (same rule as element_to_dict_or_str)
+    if not exclude_attributes:
+        for attr_name, attr_value in element.attrib.items():
+            fields.append(
+                StructField(
+                    f"{attribute_prefix}{attr_name}",
+                    infer_type(attr_value, ignore_surrounding_whitespace, null_value),
+                    True,
+                )
+            )
+
+    # Children
+    if children:
+        by_tag = {}
+        for c in children:
+            by_tag.setdefault(c.tag, []).append(c)
+
+        for tag, elems in by_tag.items():
+            dt: Optional[DataType] = None
+            for child_elem in elems:
+                child_dt = infer_schema(
+                    child_elem,
+                    exclude_attributes,
+                    attribute_prefix,
+                    null_value,
+                    value_tag,
+                    ignore_surrounding_whitespace,
+                )
+                dt = child_dt if dt is None else merge_types(dt, child_dt)
+
+            assert dt is not None
+            if len(elems) > 1:
+                dt = ArrayType(dt)
+            fields.append(StructField(tag, dt, True))
+    else:
+        # No children, but has attributes -> also include the value_tag for text if present and not null
+        # (matches element_to_dict_or_str behavior)
+        t = norm_text(ignore_surrounding_whitespace, element.text)
+        if t is not None and t != null_value:
+            fields.append(
+                StructField(
+                    value_tag,
+                    infer_type(t, ignore_surrounding_whitespace, null_value),
+                    True,
+                )
+            )
+
+    return StructType(fields)
+
+
+class XMLSchemaInference:
+    def process(
+        self,
+        file_path: str,
+        row_tag: str,
+        sampling_ratio: float,
+        charset: str,
+        ignore_namespace: bool,
+        attribute_prefix: str,
+        null_value: str,
+        value_tag: str,
+        ignore_surrounding_whitespace: bool,
+        exclude_attributes: bool,
+    ):
+        chunk_size = int(1024)
+        result = None
+
+        tag_start_1 = f"<{row_tag}>".encode()
+        tag_start_2 = f"<{row_tag} ".encode()
+        closing_tag = f"</{row_tag}>".encode()
+
+        file_size = get_file_size(file_path) or 0
+        if file_size == 0:
+            return None
+
+        with SnowflakeFile.open(file_path, "rb", require_scoped_url=False) as f:
+            f.seek(0)
+
+            while True:
+                # 1) Find next opening <row_tag ...> within the file
+                try:
+                    open_pos = find_next_opening_tag_pos(
+                        f, tag_start_1, tag_start_2, file_size, chunk_size
+                    )
+                except EOFError:
+                    break
+
+                record_start = open_pos
+                f.seek(record_start)
+
+                # 2) Find record_end (self-closing vs closing tag)
+                try:
+                    is_self_close, tag_end = tag_is_self_closing(
+                        f, chunk_size=chunk_size
+                    )
+                    if is_self_close:
+                        record_end = tag_end
+                    else:
+                        f.seek(tag_end)
+                        record_end = find_next_closing_tag_pos(
+                            f, closing_tag, chunk_size=chunk_size
+                        )
+                except Exception:
+                    # Malformed tag boundaries -> skip and keep scanning forward
+                    try:
+                        f.seek(min(record_start + 1, file_size))
+                    except Exception:
+                        break
+                    continue
+
+                # 3) Read full record bytes and parse using the SAME logic as process_xml_range
+                try:
+                    f.seek(record_start)
+                    record_bytes = f.read(record_end - record_start)
+                    record_str = record_bytes.decode(charset, errors="replace")
+                    record_str = re.sub(r"&(\w+);", replace_entity, record_str)
+
+                    if lxml_installed:
+                        recover = bool(":" in row_tag)
+                        parser = ET.XMLParser(recover=recover, ns_clean=True)
+                        try:
+                            element = ET.fromstring(record_str, parser)
+                        except ET.XMLSyntaxError:
+                            if ignore_namespace:
+                                cleaned_record = re.sub(
+                                    r"\s+(\w+):(\w+)=", r" \2=", record_str
+                                )
+                                element = ET.fromstring(cleaned_record, parser)
+                            else:
+                                raise
+                    else:
+                        element = ET.fromstring(record_str)
+
+                    if ignore_namespace:
+                        element = strip_xml_namespaces(element)
+
+                except Exception:
+                    # Malformed record -> ALWAYS skip it
+                    try:
+                        f.seek(min(record_end, file_size))
+                    except Exception:
+                        break
+                    continue
+
+                # 4) Sampling
+                if random.random() < sampling_ratio:
+                    schema = infer_schema(
+                        element,
+                        exclude_attributes,
+                        attribute_prefix,
+                        null_value,
+                        value_tag,
+                        ignore_surrounding_whitespace,
+                    )
+                    result = merge_struct(result, schema)
+
+                # 5) Move to end of record and continue
+                try:
+                    f.seek(min(record_end, file_size))
+                except Exception:
+                    break
+
+            yield (result.simple_string(),)
