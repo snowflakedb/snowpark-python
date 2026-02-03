@@ -1071,6 +1071,7 @@ def test_transaction(session):
             pass
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_session_eanble_development_features(db_parameters):
     from snowflake.snowpark import context
 
