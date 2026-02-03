@@ -1222,8 +1222,8 @@ class DataFrameReader:
                 lit(charset),
                 lit(ignore_namespace),
                 lit(attribute_prefix),
-                lit(value_tag),
                 lit(null_value),
+                lit(value_tag),
                 lit(ignore_surrounding_whitespace),
                 lit(exclude_attributes),
             )

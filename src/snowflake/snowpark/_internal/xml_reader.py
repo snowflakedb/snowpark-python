@@ -1019,6 +1019,10 @@ class XMLSchemaInference:
                         value_tag,
                         ignore_surrounding_whitespace,
                     )
+                    if not isinstance(schema, StructType):
+                        schema = StructType(
+                            [StructField(f"'{value_tag}'", schema, True)]
+                        )
                     result = merge_struct(result, schema)
 
                 # 5) Move to end of record and continue
