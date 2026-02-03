@@ -1547,7 +1547,7 @@ class DataFrameReader:
         ):
             res = self._infer_schema_for_xml(path)
             schema = StructType._to_attributes(type_string_to_type_object(res))
-            self._user_schema = schema
+            self._user_schema = type_string_to_type_object(res)
 
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
