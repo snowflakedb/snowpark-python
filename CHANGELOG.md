@@ -1,5 +1,25 @@
 # Release History
 
+## 1.46.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for the `DECFLOAT` data type that allows users to represent decimal numbers exactly with 38 digits of precision and a dynamic base-10 exponent.
+
+#### Bug Fixes
+
+#### Improvements
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+#### Improvements
+
 ## 1.45.0 (2026-02-02)
 
 ### Snowpark Python API Updates
@@ -20,7 +40,6 @@
       - `space`
       - `split_part`
 - Added `preserve_parameter_names` flag to sproc, UDF, UDTF, and UDAF creation
-- Added support for the `DECFLOAT` data type that allows users to represent decimal numbers exactly with 38 digits of precision and a dynamic base-10 exponent.
 
 #### Bug Fixes
 
