@@ -869,13 +869,12 @@ def infer_schema(
     # Attributes (same rule as element_to_dict_or_str)
     if not exclude_attributes:
         for attr_name, attr_value in element.attrib.items():
-            fields.append(
-                StructField(
-                    f"{attribute_prefix}{attr_name}",
-                    infer_type(attr_value, ignore_surrounding_whitespace, null_value),
-                    True,
-                )
+            field = StructField(
+                f"'{attribute_prefix}{attr_name}'",
+                infer_type(attr_value, ignore_surrounding_whitespace, null_value),
+                True,
             )
+            fields.append(field)
 
     # Children
     if children:
@@ -899,19 +898,19 @@ def infer_schema(
             assert dt is not None
             if len(elems) > 1:
                 dt = ArrayType(dt)
-            fields.append(StructField(tag, dt, True))
+            field = StructField(f"'{tag}'", dt, True)
+            fields.append(field)
     else:
         # No children, but has attributes -> also include the value_tag for text if present and not null
         # (matches element_to_dict_or_str behavior)
         t = norm_text(ignore_surrounding_whitespace, element.text)
         if t is not None and t != null_value:
-            fields.append(
-                StructField(
-                    value_tag,
-                    infer_type(t, ignore_surrounding_whitespace, null_value),
-                    True,
-                )
+            field = StructField(
+                f"'{value_tag}'",
+                infer_type(t, ignore_surrounding_whitespace, null_value),
+                True,
             )
+            fields.append(field)
 
     return StructType(fields)
 

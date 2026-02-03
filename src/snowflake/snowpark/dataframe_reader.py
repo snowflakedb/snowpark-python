@@ -1076,11 +1076,17 @@ class DataFrameReader:
 
         # cast to input custom schema type
         # TODO: SNOW-2923003: remove single quote after server side BCR is done
-        if self._user_schema or self._infer_schema:
+        if self._user_schema and not self._infer_schema:
             cols = [
                 df[single_quote(field._name)]
                 .cast(field.datatype)
                 .alias(quote_name_without_upper_casing(field._name))
+                for field in self._user_schema.fields
+            ]
+            return df.select(cols)
+        elif self._infer_schema:
+            cols = [
+                df[field._name].cast(field.datatype).alias(field._name)
                 for field in self._user_schema.fields
             ]
             return df.select(cols)
