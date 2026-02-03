@@ -10,6 +10,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug when reading xml with custom schema, result include element attributes when column is not `StructType` type.
+
 #### Improvements
 
 ### Snowpark pandas API Updates
@@ -44,7 +46,6 @@
 #### Bug Fixes
 
 - Fixed a bug that opentelemetry is not correctly import when using `Session.client_telemetry.enable_event_table_telemetry_collection`.
-- Fixed a bug when reading xml with custom schema, result include element attributes when column is not `StructType` type.
 
 #### Improvements
 - `snowflake.snowpark.context.configure_development_features` is effective for multiple sessions including newly created sessions after the configuration. No duplicate experimental warning any more.
