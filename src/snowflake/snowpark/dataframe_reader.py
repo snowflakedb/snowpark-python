@@ -51,6 +51,7 @@ from snowflake.snowpark._internal.type_utils import (
     convert_sf_to_sp_type,
     convert_sp_to_sf_type,
     most_permissive_type,
+    type_string_to_type_object,
 )
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark._internal.utils import (
@@ -89,6 +90,7 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     VariantType,
     StructField,
+    StringType,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -483,6 +485,8 @@ class DataFrameReader:
     @property
     def _infer_schema(self):
         # let _cur_options to be the source of truth
+
+        # for POC purpose, xml infer schema is turned on by default
         if self._file_type in INFER_SCHEMA_FORMAT_TYPES:
             return self._cur_options.get("INFER_SCHEMA", True)
         return False
@@ -1072,11 +1076,17 @@ class DataFrameReader:
 
         # cast to input custom schema type
         # TODO: SNOW-2923003: remove single quote after server side BCR is done
-        if self._user_schema:
+        if self._user_schema and not self._infer_schema:
             cols = [
                 df[single_quote(field._name)]
                 .cast(field.datatype)
                 .alias(quote_name_without_upper_casing(field._name))
+                for field in self._user_schema.fields
+            ]
+            return df.select(cols)
+        elif self._infer_schema:
+            cols = [
+                df[field._name].cast(field.datatype).alias(field._name)
                 for field in self._user_schema.fields
             ]
             return df.select(cols)
@@ -1147,6 +1157,78 @@ class DataFrameReader:
         for k, v in configs.items():
             self.option(k, v, _emit_ast=_emit_ast)
         return self
+
+    def _infer_schema_for_xml(
+        self,
+        path: str,
+    ):
+        ignore_namespace = self._cur_options.get("IGNORENAMESPACE", True)
+        attribute_prefix = self._cur_options.get("ATTRIBUTEPREFIX", "_")
+        exclude_attributes = self._cur_options.get("EXCLUDEATTRIBUTES", False)
+        value_tag = self._cur_options.get("VALUETAG", "_VALUE")
+        # NULLVALUE will be mapped to NULL_IF in pre-defined mapping in `dataframe_writer.py`
+        null_value = self._cur_options.get("NULL_IF", "")
+        ignore_surrounding_whitespace = self._cur_options.get(
+            "IGNORESURROUNDINGWHITESPACE", False
+        )
+        row_tag = self._cur_options[XML_ROW_TAG_STRING]
+        charset = self._cur_options.get("CHARSET", "utf-8")
+        sampling_ratio = self._cur_options.get("SAMPLINGRATIO", 1.0)
+        if is_in_stored_procedure():  # pragma: no cover
+            # create a temp stage for udtf import files
+            # we have to use "temp" object instead of "scoped temp" object in stored procedure
+            # so we need to upload the file to the temp stage first to use register_from_file
+            temp_stage = random_name_for_temp_object(TempObjectType.STAGE)
+            sql_create_temp_stage = (
+                f"create temp stage if not exists {temp_stage} {XML_READER_SQL_COMMENT}"
+            )
+            self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
+                _emit_ast=False
+            )
+            self._session._conn.upload_file(
+                XML_READER_FILE_PATH,
+                temp_stage,
+                compress_data=False,
+                overwrite=True,
+                skip_upload_on_content_match=True,
+            )
+            python_file_path = (
+                f"{STAGE_PREFIX}{temp_stage}/{os.path.basename(XML_READER_FILE_PATH)}"
+            )
+        else:
+            python_file_path = XML_READER_FILE_PATH
+
+        # create udtf
+        handler_name = "XMLSchemaInference"
+        _, input_types = get_types_from_type_hints(
+            (XML_READER_FILE_PATH, handler_name), TempObjectType.TABLE_FUNCTION
+        )
+        output_schema = StructType([StructField("schema", StringType(), True)])
+        xml_infer_schema_udtf = self._session.udtf.register_from_file(
+            python_file_path,
+            handler_name,
+            output_schema=output_schema,
+            input_types=input_types,
+            packages=["snowflake-snowpark-python", "lxml<6"],
+            replace=True,
+            _suppress_local_package_warnings=True,
+        )
+
+        df = self._session.table_function(
+            xml_infer_schema_udtf(
+                lit(path),
+                lit(row_tag),
+                lit(sampling_ratio),
+                lit(charset),
+                lit(ignore_namespace),
+                lit(attribute_prefix),
+                lit(null_value),
+                lit(value_tag),
+                lit(ignore_surrounding_whitespace),
+                lit(exclude_attributes),
+            )
+        )
+        return df.collect()[0][0]
 
     def _infer_schema_for_file_format(
         self,
@@ -1460,8 +1542,18 @@ class DataFrameReader:
                 replace=True,
                 _suppress_local_package_warnings=True,
             )
+
         else:
             xml_reader_udtf = None
+
+        if (
+            format == "XML"
+            and XML_ROW_TAG_STRING in self._cur_options
+            and self._infer_schema
+        ):
+            res = self._infer_schema_for_xml(path)
+            schema = StructType._to_attributes(type_string_to_type_object(res))
+            self._user_schema = type_string_to_type_object(res)
 
         if self._session.sql_simplifier_enabled:
             df = DataFrame(

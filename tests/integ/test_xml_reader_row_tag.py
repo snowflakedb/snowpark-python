@@ -691,3 +691,12 @@ def test_user_schema_without_rowtag(session):
         ValueError, match="When reading XML with user schema, rowtag must be set."
     ):
         session.read.schema(user_schema).xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+
+
+def test_infer_schema(session):
+    df = session.read.option("rowTag", "book").xml(
+        f"@{tmp_stage_name}/{test_file_books2_xml}"
+    )
+    df.show()
+    df.printSchema()
+    print(df.collect())
