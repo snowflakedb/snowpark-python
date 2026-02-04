@@ -925,3 +925,69 @@ def test_schema_string_to_result_dict_and_struct_type(session):
         "description": None,
         "map_type": None,
     }
+
+
+def test_user_schema_value_tag():
+    xml_string = """
+    <test>
+        <num>1</num>
+        <str1>NULL</str1>
+        <str2></str2>
+        <str3 id="empty">xxx</str3>
+    </test>
+    """
+
+    user_schema = StructType(
+        [
+            StructField("num", StringType(), True),
+            StructField("str1", StringType(), True),
+            StructField("str2", StringType(), True),
+            StructField(
+                "str3",
+                StructType(
+                    [
+                        StructField(
+                            "_VALUE", StringType(), True
+                        ),  # element text (because str3 has an attribute)
+                        StructField(
+                            "_id", StringType(), True
+                        ),  # attribute id (default attributePrefix is "_")
+                    ]
+                ),
+                True,
+            ),
+        ]
+    )
+
+    result_template = struct_type_to_result_template(user_schema)
+
+    element = ET.fromstring(xml_string)
+    res = element_to_dict_or_str(element, result_template=result_template)
+    assert result_template == {
+        "NUM": None,
+        "STR1": None,
+        "STR2": None,
+        "STR3": {"_VALUE": None, "_ID": None},
+    }
+    assert res == {
+        "NUM": "1",
+        "STR1": "NULL",
+        "STR2": None,
+        "STR3": {"_VALUE": "xxx", "_ID": "empty"},
+    }
+
+    user_schema = StructType(
+        [
+            StructField("num", StringType(), True),
+            StructField("str1", StringType(), True),
+            StructField("str2", StringType(), True),
+            StructField("str3", StringType(), True),
+        ]
+    )
+
+    result_template = struct_type_to_result_template(user_schema)
+
+    element = ET.fromstring(xml_string)
+    res = element_to_dict_or_str(element, result_template=result_template)
+    assert result_template == {"NUM": None, "STR1": None, "STR2": None, "STR3": None}
+    assert res == {"NUM": "1", "STR1": "NULL", "STR2": None, "STR3": "xxx"}

@@ -10,6 +10,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug when reading xml with custom schema, result include element attributes when column is not `StructType` type.
+
 #### Improvements
 
 ### Snowpark pandas API Updates
