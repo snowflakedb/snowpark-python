@@ -4,11 +4,25 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added support for the `DECFLOAT` data type that allows users to represent decimal numbers exactly with 38 digits of precision and a dynamic base-10 exponent.
+
 #### Bug Fixes
 
 - Fixed a bug where `cloudpickle` was not automatically added to the package list when using `artifact_repository` with custom packages, causing `ModuleNotFoundError` at runtime.
 
-## 1.45.0 (TBD)
+#### Improvements
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+#### Improvements
+
+## 1.45.0 (2026-02-02)
 
 ### Snowpark Python API Updates
 
@@ -28,7 +42,6 @@
       - `space`
       - `split_part`
 - Added `preserve_parameter_names` flag to sproc, UDF, UDTF, and UDAF creation
-- Added support for the `DECFLOAT` data type that allows users to represent decimal numbers exactly with 38 digits of precision and a dynamic base-10 exponent.
 
 #### Bug Fixes
 
@@ -38,15 +51,6 @@
 - `snowflake.snowpark.context.configure_development_features` is effective for multiple sessions including newly created sessions after the configuration. No duplicate experimental warning any more.
 - Removed experimental warning from `DataFrame.to_arrow` and `DataFrame.to_arrow_batches`.
 - When both `Session.reduce_describe_query_enabled` and `Session.cte_optimization_enabled` are enabled, fewer DESCRIBE queries are issued when resolving table attributes.
-
-### Snowpark pandas API Updates
-
-#### New Features
-
-#### Bug Fixes
-
-#### Improvements
-
 
 ## 1.44.0 (2025-12-15)
 
