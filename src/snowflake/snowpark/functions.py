@@ -11848,7 +11848,7 @@ def regr_r2(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     Example::
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-        >>> df.groupBy("v").agg(regr_r2(col("v"), col("v2")).alias("regr_r2")).collect()
+        >>> df.groupBy("v").agg(regr_r2(col("v"), col("v2")).alias("regr_r2")).sort("v").collect()
         [Row(V=10, REGR_R2=None), Row(V=20, REGR_R2=None), Row(V=25, REGR_R2=None), Row(V=30, REGR_R2=None)]
     """
     y = _to_col_if_str(y, "regr_r2")

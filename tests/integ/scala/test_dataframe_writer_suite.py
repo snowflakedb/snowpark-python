@@ -258,7 +258,9 @@ def test_iceberg(session, local_testing_mode):
             ddl[0][0] == f"create or replace ICEBERG TABLE {table_name} (\n\t"
             f"A STRING,\n\tB LONG,\n\tTS TIMESTAMP_NTZ(9)\n)\n "
             f"PARTITION BY (A, BUCKET(5, B), TRUNCATE(3, A), DAY(TS))\n "
-            f"EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n "
+            f"EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n "
+            f"ICEBERG_VERSION = 3\n "
+            f"CATALOG = 'SNOWFLAKE'\n "
             f"BASE_LOCATION = 'snowpark_python_tests/';"
         )
 
