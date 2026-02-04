@@ -1235,7 +1235,7 @@ def resolve_imports_and_packages(
                 raise TypeError(
                     "Artifact repository requires that all packages be passed as str."
                 )
-            resolved_packages = list(packages)
+            resolved_packages = packages
             if not any(
                 Requirement(pkg).name.lower() == "cloudpickle"
                 for pkg in resolved_packages

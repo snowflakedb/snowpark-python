@@ -2921,9 +2921,6 @@ def test_register_artifact_repository(session):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_register_artifact_repository_with_packages_includes_cloudpickle(session):
     """Test that cloudpickle is available when using artifact_repository with packages."""
 
