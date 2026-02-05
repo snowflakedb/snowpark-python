@@ -26,6 +26,7 @@ from typing import (
 )
 
 import cloudpickle
+from packaging.requirements import Requirement
 
 import snowflake.snowpark
 from snowflake.connector.options import installed_pandas, pandas
@@ -1234,7 +1235,26 @@ def resolve_imports_and_packages(
                 raise TypeError(
                     "Artifact repository requires that all packages be passed as str."
                 )
-            resolved_packages = packages
+            try:
+                has_cloudpickle = bool(
+                    any(
+                        Requirement(pkg).name.lower() == "cloudpickle"
+                        for pkg in packages
+                    )
+                )
+            except BaseException:
+                # backward compatibility, we don't raise an error here
+                # based on PyPI search (https://pypi.org/search/?q=cloudpickle), and Anaconda search (https://anaconda.org/search?q=cloudpickle),
+                # "cloudpickle" is the only package with this prefix, making startswith() check safe.
+                has_cloudpickle = bool(
+                    any(pkg.startswith("cloudpickle") for pkg in packages)
+                )
+            resolved_packages = packages + (
+                [f"cloudpickle=={cloudpickle.__version__}"]
+                if not has_cloudpickle
+                else []
+            )
+
     else:
         # resolve packages
         if session is None:  # In case of sandbox

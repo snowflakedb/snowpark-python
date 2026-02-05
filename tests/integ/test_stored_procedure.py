@@ -2331,7 +2331,42 @@ def test_sproc_artifact_repository(session):
                 )
     except SnowparkSQLException as ex:
         if "No matching distribution found for snowflake-snowpark-python" in str(ex):
-            pytest.mark.xfail(
+            pytest.xfail(
+                "Unreleased snowpark versions are unavailable in artifact repository."
+            )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+def test_sproc_artifact_repository_with_packages_includes_cloudpickle(session):
+    """Test that cloudpickle is available when using artifact_repository with packages."""
+
+    def test_cloudpickle(_: Session) -> str:
+        import cloudpickle
+
+        # Test that cloudpickle is available and works
+        def test_func(x):
+            return x + 1
+
+        pickled = cloudpickle.dumps(test_func)
+        unpickled = cloudpickle.loads(pickled)
+        return str(unpickled(5))
+
+    try:
+        test_cloudpickle_sproc = sproc(
+            test_cloudpickle,
+            session=session,
+            return_type=StringType(),
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            packages=["urllib3", "requests"],  # cloudpickle should be auto-added
+        )
+        assert test_cloudpickle_sproc(session=session) == "6"
+    except SnowparkSQLException as ex:
+        if "No matching distribution found for snowflake-snowpark-python" in str(ex):
+            pytest.xfail(
                 "Unreleased snowpark versions are unavailable in artifact repository."
             )
 
