@@ -1257,7 +1257,6 @@ def resolve_imports_and_packages(
                 raise TypeError(
                     "Non-conda artifact repository requires that all packages be passed as str."
                 )
-            # TODO: this will not automatically add required packages like cloudpickle, is that ok?
             resolved_packages = packages
     else:
         # resolve packages using conda channel
