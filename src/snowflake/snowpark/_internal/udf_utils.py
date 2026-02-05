@@ -1222,21 +1222,45 @@ def resolve_imports_and_packages(
     Optional[str],
     bool,
 ]:
-    if artifact_repository and artifact_repository != "conda":
-        # Artifact Repository packages are not resolved
+    from snowflake.snowpark.session import ANACONDA_SHARED_REPOSITORY
+
+    use_default_artifact_repository = artifact_repository is None
+    if use_default_artifact_repository:
+        artifact_repository = (
+            session._get_default_artifact_repository()
+            if session is not None
+            else ANACONDA_SHARED_REPOSITORY
+        )
+
+    # TODO: if the user explicitly passes in the current default, should we use self._packages?
+    # note that the current default could change after calling session.add_packages, so it's hard
+    # to know what the intended default is
+    existing_packages_dict = {}
+    if session:
+        existing_packages_dict = (
+            session._packages
+            if use_default_artifact_repository
+            else session._artifact_repository_packages[artifact_repository]
+        )
+
+    if artifact_repository != ANACONDA_SHARED_REPOSITORY:
+        # Non-conda artifact repository - skip conda-based package resolution
         resolved_packages = []
         if not packages and session:
             resolved_packages = list(
-                session._resolve_packages([], artifact_repository=artifact_repository)
+                session._resolve_packages(
+                    [], artifact_repository, existing_packages_dict
+                )
             )
         elif packages:
             if not all(isinstance(package, str) for package in packages):
                 raise TypeError(
-                    "Artifact repository requires that all packages be passed as str."
+                    "Non-conda artifact repository requires that all packages be passed as str."
                 )
+            # TODO: this will not automatically add required packages like cloudpickle, is that ok?
             resolved_packages = packages
     else:
-        # resolve packages
+        # resolve packages using conda channel
         if session is None:  # In case of sandbox
             resolved_packages = resolve_packages_in_client_side_sandbox(
                 packages=packages
@@ -1245,6 +1269,8 @@ def resolve_imports_and_packages(
             resolved_packages = (
                 session._resolve_packages(
                     packages,
+                    artifact_repository,
+                    {},  # ignore session packages if passed in explicitly
                     include_pandas=is_pandas_udf,
                     statement_params=statement_params,
                     _suppress_local_package_warnings=_suppress_local_package_warnings,
@@ -1252,7 +1278,8 @@ def resolve_imports_and_packages(
                 if packages is not None
                 else session._resolve_packages(
                     [],
-                    session._packages,
+                    artifact_repository,
+                    existing_packages_dict,
                     validate_package=False,
                     include_pandas=is_pandas_udf,
                     statement_params=statement_params,

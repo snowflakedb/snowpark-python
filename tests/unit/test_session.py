@@ -28,7 +28,10 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSessionException,
 )
-from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING
+from snowflake.snowpark.session import (
+    _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING,
+    ANACONDA_SHARED_REPOSITORY,
+)
 from snowflake.snowpark.types import StructField, StructType
 
 
@@ -674,3 +677,34 @@ def test_parameter_version(version_value, expected_parameter_value, parameter_na
     )
     session = Session(fake_server_connection)
     assert getattr(session, parameter_name, None) is expected_parameter_value
+
+
+def test_get_default_artifact_repository():
+    fake_server_connection = mock.create_autospec(ServerConnection)
+    fake_server_connection._thread_safe_session_enabled = True
+    session = Session(fake_server_connection)
+
+    with mock.patch.object(
+        session,
+        "_run_query",
+        return_value=[["snowflake.snowpark.pypi_shared_repository"]],
+    ):
+        result = session._get_default_artifact_repository()
+        assert result == "snowflake.snowpark.pypi_shared_repository"
+
+    with mock.patch.object(
+        session,
+        "_run_query",
+        return_value=[[None]],
+    ):
+        result = session._get_default_artifact_repository()
+        assert result == ANACONDA_SHARED_REPOSITORY
+
+    # throws error
+    with mock.patch.object(
+        session,
+        "_run_query",
+        side_effect=ProgrammingError("Function not found"),
+    ):
+        result = session._get_default_artifact_repository()
+        assert result == ANACONDA_SHARED_REPOSITORY

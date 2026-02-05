@@ -321,6 +321,10 @@ DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
+# The fully qualified name of the Anaconda shared repository (conda channel).
+# Used as the fallback/default when the system function is unavailable or returns NULL.
+ANACONDA_SHARED_REPOSITORY = "snowflake.snowpark.anaconda_shared_repository"
+
 
 def _get_active_session() -> "Session":
     with _session_management_lock:
@@ -599,7 +603,10 @@ class Session:
         self._conn = conn
         self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+        # packages that should be added under the default artifact repository
+        # TODO: now that we have dynamic defaults, should we remove this and just use _artifact_repository_packages always?
         self._packages: Dict[str, str] = {}
+        # packages that should be added under an explicit artifact repository
         self._artifact_repository_packages: DefaultDict[
             str, Dict[str, str]
         ] = defaultdict(dict)
@@ -1669,10 +1676,20 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
+        use_default_artifact_repository = artifact_repository is None
+        if use_default_artifact_repository:
+            artifact_repository = self._get_default_artifact_repository()
+
+        existing_packages_dict = (
+            self._packages
+            if use_default_artifact_repository
+            else self._artifact_repository_packages[artifact_repository]
+        )
+
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
-            self._packages,
-            artifact_repository=artifact_repository,
+            existing_packages_dict,
+            artifact_repository,
         )
 
     def remove_package(
@@ -2097,11 +2114,11 @@ class Session:
     def _resolve_packages(
         self,
         packages: List[Union[str, ModuleType]],
-        existing_packages_dict: Optional[Dict[str, str]] = None,
+        artifact_repository: str,
+        existing_packages_dict: Dict[str, str],
         validate_package: bool = True,
         include_pandas: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        artifact_repository: Optional[str] = None,
         **kwargs,
     ) -> List[str]:
         """
@@ -2128,18 +2145,12 @@ class Session:
         package_dict = self._parse_packages(packages)
         if (
             isinstance(self._conn, MockServerConnection)
-            or artifact_repository is not None
+            or artifact_repository != ANACONDA_SHARED_REPOSITORY
         ):
-            # in local testing we don't resolve the packages, we just return what is added
+            # in local testing or non-conda, we don't resolve the packages, we just return what is added
             errors = []
             with self._package_lock:
-                if artifact_repository is None:
-                    result_dict = self._packages
-                else:
-                    result_dict = self._artifact_repository_packages[
-                        artifact_repository
-                    ]
-
+                result_dict = existing_packages_dict  # assumption: packages is empty
                 for pkg_name, _, pkg_req in package_dict.values():
                     if (
                         pkg_name in result_dict
@@ -2376,6 +2387,28 @@ class Session:
                 tmpdir_handler.cleanup()
 
         return supported_dependencies + new_dependencies
+
+    def _get_default_artifact_repository(self) -> str:
+        """
+        Returns the default artifact repository for the current session context
+        by calling SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY.
+
+        Falls back to the Anaconda shared repository (conda) if:
+          - the system function is not available / fails, or
+          - the system function returns NULL (value was never set).
+        """
+        if isinstance(self._conn, MockServerConnection):
+            return ANACONDA_SHARED_REPOSITORY
+
+        try:
+            python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+            result = self._run_query(
+                f"SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('{python_version}')"
+            )
+            value = result[0][0] if result else None
+            return value or ANACONDA_SHARED_REPOSITORY
+        except Exception:
+            return ANACONDA_SHARED_REPOSITORY
 
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
