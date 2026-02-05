@@ -1235,20 +1235,25 @@ def resolve_imports_and_packages(
                 raise TypeError(
                     "Artifact repository requires that all packages be passed as str."
                 )
-            resolved_packages = list(packages)
             try:
-                if not any(
-                    Requirement(pkg).name.lower() == "cloudpickle"
-                    for pkg in resolved_packages
-                ):
-                    resolved_packages.append(f"cloudpickle=={cloudpickle.__version__}")
-            except Exception as e:
-                logger.debug(
-                    f"Failed to check if cloudpickle is in packages: {e}, fallback to startswith approach"
+                has_cloudpickle = bool(
+                    any(
+                        Requirement(pkg).name.lower() == "cloudpickle"
+                        for pkg in packages
+                    )
                 )
-                # backward compatibility, we don't raise an error here, by checking startwith "cloudpickle"
-                if not any(pkg.startswith("cloudpickle") for pkg in resolved_packages):
-                    resolved_packages.append(f"cloudpickle=={cloudpickle.__version__}")
+            except BaseException:
+                # backward compatibility, we don't raise an error here
+                # based on PyPI search (https://pypi.org/search/?q=cloudpickle), and Anaconda search (https://anaconda.org/search?q=cloudpickle),
+                # "cloudpickle" is the only package with this prefix, making startswith() check safe.
+                has_cloudpickle = bool(
+                    any(pkg.startswith("cloudpickle") for pkg in packages)
+                )
+            resolved_packages = packages + (
+                [f"cloudpickle=={cloudpickle.__version__}"]
+                if not has_cloudpickle
+                else []
+            )
 
     else:
         # resolve packages
