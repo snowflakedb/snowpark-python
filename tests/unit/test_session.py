@@ -318,6 +318,38 @@ def test_resolve_packages_suppresses_internal_warning(mock_server_connection, ca
     assert caplog.text == ""
 
 
+def test_resolve_packages_non_conda_artifact_repository(mock_server_connection):
+    session = Session(mock_server_connection)
+
+    existing_packages = {}
+
+    def assert_packages(packages):
+        assert sorted(packages) == [
+            "cloudpickle==1.0.0",
+            "snowflake-snowpark-python==1.0.0",
+        ]
+        assert existing_packages == {
+            "snowflake-snowpark-python": "snowflake-snowpark-python==1.0.0",
+            "cloudpickle": "cloudpickle==1.0.0",
+        }
+
+    packages = session._resolve_packages(
+        ["snowflake-snowpark-python==1.0.0", "cloudpickle==1.0.0"],
+        "snowflake.snowpark.pypi_shared_repository",
+        existing_packages,
+    )
+
+    assert_packages(packages)
+
+    packages = session._resolve_packages(
+        [],
+        "snowflake.snowpark.pypi_shared_repository",
+        existing_packages,
+    )
+
+    assert_packages(packages)
+
+
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
 def test_write_pandas_wrong_table_type(mock_server_connection):
     session = Session(mock_server_connection)

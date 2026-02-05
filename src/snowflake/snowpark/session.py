@@ -2150,7 +2150,7 @@ class Session:
             # in local testing or non-conda, we don't resolve the packages, we just return what is added
             errors = []
             with self._package_lock:
-                result_dict = existing_packages_dict  # assumption: packages is empty
+                result_dict = existing_packages_dict
                 for pkg_name, _, pkg_req in package_dict.values():
                     if (
                         pkg_name in result_dict
