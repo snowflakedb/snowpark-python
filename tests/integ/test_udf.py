@@ -3009,3 +3009,40 @@ def test_udf_artifact_repository_from_file(session, tmpdir):
     )
     df = session.create_dataframe([1]).to_df(["a"])
     Utils.check_answer(df.select(ar_udf()), [Row("test")])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+# @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_use_default_artifact_repository(session):
+    session.sql(
+        "ALTER schema set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = snowflake.snowpark.pypi_shared_repository"
+    ).collect()
+
+    def test_art() -> str:
+        import art  # art is not available in the conda channel, but is in pypi
+
+        return "art works!" if art.text2art("test") else "art does not work!"
+
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    try:
+        # Test function registration
+        udf(
+            func=test_art,
+            name=temp_func_name,
+            packages=["art", "cloudpickle"],
+        )
+
+        # Test UDF call
+        df = session.create_dataframe([1]).to_df(["a"])
+        Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("art works!")])
+    finally:
+        session._run_query(f"drop function if exists {temp_func_name}(int)")
+
+    session.sql("ALTER schema unset DEFAULT_PYTHON_ARTIFACT_REPOSITORY").collect()

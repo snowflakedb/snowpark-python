@@ -357,6 +357,10 @@ def session(
             "alter session set ENABLE_EXTRACTION_PUSHDOWN_EXTERNAL_PARQUET_FOR_COPY_PHASE_I='Track';"
         ).collect()
         session.sql("alter session set ENABLE_ROW_ACCESS_POLICY=true").collect()
+        # TODO: remove
+        session.sql(
+            "ALTER SESSION SET ENABLE_DEFAULT_PYTHON_ARTIFACT_REPOSITORY = true"
+        ).collect()
 
     try:
         yield session
