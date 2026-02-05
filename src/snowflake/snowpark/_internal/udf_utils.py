@@ -1238,7 +1238,7 @@ def resolve_imports_and_packages(
                     )
                 # Note: According to PyPI search (https://pypi.org/search/?q=cloudpickle), and Anaconda search (https://anaconda.org/search?q=cloudpickle),
                 # "cloudpickle" is the only package with this prefix, making startswith() check safe.
-                if pkg.startswith("cloudpickle"):
+                if not has_cloudpickle and pkg.startswith("cloudpickle"):
                     has_cloudpickle = True
 
             resolved_packages = packages
