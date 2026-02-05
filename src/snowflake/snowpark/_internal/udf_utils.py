@@ -1241,7 +1241,7 @@ def resolve_imports_and_packages(
 
             resolved_packages = packages
             if not has_cloudpickle:
-                # Note: According to PyPI search (https://pypi.org/search/?q=cloudpickle),
+                # Note: According to PyPI search (https://pypi.org/search/?q=cloudpickle), and Anaconda search (https://anaconda.org/search?q=cloudpickle),
                 # "cloudpickle" is the only package with this prefix, making startswith() safe.
                 resolved_packages.append(f"cloudpickle=={cloudpickle.__version__}")
     else:
