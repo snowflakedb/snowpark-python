@@ -3020,14 +3020,18 @@ def test_udf_artifact_repository_from_file(session, tmpdir):
     sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
 )
 def test_use_default_artifact_repository(session):
+    # TODO: is this safe with parallel testing?
     session.sql(
         "ALTER schema set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = snowflake.snowpark.pypi_shared_repository"
     ).collect()
 
+    session.add_packages("art", "cloudpickle")
+
     def test_art() -> str:
         import art  # art is not available in the conda channel, but is in pypi
 
-        return "art works!" if art.text2art("test") else "art does not work!"
+        _ = art.text2art("test")
+        return "art works!"
 
     temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
@@ -3036,7 +3040,6 @@ def test_use_default_artifact_repository(session):
         udf(
             func=test_art,
             name=temp_func_name,
-            packages=["art", "cloudpickle"],
         )
 
         # Test UDF call

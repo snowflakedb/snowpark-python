@@ -214,7 +214,11 @@ def test_resolve_package_current_database(has_current_database):
     session.table.side_effect = mock_get_information_schema_packages
 
     session._resolve_packages(
-        ["random_package_name"], validate_package=True, include_pandas=False
+        ["random_package_name"],
+        ANACONDA_SHARED_REPOSITORY,
+        {},
+        validate_package=True,
+        include_pandas=False,
     )
 
 
@@ -245,7 +249,11 @@ def test_resolve_package_terms_not_accepted(mock_server_connection):
         "#using-third-party-packages-from-anaconda.",
     ):
         session._resolve_packages(
-            ["random_package_name"], validate_package=True, include_pandas=False
+            ["random_package_name"],
+            ANACONDA_SHARED_REPOSITORY,
+            {},
+            validate_package=True,
+            include_pandas=False,
         )
 
 
@@ -267,7 +275,8 @@ def test_resolve_packages_side_effect(mock_server_connection):
 
     resolved_packages = session._resolve_packages(
         ["random_package_name"],
-        existing_packages_dict=existing_packages,
+        ANACONDA_SHARED_REPOSITORY,
+        existing_packages,
         validate_package=True,
         include_pandas=False,
     )
@@ -298,6 +307,8 @@ def test_resolve_packages_suppresses_internal_warning(mock_server_connection, ca
     ):
         session._resolve_packages(
             ["snowflake-snowpark-python"],
+            ANACONDA_SHARED_REPOSITORY,
+            {},
             validate_package=True,
             include_pandas=False,
             _suppress_local_package_warnings=True,

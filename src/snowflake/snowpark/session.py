@@ -1688,8 +1688,8 @@ class Session:
 
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
-            existing_packages_dict,
             artifact_repository,
+            existing_packages_dict,
         )
 
     def remove_package(
