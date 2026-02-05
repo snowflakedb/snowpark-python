@@ -2331,7 +2331,7 @@ def test_sproc_artifact_repository(session):
                 )
     except SnowparkSQLException as ex:
         if "No matching distribution found for snowflake-snowpark-python" in str(ex):
-            pytest.mark.xfail(
+            pytest.xfail(
                 "Unreleased snowpark versions are unavailable in artifact repository."
             )
 
@@ -2366,7 +2366,7 @@ def test_sproc_artifact_repository_with_packages_includes_cloudpickle(session):
         assert test_cloudpickle_sproc(session=session) == "6"
     except SnowparkSQLException as ex:
         if "No matching distribution found for snowflake-snowpark-python" in str(ex):
-            pytest.mark.xfail(
+            pytest.xfail(
                 "Unreleased snowpark versions are unavailable in artifact repository."
             )
 
