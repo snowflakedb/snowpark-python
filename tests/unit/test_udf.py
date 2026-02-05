@@ -116,7 +116,7 @@ def test_artifact_repository_adds_cloudpickle():
         udf_name="test_udf",
         stage_location=None,
         imports=None,
-        packages=["urllib3", "requests"],
+        packages=["urllib3", "requests", "cloudpickle-non-existing"],
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
     )
     _, _, _, all_packages, _, _ = result

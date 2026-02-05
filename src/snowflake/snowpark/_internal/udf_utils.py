@@ -26,6 +26,7 @@ from typing import (
 )
 
 import cloudpickle
+from packaging.requirements import Requirement
 
 import snowflake.snowpark
 from snowflake.connector.options import installed_pandas, pandas
@@ -1230,20 +1231,25 @@ def resolve_imports_and_packages(
                 session._resolve_packages([], artifact_repository=artifact_repository)
             )
         elif packages:
-            has_cloudpickle = False
-            for pkg in packages:
-                if not isinstance(pkg, str):
-                    raise TypeError(
-                        "Artifact repository requires that all packages be passed as str."
-                    )
-                # Note: According to PyPI search (https://pypi.org/search/?q=cloudpickle), and Anaconda search (https://anaconda.org/search?q=cloudpickle),
-                # "cloudpickle" is the only package with this prefix, making startswith() check safe.
-                if not has_cloudpickle and pkg.startswith("cloudpickle"):
-                    has_cloudpickle = True
-
+            if not all(isinstance(package, str) for package in packages):
+                raise TypeError(
+                    "Artifact repository requires that all packages be passed as str."
+                )
             resolved_packages = list(packages)
-            if not has_cloudpickle:
-                resolved_packages.append(f"cloudpickle=={cloudpickle.__version__}")
+            try:
+                if not any(
+                    Requirement(pkg).name.lower() == "cloudpickle"
+                    for pkg in resolved_packages
+                ):
+                    resolved_packages.append(f"cloudpickle=={cloudpickle.__version__}")
+            except Exception as e:
+                logger.debug(
+                    f"Failed to check if cloudpickle is in packages: {e}, fallback to startswith approach"
+                )
+                # backward compatibility, we don't raise an error here, by checking startwith "cloudpickle"
+                if not any(pkg.startswith("cloudpickle") for pkg in resolved_packages):
+                    resolved_packages.append(f"cloudpickle=={cloudpickle.__version__}")
+
     else:
         # resolve packages
         if session is None:  # In case of sandbox
