@@ -1571,6 +1571,8 @@ class DataFrameReader:
             res = self._infer_schema_for_xml(path)
             result = None
             for r in res:
+                if r[1] == "":
+                    continue
                 result = merge_struct(result, type_string_to_type_object(r[1]))
             schema = StructType._to_attributes(result)
             self._user_schema = result

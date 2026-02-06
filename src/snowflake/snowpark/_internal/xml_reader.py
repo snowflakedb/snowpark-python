@@ -1002,43 +1002,44 @@ class XMLSchemaInference:
                         break
                     continue
 
-                # 3) Read full record bytes and parse (same logic pattern as process_xml_range)
-                try:
-                    f.seek(record_start)
-                    record_bytes = f.read(record_end - record_start)
-                    record_str = record_bytes.decode(charset, errors="replace")
-                    record_str = re.sub(r"&(\w+);", replace_entity, record_str)
-
-                    if lxml_installed:
-                        recover = bool(":" in row_tag)
-                        parser = ET.XMLParser(recover=recover, ns_clean=True)
-                        try:
-                            element = ET.fromstring(record_str, parser)
-                        except ET.XMLSyntaxError:
-                            if ignore_namespace:
-                                cleaned_record = re.sub(
-                                    r"\s+(\w+):(\w+)=", r" \2=", record_str
-                                )
-                                element = ET.fromstring(cleaned_record, parser)
-                            else:
-                                raise
-                    else:
-                        element = ET.fromstring(record_str)
-
-                    if ignore_namespace:
-                        element = strip_xml_namespaces(element)
-                except Exception:
-                    # Malformed record -> ALWAYS skip it
-                    try:
-                        f.seek(min(record_end, approx_end))
-                    except Exception:
-                        break
-                    if record_end > approx_end:
-                        break
-                    continue
-
-                # 4) Sampling
+                # 3) Sampling
                 if random.random() < sampling_ratio:
+
+                    # 4) Read full record bytes and parse (same logic pattern as process_xml_range)
+                    try:
+                        f.seek(record_start)
+                        record_bytes = f.read(record_end - record_start)
+                        record_str = record_bytes.decode(charset, errors="replace")
+                        record_str = re.sub(r"&(\w+);", replace_entity, record_str)
+
+                        if lxml_installed:
+                            recover = bool(":" in row_tag)
+                            parser = ET.XMLParser(recover=recover, ns_clean=True)
+                            try:
+                                element = ET.fromstring(record_str, parser)
+                            except ET.XMLSyntaxError:
+                                if ignore_namespace:
+                                    cleaned_record = re.sub(
+                                        r"\s+(\w+):(\w+)=", r" \2=", record_str
+                                    )
+                                    element = ET.fromstring(cleaned_record, parser)
+                                else:
+                                    raise
+                        else:
+                            element = ET.fromstring(record_str)
+
+                        if ignore_namespace:
+                            element = strip_xml_namespaces(element)
+                    except Exception:
+                        # Malformed record -> ALWAYS skip it
+                        try:
+                            f.seek(min(record_end, approx_end))
+                        except Exception:
+                            break
+                        if record_end > approx_end:
+                            break
+                        continue
+
                     schema = infer_schema(
                         element,
                         exclude_attributes,
@@ -1047,6 +1048,7 @@ class XMLSchemaInference:
                         value_tag,
                         ignore_surrounding_whitespace,
                     )
+
                     if not isinstance(schema, StructType):
                         schema = StructType(
                             [StructField(f"'{value_tag}'", schema, True)]
@@ -1061,4 +1063,4 @@ class XMLSchemaInference:
                 except Exception:
                     break
 
-        yield (result.simple_string(),)
+        yield (result.simple_string() if result is not None else "",)
