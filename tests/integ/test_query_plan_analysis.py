@@ -358,7 +358,9 @@ def test_join_statement(session: Session, sample_table: str):
     assert_df_subtree_query_complexity(
         df5,
         sum_node_complexities(
-            get_cumulative_node_complexity(df3), {PlanNodeCategory.COLUMN: 2}
+            get_cumulative_node_complexity(df1),
+            get_cumulative_node_complexity(df2),
+            {PlanNodeCategory.COLUMN: 2, PlanNodeCategory.JOIN: 1},
         ),
     )
 
