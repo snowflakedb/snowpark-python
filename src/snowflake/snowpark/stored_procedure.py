@@ -941,8 +941,12 @@ class StoredProcedureRegistration:
 
         effective_artifact_repository = artifact_repository
         if effective_artifact_repository is None:
+            from snowflake.snowpark.session import ANACONDA_SHARED_REPOSITORY
+
             effective_artifact_repository = (
                 self._session._get_default_artifact_repository()
+                if self._session
+                else ANACONDA_SHARED_REPOSITORY
             )
 
         # Add in snowflake-snowpark-python if it is not already in the package list.

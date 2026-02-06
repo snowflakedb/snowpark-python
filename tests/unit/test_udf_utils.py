@@ -225,7 +225,9 @@ def test_resolve_imports_and_packages_imports_as_str(tmp_path_factory):
 )
 def test_add_snowpark_package_to_sproc_packages_add_package(packages):
     old_packages_length = len(packages) if packages else 0
-    result = add_snowpark_package_to_sproc_packages(session=None, packages=packages)
+    result = add_snowpark_package_to_sproc_packages(
+        session=None, packages=packages, artifact_repository=ANACONDA_SHARED_REPOSITORY
+    )
 
     major, minor, patch = VERSION
     package_name = "snowflake-snowpark-python"
@@ -241,7 +243,9 @@ def test_add_snowpark_package_to_sproc_packages_does_not_replace_package():
         "random_package_two",
         "snowflake-snowpark-python==1.12.0",
     ]
-    result = add_snowpark_package_to_sproc_packages(session=None, packages=packages)
+    result = add_snowpark_package_to_sproc_packages(
+        session=None, packages=packages, artifact_repository=ANACONDA_SHARED_REPOSITORY
+    )
 
     assert len(result) == len(packages)
     assert "snowflake-snowpark-python==1.12.0" in result
@@ -254,7 +258,11 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
         "random_package_two": "random_package_two",
     }
     fake_session._package_lock = threading.RLock()
-    result = add_snowpark_package_to_sproc_packages(session=fake_session, packages=None)
+    result = add_snowpark_package_to_sproc_packages(
+        session=fake_session,
+        packages=None,
+        artifact_repository=ANACONDA_SHARED_REPOSITORY,
+    )
 
     major, minor, patch = VERSION
     package_name = "snowflake-snowpark-python"
@@ -265,7 +273,11 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
     fake_session._artifact_repository_packages[ANACONDA_SHARED_REPOSITORY][
         "snowflake-snowpark-python"
     ] = "snowflake-snowpark-python==1.12.0"
-    result = add_snowpark_package_to_sproc_packages(session=fake_session, packages=None)
+    result = add_snowpark_package_to_sproc_packages(
+        session=fake_session,
+        packages=None,
+        artifact_repository=ANACONDA_SHARED_REPOSITORY,
+    )
     assert result is None
 
 
