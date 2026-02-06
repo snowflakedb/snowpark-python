@@ -2418,8 +2418,12 @@ class Session:
                 f"SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('{python_version}')"
             )
             value = result[0][0] if result else None
+            print("RESULT:", result)
             resolved = value or ANACONDA_SHARED_REPOSITORY
-        except Exception:
+        except Exception as e:
+            _logger.warning(
+                f"Error getting default artifact repository: {e}. Using fallback."
+            )
             resolved = ANACONDA_SHARED_REPOSITORY
 
         with self._package_lock:

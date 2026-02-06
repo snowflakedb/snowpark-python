@@ -270,7 +270,10 @@ def test_add_packages(session, local_testing_mode):
         return match.group(1) if match else version_string
 
     resolved_packages = session._resolve_packages(
-        [numpy, pandas, dateutil], validate_package=False
+        [numpy, pandas, dateutil],
+        ANACONDA_SHARED_REPOSITORY,
+        {},
+        validate_package=False,
     )
     # resolved_packages is a list of strings like
     #   ['numpy==2.0.2', 'pandas==2.3.0', 'python-dateutil==2.9.0.post0', 'cloudpickle==3.0.0']

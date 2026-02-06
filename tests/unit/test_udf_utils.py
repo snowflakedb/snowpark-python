@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from collections import defaultdict
 import logging
 import os
 import pickle
@@ -253,6 +254,7 @@ def test_add_snowpark_package_to_sproc_packages_does_not_replace_package():
 
 def test_add_snowpark_package_to_sproc_packages_to_session():
     fake_session = mock.create_autospec(Session)
+    fake_session._artifact_repository_packages = defaultdict(dict)
     fake_session._artifact_repository_packages[ANACONDA_SHARED_REPOSITORY] = {
         "random_package_one": "random_package_one",
         "random_package_two": "random_package_two",
