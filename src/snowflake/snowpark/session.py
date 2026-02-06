@@ -2398,41 +2398,38 @@ class Session:
         a time; switching to a different database or schema evicts the
         previous entry and triggers a fresh query on the next call.
 
-        Falls back to the Anaconda shared repository (conda) if:
+        Falls back to the Snowflake default artifact repository if:
           - the session uses a mock connection (local testing), or
           - the system function is not available / fails, or
           - the system function returns NULL (value was never set).
-
-        If the Snowflake default artifact repository changes in the future, the
-        fallback needs to be updated here.
         """
-        if isinstance(self._conn, MockServerConnection):
-            return DEFAULT_ARTIFACT_REPOSITORY
-
-        cache_key = (self.get_current_database(), self.get_current_schema())
-
-        if (
-            self._default_artifact_repository_cache is not None
-            and self._default_artifact_repository_cache[0] == cache_key
-        ):
-            return self._default_artifact_repository_cache[1]
-
-        try:
-            python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-            result = self._run_query(
-                f"SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('{python_version}')"
-            )
-            value = result[0][0] if result else None
-            resolved = value or DEFAULT_ARTIFACT_REPOSITORY
-        except Exception as e:
-            _logger.warning(
-                f"Error getting default artifact repository: {e}. Using fallback."
-            )
-            resolved = DEFAULT_ARTIFACT_REPOSITORY
-
         with self._package_lock:
+            if isinstance(self._conn, MockServerConnection):
+                return DEFAULT_ARTIFACT_REPOSITORY
+
+            cache_key = (self.get_current_database(), self.get_current_schema())
+
+            if (
+                self._default_artifact_repository_cache is not None
+                and self._default_artifact_repository_cache[0] == cache_key
+            ):
+                return self._default_artifact_repository_cache[1]
+
+            try:
+                python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+                result = self._run_query(
+                    f"SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('{python_version}')"
+                )
+                value = result[0][0] if result else None
+                resolved = value or DEFAULT_ARTIFACT_REPOSITORY
+            except Exception as e:
+                _logger.warning(
+                    f"Error getting default artifact repository: {e}. Using fallback."
+                )
+                resolved = DEFAULT_ARTIFACT_REPOSITORY
+
             self._default_artifact_repository_cache = (cache_key, resolved)
-        return resolved
+            return resolved
 
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
