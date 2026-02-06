@@ -322,7 +322,6 @@ WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 # The fully qualified name of the Anaconda shared repository (conda channel).
-# Used as the fallback/default when the system function is unavailable or returns NULL.
 ANACONDA_SHARED_REPOSITORY = "snowflake.snowpark.anaconda_shared_repository"
 
 
@@ -2398,6 +2397,9 @@ class Session:
           - the session uses a mock connection (local testing), or
           - the system function is not available / fails, or
           - the system function returns NULL (value was never set).
+
+        If the Snowflake default artifact repository changes in the future, the
+        fallback needs to be updated here.
         """
         if isinstance(self._conn, MockServerConnection):
             return ANACONDA_SHARED_REPOSITORY
