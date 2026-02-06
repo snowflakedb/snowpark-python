@@ -323,6 +323,8 @@ WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 # The fully qualified name of the Anaconda shared repository (conda channel).
 ANACONDA_SHARED_REPOSITORY = "snowflake.snowpark.anaconda_shared_repository"
+# In case of failures or the current default artifact repository is unset, we fallback to this
+DEFAULT_ARTIFACT_REPOSITORY = ANACONDA_SHARED_REPOSITORY
 
 
 def _get_active_session() -> "Session":
@@ -608,8 +610,8 @@ class Session:
         ] = defaultdict(dict)
         # Single-entry cache for the default artifact repository value.
         # Stores a tuple of ((database, schema), cached_value).  Only one entry is
-        # kept at a time – switching to a different database/schema evicts the old
-        # value and triggers a fresh query on the next call.
+        # kept at a time – switching to a different database/schema will evict the old
+        # value and trigger a fresh query on the next call.
         self._default_artifact_repository_cache: Optional[
             Tuple[Tuple[Optional[str], Optional[str]], str]
         ] = None
@@ -1641,7 +1643,8 @@ class Session:
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
             artifact_repository: When set this parameter specifies the artifact repository that packages will be added from. Only functions
-                using that repository will use the packages. (Default None)
+                using that repository will use the packages. (Default None). Otherwise, uses the default artifact repository configured in the
+                current context.
 
         Example::
 
@@ -1701,7 +1704,8 @@ class Session:
         Args:
             package: The package name.
             artifact_repository: When set this parameter specifies that the package should be removed
-                from the default packages for a specific artifact repository.
+                from the default packages for a specific artifact repository. Otherwise, uses the default
+                artifact repository configured in the current context.
 
         Examples::
 
@@ -1758,7 +1762,8 @@ class Session:
         Args:
             file_path: The path of a local requirement file.
             artifact_repository: When set this parameter specifies the artifact repository that packages will be added from. Only functions
-                using that repository will use the packages. (Default None)
+                using that repository will use the packages. (Default None). Otherwise, uses the default artifact repository configured in
+                the current context.
 
         Example::
 
@@ -2402,7 +2407,7 @@ class Session:
         fallback needs to be updated here.
         """
         if isinstance(self._conn, MockServerConnection):
-            return ANACONDA_SHARED_REPOSITORY
+            return DEFAULT_ARTIFACT_REPOSITORY
 
         cache_key = (self.get_current_database(), self.get_current_schema())
 
@@ -2418,12 +2423,12 @@ class Session:
                 f"SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('{python_version}')"
             )
             value = result[0][0] if result else None
-            resolved = value or ANACONDA_SHARED_REPOSITORY
+            resolved = value or DEFAULT_ARTIFACT_REPOSITORY
         except Exception as e:
             _logger.warning(
                 f"Error getting default artifact repository: {e}. Using fallback."
             )
-            resolved = ANACONDA_SHARED_REPOSITORY
+            resolved = DEFAULT_ARTIFACT_REPOSITORY
 
         with self._package_lock:
             self._default_artifact_repository_cache = (cache_key, resolved)

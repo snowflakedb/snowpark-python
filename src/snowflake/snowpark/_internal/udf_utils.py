@@ -1227,13 +1227,16 @@ def resolve_imports_and_packages(
     Optional[str],
     bool,
 ]:
-    from snowflake.snowpark.session import ANACONDA_SHARED_REPOSITORY
+    from snowflake.snowpark.session import (
+        ANACONDA_SHARED_REPOSITORY,
+        DEFAULT_ARTIFACT_REPOSITORY,
+    )
 
     if artifact_repository is None:
         artifact_repository = (
             session._get_default_artifact_repository()
             if session
-            else ANACONDA_SHARED_REPOSITORY
+            else DEFAULT_ARTIFACT_REPOSITORY
         )
 
     existing_packages_dict = (
