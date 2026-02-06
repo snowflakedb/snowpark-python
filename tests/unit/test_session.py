@@ -731,23 +731,39 @@ def test_get_default_artifact_repository():
         session,
         "_run_query",
         return_value=[["snowflake.snowpark.pypi_shared_repository"]],
+    ) as mocked_run_query, mock.patch.object(
+        session, "get_current_database", return_value="DB1"
+    ), mock.patch.object(
+        session, "get_current_schema", return_value="SCHEMA1"
     ):
         result = session._get_default_artifact_repository()
         assert result == "snowflake.snowpark.pypi_shared_repository"
 
+        result = session._get_default_artifact_repository()
+        assert result == "snowflake.snowpark.pypi_shared_repository"
+
+        assert mocked_run_query.call_count == 1
+
     with mock.patch.object(
-        session,
-        "_run_query",
-        return_value=[[None]],
+        session, "_run_query", return_value=[[None]]
+    ) as mocked_run_query, mock.patch.object(
+        session, "get_current_database", return_value="DB2"
+    ), mock.patch.object(
+        session, "get_current_schema", return_value="SCHEMA2"
     ):
         result = session._get_default_artifact_repository()
         assert result == ANACONDA_SHARED_REPOSITORY
 
-    # throws error
+        assert mocked_run_query.call_count == 1
+
     with mock.patch.object(
-        session,
-        "_run_query",
-        side_effect=ProgrammingError("Function not found"),
+        session, "_run_query", side_effect=ProgrammingError("Not found")
+    ) as mocked_run_query, mock.patch.object(
+        session, "get_current_database", return_value="DB1"
+    ), mock.patch.object(
+        session, "get_current_schema", return_value="SCHEMA1"
     ):
         result = session._get_default_artifact_repository()
         assert result == ANACONDA_SHARED_REPOSITORY
+
+        assert mocked_run_query.call_count == 1

@@ -607,6 +607,13 @@ class Session:
         self._artifact_repository_packages: DefaultDict[
             str, Dict[str, str]
         ] = defaultdict(dict)
+        # Single-entry cache for the default artifact repository value.
+        # Stores a tuple of ((database, schema), cached_value).  Only one entry is
+        # kept at a time – switching to a different database/schema evicts the old
+        # value and triggers a fresh query on the next call.
+        self._default_artifact_repository_cache: Optional[
+            Tuple[Tuple[Optional[str], Optional[str]], str]
+        ] = None
         self._session_id = self._conn.get_session_id()
         self._session_info = f"""
 "version" : {get_version()},
@@ -2381,12 +2388,27 @@ class Session:
         Returns the default artifact repository for the current session context
         by calling SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY.
 
+        The result is cached per (database, schema) pair so that
+        repeated invocations in the same context do not issue
+        redundant system-function queries. Only one cache entry is kept at
+        a time; switching to a different database or schema evicts the
+        previous entry and triggers a fresh query on the next call.
+
         Falls back to the Anaconda shared repository (conda) if:
+          - the session uses a mock connection (local testing), or
           - the system function is not available / fails, or
           - the system function returns NULL (value was never set).
         """
         if isinstance(self._conn, MockServerConnection):
             return ANACONDA_SHARED_REPOSITORY
+
+        cache_key = (self.get_current_database(), self.get_current_schema())
+
+        if (
+            self._default_artifact_repository_cache is not None
+            and self._default_artifact_repository_cache[0] == cache_key
+        ):
+            return self._default_artifact_repository_cache[1]
 
         try:
             python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
@@ -2394,9 +2416,13 @@ class Session:
                 f"SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('{python_version}')"
             )
             value = result[0][0] if result else None
-            return value or ANACONDA_SHARED_REPOSITORY
+            resolved = value or ANACONDA_SHARED_REPOSITORY
         except Exception:
-            return ANACONDA_SHARED_REPOSITORY
+            resolved = ANACONDA_SHARED_REPOSITORY
+
+        with self._package_lock:
+            self._default_artifact_repository_cache = (cache_key, resolved)
+        return resolved
 
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
