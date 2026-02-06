@@ -103,3 +103,81 @@ def test_do_register_udf_sandbox(session_sandbox, cleanup_registration_patch):
         "schema": "some_schema",
         "application_roles": ["app_viewer"],
     }
+
+
+def test_artifact_repository_adds_cloudpickle():
+    """Test that cloudpickle is automatically added when using artifact_repository with packages."""
+    from snowflake.snowpark._internal.udf_utils import resolve_imports_and_packages
+
+    # Test case 1: packages provided without cloudpickle
+    result = resolve_imports_and_packages(
+        session=None,
+        object_type=TempObjectType.FUNCTION,
+        func=lambda: 1,
+        arg_names=[],
+        udf_name="test_udf",
+        stage_location=None,
+        imports=None,
+        packages=["urllib3", "requests", "invalid package!!!"],
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+    )
+    _, _, _, all_packages, _, _ = result
+
+    # Verify cloudpickle was added
+    assert all_packages is not None
+    package_list = all_packages.split(",") if all_packages else []
+    assert any(
+        pkg.strip().strip("'").startswith("cloudpickle==") for pkg in package_list
+    ), f"cloudpickle not found in packages: {all_packages}"
+
+    # Test case 2: packages already contains cloudpickle
+    result2 = resolve_imports_and_packages(
+        session=None,
+        object_type=TempObjectType.FUNCTION,
+        func=lambda: 1,
+        arg_names=[],
+        udf_name="test_udf2",
+        stage_location=None,
+        imports=None,
+        packages=["urllib3", "cloudpickle>=2.0", "requests"],
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+    )
+    _, _, _, all_packages2, _, _ = result2
+
+    # Verify cloudpickle was not duplicated
+    package_list2 = all_packages2.split(",") if all_packages2 else []
+    cloudpickle_count = sum(
+        1 for pkg in package_list2 if "cloudpickle" in pkg.strip().strip("'").lower()
+    )
+    assert (
+        cloudpickle_count == 1
+    ), f"cloudpickle should appear exactly once, found {cloudpickle_count} times in: {all_packages2}"
+
+    # Test case 3: packages with various version specifiers
+    test_cases = [
+        ["urllib3", "cloudpickle==2.2.1"],
+        ["urllib3", "cloudpickle>=2.0"],
+        ["urllib3", "cloudpickle~=2.2"],
+        ["urllib3", "cloudpickle<=3.0"],
+    ]
+
+    for packages in test_cases:
+        result = resolve_imports_and_packages(
+            session=None,
+            object_type=TempObjectType.FUNCTION,
+            func=lambda: 1,
+            arg_names=[],
+            udf_name="test_udf_versioned",
+            stage_location=None,
+            imports=None,
+            packages=packages,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        )
+        _, _, _, all_packages, _, _ = result
+        package_list = all_packages.split(",") if all_packages else []
+        cloudpickle_count = sum(
+            1 for pkg in package_list if "cloudpickle" in pkg.strip().strip("'").lower()
+        )
+        assert (
+            cloudpickle_count == 1
+        ), f"For {packages}, cloudpickle should appear exactly once, found {cloudpickle_count} times"
