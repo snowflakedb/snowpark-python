@@ -5,6 +5,7 @@
 import itertools
 import sys
 import time
+import re
 from typing import Tuple
 
 import pytest
@@ -1097,14 +1098,17 @@ def test_join_dataframes(session, simplifier_table):
 
     df = df_left.join(df_right)
     df1 = df.select("a").select("a").select("a")
-    assert df1.queries["queries"][0].count("SELECT") == 8
+    assert df1.queries["queries"][0].count("SELECT") == 6
+    df1.queries["queries"][0]
+    normalized_sql = re.sub(r"\s+", " ", df1.queries["queries"][0])
+    assert not any(f'"{c}" AS "{c}"' in normalized_sql for c in ["A", "B", "C", "D"])
 
     df2 = (
         df.select((col("a") + 1).as_("a"))
         .select((col("a") + 1).as_("a"))
         .select((col("a") + 1).as_("a"))
     )
-    assert df2.queries["queries"][0].count("SELECT") == 10
+    assert df2.queries["queries"][0].count("SELECT") == 8
 
     df3 = df.with_column("x", df_left.a).with_column("y", df_right.d)
     assert '"A" AS "X", "D" AS "Y"' in Utils.normalize_sql(df3.queries["queries"][0])
@@ -1114,7 +1118,7 @@ def test_join_dataframes(session, simplifier_table):
     df4 = df_right.to_df("e", "f")
     df5 = df_left.join(df4)
     df6 = df5.with_column("x", df_right.c).with_column("y", df4.f)
-    assert df6.queries["queries"][0].count("SELECT") == 10
+    assert df6.queries["queries"][0].count("SELECT") == 8
     Utils.check_answer(df6, [Row(1, 2, 3, 4, 3, 4)])
 
 
