@@ -1121,7 +1121,7 @@ import pandas
 def add_snowpark_package_to_sproc_packages(
     session: Optional["snowflake.snowpark.Session"],
     packages: Optional[List[Union[str, ModuleType]]],
-    artifact_repository: Optional[str],
+    artifact_repository: str,
 ) -> List[Union[str, ModuleType]]:
     major, minor, patch = VERSION
     package_name = "snowflake-snowpark-python"
@@ -1137,8 +1137,11 @@ def add_snowpark_package_to_sproc_packages(
             packages = [this_package]
         else:
             with session._package_lock:
-                if package_name not in session._packages:
-                    packages = list(session._packages.values()) + [this_package]
+                existing_packages = session._artifact_repository_packages[
+                    artifact_repository
+                ]
+                if package_name not in existing_packages:
+                    packages = list(existing_packages.values()) + [this_package]
         return packages
 
     return add_package_to_existing_packages(packages, package_name, this_package)
