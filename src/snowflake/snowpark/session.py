@@ -603,10 +603,7 @@ class Session:
         self._conn = conn
         self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
-        # packages that should be added under the default artifact repository
-        # TODO: now that we have dynamic defaults, should we remove this and just use _artifact_repository_packages always?
-        self._packages: Dict[str, str] = {}
-        # packages that should be added under an explicit artifact repository
+        # map of artifact repository name -> packages that should be added to functions under that repository
         self._artifact_repository_packages: DefaultDict[
             str, Dict[str, str]
         ] = defaultdict(dict)
@@ -1605,11 +1602,13 @@ class Session:
 
         Args:
             artifact_repository: When set this will function will return the packages for a specific artifact repository.
+            Otherwise, uses the default artifact repository configured in the current context.
         """
+        if artifact_repository is None:
+            artifact_repository = self._get_default_artifact_repository()
+
         with self._package_lock:
-            if artifact_repository:
-                return self._artifact_repository_packages[artifact_repository].copy()
-            return self._packages.copy()
+            return self._artifact_repository_packages[artifact_repository].copy()
 
     def add_packages(
         self,
@@ -1676,20 +1675,13 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        use_default_artifact_repository = artifact_repository is None
-        if use_default_artifact_repository:
+        if artifact_repository is None:
             artifact_repository = self._get_default_artifact_repository()
-
-        existing_packages_dict = (
-            self._packages
-            if use_default_artifact_repository
-            else self._artifact_repository_packages[artifact_repository]
-        )
 
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
             artifact_repository,
-            existing_packages_dict,
+            self._artifact_repository_packages[artifact_repository],
         )
 
     def remove_package(
@@ -1721,17 +1713,13 @@ class Session:
             0
         """
         package_name = Requirement(package).name
+        if artifact_repository is None:
+            artifact_repository = self._get_default_artifact_repository()
+
         with self._package_lock:
-            if (
-                artifact_repository is not None
-                and package_name
-                in self._artifact_repository_packages.get(artifact_repository, {})
-            ):
-                self._artifact_repository_packages[artifact_repository].pop(
-                    package_name
-                )
-            elif package_name in self._packages:
-                self._packages.pop(package_name)
+            packages = self._artifact_repository_packages[artifact_repository]
+            if package_name in packages:
+                packages.pop(package_name)
             else:
                 raise ValueError(f"{package_name} is not in the package list")
 
@@ -1743,11 +1731,11 @@ class Session:
         Clears all third-party packages of a user-defined function (UDF). When artifact_repository
         is set packages are only clear from the specified repository.
         """
+        if artifact_repository is None:
+            artifact_repository = self._get_default_artifact_repository()
+
         with self._package_lock:
-            if artifact_repository is not None:
-                self._artifact_repository_packages.get(artifact_repository, {}).clear()
-            else:
-                self._packages.clear()
+            self._artifact_repository_packages[artifact_repository].clear()
 
     def add_requirements(
         self,

@@ -939,10 +939,14 @@ class StoredProcedureRegistration:
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names[1:])
         ]
 
+        if artifact_repository is None:
+            artifact_repository = self._session._get_default_artifact_repository()
+
         # Add in snowflake-snowpark-python if it is not already in the package list.
         packages = add_snowpark_package_to_sproc_packages(
             session=self._session,
             packages=packages,
+            artifact_repository=artifact_repository,
         )
 
         (

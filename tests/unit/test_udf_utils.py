@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.udf_utils import (
     resolve_packages_in_client_side_sandbox,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.session import ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import StringType
 from snowflake.snowpark.version import VERSION
 
@@ -248,7 +249,7 @@ def test_add_snowpark_package_to_sproc_packages_does_not_replace_package():
 
 def test_add_snowpark_package_to_sproc_packages_to_session():
     fake_session = mock.create_autospec(Session)
-    fake_session._packages = {
+    fake_session._artifact_repository_packages[ANACONDA_SHARED_REPOSITORY] = {
         "random_package_one": "random_package_one",
         "random_package_two": "random_package_two",
     }
@@ -261,7 +262,7 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
     assert len(result) == 3
     assert final_name in result
 
-    fake_session._packages[
+    fake_session._artifact_repository_packages[ANACONDA_SHARED_REPOSITORY][
         "snowflake-snowpark-python"
     ] = "snowflake-snowpark-python==1.12.0"
     result = add_snowpark_package_to_sproc_packages(session=fake_session, packages=None)

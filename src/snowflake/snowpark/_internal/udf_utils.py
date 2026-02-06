@@ -1121,6 +1121,7 @@ import pandas
 def add_snowpark_package_to_sproc_packages(
     session: Optional["snowflake.snowpark.Session"],
     packages: Optional[List[Union[str, ModuleType]]],
+    artifact_repository: Optional[str],
 ) -> List[Union[str, ModuleType]]:
     major, minor, patch = VERSION
     package_name = "snowflake-snowpark-python"
@@ -1224,24 +1225,16 @@ def resolve_imports_and_packages(
 ]:
     from snowflake.snowpark.session import ANACONDA_SHARED_REPOSITORY
 
-    use_default_artifact_repository = artifact_repository is None
-    if use_default_artifact_repository:
+    if artifact_repository is None:
         artifact_repository = (
             session._get_default_artifact_repository()
-            if session is not None
+            if session
             else ANACONDA_SHARED_REPOSITORY
         )
 
-    # TODO: if the user explicitly passes in the current default, should we use self._packages?
-    # note that the current default could change after calling session.add_packages, so it's hard
-    # to know what the intended default is
-    existing_packages_dict = {}
-    if session:
-        existing_packages_dict = (
-            session._packages
-            if use_default_artifact_repository
-            else session._artifact_repository_packages[artifact_repository]
-        )
+    existing_packages_dict = (
+        session._artifact_repository_packages[artifact_repository] if session else {}
+    )
 
     if artifact_repository != ANACONDA_SHARED_REPOSITORY:
         # Non-conda artifact repository - skip conda-based package resolution
