@@ -293,7 +293,22 @@ def _alias_if_needed(
             )
         return col.alias(f'"{prefix}{unquoted_col_name}"')
     else:
+        # Removal of redundant aliases (like `"A" AS "A"`) is handled at the analyzer level.
         return col.alias(f'"{unquoted_col_name}"')
+
+
+def _populate_expr_to_alias(df: "DataFrame") -> None:
+    """
+    Populate expr_to_alias mapping for a DataFrame's output columns.
+    This is needed for column lineage tracking when we skip the select() wrapping
+    optimization in _disambiguate.
+    """
+    for attr in df._output:
+        # Map each attribute's expr_id to its quoted column name
+        # This allows later lookups like df["column_name"] to resolve correctly
+        # Use quote_name() for consistency with analyzer.py Alias handling (line 743, 756)
+        if attr.expr_id not in df._plan.expr_to_alias:
+            df._plan.expr_to_alias[attr.expr_id] = quote_name(attr.name)
 
 
 def _disambiguate(
@@ -322,11 +337,21 @@ def _disambiguate(
         for n in lhs_names
         if n in set(rhs_names) and n not in normalized_using_columns
     ]
+
+    if not common_col_names:
+        # Optimization: No column name conflicts, so we can skip aliasing and the select() wrapping.
+        # But we still need to populate expr_to_alias for column lineage tracking,
+        # so that df["column_name"] can resolve correctly after the join.
+        # This is identified by the test case
+        # tests/integ/scala/test_dataframe_join_suite.py::test_name_alias_on_multiple_join.
+        _populate_expr_to_alias(lhs)
+        _populate_expr_to_alias(rhs)
+        return lhs, rhs
+
     all_names = [unquote_if_quoted(n) for n in lhs_names + rhs_names]
 
-    if common_col_names:
-        # We use the session of the LHS DataFrame to report this telemetry
-        lhs._session._conn._telemetry_client.send_alias_in_join_telemetry()
+    # We use the session of the LHS DataFrame to report this telemetry
+    lhs._session._conn._telemetry_client.send_alias_in_join_telemetry()
 
     lsuffix = lsuffix or lhs._alias
     rsuffix = rsuffix or rhs._alias
@@ -385,7 +410,7 @@ class DataFrame:
         >>> with tempfile.NamedTemporaryFile(mode="w+t") as t:
         ...     t.writelines(["id1, Product A", "\\n" "id2, Product B"])
         ...     t.flush()
-        ...     create_stage_result = session.sql("create temp stage test_stage").collect()
+        ...     create_stage_result = session.sql("create or replace temp stage test_stage").collect()
         ...     put_result = session.file.put(t.name, "@test_stage/test_dir")
 
     Example 1
@@ -418,7 +443,7 @@ class DataFrame:
             |2        |two      |
             ---------------------
             <BLANKLINE>
-            >>> session.range(1, 10, 2).to_df("col1").show()
+            >>> session.range(1, 10, 2).to_df("col1").sort("col1").show()
             ----------
             |"COL1"  |
             ----------
@@ -4641,7 +4666,7 @@ class DataFrame:
             |3    |4    |
             -------------
             <BLANKLINE>
-            >>> stage_created_result = session.sql("create temp stage if not exists test_stage").collect()
+            >>> stage_created_result = session.sql("create or replace temp stage test_stage").collect()
             >>> df.write.copy_into_location("@test_stage/copied_from_dataframe")  # default CSV
             [Row(rows_unloaded=2, input_bytes=8, output_bytes=28)]
         """
@@ -4689,7 +4714,7 @@ class DataFrame:
             >>> with tempfile.NamedTemporaryFile(mode="w+t") as t:
             ...     t.writelines(["id1, Product A", "\\n" "id2, Product B"])
             ...     t.flush()
-            ...     create_stage_result = session.sql("create temp stage if not exists test_stage").collect()
+            ...     create_stage_result = session.sql("create or replace temp stage test_stage").collect()
             ...     put_result = session.file.put(t.name, "@test_stage/copy_into_table_dir", overwrite=True)
             >>> # user_schema is used to read from CSV files. For other files it's not needed.
             >>> from snowflake.snowpark.types import StringType, StructField, StringType

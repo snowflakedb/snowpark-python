@@ -51,6 +51,7 @@ from snowflake.snowpark.types import (
     DateType,
     DayTimeInterval,
     DayTimeIntervalType,
+    DecFloatType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -188,7 +189,7 @@ def convert_metadata_to_sp_type(
         return convert_sf_to_sp_type(
             column_type_name,
             metadata.precision or 0,
-            metadata.scale or 0,
+            metadata.scale,
             metadata.internal_size or 0,
             max_string_size,
         )
@@ -197,7 +198,7 @@ def convert_metadata_to_sp_type(
 def convert_sf_to_sp_type(
     column_type_name: str,
     precision: int,
-    scale: int,
+    scale: Optional[int],
     internal_size: int,
     max_string_size: int,
 ) -> DataType:
@@ -291,6 +292,8 @@ def convert_sf_to_sp_type(
         return TimestampType(timezone=TimestampTimeZone.TZ)
     if column_type_name == "DATE":
         return DateType()
+    if column_type_name == "FIXED" and scale is None:
+        return DecFloatType()
     if column_type_name == "DECIMAL" or (
         (column_type_name == "FIXED" or column_type_name == "NUMBER") and scale != 0
     ):
@@ -333,6 +336,8 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
         return "FLOAT"
     if isinstance(datatype, DoubleType):
         return "DOUBLE"
+    if isinstance(datatype, DecFloatType):
+        return "DECFLOAT"
     # We regard NullType as String, which is required when creating
     # a dataframe from local data with all None values
     if isinstance(datatype, StringType):
@@ -845,6 +850,7 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
             BooleanType,
             FloatType,
             DoubleType,
+            DecFloatType,
             DateType,
             TimestampType,
             TimeType,
@@ -1044,6 +1050,54 @@ def retrieve_func_type_hints_from_source(
     if not visitor.func_exist:
         return None
     return visitor.type_hints
+
+
+def retrieve_func_arg_names_from_source(
+    file_path: str,
+    func_name: str,
+    class_name: Optional[str] = None,
+    _source: Optional[str] = None,
+) -> Optional[List[str]]:
+    """
+    Retrieve argument names of a function from a source file, or a source string (test only).
+    Returns None if the function is not found.
+    """
+
+    class FuncNodeVisitor(ast.NodeVisitor):
+        arg_names: List[str] = []
+        func_exist = False
+
+        def visit_FunctionDef(self, node):
+            if node.name == func_name:
+                self.arg_names = [arg.arg for arg in node.args.args]
+                self.func_exist = True
+
+    if not _source:
+        with open(file_path) as f:
+            _source = f.read()
+
+    if class_name:
+
+        class ClassNodeVisitor(ast.NodeVisitor):
+            class_node = None
+
+            def visit_ClassDef(self, node):
+                if node.name == class_name:
+                    self.class_node = node
+
+        class_visitor = ClassNodeVisitor()
+        class_visitor.visit(ast.parse(_source))
+        if class_visitor.class_node is None:
+            return None
+        to_visit_node_for_func = class_visitor.class_node
+    else:
+        to_visit_node_for_func = ast.parse(_source)
+
+    visitor = FuncNodeVisitor()
+    visitor.visit(to_visit_node_for_func)
+    if not visitor.func_exist:
+        return None
+    return visitor.arg_names
 
 
 # Get a mapping from type string to type object, for cast() function

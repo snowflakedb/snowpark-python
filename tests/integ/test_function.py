@@ -145,6 +145,7 @@ from snowflake.snowpark.functions import (
     to_boolean,
     to_char,
     to_date,
+    to_decfloat,
     to_decimal,
     to_double,
     to_json,
@@ -2350,6 +2351,53 @@ def test_to_double(session, local_testing_mode):
             [Row(1.2, -2.34, -2.34)],
             sort=False,
         )
+
+
+def test_to_decfloat(session, local_testing_mode):
+    # Test supported input type
+    with decimal.localcontext() as ctx:
+        # by default, decimal.Decimal uses 28 digits of precision
+        # we need to set the local context to use 38 digits so that the connector will return the precision stored in the DB
+        ctx.prec = 38
+        long_dec = (
+            "12345678901234567890123456789012345678"  # ensure 38 digits are preserved
+        )
+        df = session.create_dataframe(
+            [[long_dec, False, 12e6, "3.45e-4", decimal.Decimal("12.34"), None]],
+            schema=StructType(
+                [
+                    StructField("str_col1", StringType()),
+                    StructField("bool_col", BooleanType()),
+                    StructField("float_col", FloatType()),
+                    StructField("str_col2", StringType()),
+                    StructField("number_col", DecimalType(scale=2)),
+                    StructField("str_col3", StringType()),
+                ]
+            ),
+        )
+
+        Utils.check_answer(
+            df.select([to_decfloat(c) for c in df.columns]),
+            [
+                Row(
+                    decimal.Decimal(long_dec),
+                    decimal.Decimal("0"),
+                    decimal.Decimal("12000000"),
+                    decimal.Decimal("3.45e-4"),
+                    decimal.Decimal("12.34"),
+                    None,
+                )
+            ],
+        )
+
+        # Test unsupported input type
+        df = session.create_dataframe(
+            [[datetime.date.today()]],
+            schema=StructType([StructField("date_col", DateType())]),
+        )
+
+        with pytest.raises(SnowparkSQLException):
+            df.select([to_decfloat(c) for c in df.columns]).collect()
 
 
 def test_to_decimal(session, local_testing_mode):

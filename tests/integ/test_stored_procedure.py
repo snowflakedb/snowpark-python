@@ -978,6 +978,47 @@ def return_all_datatypes(
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql not supported in local testing",
+)
+def test_register_sp_with_preserve_parameter_names(session, resources_path):
+    sp_pow_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    mod5_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+
+    def sp_pow(session_, x, y):
+        return (
+            session_.create_dataframe([[x, y]])
+            .to_df(["a", "b"])
+            .select(pow(col("a"), col("b")))
+            .collect()[0][0]
+        )
+
+    pow_sp = sproc(
+        sp_pow,
+        name=sp_pow_name,
+        return_type=DoubleType(),
+        input_types=[IntegerType(), IntegerType()],
+        preserve_parameter_names=True,
+    )
+
+    test_files = TestFiles(resources_path)
+    mod5_sp = session.sproc.register_from_file(
+        test_files.test_sp_py_file,
+        "mod5",
+        name=mod5_name,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        preserve_parameter_names=True,
+    )
+
+    assert pow_sp(2, 10) == 1024
+    assert mod5_sp(3) == 3
+    # assert parameter names preserved by issuing a SQL CALL with named arguments
+    assert session.sql(f"call {sp_pow_name}(y=>3, x=>2)").collect()[0][0] == 8
+    assert session.sql(f"call {mod5_name}(x=>3)").collect()[0][0] == 3
+
+
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="Database objects do not persist across sessions in Local Testing",
@@ -2290,7 +2331,42 @@ def test_sproc_artifact_repository(session):
                 )
     except SnowparkSQLException as ex:
         if "No matching distribution found for snowflake-snowpark-python" in str(ex):
-            pytest.mark.xfail(
+            pytest.xfail(
+                "Unreleased snowpark versions are unavailable in artifact repository."
+            )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+def test_sproc_artifact_repository_with_packages_includes_cloudpickle(session):
+    """Test that cloudpickle is available when using artifact_repository with packages."""
+
+    def test_cloudpickle(_: Session) -> str:
+        import cloudpickle
+
+        # Test that cloudpickle is available and works
+        def test_func(x):
+            return x + 1
+
+        pickled = cloudpickle.dumps(test_func)
+        unpickled = cloudpickle.loads(pickled)
+        return str(unpickled(5))
+
+    try:
+        test_cloudpickle_sproc = sproc(
+            test_cloudpickle,
+            session=session,
+            return_type=StringType(),
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            packages=["urllib3", "requests"],  # cloudpickle should be auto-added
+        )
+        assert test_cloudpickle_sproc(session=session) == "6"
+    except SnowparkSQLException as ex:
+        if "No matching distribution found for snowflake-snowpark-python" in str(ex):
+            pytest.xfail(
                 "Unreleased snowpark versions are unavailable in artifact repository."
             )
 

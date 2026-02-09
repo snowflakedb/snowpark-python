@@ -101,6 +101,7 @@ df.agg(sum_udaf("a"))
 sum_udaf = session.udaf.register_from_file(
     test_files.test_udaf_py_file,
     "MyUDAFWithTypeHints",
+    preserve_parameter_names=True,
 )
 df.agg(sum_udaf("a"))
 
@@ -136,7 +137,7 @@ ar_udaf = udaf(
 
 ## EXPECTED UNPARSER OUTPUT
 
-sum_udaf = udaf("PythonSumUDAF", return_type=IntegerType(), input_types=[IntegerType()], name="sum_int", replace=True, copy_grants=False, _registered_object_name="sum_int")
+sum_udaf = udaf("PythonSumUDAF", return_type=IntegerType(), input_types=[IntegerType()], name="sum_int", replace=True, copy_grants=False, preserve_parameter_names=False, _registered_object_name="sum_int")
 
 df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]])
 
@@ -148,19 +149,19 @@ df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]])
 
 df = df.to_df("a", "b")
 
-u2 = udaf("PythonTopK", return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params={"a": "b", "d": "e"}, external_access_integrations=["s3"], secrets={"a": "c", "e": "f"}, immutable=True, comment="test udaf", copy_grants=False, force_inline_code=True, _registered_object_name="top_k")
+u2 = udaf("PythonTopK", return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params={"a": "b", "d": "e"}, external_access_integrations=["s3"], secrets={"a": "c", "e": "f"}, immutable=True, comment="test udaf", copy_grants=False, force_inline_code=True, preserve_parameter_names=False, _registered_object_name="top_k")
 
 res3 = df.agg(u2("a"))
 
-sum_udaf = udaf("MyUDAFWithoutTypeHints", return_type=IntegerType(), input_types=[IntegerType()], immutable=True, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
+sum_udaf = udaf("MyUDAFWithoutTypeHints", return_type=IntegerType(), input_types=[IntegerType()], immutable=True, copy_grants=False, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
 
 res4 = df.agg(sum_udaf("a"))
 
-sum_udaf = udaf("MyUDAFWithTypeHints", return_type=LongType(), input_types=[LongType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
+sum_udaf = udaf("MyUDAFWithTypeHints", return_type=LongType(), input_types=[LongType()], copy_grants=False, preserve_parameter_names=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
 
 res5 = df.agg(sum_udaf("a"))
 
-ar_udaf = udaf("ArtifactRepositoryHandler", return_type=StringType(), input_types=[IntegerType()], packages=["urllib3", "requests"], artifact_repository="EXAMPLE_REPO", resource_constraint={"architecture": "x86"}, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
+ar_udaf = udaf("ArtifactRepositoryHandler", return_type=StringType(), input_types=[IntegerType()], packages=["urllib3", "requests"], artifact_repository="EXAMPLE_REPO", resource_constraint={"architecture": "x86"}, copy_grants=False, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
 
 ## EXPECTED ENCODED AST
 
@@ -192,6 +193,20 @@ body {
         }
         kwargs {
           _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 51
+                file: 2
+                start_column: 19
+                start_line: 45
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
           _2 {
             bool_val {
               src {
@@ -810,6 +825,20 @@ body {
             }
           }
         }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 90
+                end_line: 108
+                file: 2
+                start_column: 13
+                start_line: 105
+              }
+            }
+          }
+        }
         name {
           name {
             name_flat {
@@ -946,6 +975,20 @@ body {
             }
           }
         }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 119
+                file: 2
+                start_column: 19
+                start_line: 113
+              }
+            }
+          }
+        }
         parallel: 4
         return_type {
           integer_type: true
@@ -1045,11 +1088,26 @@ body {
             bool_val {
               src {
                 end_column: 9
-                end_line: 126
+                end_line: 127
                 file: 2
                 start_column: 19
                 start_line: 123
               }
+            }
+          }
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 127
+                file: 2
+                start_column: 19
+                start_line: 123
+              }
+              v: true
             }
           }
         }
@@ -1059,7 +1117,7 @@ body {
         }
         src {
           end_column: 9
-          end_line: 126
+          end_line: 127
           file: 2
           start_column: 19
           start_line: 123
@@ -1094,20 +1152,20 @@ body {
                 string_val {
                   src {
                     end_column: 28
-                    end_line: 127
+                    end_line: 128
                     file: 2
                     start_column: 15
-                    start_line: 127
+                    start_line: 128
                   }
                   v: "a"
                 }
               }
               src {
                 end_column: 28
-                end_line: 127
+                end_line: 128
                 file: 2
                 start_column: 15
-                start_line: 127
+                start_line: 128
               }
             }
           }
@@ -1115,10 +1173,10 @@ body {
         }
         src {
           end_column: 29
-          end_line: 127
+          end_line: 128
           file: 2
           start_column: 8
-          start_line: 127
+          start_line: 128
         }
       }
     }
@@ -1155,10 +1213,24 @@ body {
             bool_val {
               src {
                 end_column: 9
-                end_line: 156
+                end_line: 157
                 file: 2
                 start_column: 18
-                start_line: 149
+                start_line: 150
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 157
+                file: 2
+                start_column: 18
+                start_line: 150
               }
             }
           }
@@ -1178,10 +1250,10 @@ body {
         }
         src {
           end_column: 9
-          end_line: 156
+          end_line: 157
           file: 2
           start_column: 18
-          start_line: 149
+          start_line: 150
         }
       }
     }
@@ -1205,6 +1277,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 44
+  minor: 45
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

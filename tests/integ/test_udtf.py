@@ -360,6 +360,64 @@ def test_udtf_register_with_optional_args(
     )
 
 
+def test_register_udtf_with_preserve_parameter_names(session, resources_path):
+    udtf_echo_name = Utils.random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    generator_udtf_name = Utils.random_name_for_temp_object(
+        TempObjectType.TABLE_FUNCTION
+    )
+
+    @udtf(
+        output_schema=["a", "b"],
+        input_types=[IntegerType(), IntegerType()],
+        preserve_parameter_names=True,
+        name=udtf_echo_name,
+    )
+    class UDTFEcho:
+        def process(
+            self,
+            a: int,
+            b: int,
+        ) -> Iterable[Tuple[int, int]]:
+            return [(a, b)]
+
+    df = session.table_function(UDTFEcho(lit(3), lit(4)))
+    Utils.check_answer(
+        df,
+        [Row(3, 4)],
+    )
+    describe_udaf = session.sql(
+        f"describe function {udtf_echo_name}(int, int)"
+    ).collect()
+    assert describe_udaf[0][1] == "(A NUMBER, B NUMBER)"
+
+    test_files = TestFiles(resources_path)
+    my_udtf = session.udtf.register_from_file(
+        test_files.test_udtf_py_file,
+        "GeneratorUDTF",
+        name=generator_udtf_name,
+        input_types=[IntegerType()],
+        output_schema=StructType([StructField("number", IntegerType())]),
+        preserve_parameter_names=True,
+    )
+
+    df = session.table_function(
+        my_udtf(
+            lit(2),
+        )
+    )
+    Utils.check_answer(
+        df,
+        [
+            Row(0),
+            Row(1),
+        ],
+    )
+    describe_udaf = session.sql(
+        f"describe function {generator_udtf_name}(int)"
+    ).collect()
+    assert describe_udaf[0][1] == "(N NUMBER)"
+
+
 def test_strict_udtf(session):
     @udtf(output_schema=["num"], strict=True)
     class UDTFEcho:

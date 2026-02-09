@@ -586,7 +586,15 @@ class SelectableEntity(Selectable):
             deepcopy(self.entity, memodict), analyzer=self.analyzer
         )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
-
+        if (
+            self._session.reduce_describe_query_enabled
+            and self._session.cte_optimization_enabled
+        ):
+            copied._attributes = (
+                deepcopy(self._attributes, memodict)
+                if self._attributes is not None
+                else None
+            )
         return copied
 
     @property
@@ -940,6 +948,13 @@ class SelectStatement(Selectable):
             self._merge_projection_complexity_with_subquery
         )
         new.df_ast_ids = self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+        if (
+            self._session.reduce_describe_query_enabled
+            and self._session.cte_optimization_enabled
+        ):
+            new._attributes = (
+                self._attributes.copy() if self._attributes is not None else None
+            )
         return new
 
     def __deepcopy__(self, memodict={}) -> "SelectStatement":  # noqa: B006
@@ -959,6 +974,15 @@ class SelectStatement(Selectable):
         )
 
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+        if (
+            self._session.reduce_describe_query_enabled
+            and self._session.cte_optimization_enabled
+        ):
+            copied._attributes = (
+                deepcopy(self._attributes, memodict)
+                if self._attributes is not None
+                else None
+            )
         copied._projection_in_str = self._projection_in_str
         copied._query_params = deepcopy(self._query_params)
         copied._merge_projection_complexity_with_subquery = (
@@ -1404,7 +1428,11 @@ class SelectStatement(Selectable):
         if can_be_flattened:
             new = copy(self)
             final_projection = []
-
+            if (
+                self._session.reduce_describe_query_enabled
+                and self._session.cte_optimization_enabled
+            ):
+                new._attributes = None  # reset attributes since projection changed
             assert new_column_states is not None
             for col, state in new_column_states.items():
                 if state.change_state in (
@@ -2216,11 +2244,18 @@ def derive_column_states_from_subquery(
             else Attribute(quoted_c_name, DataType())
         )
         from_c_state = from_.column_states.get(quoted_c_name)
+        result_name = analyzer.analyze(
+            c, from_.df_aliased_col_name_to_real_col_name, parse_local_name=True
+        ).strip(" ")
         if from_c_state and from_c_state.change_state != ColumnChangeState.DROPPED:
             # review later. should use parse_column_name
-            if c_name != analyzer.analyze(
-                c, from_.df_aliased_col_name_to_real_col_name, parse_local_name=True
-            ).strip(" "):
+            # SNOW-2895675: Always treat Aliases as "changed", even if it is an identity.
+            # The fact this check is needed may be a bug in column state analysis, and we should revisit it later.
+            # The following tests fail without this check:
+            # - tests/integ/test_cte.py::test_sql_simplifier
+            # - tests/integ/scala/test_dataframe_suite.py::test_rename_join_dataframe
+            # - tests/integ/test_dataframe.py::test_dataframe_alias
+            if c_name != result_name or isinstance(c, Alias):
                 column_states[quoted_c_name] = ColumnState(
                     quoted_c_name,
                     ColumnChangeState.CHANGED_EXP,

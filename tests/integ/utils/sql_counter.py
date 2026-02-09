@@ -255,17 +255,10 @@ class SqlCounter(QueryListener):
             raise AssertionError("SqlCounter not configured for test.")
 
         failed = False
-        # Get the actual counts and check they match assumptions.
-        actual_counts = self.get_actual_counts()
-        stack_trace = (
-            "\nOriginal stack trace:\n"
-            + "".join(
-                filter(lambda s: "site-package" not in s, traceback.format_stack())
-            )
-            if self._log_stack_trace
-            else ""
-        )
 
+        # Get the actual counts and check they match assumptions.
+        invalid_counts = {}
+        actual_counts = self.get_actual_counts()
         for key in kwargs.keys():
             if key in BOOL_PARAMETERS:
                 continue
@@ -279,10 +272,24 @@ class SqlCounter(QueryListener):
                 else actual_count <= expected_count
             )
             failed = failed or not valid_count
-            pytest.assume(
-                valid_count,
-                f"Sql count check '{key}' failed.  expected_{key}={expected_count}, actual_{key}={actual_count}{stack_trace}",
+            if not valid_count:
+                invalid_counts[key] = (expected_count, actual_count)
+        # For performance reasons, we check counts before calling pytest.assume so we can avoid a
+        # potentially expensive stack trace generation call on counts that did not fail.
+        if len(invalid_counts) > 0:
+            stack_trace = (
+                "\nOriginal stack trace:\n"
+                + "".join(
+                    filter(lambda s: "site-package" not in s, traceback.format_stack())
+                )
+                if self._log_stack_trace
+                else ""
             )
+            for key, (expected_count, actual_count) in invalid_counts.items():
+                pytest.assume(
+                    False,
+                    f"Sql count check '{key}' failed.  expected_{key}={expected_count}, actual_{key}={actual_count}{stack_trace}",
+                )
 
         # If there are no failures, then check if we fail due to high query count.
         if not failed:

@@ -2119,6 +2119,31 @@ def to_double(
 
 
 @publicapi
+def to_decfloat(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None, _emit_ast: bool = True
+) -> Column:
+    """Converts an input expression to a decimal floating-point number.
+
+    Example::
+        >>> df = session.create_dataframe(['12', '11.3', '-90.12345'], schema=['a'])
+        >>> df.select(to_decfloat(col('a')).as_('ans')).collect()
+        [Row(ANS=Decimal('12')), Row(ANS=Decimal('11.3')), Row(ANS=Decimal('-90.12345'))]
+    """
+    ast = (
+        build_function_expr("to_decfloat", [e] if fmt is None else [e, fmt])
+        if _emit_ast
+        else None
+    )
+    c = _to_col_if_str(e, "to_decfloat")
+    fmt_col = _to_col_if_lit(fmt, "to_decfloat") if fmt is not None else None
+    return (
+        _call_function("to_decfloat", c, _ast=ast, _emit_ast=_emit_ast)
+        if fmt_col is None
+        else _call_function("to_decfloat", c, fmt_col, _ast=ast, _emit_ast=_emit_ast)
+    )
+
+
+@publicapi
 def div0(
     dividend: Union[ColumnOrName, int, float],
     divisor: Union[ColumnOrName, int, float],
@@ -9374,6 +9399,7 @@ def udf(
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
@@ -9467,6 +9493,8 @@ def udf(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of the referenced function in the created UDF.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -9571,6 +9599,7 @@ def udf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9598,6 +9627,7 @@ def udf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9627,6 +9657,7 @@ def udtf(
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
@@ -9706,6 +9737,8 @@ def udtf(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of the ``process`` method of ``handler`` in the created UDTF.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -9819,6 +9852,7 @@ def udtf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9844,6 +9878,7 @@ def udtf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9871,6 +9906,7 @@ def udaf(
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
@@ -9950,6 +9986,8 @@ def udaf(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of the ``accumulate`` method of ``handler`` in the created UDAF.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -10069,6 +10107,7 @@ def udaf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10092,6 +10131,7 @@ def udaf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10593,6 +10633,7 @@ def sproc(
     _emit_ast: bool = True,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -10678,6 +10719,8 @@ def sproc(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of ``func`` in the created stored procedure.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A stored procedure function that can be called with python value.
@@ -10769,6 +10812,7 @@ def sproc(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10794,6 +10838,7 @@ def sproc(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -11803,7 +11848,7 @@ def regr_r2(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     Example::
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-        >>> df.groupBy("v").agg(regr_r2(col("v"), col("v2")).alias("regr_r2")).collect()
+        >>> df.groupBy("v").agg(regr_r2(col("v"), col("v2")).alias("regr_r2")).sort("v").collect()
         [Row(V=10, REGR_R2=None), Row(V=20, REGR_R2=None), Row(V=25, REGR_R2=None), Row(V=30, REGR_R2=None)]
     """
     y = _to_col_if_str(y, "regr_r2")
@@ -11871,7 +11916,7 @@ def regr_syy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column
     Example::
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-        >>> df.groupBy("v").agg(regr_syy(df["v"], df["v2"]).alias("regr_syy")).collect()
+        >>> df.groupBy("v").agg(regr_syy(df["v"], df["v2"]).alias("regr_syy")).orderBy("v").collect()
         [Row(V=10, REGR_SYY=0.0), Row(V=20, REGR_SYY=0.0), Row(V=25, REGR_SYY=None), Row(V=30, REGR_SYY=0.0)]
     """
     c1 = _to_col_if_str(y, "regr_syy")

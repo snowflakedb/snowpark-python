@@ -691,3 +691,59 @@ def test_user_schema_without_rowtag(session):
         ValueError, match="When reading XML with user schema, rowtag must be set."
     ):
         session.read.schema(user_schema).xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+
+
+def test_value_tag_custom_schema(session):
+    test_schema1 = StructType(
+        [
+            StructField("num", StringType(), True),
+            StructField("str1", StringType(), True),
+            StructField("str2", StringType(), True),
+            StructField(
+                "str3",
+                StructType(
+                    [
+                        StructField(
+                            "_VALUE", StringType(), True
+                        ),  # element text (because str3 has an attribute)
+                        StructField(
+                            "_id", StringType(), True
+                        ),  # attribute id (default attributePrefix is "_")
+                    ]
+                ),
+                True,
+            ),
+        ]
+    )
+    row_tag = "test"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .schema(test_schema1)
+        .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
+    )
+    Utils.check_answer(
+        df,
+        [
+            Row(
+                num="1",
+                str1="NULL",
+                str2=None,
+                str3='{\n  "_VALUE": "xxx",\n  "_id": "empty"\n}',
+            )
+        ],
+    )
+
+    test_schema2 = StructType(
+        [
+            StructField("num", StringType(), True),
+            StructField("str1", StringType(), True),
+            StructField("str2", StringType(), True),
+            StructField("str3", StringType(), True),
+        ]
+    )
+    df = (
+        session.read.option("rowTag", row_tag)
+        .schema(test_schema2)
+        .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
+    )
+    Utils.check_answer(df, [Row(num="1", str1="NULL", str2=None, str3="xxx")])

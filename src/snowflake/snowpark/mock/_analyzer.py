@@ -654,12 +654,18 @@ class MockAnalyzer:
                             if v == expr.child.name:
                                 df_alias_dict[k] = quoted_name
 
-            alias_exp = alias_expression(
-                self.analyze(
-                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
-                ),
-                quoted_name,
+            origin = self.analyze(
+                expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
             )
+            if (
+                isinstance(expr.child, (Attribute, UnresolvedAttribute))
+                and origin == quoted_name
+            ):
+                # If the column name matches the target of the alias (`quoted_name`),
+                # we can directly emit the column name without an AS clause.
+                return origin
+
+            alias_exp = alias_expression(origin, quoted_name)
 
             expr_str = alias_exp if keep_alias else expr.name or keep_alias
             expr_str = expr_str.upper() if parse_local_name else expr_str

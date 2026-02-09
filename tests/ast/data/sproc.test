@@ -118,6 +118,7 @@ mod5_sp = session.sproc.register_from_file(
     "mod5",
     return_type=IntegerType(),
     input_types=[IntegerType()],
+    preserve_parameter_names=True,
 )
 mod5_sp(3)
 
@@ -147,7 +148,7 @@ artifact_repo_sproc = session.sproc.register(
 
 ## EXPECTED UNPARSER OUTPUT
 
-my_copy_sp = sproc("my_copy", return_type=StringType(), input_types=[StringType(), StringType(), LongType()], name="my_copy_sp", replace=True, comment="This is a comment", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_COPY_SP\"")
+my_copy_sp = sproc("my_copy", return_type=StringType(), input_types=[StringType(), StringType(), LongType()], name="my_copy_sp", replace=True, comment="This is a comment", preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_COPY_SP\"")
 
 _ = session.sql("create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table (generator(rowCount => 100))")
 
@@ -175,13 +176,13 @@ session.table("test_from").limit(10, 0).write.save_as_table("test_to", mode="ove
 
 session.table("test_to").count()
 
-add_one_sp = sproc("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], parallel=2, execute_as="caller", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
+add_one_sp = sproc("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], parallel=2, execute_as="caller", preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
 res15 = add_one_sp(1)
 
 session.sql("select 1 + 1").collect()
 
-add_one_sp = sproc("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], parallel=2, execute_as="caller", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
+add_one_sp = sproc("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], parallel=2, execute_as="caller", preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
 add_one_sp(1)
 
@@ -191,49 +192,49 @@ _ = session.sql("create or replace temp stage mystage")
 
 _.collect()
 
-_ = sproc("<lambda [2]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
+_ = sproc("<lambda [2]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
 
 session.sql("call mul_sp(5, 6)").collect()
 
-_ = sproc("<lambda [3]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", if_not_exists=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
+_ = sproc("<lambda [3]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", if_not_exists=True, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
 
 session.sql("call mul_sp(5, 6)").collect()
 
-_ = sproc("<lambda [4]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, strict=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
+_ = sproc("<lambda [4]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, strict=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
 
 session.sql("call mul_sp(5, 6)").collect()
 
-sproc("sin_sp", return_type=FloatType(), input_types=[FloatType()], packages=["snowflake-snowpark-python", "numpy"], statement_params={"SF_PARTNER": "FAKE_PARTNER"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1.5707963267948966)
+sproc("sin_sp", return_type=FloatType(), input_types=[FloatType()], packages=["snowflake-snowpark-python", "numpy"], preserve_parameter_names=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1.5707963267948966)
 
-res31 = sproc("select_sp", return_type=StructType(fields=[StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
-
-session.sql("SELECT 1 as A, 2 as B").show()
-
-res35 = sproc("select_sp", return_type=StructType(structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res31 = sproc("select_sp", return_type=StructType(fields=[StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res39 = sproc("select_sp", return_type=StructType(structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res35 = sproc("select_sp", return_type=StructType(structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-mod5_sp = sproc("mod5", return_type=IntegerType(), input_types=[IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
+res39 = sproc("select_sp", return_type=StructType(structured=False), input_types=[LongType(), LongType()], preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+
+session.sql("SELECT 1 as A, 2 as B").show()
+
+mod5_sp = sproc("mod5", return_type=IntegerType(), input_types=[IntegerType()], preserve_parameter_names=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
 res42 = mod5_sp(3)
 
 session.create_dataframe([[3]], schema=["a"]).select(col("a") % 5).collect()
 
-mod5_sp = sproc("mod5", return_type=IntegerType(), input_types=[IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
+mod5_sp = sproc("mod5", return_type=IntegerType(), input_types=[IntegerType()], preserve_parameter_names=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
 mod5_sp(3)
 
-range5_sproc = sproc("range5_sproc", return_type=StructType(structured=False), _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
+range5_sproc = sproc("range5_sproc", return_type=StructType(structured=False), preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
 res47 = range5_sproc()
 
 res48 = session.range(5, None, 1)
 
-artifact_repo_sproc = sproc("artifact_repo_test", return_type=StringType(), name="artifact_repo_sproc", packages=["urllib3", "requests"], replace=True, artifact_repository="EXAMPLE_REPO", resource_constraint={"architecture": "x86"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ARTIFACT_REPO_SPROC\"")
+artifact_repo_sproc = sproc("artifact_repo_test", return_type=StringType(), name="artifact_repo_sproc", packages=["urllib3", "requests"], replace=True, artifact_repository="EXAMPLE_REPO", resource_constraint={"architecture": "x86"}, preserve_parameter_names=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ARTIFACT_REPO_SPROC\"")
 
 ## EXPECTED ENCODED AST
 
@@ -278,6 +279,20 @@ body {
         }
         input_types {
           long_type: true
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 114
+                end_line: 42
+                file: 2
+                start_column: 21
+                start_line: 42
+              }
+            }
+          }
         }
         name {
           name {
@@ -1007,6 +1022,20 @@ body {
         input_types {
           integer_type: true
         }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 65
+                file: 2
+                start_column: 21
+                start_line: 59
+              }
+            }
+          }
+        }
         parallel: 2
         return_type {
           integer_type: true
@@ -1133,6 +1162,20 @@ body {
         }
         input_types {
           integer_type: true
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 65
+                file: 2
+                start_column: 21
+                start_line: 59
+              }
+            }
+          }
         }
         parallel: 2
         return_type {
@@ -1322,6 +1365,20 @@ body {
           integer_type: true
         }
         is_permanent: true
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 83
+                file: 2
+                start_column: 12
+                start_line: 75
+              }
+            }
+          }
+        }
         name {
           name {
             name_flat {
@@ -1427,6 +1484,20 @@ body {
           integer_type: true
         }
         is_permanent: true
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 95
+                file: 2
+                start_column: 12
+                start_line: 87
+              }
+            }
+          }
+        }
         name {
           name {
             name_flat {
@@ -1531,6 +1602,20 @@ body {
           integer_type: true
         }
         is_permanent: true
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 110
+                file: 2
+                start_column: 12
+                start_line: 99
+              }
+            }
+          }
+        }
         name {
           name {
             name_flat {
@@ -1640,6 +1725,20 @@ body {
         input_types {
           float_type: true
         }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 112
+                end_line: 114
+                file: 2
+                start_column: 9
+                start_line: 114
+              }
+            }
+          }
+        }
         packages: "snowflake-snowpark-python"
         packages: "numpy"
         parallel: 4
@@ -1728,6 +1827,20 @@ body {
         }
         input_types {
           integer_type: true
+        }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 150
+                end_line: 120
+                file: 2
+                start_column: 9
+                start_line: 120
+              }
+            }
+          }
         }
         parallel: 4
         return_type {
@@ -1892,6 +2005,20 @@ body {
         input_types {
           integer_type: true
         }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 123
+                end_line: 126
+                file: 2
+                start_column: 9
+                start_line: 126
+              }
+            }
+          }
+        }
         parallel: 4
         return_type {
           struct_type {
@@ -2032,6 +2159,20 @@ body {
         input_types {
           long_type: true
         }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 14
+                end_line: 132
+                file: 2
+                start_column: 9
+                start_line: 132
+              }
+            }
+          }
+        }
         parallel: 4
         return_type {
           struct_type {
@@ -2170,6 +2311,21 @@ body {
         input_types {
           integer_type: true
         }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 144
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+              v: true
+            }
+          }
+        }
         parallel: 4
         return_type {
           integer_type: true
@@ -2177,7 +2333,7 @@ body {
         source_code_display: true
         src {
           end_column: 9
-          end_line: 143
+          end_line: 144
           file: 2
           start_column: 18
           start_line: 138
@@ -2204,20 +2360,20 @@ body {
           int64_val {
             src {
               end_column: 18
-              end_line: 144
+              end_line: 145
               file: 2
               start_column: 8
-              start_line: 144
+              start_line: 145
             }
             v: 3
           }
         }
         src {
           end_column: 18
-          end_line: 144
+          end_line: 145
           file: 2
           start_column: 8
-          start_line: 144
+          start_line: 145
         }
       }
     }
@@ -2412,6 +2568,21 @@ body {
         input_types {
           integer_type: true
         }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 144
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+              v: true
+            }
+          }
+        }
         parallel: 4
         return_type {
           integer_type: true
@@ -2419,7 +2590,7 @@ body {
         source_code_display: true
         src {
           end_column: 9
-          end_line: 143
+          end_line: 144
           file: 2
           start_column: 18
           start_line: 138
@@ -2446,20 +2617,20 @@ body {
           int64_val {
             src {
               end_column: 18
-              end_line: 144
+              end_line: 145
               file: 2
               start_column: 8
-              start_line: 144
+              start_line: 145
             }
             v: 3
           }
         }
         src {
           end_column: 18
-          end_line: 144
+          end_line: 145
           file: 2
           start_column: 8
-          start_line: 144
+          start_line: 145
         }
       }
     }
@@ -2490,6 +2661,20 @@ body {
             }
           }
         }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 151
+                file: 2
+                start_column: 23
+                start_line: 148
+              }
+            }
+          }
+        }
         parallel: 4
         return_type {
           struct_type {
@@ -2498,10 +2683,10 @@ body {
         source_code_display: true
         src {
           end_column: 9
-          end_line: 150
+          end_line: 151
           file: 2
           start_column: 23
-          start_line: 147
+          start_line: 148
         }
       }
     }
@@ -2523,10 +2708,10 @@ body {
         }
         src {
           end_column: 22
-          end_line: 151
+          end_line: 152
           file: 2
           start_column: 8
-          start_line: 151
+          start_line: 152
         }
       }
     }
@@ -2578,6 +2763,20 @@ body {
             }
           }
         }
+        kwargs {
+          _1: "preserve_parameter_names"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 169
+                file: 2
+                start_column: 30
+                start_line: 161
+              }
+            }
+          }
+        }
         name {
           name {
             name_flat {
@@ -2602,10 +2801,10 @@ body {
         source_code_display: true
         src {
           end_column: 9
-          end_line: 168
+          end_line: 169
           file: 2
           start_column: 30
-          start_line: 160
+          start_line: 161
         }
       }
     }
@@ -2629,6 +2828,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 44
+  minor: 45
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
