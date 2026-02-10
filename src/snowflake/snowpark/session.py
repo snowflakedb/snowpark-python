@@ -2424,7 +2424,7 @@ class Session:
                 resolved = value or DEFAULT_ARTIFACT_REPOSITORY
             except Exception as e:
                 _logger.warning(
-                    f"Error getting default artifact repository: {e}. Using fallback."
+                    f"Error getting default artifact repository: {e}. Using fallback: {DEFAULT_ARTIFACT_REPOSITORY}."
                 )
                 resolved = DEFAULT_ARTIFACT_REPOSITORY
 
