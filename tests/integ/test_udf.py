@@ -454,6 +454,30 @@ def test_register_udf_from_file(session, resources_path):
     )
 
 
+def test_udf_register_from_file_strict_secure(session, resources_path):
+    test_files = TestFiles(resources_path)
+    df = session.create_dataframe([[6, 8], [10, None]]).to_df("a", "b")
+    # This registration call previously errored here because setting strict would accidentally
+    # set max_batch_size instead, causing it to attempt to create a vectorized UDF.
+    # See GH#4064.
+    mod5_udf = session.udf.register_from_file(
+        test_files.test_udf_py_file,
+        "mod5",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        strict=True,
+        secure=False,
+    )
+    assert isinstance(mod5_udf.func, tuple)
+    Utils.check_answer(
+        df.select(mod5_udf("a"), mod5_udf("b")).collect(),
+        [
+            Row(1, 3),
+            Row(0, None),
+        ],
+    )
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="Vectorized UDF is not supported in Local Testing",

@@ -708,7 +708,6 @@ class UDFRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
-        max_batch_size: Optional[int] = None,
         strict: bool = False,
         secure: bool = False,
         external_access_integrations: Optional[List[str]] = None,
@@ -789,12 +788,6 @@ class UDFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDF files.
-            max_batch_size: The maximum number of rows per input pandas DataFrame or pandas Series
-                inside a vectorized UDF. Because a vectorized UDF will be executed within a time limit,
-                which is `60` seconds, this optional argument can be used to reduce the running time of
-                every batch by setting a smaller batch size. Note that setting a larger value does not
-                guarantee that Snowflake will encode batches with the specified number of rows. It will
-                be ignored when registering a non-vectorized UDF.
             strict: Whether the created UDF is strict. A strict UDF will not invoke the UDF if any input is
                 null. Instead, a null value will always be returned for that row. Note that the UDF might
                 still return null for non-null inputs.
@@ -858,7 +851,6 @@ class UDFRegistration:
                 replace,
                 if_not_exists,
                 parallel,
-                max_batch_size=max_batch_size,
                 strict=strict,
                 secure=secure,
                 external_access_integrations=external_access_integrations,
