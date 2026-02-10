@@ -87,6 +87,7 @@ HIGH_QUERY_COUNT_THRESHOLD = 9
 # that this parameter is unset, as currently required by Snowpark pandas.
 # 8. SHOW OBJECTS LIKE [TABLE_NAME] IN SCHEMA [SCHEMA] LIMIT 1 ... is to check the row count of a table we are reading
 # from, if it exists
+# 9. SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY is cached per DB/schema context, so it's not consistent when it is executed
 FILTER_OUT_QUERIES = [
     ["create SCOPED TEMPORARY", "stage if not exists"],
     ["PUT", "file:///tmp/placeholder/snowpark.zip"],
@@ -96,6 +97,7 @@ FILTER_OUT_QUERIES = [
     ["drop table if exists", "/* internal query to drop unused temp table */"],
     ["SHOW PARAMETERS LIKE", "QUOTED_IDENTIFIERS_IGNORE_CASE"],
     ["SHOW OBJECTS LIKE", "IN SCHEMA", "LIMIT 1"],
+    ["SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY"],
 ]
 
 # define global at module-level
@@ -485,7 +487,7 @@ def sql_count_checker(
     }
     # also look into kwargs for count configuration. Right now, describe_count and window_count are the
     # counts can be passed optionally
-    for (key, value) in kwargs.items():
+    for key, value in kwargs.items():
         if key.endswith("_count"):
             count_kwargs.update({key: value})
 
@@ -528,7 +530,7 @@ def get_readable_sql_count_values(tr):
 
 
 def update_test_code_with_sql_counts(
-    sql_count_records: Dict[str, Dict[str, List[Dict[str, Optional[PythonScalar]]]]]
+    sql_count_records: Dict[str, Dict[str, List[Dict[str, Optional[PythonScalar]]]]],
 ):
     """This helper takes sql count records and rewrites the source test files to validate sql counts where possible.
 
