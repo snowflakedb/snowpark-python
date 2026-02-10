@@ -3053,7 +3053,7 @@ def test_udf_artifact_repository_from_file(session, tmpdir):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-# @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 @pytest.mark.skipif(
     sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
 )
@@ -3063,9 +3063,8 @@ def test_use_default_artifact_repository(db_parameters):
         session.sql(
             "ALTER SESSION SET ENABLE_DEFAULT_PYTHON_ARTIFACT_REPOSITORY = true"
         ).collect()
-        session.sql("ALTER SESSION SET ENABLE_PYPI_SHARED_REPOSITORY = true").collect()
         session.sql(
-            "ALTER schema set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = snowflake.snowpark.pypi_shared_repository"
+            "ALTER schema set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = testdb_snowpark_python.testschema_snowpark_python.SNOWPARK_PYTHON_TEST_REPOSITORY"
         ).collect()
 
         session.add_packages("art", "cloudpickle")
