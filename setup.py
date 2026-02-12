@@ -32,7 +32,7 @@ INSTALL_REQ_LIST = [
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
-REQUIRED_PYTHON_VERSION = ">=3.9, <3.14"
+REQUIRED_PYTHON_VERSION = ">=3.9, <3.15"
 
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.9"
@@ -249,6 +249,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
         "Topic :: Database",
         "Topic :: Software Development",
         "Topic :: Software Development :: Libraries",
