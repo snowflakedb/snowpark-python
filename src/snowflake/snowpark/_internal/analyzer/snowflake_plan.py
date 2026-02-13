@@ -7,7 +7,7 @@ import difflib
 from logging import getLogger
 import re
 import sys
-import uuid
+import uuid as uuid_lib
 from collections import defaultdict, deque
 from enum import Enum
 from dataclasses import dataclass
@@ -383,7 +383,7 @@ class SnowflakePlan(LogicalPlan):
                         # and it's a reading XML query.
 
                         def search_read_file_node(
-                            node: Union[SnowflakePlan, Selectable]
+                            node: Union[SnowflakePlan, Selectable],
                         ) -> Optional[ReadFileNode]:
                             source_plan = (
                                 node.source_plan
@@ -435,7 +435,7 @@ class SnowflakePlan(LogicalPlan):
         # during the compilation stage.
         schema_query: Optional[str],
         post_actions: Optional[List["Query"]] = None,
-        expr_to_alias: Optional[Dict[uuid.UUID, str]] = None,
+        expr_to_alias: Optional[Dict[uuid_lib.UUID, str]] = None,
         source_plan: Optional[LogicalPlan] = None,
         is_ddl_on_temp_object: bool = False,
         api_calls: Optional[List[Dict]] = None,
@@ -479,7 +479,9 @@ class SnowflakePlan(LogicalPlan):
                 if self.session._join_alias_fix
                 else defaultdict(dict)
             )
-        self._uuid = from_selectable_uuid if from_selectable_uuid else str(uuid.uuid4())
+        self._uuid = (
+            from_selectable_uuid if from_selectable_uuid else str(uuid_lib.uuid4())
+        )
         # We set the query line intervals for the last query in the queries list
         self.set_last_query_line_intervals()
         # In the placeholder query, subquery (child) is held by the ID of query plan
@@ -1680,9 +1682,9 @@ class SnowflakePlanBuilder:
                 if len(
                     node.snowflake_plan.children_plan_nodes
                 ) == 1 and table_function_join_node.right_cols == ["*"]:
-                    child_plan: Union[
-                        SnowflakePlan, Selectable
-                    ] = node.snowflake_plan.children_plan_nodes[0]
+                    child_plan: Union[SnowflakePlan, Selectable] = (
+                        node.snowflake_plan.children_plan_nodes[0]
+                    )
                     if isinstance(child_plan, Selectable):
                         child_plan = child_plan.snowflake_plan
 
