@@ -49,10 +49,11 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_str, _to_col_if_sql_expr
-from snowflake.snowpark.exceptions import SnowparkClientException
+from snowflake.snowpark.exceptions import SnowparkClientException, SnowparkSQLException
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.context import _is_snowpark_connect_compatible_mode
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -537,43 +538,62 @@ class DataFrameWriter:
                 SaveMode.APPEND,
                 SaveMode.TRUNCATE,
             ] or (save_mode == SaveMode.OVERWRITE and overwrite_condition is not None)
-            if (
-                table_exists is None
-                and not isinstance(session._conn, MockServerConnection)
-                and needs_table_exists_check
-            ):
-                # whether the table already exists in the database
-                # determines the compiled SQL for APPEND, TRUNCATE, and OVERWRITE with overwrite_condition
-                # if the table does not exist, we need to create it first;
-                # if the table exists, we can skip the creation step and insert data directly
-                table_exists = session._table_exists(table_name)
 
-            create_table_logic_plan = SnowflakeCreateTable(
-                table_name,
-                column_names,
-                save_mode,
-                self._dataframe._plan,
-                TableCreationSource.OTHERS,
-                table_type,
-                clustering_exprs,
-                comment,
-                enable_schema_evolution,
-                data_retention_time,
-                max_data_extension_time,
-                change_tracking,
-                copy_grants,
-                iceberg_config,
-                table_exists,
-                overwrite_condition_expr,
-            )
-            snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
-            result = session._conn.execute(
-                snowflake_plan,
-                _statement_params=statement_params,
-                block=block,
-                data_type=_AsyncResultType.NO_RESULT,
-                **kwargs,
-            )
+            def _execute_save_as_table_plan(table_exists_flag: Optional[bool]):
+                create_table_logic_plan = SnowflakeCreateTable(
+                    table_name,
+                    column_names,
+                    save_mode,
+                    self._dataframe._plan,
+                    TableCreationSource.OTHERS,
+                    table_type,
+                    clustering_exprs,
+                    comment,
+                    enable_schema_evolution,
+                    data_retention_time,
+                    max_data_extension_time,
+                    change_tracking,
+                    copy_grants,
+                    iceberg_config,
+                    table_exists_flag,
+                    overwrite_condition_expr,
+                )
+                snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
+                return session._conn.execute(
+                    snowflake_plan,
+                    _statement_params=statement_params,
+                    block=block,
+                    data_type=_AsyncResultType.NO_RESULT,
+                    **kwargs,
+                )
+
+            if _is_snowpark_connect_compatible_mode:
+                if needs_table_exists_check:
+                    last_err = None
+                    for exists in (True, False):
+                        try:
+                            result = _execute_save_as_table_plan(exists)
+                            break
+                        except SnowparkSQLException as e:
+                            last_err = e
+                    else:  # pragma: no cover
+                        raise last_err
+                else:
+                    result = _execute_save_as_table_plan(None)
+
+            else:
+                if (
+                    table_exists is None
+                    and not isinstance(session._conn, MockServerConnection)
+                    and needs_table_exists_check
+                ):
+                    # whether the table already exists in the database
+                    # determines the compiled SQL for APPEND, TRUNCATE, and OVERWRITE with overwrite_condition
+                    # if the table does not exist, we need to create it first;
+                    # if the table exists, we can skip the creation step and insert data directly
+                    table_exists = session._table_exists(table_name)
+
+                result = _execute_save_as_table_plan(table_exists)
             return result if not block else None
 
     @overload
