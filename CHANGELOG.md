@@ -1,5 +1,18 @@
 # Release History
 
+## 1.47.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+- Fixed a bug where `Session.udf.register_from_file` did not properly process the `strict` and `secure` parameters.
+
+#### Improvements
+
+
 ## 1.46.0 (TBD)
 
 ### Snowpark Python API Updates
