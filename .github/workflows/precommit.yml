@@ -108,30 +108,30 @@ jobs:
         # matrix is empty for pre-commit, tests are only added
         # through the include directive
         include:
-          # # only run py3.9 tests on ubuntu+aws to isolate 3.9 failures
-          # - python-version: "3.9"
-          #   os: ubuntu-latest-64-cores
-          #   cloud-provider: aws
-          # # only run gcp tests with latest python and ubuntu
-          # - cloud-provider: gcp
-          #   python-version: "3.12"
-          #   os: ubuntu-latest-64-cores
-          # # only run azure tests with latest python and ubuntu
-          # - cloud-provider: azure
-          #   python-version: "3.12"
-          #   os: ubuntu-latest-64-cores
-          # # run py 3.13 tests on aws/ubuntu
-          # - python-version: "3.13"
-          #   cloud-provider: aws
-          #   os: ubuntu-latest-64-cores
-          # # run py 3.12 doctests on azure/macos
-          # - python-version: "3.12"
-          #   cloud-provider: azure
-          #   os: macos-latest
-          # # run py 3.13 tests on gcp on windows
-          # - python-version: "3.13"
-          #   cloud-provider: gcp
-          #   os: windows-latest-64-cores
+          # only run py3.9 tests on ubuntu+aws to isolate 3.9 failures
+          - python-version: "3.9"
+            os: ubuntu-latest-64-cores
+            cloud-provider: aws
+          # only run gcp tests with latest python and ubuntu
+          - cloud-provider: gcp
+            python-version: "3.12"
+            os: ubuntu-latest-64-cores
+          # only run azure tests with latest python and ubuntu
+          - cloud-provider: azure
+            python-version: "3.12"
+            os: ubuntu-latest-64-cores
+          # run py 3.13 tests on aws/ubuntu
+          - python-version: "3.13"
+            cloud-provider: aws
+            os: ubuntu-latest-64-cores
+          # run py 3.12 doctests on azure/macos
+          - python-version: "3.12"
+            cloud-provider: azure
+            os: macos-latest
+          # run py 3.13 tests on gcp on windows
+          - python-version: "3.13"
+            cloud-provider: gcp
+            os: windows-latest-64-cores
           # run py 3.14 tests on aws/ubuntu
           - python-version: "3.14"
             cloud-provider: aws
