@@ -1682,9 +1682,9 @@ class SnowflakePlanBuilder:
                 if len(
                     node.snowflake_plan.children_plan_nodes
                 ) == 1 and table_function_join_node.right_cols == ["*"]:
-                    child_plan: Union[SnowflakePlan, Selectable] = (
-                        node.snowflake_plan.children_plan_nodes[0]
-                    )
+                    child_plan: Union[
+                        SnowflakePlan, Selectable
+                    ] = node.snowflake_plan.children_plan_nodes[0]
                     if isinstance(child_plan, Selectable):
                         child_plan = child_plan.snowflake_plan
 
