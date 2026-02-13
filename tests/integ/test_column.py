@@ -94,6 +94,9 @@ def test_cast_try_cast_negative(session):
     assert "'wrong_type' is not a supported type" in str(execinfo)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-3083544: PERMISSIVE flag not yet rolled out", strict=False
+)
 def test_try_cast_permissive(session):
     df = session.create_dataframe(
         [
