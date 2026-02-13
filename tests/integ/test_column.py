@@ -14,6 +14,7 @@ from snowflake.snowpark.functions import (
     col,
     lit,
     parse_json,
+    try_parse_json,
     second,
     to_timestamp,
     when,
@@ -91,6 +92,53 @@ def test_cast_try_cast_negative(session):
     with pytest.raises(ValueError) as execinfo:
         df.select(df["a"].try_cast("wrong_type"))
     assert "'wrong_type' is not a supported type" in str(execinfo)
+
+
+def test_try_cast_permissive(session):
+    df = session.create_dataframe(
+        [
+            ['{"a": 1, "b": {"x": "hello", "y": 2}}'],  # Well-formed, matches schema
+            [None],
+            ['{"a": 3}'],  # Missing "b" field (should be replaced by NULL)
+            [
+                '{"a": 4, "b": {"y": 5}}'
+            ],  # Missing "x" sub-field in "b" (should be replaced by NULL)
+            [
+                '{"a": "value", "b": {"x": "world", "y": 6}}'
+            ],  # String in "a" instead of INTEGER (also becomes NULL)
+        ],
+        schema=["data"],
+    )
+
+    df = df.select(try_parse_json(col("data")).alias("data"))
+    target_schema = StructType(
+        [
+            StructField("a", IntegerType()),
+            StructField(
+                "b",
+                StructType(
+                    [
+                        StructField("x", StringType()),
+                        StructField("y", IntegerType()),
+                    ],
+                    structured=True,
+                ),
+            ),
+        ],
+        structured=True,
+    )
+
+    Utils.check_answer(
+        df.select(col("data").try_cast(target_schema, permissive=True).alias("casted")),
+        [
+            Row(CASTED=Row(A=1, B=Row(X="hello", Y=2))),
+            Row(CASTED=None),
+            Row(CASTED=Row(A=3, B=None)),
+            Row(CASTED=Row(A=4, B=Row(X=None, Y=5))),
+            Row(CASTED=Row(A=None, B=Row(X="world", Y=6))),
+        ],
+        sort=False,
+    )
 
 
 @pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
