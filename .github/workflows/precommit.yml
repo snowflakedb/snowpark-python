@@ -132,6 +132,10 @@ jobs:
           - python-version: "3.13"
             cloud-provider: gcp
             os: windows-latest-64-cores
+          # run py 3.14 tests on aws/ubuntu
+          - python-version: "3.14"
+            cloud-provider: aws
+            os: ubuntu-latest-64-cores
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
