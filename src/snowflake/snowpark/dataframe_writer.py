@@ -537,7 +537,6 @@ class DataFrameWriter:
                 SaveMode.APPEND,
                 SaveMode.TRUNCATE,
             ] or (save_mode == SaveMode.OVERWRITE and overwrite_condition is not None)
-
             if (
                 table_exists is None
                 and not isinstance(session._conn, MockServerConnection)
