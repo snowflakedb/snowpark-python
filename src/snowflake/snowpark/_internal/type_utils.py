@@ -1481,6 +1481,18 @@ def format_year_month_interval_for_display(
             years = str(int(parts[0]))
             months = str(int(parts[1]))
 
+    elif (cell.startswith("+") or cell.startswith("-")) and len(cell) > 1:
+        # Newer connector behavior: single-field strings like "+5" / "-5"
+        is_negative = cell.startswith("-")
+        v = str(int(cell[1:]))
+        if (
+            start_field == YearMonthIntervalType.MONTH
+            and end_field == YearMonthIntervalType.MONTH
+        ):
+            months = v
+        else:
+            years = v
+
     # Format based on start/end field
     sign_prefix = "-" if is_negative else ""
 
