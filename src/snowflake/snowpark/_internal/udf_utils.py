@@ -1228,22 +1228,22 @@ def resolve_imports_and_packages(
     bool,
 ]:
     from snowflake.snowpark.session import (
-        ANACONDA_SHARED_REPOSITORY,
-        DEFAULT_ARTIFACT_REPOSITORY,
+        _ANACONDA_SHARED_REPOSITORY,
+        _DEFAULT_ARTIFACT_REPOSITORY,
     )
 
     if artifact_repository is None:
         artifact_repository = (
             session._get_default_artifact_repository()
             if session
-            else DEFAULT_ARTIFACT_REPOSITORY
+            else _DEFAULT_ARTIFACT_REPOSITORY
         )
 
     existing_packages_dict = (
         session._artifact_repository_packages[artifact_repository] if session else {}
     )
 
-    if artifact_repository != ANACONDA_SHARED_REPOSITORY:
+    if artifact_repository != _ANACONDA_SHARED_REPOSITORY:
         # Non-conda artifact repository - skip conda-based package resolution
         resolved_packages = []
         if not packages and session:

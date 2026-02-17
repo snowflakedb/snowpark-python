@@ -322,9 +322,9 @@ WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 # The fully qualified name of the Anaconda shared repository (conda channel).
-ANACONDA_SHARED_REPOSITORY = "snowflake.snowpark.anaconda_shared_repository"
+_ANACONDA_SHARED_REPOSITORY = "snowflake.snowpark.anaconda_shared_repository"
 # In case of failures or the current default artifact repository is unset, we fallback to this
-DEFAULT_ARTIFACT_REPOSITORY = ANACONDA_SHARED_REPOSITORY
+_DEFAULT_ARTIFACT_REPOSITORY = _ANACONDA_SHARED_REPOSITORY
 
 
 def _get_active_session() -> "Session":
@@ -2144,7 +2144,7 @@ class Session:
         package_dict = self._parse_packages(packages)
         if (
             isinstance(self._conn, MockServerConnection)
-            or artifact_repository != ANACONDA_SHARED_REPOSITORY
+            or artifact_repository != _ANACONDA_SHARED_REPOSITORY
         ):
             # in local testing or non-conda, we don't resolve the packages, we just return what is added
             errors = []
@@ -2405,7 +2405,7 @@ class Session:
         """
         with self._package_lock:
             if isinstance(self._conn, MockServerConnection):
-                return DEFAULT_ARTIFACT_REPOSITORY
+                return _DEFAULT_ARTIFACT_REPOSITORY
 
             cache_key = (self.get_current_database(), self.get_current_schema())
 
@@ -2421,12 +2421,12 @@ class Session:
                     f"SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('{python_version}')"
                 )
                 value = result[0][0] if result else None
-                resolved = value or DEFAULT_ARTIFACT_REPOSITORY
+                resolved = value or _DEFAULT_ARTIFACT_REPOSITORY
             except Exception as e:
                 _logger.warning(
-                    f"Error getting default artifact repository: {e}. Using fallback: {DEFAULT_ARTIFACT_REPOSITORY}."
+                    f"Error getting default artifact repository: {e}. Using fallback: {_DEFAULT_ARTIFACT_REPOSITORY}."
                 )
-                resolved = DEFAULT_ARTIFACT_REPOSITORY
+                resolved = _DEFAULT_ARTIFACT_REPOSITORY
 
             self._default_artifact_repository_cache = (cache_key, resolved)
             return resolved

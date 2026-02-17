@@ -30,7 +30,7 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING,
-    ANACONDA_SHARED_REPOSITORY,
+    _ANACONDA_SHARED_REPOSITORY,
 )
 from snowflake.snowpark.types import StructField, StructType
 
@@ -215,7 +215,7 @@ def test_resolve_package_current_database(has_current_database):
 
     session._resolve_packages(
         ["random_package_name"],
-        ANACONDA_SHARED_REPOSITORY,
+        _ANACONDA_SHARED_REPOSITORY,
         {},
         validate_package=True,
         include_pandas=False,
@@ -250,7 +250,7 @@ def test_resolve_package_terms_not_accepted(mock_server_connection):
     ):
         session._resolve_packages(
             ["random_package_name"],
-            ANACONDA_SHARED_REPOSITORY,
+            _ANACONDA_SHARED_REPOSITORY,
             {},
             validate_package=True,
             include_pandas=False,
@@ -275,7 +275,7 @@ def test_resolve_packages_side_effect(mock_server_connection):
 
     resolved_packages = session._resolve_packages(
         ["random_package_name"],
-        ANACONDA_SHARED_REPOSITORY,
+        _ANACONDA_SHARED_REPOSITORY,
         existing_packages,
         validate_package=True,
         include_pandas=False,
@@ -307,7 +307,7 @@ def test_resolve_packages_suppresses_internal_warning(mock_server_connection, ca
     ):
         session._resolve_packages(
             ["snowflake-snowpark-python"],
-            ANACONDA_SHARED_REPOSITORY,
+            _ANACONDA_SHARED_REPOSITORY,
             {},
             validate_package=True,
             include_pandas=False,
@@ -752,7 +752,7 @@ def test_get_default_artifact_repository():
         session, "get_current_schema", return_value="SCHEMA2"
     ):
         result = session._get_default_artifact_repository()
-        assert result == ANACONDA_SHARED_REPOSITORY
+        assert result == _ANACONDA_SHARED_REPOSITORY
 
         assert mocked_run_query.call_count == 1
 
@@ -764,6 +764,6 @@ def test_get_default_artifact_repository():
         session, "get_current_schema", return_value="SCHEMA1"
     ):
         result = session._get_default_artifact_repository()
-        assert result == ANACONDA_SHARED_REPOSITORY
+        assert result == _ANACONDA_SHARED_REPOSITORY
 
         assert mocked_run_query.call_count == 1

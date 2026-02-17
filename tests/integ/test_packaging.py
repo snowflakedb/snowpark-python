@@ -20,7 +20,7 @@ from snowflake.snowpark._internal.packaging_utils import (
     get_signature,
 )
 from snowflake.snowpark.functions import call_udf, col, count_distinct, sproc, udf
-from snowflake.snowpark.session import ANACONDA_SHARED_REPOSITORY
+from snowflake.snowpark.session import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import DateType, StringType
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
@@ -271,7 +271,7 @@ def test_add_packages(session, local_testing_mode):
 
     resolved_packages = session._resolve_packages(
         [numpy, pandas, dateutil],
-        ANACONDA_SHARED_REPOSITORY,
+        _ANACONDA_SHARED_REPOSITORY,
         {},
         validate_package=False,
     )
@@ -1208,13 +1208,13 @@ def test_replicate_local_environment(session):
         [
             package.startswith("cloudpickle")
             for package in session._artifact_repository_packages[
-                ANACONDA_SHARED_REPOSITORY
+                _ANACONDA_SHARED_REPOSITORY
             ]
         ]
     )
 
     def naive_add_packages(self, packages):
-        self._artifact_repository_packages[ANACONDA_SHARED_REPOSITORY] = packages
+        self._artifact_repository_packages[_ANACONDA_SHARED_REPOSITORY] = packages
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with patch.object(Session, "add_packages", new=naive_add_packages):
@@ -1232,7 +1232,7 @@ def test_replicate_local_environment(session):
         [
             package.startswith("cloudpickle==")
             for package in session._artifact_repository_packages[
-                ANACONDA_SHARED_REPOSITORY
+                _ANACONDA_SHARED_REPOSITORY
             ]
         ]
     )
@@ -1241,7 +1241,7 @@ def test_replicate_local_environment(session):
             [
                 package.startswith(default_package)
                 for package in session._artifact_repository_packages[
-                    ANACONDA_SHARED_REPOSITORY
+                    _ANACONDA_SHARED_REPOSITORY
                 ]
             ]
         )
@@ -1266,7 +1266,7 @@ def test_replicate_local_environment(session):
         [
             package == "cloudpickle"
             for package in session._artifact_repository_packages[
-                ANACONDA_SHARED_REPOSITORY
+                _ANACONDA_SHARED_REPOSITORY
             ]
         ]
     )
@@ -1275,7 +1275,7 @@ def test_replicate_local_environment(session):
             [
                 package.startswith(default_package)
                 for package in session._artifact_repository_packages[
-                    ANACONDA_SHARED_REPOSITORY
+                    _ANACONDA_SHARED_REPOSITORY
                 ]
             ]
         )
@@ -1284,7 +1284,7 @@ def test_replicate_local_environment(session):
             [
                 package.startswith(ignored_package)
                 for package in session._artifact_repository_packages[
-                    ANACONDA_SHARED_REPOSITORY
+                    _ANACONDA_SHARED_REPOSITORY
                 ]
             ]
         )

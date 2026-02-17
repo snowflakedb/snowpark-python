@@ -26,7 +26,7 @@ from snowflake.snowpark._internal.udf_utils import (
     resolve_packages_in_client_side_sandbox,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.session import ANACONDA_SHARED_REPOSITORY
+from snowflake.snowpark.session import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import StringType
 from snowflake.snowpark.version import VERSION
 
@@ -227,7 +227,7 @@ def test_resolve_imports_and_packages_imports_as_str(tmp_path_factory):
 def test_add_snowpark_package_to_sproc_packages_add_package(packages):
     old_packages_length = len(packages) if packages else 0
     result = add_snowpark_package_to_sproc_packages(
-        session=None, packages=packages, artifact_repository=ANACONDA_SHARED_REPOSITORY
+        session=None, packages=packages, artifact_repository=_ANACONDA_SHARED_REPOSITORY
     )
 
     major, minor, patch = VERSION
@@ -245,7 +245,7 @@ def test_add_snowpark_package_to_sproc_packages_does_not_replace_package():
         "snowflake-snowpark-python==1.12.0",
     ]
     result = add_snowpark_package_to_sproc_packages(
-        session=None, packages=packages, artifact_repository=ANACONDA_SHARED_REPOSITORY
+        session=None, packages=packages, artifact_repository=_ANACONDA_SHARED_REPOSITORY
     )
 
     assert len(result) == len(packages)
@@ -255,7 +255,7 @@ def test_add_snowpark_package_to_sproc_packages_does_not_replace_package():
 def test_add_snowpark_package_to_sproc_packages_to_session():
     fake_session = mock.create_autospec(Session)
     fake_session._artifact_repository_packages = defaultdict(dict)
-    fake_session._artifact_repository_packages[ANACONDA_SHARED_REPOSITORY] = {
+    fake_session._artifact_repository_packages[_ANACONDA_SHARED_REPOSITORY] = {
         "random_package_one": "random_package_one",
         "random_package_two": "random_package_two",
     }
@@ -263,7 +263,7 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
     result = add_snowpark_package_to_sproc_packages(
         session=fake_session,
         packages=None,
-        artifact_repository=ANACONDA_SHARED_REPOSITORY,
+        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
     )
 
     major, minor, patch = VERSION
@@ -272,13 +272,13 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
     assert len(result) == 3
     assert final_name in result
 
-    fake_session._artifact_repository_packages[ANACONDA_SHARED_REPOSITORY][
+    fake_session._artifact_repository_packages[_ANACONDA_SHARED_REPOSITORY][
         "snowflake-snowpark-python"
     ] = "snowflake-snowpark-python==1.12.0"
     result = add_snowpark_package_to_sproc_packages(
         session=fake_session,
         packages=None,
-        artifact_repository=ANACONDA_SHARED_REPOSITORY,
+        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
     )
     assert result is None
 
