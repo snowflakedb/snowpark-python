@@ -71,7 +71,7 @@ MODIN_DEVELOPMENT_REQUIREMENTS = [
     # Snowpark pandas 3rd party library testing. Cap the scipy version because
     # Snowflake cannot find newer versions of scipy for python 3.11+. See
     # SNOW-2452791.
-    "scipy<=1.16.0",
+    "scipy<=1.16.3",
     "statsmodels",  # Snowpark pandas 3rd party library testing
     "scikit-learn",  # Snowpark pandas 3rd party library testing
     # plotly version restricted due to foreseen change in query counts in version 6.0.0+
@@ -80,7 +80,8 @@ MODIN_DEVELOPMENT_REQUIREMENTS = [
     # snowflake-ml-python is available on python 3.12.
     "snowflake-ml-python>=1.8.0; python_version<'3.12'",
     "s3fs",  # Used in tests that read CSV files from s3
-    "ray",  # Used in data movement tests
+    # ray currently has no compatible wheels for Python 3.14.
+    "ray; python_version<'3.14'",  # Used in data movement tests
 ]
 
 # read the version
