@@ -53,7 +53,7 @@ from snowflake.snowpark.exceptions import SnowparkClientException, SnowparkSQLEx
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.context import _is_snowpark_connect_compatible_mode
+import snowflake.snowpark.context as context
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -567,7 +567,7 @@ class DataFrameWriter:
                     **kwargs,
                 )
 
-            if _is_snowpark_connect_compatible_mode:
+            if context._is_snowpark_connect_compatible_mode:
                 if needs_table_exists_check:
                     last_err = None
                     for exists in (True, False):
