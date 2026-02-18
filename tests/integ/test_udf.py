@@ -3083,7 +3083,9 @@ def test_udf_artifact_repository_from_file(session, tmpdir):
 )
 def test_use_default_artifact_repository(db_parameters):
     with Session.builder.configs(db_parameters).create() as session:
-        session.use_schema("public")
+        temp_schema = Utils.random_temp_schema()
+        session.sql(f"create schema {temp_schema}").collect()
+        session.sql(f"use schema {temp_schema}").collect()
         session.sql(
             "ALTER SESSION SET ENABLE_DEFAULT_PYTHON_ARTIFACT_REPOSITORY = true"
         ).collect()
@@ -3115,4 +3117,4 @@ def test_use_default_artifact_repository(db_parameters):
         finally:
             session._run_query(f"drop function if exists {temp_func_name}(int)")
 
-        session.sql("ALTER schema unset DEFAULT_PYTHON_ARTIFACT_REPOSITORY").collect()
+        session.sql(f"drop schema {temp_schema}").collect()

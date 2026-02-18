@@ -20,7 +20,7 @@ from snowflake.snowpark._internal.packaging_utils import (
     get_signature,
 )
 from snowflake.snowpark.functions import call_udf, col, count_distinct, sproc, udf
-from snowflake.snowpark.session import _ANACONDA_SHARED_REPOSITORY
+from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import DateType, StringType
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 

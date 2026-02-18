@@ -59,6 +59,10 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.types import DataType, StructField, StructType
 from snowflake.snowpark.version import VERSION
+from snowflake.snowpark.context import (
+    _ANACONDA_SHARED_REPOSITORY,
+    _DEFAULT_ARTIFACT_REPOSITORY,
+)
 
 if installed_pandas:
     from snowflake.snowpark.types import (
@@ -1227,11 +1231,6 @@ def resolve_imports_and_packages(
     Optional[str],
     bool,
 ]:
-    from snowflake.snowpark.session import (
-        _ANACONDA_SHARED_REPOSITORY,
-        _DEFAULT_ARTIFACT_REPOSITORY,
-    )
-
     if artifact_repository is None:
         artifact_repository = (
             session._get_default_artifact_repository()

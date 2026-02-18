@@ -26,7 +26,7 @@ from snowflake.snowpark._internal.udf_utils import (
     resolve_packages_in_client_side_sandbox,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.session import _ANACONDA_SHARED_REPOSITORY
+from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import StringType
 from snowflake.snowpark.version import VERSION
 

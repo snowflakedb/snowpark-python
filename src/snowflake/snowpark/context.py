@@ -48,6 +48,11 @@ _enable_fix_2360274 = False
 # example: _integral_type_default_precision = {IntegerType: 9}, IntegerType default _precision is 9 now
 _integral_type_default_precision = {}
 
+# The fully qualified name of the Anaconda shared repository (conda channel).
+_ANACONDA_SHARED_REPOSITORY = "snowflake.snowpark.anaconda_shared_repository"
+# In case of failures or the current default artifact repository is unset, we fallback to this
+_DEFAULT_ARTIFACT_REPOSITORY = _ANACONDA_SHARED_REPOSITORY
+
 
 def configure_development_features(
     *,

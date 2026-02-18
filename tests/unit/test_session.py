@@ -28,10 +28,8 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSessionException,
 )
-from snowflake.snowpark.session import (
-    _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING,
-    _ANACONDA_SHARED_REPOSITORY,
-)
+from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING
+from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import StructField, StructType
 
 

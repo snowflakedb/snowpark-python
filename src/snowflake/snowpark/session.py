@@ -156,6 +156,8 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
     _is_execution_environment_sandboxed_for_client,
     _use_scoped_temp_objects,
+    _ANACONDA_SHARED_REPOSITORY,
+    _DEFAULT_ARTIFACT_REPOSITORY,
 )
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
@@ -320,11 +322,6 @@ DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
-
-# The fully qualified name of the Anaconda shared repository (conda channel).
-_ANACONDA_SHARED_REPOSITORY = "snowflake.snowpark.anaconda_shared_repository"
-# In case of failures or the current default artifact repository is unset, we fallback to this
-_DEFAULT_ARTIFACT_REPOSITORY = _ANACONDA_SHARED_REPOSITORY
 
 
 def _get_active_session() -> "Session":
