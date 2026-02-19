@@ -230,6 +230,7 @@ setup(
             "opentelemetry-api>=1.0.0, <2.0.0",
             "opentelemetry-sdk>=1.0.0, <2.0.0",
             "opentelemetry-exporter-otlp>=1.0.0, <2.0.0",
+            "snowflake-telemetry-python",
         ],
     },
     classifiers=[

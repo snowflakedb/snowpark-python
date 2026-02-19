@@ -7,7 +7,6 @@ from abc import ABC
 from logging import getLogger
 from typing import Dict, Optional, Tuple
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
-
 import snowflake.snowpark
 import requests
 
@@ -21,6 +20,24 @@ SERVICE_NAME = "snow.snowpark.client"
 
 class MissingOpenTelemetry(MissingOptionalDependency):
     _dep_name = "opentelemetry"
+
+
+class MissingSnowflakeTelemetry(MissingOptionalDependency):
+    _dep_name = "snowflake-telemetry-python"
+
+
+def _import_or_missing_snowflake_telemetry() -> Tuple[ModuleLikeObject, bool]:
+    try:
+        # "snowflake-telemetry-python" is the *distribution* name. The importable
+        # Python modules live under the `snowflake` namespace package.
+        snowflake_telemetry = importlib.import_module("snowflake")
+        # Import the parent first so `snowflake.telemetry` is attached to the
+        # returned `snowflake` module (mirrors the pattern used for OpenTelemetry).
+        importlib.import_module("snowflake.telemetry")
+        importlib.import_module("snowflake.telemetry.trace")
+        return snowflake_telemetry, True
+    except ImportError:
+        return MissingSnowflakeTelemetry(), False
 
 
 def _import_or_missing_opentelemetry() -> Tuple[ModuleLikeObject, bool]:
@@ -39,6 +56,7 @@ def _import_or_missing_opentelemetry() -> Tuple[ModuleLikeObject, bool]:
 
 
 opentelemetry, installed_opentelemetry = _import_or_missing_opentelemetry()
+snowflake_telemetry, _ = _import_or_missing_snowflake_telemetry()
 
 BaseLogProvider = opentelemetry._logs.LoggerProvider if installed_opentelemetry else ABC
 BaseTraceProvider = (
@@ -394,7 +412,8 @@ class EventTableTelemetry:
         opentelemetry.trace.set_tracer_provider(self._proxy_tracer_provider)
 
         self._tracer_provider = opentelemetry.sdk.trace.TracerProvider(
-            resource=resource
+            resource=resource,
+            id_generator=snowflake_telemetry.telemetry.trace.SnowflakeTraceIdGenerator(),
         )
 
         trace_session = requests.Session()

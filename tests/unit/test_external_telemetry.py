@@ -101,3 +101,68 @@ def test_import_or_missing_opentelemetry_returns_missing_on_importerror(monkeypa
 
     assert installed is False
     assert isinstance(otel, ett.MissingOpenTelemetry)
+
+
+def test_import_or_missing_snowflake_telemetry(monkeypatch):
+    # Build a fake snowflake module tree
+    snowflake = types.ModuleType("snowflake")
+    snowflake_telemetry = types.ModuleType("snowflake.telemetry")
+    snowflake_trace = types.ModuleType("snowflake.telemetry.trace")
+
+    class SnowflakeTraceIdGenerator:
+        pass
+
+    snowflake_trace.SnowflakeTraceIdGenerator = SnowflakeTraceIdGenerator
+
+    def fake_import_module_factory(registry):
+        def fake_import_module(name):
+            # Simulate ImportError if an expected dependency isn't present
+            if name not in registry:
+                raise ImportError(name)
+
+            mod = registry[name]
+
+            # Emulate Python import behavior: after importing X.Y, X gets attribute Y.
+            if "." in name:
+                parent_name, child = name.rsplit(".", 1)
+                setattr(registry[parent_name], child, mod)
+
+            return mod
+
+        return fake_import_module
+
+    # Case 1: snowflake telemetry trace is missing
+    missing_registry = {
+        "snowflake": snowflake,
+        "snowflake.telemetry": snowflake_telemetry,
+    }
+    monkeypatch.setattr(
+        ett.importlib, "import_module", fake_import_module_factory(missing_registry)
+    )
+
+    sf, installed = ett._import_or_missing_snowflake_telemetry()
+    assert installed is False
+    assert isinstance(sf, ett.MissingSnowflakeTelemetry)
+
+    # Case 2: snowflake telemetry trace is present
+    present_registry = {
+        "snowflake": snowflake,
+        "snowflake.telemetry": snowflake_telemetry,
+        "snowflake.telemetry.trace": snowflake_trace,
+    }
+    monkeypatch.setattr(
+        ett.importlib, "import_module", fake_import_module_factory(present_registry)
+    )
+
+    sf, installed = ett._import_or_missing_snowflake_telemetry()
+    assert installed is True
+    assert sf is snowflake
+
+    # Key regression check: no AttributeError when accessing sf.telemetry.trace
+    assert hasattr(sf, "telemetry")
+    assert hasattr(sf.telemetry, "trace")
+    assert sf.telemetry.trace is snowflake_trace
+    assert sf.telemetry.trace.SnowflakeTraceIdGenerator is SnowflakeTraceIdGenerator
+    assert isinstance(
+        sf.telemetry.trace.SnowflakeTraceIdGenerator(), SnowflakeTraceIdGenerator
+    )
