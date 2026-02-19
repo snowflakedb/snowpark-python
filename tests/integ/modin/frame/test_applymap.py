@@ -59,7 +59,7 @@ def test_applymap_basic_with_type_hints(data, func, return_type, method):
     "data,func,return_type,expected_result",
     DATE_TIME_TIMESTAMP_DATA_FUNC_RETURN_TYPE_MAP,
 )
-@sql_count_checker(query_count=5, udf_count=1, strict=False)
+@sql_count_checker(query_count=5, udf_count=2, strict=False)
 def test_applymap_date_time_timestamp(data, func, return_type, expected_result):
     func_with_type_hint = create_func_with_return_type_hint(func, return_type)
 
