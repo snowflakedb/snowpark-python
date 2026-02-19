@@ -49,7 +49,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_str, _to_col_if_sql_expr
-from snowflake.snowpark.exceptions import SnowparkClientException, SnowparkSQLException
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.row import Row
@@ -568,16 +568,8 @@ class DataFrameWriter:
                 )
 
             if context._is_snowpark_connect_compatible_mode:
-                if needs_table_exists_check:
-                    last_err = None
-                    for exists in (True, False):
-                        try:
-                            result = _execute_save_as_table_plan(exists)
-                            break
-                        except SnowparkSQLException as e:
-                            last_err = e
-                    else:  # pragma: no cover
-                        raise last_err
+                if save_mode == SaveMode.APPEND:
+                    result = _execute_save_as_table_plan(False)
                 else:
                     result = _execute_save_as_table_plan(None)
 
