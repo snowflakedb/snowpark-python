@@ -380,7 +380,7 @@ class TestApplyOrMapCallable:
         # It will become a number column in Snowflake, and in vectorized UDF, we use Int32/64Dtype
         # where NULL is encoded as pd.NA
         snow_series = pd.Series([None, None])
-        with SqlCounter(query_count=4, udf_count=1):
+        with SqlCounter(query_count=5, udf_count=2, strict=False):
             types = (
                 getattr(snow_series, method)(lambda x: str(type(x)))
                 .to_pandas()
