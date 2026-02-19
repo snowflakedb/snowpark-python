@@ -168,6 +168,13 @@ MAP_DATA_AND_TYPE = (
 MIXED_NUMERIC_STR_DATA_AND_TYPE = ([1, "A", 2.5, None], "Variant")
 MAX_DICTIONARY_FORMAT_STRING_SIZE = 2000
 
+NEWER_CLASS_NAMES = {
+    "<class 'pandas._libs.tslibs.timestamps.Timestamp'>": "<class 'pandas.Timestamp'>",
+    "<class 'pandas._libs.tslibs.nattype.NaTType'>": "<class 'pandas.api.typing.NaTType'>",
+    "<class 'pandas._libs.tslibs.timedeltas.Timedelta'>": "<class 'pandas.Timedelta'>",
+    "<class 'pandas._libs.missing.NAType'>": "<class 'pandas.api.typing.NAType'>",
+}
+
 
 ColumnSchema = namedtuple("ColumnSchema", ["name", "snowpark_type"])
 
