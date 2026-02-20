@@ -228,7 +228,7 @@ setup(
         ],
         "opentelemetry": [
             "snowflake-telemetry-python",
-            "opentelemetry-exporter-otlp>=1.0.0, <2.0.0",
+            "opentelemetry-exporter-otlp==1.35.0",
         ],
     },
     classifiers=[
