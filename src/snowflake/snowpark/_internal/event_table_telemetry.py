@@ -310,7 +310,7 @@ class EventTableTelemetry:
             return
 
         resource = opentelemetry.sdk.resources.Resource.create(
-            {"service.name": SERVICE_NAME}
+            {"service.name": SERVICE_NAME, "snow.service.name": SERVICE_NAME},
         )
 
         header = self._get_external_telemetry_auth_token()
@@ -413,7 +413,7 @@ class EventTableTelemetry:
 
         self._tracer_provider = opentelemetry.sdk.trace.TracerProvider(
             resource=resource,
-            # id_generator=snowflake_telemetry.telemetry.trace.SnowflakeTraceIdGenerator(),
+            id_generator=snowflake_telemetry.telemetry.trace.SnowflakeTraceIdGenerator(),
         )
 
         trace_session = requests.Session()
