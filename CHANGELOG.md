@@ -1,19 +1,6 @@
 # Release History
 
-## 1.47.0 (TBD)
-
-### Snowpark Python API Updates
-
-#### New Features
-
-#### Bug Fixes
-
-- Fixed a bug where `Session.udf.register_from_file` did not properly process the `strict` and `secure` parameters.
-
-#### Improvements
-
-
-## 1.46.0 (TBD)
+## 1.46.0 (2026-02-23)
 
 ### Snowpark Python API Updates
 
@@ -26,6 +13,7 @@
 
 - Fixed a bug where `cloudpickle` was not automatically added to the package list when using `artifact_repository` with custom packages, causing `ModuleNotFoundError` at runtime.
 - Fixed a bug when reading xml with custom schema, result include element attributes when column is not `StructType` type.
+- Fixed a bug where `Session.udf.register_from_file` did not properly process the `strict` and `secure` parameters.
 
 #### Improvements
 
