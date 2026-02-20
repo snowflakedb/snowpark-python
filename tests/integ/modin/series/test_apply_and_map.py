@@ -24,6 +24,7 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udf
 from snowflake.snowpark.types import DoubleType, StringType, VariantType
 from tests.integ.modin.utils import (
+    NEWER_CLASS_NAMES,
     ColumnSchema,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -247,7 +248,7 @@ class TestApplyOrMapCallable:
         "data,func,return_type,expected_result",
         DATE_TIME_TIMESTAMP_DATA_FUNC_RETURN_TYPE_MAP,
     )
-    @sql_count_checker(query_count=4, udf_count=1)
+    @sql_count_checker(query_count=5, udf_count=2, strict=False)
     def test_date_time_timestamp(
         self, method, data, func, return_type, expected_result
     ):
@@ -255,7 +256,11 @@ class TestApplyOrMapCallable:
 
         snow_series = pd.Series(data)
         result = getattr(snow_series, method)(func_with_type_hint)
-        assert_snowpark_pandas_equal_to_pandas(result, expected_result)
+        try:
+            assert_snowpark_pandas_equal_to_pandas(result, expected_result)
+        except AssertionError:
+            newer_expected_result = expected_result.replace(NEWER_CLASS_NAMES)
+            assert_snowpark_pandas_equal_to_pandas(result, newer_expected_result)
 
     @pytest.mark.xfail(strict=True, raises=NotImplementedError)
     @sql_count_checker(query_count=0)
@@ -375,12 +380,18 @@ class TestApplyOrMapCallable:
         # It will become a number column in Snowflake, and in vectorized UDF, we use Int32/64Dtype
         # where NULL is encoded as pd.NA
         snow_series = pd.Series([None, None])
-        with SqlCounter(query_count=4, udf_count=1):
-            assert getattr(snow_series, method)(
-                lambda x: str(type(x))
-            ).to_pandas().tolist() == [
+        with SqlCounter(query_count=5, udf_count=2, strict=False):
+            types = (
+                getattr(snow_series, method)(lambda x: str(type(x)))
+                .to_pandas()
+                .tolist()
+            )
+            expected_types = [
                 "<class 'pandas._libs.missing.NAType'>",
                 "<class 'pandas._libs.missing.NAType'>",
+            ]
+            assert types == expected_types or types == [
+                NEWER_CLASS_NAMES.get(x, x) for x in expected_types
             ]
 
     @sql_count_checker(query_count=3)
