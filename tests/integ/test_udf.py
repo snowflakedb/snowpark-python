@@ -1971,20 +1971,36 @@ def test_basic_pandas_udf(session):
     Utils.check_answer(df.select(return1_pandas_udf()), [Row("1"), Row("1")])
     Utils.check_answer(df.select(add_series_pandas_udf("a", "b")), [Row(3), Row(7)])
     Utils.check_answer(df.select(add_one_df_pandas_udf("a", "b")), [Row(4), Row(8)])
-    Utils.check_answer(
-        df.select(get_type_str_series_udf("a")),
-        [
-            Row("<class 'pandas.core.series.Series'>"),
-            Row("<class 'pandas.core.series.Series'>"),
-        ],
-    )
-    Utils.check_answer(
-        df.select(get_type_str_df_udf("a")),
-        [
-            Row("<class 'pandas.core.frame.DataFrame'>"),
-            Row("<class 'pandas.core.frame.DataFrame'>"),
-        ],
-    )
+    try:
+        Utils.check_answer(
+            df.select(get_type_str_series_udf("a")),
+            [
+                Row("<class 'pandas.core.series.Series'>"),
+                Row("<class 'pandas.core.series.Series'>"),
+            ],
+        )
+        Utils.check_answer(
+            df.select(get_type_str_df_udf("a")),
+            [
+                Row("<class 'pandas.core.frame.DataFrame'>"),
+                Row("<class 'pandas.core.frame.DataFrame'>"),
+            ],
+        )
+    except AssertionError:
+        Utils.check_answer(
+            df.select(get_type_str_series_udf("a")),
+            [
+                Row("<class 'pandas.Series'>"),
+                Row("<class 'pandas.Series'>"),
+            ],
+        )
+        Utils.check_answer(
+            df.select(get_type_str_df_udf("a")),
+            [
+                Row("<class 'pandas.DataFrame'>"),
+                Row("<class 'pandas.DataFrame'>"),
+            ],
+        )
 
 
 @pytest.mark.skipif(
@@ -2100,20 +2116,29 @@ def test_pandas_udf_type_hints(session):
         (
             DateType,
             [[datetime.date(2021, 12, 20)]],
-            ("<class 'pandas._libs.tslibs.timestamps.Timestamp'>",),
+            (
+                "<class 'pandas._libs.tslibs.timestamps.Timestamp'>",
+                "<class 'pandas.Timestamp'>",
+            ),
             ("datetime64[s]", "datetime64[ns]", "datetime64[us]"),
         ),
         (ArrayType, [[[1]]], ("<class 'list'>",), ("object",)),
         (
             TimeType,
             [[datetime.time(1, 1, 1)]],
-            ("<class 'pandas._libs.tslibs.timedeltas.Timedelta'>",),
+            (
+                "<class 'pandas._libs.tslibs.timedeltas.Timedelta'>",
+                "<class 'pandas.Timedelta'>",
+            ),
             ("timedelta64[s]", "timedelta64[ns]", "timedelta64[us]"),
         ),
         (
             TimestampType,
             [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
-            ("<class 'pandas._libs.tslibs.timestamps.Timestamp'>",),
+            (
+                "<class 'pandas._libs.tslibs.timestamps.Timestamp'>",
+                "<class 'pandas.Timestamp'>",
+            ),
             ("datetime64[s]", "datetime64[ns]", "datetime64[us]"),
         ),
     ],
