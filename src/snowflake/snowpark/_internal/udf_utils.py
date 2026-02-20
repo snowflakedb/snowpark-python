@@ -59,6 +59,10 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.types import DataType, StructField, StructType
 from snowflake.snowpark.version import VERSION
+from snowflake.snowpark.context import (
+    _ANACONDA_SHARED_REPOSITORY,
+    _DEFAULT_ARTIFACT_REPOSITORY,
+)
 
 if installed_pandas:
     from snowflake.snowpark.types import (
@@ -1122,6 +1126,7 @@ import pandas
 def add_snowpark_package_to_sproc_packages(
     session: Optional["snowflake.snowpark.Session"],
     packages: Optional[List[Union[str, ModuleType]]],
+    artifact_repository: str,
 ) -> List[Union[str, ModuleType]]:
     major, minor, patch = VERSION
     package_name = "snowflake-snowpark-python"
@@ -1137,8 +1142,11 @@ def add_snowpark_package_to_sproc_packages(
             packages = [this_package]
         else:
             with session._package_lock:
-                if package_name not in session._packages:
-                    packages = list(session._packages.values()) + [this_package]
+                existing_packages = session._artifact_repository_packages[
+                    artifact_repository
+                ]
+                if package_name not in existing_packages:
+                    packages = list(existing_packages.values()) + [this_package]
         return packages
 
     return add_package_to_existing_packages(packages, package_name, this_package)
@@ -1223,17 +1231,30 @@ def resolve_imports_and_packages(
     Optional[str],
     bool,
 ]:
-    if artifact_repository and artifact_repository != "conda":
-        # Artifact Repository packages are not resolved
+    if artifact_repository is None:
+        artifact_repository = (
+            session._get_default_artifact_repository()
+            if session
+            else _DEFAULT_ARTIFACT_REPOSITORY
+        )
+
+    existing_packages_dict = (
+        session._artifact_repository_packages[artifact_repository] if session else {}
+    )
+
+    if artifact_repository != _ANACONDA_SHARED_REPOSITORY:
+        # Non-conda artifact repository - skip conda-based package resolution
         resolved_packages = []
         if not packages and session:
             resolved_packages = list(
-                session._resolve_packages([], artifact_repository=artifact_repository)
+                session._resolve_packages(
+                    [], artifact_repository, existing_packages_dict
+                )
             )
         elif packages:
             if not all(isinstance(package, str) for package in packages):
                 raise TypeError(
-                    "Artifact repository requires that all packages be passed as str."
+                    "Non-conda artifact repository requires that all packages be passed as str."
                 )
             try:
                 has_cloudpickle = bool(
@@ -1256,7 +1277,7 @@ def resolve_imports_and_packages(
             )
 
     else:
-        # resolve packages
+        # resolve packages using conda channel
         if session is None:  # In case of sandbox
             resolved_packages = resolve_packages_in_client_side_sandbox(
                 packages=packages
@@ -1265,6 +1286,8 @@ def resolve_imports_and_packages(
             resolved_packages = (
                 session._resolve_packages(
                     packages,
+                    artifact_repository,
+                    {},  # ignore session packages if passed in explicitly
                     include_pandas=is_pandas_udf,
                     statement_params=statement_params,
                     _suppress_local_package_warnings=_suppress_local_package_warnings,
@@ -1272,7 +1295,8 @@ def resolve_imports_and_packages(
                 if packages is not None
                 else session._resolve_packages(
                     [],
-                    session._packages,
+                    artifact_repository,
+                    existing_packages_dict,
                     validate_package=False,
                     include_pandas=is_pandas_udf,
                     statement_params=statement_params,

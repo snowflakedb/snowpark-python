@@ -156,6 +156,8 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
     _is_execution_environment_sandboxed_for_client,
     _use_scoped_temp_objects,
+    _ANACONDA_SHARED_REPOSITORY,
+    _DEFAULT_ARTIFACT_REPOSITORY,
 )
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
@@ -599,10 +601,17 @@ class Session:
         self._conn = conn
         self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
-        self._packages: Dict[str, str] = {}
+        # map of artifact repository name -> packages that should be added to functions under that repository
         self._artifact_repository_packages: DefaultDict[
             str, Dict[str, str]
         ] = defaultdict(dict)
+        # Single-entry cache for the default artifact repository value.
+        # Stores a tuple of ((database, schema), cached_value).  Only one entry is
+        # kept at a time – switching to a different database/schema will evict the old
+        # value and trigger a fresh query on the next call.
+        self._default_artifact_repository_cache: Optional[
+            Tuple[Tuple[Optional[str], Optional[str]], str]
+        ] = None
         self._session_id = self._conn.get_session_id()
         self._session_info = f"""
 "version" : {get_version()},
@@ -1598,11 +1607,13 @@ class Session:
 
         Args:
             artifact_repository: When set this will function will return the packages for a specific artifact repository.
+            Otherwise, uses the default artifact repository configured in the current context.
         """
+        if artifact_repository is None:
+            artifact_repository = self._get_default_artifact_repository()
+
         with self._package_lock:
-            if artifact_repository:
-                return self._artifact_repository_packages[artifact_repository].copy()
-            return self._packages.copy()
+            return self._artifact_repository_packages[artifact_repository].copy()
 
     def add_packages(
         self,
@@ -1629,7 +1640,8 @@ class Session:
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
             artifact_repository: When set this parameter specifies the artifact repository that packages will be added from. Only functions
-                using that repository will use the packages. (Default None)
+                using that repository will use the packages. (Default None). Otherwise, uses the default artifact repository configured in the
+                current context.
 
         Example::
 
@@ -1669,10 +1681,13 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
+        if artifact_repository is None:
+            artifact_repository = self._get_default_artifact_repository()
+
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
-            self._packages,
-            artifact_repository=artifact_repository,
+            artifact_repository,
+            self._artifact_repository_packages[artifact_repository],
         )
 
     def remove_package(
@@ -1686,7 +1701,8 @@ class Session:
         Args:
             package: The package name.
             artifact_repository: When set this parameter specifies that the package should be removed
-                from the default packages for a specific artifact repository.
+                from the default packages for a specific artifact repository. Otherwise, uses the default
+                artifact repository configured in the current context.
 
         Examples::
 
@@ -1704,17 +1720,13 @@ class Session:
             0
         """
         package_name = Requirement(package).name
+        if artifact_repository is None:
+            artifact_repository = self._get_default_artifact_repository()
+
         with self._package_lock:
-            if (
-                artifact_repository is not None
-                and package_name
-                in self._artifact_repository_packages.get(artifact_repository, {})
-            ):
-                self._artifact_repository_packages[artifact_repository].pop(
-                    package_name
-                )
-            elif package_name in self._packages:
-                self._packages.pop(package_name)
+            packages = self._artifact_repository_packages[artifact_repository]
+            if package_name in packages:
+                packages.pop(package_name)
             else:
                 raise ValueError(f"{package_name} is not in the package list")
 
@@ -1726,11 +1738,11 @@ class Session:
         Clears all third-party packages of a user-defined function (UDF). When artifact_repository
         is set packages are only clear from the specified repository.
         """
+        if artifact_repository is None:
+            artifact_repository = self._get_default_artifact_repository()
+
         with self._package_lock:
-            if artifact_repository is not None:
-                self._artifact_repository_packages.get(artifact_repository, {}).clear()
-            else:
-                self._packages.clear()
+            self._artifact_repository_packages[artifact_repository].clear()
 
     def add_requirements(
         self,
@@ -1747,7 +1759,8 @@ class Session:
         Args:
             file_path: The path of a local requirement file.
             artifact_repository: When set this parameter specifies the artifact repository that packages will be added from. Only functions
-                using that repository will use the packages. (Default None)
+                using that repository will use the packages. (Default None). Otherwise, uses the default artifact repository configured in
+                the current context.
 
         Example::
 
@@ -2097,11 +2110,11 @@ class Session:
     def _resolve_packages(
         self,
         packages: List[Union[str, ModuleType]],
-        existing_packages_dict: Optional[Dict[str, str]] = None,
+        artifact_repository: str,
+        existing_packages_dict: Dict[str, str],
         validate_package: bool = True,
         include_pandas: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        artifact_repository: Optional[str] = None,
         **kwargs,
     ) -> List[str]:
         """
@@ -2128,18 +2141,12 @@ class Session:
         package_dict = self._parse_packages(packages)
         if (
             isinstance(self._conn, MockServerConnection)
-            or artifact_repository is not None
+            or artifact_repository != _ANACONDA_SHARED_REPOSITORY
         ):
-            # in local testing we don't resolve the packages, we just return what is added
+            # in local testing or non-conda, we don't resolve the packages, we just return what is added
             errors = []
             with self._package_lock:
-                if artifact_repository is None:
-                    result_dict = self._packages
-                else:
-                    result_dict = self._artifact_repository_packages[
-                        artifact_repository
-                    ]
-
+                result_dict = existing_packages_dict
                 for pkg_name, _, pkg_req in package_dict.values():
                     if (
                         pkg_name in result_dict
@@ -2376,6 +2383,50 @@ class Session:
                 tmpdir_handler.cleanup()
 
         return supported_dependencies + new_dependencies
+
+    def _get_default_artifact_repository(self) -> str:
+        """
+        Returns the default artifact repository for the current session context
+        by calling SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY.
+
+        The result is cached per (database, schema) pair so that
+        repeated invocations in the same context do not issue
+        redundant system-function queries. Only one cache entry is kept at
+        a time; switching to a different database or schema evicts the
+        previous entry and triggers a fresh query on the next call.
+
+        Falls back to the Snowflake default artifact repository if:
+          - the session uses a mock connection (local testing), or
+          - the system function is not available / fails, or
+          - the system function returns NULL (value was never set).
+        """
+        with self._package_lock:
+            if isinstance(self._conn, MockServerConnection):
+                return _DEFAULT_ARTIFACT_REPOSITORY
+
+            cache_key = (self.get_current_database(), self.get_current_schema())
+
+            if (
+                self._default_artifact_repository_cache is not None
+                and self._default_artifact_repository_cache[0] == cache_key
+            ):
+                return self._default_artifact_repository_cache[1]
+
+            try:
+                python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+                result = self._run_query(
+                    f"SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('{python_version}')"
+                )
+                value = result[0][0] if result else None
+                resolved = value or _DEFAULT_ARTIFACT_REPOSITORY
+            except Exception as e:
+                _logger.warning(
+                    f"Error getting default artifact repository: {e}. Using fallback: {_DEFAULT_ARTIFACT_REPOSITORY}."
+                )
+                resolved = _DEFAULT_ARTIFACT_REPOSITORY
+
+            self._default_artifact_repository_cache = (cache_key, resolved)
+            return resolved
 
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]

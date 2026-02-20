@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from collections import defaultdict
 import sys
 from typing import Tuple
 from unittest import mock
@@ -39,8 +40,8 @@ def test_do_register_sp_negative(cleanup_registration_patch):
     )
     fake_session._run_query = mock.Mock(side_effect=ProgrammingError())
     fake_session._runtime_version_from_requirement = None
-    fake_session._packages = []
     fake_session.udtf = UDTFRegistration(fake_session)
+    fake_session._artifact_repository_packages = defaultdict(dict)
     with pytest.raises(SnowparkSQLException) as ex_info:
 
         @udtf(output_schema=["num"], session=fake_session)

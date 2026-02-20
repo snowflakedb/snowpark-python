@@ -3095,3 +3095,51 @@ def test_udf_artifact_repository_from_file(session, tmpdir):
     )
     df = session.create_dataframe([1]).to_df(["a"])
     Utils.check_answer(df.select(ar_udf()), [Row("test")])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_use_default_artifact_repository(db_parameters):
+    with Session.builder.configs(db_parameters).create() as session:
+        temp_schema = Utils.random_temp_schema()
+        session.sql(f"create schema {temp_schema}").collect()
+        session.sql(f"use schema {temp_schema}").collect()
+        session.sql(
+            "ALTER SESSION SET ENABLE_DEFAULT_PYTHON_ARTIFACT_REPOSITORY = true"
+        ).collect()
+        session.sql(
+            "ALTER schema set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = testdb_snowpark_python.testschema_snowpark_python.SNOWPARK_PYTHON_TEST_REPOSITORY"
+        ).collect()
+
+        session.add_packages("art", "cloudpickle")
+
+        def test_art() -> str:
+            import art  # art is not available in the conda channel, but is in pypi
+
+            _ = art.text2art("test")
+            return "art works!"
+
+        temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        try:
+            # Test function registration
+            udf(
+                session=session,
+                func=test_art,
+                name=temp_func_name,
+            )
+
+            # Test UDF call
+            df = session.create_dataframe([1]).to_df(["a"])
+            Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("art works!")])
+        finally:
+            session._run_query(f"drop function if exists {temp_func_name}(int)")
+
+        session.sql(f"drop schema {temp_schema}").collect()

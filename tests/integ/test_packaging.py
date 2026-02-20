@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.packaging_utils import (
     get_signature,
 )
 from snowflake.snowpark.functions import call_udf, col, count_distinct, sproc, udf
+from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import DateType, StringType
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
@@ -269,7 +270,10 @@ def test_add_packages(session, local_testing_mode):
         return match.group(1) if match else version_string
 
     resolved_packages = session._resolve_packages(
-        [numpy, pandas, dateutil], validate_package=False
+        [numpy, pandas, dateutil],
+        _ANACONDA_SHARED_REPOSITORY,
+        {},
+        validate_package=False,
     )
     # resolved_packages is a list of strings like
     #   ['numpy==2.0.2', 'pandas==2.3.0', 'python-dateutil==2.9.0.post0', 'cloudpickle==3.0.0']
@@ -1200,10 +1204,17 @@ def test_replicate_local_environment(session):
         "force_push": True,
     }
 
-    assert not any([package.startswith("cloudpickle") for package in session._packages])
+    assert not any(
+        [
+            package.startswith("cloudpickle")
+            for package in session._artifact_repository_packages[
+                _ANACONDA_SHARED_REPOSITORY
+            ]
+        ]
+    )
 
     def naive_add_packages(self, packages):
-        self._packages = packages
+        self._artifact_repository_packages[_ANACONDA_SHARED_REPOSITORY] = packages
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with patch.object(Session, "add_packages", new=naive_add_packages):
@@ -1217,10 +1228,22 @@ def test_replicate_local_environment(session):
                 },
             )
 
-    assert any([package.startswith("cloudpickle==") for package in session._packages])
+    assert any(
+        [
+            package.startswith("cloudpickle==")
+            for package in session._artifact_repository_packages[
+                _ANACONDA_SHARED_REPOSITORY
+            ]
+        ]
+    )
     for default_package in DEFAULT_PACKAGES:
         assert not any(
-            [package.startswith(default_package) for package in session._packages]
+            [
+                package.startswith(default_package)
+                for package in session._artifact_repository_packages[
+                    _ANACONDA_SHARED_REPOSITORY
+                ]
+            ]
         )
 
     session.clear_packages()
@@ -1239,12 +1262,29 @@ def test_replicate_local_environment(session):
                 ignore_packages=ignored_packages, relax=True
             )
 
-    assert any([package == "cloudpickle" for package in session._packages])
+    assert any(
+        [
+            package == "cloudpickle"
+            for package in session._artifact_repository_packages[
+                _ANACONDA_SHARED_REPOSITORY
+            ]
+        ]
+    )
     for default_package in DEFAULT_PACKAGES:
         assert not any(
-            [package.startswith(default_package) for package in session._packages]
+            [
+                package.startswith(default_package)
+                for package in session._artifact_repository_packages[
+                    _ANACONDA_SHARED_REPOSITORY
+                ]
+            ]
         )
     for ignored_package in ignored_packages:
         assert not any(
-            [package.startswith(ignored_package) for package in session._packages]
+            [
+                package.startswith(ignored_package)
+                for package in session._artifact_repository_packages[
+                    _ANACONDA_SHARED_REPOSITORY
+                ]
+            ]
         )
