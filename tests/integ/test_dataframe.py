@@ -2744,6 +2744,18 @@ def test_show_interval_formatting(session):
         """
     )
 
+    # Single negative year intervals (not YEAR TO MONTH)
+    df = session.sql("SELECT INTERVAL '-5' YEAR as single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"SINGLE_YEAR"     |
+        +------------------+
+        |INTERVAL '-5' YEAR|
+        +------------------+
+        """
+    )
+
     # Single month intervals (not YEAR TO MONTH)
     df = session.sql("SELECT INTERVAL '8' MONTH as single_month")
     assert df._show_string_spark(truncate=False) == dedent(
@@ -2753,6 +2765,18 @@ def test_show_interval_formatting(session):
         +------------------+
         |INTERVAL '8' MONTH|
         +------------------+
+        """
+    )
+
+    # Single negative month intervals (not YEAR TO MONTH)
+    df = session.sql("SELECT INTERVAL '-8' MONTH as single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------+
+        |"SINGLE_MONTH"     |
+        +-------------------+
+        |INTERVAL '-8' MONTH|
+        +-------------------+
         """
     )
 

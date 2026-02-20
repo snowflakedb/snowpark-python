@@ -462,6 +462,7 @@ def sql_count_checker(
     udf_count=None,
     udtf_count=None,
     union_count=None,
+    strict=False,
     *args,
     **kwargs,
 ):
@@ -497,6 +498,7 @@ def sql_count_checker(
                 log_stack_trace=False,
                 high_count_expected=high_count_expected,
                 high_count_reason=high_count_reason,
+                strict=strict,
             )
 
             result = func(*args, **kwargs)
