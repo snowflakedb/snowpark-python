@@ -413,7 +413,7 @@ class EventTableTelemetry:
 
         self._tracer_provider = opentelemetry.sdk.trace.TracerProvider(
             resource=resource,
-            id_generator=snowflake_telemetry.telemetry.trace.SnowflakeTraceIdGenerator(),
+            # id_generator=snowflake_telemetry.telemetry.trace.SnowflakeTraceIdGenerator(),
         )
 
         trace_session = requests.Session()
