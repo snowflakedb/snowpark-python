@@ -13414,7 +13414,7 @@ def ai_parse_document(
         ...     ).alias("parsed_content")
         ... )
         >>> result = json.loads(df.collect()[0][0])
-        >> "| Customer Name |" in result["content"] and "| Country |" in result["content"]  # Markdown format
+        >>> "| Customer Name |" in result["content"] and "| Country |" in result["content"]  # Markdown format # doctest: +SKIP
         True
 
         >>> # Parse with page splitting for documents
@@ -13425,11 +13425,11 @@ def ai_parse_document(
         ...     ).alias("parsed_content")
         ... )
         >>> result = json.loads(df.collect()[0][0])
-        >> len(result["pages"])
+        >>> len(result["pages"]) # doctest: +SKIP
         3
-        >> 'Sample PDF' in result["pages"][0]["content"]
+        >>> 'Sample PDF' in result["pages"][0]["content"] # doctest: +SKIP
         True
-        >> result["pages"][0]["index"]
+        >>> result["pages"][0]["index"] # doctest: +SKIP
         0
     """
     # SNOW-3129360: Doctests are disabled due to flakiness.
