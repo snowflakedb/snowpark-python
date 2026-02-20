@@ -3,6 +3,8 @@
 #
 import importlib
 import logging
+import random
+import time
 from abc import ABC
 from logging import getLogger
 from typing import Dict, Optional, Tuple
@@ -22,24 +24,6 @@ class MissingOpenTelemetry(MissingOptionalDependency):
     _dep_name = "opentelemetry"
 
 
-class MissingSnowflakeTelemetry(MissingOptionalDependency):
-    _dep_name = "snowflake-telemetry-python"
-
-
-def _import_or_missing_snowflake_telemetry() -> Tuple[ModuleLikeObject, bool]:
-    try:
-        # "snowflake-telemetry-python" is the *distribution* name. The importable
-        # Python modules live under the `snowflake` namespace package.
-        snowflake_telemetry = importlib.import_module("snowflake")
-        # Import the parent first so `snowflake.telemetry` is attached to the
-        # returned `snowflake` module (mirrors the pattern used for OpenTelemetry).
-        importlib.import_module("snowflake.telemetry")
-        importlib.import_module("snowflake.telemetry.trace")
-        return snowflake_telemetry, True
-    except ImportError:
-        return MissingSnowflakeTelemetry(), False
-
-
 def _import_or_missing_opentelemetry() -> Tuple[ModuleLikeObject, bool]:
     try:
         opentelemetry = importlib.import_module("opentelemetry")
@@ -56,13 +40,39 @@ def _import_or_missing_opentelemetry() -> Tuple[ModuleLikeObject, bool]:
 
 
 opentelemetry, installed_opentelemetry = _import_or_missing_opentelemetry()
-snowflake_telemetry, _ = _import_or_missing_snowflake_telemetry()
 
 BaseLogProvider = opentelemetry._logs.LoggerProvider if installed_opentelemetry else ABC
 BaseTraceProvider = (
     opentelemetry.trace.TracerProvider if installed_opentelemetry else ABC
 )
 Attributes = opentelemetry.util.types.Attributes if installed_opentelemetry else ABC
+
+
+if installed_opentelemetry:
+
+    class ForkedSnowflakeTraceIdGenerator(opentelemetry.sdk.trace.RandomIdGenerator):
+        def generate_trace_id(self) -> int:
+            trace_id = opentelemetry.trace.INVALID_TRACE_ID
+            while trace_id == opentelemetry.trace.INVALID_TRACE_ID:
+                # Number of minutes since the epoch
+                timestamp_in_minutes = int(time.time()) // 60
+                # Convert and pad to 4 bytes
+                timestamp_bytes = timestamp_in_minutes.to_bytes(
+                    4, byteorder="big", signed=False
+                )
+                suffix_bytes = random.getrandbits(96).to_bytes(
+                    12, byteorder="big", signed=False
+                )
+                trace_id = int.from_bytes(
+                    timestamp_bytes + suffix_bytes, byteorder="big", signed=False
+                )
+            return trace_id
+
+else:
+
+    class ForkedSnowflakeTraceIdGenerator(ABC):
+
+        pass
 
 
 class RetryWithTokenRefreshAdapter(requests.adapters.HTTPAdapter):
@@ -413,7 +423,7 @@ class EventTableTelemetry:
 
         self._tracer_provider = opentelemetry.sdk.trace.TracerProvider(
             resource=resource,
-            id_generator=snowflake_telemetry.telemetry.trace.SnowflakeTraceIdGenerator(),
+            id_generator=ForkedSnowflakeTraceIdGenerator(),
         )
 
         trace_session = requests.Session()
