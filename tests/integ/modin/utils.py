@@ -168,6 +168,7 @@ MAP_DATA_AND_TYPE = (
 MIXED_NUMERIC_STR_DATA_AND_TYPE = ([1, "A", 2.5, None], "Variant")
 MAX_DICTIONARY_FORMAT_STRING_SIZE = 2000
 
+# SNOW-3129388: Some pandas tests appear to return public types instead of the internal ones now.
 NEWER_CLASS_NAMES = {
     "<class 'pandas._libs.tslibs.timestamps.Timestamp'>": "<class 'pandas.Timestamp'>",
     "<class 'pandas._libs.tslibs.nattype.NaTType'>": "<class 'pandas.api.typing.NaTType'>",

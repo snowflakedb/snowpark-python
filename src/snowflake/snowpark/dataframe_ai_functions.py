@@ -1212,7 +1212,7 @@ class DataFrameAIFunctions:
             ...     mode='LAYOUT',
             ... )
             >>> result = json.loads(result_df.collect()[0]["PARSED"])
-            >>> "| Customer Name |" in result["content"] and "| Country |" in result["content"]
+            >>>> "| Customer Name |" in result["content"] and "| Country |" in result["content"]
             True
 
             >>> # Parse with page splitting for long documents (PDF only)
@@ -1222,10 +1222,11 @@ class DataFrameAIFunctions:
             ...     output_column="parsed",
             ...     page_split=True,
             ... )
-            >>> result = json.loads(result_df.collect()[0]["PARSED"])
-            >>> len(result["pages"]) == 3 and result["pages"][0]["index"] == 0
+            >>>> result = json.loads(result_df.collect()[0]["PARSED"])
+            >>>> len(result["pages"]) == 3 and result["pages"][0]["index"] == 0
             True
         """
+        # SNOW-3129360: Doctests are disabled due to flakiness.
         output_column_name = output_column or "AI_PARSE_DOCUMENT_OUTPUT"
 
         stmt = None
