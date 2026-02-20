@@ -227,7 +227,7 @@ setup(
             "requests",
         ],
         "opentelemetry": [
-            "snowflake-telemetry-python",
+            "snowflake-telemetry-python==0.7.1",
             "opentelemetry-exporter-otlp==1.35.0",
         ],
     },
