@@ -601,6 +601,8 @@ class Session:
         self._conn = conn
         self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+        # unused, needed for test infra?
+        self._packages: Dict[str, str] = {}
         # map of artifact repository name -> packages that should be added to functions under that repository
         self._artifact_repository_packages: DefaultDict[
             str, Dict[str, str]
