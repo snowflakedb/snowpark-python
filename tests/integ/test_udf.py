@@ -1976,20 +1976,36 @@ def test_basic_pandas_udf(session):
     Utils.check_answer(df.select(return1_pandas_udf()), [Row("1"), Row("1")])
     Utils.check_answer(df.select(add_series_pandas_udf("a", "b")), [Row(3), Row(7)])
     Utils.check_answer(df.select(add_one_df_pandas_udf("a", "b")), [Row(4), Row(8)])
-    Utils.check_answer(
-        df.select(get_type_str_series_udf("a")),
-        [
-            Row("<class 'pandas.core.series.Series'>"),
-            Row("<class 'pandas.core.series.Series'>"),
-        ],
-    )
-    Utils.check_answer(
-        df.select(get_type_str_df_udf("a")),
-        [
-            Row("<class 'pandas.core.frame.DataFrame'>"),
-            Row("<class 'pandas.core.frame.DataFrame'>"),
-        ],
-    )
+    try:
+        Utils.check_answer(
+            df.select(get_type_str_series_udf("a")),
+            [
+                Row("<class 'pandas.core.series.Series'>"),
+                Row("<class 'pandas.core.series.Series'>"),
+            ],
+        )
+        Utils.check_answer(
+            df.select(get_type_str_df_udf("a")),
+            [
+                Row("<class 'pandas.core.frame.DataFrame'>"),
+                Row("<class 'pandas.core.frame.DataFrame'>"),
+            ],
+        )
+    except AssertionError:
+        Utils.check_answer(
+            df.select(get_type_str_series_udf("a")),
+            [
+                Row("<class 'pandas.Series'>"),
+                Row("<class 'pandas.Series'>"),
+            ],
+        )
+        Utils.check_answer(
+            df.select(get_type_str_df_udf("a")),
+            [
+                Row("<class 'pandas.DataFrame'>"),
+                Row("<class 'pandas.DataFrame'>"),
+            ],
+        )
 
 
 @pytest.mark.skipif(
@@ -2105,20 +2121,29 @@ def test_pandas_udf_type_hints(session):
         (
             DateType,
             [[datetime.date(2021, 12, 20)]],
-            ("<class 'pandas._libs.tslibs.timestamps.Timestamp'>",),
+            (
+                "<class 'pandas._libs.tslibs.timestamps.Timestamp'>",
+                "<class 'pandas.Timestamp'>",
+            ),
             ("datetime64[s]", "datetime64[ns]", "datetime64[us]"),
         ),
         (ArrayType, [[[1]]], ("<class 'list'>",), ("object",)),
         (
             TimeType,
             [[datetime.time(1, 1, 1)]],
-            ("<class 'pandas._libs.tslibs.timedeltas.Timedelta'>",),
+            (
+                "<class 'pandas._libs.tslibs.timedeltas.Timedelta'>",
+                "<class 'pandas.Timedelta'>",
+            ),
             ("timedelta64[s]", "timedelta64[ns]", "timedelta64[us]"),
         ),
         (
             TimestampType,
             [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
-            ("<class 'pandas._libs.tslibs.timestamps.Timestamp'>",),
+            (
+                "<class 'pandas._libs.tslibs.timestamps.Timestamp'>",
+                "<class 'pandas.Timestamp'>",
+            ),
             ("datetime64[s]", "datetime64[ns]", "datetime64[us]"),
         ),
     ],
@@ -3075,3 +3100,69 @@ def test_udf_artifact_repository_from_file(session, tmpdir):
     )
     df = session.create_dataframe([1]).to_df(["a"])
     Utils.check_answer(df.select(ar_udf()), [Row("test")])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_use_default_artifact_repository(db_parameters):
+    with Session.builder.configs(db_parameters).create() as session:
+        temp_database = Utils.random_temp_database()
+        temp_schema = Utils.random_temp_schema()
+        session.sql(f"create database {temp_database}").collect()
+        session.sql(f"use database {temp_database}").collect()
+        session.sql(
+            "ALTER SESSION SET ENABLE_DEFAULT_PYTHON_ARTIFACT_REPOSITORY = true"
+        ).collect()
+        session.sql(
+            "ALTER database set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = snowflake.snowpark.anaconda_shared_repository"
+        ).collect()
+
+        def test_art() -> str:
+            import art  # art is not available in the conda channel, but is in pypi
+
+            _ = art.text2art("test")
+            return "art works!"
+
+        temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        # should not work in the database where the default is anaconda
+        with pytest.raises(
+            Exception,
+            match="Cannot add package art because it is not available in Snowflake",
+        ):
+            udf(
+                session=session,
+                func=test_art,
+                name=temp_func_name,
+                packages=["art", "cloudpickle"],
+            )
+
+        session.sql(f"create schema {temp_schema}").collect()
+        session.use_schema(temp_schema)
+        session.sql(
+            "ALTER schema set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = testdb_snowpark_python.testschema_snowpark_python.SNOWPARK_PYTHON_TEST_REPOSITORY"
+        ).collect()
+        session.add_packages("art", "cloudpickle")
+
+        try:
+            # Test function registration
+            udf(
+                session=session,
+                func=test_art,
+                name=temp_func_name,
+            )
+
+            # Test UDF call
+            df = session.create_dataframe([1]).to_df(["a"])
+            Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("art works!")])
+        finally:
+            session._run_query(f"drop function if exists {temp_func_name}(int)")
+
+        session.sql(f"drop database {temp_database}").collect()

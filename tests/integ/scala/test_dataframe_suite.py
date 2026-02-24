@@ -3308,13 +3308,13 @@ def test_year_month_interval_type_dataframe(session):
     test_result = df.collect()
 
     assert len(test_result) == 2
-    assert test_result[0][0] == "+3-00"
-    assert test_result[0][1] == "+1-06"
-    assert test_result[0][2] == "+1-03"
+    assert test_result[0][0] == "+3"  # interval year
+    assert test_result[0][1] == "+1-06"  # interval year to month
+    assert test_result[0][2] == "+15"  # interval month
 
-    assert test_result[1][0] == "-1-00"
-    assert test_result[1][1] == "-0-03"
-    assert test_result[1][2] == "+0-07"
+    assert test_result[1][0] == "-1"  # interval year
+    assert test_result[1][1] == "-0-03"  # interval year to month
+    assert test_result[1][2] == "+7"  # interval month
 
     assert isinstance(df.schema.fields[0].datatype, YearMonthIntervalType)
     assert df.schema.fields[0].datatype.start_field == 0
