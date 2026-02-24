@@ -10,7 +10,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
     with_src_position,
 )
-from snowflake.snowpark._internal.utils import experimental, publicapi, warning
+from snowflake.snowpark._internal.utils import publicapi, warning
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (
     _call_function,
@@ -629,7 +629,6 @@ class DataFrameAnalyticsFunctions:
 
         return df
 
-    @experimental(version="1.12.0")
     @publicapi
     def time_series_agg(
         self,
@@ -644,6 +643,9 @@ class DataFrameAnalyticsFunctions:
         """
         Applies aggregations to the specified columns of the DataFrame over specified time windows,
         and grouping criteria.
+
+        .. note::
+            Aggregations exclude rows within 1 second of the current timestamp to prevent data leakage.
 
         Args:
             aggs: A dictionary where keys are column names and values are lists of the desired aggregation functions.
@@ -776,10 +778,13 @@ class DataFrameAnalyticsFunctions:
                 years=interval_args.get("y"),
             )
 
+            one_second = make_interval(seconds=1)
             if window_sign > 0:
-                range_start, range_end = Window.CURRENT_ROW, interval
+                range_start = one_second
+                range_end = interval
             else:
-                range_start, range_end = -interval, Window.CURRENT_ROW
+                range_start = -interval
+                range_end = -one_second
 
             window_spec = (
                 Window.partition_by(group_by)
