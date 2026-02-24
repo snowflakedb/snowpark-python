@@ -271,8 +271,8 @@ def test_add_packages(session, local_testing_mode):
 
     resolved_packages = session._resolve_packages(
         [numpy, pandas, dateutil],
-        _ANACONDA_SHARED_REPOSITORY,
-        {},
+        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+        existing_packages_dict={},
         validate_package=False,
     )
     # resolved_packages is a list of strings like
@@ -1204,17 +1204,10 @@ def test_replicate_local_environment(session):
         "force_push": True,
     }
 
-    assert not any(
-        [
-            package.startswith("cloudpickle")
-            for package in session._artifact_repository_packages[
-                _ANACONDA_SHARED_REPOSITORY
-            ]
-        ]
-    )
+    assert not any([package.startswith("cloudpickle") for package in session._packages])
 
     def naive_add_packages(self, packages):
-        self._artifact_repository_packages[_ANACONDA_SHARED_REPOSITORY] = packages
+        self._packages = packages
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with patch.object(Session, "add_packages", new=naive_add_packages):
@@ -1228,22 +1221,10 @@ def test_replicate_local_environment(session):
                 },
             )
 
-    assert any(
-        [
-            package.startswith("cloudpickle==")
-            for package in session._artifact_repository_packages[
-                _ANACONDA_SHARED_REPOSITORY
-            ]
-        ]
-    )
+    assert any([package.startswith("cloudpickle==") for package in session._packages])
     for default_package in DEFAULT_PACKAGES:
         assert not any(
-            [
-                package.startswith(default_package)
-                for package in session._artifact_repository_packages[
-                    _ANACONDA_SHARED_REPOSITORY
-                ]
-            ]
+            [package.startswith(default_package) for package in session._packages]
         )
 
     session.clear_packages()
@@ -1262,29 +1243,12 @@ def test_replicate_local_environment(session):
                 ignore_packages=ignored_packages, relax=True
             )
 
-    assert any(
-        [
-            package == "cloudpickle"
-            for package in session._artifact_repository_packages[
-                _ANACONDA_SHARED_REPOSITORY
-            ]
-        ]
-    )
+    assert any([package == "cloudpickle" for package in session._packages])
     for default_package in DEFAULT_PACKAGES:
         assert not any(
-            [
-                package.startswith(default_package)
-                for package in session._artifact_repository_packages[
-                    _ANACONDA_SHARED_REPOSITORY
-                ]
-            ]
+            [package.startswith(default_package) for package in session._packages]
         )
     for ignored_package in ignored_packages:
         assert not any(
-            [
-                package.startswith(ignored_package)
-                for package in session._artifact_repository_packages[
-                    _ANACONDA_SHARED_REPOSITORY
-                ]
-            ]
+            [package.startswith(ignored_package) for package in session._packages]
         )

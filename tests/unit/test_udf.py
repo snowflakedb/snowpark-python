@@ -34,6 +34,7 @@ def test_do_register_sp_negative(cleanup_registration_patch):
     fake_session._run_query = mock.Mock(side_effect=ProgrammingError())
     fake_session.udf = UDFRegistration(fake_session)
     fake_session._artifact_repository_packages = defaultdict(dict)
+    fake_session._packages = {}
     with pytest.raises(SnowparkSQLException) as ex_info:
         udf(lambda: 1, session=fake_session, return_type=IntegerType(), packages=[])
     assert ex_info.value.error_code == "1304"

@@ -59,6 +59,7 @@ def test_do_register_udaf_negative(cleanup_registration_patch):
     fake_session._runtime_version_from_requirement = None
     fake_session.udaf = UDAFRegistration(fake_session)
     fake_session._artifact_repository_packages = defaultdict(dict)
+    fake_session._packages = {}
     with pytest.raises(SnowparkSQLException) as ex_info:
 
         @udaf(session=fake_session)
