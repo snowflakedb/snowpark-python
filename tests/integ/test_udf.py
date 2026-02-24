@@ -3108,17 +3108,16 @@ def test_udf_artifact_repository_from_file(session, tmpdir):
 )
 def test_use_default_artifact_repository(db_parameters):
     with Session.builder.configs(db_parameters).create() as session:
+        temp_database = Utils.random_temp_database()
         temp_schema = Utils.random_temp_schema()
-        session.sql(f"create schema {temp_schema}").collect()
-        session.sql(f"use schema {temp_schema}").collect()
+        session.sql(f"create database {temp_database}").collect()
+        session.sql(f"use database {temp_database}").collect()
         session.sql(
             "ALTER SESSION SET ENABLE_DEFAULT_PYTHON_ARTIFACT_REPOSITORY = true"
         ).collect()
         session.sql(
-            "ALTER schema set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = testdb_snowpark_python.testschema_snowpark_python.SNOWPARK_PYTHON_TEST_REPOSITORY"
+            "ALTER database set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = snowflake.snowpark.anaconda_shared_repository"
         ).collect()
-
-        session.add_packages("art", "cloudpickle")
 
         def test_art() -> str:
             import art  # art is not available in the conda channel, but is in pypi
@@ -3127,6 +3126,25 @@ def test_use_default_artifact_repository(db_parameters):
             return "art works!"
 
         temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        # should not work in the database where the default is anaconda
+        with pytest.raises(
+            Exception,
+            match="Cannot add package art because it is not available in Snowflake",
+        ):
+            udf(
+                session=session,
+                func=test_art,
+                name=temp_func_name,
+                packages=["art", "cloudpickle"],
+            )
+
+        session.sql(f"create schema {temp_schema}").collect()
+        session.use_schema(temp_schema)
+        session.sql(
+            "ALTER schema set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = testdb_snowpark_python.testschema_snowpark_python.SNOWPARK_PYTHON_TEST_REPOSITORY"
+        ).collect()
+        session.add_packages("art", "cloudpickle")
 
         try:
             # Test function registration
@@ -3142,4 +3160,4 @@ def test_use_default_artifact_repository(db_parameters):
         finally:
             session._run_query(f"drop function if exists {temp_func_name}(int)")
 
-        session.sql(f"drop schema {temp_schema}").collect()
+        session.sql(f"drop database {temp_database}").collect()

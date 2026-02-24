@@ -2424,7 +2424,10 @@ class Session:
             if isinstance(self._conn, MockServerConnection):
                 return _DEFAULT_ARTIFACT_REPOSITORY
 
-            cache_key = (self.get_current_database(), self.get_current_schema())
+            account = self.get_current_account()
+            database = self.get_current_database()
+            schema = self.get_current_schema()
+            cache_key = (database, schema)
 
             if (
                 self._default_artifact_repository_cache is not None
@@ -2434,8 +2437,15 @@ class Session:
 
             try:
                 python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+                entity_selector_args = (
+                    f"'schema', '{schema}'"
+                    if schema
+                    else f"'database', '{database}'"
+                    if database
+                    else f"'account', '{account}'"
+                )
                 result = self._run_query(
-                    f"SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('{python_version}')"
+                    f"SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('{python_version}', {entity_selector_args})"
                 )
                 value = result[0][0] if result else None
                 resolved = value or _DEFAULT_ARTIFACT_REPOSITORY
