@@ -348,6 +348,26 @@ def test_resolve_packages_non_conda_artifact_repository(mock_server_connection):
     assert_packages(packages)
 
 
+def test_resolve_packages_optional_artifact_repository(mock_server_connection):
+    session = Session(mock_server_connection)
+    session._get_default_artifact_repository = MagicMock(
+        return_value="snowflake.snowpark.pypi_shared_repository"
+    )
+    session._artifact_repository_packages = {
+        "snowflake.snowpark.pypi_shared_repository": {
+            "numpy": "numpy==1.0.0",
+        }
+    }
+    result = session._resolve_packages(
+        ["snowflake-snowpark-python==1.0.0", "cloudpickle==1.0.0"],
+    )
+    assert sorted(result) == [
+        "cloudpickle==1.0.0",
+        "numpy==1.0.0",
+        "snowflake-snowpark-python==1.0.0",
+    ]
+
+
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
 def test_write_pandas_wrong_table_type(mock_server_connection):
     session = Session(mock_server_connection)
