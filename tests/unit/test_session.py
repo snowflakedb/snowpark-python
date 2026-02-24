@@ -213,8 +213,8 @@ def test_resolve_package_current_database(has_current_database):
 
     session._resolve_packages(
         ["random_package_name"],
-        _ANACONDA_SHARED_REPOSITORY,
-        {},
+        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+        existing_packages_dict={},
         validate_package=True,
         include_pandas=False,
     )
@@ -248,8 +248,8 @@ def test_resolve_package_terms_not_accepted(mock_server_connection):
     ):
         session._resolve_packages(
             ["random_package_name"],
-            _ANACONDA_SHARED_REPOSITORY,
-            {},
+            artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+            existing_packages_dict={},
             validate_package=True,
             include_pandas=False,
         )
@@ -273,8 +273,8 @@ def test_resolve_packages_side_effect(mock_server_connection):
 
     resolved_packages = session._resolve_packages(
         ["random_package_name"],
-        _ANACONDA_SHARED_REPOSITORY,
-        existing_packages,
+        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+        existing_packages_dict=existing_packages,
         validate_package=True,
         include_pandas=False,
     )
@@ -305,8 +305,8 @@ def test_resolve_packages_suppresses_internal_warning(mock_server_connection, ca
     ):
         session._resolve_packages(
             ["snowflake-snowpark-python"],
-            _ANACONDA_SHARED_REPOSITORY,
-            {},
+            artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+            existing_packages_dict={},
             validate_package=True,
             include_pandas=False,
             _suppress_local_package_warnings=True,
@@ -333,16 +333,16 @@ def test_resolve_packages_non_conda_artifact_repository(mock_server_connection):
 
     packages = session._resolve_packages(
         ["snowflake-snowpark-python==1.0.0", "cloudpickle==1.0.0"],
-        "snowflake.snowpark.pypi_shared_repository",
-        existing_packages,
+        artifact_repository="snowflake.snowpark.pypi_shared_repository",
+        existing_packages_dict=existing_packages,
     )
 
     assert_packages(packages)
 
     packages = session._resolve_packages(
         [],
-        "snowflake.snowpark.pypi_shared_repository",
-        existing_packages,
+        artifact_repository="snowflake.snowpark.pypi_shared_repository",
+        existing_packages_dict=existing_packages,
     )
 
     assert_packages(packages)

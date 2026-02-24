@@ -42,6 +42,7 @@ def test_do_register_sp_negative(cleanup_registration_patch):
     fake_session._runtime_version_from_requirement = None
     fake_session.udtf = UDTFRegistration(fake_session)
     fake_session._artifact_repository_packages = defaultdict(dict)
+    fake_session._packages = {}
     with pytest.raises(SnowparkSQLException) as ex_info:
 
         @udtf(output_schema=["num"], session=fake_session)

@@ -601,7 +601,8 @@ class Session:
         self._conn = conn
         self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
-        # unused, needed for test infra?
+        # packages under the DEFAULT_ARTIFACT_REPOSITORY
+        # due to server side accessing private session members, this cannot be merged with _artifact_repository_packages
         self._packages: Dict[str, str] = {}
         # map of artifact repository name -> packages that should be added to functions under that repository
         self._artifact_repository_packages: DefaultDict[
@@ -1601,6 +1602,14 @@ class Session:
         prefix_length = get_stage_file_prefix_length(stage_location)
         return {str(row[0])[prefix_length:] for row in file_list}
 
+    def _get_packages_by_artifact_repository(
+        self, artifact_repository: str
+    ) -> Dict[str, str]:
+        if artifact_repository == _DEFAULT_ARTIFACT_REPOSITORY:
+            return self._packages
+        else:
+            return self._artifact_repository_packages[artifact_repository]
+
     def get_packages(self, artifact_repository: Optional[str] = None) -> Dict[str, str]:
         """
         Returns a ``dict`` of packages added for user-defined functions (UDFs).
@@ -1615,7 +1624,7 @@ class Session:
             artifact_repository = self._get_default_artifact_repository()
 
         with self._package_lock:
-            return self._artifact_repository_packages[artifact_repository].copy()
+            return self._get_packages_by_artifact_repository(artifact_repository).copy()
 
     def add_packages(
         self,
@@ -1688,8 +1697,10 @@ class Session:
 
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
-            artifact_repository,
-            self._artifact_repository_packages[artifact_repository],
+            artifact_repository=artifact_repository,
+            existing_packages_dict=self._get_packages_by_artifact_repository(
+                artifact_repository
+            ),
         )
 
     def remove_package(
@@ -1726,7 +1737,7 @@ class Session:
             artifact_repository = self._get_default_artifact_repository()
 
         with self._package_lock:
-            packages = self._artifact_repository_packages[artifact_repository]
+            packages = self._get_packages_by_artifact_repository(artifact_repository)
             if package_name in packages:
                 packages.pop(package_name)
             else:
@@ -1744,7 +1755,7 @@ class Session:
             artifact_repository = self._get_default_artifact_repository()
 
         with self._package_lock:
-            self._artifact_repository_packages[artifact_repository].clear()
+            self._get_packages_by_artifact_repository(artifact_repository).clear()
 
     def add_requirements(
         self,
@@ -2112,11 +2123,11 @@ class Session:
     def _resolve_packages(
         self,
         packages: List[Union[str, ModuleType]],
-        artifact_repository: str,
-        existing_packages_dict: Dict[str, str],
+        existing_packages_dict: Dict[str, str] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
+        artifact_repository: str = None,
         **kwargs,
     ) -> List[str]:
         """
@@ -2134,6 +2145,13 @@ class Session:
         Returns:
             List[str]: List of package specifiers
         """
+        if artifact_repository is None:
+            artifact_repository = self._get_default_artifact_repository()
+        if existing_packages_dict is None:
+            existing_packages_dict = self._get_packages_by_artifact_repository(
+                artifact_repository
+            )
+
         # Always include cloudpickle
         extra_modules = [cloudpickle]
         if include_pandas:
