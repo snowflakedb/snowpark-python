@@ -258,6 +258,9 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
         "random_package_two": "random_package_two",
     }
     fake_session._package_lock = threading.RLock()
+    fake_session._get_packages_by_artifact_repository.side_effect = (
+        lambda a: Session._get_packages_by_artifact_repository(fake_session, a)
+    )
     result = add_snowpark_package_to_sproc_packages(
         session=fake_session,
         packages=None,
