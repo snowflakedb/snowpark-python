@@ -1142,9 +1142,9 @@ def add_snowpark_package_to_sproc_packages(
             packages = [this_package]
         else:
             with session._package_lock:
-                existing_packages = session._artifact_repository_packages[
+                existing_packages = session._get_packages_by_artifact_repository(
                     artifact_repository
-                ]
+                )
                 if package_name not in existing_packages:
                     packages = list(existing_packages.values()) + [this_package]
         return packages
@@ -1239,7 +1239,9 @@ def resolve_imports_and_packages(
         )
 
     existing_packages_dict = (
-        session._artifact_repository_packages[artifact_repository] if session else {}
+        session._get_packages_by_artifact_repository(artifact_repository)
+        if session
+        else {}
     )
 
     if artifact_repository != _ANACONDA_SHARED_REPOSITORY:
@@ -1248,7 +1250,9 @@ def resolve_imports_and_packages(
         if not packages and session:
             resolved_packages = list(
                 session._resolve_packages(
-                    [], artifact_repository, existing_packages_dict
+                    [],
+                    artifact_repository=artifact_repository,
+                    existing_packages_dict=existing_packages_dict,
                 )
             )
         elif packages:
@@ -1286,8 +1290,8 @@ def resolve_imports_and_packages(
             resolved_packages = (
                 session._resolve_packages(
                     packages,
-                    artifact_repository,
-                    {},  # ignore session packages if passed in explicitly
+                    artifact_repository=artifact_repository,
+                    existing_packages_dict={},  # ignore session packages if passed in explicitly
                     include_pandas=is_pandas_udf,
                     statement_params=statement_params,
                     _suppress_local_package_warnings=_suppress_local_package_warnings,
@@ -1295,8 +1299,8 @@ def resolve_imports_and_packages(
                 if packages is not None
                 else session._resolve_packages(
                     [],
-                    artifact_repository,
-                    existing_packages_dict,
+                    artifact_repository=artifact_repository,
+                    existing_packages_dict=existing_packages_dict,
                     validate_package=False,
                     include_pandas=is_pandas_udf,
                     statement_params=statement_params,

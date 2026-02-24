@@ -213,8 +213,8 @@ def test_resolve_package_current_database(has_current_database):
 
     session._resolve_packages(
         ["random_package_name"],
-        _ANACONDA_SHARED_REPOSITORY,
-        {},
+        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+        existing_packages_dict={},
         validate_package=True,
         include_pandas=False,
     )
@@ -248,8 +248,8 @@ def test_resolve_package_terms_not_accepted(mock_server_connection):
     ):
         session._resolve_packages(
             ["random_package_name"],
-            _ANACONDA_SHARED_REPOSITORY,
-            {},
+            artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+            existing_packages_dict={},
             validate_package=True,
             include_pandas=False,
         )
@@ -273,8 +273,8 @@ def test_resolve_packages_side_effect(mock_server_connection):
 
     resolved_packages = session._resolve_packages(
         ["random_package_name"],
-        _ANACONDA_SHARED_REPOSITORY,
-        existing_packages,
+        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+        existing_packages_dict=existing_packages,
         validate_package=True,
         include_pandas=False,
     )
@@ -305,8 +305,8 @@ def test_resolve_packages_suppresses_internal_warning(mock_server_connection, ca
     ):
         session._resolve_packages(
             ["snowflake-snowpark-python"],
-            _ANACONDA_SHARED_REPOSITORY,
-            {},
+            artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+            existing_packages_dict={},
             validate_package=True,
             include_pandas=False,
             _suppress_local_package_warnings=True,
@@ -333,19 +333,39 @@ def test_resolve_packages_non_conda_artifact_repository(mock_server_connection):
 
     packages = session._resolve_packages(
         ["snowflake-snowpark-python==1.0.0", "cloudpickle==1.0.0"],
-        "snowflake.snowpark.pypi_shared_repository",
-        existing_packages,
+        artifact_repository="snowflake.snowpark.pypi_shared_repository",
+        existing_packages_dict=existing_packages,
     )
 
     assert_packages(packages)
 
     packages = session._resolve_packages(
         [],
-        "snowflake.snowpark.pypi_shared_repository",
-        existing_packages,
+        artifact_repository="snowflake.snowpark.pypi_shared_repository",
+        existing_packages_dict=existing_packages,
     )
 
     assert_packages(packages)
+
+
+def test_resolve_packages_optional_artifact_repository(mock_server_connection):
+    session = Session(mock_server_connection)
+    session._get_default_artifact_repository = MagicMock(
+        return_value="snowflake.snowpark.pypi_shared_repository"
+    )
+    session._artifact_repository_packages = {
+        "snowflake.snowpark.pypi_shared_repository": {
+            "numpy": "numpy==1.0.0",
+        }
+    }
+    result = session._resolve_packages(
+        ["snowflake-snowpark-python==1.0.0", "cloudpickle==1.0.0"],
+    )
+    assert sorted(result) == [
+        "cloudpickle==1.0.0",
+        "numpy==1.0.0",
+        "snowflake-snowpark-python==1.0.0",
+    ]
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
