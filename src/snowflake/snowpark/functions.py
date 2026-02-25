@@ -7466,16 +7466,16 @@ def array_union_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     Example::
         >>> df = session.create_dataframe([[[1, 1, 2]], [[1, 2, 3]]], schema=["a"])
         >>> df.select(array_union_agg("a").alias("result")).show()
-        -------------------------
-        |"RESULT"               |
-        -------------------------
-        |[                      |
-        |  1,                   |
-        |  1,                   |
-        |  2,                   |
-        |  3                    |
-        |]                      |
-        -------------------------
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  1,      |
+        |  1,      |
+        |  2,      |
+        |  3       |
+        |]         |
+        ------------
         <BLANKLINE>
     """
     c = _to_col_if_str(col, "array_union_agg")
