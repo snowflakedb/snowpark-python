@@ -107,6 +107,8 @@ if TYPE_CHECKING:
     except ImportError:
         ResultMetadataV2 = ResultMetadata
 
+_ICEBERG_MAX_STRING_SIZE = 134217728
+
 
 def convert_metadata_to_sp_type(
     metadata: Union[ResultMetadata, "ResultMetadataV2"],
@@ -318,7 +320,9 @@ def convert_sf_to_sp_type(
     )
 
 
-def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
+def convert_sp_to_sf_type(
+    datatype: DataType, nullable_override=None, is_iceberg: Optional[bool] = False
+) -> str:
     if context._is_snowpark_connect_compatible_mode:
         if isinstance(datatype, _IntegralType) and datatype._precision is not None:
             return f"NUMBER({datatype._precision}, 0)"
@@ -341,6 +345,8 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
     # We regard NullType as String, which is required when creating
     # a dataframe from local data with all None values
     if isinstance(datatype, StringType):
+        if is_iceberg:
+            return f"STRING({_ICEBERG_MAX_STRING_SIZE})"
         if datatype.length:
             return f"STRING({datatype.length})"
         return "STRING"

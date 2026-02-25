@@ -1336,9 +1336,10 @@ class SnowflakePlanBuilder:
         # in save as table. So we rename ${number} with COL{number}.
         hidden_column_pattern = r"\"\$(\d+)\""
         column_definition = None
+        is_iceberg = True if iceberg_config is not None else False
         if child_attributes is not None:
             column_definition_with_hidden_columns = attribute_to_schema_string(
-                child_attributes or []
+                child_attributes or [], is_iceberg=is_iceberg
             )
             column_definition = re.sub(
                 hidden_column_pattern,
