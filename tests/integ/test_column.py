@@ -94,54 +94,67 @@ def test_cast_try_cast_negative(session):
     assert "'wrong_type' is not a supported type" in str(execinfo)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-3083544: PERMISSIVE flag not yet rolled out", strict=False
-)
 def test_try_cast_permissive(session):
-    df = session.create_dataframe(
-        [
-            ['{"a": 1, "b": {"x": "hello", "y": 2}}'],  # Well-formed, matches schema
-            [None],
-            ['{"a": 3}'],  # Missing "b" field (should be replaced by NULL)
+    try:
+        session.sql(
+            "alter session set ENABLE_TRY_CAST_STRUCTURED_TYPES = true"
+        ).collect()
+        df = session.create_dataframe(
             [
-                '{"a": 4, "b": {"y": 5}}'
-            ],  # Missing "x" sub-field in "b" (should be replaced by NULL)
-            [
-                '{"a": "value", "b": {"x": "world", "y": 6}}'
-            ],  # String in "a" instead of INTEGER (also becomes NULL)
-        ],
-        schema=["data"],
-    )
+                [
+                    '{"a": 1, "b": {"x": "hello", "y": 2}}'
+                ],  # Well-formed, matches schema
+                [None],
+                ['{"a": 3}'],  # Missing "b" field (should be replaced by NULL)
+                [
+                    '{"a": 4, "b": {"y": 5}}'
+                ],  # Missing "x" sub-field in "b" (should be replaced by NULL)
+                [
+                    '{"a": "value", "b": {"x": "world", "y": 6}}'
+                ],  # String in "a" instead of INTEGER (also becomes NULL)
+            ],
+            schema=["data"],
+        )
 
-    df = df.select(try_parse_json(col("data")).alias("data"))
-    target_schema = StructType(
-        [
-            StructField("a", IntegerType()),
-            StructField(
-                "b",
-                StructType(
-                    [
-                        StructField("x", StringType()),
-                        StructField("y", IntegerType()),
-                    ],
-                    structured=True,
+        df = df.select(try_parse_json(col("data")).alias("data"))
+        target_schema = StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField(
+                    "b",
+                    StructType(
+                        [
+                            StructField("x", StringType()),
+                            StructField("y", IntegerType()),
+                        ],
+                        structured=True,
+                    ),
                 ),
-            ),
-        ],
-        structured=True,
-    )
+            ],
+            structured=True,
+        )
 
-    Utils.check_answer(
-        df.select(col("data").try_cast(target_schema, permissive=True).alias("casted")),
-        [
-            Row(CASTED=Row(A=1, B=Row(X="hello", Y=2))),
-            Row(CASTED=None),
-            Row(CASTED=Row(A=3, B=None)),
-            Row(CASTED=Row(A=4, B=Row(X=None, Y=5))),
-            Row(CASTED=Row(A=None, B=Row(X="world", Y=6))),
-        ],
-        sort=False,
-    )
+        Utils.check_answer(
+            df.select(
+                col("data").try_cast(target_schema, permissive=True).alias("casted")
+            ),
+            [
+                Row(
+                    CASTED='{\n  "a": 1,\n  "b": {\n    "x": "hello",\n    "y": 2\n  }\n}'
+                ),
+                Row(CASTED=None),
+                Row(CASTED='{\n  "a": 3,\n  "b": null\n}'),
+                Row(
+                    CASTED='{\n  "a": 4,\n  "b": {\n    "x": null,\n    "y": 5\n  }\n}'
+                ),
+                Row(
+                    CASTED='{\n  "a": null,\n  "b": {\n    "x": "world",\n    "y": 6\n  }\n}'
+                ),
+            ],
+            sort=False,
+        )
+    finally:
+        session.sql("alter session unset ENABLE_TRY_CAST_STRUCTURED_TYPES").collect()
 
 
 @pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
