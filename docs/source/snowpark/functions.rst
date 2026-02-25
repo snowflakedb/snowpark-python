@@ -67,6 +67,7 @@ Functions
     array_sort
     array_to_string
     array_union
+    array_union_agg
     array_unique_agg
     arrays_overlap
     arrays_zip

@@ -7451,6 +7451,38 @@ def array_to_string(
 
 
 @publicapi
+def array_union_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """Returns an ARRAY that contains the union of the distinct values from the input
+    arrays in the specified column.
+
+    The values in the returned ARRAY are in no particular order, and the order is not
+    deterministic. The function ignores NULL values in the column and in arrays in the
+    column. If the column contains only NULL values or the input is empty, the function
+    returns an empty ARRAY.
+
+    Args:
+        col: A :class:`Column` object or column name containing arrays with distinct values.
+
+    Example::
+        >>> df = session.create_dataframe([[[1, 1, 2]], [[1, 2, 3]]], schema=["a"])
+        >>> df.select(array_union_agg("a").alias("result")).show()
+        -------------------------
+        |"RESULT"               |
+        -------------------------
+        |[                      |
+        |  1,                   |
+        |  1,                   |
+        |  2,                   |
+        |  3                    |
+        |]                      |
+        -------------------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(col, "array_union_agg")
+    return _call_function("array_union_agg", c, _emit_ast=_emit_ast)
+
+
+@publicapi
 def array_unique_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Returns a Column containing the distinct values in the specified column col.
     The values in the Column are in no particular order, and the order is not deterministic.
