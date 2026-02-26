@@ -9,6 +9,7 @@
 #### Bug Fixes
 
 - Fixed a bug where `Session.udf.register_from_file` did not properly process the `strict` and `secure` parameters.
+- Fixed a bug when saving a fdn table into an iceberg table in overwrite mode, error is raised because `StringType` is saved in wrong length.
 
 #### Improvements
 
