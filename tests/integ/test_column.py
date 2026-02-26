@@ -151,7 +151,6 @@ def test_try_cast_permissive(session):
                     CASTED='{\n  "a": null,\n  "b": {\n    "x": "world",\n    "y": 6\n  }\n}'
                 ),
             ],
-            sort=False,
         )
     finally:
         session.sql("alter session unset ENABLE_TRY_CAST_STRUCTURED_TYPES").collect()
