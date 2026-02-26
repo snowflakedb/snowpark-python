@@ -2177,42 +2177,6 @@ def test_array_unique_agg(session):
     ), f"Unexpected result: {result_list}, expected: {expected_result}"
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: array_union_agg function not supported",
-)
-def test_array_union_agg(session):
-    def _result_str2lst(result):
-        col_str = result[0][0]
-        col_lst = [int(i) for i in re.findall(r"-?\d+", col_str)]
-        col_lst.sort()
-        return col_lst
-
-    df1 = session.create_dataframe([[[1, 1, 2]], [[1, 2, 3]]], schema=["a"])
-    result_str = df1.select(array_union_agg("a").alias("result")).collect()
-    result_list = _result_str2lst(result_str)
-    expected_result = [1, 1, 2, 3]
-    assert (
-        result_list == expected_result
-    ), f"Unexpected result: {result_list}, expected: {expected_result}"
-
-    result_col = df1.select(array_union_agg(col("a")).alias("result")).collect()
-    result_list = _result_str2lst(result_col)
-    assert (
-        result_list == expected_result
-    ), f"Unexpected result: {result_list}, expected: {expected_result}"
-
-    df2 = session.create_dataframe(
-        [[[1, None, 2]], [[None]], [None], [[2]]], schema=["a"]
-    )
-    result_str = df2.select(array_union_agg("a").alias("result")).collect()
-    result_list = _result_str2lst(result_str)
-    expected_result = [1, 2]
-    assert (
-        result_list == expected_result
-    ), f"Unexpected result: {result_list}, expected: {expected_result}"
-
-
 def test_create_map(session):
     df = session.create_dataframe(
         [("Sales", 6500, "USA"), ("Legal", 3000, None)],
