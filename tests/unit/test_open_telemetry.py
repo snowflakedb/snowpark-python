@@ -78,6 +78,15 @@ def test_snowflake_trace_id_generator_packs_timestamp_and_retries_invalid(monkey
     trace_id = gen.generate_trace_id()
 
     assert trace_id != trace.INVALID_TRACE_ID
-    assert trace_id.to_bytes(16, byteorder="big", signed=False) == (
+    trace_id_bytes = trace_id.to_bytes(16, byteorder="big", signed=False)
+
+    # First 4 bytes are a timestamp in MINUTES.
+    timestamp_minutes = int.from_bytes(
+        trace_id_bytes[:4], byteorder="big", signed=False
+    )
+    assert timestamp_minutes == 1
+    assert timestamp_minutes != 60
+
+    assert trace_id_bytes == (
         (1).to_bytes(4, byteorder="big", signed=False) + (b"\x11" * 12)
     )
