@@ -551,6 +551,19 @@ def test_select_alias(session):
     check_generated_plan_queries(df2._plan)
 
 
+def test_select_alias_identity(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df_res = df.select("a", col("b").as_("b"))
+    if session.sql_simplifier_enabled:
+        # Because "b" was aliased to itself, the emitted SQL should drop the AS clause.
+        ref_query = 'SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, 2 :: INT), (3 :: INT, 4 :: INT))'
+    else:
+        ref_query = 'SELECT "A", "B" FROM (SELECT "A", "B" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, 2 :: INT), (3 :: INT, 4 :: INT)))'
+    assert Utils.normalize_sql(df_res.queries["queries"][-1]) == Utils.normalize_sql(
+        ref_query
+    )
+
+
 def test_nullable_is_false_dataframe(session):
     from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
 
