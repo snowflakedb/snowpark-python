@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import functools
+import time
 
 import pytest
 
@@ -10,6 +11,7 @@ from snowflake.snowpark._internal.open_telemetry import (
     build_method_chain,
     decorator_count,
 )
+from snowflake.snowpark._internal import event_table_telemetry as ett
 
 from ..conftest import opentelemetry_installed
 
@@ -55,3 +57,53 @@ def test_decorator_count():
 def test_build_method_chain():
     method_chain = build_method_chain(api_calls, "DataFrame.collect")
     assert method_chain == "DataFrame.to_df().collect()"
+
+
+def test_snowflake_trace_id_generator_packs_timestamp_minutes_real_data():
+    if not ett.installed_opentelemetry:
+        pytest.skip(
+            "event-table telemetry opentelemetry dependencies are not installed"
+        )
+
+    from opentelemetry import trace
+
+    gen = ett.ForkedSnowflakeTraceIdGenerator()
+
+    start_minutes = int(time.time()) // 60
+    trace_id = gen.generate_trace_id()
+    end_minutes = int(time.time()) // 60
+
+    assert trace_id != trace.INVALID_TRACE_ID
+
+    trace_id_bytes = trace_id.to_bytes(16, byteorder="big", signed=False)
+    timestamp_minutes = int.from_bytes(
+        trace_id_bytes[:4], byteorder="big", signed=False
+    )
+
+    # First 4 bytes are a timestamp in MINUTES.
+    assert start_minutes <= timestamp_minutes <= end_minutes
+
+
+def test_snowflake_trace_id_generator_packs_timestamp_and_retries_invalid(monkeypatch):
+    # This test is only meaningful when the full event-table telemetry otel deps are installed.
+    if not ett.installed_opentelemetry:
+        pytest.skip(
+            "event-table telemetry opentelemetry dependencies are not installed"
+        )
+
+    from opentelemetry import trace
+
+    # First attempt produces INVALID_TRACE_ID (all-zero bytes), second attempt succeeds.
+    times = iter([0, 60])  # seconds since epoch -> minutes are 0 then 1
+    suffixes = iter([0, int.from_bytes(b"\x11" * 12, "big")])
+
+    monkeypatch.setattr(ett.time, "time", lambda: next(times))
+    monkeypatch.setattr(ett.random, "getrandbits", lambda _n: next(suffixes))
+
+    gen = ett.ForkedSnowflakeTraceIdGenerator()
+    trace_id = gen.generate_trace_id()
+
+    assert trace_id != trace.INVALID_TRACE_ID
+    assert trace_id.to_bytes(16, byteorder="big", signed=False) == (
+        (1).to_bytes(4, byteorder="big", signed=False) + (b"\x11" * 12)
+    )

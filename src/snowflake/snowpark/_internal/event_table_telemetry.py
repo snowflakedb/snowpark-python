@@ -3,11 +3,12 @@
 #
 import importlib
 import logging
+import random
+import time
 from abc import ABC
 from logging import getLogger
 from typing import Dict, Optional, Tuple
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
-
 import snowflake.snowpark
 import requests
 
@@ -45,6 +46,33 @@ BaseTraceProvider = (
     opentelemetry.trace.TracerProvider if installed_opentelemetry else ABC
 )
 Attributes = opentelemetry.util.types.Attributes if installed_opentelemetry else ABC
+
+
+if installed_opentelemetry:
+
+    class ForkedSnowflakeTraceIdGenerator(opentelemetry.sdk.trace.RandomIdGenerator):
+        def generate_trace_id(self) -> int:
+            trace_id = opentelemetry.trace.INVALID_TRACE_ID
+            while trace_id == opentelemetry.trace.INVALID_TRACE_ID:
+                # Number of minutes since the epoch
+                timestamp_in_minutes = int(time.time()) // 60
+                # Convert and pad to 4 bytes
+                timestamp_bytes = timestamp_in_minutes.to_bytes(
+                    4, byteorder="big", signed=False
+                )
+                suffix_bytes = random.getrandbits(96).to_bytes(
+                    12, byteorder="big", signed=False
+                )
+                trace_id = int.from_bytes(
+                    timestamp_bytes + suffix_bytes, byteorder="big", signed=False
+                )
+            return trace_id
+
+else:
+
+    class ForkedSnowflakeTraceIdGenerator(ABC):
+
+        pass
 
 
 class RetryWithTokenRefreshAdapter(requests.adapters.HTTPAdapter):
@@ -292,7 +320,7 @@ class EventTableTelemetry:
             return
 
         resource = opentelemetry.sdk.resources.Resource.create(
-            {"service.name": SERVICE_NAME}
+            {"service.name": SERVICE_NAME},
         )
 
         header = self._get_external_telemetry_auth_token()
@@ -394,7 +422,8 @@ class EventTableTelemetry:
         opentelemetry.trace.set_tracer_provider(self._proxy_tracer_provider)
 
         self._tracer_provider = opentelemetry.sdk.trace.TracerProvider(
-            resource=resource
+            resource=resource,
+            id_generator=ForkedSnowflakeTraceIdGenerator(),
         )
 
         trace_session = requests.Session()
