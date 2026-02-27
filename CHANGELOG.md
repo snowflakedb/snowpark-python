@@ -27,7 +27,6 @@
 
 - Fixed a bug where `cloudpickle` was not automatically added to the package list when using `artifact_repository` with custom packages, causing `ModuleNotFoundError` at runtime.
 - Fixed a bug when reading xml with custom schema, result include element attributes when column is not `StructType` type.
-- Fixed a bug where `Session.udf.register_from_file` did not properly process the `strict` and `secure` parameters.
 
 #### Improvements
 
