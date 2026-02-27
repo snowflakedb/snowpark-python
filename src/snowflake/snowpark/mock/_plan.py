@@ -1495,8 +1495,8 @@ def execute_mock_plan(
     if isinstance(source_plan, Project):
         return TableEmulator(ColumnEmulator(col) for col in source_plan.project_list)
     if isinstance(source_plan, Join):
-        L_expr_to_alias = dict(getattr(source_plan.left, "expr_to_alias", None) or {})
-        R_expr_to_alias = dict(getattr(source_plan.right, "expr_to_alias", None) or {})
+        L_expr_to_alias = {}
+        R_expr_to_alias = {}
         left = execute_mock_plan(source_plan.left, L_expr_to_alias).reset_index(
             drop=True
         )

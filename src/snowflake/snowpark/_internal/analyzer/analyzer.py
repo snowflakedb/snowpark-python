@@ -763,18 +763,10 @@ class Analyzer:
                     for k, v in df_alias_dict.items():
                         if v == expr.child.name:
                             df_alias_dict[k] = updated_due_to_inheritance  # type: ignore
-            origin = self.analyze(
-                expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
-            )
-            if (
-                isinstance(expr.child, (Attribute, UnresolvedAttribute))
-                and origin == quoted_name
-            ):
-                # If the column name matches the target of the alias (`quoted_name`),
-                # we can directly emit the column name without an AS clause.
-                return origin
             return alias_expression(
-                origin,
+                self.analyze(
+                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
                 quoted_name,
             )
 
