@@ -1,5 +1,19 @@
 # Release History
 
+## 1.47.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+- Fixed a bug where `Session.udf.register_from_file` did not properly process the `strict` and `secure` parameters.
+- Fixed a bug when create dataframe with small data(< array binding threshold), and error is raised when have string value in a DecimalType column.
+
+#### Improvements
+
+
 ## 1.46.0 (2026-02-25)
 
 ### Snowpark Python API Updates
