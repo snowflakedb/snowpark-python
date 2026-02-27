@@ -6,6 +6,8 @@
 
 #### New Features
 
+- Added support for the `array_union_agg` function in the `snowflake.snowpark.functions` module.
+
 #### Bug Fixes
 
 - Fixed a bug where `Session.udf.register_from_file` did not properly process the `strict` and `secure` parameters.
