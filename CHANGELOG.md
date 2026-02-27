@@ -14,7 +14,7 @@
 #### Improvements
 
 
-## 1.46.0 (TBD)
+## 1.46.0 (2026-02-25)
 
 ### Snowpark Python API Updates
 
