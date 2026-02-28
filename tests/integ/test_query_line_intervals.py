@@ -57,8 +57,9 @@ def generate_test_data(session, sql_simplifier_enabled):
     }
 
 
+@pytest.mark.parametrize("snowpark_connect_compatible_mode", [True, False])
 @pytest.mark.parametrize(
-    "op,sql_simplifier,line_to_expected_sql",
+    "op,sql_simplifier,line_to_expected_sql,snowpark_connect_compatible_mode_sql",
     [
         (
             lambda data: data["df1"].union(data["df2"]),
@@ -68,12 +69,16 @@ def generate_test_data(session, sql_simplifier_enabled):
                 6: 'SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (1 :: INT, \'A\' :: STRING, 100 :: INT), (2 :: INT, \'B\' :: STRING, 200 :: INT)',
                 10: 'SELECT "_1" AS "ID", "_2" AS "NAME", "_3" AS "VALUE" FROM ( SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (3 :: INT, \'C\' :: STRING, 300 :: INT), (4 :: INT, \'D\' :: STRING, 400 :: INT) )',
             },
+            None,
         ),
         (
             lambda data: data["df1"].filter(data["df1"].value > 150),
             True,
             {
-                8: 'SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (1 :: INT, \'A\' :: STRING, 100 :: INT), (2 :: INT, \'B\' :: STRING, 200 :: INT)',
+                8: 'SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (1 :: INT, \'A\' :: STRING, 100 :: INT), (2 :: INT, \'B\' :: STRING, 200 :: INT)'
+            },
+            {
+                8: """SELECT "_1" AS "ID", "_2" AS "NAME", "_3" AS "VALUE" FROM (SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (1 :: INT, 'A' :: STRING, 100 :: INT), (2 :: INT, 'B' :: STRING, 200 :: INT)) WHERE ("VALUE" > 150)""",
             },
         ),
         (
@@ -83,6 +88,7 @@ def generate_test_data(session, sql_simplifier_enabled):
                 1: 'SELECT "_1" AS "ID", "_2" AS "NAME" FROM ( SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (1 :: INT, \'A\' :: STRING, 100 :: INT), (2 :: INT, \'B\' :: STRING, 200 :: INT) )',
                 4: 'SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM  VALUES (1 :: INT, \'A\' :: STRING, 100 :: INT), (2 :: INT, \'B\' :: STRING, 200 :: INT)',
             },
+            None,
         ),
         (
             lambda data: data["df1"].pivot(F.col("name")).sum(F.col("value")),
@@ -92,12 +98,26 @@ def generate_test_data(session, sql_simplifier_enabled):
                 6: 'SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (1 :: INT, \'A\' :: STRING, 100 :: INT), (2 :: INT, \'B\' :: STRING, 200 :: INT)',
                 9: 'SELECT * FROM ( SELECT "_1" AS "ID", "_2" AS "NAME", "_3" AS "VALUE" FROM ( SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (1 :: INT, \'A\' :: STRING, 100 :: INT), (2 :: INT, \'B\' :: STRING, 200 :: INT) ) ) PIVOT ( sum("VALUE") FOR "NAME" IN ( ANY ) )',
             },
+            None,
         ),
     ],
 )
 def test_get_plan_from_line_numbers_sql_content(
-    session, op, sql_simplifier, line_to_expected_sql
+    session,
+    op,
+    sql_simplifier,
+    line_to_expected_sql,
+    snowpark_connect_compatible_mode_sql,
+    snowpark_connect_compatible_mode,
+    monkeypatch,
 ):
+    if snowpark_connect_compatible_mode:
+        import snowflake.snowpark.context as context
+
+        monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+        line_to_expected_sql = (
+            snowpark_connect_compatible_mode_sql or line_to_expected_sql
+        )
     session.sql_simplifier_enabled = sql_simplifier
     df = op(generate_test_data(session, sql_simplifier))
 
