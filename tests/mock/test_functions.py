@@ -29,6 +29,7 @@ from snowflake.snowpark.functions import (
     lit,
     max,
     min,
+    nullifzero,
     rank,
     row_number,
     sum,
@@ -159,6 +160,22 @@ def test_abs(session):
         schema=["m", "n"],
     )
     assert origin_df.select(abs(col("m"))).collect() == [Row(1), Row(1), Row(2)]
+
+
+def test_nullifzero(session):
+    origin_df: DataFrame = session.create_dataframe(
+        [
+            [0],
+            [1],
+            [100],
+            [-5],
+            [-0],
+            [None]
+        ],
+        schema=["v"],
+    )
+    expected = [Row(None), Row(1), Row(100), Row(-5), Row(None), Row(None)]
+    assert origin_df.select(nullifzero(col("v"))).collect() == expected
 
 
 def test_asc_and_desc(session):
