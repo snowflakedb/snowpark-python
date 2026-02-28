@@ -631,7 +631,11 @@ def test_ai_complete(session):
     # Mock the ai_complete function to return a simple response
     @patch("ai_complete")
     def mock_ai_complete(
-        model=None, prompt=None, response_format=None, model_parameters=None, **kwargs
+        model=None,
+        prompt=None,
+        response_format=None,
+        model_parameters=None,
+        **kwargs,
     ) -> ColumnEmulator:
         """Simple mock that returns 'AI response: <prompt>' for each input."""
         assert (

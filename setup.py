@@ -32,7 +32,7 @@ INSTALL_REQ_LIST = [
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
-REQUIRED_PYTHON_VERSION = ">=3.9, <3.14"
+REQUIRED_PYTHON_VERSION = ">=3.9, <3.15"
 
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.9"
@@ -71,7 +71,7 @@ MODIN_DEVELOPMENT_REQUIREMENTS = [
     # Snowpark pandas 3rd party library testing. Cap the scipy version because
     # Snowflake cannot find newer versions of scipy for python 3.11+. See
     # SNOW-2452791.
-    "scipy<=1.16.0",
+    "scipy<=1.16.3",
     "statsmodels",  # Snowpark pandas 3rd party library testing
     "scikit-learn",  # Snowpark pandas 3rd party library testing
     # plotly version restricted due to foreseen change in query counts in version 6.0.0+
@@ -80,7 +80,8 @@ MODIN_DEVELOPMENT_REQUIREMENTS = [
     # snowflake-ml-python is available on python 3.12.
     "snowflake-ml-python>=1.8.0; python_version<'3.12'",
     "s3fs",  # Used in tests that read CSV files from s3
-    "ray",  # Used in data movement tests
+    # ray currently has no compatible wheels for Python 3.14.
+    "ray; python_version<'3.14'",  # Used in data movement tests
 ]
 
 # read the version
@@ -249,6 +250,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
         "Topic :: Database",
         "Topic :: Software Development",
         "Topic :: Software Development :: Libraries",

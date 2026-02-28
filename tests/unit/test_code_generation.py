@@ -3,6 +3,7 @@
 #
 
 import math
+import pickle
 
 import pytest
 
@@ -617,17 +618,18 @@ def test_import_multilevel_and_alias_modules():
 
 def test_variable_serialization():
     nonlocalvar = "abc"
+    expected_hex = pickle.dumps(nonlocalvar).hex()
 
     def add(x, y):
         return x + y + nonlocalvar
 
     assert (
         generate_source_code(add, code_as_comment=False)
-        == """\
+        == f"""\
 from __future__ import annotations
 import pickle
 
-nonlocalvar = pickle.loads(bytes.fromhex('80049507000000000000008c03616263942e'))  # nonlocalvar is of type <class 'str'> and serialized by snowpark-python
+nonlocalvar = pickle.loads(bytes.fromhex('{expected_hex}'))  # nonlocalvar is of type <class 'str'> and serialized by snowpark-python
 def add(x, y):
     return x + y + nonlocalvar
 func = add\
