@@ -585,9 +585,14 @@ def test_disambiguate_skips_quoted_alias(session):
     df2 = session.create_dataframe(data, schema=["ID", "A", "B"])
     df_res = df1.join(df2, on=["ID"])[['"COL_0"', '"COL_1"']]
     # TODO run with sql simplifier disabled
-    temp_name_re = r"SNOWPARK_TEMP_(STAGE|FILE_FORMAT)_[0-9A-Z]+"
     actual_query = re.sub(
-        temp_name_re, "SNOWPARK_TEMP_NAME", df_res.queries["queries"][-1]
+        r'@"[\d\w\_]+"\."[\d\w\_]+"\.',
+        '@"DB_SCHEMA_NAME".',
+        re.sub(
+            r"SNOWPARK_TEMP_(STAGE|FILE_FORMAT)_[\d\w]+",
+            "SNOWPARK_TEMP_NAME",
+            df_res.queries["queries"][-1],
+        ),
     )
     if session.sql_simplifier_enabled:
         rhs_creation_sql = """
@@ -629,7 +634,7 @@ def test_disambiguate_skips_quoted_alias(session):
                     """COL_0""" AS "COL_0",
                     """COL_1""" AS "COL_1"
                 FROM (
-                    SELECT $1:"ID"::NUMBER(38, 0) AS "ID", $1:"""COL_0"""::NUMBER(38, 0) AS """COL_0""", $1:"""COL_1"""::NUMBER(38, 0) AS """COL_1""" FROM @"TESTDB_JOSHI2"."PUBLIC".SNOWPARK_TEMP_NAME/disambiguate_test.parquet( FILE_FORMAT  => 'SNOWPARK_TEMP_NAME')
+                    SELECT $1:"ID"::NUMBER(38, 0) AS "ID", $1:"""COL_0"""::NUMBER(38, 0) AS """COL_0""", $1:"""COL_1"""::NUMBER(38, 0) AS """COL_1""" FROM @"DB_SCHEMA_NAME".SNOWPARK_TEMP_NAME/disambiguate_test.parquet( FILE_FORMAT  => 'SNOWPARK_TEMP_NAME')
                 )
             ) AS SNOWPARK_LEFT
             INNER JOIN
@@ -640,7 +645,6 @@ def test_disambiguate_skips_quoted_alias(session):
         )
     )
     '''
-    ref_query = re.sub(temp_name_re, "SNOWPARK_TEMP_NAME", ref_query)
     assert Utils.normalize_sql(actual_query) == Utils.normalize_sql(ref_query)
     # Ensure the DF can be materialized without error
     materialized = df_res.to_pandas()
