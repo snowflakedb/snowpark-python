@@ -6889,6 +6889,40 @@ Query List:
         """
         print(self._format_schema(level))  # noqa: T201: we need to print here.
 
+    def to_snowpark_connect_dataframe(
+        self,
+        spark_session: "pyspark.sql.SparkSession",
+        view_name: Optional[str] = None,
+    ) -> "pyspark.sql.DataFrame":
+        """Convert this Snowpark DataFrame to a PySpark DataFrame via Snowpark Connect
+        (lazy, no data materialization).
+
+        Creates a Snowflake temporary view from this DataFrame's logical plan, then has
+        PySpark read from that view through Snowpark Connect. The query plan is preserved
+        end-to-end — no data is materialized until an action is triggered on the returned
+        PySpark DataFrame.
+
+        Args:
+            spark_session: A PySpark SparkSession connected via Snowpark Connect.
+            view_name: Optional custom name for the intermediate Snowflake temporary view.
+                If not provided, a unique name is auto-generated.
+
+        Returns:
+            A PySpark DataFrame backed by the same Snowflake query plan.
+
+        Example::
+
+            >>> snowpark_df = session.create_dataframe([[1, "Alice"], [2, "Bob"]], schema=["id", "name"])
+            >>> spark_df = snowpark_df.to_snowpark_connect_dataframe(spark)  # doctest: +SKIP
+            >>> spark_df.filter(spark_df.id > 1).show()  # doctest: +SKIP
+        """
+        import uuid
+
+        if view_name is None:
+            view_name = f"__snowpark_to_spark_{uuid.uuid4().hex[:8]}"
+        self.create_or_replace_temp_view(view_name)
+        return spark_session.sql(f"SELECT * FROM {view_name}")
+
     where = filter
 
     # Add the following lines so API docs have them
