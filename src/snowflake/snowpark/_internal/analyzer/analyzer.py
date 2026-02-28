@@ -787,6 +787,7 @@ class Analyzer:
                 expr.try_,
                 expr.is_rename,
                 expr.is_add,
+                expr.is_permissive,
             )
         else:
             return unary_expression(

@@ -1600,7 +1600,8 @@ def test_cast_structtype_rename(structured_type_session, structured_type_support
         ],
     )
     with pytest.raises(
-        ValueError, match="is_add and is_rename cannot be set to True at the same time"
+        ValueError,
+        match="multiple of rename_fields, add_fields, and permissive cannot be set to True at the same time",
     ):
         df.select(
             col("name")
@@ -1658,7 +1659,8 @@ def test_cast_structtype_add(structured_type_session, structured_type_support):
         ],
     )
     with pytest.raises(
-        ValueError, match="is_add and is_rename cannot be set to True at the same time"
+        ValueError,
+        match="multiple of rename_fields, add_fields, and permissive cannot be set to True at the same time",
     ):
         df.select(
             col("name")

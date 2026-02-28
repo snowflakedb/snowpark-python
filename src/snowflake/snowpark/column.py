@@ -960,11 +960,12 @@ class Column:
         try_: bool = False,
         rename_fields: bool = False,
         add_fields: bool = False,
+        permissive: bool = False,
         _emit_ast: bool = True,
     ) -> "Column":
-        if add_fields and rename_fields:
+        if sum([add_fields, rename_fields, permissive]) > 1:
             raise ValueError(
-                "is_add and is_rename cannot be set to True at the same time"
+                "multiple of rename_fields, add_fields, and permissive cannot be set to True at the same time"
             )
         if isinstance(to, str):
             to = type_string_to_type_object(to)
@@ -982,7 +983,7 @@ class Column:
             ast.col.CopyFrom(self._ast)
             to._fill_ast(ast.to)
         return Column(
-            Cast(self._expression, to, try_, rename_fields, add_fields),
+            Cast(self._expression, to, try_, rename_fields, add_fields, permissive),
             _ast=expr,
             _emit_ast=_emit_ast,
         )
@@ -1012,6 +1013,7 @@ class Column:
         to: Union[str, DataType],
         rename_fields: bool = False,
         add_fields: bool = False,
+        permissive: bool = False,
         _emit_ast: bool = True,
     ) -> "Column":
         """Tries to cast the value of the Column to the specified data type.
@@ -1022,6 +1024,7 @@ class Column:
             True,
             rename_fields=rename_fields,
             add_fields=add_fields,
+            permissive=permissive,
             _emit_ast=_emit_ast,
         )
 
