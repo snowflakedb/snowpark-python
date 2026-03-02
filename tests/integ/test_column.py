@@ -95,6 +95,10 @@ def test_cast_try_cast_negative(session):
 
 
 @pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="cannot use alter session in stored proc",
+)
+@pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="cannot set session parameter in local testing",
 )
