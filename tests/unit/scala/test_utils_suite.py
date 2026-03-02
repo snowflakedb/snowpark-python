@@ -256,6 +256,7 @@ def test_zip_file_or_directory_to_stream():
             [
                 "test_udf_dir/",
                 "test_udf_dir/test_another_udf_file.py",
+                "test_udf_dir/test_udf_init_once_file.py",
                 "test_udf_dir/test_pandas_udf_file.py",
                 "test_udf_dir/test_udf_file.py",
             ],
@@ -270,6 +271,7 @@ def test_zip_file_or_directory_to_stream():
             [
                 "test_udf_dir/",
                 "test_udf_dir/test_another_udf_file.py",
+                "test_udf_dir/test_udf_init_once_file.py",
                 "test_udf_dir/test_pandas_udf_file.py",
                 "test_udf_dir/test_udf_file.py",
             ],
@@ -285,6 +287,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/",
                 "resources/test_udf_dir/",
                 "resources/test_udf_dir/test_another_udf_file.py",
+                "resources/test_udf_dir/test_udf_init_once_file.py",
                 "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",
             ],
@@ -381,6 +384,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_sp_dir/test_table_sp_file.py",
                 "resources/test_udf_dir/",
                 "resources/test_udf_dir/test_another_udf_file.py",
+                "resources/test_udf_dir/test_udf_init_once_file.py",
                 "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",
                 "resources/test_udtf_dir/",
