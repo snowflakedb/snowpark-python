@@ -59,11 +59,11 @@ def test_build_method_chain():
     assert method_chain == "DataFrame.to_df().collect()"
 
 
+@pytest.skipif(
+    not ett.installed_opentelemetry,
+    "event-table telemetry opentelemetry dependencies are not installed",
+)
 def test_snowflake_trace_id_generator_packs_timestamp_minutes_real_data():
-    if not ett.installed_opentelemetry:
-        pytest.skip(
-            "event-table telemetry opentelemetry dependencies are not installed"
-        )
 
     from opentelemetry import trace
 
@@ -84,12 +84,11 @@ def test_snowflake_trace_id_generator_packs_timestamp_minutes_real_data():
     assert start_minutes <= timestamp_minutes <= end_minutes
 
 
+@pytest.skipif(
+    not ett.installed_opentelemetry,
+    "event-table telemetry opentelemetry dependencies are not installed",
+)
 def test_snowflake_trace_id_generator_packs_timestamp_and_retries_invalid(monkeypatch):
-    # This test is only meaningful when the full event-table telemetry otel deps are installed.
-    if not ett.installed_opentelemetry:
-        pytest.skip(
-            "event-table telemetry opentelemetry dependencies are not installed"
-        )
 
     from opentelemetry import trace
 

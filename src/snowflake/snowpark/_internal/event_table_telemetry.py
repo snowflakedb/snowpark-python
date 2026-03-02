@@ -70,9 +70,11 @@ if installed_opentelemetry:
 
 else:
 
-    class ForkedSnowflakeTraceIdGenerator(ABC):
-
-        pass
+    class ForkedSnowflakeTraceIdGenerator:
+        def __init__(self) -> None:
+            raise NotImplementedError(
+                'opentelemetry extra from Snowpark is required, install with: pip install "snowflake-snowpark-python[opentelemetry]" '
+            )
 
 
 class RetryWithTokenRefreshAdapter(requests.adapters.HTTPAdapter):
