@@ -1,5 +1,16 @@
 # Release History
 
+## 1.48.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+- Fixed a bug when saving a fdn table into an iceberg table in overwrite mode, error is raised because `StringType` is saved in wrong length.
+
+
 ## 1.47.0 (TBD)
 
 ### Snowpark Python API Updates
@@ -9,7 +20,6 @@
 #### Bug Fixes
 
 - Fixed a bug where `Session.udf.register_from_file` did not properly process the `strict` and `secure` parameters.
-- Fixed a bug when saving a fdn table into an iceberg table in overwrite mode, error is raised because `StringType` is saved in wrong length.
 
 #### Improvements
 
