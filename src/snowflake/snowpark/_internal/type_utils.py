@@ -107,6 +107,8 @@ if TYPE_CHECKING:
     except ImportError:
         ResultMetadataV2 = ResultMetadata
 
+_MAX_ICEBERG_STRING_SIZE = 134217728
+
 
 def convert_metadata_to_sp_type(
     metadata: Union[ResultMetadata, "ResultMetadataV2"],
@@ -344,7 +346,7 @@ def convert_sp_to_sf_type(
     # a dataframe from local data with all None values
     if isinstance(datatype, StringType):
         if is_iceberg:
-            return "STRING()"
+            return f"STRING({_MAX_ICEBERG_STRING_SIZE})"
         if datatype.length:
             return f"STRING({datatype.length})"
         return "STRING"
