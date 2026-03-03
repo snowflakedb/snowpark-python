@@ -1,5 +1,13 @@
 # Release History
 
+## 1.48.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `Session.client_telemetry` that trace does not have snowflake style trace id.
+
 ## 1.47.0 (TBD)
 
 ### Snowpark Python API Updates
