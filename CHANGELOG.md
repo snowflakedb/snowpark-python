@@ -7,6 +7,7 @@
 #### New Features
 
 - Added support for the `array_union_agg` function in the `snowflake.snowpark.functions` module.
+- Added the `udf_init_once` decorator in `snowflake.snowpark.functions` for marking functions to be executed once during pre-fork initialization on Snowflake workers, matching the server-side `_snowflake.udf_init_once` API.
 
 #### Bug Fixes
 

@@ -2700,4 +2700,4 @@ def test_udf_init_once_register_from_file(session):
     )
     df = session.create_dataframe([[1], [2], [3]], schema=["a"])
     res = df.select(multiply_udf("a").alias("result")).collect()
-    assert sorted([row.RESULT for row in res]) == [10, 20, 30]
+    assert sorted(row.RESULT for row in res) == [10, 20, 30]
