@@ -420,7 +420,9 @@ def to_sql(
         else:
             return f"'{value}' :: FLOAT"
 
-    if isinstance(value, Decimal) and isinstance(datatype, DecimalType):
+    if (isinstance(value, Decimal) or isinstance(value, str)) and isinstance(
+        datatype, DecimalType
+    ):
         return f"{value} :: {analyzer_utils.number(datatype.precision, datatype.scale)}"
 
     if isinstance(datatype, DateType):

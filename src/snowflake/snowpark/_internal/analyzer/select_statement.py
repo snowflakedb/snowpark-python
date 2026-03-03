@@ -2244,18 +2244,11 @@ def derive_column_states_from_subquery(
             else Attribute(quoted_c_name, DataType())
         )
         from_c_state = from_.column_states.get(quoted_c_name)
-        result_name = analyzer.analyze(
-            c, from_.df_aliased_col_name_to_real_col_name, parse_local_name=True
-        ).strip(" ")
         if from_c_state and from_c_state.change_state != ColumnChangeState.DROPPED:
             # review later. should use parse_column_name
-            # SNOW-2895675: Always treat Aliases as "changed", even if it is an identity.
-            # The fact this check is needed may be a bug in column state analysis, and we should revisit it later.
-            # The following tests fail without this check:
-            # - tests/integ/test_cte.py::test_sql_simplifier
-            # - tests/integ/scala/test_dataframe_suite.py::test_rename_join_dataframe
-            # - tests/integ/test_dataframe.py::test_dataframe_alias
-            if c_name != result_name or isinstance(c, Alias):
+            if c_name != analyzer.analyze(
+                c, from_.df_aliased_col_name_to_real_col_name, parse_local_name=True
+            ).strip(" "):
                 column_states[quoted_c_name] = ColumnState(
                     quoted_c_name,
                     ColumnChangeState.CHANGED_EXP,

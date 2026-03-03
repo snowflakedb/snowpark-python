@@ -208,6 +208,7 @@ ICEBERG = " ICEBERG "
 ICEBERG_VERSION = "ICEBERG_VERSION"
 RENAME_FIELDS = " RENAME FIELDS"
 ADD_FIELDS = " ADD FIELDS"
+PERMISSIVE = " PERMISSIVE"
 NEW_LINE = "\n"
 TAB = "    "
 UUID_COMMENT = "-- {}"
@@ -1469,6 +1470,7 @@ def cast_expression(
     try_: bool = False,
     is_rename: bool = False,
     is_add: bool = False,
+    is_permissive: bool = False,
 ) -> str:
     return (
         (TRY_CAST if try_ else CAST)
@@ -1478,6 +1480,7 @@ def cast_expression(
         + convert_sp_to_sf_type(datatype)
         + (RENAME_FIELDS if is_rename else "")
         + (ADD_FIELDS if is_add else "")
+        + (PERMISSIVE if is_permissive else "")
         + RIGHT_PARENTHESIS
     )
 
