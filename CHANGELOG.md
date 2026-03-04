@@ -20,6 +20,7 @@
 
 - Fixed a bug where `Session.udf.register_from_file` did not properly process the `strict` and `secure` parameters.
 - Fixed a bug when create dataframe with small data(< array binding threshold), and error is raised when have string value in a DecimalType column.
+- Fixed a bug where docstrings for `regexp_substr` and `regexp_instr` were not rendering correctly.
 
 #### Improvements
 

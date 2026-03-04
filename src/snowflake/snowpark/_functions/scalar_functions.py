@@ -4843,63 +4843,63 @@ def regexp_instr(
         Column: The position of the match, or 0 if no match is found
 
     Examples::
-        # Basic usage - only subject and pattern
+        >>> # Basic usage - only subject and pattern
         >>> from snowflake.snowpark.functions import col, lit
         >>> df = session.create_dataframe([["nevermore1, nevermore2, nevermore3.", "nevermore\\d"]], schema=["subject", "pattern"])
         >>> df.select(regexp_instr(col("subject"), col("pattern")).alias("basic_match")).collect()
         [Row(BASIC_MATCH=1)]
 
-        # With position parameter
+        >>> # With position parameter
         >>> df2 = session.create_dataframe([["Hello world", "world", 7]], schema=["subject", "pattern", "position"])
         >>> df2.select(regexp_instr(col("subject"), col("pattern"), col("position")).alias("position_match")).collect()
         [Row(POSITION_MATCH=7)]
 
-        # With position and occurrence parameters
+        >>> # With position and occurrence parameters
         >>> df3 = session.create_dataframe([["nevermore1, nevermore2, nevermore3.", "nevermore\\d", 1, 2]], schema=["subject", "pattern", "position", "occurrence"])
         >>> df3.select(regexp_instr(col("subject"), col("pattern"), col("position"), col("occurrence")).alias("second_occurrence")).collect()
         [Row(SECOND_OCCURRENCE=13)]
 
-        # With position, occurrence, and option parameters
+        >>> # With position, occurrence, and option parameters
         >>> df4 = session.create_dataframe([["Hello world", "world", 1, 1, 1]], schema=["subject", "pattern", "position", "occurrence", "option"])
         >>> df4.select(regexp_instr(col("subject"), col("pattern"), col("position"), col("occurrence"), col("option")).alias("after_match")).collect()
         [Row(AFTER_MATCH=12)]
 
-        # With position, occurrence, option, and regexp_parameters
+        >>> # With position, occurrence, option, and regexp_parameters
         >>> df5 = session.create_dataframe([["Hello world", "hello", 1, 1, 0, "i"]], schema=["subject", "pattern", "position", "occurrence", "option", "regexp_parameters"])
         >>> df5.select(regexp_instr(col("subject"), col("pattern"), col("position"), col("occurrence"), col("option"), col("regexp_parameters")).alias("case_insensitive")).collect()
         [Row(CASE_INSENSITIVE=1)]
 
-        # With all parameters including group_num
+        >>> # With all parameters including group_num
         >>> df6 = session.create_dataframe([["Hello (World) (Test)", "(\\w+)", 1, 1, 0, "c", 1]], schema=["subject", "pattern", "position", "occurrence", "option", "regexp_parameters", "group_num"])
         >>> df6.select(regexp_instr(col("subject"), col("pattern"), col("position"), col("occurrence"), col("option"), col("regexp_parameters"), col("group_num")).alias("first_group")).collect()
         [Row(FIRST_GROUP=1)]
 
-        # Skipping position - with occurrence only
+        >>> # Skipping position - with occurrence only
         >>> df7 = session.create_dataframe([["nevermore1, nevermore2, nevermore3.", "nevermore\\d", "2"]], schema=["subject", "pattern", "occurrence"])
         >>> df7.select(regexp_instr(col("subject"), col("pattern"), occurrence=col("occurrence")).alias("skip_position")).collect()
         [Row(SKIP_POSITION=13)]
 
-        # Skipping position and occurrence - with option only
+        >>> # Skipping position and occurrence - with option only
         >>> df8 = session.create_dataframe([["Hello world", "world", 1]], schema=["subject", "pattern", "option"])
         >>> df8.select(regexp_instr(col("subject"), col("pattern"), option=col("option")).alias("skip_position_occurrence")).collect()
         [Row(SKIP_POSITION_OCCURRENCE=12)]
 
-        # Skipping position, occurrence, and option - with regexp_parameters only
+        >>> # Skipping position, occurrence, and option - with regexp_parameters only
         >>> df9 = session.create_dataframe([["Hello World", "hello", "i"]], schema=["subject", "pattern", "regexp_parameters"])
         >>> df9.select(regexp_instr(col("subject"), col("pattern"), regexp_parameters=col("regexp_parameters")).alias("skip_to_regexp_params")).collect()
         [Row(SKIP_TO_REGEXP_PARAMS=1)]
 
-        # Skipping position, occurrence, option, and regexp_parameters - with group_num only
+        >>> # Skipping position, occurrence, option, and regexp_parameters - with group_num only
         >>> df10 = session.create_dataframe([["Hello (world) (Test)", "(\\w+)", 1]], schema=["subject", "pattern", "group_num"])
         >>> df10.select(regexp_instr(col("subject"), col("pattern"), group_num=col("group_num")).alias("skip_to_group_num")).collect()
         [Row(SKIP_TO_GROUP_NUM=1)]
 
-        # Skipping position and occurrence - with option and regexp_parameters
+        >>> # Skipping position and occurrence - with option and regexp_parameters
         >>> df11 = session.create_dataframe([["Hello World", "Hello", 1, "i"]], schema=["subject", "pattern", "option", "regexp_parameters"])
         >>> df11.select(regexp_instr(col("subject"), col("pattern"), option=col("option"), regexp_parameters=col("regexp_parameters")).alias("skip_position_occurrence_with_params")).collect()
         [Row(SKIP_POSITION_OCCURRENCE_WITH_PARAMS=6)]
 
-        # Skipping position, occurrence, and option - with regexp_parameters and group_num
+        >>> # Skipping position, occurrence, and option - with regexp_parameters and group_num
         >>> df12 = session.create_dataframe([["Hello (World) (Test)", "(\\w+)", "c", 1]], schema=["subject", "pattern", "regexp_parameters", "group_num"])
         >>> df12.select(regexp_instr(col("subject"), col("pattern"), regexp_parameters=col("regexp_parameters"), group_num=col("group_num")).alias("skip_to_params_and_group")).collect()
         [Row(SKIP_TO_PARAMS_AND_GROUP=1)]
@@ -5008,48 +5008,48 @@ def regexp_substr(
         Column: The substring that matches the pattern, or None if no match is found.
 
     Examples::
-        # Basic usage - only subject and pattern
+        >>> # Basic usage - only subject and pattern
         >>> from snowflake.snowpark.functions import col, lit
         >>> df = session.create_dataframe([["nevermore1, nevermore2, nevermore3.", "nevermore\\d"]], schema=["subject", "pattern"])
         >>> df.select(regexp_substr(col("subject"), col("pattern")).alias("basic_match")).collect()
         [Row(BASIC_MATCH='nevermore1')]
 
-        # With position parameter
+        >>> # With position parameter
         >>> df2 = session.create_dataframe([["Hello world", "world", 7]], schema=["subject", "pattern", "position"])
         >>> df2.select(regexp_substr(col("subject"), col("pattern"), col("position")).alias("position_match")).collect()
         [Row(POSITION_MATCH='world')]
 
-        # With position and occurrence parameters
+        >>> # With position and occurrence parameters
         >>> df3 = session.create_dataframe([["nevermore1, nevermore2, nevermore3.", "nevermore\\d", 1, 2]], schema=["subject", "pattern", "position", "occurrence"])
         >>> df3.select(regexp_substr(col("subject"), col("pattern"), col("position"), col("occurrence")).alias("second_occurrence")).collect()
         [Row(SECOND_OCCURRENCE='nevermore2')]
 
-        # With position, occurrence, and regex_parameters
+        >>> # With position, occurrence, and regex_parameters
         >>> df5 = session.create_dataframe([["Hello world", "hello", 1, 1, "i"]], schema=["subject", "pattern", "position", "occurrence", "regex_parameters"])
         >>> df5.select(regexp_substr(col("subject"), col("pattern"), col("position"), col("occurrence"), col("regex_parameters")).alias("case_insensitive")).collect()
         [Row(CASE_INSENSITIVE='Hello')]
 
-        # With all parameters including group_num
+        >>> # With all parameters including group_num
         >>> df6 = session.create_dataframe([["Hello (World) (Test)", "(\\w+)", 1, 1, "c", 1]], schema=["subject", "pattern", "position", "occurrence", "regex_parameters", "group_num"])
         >>> df6.select(regexp_substr(col("subject"), col("pattern"), col("position"), col("occurrence"), col("regex_parameters"), col("group_num")).alias("first_group")).collect()
         [Row(FIRST_GROUP='Hello')]
 
-        # Skipping position - with occurrence only
+        >>> # Skipping position - with occurrence only
         >>> df7 = session.create_dataframe([["nevermore1, nevermore2, nevermore3.", "nevermore\\d", "2"]], schema=["subject", "pattern", "occurrence"])
         >>> df7.select(regexp_substr(col("subject"), col("pattern"), occurrence=col("occurrence")).alias("skip_position")).collect()
         [Row(SKIP_POSITION='nevermore2')]
 
-        # Skipping position, occurrence - with regex_parameters only
+        >>> # Skipping position, occurrence - with regex_parameters only
         >>> df9 = session.create_dataframe([["Hello World", "hello", "i"]], schema=["subject", "pattern", "regex_parameters"])
         >>> df9.select(regexp_substr(col("subject"), col("pattern"), regex_parameters=col("regex_parameters")).alias("skip_to_regexp_params")).collect()
         [Row(SKIP_TO_REGEXP_PARAMS='Hello')]
 
-        # Skipping position, occurrence, and regex_parameters - with group_num only
+        >>> # Skipping position, occurrence, and regex_parameters - with group_num only
         >>> df10 = session.create_dataframe([["Hello (world) (Test)", "(\\w+)", 1]], schema=["subject", "pattern", "group_num"])
         >>> df10.select(regexp_substr(col("subject"), col("pattern"), group_num=col("group_num")).alias("skip_to_group_num")).collect()
         [Row(SKIP_TO_GROUP_NUM='Hello')]
 
-        # Skipping position, occurrence - with regex_parameters and group_num
+        >>> # Skipping position, occurrence - with regex_parameters and group_num
         >>> df12 = session.create_dataframe([["Hello (World) (Test)", "(\\w+)", "c", 1]], schema=["subject", "pattern", "regex_parameters", "group_num"])
         >>> df12.select(regexp_substr(col("subject"), col("pattern"), regex_parameters=col("regex_parameters"), group_num=col("group_num")).alias("skip_to_params_and_group")).collect()
         [Row(SKIP_TO_PARAMS_AND_GROUP='Hello')]
