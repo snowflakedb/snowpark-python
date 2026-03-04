@@ -4,7 +4,7 @@
 
 import json
 import pytest
-from snowflake.snowpark.functions import col, lit, to_file
+from snowflake.snowpark.functions import ai_complete, col, lit, to_file
 from snowflake.snowpark.row import Row
 from tests.utils import TestFiles, Utils
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -1562,3 +1562,30 @@ def test_dataframe_ai_split_text_recursive_character_error_handling(session):
             format="none",
             chunk_size=10,
         )
+
+
+def test_ai_complete_response_format_with_single_quotes(session):
+    """Test that ai_complete handles single quotes in response_format dict values."""
+    response_format = {
+        "type": "json",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "A person's name ' with single quote ''",
+                }
+            },
+            "required": ["name"],
+        },
+    }
+
+    df = session.range(1).select(
+        ai_complete(
+            model="llama3.1-8b",
+            prompt="My name is Ali",
+            response_format=response_format,
+        ).alias("result")
+    )
+    result = json.loads(df.collect()[0][0])
+    assert "name" in result
