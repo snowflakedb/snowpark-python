@@ -1583,9 +1583,8 @@ def test_ai_complete_response_format_with_single_quotes(session):
     df = session.range(1).select(
         ai_complete(
             model="llama3.1-8b",
-            prompt="My name is Ali",
+            prompt="My name is 'Ali'",
             response_format=response_format,
         ).alias("result")
     )
-    result = json.loads(df.collect()[0][0])
-    assert "name" in result
+    assert "name" in json.loads(df.collect()[0][0])
