@@ -4,9 +4,12 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
 #### Bug Fixes
 
 - Fixed a bug in `Session.client_telemetry` that trace does not have snowflake style trace id.
+- Fixed a bug when saving a fdn table into an iceberg table in overwrite mode, error is raised because `StringType` is saved in wrong length.
 
 ## 1.47.0 (TBD)
 

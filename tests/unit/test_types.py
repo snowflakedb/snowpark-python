@@ -1059,6 +1059,8 @@ def test_convert_sp_to_sf_type():
     assert convert_sp_to_sf_type(DoubleType()) == "DOUBLE"
     assert convert_sp_to_sf_type(StringType()) == "STRING"
     assert convert_sp_to_sf_type(StringType(77)) == "STRING(77)"
+    assert convert_sp_to_sf_type(StringType(), is_iceberg=True) == "STRING(134217728)"
+    assert convert_sp_to_sf_type(StringType(77), is_iceberg=True) == "STRING(134217728)"
     assert convert_sp_to_sf_type(NullType()) == "STRING"
     assert convert_sp_to_sf_type(BooleanType()) == "BOOLEAN"
     assert convert_sp_to_sf_type(DateType()) == "DATE"
