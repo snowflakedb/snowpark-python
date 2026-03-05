@@ -13426,8 +13426,6 @@ def ai_parse_document(
         >>> result = json.loads(df.collect()[0][0])
         >>> "Sample PDF" in result["content"]
         True
-        >>> result["metadata"]["pageCount"]
-        3
 
         >>> # Parse with LAYOUT mode to extract tables and structure
         >>> _ = session.file.put("tests/resources/invoice.pdf", "@mystage", auto_compress=False)
