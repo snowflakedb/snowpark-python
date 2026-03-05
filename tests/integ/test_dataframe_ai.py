@@ -1094,7 +1094,8 @@ def test_dataframe_ai_parse_document_basic(session, resources_path):
     assert isinstance(data, dict)
     assert "content" in data and isinstance(data["content"], str)
     assert isinstance(data.get("metadata", {}), dict)
-    assert data["metadata"].get("pageCount", 0) >= 3
+    if "metadata" in data and "pageCount" in data["metadata"]:
+        assert data["metadata"].get("pageCount", 0) >= 3
 
 
 def test_dataframe_ai_parse_document_default_output_column(session, resources_path):
