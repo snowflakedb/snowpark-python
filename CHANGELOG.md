@@ -8,7 +8,7 @@
 
 - Fixed a bug in `Session.client_telemetry` that trace does not have snowflake style trace id.
 
-## 1.47.0 (2026-03-03)
+## 1.47.0 (2026-03-05)
 
 ### Snowpark Python API Updates
 
