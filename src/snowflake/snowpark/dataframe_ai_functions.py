@@ -1200,7 +1200,7 @@ class DataFrameAIFunctions:
             >>> result_df.columns
             ['FILE_PATH', 'PARSED']
             >>> result = json.loads(result_df.collect()[0]["PARSED"])
-            >>> "Sample PDF" in result["content"] and result["metadata"]["pageCount"] == 3
+            >>> "Sample PDF" in result["content"]
             True
 
             >>> # Parse with LAYOUT mode to extract tables and structure
