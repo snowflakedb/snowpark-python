@@ -1322,7 +1322,7 @@ class DataFrameReader:
                 ):
                     identifier = expression
                 else:
-                    identifier = f"$1:{name}::{type}"
+                    identifier = f"$1:{name}::{convert_sp_to_sf_type(datatype)}"
 
                 schema_to_cast.append((identifier, column_name))
                 transformations.append(sql_expr(identifier))

@@ -2438,6 +2438,38 @@ def test_use_relaxed_types(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="relaxed_types not supported by local testing mode",
 )
+def test_use_relaxed_types_json(session):
+    # Covers SNOW-3198432, where the inferred type was not properly used with relaxed types.
+    nrows = 20
+    ndjson_blob = "\n".join([json.dumps({"x": i}) for i in range(nrows)])
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".ndjson") as file:
+        file.write(ndjson_blob)
+        file.flush()
+        stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+        try:
+            Utils.create_stage(session, stage_name, is_temporary=True)
+            session.file.put(
+                file.name, f"@{stage_name}", auto_compress=False, overwrite=True
+            )
+            infer_schema_options = {
+                "MAX_RECORDS_PER_FILE": 10,
+                "USE_RELAXED_TYPES": True,
+            }
+            df = (
+                session.read.option("INFER_SCHEMA", True)
+                .option("INFER_SCHEMA_OPTIONS", infer_schema_options)
+                .json(f"@{stage_name}/{os.path.basename(file.name)}")
+            )
+            Utils.check_answer(df, [Row(i) for i in range(nrows)])
+        finally:
+            Utils.drop_stage(session, stage_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="relaxed_types not supported by local testing mode",
+)
 def test_try_cast(session):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     header = ("A", "B", "C")
