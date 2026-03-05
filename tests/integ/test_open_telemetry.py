@@ -3,6 +3,8 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import inspect
+import importlib
+import sys
 import os
 
 import pytest
@@ -55,6 +57,37 @@ def span_extractor(dict_exporter: InMemorySpanExporter):
     for raw_span in raw_spans:
         spans.append((raw_span.name, attr_to_dict(raw_span), raw_span))
     return spans
+
+
+def test_forked_snowflake_trace_id_generator_requires_opentelemetry_extra(monkeypatch):
+
+    module_name = "snowflake.snowpark._internal.event_table_telemetry"
+    original_module = sys.modules.get(module_name)
+
+    real_import_module = importlib.import_module
+
+    def import_module_raising_for_opentelemetry(name, package=None):
+        if name == "opentelemetry" or name.startswith("opentelemetry."):
+            raise ImportError("forced ImportError for test coverage")
+        return real_import_module(name, package=package)
+
+    monkeypatch.setattr(
+        importlib, "import_module", import_module_raising_for_opentelemetry
+    )
+
+    sys.modules.pop(module_name, None)
+    try:
+        event_table_telemetry = importlib.import_module(module_name)
+        assert event_table_telemetry.installed_opentelemetry is False
+        with pytest.raises(
+            NotImplementedError,
+            match=r'opentelemetry extra from Snowpark is required, install with: pip install "snowflake-snowpark-python\[opentelemetry\]"',
+        ):
+            event_table_telemetry.ForkedSnowflakeTraceIdGenerator()
+    finally:
+        sys.modules.pop(module_name, None)
+        if original_module is not None:
+            sys.modules[module_name] = original_module
 
 
 def test_without_open_telemetry(monkeypatch, dict_exporter, session):
