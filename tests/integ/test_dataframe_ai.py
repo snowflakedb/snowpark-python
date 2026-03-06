@@ -1070,8 +1070,49 @@ def test_dataframe_ai_transcribe_default_output_column(session, resources_path):
     assert all("start" in s and "end" in s for s in data["segments"])
 
 
-def test_dataframe_ai_parse_document_basic(session, resources_path):
-    """Test DataFrame.ai.parse_document OCR on a PDF document."""
+def test_dataframe_ai_parse_document_basic_legacy(session, resources_path):
+    """Test DataFrame.ai.parse_document OCR on a PDF document.
+    This is a test that covers legacy behaviour (pre error handling changes)."""
+    session.sql(
+        "ALTER SESSION SET AI_SQL_ERROR_HANDLING_USE_FAIL_ON_ERROR = FALSE"
+    ).collect()
+    try:
+        stage_name = Utils.random_stage_name()
+        _ = session.sql(
+            f"CREATE OR REPLACE TEMP STAGE {stage_name} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+        ).collect()
+        file_local = TestFiles(resources_path).test_doc_pdf
+        _ = session.file.put(file_local, f"@{stage_name}", auto_compress=False)
+
+        df = session.create_dataframe(
+            [[f"@{stage_name}/doc.pdf"]], schema=["file_path"]
+        )
+
+        result_df = df.ai.parse_document(
+            input_column=to_file(col("file_path")),
+            output_column="parsed",
+            mode="OCR",
+        )
+
+        assert result_df.columns == ["FILE_PATH", "PARSED"]
+
+        results = result_df.collect()
+        data = json.loads(results[0]["PARSED"]) if results[0]["PARSED"] else {}
+        assert isinstance(data, dict)
+        assert "content" in data and isinstance(data["content"], str)
+        assert isinstance(data.get("metadata", {}), dict)
+        if "metadata" in data and "pageCount" in data["metadata"]:
+            assert data["metadata"].get("pageCount", 0) >= 3
+    finally:
+        session.sql(
+            "ALTER SESSION SET AI_SQL_ERROR_HANDLING_USE_FAIL_ON_ERROR = TRUE"
+        ).collect()
+
+
+def test_dataframe_ai_parse_document_basic_new_eh(session, resources_path):
+    """Test DataFrame.ai.parse_document OCR on a PDF document.
+    This is a test that covers legacy behaviour (post error handling changes, metadata is absent)."""
+
     stage_name = Utils.random_stage_name()
     _ = session.sql(
         f"CREATE OR REPLACE TEMP STAGE {stage_name} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
@@ -1093,9 +1134,6 @@ def test_dataframe_ai_parse_document_basic(session, resources_path):
     data = json.loads(results[0]["PARSED"]) if results[0]["PARSED"] else {}
     assert isinstance(data, dict)
     assert "content" in data and isinstance(data["content"], str)
-    assert isinstance(data.get("metadata", {}), dict)
-    if "metadata" in data and "pageCount" in data["metadata"]:
-        assert data["metadata"].get("pageCount", 0) >= 3
 
 
 def test_dataframe_ai_parse_document_default_output_column(session, resources_path):
