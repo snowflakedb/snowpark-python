@@ -8,6 +8,7 @@
 
 - Fixed a bug in `Session.client_telemetry` that trace does not have snowflake style trace id.
 - Fixed a bug in `ai_complete` where `model_parameters` and `response_format` values containing single quotes would generate malformed SQL.
+- Fixed a ai_parse_document test that failed with new error handling
 
 ## 1.47.0 (2026-03-05)
 
