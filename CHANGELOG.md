@@ -8,6 +8,7 @@
 
 - Fixed a bug in `Session.client_telemetry` that trace does not have snowflake style trace id.
 - Fixed a bug in `ai_complete` where `model_parameters` and `response_format` values containing single quotes would generate malformed SQL.
+- Fixed a bug in that caused SQL compilation errors in `Session.read.json` when `INFER_SCHEMA` was set to True, and the `USE_RELAXED_TYPES` field of `INFER_SCHEMA_OPTIONS` was also set to True.
 
 ## 1.47.0 (2026-03-05)
 
