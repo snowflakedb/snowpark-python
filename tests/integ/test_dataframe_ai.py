@@ -1072,7 +1072,7 @@ def test_dataframe_ai_transcribe_default_output_column(session, resources_path):
 
 def test_dataframe_ai_parse_document_basic_legacy(session, resources_path):
     """Test DataFrame.ai.parse_document OCR on a PDF document.
-    This is a test that covers legacy behaviour (pre error handling changes)."""
+    This test covers legacy behavior (post error handling changes, metadata is present in response)."""
     session.sql(
         "ALTER SESSION SET AI_SQL_ERROR_HANDLING_USE_FAIL_ON_ERROR = FALSE"
     ).collect()
@@ -1111,7 +1111,7 @@ def test_dataframe_ai_parse_document_basic_legacy(session, resources_path):
 
 def test_dataframe_ai_parse_document_basic_new_eh(session, resources_path):
     """Test DataFrame.ai.parse_document OCR on a PDF document.
-    This is a test that covers legacy behaviour (post error handling changes, metadata is absent)."""
+    This test covers legacy behavior (post error handling changes, metadata is absent in response)."""
 
     stage_name = Utils.random_stage_name()
     _ = session.sql(
