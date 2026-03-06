@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.utils import (
     get_stage_parts,
     get_temp_type_for_object,
     get_udf_upload_prefix,
+    is_cloud_path,
     is_snowflake_quoted_id_case_insensitive,
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
@@ -30,7 +31,6 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     warning,
     zip_file_or_directory_to_stream,
-    is_cloud_path,
 )
 from tests.utils import IS_WINDOWS, TestFiles
 
@@ -114,23 +114,23 @@ def test_calculate_checksum():
     else:
         assert (
             calculate_checksum(test_files.test_udf_directory)
-            == "3a2607ef293801f59e7840f5be423d4a55edfe2ac732775dcfda01205df377f0"
+            == "d472060e6d717517a3f9c7048ac43fc0c646467a6b3772f63355071a65ad8ecf"
         )
         assert (
             calculate_checksum(test_files.test_udf_directory, algorithm="md5")
-            == "b72b61c8d5639fff8aa9a80278dba60f"
+            == "322ad29c4018a1375f61b670196cf902"
         )
         # Validate that hashes are different when reading whole dir.
         # Using a sufficiently small chunk size so that the hashes differ.
         assert (
             calculate_checksum(test_files.test_udf_directory, chunk_size=128)
-            == "c071de824a67c083edad45c2b18729e17c50f1b13be980140437063842ea2469"
+            == "40d4811752a978779518082f0312f8823cb46dd84d12c68a7bb456c388f38df4"
         )
         assert (
             calculate_checksum(
                 test_files.test_udf_directory, chunk_size=128, whole_file_hash=True
             )
-            == "3a2607ef293801f59e7840f5be423d4a55edfe2ac732775dcfda01205df377f0"
+            == "d472060e6d717517a3f9c7048ac43fc0c646467a6b3772f63355071a65ad8ecf"
         )
 
 
@@ -256,6 +256,7 @@ def test_zip_file_or_directory_to_stream():
             [
                 "test_udf_dir/",
                 "test_udf_dir/test_another_udf_file.py",
+                "test_udf_dir/test_udf_init_once_file.py",
                 "test_udf_dir/test_pandas_udf_file.py",
                 "test_udf_dir/test_udf_file.py",
             ],
@@ -270,6 +271,7 @@ def test_zip_file_or_directory_to_stream():
             [
                 "test_udf_dir/",
                 "test_udf_dir/test_another_udf_file.py",
+                "test_udf_dir/test_udf_init_once_file.py",
                 "test_udf_dir/test_pandas_udf_file.py",
                 "test_udf_dir/test_udf_file.py",
             ],
@@ -285,6 +287,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/",
                 "resources/test_udf_dir/",
                 "resources/test_udf_dir/test_another_udf_file.py",
+                "resources/test_udf_dir/test_udf_init_once_file.py",
                 "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",
             ],
@@ -381,6 +384,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_sp_dir/test_table_sp_file.py",
                 "resources/test_udf_dir/",
                 "resources/test_udf_dir/test_another_udf_file.py",
+                "resources/test_udf_dir/test_udf_init_once_file.py",
                 "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",
                 "resources/test_udtf_dir/",

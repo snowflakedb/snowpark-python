@@ -2684,3 +2684,20 @@ def test_udf_with_vectorized_nested_decorators_series(session):
     )
     res = df.select(add_series("a", "b").alias("result")).collect()
     assert [row.RESULT for row in res] == [3, 30, 300, 15]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="UDF init_once is not supported in Local Testing",
+)
+def test_udf_init_once_register_from_file(session):
+    """Test @udf_init_once in a handler file used with register_from_file."""
+    multiply_udf = session.udf.register_from_file(
+        file_path="tests/resources/test_udf_dir/test_udf_init_once_file.py",
+        func_name="multiply",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+    df = session.create_dataframe([[1], [2], [3]], schema=["a"])
+    res = df.select(multiply_udf("a").alias("result")).collect()
+    assert sorted(row.RESULT for row in res) == [10, 20, 30]
