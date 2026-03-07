@@ -1517,7 +1517,10 @@ def mock_substring(
         )
     ]
     res = ColumnEmulator(
-        res, sf_type=ColumnType(StringType(), base_expr.sf_type.nullable), dtype=object
+        data=res,
+        sf_type=ColumnType(StringType(), base_expr.sf_type.nullable), 
+        dtype=object,
+        index=base_expr.index,
     )
     return res
 
