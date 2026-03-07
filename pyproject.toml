@@ -1,7 +1,164 @@
 [build-system]
-requires = [
-    "setuptools",
-    "protoc-wheel-0==21.1", # Protocol buffer compiler for Snowpark IR
-    "mypy-protobuf", # used in generating typed Python code from protobuf for Snowpark IR
+requires = ["hatchling", "hatch-protobuf"]
+build-backend = "hatchling.build"
+
+[project]
+name = "snowflake-snowpark-python"
+dynamic = ["version"]
+description = "Snowflake Snowpark for Python"
+readme = "README.md"
+requires-python = ">=3.9,<3.14"
+license = {text = "Apache License, Version 2.0"}
+authors = [
+    {name = "Snowflake, Inc", email = "snowflake-python-libraries-dl@snowflake.com"}
 ]
-build-backend = "setuptools.build_meta"
+keywords = ["Snowflake", "db", "database", "cloud", "analytics", "warehouse"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Environment :: Other Environment",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: SQL",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+dependencies = [
+    "snowflake-connector-python>=3.14.0,<4.0.0",
+    "typing-extensions>=4.1.0,<5.0.0",
+    "pyyaml",
+    "cloudpickle>=1.6.0,<=3.0.0,!=2.1.0,!=2.2.0",
+    "python-dateutil",
+    "tzlocal",
+    "protobuf>=6.33.4",
+]
+
+[project.optional-dependencies]
+pandas = [
+    "snowflake-connector-python[pandas]>=3.17.0,<4.0.0",
+]
+
+modin = [
+    "snowflake-connector-python[pandas]>=3.17.0,<4.0.0",
+    "modin>=0.36.0,<0.38.0",
+    "tqdm",
+    "ipywidgets",
+]
+
+secure-local-storage = [
+    "snowflake-connector-python[secure-local-storage]>=3.14.0,<4.0.0",
+]
+
+development = [
+    "pytest<8.0.0",
+    "pytest-cov",
+    "wrapt",
+    "coverage",
+    "sphinx==5.0.2",
+    "cachetools",
+    "pytest-timeout",
+    "pytest-xdist",
+    "openpyxl",
+    "matplotlib",
+    "pre-commit",
+    "graphviz",
+    "pytest-assume",
+    "decorator",
+    "lxml",
+    "tox",
+    "snowflake.core>=1.0.0,<2",
+    "psutil",
+]
+
+modin-development = [
+    "snowflake-connector-python[pandas]>=3.14.0,<4.0.0",
+    "modin>=0.36.0,<0.38.0",
+    "tqdm",
+    "ipywidgets",
+    "pytest<8.0.0",
+    "pytest-cov",
+    "wrapt",
+    "coverage",
+    "sphinx==5.0.2",
+    "cachetools",
+    "pytest-timeout",
+    "pytest-xdist",
+    "openpyxl",
+    "matplotlib",
+    "pre-commit",
+    "graphviz",
+    "pytest-assume",
+    "decorator",
+    "lxml",
+    "tox",
+    "snowflake.core>=1.0.0,<2",
+    "psutil",
+    "scipy",
+    "statsmodels",
+    "scikit-learn",
+    "plotly<6.0.0",
+    "snowflake-ml-python>=1.8.0; python_version<'3.12'",
+    "s3fs",
+]
+
+localtest = [
+    "pandas",
+    "requests",
+]
+
+opentelemetry = [
+    "opentelemetry-api>=1.0.0,<2.0.0",
+    "opentelemetry-sdk>=1.0.0,<2.0.0",
+]
+
+[project.urls]
+Homepage = "https://www.snowflake.com/"
+Documentation = "https://docs.snowflake.com/en/developer-guide/snowpark/python/index.html"
+Source = "https://github.com/snowflakedb/snowpark-python"
+Issues = "https://github.com/snowflakedb/snowpark-python/issues"
+Changelog = "https://github.com/snowflakedb/snowpark-python/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+source = "code"
+path = "src/snowflake/snowpark/version.py"
+expression = '".".join([str(v) for v in VERSION if v is not None])'
+
+[tool.hatch.build]
+sources = ["src"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/snowflake"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/pyproject.toml",
+    "/README.md",
+    "/CHANGELOG.md",
+]
+
+[tool.hatch.build.hooks.protobuf]
+dependencies = ["hatch-protobuf", "mypy-protobuf~=3.0"]
+proto_paths = ["src/snowflake/snowpark/_internal/proto"]
+output_path = "src/snowflake/snowpark/_internal/proto/generated"
+generate_pyi = false
+generate_grpc = false
+
+[[tool.hatch.build.hooks.protobuf.generators]]
+name = "mypy"
+outputs = ["{proto_name}_pb2.pyi"]
