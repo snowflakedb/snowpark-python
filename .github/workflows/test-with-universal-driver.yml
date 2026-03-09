@@ -1,0 +1,133 @@
+name: Test with Universal Driver
+
+on:
+  workflow_dispatch:
+    inputs:
+      universal_driver_ref:
+        description: 'universal-driver branch/tag/SHA'
+        default: 'main'
+  schedule:
+    - cron: '0 6 * * *'
+
+jobs:
+  build-universal-driver:
+    name: Build Universal Driver Wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true  # resolves ../universal-driver relative URL automatically
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.89.0'
+          components: clippy,rustfmt
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            universal-driver/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('universal-driver/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Build UD wheel
+        working-directory: universal-driver/python
+        run: |
+          uv run --with hatch --with cython --with setuptools \
+            --with "virtualenv<21.0.0" hatch build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: universal-driver-wheel
+          path: universal-driver/python/dist/*.whl
+
+  test:
+    name: Test py-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+    needs: build-universal-driver
+    runs-on: ubuntu-latest-64-cores
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.10"
+            cloud-provider: aws
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+
+      - name: Decrypt parameters.py
+        shell: bash
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: universal-driver-wheel
+          path: ud-dist
+
+      - name: Show downloaded wheel
+        run: ls -lh ud-dist/
+
+      - name: Install snowpark + swap connector
+        run: |
+          uv pip install -U setuptools pip wheel --system
+          uv pip install -e ".[development,pandas]" --system
+          uv pip uninstall snowflake-connector-python -y --system
+          uv pip install ud-dist/*.whl --system
+
+      - name: Install tox
+        run: uv pip install tox --system
+
+      - name: Install MS ODBC Driver
+        run: |
+          curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+          curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list \
+            | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+
+      - name: Run integration tests
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+
+      - name: Run datasource tests
+        run: python -m tox -e datasource
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1

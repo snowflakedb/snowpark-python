@@ -6,9 +6,15 @@ import inspect
 import os
 
 import pytest
-from opentelemetry import trace
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import span
+
+try:
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+    from opentelemetry.trace import span
+except ImportError:
+    pytest.skip("opentelemetry not installed", allow_module_level=True)
 
 import snowflake
 from snowflake.snowpark.exceptions import SnowparkSQLException

@@ -236,6 +236,8 @@ def connection(db_parameters, local_testing_mode):
         _keys = [
             "user",
             "password",
+            "authenticator",
+            "private_key",
             "private_key_file",
             "private_key_file_pwd",
             "host",
