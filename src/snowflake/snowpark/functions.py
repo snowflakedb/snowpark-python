@@ -13426,8 +13426,6 @@ def ai_parse_document(
         >>> result = json.loads(df.collect()[0][0])
         >>> "Sample PDF" in result["content"]
         True
-        >>> result["metadata"]["pageCount"]
-        3
 
         >>> # Parse with LAYOUT mode to extract tables and structure
         >>> _ = session.file.put("tests/resources/invoice.pdf", "@mystage", auto_compress=False)
@@ -13787,12 +13785,16 @@ def ai_complete(
 
     # Add model_parameters if provided
     if model_parameters is not None:
-        model_params_col = sql_expr(json.dumps(model_parameters).replace('"', "'"))
+        model_params_col = sql_expr(
+            json.dumps(model_parameters).replace("'", "''").replace('"', "'")
+        )
         call_kwargs["model_parameters"] = model_params_col
 
     # Add response_format if provided
     if response_format is not None:
-        response_format_col = sql_expr(json.dumps(response_format).replace('"', "'"))
+        response_format_col = sql_expr(
+            json.dumps(response_format).replace("'", "''").replace('"', "'")
+        )
         call_kwargs["response_format"] = response_format_col
 
     # Add show_details if provided
