@@ -2462,6 +2462,9 @@ def test_use_relaxed_types_json(session):
                 .json(f"@{stage_name}/{os.path.basename(file.name)}")
             )
             Utils.check_answer(df, [Row(i) for i in range(nrows)])
+            assert df.schema == StructType(
+                [StructField('"x"', DoubleType(), nullable=True)]
+            )
         finally:
             Utils.drop_stage(session, stage_name)
 
