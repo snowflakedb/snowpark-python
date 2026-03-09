@@ -29,6 +29,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
 )
 from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING
+from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import StructField, StructType
 
 
@@ -211,7 +212,11 @@ def test_resolve_package_current_database(has_current_database):
     session.table.side_effect = mock_get_information_schema_packages
 
     session._resolve_packages(
-        ["random_package_name"], validate_package=True, include_pandas=False
+        ["random_package_name"],
+        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+        existing_packages_dict={},
+        validate_package=True,
+        include_pandas=False,
     )
 
 
@@ -242,7 +247,11 @@ def test_resolve_package_terms_not_accepted(mock_server_connection):
         "#using-third-party-packages-from-anaconda.",
     ):
         session._resolve_packages(
-            ["random_package_name"], validate_package=True, include_pandas=False
+            ["random_package_name"],
+            artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+            existing_packages_dict={},
+            validate_package=True,
+            include_pandas=False,
         )
 
 
@@ -264,6 +273,7 @@ def test_resolve_packages_side_effect(mock_server_connection):
 
     resolved_packages = session._resolve_packages(
         ["random_package_name"],
+        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
         existing_packages_dict=existing_packages,
         validate_package=True,
         include_pandas=False,
@@ -295,6 +305,8 @@ def test_resolve_packages_suppresses_internal_warning(mock_server_connection, ca
     ):
         session._resolve_packages(
             ["snowflake-snowpark-python"],
+            artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+            existing_packages_dict={},
             validate_package=True,
             include_pandas=False,
             _suppress_local_package_warnings=True,
@@ -302,6 +314,58 @@ def test_resolve_packages_suppresses_internal_warning(mock_server_connection, ca
 
     mock_logger.warning.assert_not_called()
     assert caplog.text == ""
+
+
+def test_resolve_packages_non_conda_artifact_repository(mock_server_connection):
+    session = Session(mock_server_connection)
+
+    existing_packages = {}
+
+    def assert_packages(packages):
+        assert sorted(packages) == [
+            "cloudpickle==1.0.0",
+            "snowflake-snowpark-python==1.0.0",
+        ]
+        assert existing_packages == {
+            "snowflake-snowpark-python": "snowflake-snowpark-python==1.0.0",
+            "cloudpickle": "cloudpickle==1.0.0",
+        }
+
+    packages = session._resolve_packages(
+        ["snowflake-snowpark-python==1.0.0", "cloudpickle==1.0.0"],
+        artifact_repository="snowflake.snowpark.pypi_shared_repository",
+        existing_packages_dict=existing_packages,
+    )
+
+    assert_packages(packages)
+
+    packages = session._resolve_packages(
+        [],
+        artifact_repository="snowflake.snowpark.pypi_shared_repository",
+        existing_packages_dict=existing_packages,
+    )
+
+    assert_packages(packages)
+
+
+def test_resolve_packages_optional_artifact_repository(mock_server_connection):
+    session = Session(mock_server_connection)
+    session._get_default_artifact_repository = MagicMock(
+        return_value="snowflake.snowpark.pypi_shared_repository"
+    )
+    session._artifact_repository_packages = {
+        "snowflake.snowpark.pypi_shared_repository": {
+            "numpy": "numpy==1.0.0",
+        }
+    }
+    result = session._resolve_packages(
+        ["snowflake-snowpark-python==1.0.0", "cloudpickle==1.0.0"],
+    )
+    assert sorted(result) == [
+        "cloudpickle==1.0.0",
+        "numpy==1.0.0",
+        "snowflake-snowpark-python==1.0.0",
+    ]
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
@@ -674,3 +738,50 @@ def test_parameter_version(version_value, expected_parameter_value, parameter_na
     )
     session = Session(fake_server_connection)
     assert getattr(session, parameter_name, None) is expected_parameter_value
+
+
+def test_get_default_artifact_repository():
+    fake_server_connection = mock.create_autospec(ServerConnection)
+    fake_server_connection._thread_safe_session_enabled = True
+    session = Session(fake_server_connection)
+
+    with mock.patch.object(
+        session,
+        "_run_query",
+        return_value=[["snowflake.snowpark.pypi_shared_repository"]],
+    ) as mocked_run_query, mock.patch.object(
+        session, "get_current_database", return_value="DB1"
+    ), mock.patch.object(
+        session, "get_current_schema", return_value="SCHEMA1"
+    ):
+        result = session._get_default_artifact_repository()
+        assert result == "snowflake.snowpark.pypi_shared_repository"
+
+        result = session._get_default_artifact_repository()
+        assert result == "snowflake.snowpark.pypi_shared_repository"
+
+        assert mocked_run_query.call_count == 1
+
+    with mock.patch.object(
+        session, "_run_query", return_value=[[None]]
+    ) as mocked_run_query, mock.patch.object(
+        session, "get_current_database", return_value="DB2"
+    ), mock.patch.object(
+        session, "get_current_schema", return_value="SCHEMA2"
+    ):
+        result = session._get_default_artifact_repository()
+        assert result == _ANACONDA_SHARED_REPOSITORY
+
+        assert mocked_run_query.call_count == 1
+
+    with mock.patch.object(
+        session, "_run_query", side_effect=ProgrammingError("Not found")
+    ) as mocked_run_query, mock.patch.object(
+        session, "get_current_database", return_value="DB1"
+    ), mock.patch.object(
+        session, "get_current_schema", return_value="SCHEMA1"
+    ):
+        result = session._get_default_artifact_repository()
+        assert result == _ANACONDA_SHARED_REPOSITORY
+
+        assert mocked_run_query.call_count == 1
