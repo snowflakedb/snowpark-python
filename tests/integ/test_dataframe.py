@@ -3480,6 +3480,11 @@ def test_show_interval_formatting(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local testing mock does not normalize Decimal scale to match DecimalType",
+    run=False,
+)
 def test_show_decimal_scientific_notation(session):
     """Verify that decimal values in scientific notation are displayed as plain numbers."""
 
@@ -3861,6 +3866,184 @@ def test_show_decimal_scientific_notation(session):
         |0.000000055000000 |550000000  |550.000000 |
         |-0.000031400000000|-314000    |-31.400000 |
         +------------------+-----------+-----------+
+        """
+    ), f"Unexpected output:\n{result}"
+
+    # Low precision: DecimalType(5, 2) — small currency-like values
+    schema_low = StructType(
+        [
+            StructField("VAL", DecimalType(5, 2)),
+        ]
+    )
+    df = session.create_dataframe(
+        [
+            [Decimal("9.9999E+2")],
+            [Decimal("-9.9999E+2")],
+            [Decimal("1E-2")],
+            [Decimal("0E+0")],
+            [Decimal("1.234E+2")],
+        ],
+        schema=schema_low,
+    )
+    result = df._show_string_spark(truncate=False)
+    assert result == dedent(
+        """\
+        +-------+
+        |"VAL"  |
+        +-------+
+        |999.99 |
+        |-999.99|
+        |0.01   |
+        |0.00   |
+        |123.40 |
+        +-------+
+        """
+    ), f"Unexpected output:\n{result}"
+
+    # Medium precision: DecimalType(10, 4)
+    schema_med = StructType(
+        [
+            StructField("VAL", DecimalType(10, 4)),
+        ]
+    )
+    df = session.create_dataframe(
+        [
+            [Decimal("1.234567890E+5")],
+            [Decimal("-9.99999999E+4")],
+            [Decimal("1E-4")],
+            [Decimal("1E+5")],
+            [Decimal("1E-4")],
+        ],
+        schema=schema_med,
+    )
+    result = df._show_string_spark(truncate=False)
+    assert result == dedent(
+        """\
+        +-----------+
+        |"VAL"      |
+        +-----------+
+        |123456.7890|
+        |-99999.9999|
+        |0.0001     |
+        |100000.0000|
+        |0.0001     |
+        +-----------+
+        """
+    ), f"Unexpected output:\n{result}"
+
+    # Tight-fit precision: DecimalType(7, 5) — value fills all digits
+    schema_tight = StructType(
+        [
+            StructField("VAL", DecimalType(7, 5)),
+        ]
+    )
+    df = session.create_dataframe(
+        [
+            [Decimal("9.999999E+1")],
+            [Decimal("-9.999999E+1")],
+            [Decimal("1E-5")],
+            [Decimal("5.012345E+1")],
+        ],
+        schema=schema_tight,
+    )
+    result = df._show_string_spark(truncate=False)
+    assert result == dedent(
+        """\
+        +---------+
+        |"VAL"    |
+        +---------+
+        |99.99999 |
+        |-99.99999|
+        |0.00001  |
+        |50.12345 |
+        +---------+
+        """
+    ), f"Unexpected output:\n{result}"
+
+    # Multi-column with different precisions
+    schema_multi_prec = StructType(
+        [
+            StructField("PRICE", DecimalType(8, 2)),
+            StructField("QUANTITY", DecimalType(5, 0)),
+            StructField("RATE", DecimalType(12, 8)),
+        ]
+    )
+    df = session.create_dataframe(
+        [
+            [Decimal("1.234567E+4"), Decimal("1E+2"), Decimal("1.2345E-4")],
+            [Decimal("-9.99999E+3"), Decimal("9.9999E+4"), Decimal("1.23456789012E+3")],
+            [Decimal("1E-2"), Decimal("1E+0"), Decimal("1E-8")],
+        ],
+        schema=schema_multi_prec,
+    )
+    result = df._show_string_spark(truncate=False)
+    assert result == dedent(
+        """\
+        +--------+----------+-------------+
+        |"PRICE" |"QUANTITY"|"RATE"       |
+        +--------+----------+-------------+
+        |12345.67|100       |0.00012345   |
+        |-9999.99|99999     |1234.56789012|
+        |0.01    |1         |0.00000001   |
+        +--------+----------+-------------+
+        """
+    ), f"Unexpected output:\n{result}"
+
+    # Precision equals scale: DecimalType(6, 6) — all fractional
+    schema_all_frac = StructType(
+        [
+            StructField("VAL", DecimalType(6, 6)),
+        ]
+    )
+    df = session.create_dataframe(
+        [
+            [Decimal("1.23456E-1")],
+            [Decimal("-1E-6")],
+            [Decimal("9.99999E-1")],
+            [Decimal("0E-6")],
+        ],
+        schema=schema_all_frac,
+    )
+    result = df._show_string_spark(truncate=False)
+    assert result == dedent(
+        """\
+        +---------+
+        |"VAL"    |
+        +---------+
+        |0.123456 |
+        |-0.000001|
+        |0.999999 |
+        |0.000000 |
+        +---------+
+        """
+    ), f"Unexpected output:\n{result}"
+
+    # Scale=0 with small precision: DecimalType(3, 0) — pure integers
+    schema_small_int = StructType(
+        [
+            StructField("VAL", DecimalType(3, 0)),
+        ]
+    )
+    df = session.create_dataframe(
+        [
+            [Decimal("9.99E+2")],
+            [Decimal("-9.99E+2")],
+            [Decimal("0E+0")],
+            [Decimal("4.2E+1")],
+        ],
+        schema=schema_small_int,
+    )
+    result = df._show_string_spark(truncate=False)
+    assert result == dedent(
+        """\
+        +-----+
+        |"VAL"|
+        +-----+
+        |999  |
+        |-999 |
+        |0    |
+        |42   |
+        +-----+
         """
     ), f"Unexpected output:\n{result}"
 
