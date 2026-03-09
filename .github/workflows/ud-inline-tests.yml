@@ -1,0 +1,98 @@
+name: Run UD tests inline (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ud-branch:
+        description: 'Branch of universal-driver repo to use'
+        required: false
+        default: 'main'
+        type: string
+      python-version:
+        description: 'Python version'
+        required: false
+        default: '3.10'
+        type: choice
+        options:
+          - '3.10'
+          - '3.11'
+          - '3.12'
+          - '3.13'
+      cloud-provider:
+        description: 'Cloud provider'
+        required: false
+        default: 'aws'
+        type: choice
+        options:
+          - 'aws'
+          - 'azure'
+          - 'gcp'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: UD Test py${{ inputs.python-version }}-${{ inputs.cloud-provider }} (${{ inputs.ud-branch }})
+    runs-on: ubuntu-latest-64-cores
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - run: python -c "import sys; print(sys.version)"
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Decrypt parameters.py
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: ${{ inputs.cloud-provider }}
+
+      - name: Install protoc
+        run: .github/scripts/install_protoc.sh
+
+      - name: Install snowpark
+        run: |
+          uv pip install -U setuptools pip wheel --system
+          uv pip install -e ".[development,pandas]" --system
+
+      - name: Swap connector — install Universal Driver
+        run: |
+          uv pip uninstall snowflake-connector-python --system
+          uv pip install \
+            "git+https://github.com/snowflakedb/universal-driver@${{ inputs.ud-branch }}#subdirectory=python" \
+            --system
+
+      - name: Install tox
+        run: uv pip install tox --system
+
+      - name: Install MS ODBC Driver
+        run: |
+          curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+          curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list \
+            | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+
+      - name: Run integration tests
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        env:
+          PYTHON_VERSION: ${{ inputs.python-version }}
+          cloud_provider: ${{ inputs.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+
+      - name: Run datasource tests
+        run: python -m tox -e datasource
+        env:
+          PYTHON_VERSION: ${{ inputs.python-version }}
+          cloud_provider: ${{ inputs.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
