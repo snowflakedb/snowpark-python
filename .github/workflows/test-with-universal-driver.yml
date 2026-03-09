@@ -111,7 +111,7 @@ jobs:
         run: |
           uv pip install -U setuptools pip wheel --system
           uv pip install -e ".[development,pandas]" --system
-          uv pip uninstall snowflake-connector-python -y --system
+          uv pip uninstall snowflake-connector-python --system
           uv pip install ud-dist/*.whl --system
 
       - name: Install tox
