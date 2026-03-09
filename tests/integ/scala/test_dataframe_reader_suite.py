@@ -2443,14 +2443,15 @@ def test_use_relaxed_types_json(session):
     nrows = 20
     ndjson_blob = "\n".join([json.dumps({"x": i}) for i in range(nrows)])
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".ndjson") as file:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".ndjson") as file:
         file.write(ndjson_blob)
         file.flush()
         stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+        filename = file.name
         try:
             Utils.create_stage(session, stage_name, is_temporary=True)
             session.file.put(
-                file.name, f"@{stage_name}", auto_compress=False, overwrite=True
+                filename, f"@{stage_name}", auto_compress=False, overwrite=True
             )
             infer_schema_options = {
                 "MAX_RECORDS_PER_FILE": 10,
@@ -2459,13 +2460,15 @@ def test_use_relaxed_types_json(session):
             df = (
                 session.read.option("INFER_SCHEMA", True)
                 .option("INFER_SCHEMA_OPTIONS", infer_schema_options)
-                .json(f"@{stage_name}/{os.path.basename(file.name)}")
+                .json(f"@{stage_name}/{os.path.basename(filename)}")
             )
             Utils.check_answer(df, [Row(i) for i in range(nrows)])
             assert df.schema == StructType(
                 [StructField('"x"', DoubleType(), nullable=True)]
             )
         finally:
+            if os.path.exists(filename):
+                os.remove(filename)
             Utils.drop_stage(session, stage_name)
 
 
