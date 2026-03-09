@@ -53,24 +53,23 @@ mock_log_results = []
 lock = threading.RLock()
 
 
-if not dependencies_missing:
+class MockOTLPLogExporter(OTLPLogExporter):
+    def export(self, batch):
+        if self._shutdown:
+            return LogExportResult.FAILURE
 
-    class MockOTLPLogExporter(OTLPLogExporter):
-        def export(self, batch):
-            if self._shutdown:
-                return LogExportResult.FAILURE
+        with lock:
+            mock_log_results.extend(batch)
+            return LogExportResult.SUCCESS
 
-            with lock:
-                mock_log_results.extend(batch)
-                return LogExportResult.SUCCESS
 
-    class MockOTLPSpanExporter(OTLPSpanExporter):
-        def export(self, batch):
-            if self._shutdown:
-                return SpanExportResult.FAILURE
-            with lock:
-                mock_tracer_results.extend(batch)
-                return SpanExportResult.SUCCESS
+class MockOTLPSpanExporter(OTLPSpanExporter):
+    def export(self, batch):
+        if self._shutdown:
+            return SpanExportResult.FAILURE
+        with lock:
+            mock_tracer_results.extend(batch)
+            return SpanExportResult.SUCCESS
 
 
 class FakeAttestation:
