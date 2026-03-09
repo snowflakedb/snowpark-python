@@ -9,6 +9,10 @@
 - Fixed a bug in `Session.client_telemetry` that trace does not have snowflake style trace id.
 - Fixed a bug in `ai_complete` where `model_parameters` and `response_format` values containing single quotes would generate malformed SQL.
 
+#### Improvements
+
+- Use internal describe to get return type when executing a stored procedure.
+
 ## 1.47.0 (2026-03-05)
 
 ### Snowpark Python API Updates
