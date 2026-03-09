@@ -57,12 +57,51 @@ def replace_entity(match: re.Match) -> str:
         return match.group(0)
 
 
+_COLON_PLACEHOLDER = "\x00COLON\x00"
+
+
+def _escape_colons_in_quotes(schema_str: str) -> str:
+    """Replace colons inside double-quoted identifiers with a placeholder.
+
+    The server-side type_utils.find_top_level_colon does not skip colons inside
+    double-quoted identifiers, so a field like ``"px:name": string`` gets split at
+    the wrong colon.  By replacing those colons with a placeholder, we let the existing
+    parser find the correct top-level colon that separates the field name from its type.
+    """
+    result = []
+    in_quotes = False
+    for ch in schema_str:
+        if ch == '"':
+            in_quotes = not in_quotes
+            result.append(ch)
+        elif ch == ":" and in_quotes:
+            result.append(_COLON_PLACEHOLDER)
+        else:
+            result.append(ch)
+    return "".join(result)
+
+
+def _restore_colons_in_template(template: Optional[dict]) -> Optional[dict]:
+    """Recursively restore colon placeholders back to real colons in template keys."""
+    if template is None:
+        return None
+    restored: Dict[str, Any] = {}
+    for key, value in template.items():
+        real_key = key.replace(_COLON_PLACEHOLDER, ":")
+        if isinstance(value, dict):
+            restored[real_key] = _restore_colons_in_template(value)
+        else:
+            restored[real_key] = value
+    return restored
+
+
 def schema_string_to_result_dict_and_struct_type(schema_string: str) -> Optional[dict]:
     if schema_string == "":
         return None
-    schema = type_string_to_type_object(schema_string)
-
-    return struct_type_to_result_template(schema)
+    safe_string = _escape_colons_in_quotes(schema_string)
+    schema = type_string_to_type_object(safe_string)
+    template = struct_type_to_result_template(schema)
+    return _restore_colons_in_template(template)
 
 
 def struct_type_to_result_template(dt: DataType) -> Optional[dict]:

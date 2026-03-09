@@ -8,6 +8,7 @@
 
 - Fixed a bug in `Session.client_telemetry` that trace does not have snowflake style trace id.
 - Fixed a bug in `ai_complete` where `model_parameters` and `response_format` values containing single quotes would generate malformed SQL.
+- Fixed a bug in `DataFrameReader.xml()` where reading XML with a custom schema whose field names contain colons (e.g., `px:name`) raised a `SnowparkColumnException`.
 
 ## 1.47.0 (2026-03-05)
 

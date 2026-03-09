@@ -25,6 +25,9 @@ from snowflake.snowpark._internal.xml_reader import (
     DEFAULT_CHUNK_SIZE,
     struct_type_to_result_template,
     schema_string_to_result_dict_and_struct_type,
+    _escape_colons_in_quotes,
+    _restore_colons_in_template,
+    _COLON_PLACEHOLDER,
 )
 from snowflake.snowpark.types import (
     StructType,
@@ -991,3 +994,85 @@ def test_user_schema_value_tag():
     res = element_to_dict_or_str(element, result_template=result_template)
     assert result_template == {"NUM": None, "STR1": None, "STR2": None, "STR3": None}
     assert res == {"NUM": "1", "STR1": "NULL", "STR2": None, "STR3": "xxx"}
+
+
+def test_escape_colons_in_quotes():
+    s = '"px:name": string'
+    escaped = _escape_colons_in_quotes(s)
+    assert escaped.count(":") == 1
+    assert _COLON_PLACEHOLDER in escaped
+
+    s = '"px:name": string, "px:value": string'
+    escaped = _escape_colons_in_quotes(s)
+    assert escaped.count(":") == 2
+    assert escaped.count(_COLON_PLACEHOLDER) == 2
+
+    s = 'struct<"px:name": string, "detail": struct<"px:sub": string>>'
+    escaped = _escape_colons_in_quotes(s)
+    assert escaped.count(_COLON_PLACEHOLDER) == 2
+    assert escaped.count(":") == 3
+
+    s = '"Author": string, "Title": string'
+    assert _escape_colons_in_quotes(s) == s
+    assert _escape_colons_in_quotes("") == ""
+    assert _escape_colons_in_quotes("a: int, b: string") == "a: int, b: string"
+
+
+def test_restore_colons_in_template():
+    assert _restore_colons_in_template(None) is None
+    assert _restore_colons_in_template({"Author": None}) == {"Author": None}
+
+    # Flat
+    template = {
+        f"px{_COLON_PLACEHOLDER}name": None,
+        f"px{_COLON_PLACEHOLDER}value": None,
+    }
+    assert _restore_colons_in_template(template) == {
+        "px:name": None,
+        "px:value": None,
+    }
+
+    # Nested
+    template = {
+        f"eq{_COLON_PLACEHOLDER}event": {
+            f"eq{_COLON_PLACEHOLDER}sub-id": None,
+        },
+        "plain": None,
+    }
+    assert _restore_colons_in_template(template) == {
+        "eq:event": {"eq:sub-id": None},
+        "plain": None,
+    }
+
+
+def test_schema_string_round_trip_with_colons():
+    # Flat
+    schema_str = 'struct<"px:name": string, "px:value": string>'
+    assert schema_string_to_result_dict_and_struct_type(schema_str) == {
+        "px:name": None,
+        "px:value": None,
+    }
+
+    # Nested
+    schema_str = (
+        'struct<"eq:event-id": string,' '"eq:detail": struct<"eq:sub-id": string>>'
+    )
+    assert schema_string_to_result_dict_and_struct_type(schema_str) == {
+        "eq:event-id": None,
+        "eq:detail": {"eq:sub-id": None},
+    }
+
+    # Mixed
+    schema_str = 'struct<"px:name": string, "Title": string, price: double>'
+    assert schema_string_to_result_dict_and_struct_type(schema_str) == {
+        "px:name": None,
+        "Title": None,
+        "PRICE": None,
+    }
+
+    # No colon fields
+    schema_str = 'struct<"Author": string, "TITLE": string>'
+    assert schema_string_to_result_dict_and_struct_type(schema_str) == {
+        "Author": None,
+        "TITLE": None,
+    }
