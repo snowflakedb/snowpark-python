@@ -1,22 +1,45 @@
-name: Test with Universal Driver
+name: Run UD tests (manual)
 
 on:
   workflow_dispatch:
     inputs:
       universal_driver_ref:
         description: 'universal-driver branch/tag/SHA'
+        required: false
         default: 'main'
-  schedule:
-    - cron: '0 6 * * *'
+        type: string
+      python-version:
+        description: 'Python version'
+        required: false
+        default: '3.10'
+        type: choice
+        options:
+          - '3.10'
+          - '3.11'
+          - '3.12'
+          - '3.13'
+      cloud-provider:
+        description: 'Cloud provider'
+        required: false
+        default: 'aws'
+        type: choice
+        options:
+          - 'aws'
+          - 'azure'
+          - 'gcp'
+
+permissions:
+  contents: read
 
 jobs:
   build-universal-driver:
-    name: Build Universal Driver Wheel
+    name: Build UD wheel (${{ inputs.universal_driver_ref || 'main' }})
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true  # resolves ../universal-driver relative URL automatically
+          submodules: true
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -30,16 +53,13 @@ jobs:
             ~/.cargo/git
             universal-driver/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('universal-driver/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          restore-keys: ${{ runner.os }}-cargo-
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: ${{ inputs.python-version || '3.10' }}
 
       - uses: astral-sh/setup-uv@v6
-        with:
-          version: "latest"
 
       - name: Build UD wheel
         working-directory: universal-driver/python
@@ -53,41 +73,29 @@ jobs:
           path: universal-driver/python/dist/*.whl
 
   test:
-    name: Test py-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+    name: UD Test py${{ inputs.python-version || '3.10' }}-${{ inputs.cloud-provider || 'aws' }} (${{ inputs.universal_driver_ref || 'main' }})
     needs: build-universal-driver
     runs-on: ubuntu-latest-64-cores
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - python-version: "3.10"
-            cloud-provider: aws
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          persist-credentials: false
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
         with:
-          version: "latest"
+          python-version: ${{ inputs.python-version || '3.10' }}
 
-      - name: Display Python version
-        run: python -c "import sys; print(sys.version)"
+      - run: python -c "import sys; print(sys.version)"
+
+      - uses: astral-sh/setup-uv@v6
 
       - name: Decrypt parameters.py
-        shell: bash
         run: .github/scripts/decrypt_parameters.sh
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
-          CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+          CLOUD_PROVIDER: ${{ inputs.cloud-provider || 'aws' }}
 
       - name: Install protoc
-        shell: bash
         run: .github/scripts/install_protoc.sh
 
       - uses: actions/download-artifact@v4
@@ -95,8 +103,7 @@ jobs:
           name: universal-driver-wheel
           path: ud-dist
 
-      - name: Show downloaded wheel
-        run: ls -lh ud-dist/
+      - run: ls -lh ud-dist/
 
       - name: Install snowpark + swap connector
         run: |
@@ -119,15 +126,15 @@ jobs:
       - name: Run integration tests
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
+          cloud_provider: ${{ inputs.cloud-provider || 'aws' }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
 
       - name: Run datasource tests
         run: python -m tox -e datasource
         env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
+          cloud_provider: ${{ inputs.cloud-provider || 'aws' }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1

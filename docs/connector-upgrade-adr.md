@@ -78,14 +78,17 @@ uv pip install <universal-driver-wheel>
 
 ### 2026-03-09 — GitHub Actions workflow
 
-**Decision:** Created dedicated workflow `.github/workflows/test-with-universal-driver.yml`.
+**Decision:** Created dedicated workflow `.github/workflows/test-with-universal-driver.yml`. Revised to `workflow_dispatch`-only (no nightly schedule), following the snowflake-cli `ud-manual-tests.yaml` pattern.
 
 **Key aspects:**
+- Workflow name: `Run UD tests (manual)`. Triggered exclusively via `workflow_dispatch` — no nightly cron.
+- Inputs: `universal_driver_ref` (branch/tag/SHA, default `main`), `python-version` (choice: 3.10/3.11/3.12/3.13, default 3.10), `cloud-provider` (choice: aws/azure/gcp, default aws).
+- `permissions: contents: read` and `persist-credentials: false` on all checkouts.
 - Builds the UD wheel from source in CI using Rust 1.89.0 + Cython + hatchling.
 - Caches Cargo registry and `universal-driver/target/` keyed on `Cargo.lock` hash for speed.
 - Uses the same `decrypt_parameters.sh` script as the existing precommit workflow so datasource tests receive real credentials.
 - Runs the same `tox -e py<ver>-notdoctest-ci` and `tox -e datasource` steps as the existing precommit.
-- Triggered on `workflow_dispatch` (with configurable `universal_driver_ref`) and on a nightly schedule (`0 6 * * *`).
+- Two-job split (build wheel → test) is kept because Rust compilation is expensive and reusable; snowflake-cli's single-job approach works because it installs via `git+https://...` inline rather than pre-building.
 
 ---
 
