@@ -1,6 +1,8 @@
 name: Run UD tests (manual)
 
 on:
+  #  TODO: remove when sure its passing - to be kept as manually run
+  pull_request:
   workflow_dispatch:
     inputs:
       universal_driver_ref:
