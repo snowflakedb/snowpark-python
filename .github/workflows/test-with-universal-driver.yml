@@ -105,7 +105,12 @@ jobs:
           name: universal-driver-wheel
           path: ud-dist
 
-      - run: ls -lh ud-dist/
+      - name: Resolve UD wheel path
+        id: ud-wheel
+        run: |
+          WHEEL=$(ls ud-dist/*.whl | head -1)
+          echo "path=${WHEEL}" >> "$GITHUB_OUTPUT"
+          echo "Using UD wheel: ${WHEEL}"
 
       - name: Install tox
         run: uv pip install tox --system
@@ -123,7 +128,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
           cloud_provider: ${{ inputs.cloud-provider || 'aws' }}
-          ud_connector_path: ud-dist/snowflake_connector_python_ud-2026.0.0-py3-none-any.whl
+          ud_connector_path: ${{ steps.ud-wheel.outputs.path }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
 
@@ -132,6 +137,6 @@ jobs:
         env:
           PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
           cloud_provider: ${{ inputs.cloud-provider || 'aws' }}
-          ud_connector_path: ud-dist/snowflake_connector_python_ud-2026.0.0-py3-none-any.whl
+          ud_connector_path: ${{ steps.ud-wheel.outputs.path }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
