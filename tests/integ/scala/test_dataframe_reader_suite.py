@@ -2444,10 +2444,10 @@ def test_use_relaxed_types_json(session):
     ndjson_blob = "\n".join([json.dumps({"x": i}) for i in range(nrows)])
 
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".ndjson") as file:
+        filename = file.name
         file.write(ndjson_blob)
         file.flush()
         stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
-        filename = file.name
         try:
             Utils.create_stage(session, stage_name, is_temporary=True)
             session.file.put(
@@ -2467,9 +2467,9 @@ def test_use_relaxed_types_json(session):
                 [StructField('"x"', DoubleType(), nullable=True)]
             )
         finally:
-            if os.path.exists(filename):
-                os.remove(filename)
             Utils.drop_stage(session, stage_name)
+    if os.path.exists(filename):
+        os.remove(filename)
 
 
 @pytest.mark.skipif(
