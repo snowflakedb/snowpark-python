@@ -12,6 +12,10 @@
 - Fixed a bug when saving a fdn table into an iceberg table in overwrite mode, error is raised because `StringType` is saved in wrong length.
 - Fixed a bug in `ai_complete` where `model_parameters` and `response_format` values containing single quotes would generate malformed SQL.
 
+#### Improvements
+
+- Use internal describe to get return type when executing a stored procedure.
+
 ## 1.47.0 (2026-03-05)
 
 ### Snowpark Python API Updates

@@ -774,6 +774,23 @@ def test_get_default_artifact_repository():
 
         assert mocked_run_query.call_count == 1
 
+
+def test_infer_is_return_table_uses_internal_describe():
+    fake_server_connection = mock.create_autospec(ServerConnection)
+    fake_server_connection._thread_safe_session_enabled = True
+    fake_server_connection.run_query = MagicMock(
+        return_value={"data": [("signature", "dummy"), ("returns", "TABLE (A NUMBER)")]}
+    )
+    session = Session(fake_server_connection)
+
+    assert session._infer_is_return_table("test_proc") is True
+
+    fake_server_connection.run_query.assert_called_once_with(
+        "describe procedure TEST_PROC()",
+        _is_internal=True,
+        log_on_exception=False,
+    )
+
     with mock.patch.object(
         session, "_run_query", side_effect=ProgrammingError("Not found")
     ) as mocked_run_query, mock.patch.object(
