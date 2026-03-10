@@ -19,17 +19,26 @@ done
 
 echo "${uv_options[*]}"
 
-# Default to empty, to ensure snowflake_path variable is defined.
+# Default to empty, to ensure variables are defined.
 snowflake_path=${snowflake_path:-""}
+ud_connector_path=${ud_connector_path:-""}
 python_version=$(python -c 'import sys; print(f"cp{sys.version_info.major}{sys.version_info.minor}")')
 
-if [[ -z "${snowflake_path}" ]]; then
-  echo "Using Python Connector from PyPI"
+if [[ -n "${ud_connector_path}" ]]; then
+  echo "Installing Universal Driver connector"
+  echo "UD connector path: ${ud_connector_path}"
+  # Install all deps normally (old connector gets pulled in via snowflake-connector-python>=3.17.0)
   uv pip install ${uv_options[@]}
-else
+  # Remove old connector and install UD in its place
+  uv pip uninstall snowflake-connector-python
+  uv pip install "${ud_connector_path}"
+elif [[ -n "${snowflake_path}" ]]; then
   echo "Installing locally built Python Connector"
   echo "Python Connector path: ${snowflake_path}"
   ls -al ${snowflake_path}
   uv pip install ${snowflake_path}/snowflake_connector_python*${python_version}*.whl
+  uv pip install ${uv_options[@]}
+else
+  echo "Using Python Connector from PyPI"
   uv pip install ${uv_options[@]}
 fi

@@ -107,13 +107,6 @@ jobs:
 
       - run: ls -lh ud-dist/
 
-      - name: Install snowpark + swap connector
-        run: |
-          uv pip install -U setuptools pip wheel --system
-          uv pip install -e ".[development,pandas]" --system
-          uv pip uninstall snowflake-connector-python --system
-          uv pip install ud-dist/*.whl --system
-
       - name: Install tox
         run: uv pip install tox --system
 
@@ -130,6 +123,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
           cloud_provider: ${{ inputs.cloud-provider || 'aws' }}
+          ud_connector_path: ud-dist/snowflake_connector_python_ud-2026.0.0-py3-none-any.whl
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
 
@@ -138,5 +132,6 @@ jobs:
         env:
           PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
           cloud_provider: ${{ inputs.cloud-provider || 'aws' }}
+          ud_connector_path: ud-dist/snowflake_connector_python_ud-2026.0.0-py3-none-any.whl
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1

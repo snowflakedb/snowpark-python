@@ -1,6 +1,8 @@
 name: Run UD tests inline (manual)
 
 on:
+  # TODO: remove pull_request once confirmed working — keep as workflow_dispatch only
+  pull_request:
   workflow_dispatch:
     inputs:
       ud-branch:
@@ -58,18 +60,9 @@ jobs:
       - name: Install protoc
         run: .github/scripts/install_protoc.sh
 
-      - name: Install snowpark
-        run: |
-          uv pip install -U setuptools pip wheel --system
-          uv pip install -e ".[development,pandas]" --system
-
-      - name: Swap connector — install Universal Driver
+      - name: Configure git credentials for universal-driver
         run: |
           git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
-          uv pip uninstall snowflake-connector-python --system
-          uv pip install \
-            "git+https://github.com/snowflakedb/universal-driver@${{ inputs.ud-branch }}#subdirectory=python" \
-            --system
         env:
           GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
 
@@ -87,15 +80,19 @@ jobs:
       - name: Run integration tests
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
-          PYTHON_VERSION: ${{ inputs.python-version }}
-          cloud_provider: ${{ inputs.cloud-provider }}
+          PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
+          cloud_provider: ${{ inputs.cloud-provider || 'aws' }}
+          ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ inputs.ud-branch || 'main' }}#subdirectory=python"
+          GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
 
       - name: Run datasource tests
         run: python -m tox -e datasource
         env:
-          PYTHON_VERSION: ${{ inputs.python-version }}
-          cloud_provider: ${{ inputs.cloud-provider }}
+          PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
+          cloud_provider: ${{ inputs.cloud-provider || 'aws' }}
+          ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ inputs.ud-branch || 'main' }}#subdirectory=python"
+          GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
