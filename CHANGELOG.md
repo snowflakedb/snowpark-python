@@ -4,11 +4,19 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
 #### Bug Fixes
 
 - Fixed a bug in `Session.client_telemetry` that trace does not have snowflake style trace id.
+- Fixed a bug when saving a fdn table into an iceberg table in overwrite mode, error is raised because `StringType` is saved in wrong length.
 - Fixed a bug in `ai_complete` where `model_parameters` and `response_format` values containing single quotes would generate malformed SQL.
+- Fixed a bug in `DataFrameReader.xml()` where reading XML with a custom schema whose field names contain colons (e.g., `px:name`) raised a `SnowparkColumnException`.
 - Fixed a bug in that caused SQL compilation errors in `Session.read.json` when `INFER_SCHEMA` was set to True, and the `USE_RELAXED_TYPES` field of `INFER_SCHEMA_OPTIONS` was also set to True.
+
+#### Improvements
+
+- Use internal describe to get return type when executing a stored procedure.
 
 ## 1.47.0 (2026-03-05)
 

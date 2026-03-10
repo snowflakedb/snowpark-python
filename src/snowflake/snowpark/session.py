@@ -4509,10 +4509,11 @@ class Session:
             # describe procedure returns two column table with columns - property and value
             # the second row in the sproc_desc is property=returns and value=<return type of procedure>
             # when no procedure of the signature is found, SQL exception is raised
-            sproc_desc = self._run_query(
+            sproc_desc = self._conn.run_query(
                 f"describe procedure {func_signature}",
+                _is_internal=True,
                 log_on_exception=log_on_exception,
-            )
+            )["data"]
             return_type = sproc_desc[1][1]
             return return_type.upper().startswith("TABLE")
         except Exception as exc:
