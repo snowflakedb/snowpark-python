@@ -57,6 +57,13 @@ def replace_entity(match: re.Match) -> str:
         return match.group(0)
 
 
+# TODO SNOW-3217320: The escape/restore below works around a bug in
+# type_utils.find_top_level_colon which mis-splits colons inside double-quoted
+# identifiers. The fix for find_top_level_colon will ship in this same release
+# (type_utils.py), but the UDTF resolves snowflake-snowpark-python from
+# Snowflake's Anaconda channel at runtime, so the server may still run an older
+# version. Once the Anaconda-channel version includes the fix, this
+# escape/restore logic becomes a harmless no-op and can be removed.
 _COLON_PLACEHOLDER = "\x00COLON\x00"
 
 

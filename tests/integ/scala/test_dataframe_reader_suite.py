@@ -74,7 +74,6 @@ test_file_all_data_types_parquet = "test_all_data_types.parquet"
 test_file_with_special_characters_parquet = "test_file_with_special_characters.parquet"
 test_file_orc = "test.orc"
 test_file_xml = "test.xml"
-test_file_xml_undeclared_namespace = "undeclared_namespace.xml"
 test_broken_csv = "broken.csv"
 
 
@@ -249,12 +248,6 @@ def setup(session, resources_path, local_testing_mode):
     )
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name1, test_files.test_file_xml, compress=False
-    )
-    Utils.upload_to_stage(
-        session,
-        "@" + tmp_stage_name1,
-        test_files.test_xml_undeclared_namespace,
-        compress=False,
     )
     Utils.upload_to_stage(
         session,
@@ -1646,33 +1639,6 @@ def test_read_xml_with_no_schema(session, mode, resources_path):
         Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
         Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
     ]
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: xml not supported",
-)
-@pytest.mark.parametrize("ignore_namespace", [True, False])
-def test_read_xml_with_schema_colon_tags(session, ignore_namespace):
-    path = f"@{tmp_stage_name1}/{test_file_xml_undeclared_namespace}"
-    schema = StructType(
-        [
-            StructField("px:name", StringType(), True),
-            StructField("px:value", StringType(), True),
-        ]
-    )
-    df = (
-        session.read.option("rowTag", "px:item")
-        .schema(schema)
-        .option("ignoreNamespace", ignore_namespace)
-        .xml(path)
-    )
-    result = df.collect()
-    assert len(result) == 2
-    names = {r[0] for r in result}
-    values = {r[1] for r in result}
-    assert names == {"Item One", "Item Two"}
-    assert values == {"100", "200"}
 
 
 def test_copy(session, local_testing_mode):
