@@ -33,9 +33,14 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
+  CLOUD_PROVIDER: ${{ inputs.cloud-provider || 'aws' }}
+  UD_BRANCH: ${{ inputs.ud-branch || 'main' }}
+
 jobs:
   test:
-    name: UD Test py${{ inputs.python-version }}-${{ inputs.cloud-provider }} (${{ inputs.ud-branch }})
+    name: UD Test py${{ inputs.python-version || '3.10' }}-${{ inputs.cloud-provider || 'aws' }} (${{ inputs.ud-branch || 'main' }})
     runs-on: ubuntu-latest-64-cores
 
     steps:
@@ -45,7 +50,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ inputs.python-version }}
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - run: python -c "import sys; print(sys.version)"
 
@@ -55,7 +60,7 @@ jobs:
         run: .github/scripts/decrypt_parameters.sh
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
-          CLOUD_PROVIDER: ${{ inputs.cloud-provider }}
+          CLOUD_PROVIDER: ${{ env.CLOUD_PROVIDER }}
 
       - name: Install protoc
         run: .github/scripts/install_protoc.sh
@@ -80,9 +85,9 @@ jobs:
       - name: Run integration tests
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
-          PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
-          cloud_provider: ${{ inputs.cloud-provider || 'aws' }}
-          ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ inputs.ud-branch || 'main' }}#subdirectory=python"
+          PYTHON_VERSION: ${{ env.PYTHON_VERSION }}
+          cloud_provider: ${{ env.CLOUD_PROVIDER }}
+          ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
           GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
@@ -90,9 +95,9 @@ jobs:
       - name: Run datasource tests
         run: python -m tox -e datasource
         env:
-          PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
-          cloud_provider: ${{ inputs.cloud-provider || 'aws' }}
-          ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ inputs.ud-branch || 'main' }}#subdirectory=python"
+          PYTHON_VERSION: ${{ env.PYTHON_VERSION }}
+          cloud_provider: ${{ env.CLOUD_PROVIDER }}
+          ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
           GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
