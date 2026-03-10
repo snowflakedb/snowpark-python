@@ -3480,213 +3480,435 @@ def test_show_interval_formatting(session):
     )
 
 
-@pytest.mark.skipif(
+_SKIP_LOCAL_TESTING_DECIMAL = pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="Local testing mock does not normalize Decimal scale to match DecimalType",
     run=False,
 )
-def test_show_decimal_scientific_notation(session):
-    """Verify that decimal values in scientific notation are displayed as plain numbers."""
 
-    # Small, large, and normal Decimal values across multiple columns
-    schema_multi = StructType(
-        [
-            StructField("SMALL_VAL", DecimalType(38, 22)),
-            StructField("LARGE_VAL", DecimalType(38, 0)),
-            StructField("NORMAL_VAL", DecimalType(38, 3)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("1E-10"), Decimal("1250000000000000"), Decimal("3.14")],
-            [Decimal("9.99E-20"), Decimal("500000000"), Decimal("-0.001")],
-            [Decimal("-1E-5"), Decimal("-2500000000000"), Decimal("0")],
-            [Decimal("0"), Decimal("1"), Decimal("0.1")],
-        ],
-        schema=schema_multi,
-    )
+
+@_SKIP_LOCAL_TESTING_DECIMAL
+@pytest.mark.parametrize(
+    "schema, data, expected",
+    [
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 15))]),
+            [
+                [Decimal("0.000000000000001")],
+                [Decimal("-0.000000000000001")],
+                [Decimal("-0.000000000000001")],
+            ],
+            """\
+            +------------------+
+            |"VAL"             |
+            +------------------+
+            |0.000000000000001 |
+            |-0.000000000000001|
+            |-0.000000000000001|
+            +------------------+
+            """,
+            id="positive_and_negative_small_p38_s15",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 30))]),
+            [
+                [Decimal("1E-30")],
+                [Decimal("9.999999999E-15")],
+                [Decimal("1.23456789012345E-10")],
+            ],
+            """\
+            +--------------------------------+
+            |"VAL"                           |
+            +--------------------------------+
+            |0.000000000000000000000000000001|
+            |0.000000000000009999999999000000|
+            |0.000000000123456789012345000000|
+            +--------------------------------+
+            """,
+            id="extreme_precision_p38_s30",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 0))]),
+            [
+                [Decimal("1000000000000000000000000000000")],
+                [Decimal("-9999999999000000")],
+                [Decimal("12345678901")],
+            ],
+            """\
+            +-------------------------------+
+            |"VAL"                          |
+            +-------------------------------+
+            |1000000000000000000000000000000|
+            |-9999999999000000              |
+            |12345678901                    |
+            +-------------------------------+
+            """,
+            id="large_whole_numbers_p38_s0",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 10))]),
+            [
+                [Decimal("123.456")],
+                [Decimal("-987.654321")],
+                [Decimal("0")],
+                [Decimal("0.0000000001")],
+                [Decimal("-0.0000000001")],
+            ],
+            """\
+            +---------------+
+            |"VAL"          |
+            +---------------+
+            |123.4560000000 |
+            |-987.6543210000|
+            |0.0000000000   |
+            |0.0000000001   |
+            |-0.0000000001  |
+            +---------------+
+            """,
+            id="mixed_positive_negative_zero_p38_s10",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 20))]),
+            [
+                [Decimal("0.1")],
+                [Decimal("0.00001")],
+                [Decimal("0.0000000001")],
+                [Decimal("0.000000000000001")],
+                [Decimal("10")],
+                [Decimal("100000")],
+                [Decimal("10000000000")],
+            ],
+            """\
+            +--------------------------------+
+            |"VAL"                           |
+            +--------------------------------+
+            |0.10000000000000000000          |
+            |0.00001000000000000000          |
+            |0.00000000010000000000          |
+            |0.00000000000000100000          |
+            |10.00000000000000000000         |
+            |100000.00000000000000000000     |
+            |10000000000.00000000000000000000|
+            +--------------------------------+
+            """,
+            id="wide_magnitude_range_p38_s20",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 0))]),
+            [
+                [Decimal("1E+5")],
+                [Decimal("2.5E+8")],
+                [Decimal("1.25E+15")],
+                [Decimal("-9.99E+10")],
+                [Decimal("1E+30")],
+            ],
+            """\
+            +-------------------------------+
+            |"VAL"                          |
+            +-------------------------------+
+            |100000                         |
+            |250000000                      |
+            |1250000000000000               |
+            |-99900000000                   |
+            |1000000000000000000000000000000|
+            +-------------------------------+
+            """,
+            id="eplus_large_integers_p38_s0",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 4))]),
+            [
+                [Decimal("1.5E+8")],
+                [Decimal("3.14159E+5")],
+                [Decimal("-2.718E+3")],
+                [Decimal("9.99E+1")],
+            ],
+            """\
+            +--------------+
+            |"VAL"         |
+            +--------------+
+            |150000000.0000|
+            |314159.0000   |
+            |-2718.0000    |
+            |99.9000       |
+            +--------------+
+            """,
+            id="eplus_fractional_scale_p38_s4",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 10))]),
+            [
+                [Decimal("1E+5")],
+                [Decimal("1E-5")],
+                [Decimal("2.5E+8")],
+                [Decimal("2.5E-8")],
+                [Decimal("-1E+3")],
+                [Decimal("-1E-3")],
+            ],
+            """\
+            +--------------------+
+            |"VAL"               |
+            +--------------------+
+            |100000.0000000000   |
+            |0.0000100000        |
+            |250000000.0000000000|
+            |0.0000000250        |
+            |-1000.0000000000    |
+            |-0.0010000000       |
+            +--------------------+
+            """,
+            id="mixed_eplus_eminus_p38_s10",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(5, 2))]),
+            [
+                [Decimal("9.9999E+2")],
+                [Decimal("-9.9999E+2")],
+                [Decimal("1E-2")],
+                [Decimal("0E+0")],
+                [Decimal("1.234E+2")],
+            ],
+            """\
+            +-------+
+            |"VAL"  |
+            +-------+
+            |999.99 |
+            |-999.99|
+            |0.01   |
+            |0.00   |
+            |123.40 |
+            +-------+
+            """,
+            id="low_precision_p5_s2",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(10, 4))]),
+            [
+                [Decimal("1.234567890E+5")],
+                [Decimal("-9.99999999E+4")],
+                [Decimal("1E-4")],
+                [Decimal("1E+5")],
+                [Decimal("1E-4")],
+            ],
+            """\
+            +-----------+
+            |"VAL"      |
+            +-----------+
+            |123456.7890|
+            |-99999.9999|
+            |0.0001     |
+            |100000.0000|
+            |0.0001     |
+            +-----------+
+            """,
+            id="medium_precision_p10_s4",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(7, 5))]),
+            [
+                [Decimal("9.999999E+1")],
+                [Decimal("-9.999999E+1")],
+                [Decimal("1E-5")],
+                [Decimal("5.012345E+1")],
+            ],
+            """\
+            +---------+
+            |"VAL"    |
+            +---------+
+            |99.99999 |
+            |-99.99999|
+            |0.00001  |
+            |50.12345 |
+            +---------+
+            """,
+            id="tight_fit_p7_s5",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(6, 6))]),
+            [
+                [Decimal("1.23456E-1")],
+                [Decimal("-1E-6")],
+                [Decimal("9.99999E-1")],
+                [Decimal("0E-6")],
+            ],
+            """\
+            +---------+
+            |"VAL"    |
+            +---------+
+            |0.123456 |
+            |-0.000001|
+            |0.999999 |
+            |0.000000 |
+            +---------+
+            """,
+            id="precision_equals_scale_p6_s6",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(3, 0))]),
+            [
+                [Decimal("9.99E+2")],
+                [Decimal("-9.99E+2")],
+                [Decimal("0E+0")],
+                [Decimal("4.2E+1")],
+            ],
+            """\
+            +-----+
+            |"VAL"|
+            +-----+
+            |999  |
+            |-999 |
+            |0    |
+            |42   |
+            +-----+
+            """,
+            id="small_integer_p3_s0",
+        ),
+    ],
+)
+def test_show_decimal_scientific_notation_single_column(
+    session, schema, data, expected
+):
+    """Verify single-column decimal values in scientific notation display as plain numbers."""
+    df = session.create_dataframe(data, schema=schema)
     result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +-------------------------+----------------+------------+
-        |"SMALL_VAL"              |"LARGE_VAL"     |"NORMAL_VAL"|
-        +-------------------------+----------------+------------+
-        |0.0000000001000000000000 |1250000000000000|3.140       |
-        |0.0000000000000000000999 |500000000       |-0.001      |
-        |-0.0000100000000000000000|-2500000000000  |0.000       |
-        |0.0000000000000000000000 |1               |0.100       |
-        +-------------------------+----------------+------------+
-        """
-    ), f"Unexpected output:\n{result}"
+    assert result == dedent(expected), f"Unexpected output:\n{result}"
 
-    # Negative and positive small decimals
-    schema_sign = StructType(
-        [
-            StructField("VAL", DecimalType(38, 15)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("0.000000000000001")],
-            [Decimal("-0.000000000000001")],
-            [Decimal("-0.000000000000001")],
-        ],
-        schema=schema_sign,
-    )
+
+@_SKIP_LOCAL_TESTING_DECIMAL
+@pytest.mark.parametrize(
+    "schema, data, expected",
+    [
+        pytest.param(
+            StructType(
+                [
+                    StructField("SMALL_VAL", DecimalType(38, 22)),
+                    StructField("LARGE_VAL", DecimalType(38, 0)),
+                    StructField("NORMAL_VAL", DecimalType(38, 3)),
+                ]
+            ),
+            [
+                [Decimal("1E-10"), Decimal("1250000000000000"), Decimal("3.14")],
+                [Decimal("9.99E-20"), Decimal("500000000"), Decimal("-0.001")],
+                [Decimal("-1E-5"), Decimal("-2500000000000"), Decimal("0")],
+                [Decimal("0"), Decimal("1"), Decimal("0.1")],
+            ],
+            """\
+            +-------------------------+----------------+------------+
+            |"SMALL_VAL"              |"LARGE_VAL"     |"NORMAL_VAL"|
+            +-------------------------+----------------+------------+
+            |0.0000000001000000000000 |1250000000000000|3.140       |
+            |0.0000000000000000000999 |500000000       |-0.001      |
+            |-0.0000100000000000000000|-2500000000000  |0.000       |
+            |0.0000000000000000000000 |1               |0.100       |
+            +-------------------------+----------------+------------+
+            """,
+            id="small_large_normal_p38",
+        ),
+        pytest.param(
+            StructType(
+                [
+                    StructField("CAST_DECIMAL", DecimalType(38, 20)),
+                    StructField("CAST_LARGE", DecimalType(38, 2)),
+                    StructField("CAST_ZERO", DecimalType(38, 10)),
+                ]
+            ),
+            [
+                [Decimal("0.0000000001"), Decimal("150000000"), Decimal("0")],
+            ],
+            """\
+            +----------------------+------------+------------+
+            |"CAST_DECIMAL"        |"CAST_LARGE"|"CAST_ZERO" |
+            +----------------------+------------+------------+
+            |0.00000000010000000000|150000000.00|0.0000000000|
+            +----------------------+------------+------------+
+            """,
+            id="cast_like_behavior_p38",
+        ),
+        pytest.param(
+            StructType(
+                [
+                    StructField("ZERO_S0", DecimalType(38, 0)),
+                    StructField("ZERO_S5", DecimalType(38, 5)),
+                    StructField("ZERO_S10", DecimalType(38, 10)),
+                ]
+            ),
+            [
+                [Decimal("0"), Decimal("0"), Decimal("0")],
+            ],
+            """\
+            +---------+---------+------------+
+            |"ZERO_S0"|"ZERO_S5"|"ZERO_S10"  |
+            +---------+---------+------------+
+            |0        |0.00000  |0.0000000000|
+            +---------+---------+------------+
+            """,
+            id="zeros_different_scales_p38",
+        ),
+        pytest.param(
+            StructType(
+                [
+                    StructField("SMALL", DecimalType(38, 15)),
+                    StructField("LARGE", DecimalType(38, 0)),
+                    StructField("MID", DecimalType(38, 6)),
+                ]
+            ),
+            [
+                [Decimal("1E-10"), Decimal("1E+10"), Decimal("1E+3")],
+                [Decimal("5.5E-8"), Decimal("5.5E+8"), Decimal("5.5E+2")],
+                [Decimal("-3.14E-5"), Decimal("-3.14E+5"), Decimal("-3.14E+1")],
+            ],
+            """\
+            +------------------+-----------+-----------+
+            |"SMALL"           |"LARGE"    |"MID"      |
+            +------------------+-----------+-----------+
+            |0.000000000100000 |10000000000|1000.000000|
+            |0.000000055000000 |550000000  |550.000000 |
+            |-0.000031400000000|-314000    |-31.400000 |
+            +------------------+-----------+-----------+
+            """,
+            id="eplus_multi_column_p38",
+        ),
+        pytest.param(
+            StructType(
+                [
+                    StructField("PRICE", DecimalType(8, 2)),
+                    StructField("QUANTITY", DecimalType(5, 0)),
+                    StructField("RATE", DecimalType(12, 8)),
+                ]
+            ),
+            [
+                [Decimal("1.234567E+4"), Decimal("1E+2"), Decimal("1.2345E-4")],
+                [
+                    Decimal("-9.99999E+3"),
+                    Decimal("9.9999E+4"),
+                    Decimal("1.23456789012E+3"),
+                ],
+                [Decimal("1E-2"), Decimal("1E+0"), Decimal("1E-8")],
+            ],
+            """\
+            +--------+----------+-------------+
+            |"PRICE" |"QUANTITY"|"RATE"       |
+            +--------+----------+-------------+
+            |12345.67|100       |0.00012345   |
+            |-9999.99|99999     |1234.56789012|
+            |0.01    |1         |0.00000001   |
+            +--------+----------+-------------+
+            """,
+            id="mixed_precisions_p8_p5_p12",
+        ),
+    ],
+)
+def test_show_decimal_scientific_notation_multi_column(session, schema, data, expected):
+    """Verify multi-column decimal values in scientific notation display as plain numbers."""
+    df = session.create_dataframe(data, schema=schema)
     result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +------------------+
-        |"VAL"             |
-        +------------------+
-        |0.000000000000001 |
-        |-0.000000000000001|
-        |-0.000000000000001|
-        +------------------+
-        """
-    ), f"Unexpected output:\n{result}"
+    assert result == dedent(expected), f"Unexpected output:\n{result}"
 
-    # Extreme precision: very small and very large values
-    schema_extreme = StructType(
-        [
-            StructField("VAL", DecimalType(38, 30)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("1E-30")],
-            [Decimal("9.999999999E-15")],
-            [Decimal("1.23456789012345E-10")],
-        ],
-        schema=schema_extreme,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +--------------------------------+
-        |"VAL"                           |
-        +--------------------------------+
-        |0.000000000000000000000000000001|
-        |0.000000000000009999999999000000|
-        |0.000000000123456789012345000000|
-        +--------------------------------+
-        """
-    ), f"Unexpected output:\n{result}"
 
-    # Large whole-number decimals (scale=0)
-    schema_large = StructType(
-        [
-            StructField("VAL", DecimalType(38, 0)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("1000000000000000000000000000000")],
-            [Decimal("-9999999999000000")],
-            [Decimal("12345678901")],
-        ],
-        schema=schema_large,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +-------------------------------+
-        |"VAL"                          |
-        +-------------------------------+
-        |1000000000000000000000000000000|
-        |-9999999999000000              |
-        |12345678901                    |
-        +-------------------------------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # Explicit precision and scale with CAST-like behavior
-    schema_cast = StructType(
-        [
-            StructField("CAST_DECIMAL", DecimalType(38, 20)),
-            StructField("CAST_LARGE", DecimalType(38, 2)),
-            StructField("CAST_ZERO", DecimalType(38, 10)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("0.0000000001"), Decimal("150000000"), Decimal("0")],
-        ],
-        schema=schema_cast,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +----------------------+------------+------------+
-        |"CAST_DECIMAL"        |"CAST_LARGE"|"CAST_ZERO" |
-        +----------------------+------------+------------+
-        |0.00000000010000000000|150000000.00|0.0000000000|
-        +----------------------+------------+------------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # Zero in different scales
-    schema_zeros = StructType(
-        [
-            StructField("ZERO_S0", DecimalType(38, 0)),
-            StructField("ZERO_S5", DecimalType(38, 5)),
-            StructField("ZERO_S10", DecimalType(38, 10)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("0"), Decimal("0"), Decimal("0")],
-        ],
-        schema=schema_zeros,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +---------+---------+------------+
-        |"ZERO_S0"|"ZERO_S5"|"ZERO_S10"  |
-        +---------+---------+------------+
-        |0        |0.00000  |0.0000000000|
-        +---------+---------+------------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # Mixed positive, negative, and zero in a single column
-    schema_mixed = StructType(
-        [
-            StructField("VAL", DecimalType(38, 10)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("123.456")],
-            [Decimal("-987.654321")],
-            [Decimal("0")],
-            [Decimal("0.0000000001")],
-            [Decimal("-0.0000000001")],
-        ],
-        schema=schema_mixed,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +---------------+
-        |"VAL"          |
-        +---------------+
-        |123.4560000000 |
-        |-987.6543210000|
-        |0.0000000000   |
-        |0.0000000001   |
-        |-0.0000000001  |
-        +---------------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # Decimals with NULLs mixed in
-    schema_nulls = StructType(
-        [
-            StructField("VAL", DecimalType(38, 10)),
-        ]
-    )
+@_SKIP_LOCAL_TESTING_DECIMAL
+def test_show_decimal_scientific_notation_with_nulls(session):
+    """Verify decimal display when NULLs are mixed into the data."""
+    schema = StructType([StructField("VAL", DecimalType(38, 10))])
     df = session.create_dataframe(
         [
             [Decimal("0.0000000001")],
@@ -3695,7 +3917,7 @@ def test_show_decimal_scientific_notation(session):
             [None],
             [Decimal("-0.00000055")],
         ],
-        schema=schema_nulls,
+        schema=schema,
     )
     result = df._show_string_spark(truncate=False)
     assert result == dedent(
@@ -3709,341 +3931,6 @@ def test_show_decimal_scientific_notation(session):
         |NULL                  |
         |-0.0000005500         |
         +----------------------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # Wide range of magnitudes in a single column
-    schema_range = StructType(
-        [
-            StructField("VAL", DecimalType(38, 20)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("0.1")],
-            [Decimal("0.00001")],
-            [Decimal("0.0000000001")],
-            [Decimal("0.000000000000001")],
-            [Decimal("10")],
-            [Decimal("100000")],
-            [Decimal("10000000000")],
-        ],
-        schema=schema_range,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +--------------------------------+
-        |"VAL"                           |
-        +--------------------------------+
-        |0.10000000000000000000          |
-        |0.00001000000000000000          |
-        |0.00000000010000000000          |
-        |0.00000000000000100000          |
-        |10.00000000000000000000         |
-        |100000.00000000000000000000     |
-        |10000000000.00000000000000000000|
-        +--------------------------------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # E+ notation: large integer values (scale=0)
-    schema_eplus_int = StructType(
-        [
-            StructField("VAL", DecimalType(38, 0)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("1E+5")],
-            [Decimal("2.5E+8")],
-            [Decimal("1.25E+15")],
-            [Decimal("-9.99E+10")],
-            [Decimal("1E+30")],
-        ],
-        schema=schema_eplus_int,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +-------------------------------+
-        |"VAL"                          |
-        +-------------------------------+
-        |100000                         |
-        |250000000                      |
-        |1250000000000000               |
-        |-99900000000                   |
-        |1000000000000000000000000000000|
-        +-------------------------------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # E+ notation with fractional scale
-    schema_eplus_frac = StructType(
-        [
-            StructField("VAL", DecimalType(38, 4)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("1.5E+8")],
-            [Decimal("3.14159E+5")],
-            [Decimal("-2.718E+3")],
-            [Decimal("9.99E+1")],
-        ],
-        schema=schema_eplus_frac,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +--------------+
-        |"VAL"         |
-        +--------------+
-        |150000000.0000|
-        |314159.0000   |
-        |-2718.0000    |
-        |99.9000       |
-        +--------------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # Mixed E+ and E- in the same column
-    schema_eplus_eminus = StructType(
-        [
-            StructField("VAL", DecimalType(38, 10)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("1E+5")],
-            [Decimal("1E-5")],
-            [Decimal("2.5E+8")],
-            [Decimal("2.5E-8")],
-            [Decimal("-1E+3")],
-            [Decimal("-1E-3")],
-        ],
-        schema=schema_eplus_eminus,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +--------------------+
-        |"VAL"               |
-        +--------------------+
-        |100000.0000000000   |
-        |0.0000100000        |
-        |250000000.0000000000|
-        |0.0000000250        |
-        |-1000.0000000000    |
-        |-0.0010000000       |
-        +--------------------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # E+ in multi-column layout
-    schema_eplus_multi = StructType(
-        [
-            StructField("SMALL", DecimalType(38, 15)),
-            StructField("LARGE", DecimalType(38, 0)),
-            StructField("MID", DecimalType(38, 6)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("1E-10"), Decimal("1E+10"), Decimal("1E+3")],
-            [Decimal("5.5E-8"), Decimal("5.5E+8"), Decimal("5.5E+2")],
-            [Decimal("-3.14E-5"), Decimal("-3.14E+5"), Decimal("-3.14E+1")],
-        ],
-        schema=schema_eplus_multi,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +------------------+-----------+-----------+
-        |"SMALL"           |"LARGE"    |"MID"      |
-        +------------------+-----------+-----------+
-        |0.000000000100000 |10000000000|1000.000000|
-        |0.000000055000000 |550000000  |550.000000 |
-        |-0.000031400000000|-314000    |-31.400000 |
-        +------------------+-----------+-----------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # Low precision: DecimalType(5, 2) — small currency-like values
-    schema_low = StructType(
-        [
-            StructField("VAL", DecimalType(5, 2)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("9.9999E+2")],
-            [Decimal("-9.9999E+2")],
-            [Decimal("1E-2")],
-            [Decimal("0E+0")],
-            [Decimal("1.234E+2")],
-        ],
-        schema=schema_low,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +-------+
-        |"VAL"  |
-        +-------+
-        |999.99 |
-        |-999.99|
-        |0.01   |
-        |0.00   |
-        |123.40 |
-        +-------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # Medium precision: DecimalType(10, 4)
-    schema_med = StructType(
-        [
-            StructField("VAL", DecimalType(10, 4)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("1.234567890E+5")],
-            [Decimal("-9.99999999E+4")],
-            [Decimal("1E-4")],
-            [Decimal("1E+5")],
-            [Decimal("1E-4")],
-        ],
-        schema=schema_med,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +-----------+
-        |"VAL"      |
-        +-----------+
-        |123456.7890|
-        |-99999.9999|
-        |0.0001     |
-        |100000.0000|
-        |0.0001     |
-        +-----------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # Tight-fit precision: DecimalType(7, 5) — value fills all digits
-    schema_tight = StructType(
-        [
-            StructField("VAL", DecimalType(7, 5)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("9.999999E+1")],
-            [Decimal("-9.999999E+1")],
-            [Decimal("1E-5")],
-            [Decimal("5.012345E+1")],
-        ],
-        schema=schema_tight,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +---------+
-        |"VAL"    |
-        +---------+
-        |99.99999 |
-        |-99.99999|
-        |0.00001  |
-        |50.12345 |
-        +---------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # Multi-column with different precisions
-    schema_multi_prec = StructType(
-        [
-            StructField("PRICE", DecimalType(8, 2)),
-            StructField("QUANTITY", DecimalType(5, 0)),
-            StructField("RATE", DecimalType(12, 8)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("1.234567E+4"), Decimal("1E+2"), Decimal("1.2345E-4")],
-            [Decimal("-9.99999E+3"), Decimal("9.9999E+4"), Decimal("1.23456789012E+3")],
-            [Decimal("1E-2"), Decimal("1E+0"), Decimal("1E-8")],
-        ],
-        schema=schema_multi_prec,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +--------+----------+-------------+
-        |"PRICE" |"QUANTITY"|"RATE"       |
-        +--------+----------+-------------+
-        |12345.67|100       |0.00012345   |
-        |-9999.99|99999     |1234.56789012|
-        |0.01    |1         |0.00000001   |
-        +--------+----------+-------------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # Precision equals scale: DecimalType(6, 6) — all fractional
-    schema_all_frac = StructType(
-        [
-            StructField("VAL", DecimalType(6, 6)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("1.23456E-1")],
-            [Decimal("-1E-6")],
-            [Decimal("9.99999E-1")],
-            [Decimal("0E-6")],
-        ],
-        schema=schema_all_frac,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +---------+
-        |"VAL"    |
-        +---------+
-        |0.123456 |
-        |-0.000001|
-        |0.999999 |
-        |0.000000 |
-        +---------+
-        """
-    ), f"Unexpected output:\n{result}"
-
-    # Scale=0 with small precision: DecimalType(3, 0) — pure integers
-    schema_small_int = StructType(
-        [
-            StructField("VAL", DecimalType(3, 0)),
-        ]
-    )
-    df = session.create_dataframe(
-        [
-            [Decimal("9.99E+2")],
-            [Decimal("-9.99E+2")],
-            [Decimal("0E+0")],
-            [Decimal("4.2E+1")],
-        ],
-        schema=schema_small_int,
-    )
-    result = df._show_string_spark(truncate=False)
-    assert result == dedent(
-        """\
-        +-----+
-        |"VAL"|
-        +-----+
-        |999  |
-        |-999 |
-        |0    |
-        |42   |
-        +-----+
         """
     ), f"Unexpected output:\n{result}"
 
