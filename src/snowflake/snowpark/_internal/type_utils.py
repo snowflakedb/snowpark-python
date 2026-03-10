@@ -1250,15 +1250,21 @@ def find_top_level_colon(field_def: str) -> int:
     """
     Returns the index of the first top-level colon in 'field_def',
     or -1 if there is no top-level colon. A colon is considered top-level
-    if it is not enclosed in <...> or (...).
+    if it is not enclosed in <...>, (...), or "...".
 
     Example:
-      'a struct<i: integer>' => returns -1 (colon is nested).
+      'a struct<i: integer>'  => returns -1 (colon is nested).
       'x: struct<i: integer>' => returns index of the colon after 'x'.
+      '"px:name": string'     => returns index of the colon after the closing '"'.
     """
     bracket_depth = 0
+    in_quotes = False
     for i, ch in enumerate(field_def):
-        if ch in ("<", "("):
+        if ch == '"':
+            in_quotes = not in_quotes
+        elif in_quotes:
+            continue
+        elif ch in ("<", "("):
             bracket_depth += 1
         elif ch in (">", ")"):
             bracket_depth -= 1
