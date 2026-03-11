@@ -16,6 +16,16 @@ WHEEL=$(ls "${UD_DIST}"/snowflake_connector_python_ud-*.whl | tail -1)
 echo "Using UD wheel: ${WHEEL}"
 
 cd "${REPO_ROOT}"
+
+# Local-dev workaround: the UD's arrow_stream_iterator.so was compiled against
+# system libstdc++ (GLIBCXX_3.4.29). Under nix Python, pyarrow loads the older
+# nix libstdc++ (gcc 9.3.0) first, making $ORIGIN tricks ineffective. Preloading
+# the system libstdc++ forces the newer version to win the soname race.
+# No-op on Ubuntu CI where nix is absent.
+if [[ -f /usr/lib64/libstdc++.so.6 ]]; then
+  export LD_PRELOAD=/usr/lib64/libstdc++.so.6
+fi
+
 ud_connector_path="${WHEEL}" python -m tox -e "${TOX_ENV}" -- \
   --ignore=tests/integ/modin \
   --ignore=tests/integ/datasource \

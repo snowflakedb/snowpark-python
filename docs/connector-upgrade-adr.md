@@ -92,8 +92,187 @@ uv pip install <universal-driver-wheel>
 
 ---
 
+---
+
+### 2026-03-10 — Tox venv connector swap (root cause + fix)
+
+**Observation:** The earlier connector swap (Phase 3 above) uninstalled the old connector and installed the UD wheel at the system-Python level. This had no effect on tox runs because tox creates its own isolated virtualenv and re-installs all deps from PyPI via `tox_install_cmd.sh`, overwriting the system-level change.
+
+**Conclusion:** The connector swap must happen *inside* the tox venv, not before it.
+
+**Fix — `scripts/tox_install_cmd.sh`:**
+Added a new branch keyed on `ud_connector_path` env var:
+```bash
+if [[ -n "${ud_connector_path}" ]]; then
+  uv pip install ${uv_options[@]}          # install all deps (pulls old connector)
+  uv pip uninstall snowflake-connector-python
+  uv pip install "${ud_connector_path}"    # replace with UD wheel or git+https URL
+fi
+```
+`ud_connector_path` is passed in by the caller (either a local wheel path or a `git+https://` URL). When unset, behaviour is unchanged.
+
+**Fix — `tox.ini`:**
+Added `ud_connector_path` to `passenv` (line ~118) so tox forwards the env var into the venv install step.
+
+**Verification (observation):** After the fix, the tox venv shows `snowflake-connector-python-ud==0.1.0` and the old `snowflake-connector-python` package is absent. Tests proceed until they hit UD API errors rather than silently using the old connector.
+
+---
+
+### 2026-03-10 — CI workflow hardening
+
+**`test-with-universal-driver.yml` changes:**
+
+1. **Dynamic wheel path resolution** — replaced hardcoded `ud-dist/snowflake_connector_python_ud-2026.0.0-py3-none-any.whl` with a step that resolves the path dynamically via `ls ud-dist/*.whl | head -1 → $GITHUB_OUTPUT`. Hardcoded name would break silently when the UD version string changes.
+
+2. **UD ref checkout** — added step to `git -C universal-driver fetch origin && git -C universal-driver checkout origin/${{ inputs.universal_driver_ref }}` when the input is non-empty and non-`main`. Without this, the submodule was always pinned to the committed SHA regardless of the `universal_driver_ref` workflow input.
+
+3. **Connector swap moved into tox** — removed standalone "Install snowpark + swap connector" step; the swap now happens inside tox via `ud_connector_path` passthrough.
+
+**`ud-inline-tests.yml` changes:**
+
+1. **`pull_request` trigger** — added as a secondary trigger (with a TODO comment noting it requires self-hosted runner access). Without a default-value mechanism, the `setup-python` action would receive an empty string for `python-version` on `pull_request` events (no `inputs.*` available), causing it to fall back to the system Python 3.12.3 (externally managed), and `uv pip install` would subsequently fail with `--system` conflicts.
+
+2. **Workflow-level `env:` block** — added to provide defaults for all three matrix dimensions:
+   ```yaml
+   env:
+     PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
+     CLOUD_PROVIDER: ${{ inputs.cloud-provider || 'aws' }}
+     UD_BRANCH: ${{ inputs.ud-branch || 'main' }}
+   ```
+   All steps reference `${{ env.PYTHON_VERSION }}` etc.
+
+3. **Git credentials step** — replaced the "Install snowpark" + "Swap connector" steps with a "Configure git credentials" step that sets up `SNOWFLAKE_GITHUB_TOKEN` for `git+https://` installs. The UD is installed via `ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"` passed into tox.
+
+---
+
+### 2026-03-10 — Compatibility branch selection
+
+**Observation:** The UD `main` branch exposes the new Rust-native API. Several existing Snowflake ecosystem projects (snowflake-cli, snowfort) depend on legacy `snowflake.connector` symbols (`execute_string`, `DictCursor`, `SnowflakeConnection`, `fetchmany`, `config_manager`, `SnowflakeRestful`, `split_statements`, `compat.py`, `constants.py` enums, key-pair auth) that the UD `main` branch does not yet expose.
+
+**Hypothesis (confirmed):** A compatibility-focused UD branch exists that backfills these symbols as thin wrappers over the Rust core.
+
+**Finding:** Branch `turbaszek-ecosystem-compatibility-cli` on `snowflakedb/universal-driver` (24 commits ahead of `main` at time of writing) adds:
+- `execute_string`, `execute_stream`
+- `DictCursor`, `SnowflakeConnection` alias
+- `fetchmany`, `config_manager`, `SnowflakeRestful`, `split_statements`
+- `compat.py`, `constants.py` enums
+- Key-pair auth
+
+**Decision:** Created `snowpark-compatibility` branch in the `universal-driver` submodule, branching from `turbaszek-ecosystem-compatibility-cli`. This is the branch used for all local test runs and future CI targeting. Reason for a separate branch rather than tracking the upstream directly: lets us add snowpark-specific patches without polluting the upstream compat branch.
+
+**Notable difference from `main`:** This branch uses `rustls = { version = "0.23.20", features = ["aws_lc_rs"] }` (same as main, no `"fips"` feature). Also carries `openssl = "0.10.73"` and `jwt = { version = "0.16.0", features = ["openssl"] }` as direct dependencies in `sf_core/Cargo.toml`, which link dynamically against the system's `libssl.so.3`.
+
+---
+
+### 2026-03-10 — Local wheel build: environment issues and fixes
+
+#### Issue 1: FIPS delocator (resolved — not applicable to this branch)
+
+**Hypothesis (wrong):** The `turbaszek-ecosystem-compatibility-cli` branch enables the `fips` feature on `rustls`, pulling in `aws-lc-fips-sys` which requires a Go-based delocator tool. On aarch64 Amazon/Rocky Linux with devtoolset-10 GCC 10.2.1, the delocator produces `parse error near WS` on the generated assembly.
+
+**Correction:** The `snowpark-compatibility` branch (`turbaszek-ecosystem-compatibility-cli` base) does **not** have `"fips"` in `rustls` features and `aws-lc-fips-sys` is absent from `Cargo.lock`. This issue does not apply. The hypothesis was formed while investigating an earlier branch state.
+
+#### Issue 2: `cmake` not found inside `uv run` subprocess
+
+**Observation:** Running `uv run --with hatch ... hatch build` failed with `Missing dependency: cmake`. `/usr/bin/cmake` exists on the system but is not on the `PATH` visible to the `cargo` subprocess spawned from within `uv`'s isolated environment on Rocky Linux 9.7.
+
+**Fix:** Pass `CMAKE=/usr/bin/cmake` as an explicit env var (the `aws-lc-sys` build script checks `$CMAKE` before searching `PATH`). Added to `scripts/build_ud_connector.sh`:
+```bash
+CMAKE="${CMAKE:-$(command -v cmake 2>/dev/null)}" \
+  uv run --with hatch --with cython --with setuptools hatch build
+```
+On systems where cmake is on PATH (e.g. Ubuntu CI), `command -v cmake` resolves it and the env var is a no-op.
+
+**Outcome (observation):** Wheel built successfully:
+```
+dist/snowflake_connector_python_ud-0.1.0-py3-none-any.whl
+```
+Contains `libsf_core.so` (55 MB unstripped release build) and `arrow_stream_iterator.cpython-310-aarch64-linux-gnu.so`. The `py3-none-any` tag is cosmetic — hatchling doesn't auto-tag platform wheels when binaries are injected via build hooks.
+
+#### Issue 3: `libssl.so.3` not found at runtime (OPEN)
+
+**Observation:** After installing the wheel into the tox venv, importing `snowflake.connector` fails with `RuntimeError: Couldn't load core driver dependency`. Root cause: `libsf_core.so` was compiled against system OpenSSL 3.5.1 (`/lib64/libssl.so.3`) because `openssl-sys` detects it via pkg-config. The tox venv uses the nix-managed Python interpreter (`/opt/sfc/python3.10`), which runs with `LD_LIBRARY_PATH` pointing exclusively to nix store paths. Those paths contain only OpenSSL 1.1.x (`libssl.so.1.1`), not 3.x.
+
+**Hypothesis A (tested, failed):** Add `/lib64` to `LD_LIBRARY_PATH`. Result: nix bash (glibc 2.34) collides with system `libc.so.6` (requires GLIBC_2.35) — the two glibc stacks cannot be mixed.
+
+**Hypothesis B (tested, failed):** `OPENSSL_STATIC=1` during cargo build. Result: linker still emits `-Wl,-Bdynamic -lssl -lcrypto`. `OPENSSL_STATIC=1` did not propagate into the `openssl-sys` build script subprocess. Static `.a` files may also be absent.
+
+**Hypothesis C (not yet tested):** `RUSTFLAGS="-C link-arg=-Wl,-rpath,/lib64"` embeds `/lib64` into the `.so` RPATH. Since RPATH is consulted before `LD_LIBRARY_PATH`, this would let nix Python find `libssl.so.3` without mixing glibc stacks.
+
+**Hypothesis D (not yet tested):** Copy `libssl.so.3` and `libcrypto.so.3` from `/lib64` into the wheel's `_core/` directory next to `libsf_core.so`. The existing `$ORIGIN` RPATH would find them. Avoids any rebuild. Requires bundling ~5 MB of system libs in the local wheel; CI wheels are built on Ubuntu where this issue does not arise.
+
+**Open question:** Which of C or D is the right fix? D is simpler for local dev but potentially violates OpenSSL licensing/distribution expectations if the wheel were ever published. C is cleaner but requires a rebuild.
+
+---
+
+---
+
+### 2026-03-11 — Env fixes: libssl.so.3 (resolved), GLIBCXX_3.4.29 (resolved), missing symbols (resolved)
+
+#### libssl.so.3 — Hypothesis D confirmed
+
+**Conclusion:** Copying `/lib64/libssl.so.3` and `/lib64/libcrypto.so.3` into the wheel's `_core/` directory resolves the `RuntimeError: Couldn't load core driver dependency` failure. The `$ORIGIN` RPATH on `libsf_core.so` causes the dynamic linker to find the bundled copies before consulting `LD_LIBRARY_PATH`. Implemented in `scripts/build_ud_connector.sh` as a conditional post-build step (no-op on Ubuntu CI where `libssl.so.3` is on the default search path).
+
+**Note:** `libssl.so.3` and `libcrypto.so.3` require GLIBC up to 2.34; the nix Python uses GLIBC_2.34, so no collision.
+
+#### GLIBCXX_3.4.29 — new blocker (resolved via LD_PRELOAD)
+
+**Observation:** After libssl was fixed, the next error was:
+```
+ImportError: /nix/store/.../gcc-9.3.0-lib/lib/libstdc++.so.6: version 'GLIBCXX_3.4.29' not found
+(required by snowflake/connector/_internal/arrow_stream_iterator.cpython-310-aarch64-linux-gnu.so)
+```
+
+**Root cause (observation):** `arrow_stream_iterator.so` was compiled against the system GCC (GLIBCXX_3.4.29). The nix Python environment loads the nix gcc-9.3.0 libstdc++ first (via pyarrow importing it), which only has GLIBCXX up to 3.4.28. The `$ORIGIN` trick is ineffective here because `libstdc++.so.6` is already loaded in the process image before `arrow_stream_iterator.so` is imported.
+
+**$ORIGIN approach (hypothesis E, tested, failed):** Copying `/usr/lib64/libstdc++.so.6` into `_internal/` alongside the .so did not help — the already-loaded nix version wins the soname race.
+
+**Fix (hypothesis F — confirmed):** `LD_PRELOAD=/usr/lib64/libstdc++.so.6` forces the system libstdc++ to be loaded before the nix Python environment loads its own. The system `libstdc++.so.6` requires GLIBC_2.34 (not 2.35), so no glibc collision occurs. Implemented in `scripts/run_tests_with_ud.sh` (conditional, no-op where `/usr/lib64/libstdc++.so.6` is absent) and `LD_PRELOAD` added to `passenv` in `tox.ini`.
+
+#### Missing Python symbols — resolved
+
+**Observation:** After env fixes, Snowpark could not be imported due to missing symbols in the UD connector. Full list resolved in the `snowpark-compatibility` branch:
+
+| Symbol | File | Action |
+|--------|------|--------|
+| `ASYNC_RETRY_PATTERN` | `cursor.py` | Added constant `[1, 1, 2, 3, 4, 8, 10]` |
+| `ResultMetadata` | `cursor.py` | Added NamedTuple |
+| `ResultMetadataV2` | `cursor.py` | Added as alias for `ResultMetadata` |
+| `FIELD_ID_TO_NAME`, `ENV_VAR_PARTNER`, `UTF8` | `constants.py` | Added |
+| `OK` | `compat.py` | Added (`http.client.OK`) |
+| `MissingDependencyError` | `errors.py` | Added |
+| `options.py` | new | `installed_pandas`, `pandas`, `pyarrow`, `MissingOptionalDependency`, `MissingPandas`, `ModuleLikeObject` |
+| `write_pandas`, `_create_temp_stage`, `_create_temp_file_format`, `build_location_helper` | `pandas_tools.py` | New file — stubs (raise NotImplementedError except `build_location_helper`) |
+| `ReauthenticationRequest` | `network.py` | New file |
+| `SecretDetector` | `secret_detector.py` | New file — minimal masking formatter |
+| `TelemetryService` | `telemetry_oob.py` | New file — singleton stub (all calls no-op) |
+| `VERSION` | `version.py` | New file — `(0, 1, 0, None)` tuple |
+
+**Turbaszek check:** `turbaszek-ecosystem-compatibility-cli` did not have `options.py`, `pandas_tools.py`, `network.py`, `secret_detector.py`, `telemetry_oob.py`, or `version.py`. All written fresh. `turbaszek-python-missing-api` had `ResultMetadata` and `version.py` — `ResultMetadata` pattern was borrowed from there.
+
+#### Test collection result — definition of done met
+
+**Observation:**
+```
+LD_PRELOAD=/usr/lib64/libstdc++.so.6 pytest tests/unit --ignore=tests/unit/modin
+→ 1767 tests collected in 0.80s
+→ 499 passed, 1 xfailed, 1 error (first API failure)
+```
+
+**Conclusion:** Tests collect and execute. First real API failure:
+```
+AttributeError: Mock object has no attribute 'session_id'
+  at snowflake.snowpark._internal.server_connection.ServerConnection.get_session_id
+  at tests/unit/conftest.py::mock_server_connection
+```
+This is a real API incompatibility — Snowpark's unit test fixtures create `ServerConnection` with a `MagicMock` in place of a `SnowflakeConnection`. The UD's `Connection` object has a different attribute layout than the old connector (missing `session_id`).
+
+---
+
 ## Open Items
 
-- [ ] Identify and fix any API incompatibilities between Snowpark and the Universal Driver (Phase 5).
+- [ ] **Phase 6 — API compatibility:** Fix `AttributeError: Mock object has no attribute 'session_id'` and subsequent API failures in `ServerConnection`. First step: check whether UD's `Connection` exposes `session_id` or what its equivalent is.
+- [ ] Rebuild wheel before each test run (or automate reinstall in `run_tests_with_ud.sh`).
 - [ ] Add `snowflake-connector-python-ud` as an alternative dependency in `setup.py` once UD is on PyPI.
 - [ ] Validate modin tests with Universal Driver (Phase 7).
+- [ ] Decide whether `snowpark-compatibility` branch should track `turbaszek-ecosystem-compatibility-cli` upstream or diverge with snowpark-specific patches.

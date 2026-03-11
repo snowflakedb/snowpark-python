@@ -43,6 +43,12 @@ jobs:
           submodules: true
           persist-credentials: false
 
+      - name: Checkout universal-driver ref
+        if: ${{ inputs.universal_driver_ref != '' && inputs.universal_driver_ref != 'main' }}
+        run: |
+          git -C universal-driver fetch origin
+          git -C universal-driver checkout origin/${{ inputs.universal_driver_ref }}
+
       - name: Install Rust 1.89.0
         run: |
           rustup toolchain install 1.89.0 --component clippy,rustfmt --profile minimal
