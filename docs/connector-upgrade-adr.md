@@ -269,6 +269,83 @@ This is a real API incompatibility — Snowpark's unit test fixtures create `Ser
 
 ---
 
+### 2026-03-11 — FIPS feature in `snowpark-compatibility` branch — deferred item
+
+**Observation:** The committed HEAD of the `snowpark-compatibility` submodule branch contains:
+- `sf_core/Cargo.toml`: `rustls = { version = "0.23.20", features = ["aws_lc_rs", "fips"] }`
+- `Cargo.lock`: `aws-lc-fips-sys v0.13.8` entry present
+
+A working-tree modification (uncommitted) removed the `"fips"` feature from `sf_core/Cargo.toml` and removed the `aws-lc-fips-sys` package from `Cargo.lock`. This change was NOT committed.
+
+**Hypothesis (unconfirmed — exact error not recorded):** The working-tree removal was applied to silence a local build failure. `aws-lc-fips-sys` requires `cmake` and a Go-based delocator at build time. The probable failure mode is category: **Build failure** — `cmake` or the delocator was unavailable during a local build attempt on the Rocky Linux / aarch64 build host. The same issue was documented for the `turbaszek-ecosystem-compatibility-cli` branch in "Issue 1" above, and `cmake` unavailability was separately documented as "Issue 2" in the same section. The connection between FIPS and cmake is well-supported by context, but the exact cargo/cmake error output was not captured at the time.
+
+**Note on earlier ADR section ("Issue 1 — FIPS delocator — resolved — not applicable"):** That section stated the `snowpark-compatibility` branch does not have `"fips"` features. This is now contradicted by the committed branch state. The earlier statement was accurate when written (it described the `turbaszek-ecosystem-compatibility-cli` base), but the `snowpark-compatibility` branch diverged and the `"fips"` feature appears in its current commits (introduced by `63e04d74` or earlier snowpark-specific commits). The "resolved — not applicable" label in Issue 1 applies to the base branch as originally described, not to the current `snowpark-compatibility` HEAD. The working-tree removal is the correct local workaround; the committed state carries the FIPS dependency.
+
+**Decision:** The working-tree modification (FIPS removal) is being reverted. The committed state is left as-is.
+
+**Deferred — real fix required:** The `snowpark-compatibility` branch carries `"fips"` in rustls, which adds a build-time dependency on `cmake` and `aws-lc-fips-sys`. For local development on aarch64 / Rocky Linux where cmake is unavailable in the cargo subprocess PATH, this will continue to cause build failures. The real fix has two candidates:
+1. Remove `"fips"` from `rustls` in `sf_core/Cargo.toml` in a proper commit on `snowpark-compatibility` with rationale — this is valid if FIPS is not required for Snowpark CI targets.
+2. Ensure cmake is available on the PATH in the cargo subprocess during local builds (extend the `CMAKE=...` env var approach in `build_ud_connector.sh` to also cover the FIPS delocator).
+
+**Scope ruling:** This fix is out of scope for the current task (Phase 5 — test collection). Deferred to a follow-up Cargo.toml commit on `snowpark-compatibility` pending user approval.
+
+---
+
+### 2026-03-11 — Symbol categorization: UD compat layer vs Snowpark-side fix — open question
+
+**Background:** Phase 5 added ~12 symbol groups to the UD `snowpark-compatibility` branch to allow Snowpark's existing imports to compile and tests to collect (5468 tests). The question is which additions legitimately belong in the UD connector's compatibility layer vs. which represent Snowpark importing connector internals that should instead be fixed in Snowpark.
+
+**Three-reviewer pipeline was run (2026-03-11).** Findings cross-referenced below.
+
+**Orchestrator ranked split (hypothesis — pending user approval):**
+
+#### Group 1 — Keep in UD compat layer (legitimate connector public API or protocol-level data)
+
+| Symbol | File added to UD | Rationale |
+|--------|-----------------|-----------|
+| `ResultMetadata` | `cursor.py` | Protocol-level cursor metadata; connector owns this type |
+| `ResultMetadataV2` | `cursor.py` | Same — alias for forward-compat |
+| `ReauthenticationRequest` | `network.py` | Exception type raised by connector; Snowpark's server_connection.py production path catches it |
+| `FIELD_ID_TO_NAME` | `constants.py` | Snowflake wire-protocol type ID mapping; connector owns this mapping |
+| `ENV_VAR_PARTNER` | `constants.py` | Connector-owned environment variable name string constant |
+| `MissingOptionalDependency` | `options.py` | Connector defines optional-dep infrastructure; Snowpark extends it |
+| `MissingPandas` | `options.py` | Same |
+| `ModuleLikeObject` | `options.py` | Same |
+| `write_pandas` | `pandas_tools.py` | Connector owns the pandas → Snowflake write path |
+
+**Reviewer confidence:** medium–high. These symbols are either used in Snowpark's production code path (`server_connection.py`, `utils.py`, `type_utils.py`) or represent connector-owned abstractions.
+
+**Caveat (Reviewer B, Finding 3):** `write_pandas`, `_create_temp_stage`, `_create_temp_file_format` currently raise `NotImplementedError` in the UD stub. Tests that actually call these will fail at runtime, not at collection. The current definition-of-done (collection) is met; execution compatibility is a Phase 6+ concern.
+
+#### Group 2 — Proposed for Snowpark-side fix (Snowpark importing connector internals)
+
+| Symbol | File added to UD | Rationale for moving to Snowpark |
+|--------|-----------------|----------------------------------|
+| `_create_temp_stage` | `pandas_tools.py` | `_`-prefixed internal; Snowpark should own this helper or refactor the call site |
+| `_create_temp_file_format` | `pandas_tools.py` | Same |
+| `build_location_helper` | `pandas_tools.py` | Stage path helper — could live in Snowpark's `analyzer_utils.py` |
+| `ASYNC_RETRY_PATTERN` | `cursor.py` | Internal retry backoff constant; Snowpark should own its own polling backoff values |
+| `installed_pandas` | `options.py` | Snowpark can compute this itself: `try: import pandas; installed_pandas = True except ImportError: ...` |
+| `pandas` (module ref) | `options.py` | Same — Snowpark already imports pandas directly elsewhere |
+| `pyarrow` (module ref) | `options.py` | Same |
+| `VERSION` | `version.py` | Snowpark can use `importlib.metadata.version("snowflake-connector-python-ud")` |
+| `OK` | `compat.py` | Mock-layer only (`mock/_telemetry.py`); use `http.client.OK` directly |
+| `SecretDetector` | `secret_detector.py` | Only used in `mock/_telemetry.py`; Snowpark's mock layer should define its own stub |
+| `TelemetryService` | `telemetry_oob.py` | Only used in `mock/_telemetry.py`; same — mock-layer concern |
+
+**Reviewer confidence:** medium. The `_`-prefix convention and mock-only usage (Reviewer C, Finding 2) are corroborating evidence but not conclusive. A grep of production vs test-only usage is needed before any Snowpark-side fix is implemented.
+
+**Open questions (not resolved by this pipeline run):**
+1. Are `SecretDetector` and `TelemetryService` ever imported outside Snowpark's mock layer? (hypothesis: no, but needs grep confirmation)
+2. Does `ASYNC_RETRY_PATTERN` in the UD have the same semantic contract as the old connector's value? (the stub uses `[1, 1, 2, 3, 4, 8, 10]`)
+3. Can `MissingDependencyError` (added to `errors.py` but not in the import audit table) remain or should it also be reviewed?
+
+**Scope ruling:** No code changes in this pipeline run. The split is recorded as a hypothesis. Implementing the Snowpark-side fixes requires a separate task and explicit user approval.
+
+**Decision (2026-03-11, user):** Keep all symbols in the UD compat layer for now — as stubs that fail at call time (`NotImplementedError`, no-op) but do not cause import errors. The UD/Snowpark split and any Snowpark-side refactors are deferred to a future task.
+
+---
+
 ## Open Items
 
 - [ ] **Phase 6 — API compatibility:** Fix `AttributeError: Mock object has no attribute 'session_id'` and subsequent API failures in `ServerConnection`. First step: check whether UD's `Connection` exposes `session_id` or what its equivalent is.
@@ -276,3 +353,5 @@ This is a real API incompatibility — Snowpark's unit test fixtures create `Ser
 - [ ] Add `snowflake-connector-python-ud` as an alternative dependency in `setup.py` once UD is on PyPI.
 - [ ] Validate modin tests with Universal Driver (Phase 7).
 - [ ] Decide whether `snowpark-compatibility` branch should track `turbaszek-ecosystem-compatibility-cli` upstream or diverge with snowpark-specific patches.
+- [ ] **FIPS deferred fix:** Remove `"fips"` from `rustls` features in `sf_core/Cargo.toml` on `snowpark-compatibility` (or ensure cmake/delocator availability) — pending user approval and confirmation that FIPS is not required for Snowpark CI targets.
+- [ ] **Symbol cleanup (Snowpark-side):** Refactor Snowpark to not import `_create_temp_stage`, `_create_temp_file_format`, `build_location_helper`, `ASYNC_RETRY_PATTERN`, `installed_pandas`, `pandas`/`pyarrow` module refs, `VERSION`, `OK`, `SecretDetector`, `TelemetryService` from the connector — pending user approval. Grep production vs test-only usage first.
