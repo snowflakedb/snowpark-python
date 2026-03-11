@@ -36,7 +36,7 @@ permissions:
 env:
   PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
   CLOUD_PROVIDER: ${{ inputs.cloud-provider || 'aws' }}
-  UD_BRANCH: ${{ inputs.ud-branch || 'main' }}
+  UD_BRANCH: ${{ inputs.ud-branch || 'snowpark-compatibility' }}
 
 jobs:
   test:
