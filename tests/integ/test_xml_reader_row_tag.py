@@ -693,6 +693,28 @@ def test_user_schema_without_rowtag(session):
         session.read.schema(user_schema).xml(f"@{tmp_stage_name}/{test_file_books_xml}")
 
 
+@pytest.mark.parametrize("ignore_namespace", [True, False])
+def test_read_xml_custom_schema_with_colon_tags(session, ignore_namespace):
+    schema = StructType(
+        [
+            StructField("px:name", StringType(), True),
+            StructField("px:value", StringType(), True),
+        ]
+    )
+    df = (
+        session.read.option("rowTag", "px:item")
+        .schema(schema)
+        .option("ignoreNamespace", ignore_namespace)
+        .xml(f"@{tmp_stage_name}/{test_file_xml_undeclared_namespace}")
+    )
+    result = df.collect()
+    assert len(result) == 2
+    names = {r[0] for r in result}
+    values = {r[1] for r in result}
+    assert names == {"Item One", "Item Two"}
+    assert values == {"100", "200"}
+
+
 def test_value_tag_custom_schema(session):
     test_schema1 = StructType(
         [
