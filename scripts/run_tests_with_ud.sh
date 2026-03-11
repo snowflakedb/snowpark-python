@@ -26,7 +26,7 @@ if [[ -f /usr/lib64/libstdc++.so.6 ]]; then
   export LD_PRELOAD=/usr/lib64/libstdc++.so.6
 fi
 
-ud_connector_path="${WHEEL}" python -m tox -e "${TOX_ENV}" -- \
+ud_connector_path="${WHEEL}" tox -e "${TOX_ENV}" -- \
   --ignore=tests/integ/modin \
   --ignore=tests/integ/datasource \
   "$@"
