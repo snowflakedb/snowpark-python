@@ -83,7 +83,7 @@ jobs:
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
 
       - name: Run integration tests
-        run: python -m tox -e ud
+        run: python -m tox -e "py${PYTHON_VERSION//.}-notdoctest-ci"
         env:
           cloud_provider: ${{ env.CLOUD_PROVIDER }}
           ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
@@ -92,7 +92,7 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
 
       - name: Run datasource tests
-        run: python -m tox -e ud-datasource
+        run: python -m tox -e datasource
         env:
           cloud_provider: ${{ env.CLOUD_PROVIDER }}
           ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"

@@ -2,6 +2,11 @@
 
 set -e
 
+# ── Standard install ─────────────────────────────────────────────────
+# Install project dependencies using uv.  This section is shared by
+# every tox environment and must remain provider-agnostic.
+# ─────────────────────────────────────────────────────────────────────
+
 # Check if uv is installed, and install it if not
 if ! command -v uv &> /dev/null; then
     echo "uv not found, installing it..."
@@ -32,4 +37,19 @@ else
   ls -al ${snowflake_path}
   uv pip install ${snowflake_path}/snowflake_connector_python*${python_version}*.whl
   uv pip install ${uv_options[@]}
+fi
+
+# ── Universal Driver connector swap ──────────────────────────────────
+# When ud_connector_path is set, replace snowflake-connector-python
+# with the Universal Driver build.  This is a no-op for normal CI.
+# ─────────────────────────────────────────────────────────────────────
+
+ud_connector_path=${ud_connector_path:-""}
+if [[ -n "${ud_connector_path}" ]]; then
+  echo "Swapping snowflake-connector-python → Universal Driver"
+  echo "  UD connector path: ${ud_connector_path}"
+  # --reinstall ensures wheel files are always extracted even if the
+  # version matches a previous install (uv otherwise skips silently).
+  uv pip uninstall snowflake-connector-python
+  uv pip install --reinstall "${ud_connector_path}"
 fi
