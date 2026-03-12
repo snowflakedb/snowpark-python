@@ -4871,8 +4871,7 @@ class DataFrame:
                     "INCLUDE_METADATA can only be used with the MATCH_BY_COLUMN_NAME copy option."
                 )
             if self._reader._file_type and self._reader._file_type.upper() == "CSV":
-                if format_type_options is None:
-                    format_type_options = {}
+                format_type_options = format_type_options or {}
                 format_type_options["ERROR_ON_COLUMN_COUNT_MISMATCH"] = False
 
         validation_mode = validation_mode or self._reader._cur_options.get(
