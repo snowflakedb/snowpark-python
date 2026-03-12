@@ -2424,9 +2424,9 @@ class Session:
             if isinstance(self._conn, MockServerConnection):
                 return _DEFAULT_ARTIFACT_REPOSITORY
 
-            account = self.get_current_account()
-            database = self.get_current_database()
-            schema = self.get_current_schema()
+            account = self._conn._get_current_parameter("account", quoted=False)
+            database = self._conn._get_current_parameter("database", quoted=False)
+            schema = self._conn._get_current_parameter("schema", quoted=False)
             cache_key = (database, schema)
 
             if (
