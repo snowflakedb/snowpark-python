@@ -528,6 +528,16 @@ def test_copy_json_write_with_column_names(session, tmp_stage_name1):
         Utils.drop_table(session, table_name)
 
 
+special_format_schema = StructType(
+    [
+        StructField("ID", IntegerType()),
+        StructField("USERNAME", StringType()),
+        StructField("FIRSTNAME", StringType()),
+        StructField("LASTNAME", StringType()),
+    ]
+)
+
+
 def test_csv_read_format_name(session, tmp_stage_name1):
     temp_file_fmt_name = Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
     session.sql(
@@ -535,16 +545,7 @@ def test_csv_read_format_name(session, tmp_stage_name1):
         "null_if = ('none','NA');"
     ).collect()
     df = (
-        session.read.schema(
-            StructType(
-                [
-                    StructField("ID", IntegerType()),
-                    StructField("USERNAME", StringType()),
-                    StructField("FIRSTNAME", StringType()),
-                    StructField("LASTNAME", StringType()),
-                ]
-            )
-        )
+        session.read.schema(special_format_schema)
         .option("format_name", temp_file_fmt_name)
         .csv(
             f"@{tmp_stage_name1}/{test_file_csv_special_format}",
@@ -1460,9 +1461,23 @@ def test_copy_into_table_include_metadata_requires_match_by_column_name(
         )
 
 
-def test_copy_into_table_include_metadata_csv_auto_sets_error_on_column_count_mismatch(
+def test_copy_into_table_include_metadata_requires_supported_metadata_column(
     session, tmp_stage_name1
 ):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.read.schema(user_schema).csv(test_file_on_stage)
+    with pytest.raises(
+        ValueError,
+        match="Metadata column NON_EXISTING_COLUMN is not supported",
+    ):
+        df.copy_into_table(
+            table_name,
+            INCLUDE_METADATA={"filename_col": "NON_EXISTING_COLUMN"},
+        )
+
+
+def test_copy_into_table_include_metadata_csv(session, tmp_stage_name1):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv_special_format}"
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(
@@ -1472,7 +1487,7 @@ def test_copy_into_table_include_metadata_csv_auto_sets_error_on_column_count_mi
     )
     try:
         df = (
-            session.read.schema(user_schema)
+            session.read.schema(special_format_schema)
             .option("PARSE_HEADER", True)
             .csv(test_file_on_stage)
         )
