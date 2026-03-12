@@ -2,11 +2,6 @@
 
 set -e
 
-# ── Standard install ─────────────────────────────────────────────────
-# Install project dependencies using uv.  This section is shared by
-# every tox environment and must remain provider-agnostic.
-# ─────────────────────────────────────────────────────────────────────
-
 # Check if uv is installed, and install it if not
 if ! command -v uv &> /dev/null; then
     echo "uv not found, installing it..."
@@ -24,32 +19,28 @@ done
 
 echo "${uv_options[*]}"
 
-# Default to empty, to ensure snowflake_path variable is defined.
+# Default to empty, to ensure variables are defined.
 snowflake_path=${snowflake_path:-""}
+ud_connector_path=${ud_connector_path:-""}
 python_version=$(python -c 'import sys; print(f"cp{sys.version_info.major}{sys.version_info.minor}")')
 
-if [[ -z "${snowflake_path}" ]]; then
-  echo "Using Python Connector from PyPI"
+if [[ -n "${ud_connector_path}" ]]; then
+  echo "Installing Universal Driver connector"
+  echo "UD connector path: ${ud_connector_path}"
+  # Install all deps normally (old connector gets pulled in via snowflake-connector-python>=3.17.0)
   uv pip install ${uv_options[@]}
-else
+  # Remove old connector and install UD in its place.
+  # --reinstall ensures wheel files are always extracted even if the version
+  # matches a previous install (uv otherwise skips re-extraction silently).
+  uv pip uninstall snowflake-connector-python
+  uv pip install --reinstall "${ud_connector_path}"
+elif [[ -n "${snowflake_path}" ]]; then
   echo "Installing locally built Python Connector"
   echo "Python Connector path: ${snowflake_path}"
   ls -al ${snowflake_path}
   uv pip install ${snowflake_path}/snowflake_connector_python*${python_version}*.whl
   uv pip install ${uv_options[@]}
-fi
-
-# ── Universal Driver connector swap ──────────────────────────────────
-# When ud_connector_path is set, replace snowflake-connector-python
-# with the Universal Driver build.  This is a no-op for normal CI.
-# ─────────────────────────────────────────────────────────────────────
-
-ud_connector_path=${ud_connector_path:-""}
-if [[ -n "${ud_connector_path}" ]]; then
-  echo "Swapping snowflake-connector-python → Universal Driver"
-  echo "  UD connector path: ${ud_connector_path}"
-  # --reinstall ensures wheel files are always extracted even if the
-  # version matches a previous install (uv otherwise skips silently).
-  uv pip uninstall snowflake-connector-python
-  uv pip install --reinstall "${ud_connector_path}"
+else
+  echo "Using Python Connector from PyPI"
+  uv pip install ${uv_options[@]}
 fi
