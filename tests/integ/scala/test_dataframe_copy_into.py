@@ -1486,7 +1486,6 @@ def test_copy_into_table_include_metadata_csv_auto_sets_error_on_column_count_mi
             force=True,
         )
         result = session.table(table_name).sort("ID").collect()
-        print("GOT RESULT", result)
         assert len(result) > 0
         for i, row in enumerate(result):
             assert all(v is not None for v in row)
