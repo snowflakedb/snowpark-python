@@ -1357,11 +1357,13 @@ def file_operation_statement(
 
 
 def convert_value_to_sql_option(
-    value: Optional[Union[str, bool, int, float, list, tuple]],
+    value: Optional[Union[str, bool, int, float, list, tuple, dict]],
     parse_none_as_string: bool = False,
 ) -> str:
     if value is None and parse_none_as_string:
         value = str(value)
+    if isinstance(value, dict):
+        return f"({', '.join(f'{k} = {v}' for k, v in value.items())})"
     if isinstance(value, str):
         if len(value) > 1 and is_single_quoted(value):
             return value

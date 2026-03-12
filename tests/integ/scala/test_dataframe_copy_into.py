@@ -1442,3 +1442,56 @@ def test_copy_into_table_names(session, db_parameters, tmp_stage_name1):
         # drop schema
         Utils.drop_schema(session, schema)
         Utils.drop_schema(session, double_quoted_schema)
+
+
+def test_copy_into_table_include_metadata_requires_match_by_column_name(
+    session, tmp_stage_name1
+):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.read.schema(user_schema).csv(test_file_on_stage)
+    with pytest.raises(
+        ValueError,
+        match="INCLUDE_METADATA can only be used with the MATCH_BY_COLUMN_NAME copy option.",
+    ):
+        df.copy_into_table(
+            table_name,
+            INCLUDE_METADATA={"filename_col": "METADATA$FILENAME"},
+        )
+
+
+def test_copy_into_table_include_metadata_csv_auto_sets_error_on_column_count_mismatch(
+    session, tmp_stage_name1
+):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv_special_format}"
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(
+        session,
+        table_name,
+        "id String, username String, firstname String, lastname String, filename_col String, row_num_col Int",
+    )
+    try:
+        df = (
+            session.read.schema(user_schema)
+            .option("PARSE_HEADER", True)
+            .csv(test_file_on_stage)
+        )
+        df.copy_into_table(
+            table_name,
+            MATCH_BY_COLUMN_NAME="CASE_INSENSITIVE",
+            INCLUDE_METADATA={
+                "filename_col": "METADATA$FILENAME",
+                "ROW_NUM_COL": "METADATA$FILE_ROW_NUMBER",
+            },
+            force=True,
+        )
+        result = session.table(table_name).sort("ID").collect()
+        print("GOT RESULT", result)
+        assert len(result) > 0
+        for i, row in enumerate(result):
+            assert all(v is not None for v in row)
+            assert len(row) == 6
+            assert row["FILENAME_COL"] == test_file_csv_special_format
+            assert row["ROW_NUM_COL"] == i + 1
+    finally:
+        Utils.drop_table(session, table_name)
