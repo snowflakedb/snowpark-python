@@ -4870,14 +4870,11 @@ class DataFrame:
         )
         copy_options = copy_options or reader_copy_options
 
-        if (
-            "INCLUDE_METADATA" in copy_options
-            and copy_options["INCLUDE_METADATA"] is not None
-        ):
+        if copy_options.get("INCLUDE_METADATA", None) is not None:
             for metadata_col in copy_options["INCLUDE_METADATA"].values():
                 if quote_name(metadata_col) not in METADATA_COLUMN_TYPES:
                     raise ValueError(
-                        f"Metadata column {metadata_col} is not supported. Supported {list(METADATA_COLUMN_TYPES.keys())}"
+                        f"Metadata column {metadata_col} is not supported. Supported columns: {list(METADATA_COLUMN_TYPES.keys())}"
                     )
 
             if "MATCH_BY_COLUMN_NAME" not in copy_options:
@@ -4885,7 +4882,9 @@ class DataFrame:
                     "INCLUDE_METADATA can only be used with the MATCH_BY_COLUMN_NAME copy option."
                 )
             if self._reader._file_type and self._reader._file_type.upper() == "CSV":
-                format_type_options = format_type_options or {}
+                format_type_options = (
+                    format_type_options.copy() if format_type_options else {}
+                )
                 format_type_options["ERROR_ON_COLUMN_COUNT_MISMATCH"] = False
 
         validation_mode = validation_mode or self._reader._cur_options.get(
