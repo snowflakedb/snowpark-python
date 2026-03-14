@@ -113,8 +113,10 @@ def _infer_primitive_type(text: str) -> DataType:
         pass
 
     # Timestamp (Spark default: TimestampFormatter with CAST logic)
+    # Backward compatibility: Python 3.9 fromisoformat doesn't support 'Z' suffix; replace with +00:00
     try:
-        datetime.fromisoformat(text)
+        ts_text = text.replace("Z", "+00:00") if text.endswith("Z") else text
+        datetime.fromisoformat(ts_text)
         return TimestampType()
     except (ValueError, TypeError):
         pass

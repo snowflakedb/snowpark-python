@@ -150,7 +150,10 @@ def test_infer_type_date(value):
     assert isinstance(infer_type(value), DateType)
 
 
-@pytest.mark.parametrize("value", ["2024-01-15T10:30:00", "2024-01-15T10:30:00+00:00"])
+@pytest.mark.parametrize(
+    "value",
+    ["2024-01-15T10:30:00", "2024-01-15T10:30:00+00:00", "2011-12-03T10:15:30Z"],
+)
 def test_infer_type_timestamp(value):
     assert isinstance(infer_type(value), TimestampType)
 

@@ -435,7 +435,7 @@ class DataFrameReader:
             >>> # Each XML record is extracted as a separate row,
             >>> # and each field within that record becomes a separate column of type VARIANT
             >>> _ = session.file.put("tests/resources/nested.xml", "@mystage", auto_compress=False)
-            >>> df = session.read.option("rowTag", "tag").xml("@mystage/nested.xml")
+            >>> df = session.read.option("rowTag", "tag").option("inferSchema", False).xml("@mystage/nested.xml")
             >>> df.show()
             -----------------------
             |"'test'"             |
