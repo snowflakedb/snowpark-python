@@ -51,14 +51,21 @@ from snowflake.snowpark._internal.type_utils import (
     convert_sf_to_sp_type,
     convert_sp_to_sf_type,
     most_permissive_type,
+    type_string_to_type_object,
 )
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
+from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
+from snowflake.snowpark._internal.xml_schema_inference import (
+    merge_struct_types,
+    canonicalize_type,
+)
 from snowflake.snowpark._internal.utils import (
     SNOWURL_PREFIX,
     STAGE_PREFIX,
     XML_ROW_TAG_STRING,
     XML_ROW_DATA_COLUMN_NAME,
     XML_READER_FILE_PATH,
+    XML_SCHEMA_INFERENCE_FILE_PATH,
     XML_READER_API_SIGNATURE,
     XML_READER_SQL_COMMENT,
     INFER_SCHEMA_FORMAT_TYPES,
@@ -85,6 +92,9 @@ from snowflake.snowpark.functions import sql_expr, col, concat, lit, to_file
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
+    ArrayType,
+    MapType,
+    StringType,
     StructType,
     TimestampTimeZone,
     VariantType,
@@ -118,6 +128,7 @@ READER_OPTIONS_ALIAS_MAP = {
     "PATHGLOBFILTER": "PATTERN",
     "FILENAMEPATTERN": "PATTERN",
     "INFERSCHEMA": "INFER_SCHEMA",
+    "SAMPLINGRATIO": "SAMPLING_RATIO",
     "SEP": "FIELD_DELIMITER",
     "LINESEP": "RECORD_DELIMITER",
     "QUOTE": "FIELD_OPTIONALLY_ENCLOSED_BY",
@@ -473,6 +484,7 @@ class DataFrameReader:
         self._infer_schema_target_columns: Optional[List[str]] = None
         self.__format: Optional[str] = None
         self._data_source_format = ["jdbc", "dbapi"]
+        self._xml_inferred_schema: Optional[StructType] = None
 
         self._ast = None
         if _emit_ast:
@@ -1060,6 +1072,16 @@ class DataFrameReader:
                 When set to ``True`` (default), the result is cached and all subsequent operations on the DataFrame are performed on the cached data.
                 This means the actual computation occurs before :meth:`DataFrame.collect` is called.
                 When set to ``False``, the DataFrame is computed lazily and the actual computation occurs when :meth:`DataFrame.collect` is called.
+
+              + ``inferSchema``: Whether to infer the schema of the XML data. The default value is ``True``.
+                When enabled, the XML data is sampled to determine column types (e.g., ``LongType``, ``DoubleType``,
+                ``BooleanType``, ``DateType``, ``TimestampType``, ``StringType``, ``StructType``, ``ArrayType``).
+                Schema inference follows Spark-compatible type promotion rules (e.g., ``Long`` + ``Double`` → ``Double``).
+                When disabled, all columns are returned as ``VARIANT`` type.
+
+              + ``samplingRatio``: The fraction of XML records to sample during schema inference. The default value is ``1.0``
+                (sample all records). Setting a value between ``0.0`` and ``1.0`` will randomly sample that fraction of records,
+                which can speed up schema inference on large files at the cost of potentially less accurate type detection.
         """
         df = self._read_semi_structured_file(path, "XML")
         # AST.
@@ -1070,18 +1092,31 @@ class DataFrameReader:
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.uid
 
-        # cast to input custom schema type
-        # TODO: SNOW-2923003: remove single quote after server side BCR is done
-        if self._user_schema:
-            cols = [
-                df[single_quote(field._name)]
-                .cast(field.datatype)
-                .alias(quote_name_without_upper_casing(field._name))
-                for field in self._user_schema.fields
-            ]
-            return df.select(cols)
+        # xml_reader returns VARIANT DataFrame, cast to custom or inferred schema type
+        effective_schema = self._user_schema or self._xml_inferred_schema
+        if effective_schema is not None:
+            return self._apply_xml_schema(df, effective_schema)
         else:
             return df
+
+    def _apply_xml_schema(self, df: DataFrame, schema: StructType) -> DataFrame:
+        """Apply an XML schema to a VARIANT DataFrame"""
+        cols = []
+        for field in schema.fields:
+            # TODO: SNOW-2923003: remove single quote after server side BCR is done
+            col = df[single_quote(field._name)]
+            if isinstance(field.datatype, (StructType, ArrayType, MapType)):
+                # Complex types: keep as VARIANT to prevent structured cast errors
+                cols.append(col.alias(quote_name_without_upper_casing(field._name)))
+            else:
+                # Primitive types: cast to the inferred datatype
+                cols.append(
+                    col.cast(field.datatype).alias(
+                        quote_name_without_upper_casing(field._name)
+                    )
+                )
+        result = df.select(cols)
+        return result
 
     @publicapi
     def option(self, key: str, value: Any, _emit_ast: bool = True) -> "DataFrameReader":
@@ -1368,6 +1403,165 @@ class DataFrameReader:
         read_file_transformations = [t._expression.sql for t in transformations]
         return new_schema, schema_to_cast, read_file_transformations
 
+    def _resolve_xml_file_for_udtf(self, local_file_path: str) -> str:
+        """Return the UDTF file path, uploading to a temp stage in stored procedures."""
+        if is_in_stored_procedure():  # pragma: no cover
+            temp_stage = random_name_for_temp_object(TempObjectType.STAGE)
+            sql_create_temp_stage = (
+                f"create temp stage if not exists {temp_stage} {XML_READER_SQL_COMMENT}"
+            )
+            self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
+                _emit_ast=False
+            )
+            self._session._conn.upload_file(
+                local_file_path,
+                temp_stage,
+                compress_data=False,
+                overwrite=True,
+                skip_upload_on_content_match=True,
+            )
+            return f"{STAGE_PREFIX}{temp_stage}/{os.path.basename(local_file_path)}"
+        return local_file_path
+
+    def _infer_schema_for_xml(self, path: str) -> Optional[StructType]:
+        # Register the XMLSchemaInference UDTF
+        handler_name = "XMLSchemaInference"
+        _, input_types = get_types_from_type_hints(
+            (XML_SCHEMA_INFERENCE_FILE_PATH, handler_name),
+            TempObjectType.TABLE_FUNCTION,
+        )
+
+        inference_file_path = self._resolve_xml_file_for_udtf(
+            XML_SCHEMA_INFERENCE_FILE_PATH
+        )
+
+        output_schema = StructType([StructField("SCHEMA_VALUE", StringType(), True)])
+        schema_udtf = self._session.udtf.register_from_file(
+            inference_file_path,
+            handler_name,
+            output_schema=output_schema,
+            input_types=input_types,
+            packages=["snowflake-snowpark-python", "lxml<6"],
+            replace=True,
+            _suppress_local_package_warnings=True,
+        )
+
+        # Determine number of workers
+        try:
+            file_size = int(
+                self._session.sql(f"ls {path}", _emit_ast=False).collect(
+                    _emit_ast=False
+                )[0]["size"]
+            )
+        except IndexError:
+            raise ValueError(f"{path} does not exist")
+
+        num_workers = min(16, file_size // DEFAULT_CHUNK_SIZE + 1)
+
+        row_tag = self._cur_options[XML_ROW_TAG_STRING]
+        sampling_ratio = float(self._cur_options.get("SAMPLING_RATIO", 1.0))
+        ignore_namespace = self._cur_options.get("IGNORENAMESPACE", True)
+        attribute_prefix = self._cur_options.get("ATTRIBUTEPREFIX", "_")
+        exclude_attributes = self._cur_options.get("EXCLUDEATTRIBUTES", False)
+        value_tag = self._cur_options.get("VALUETAG", "_VALUE")
+        null_value = self._cur_options.get("NULL_IF", "")
+        charset = self._cur_options.get("CHARSET", "utf-8")
+        ignore_surrounding_whitespace = self._cur_options.get(
+            "IGNORESURROUNDINGWHITESPACE", False
+        )
+
+        # Create range DataFrame and apply UDTF
+        worker_col = "WORKER"
+        df = self._session.range(num_workers).to_df(worker_col)
+        df = df.select(
+            schema_udtf(
+                lit(path),
+                lit(num_workers),
+                lit(row_tag),
+                col(worker_col),
+                lit(sampling_ratio),
+                lit(ignore_namespace),
+                lit(attribute_prefix),
+                lit(exclude_attributes),
+                lit(value_tag),
+                lit(null_value),
+                lit(charset),
+                lit(ignore_surrounding_whitespace),
+            )
+        )
+
+        # Collect and merge schema results from all workers
+        results = df.collect(_emit_ast=False)
+        merged_schema: Optional[StructType] = None
+
+        for row in results:
+            schema_str = row[0]
+            if schema_str is None or schema_str == "":
+                continue
+            try:
+                partial_schema = type_string_to_type_object(schema_str)
+            except Exception:
+                continue
+            if not isinstance(partial_schema, StructType):
+                partial_schema = StructType(
+                    [StructField(value_tag, partial_schema, nullable=True)]
+                )
+            if merged_schema is None:
+                merged_schema = partial_schema
+            else:
+                merged_schema = merge_struct_types(
+                    merged_schema, partial_schema, value_tag
+                )
+
+        if merged_schema is None:
+            return None
+
+        # Canonicalize: NullType -> StringType, remove empty structs
+        canonical = canonicalize_type(merged_schema)
+        if canonical is None or not isinstance(canonical, StructType):
+            return None
+
+        def _strip_outer_quotes(name: str) -> str:
+            """Strip one layer of double quotes added by _case_preserving_simple_string()"""
+            if len(name) >= 2 and name[0] == '"' and name[-1] == '"':
+                return name[1:-1]
+            return name
+
+        def _clean_schema_field_names(dt):
+            """Strip outer double quotes from field names.
+
+            _case_preserving_simple_string wraps colon-containing names in
+            double quotes so the parser can split name:type correctly.
+            type_string_to_type_object keeps those quotes as part of the name.
+            Strip them here so downstream quote_name_without_upper_casing
+            doesn't produce triple-quoted identifiers.
+            """
+            if isinstance(dt, StructType):
+                return StructType(
+                    [
+                        StructField(
+                            _strip_outer_quotes(f._name),
+                            _clean_schema_field_names(f.datatype),
+                            f.nullable,
+                        )
+                        for f in dt.fields
+                    ]
+                )
+            if isinstance(dt, ArrayType):
+                return ArrayType(
+                    _clean_schema_field_names(dt.element_type), dt.contains_null
+                )
+            if isinstance(dt, MapType):
+                return MapType(
+                    _clean_schema_field_names(dt.key_type),
+                    _clean_schema_field_names(dt.value_type),
+                    dt.value_contains_null,
+                )
+            return dt
+
+        inferred_schema = _clean_schema_field_names(canonical)
+        return inferred_schema
+
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         if isinstance(self._session._conn, MockServerConnection):
             if self._session._conn.is_closed():
@@ -1422,26 +1616,22 @@ class DataFrameReader:
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
+        xml_inferred_schema = None
         if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
-            if is_in_stored_procedure():  # pragma: no cover
-                # create a temp stage for udtf import files
-                # we have to use "temp" object instead of "scoped temp" object in stored procedure
-                # so we need to upload the file to the temp stage first to use register_from_file
-                temp_stage = random_name_for_temp_object(TempObjectType.STAGE)
-                sql_create_temp_stage = f"create temp stage if not exists {temp_stage} {XML_READER_SQL_COMMENT}"
-                self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
-                    _emit_ast=False
-                )
-                self._session._conn.upload_file(
-                    XML_READER_FILE_PATH,
-                    temp_stage,
-                    compress_data=False,
-                    overwrite=True,
-                    skip_upload_on_content_match=True,
-                )
-                python_file_path = f"{STAGE_PREFIX}{temp_stage}/{os.path.basename(XML_READER_FILE_PATH)}"
-            else:
-                python_file_path = XML_READER_FILE_PATH
+            python_file_path = self._resolve_xml_file_for_udtf(XML_READER_FILE_PATH)
+            if not self._user_schema and self._cur_options.get("INFER_SCHEMA", True):
+                xml_inferred_schema = self._infer_schema_for_xml(path)
+                if xml_inferred_schema is not None:
+                    self._xml_inferred_schema = xml_inferred_schema
+                    schema = [
+                        Attribute(
+                            quote_name_without_upper_casing(f._name),
+                            f.datatype,
+                            f.nullable,
+                        )
+                        for f in xml_inferred_schema.fields
+                    ]
+                    use_user_schema = True
 
             # create udtf
             handler_name = "XMLReader"
@@ -1508,7 +1698,10 @@ class DataFrameReader:
             set_api_call_source(df, XML_READER_API_SIGNATURE)
             if self._cur_options.get("CACHERESULT", True):
                 df = df.cache_result()
-                df._all_variant_cols = True
+                # When schema is inferred or user-provided, columns are typed
+                # (not all VARIANT), so don't enable the all-variant dot-notation mode.
+                if xml_inferred_schema is None and not self._user_schema:
+                    df._all_variant_cols = True
         else:
             set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df

@@ -16,8 +16,11 @@ from snowflake.snowpark.types import (
     StructType,
     StructField,
     StringType,
+    LongType,
     DoubleType,
     DateType,
+    BooleanType,
+    TimestampType,
     ArrayType,
 )
 from tests.utils import TestFiles, Utils
@@ -46,6 +49,9 @@ test_file_xml_declared_namespace = "declared_namespace.xml"
 test_file_xml_undeclared_namespace = "undeclared_namespace.xml"
 test_file_null_value_xml = "null_value.xml"
 test_file_books_xsd = "books.xsd"
+test_file_dk_trace_xml = "dk_trace_sample.xml"
+test_file_dblp_xml = "dblp_6kb.xml"
+test_file_books_attr_val_xml = "books_attribute_value.xml"
 
 # Global stage name for uploading test files
 tmp_stage_name = Utils.random_stage_name()
@@ -124,6 +130,24 @@ def setup(session, resources_path, local_testing_mode):
         test_files.test_books_xsd,
         compress=False,
     )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name,
+        test_files.test_dk_trace_sample_xml,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name,
+        test_files.test_dblp_6kb_xml,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name,
+        test_files.test_books_attribute_value_xml,
+        compress=False,
+    )
 
     yield
     # Clean up resources
@@ -152,22 +176,44 @@ def test_read_xml_row_tag(
 def test_read_xml_no_xxe(session):
     row_tag = "bar"
     stage_file_path = f"@{tmp_stage_name}/{test_file_xxe_xml}"
-    df = session.read.option("rowTag", row_tag).xml(stage_file_path)
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("inferSchema", False)
+        .xml(stage_file_path)
+    )
     Utils.check_answer(df, [Row("null")])
 
 
-def test_read_xml_query_nested_data(session):
+@pytest.mark.parametrize("infer_schema", [True, False])
+def test_read_xml_query_nested_data(session, infer_schema):
     row_tag = "tag"
-    df = session.read.option("rowTag", row_tag).xml(
-        f"@{tmp_stage_name}/{test_file_nested_xml}"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("inferSchema", infer_schema)
+        .xml(f"@{tmp_stage_name}/{test_file_nested_xml}")
     )
-    assert df._all_variant_cols is True
-    Utils.check_answer(
-        df.select(
-            "'test'.num", "'test'.str", col("'test'.obj"), col("'test'.obj.bool")
-        ),
-        [Row('"1"', '"str1"', '{\n  "bool": "true",\n  "str": "str2"\n}', '"true"')],
-    )
+    expected_row = [
+        Row('"1"', '"str1"', '{\n  "bool": "true",\n  "str": "str2"\n}', '"true"')
+    ]
+    if infer_schema:
+        assert df._all_variant_cols is False
+        Utils.check_answer(
+            df.select(
+                col('"test"')["num"],
+                col('"test"')["str"],
+                col('"test"')["obj"],
+                col('"test"')["obj"]["bool"],
+            ),
+            expected_row,
+        )
+    else:
+        assert df._all_variant_cols is True
+        Utils.check_answer(
+            df.select(
+                "'test'.num", "'test'.str", col("'test'.obj"), col("'test'.obj.bool")
+            ),
+            expected_row,
+        )
 
 
 def test_read_xml_non_existing_file(session):
@@ -194,6 +240,7 @@ def test_read_malformed_xml(session, file):
     df = (
         session.read.option("rowTag", row_tag)
         .option("mode", "permissive")
+        .option("inferSchema", False)
         .xml(file_path)
     )
     result = df.collect()
@@ -208,6 +255,7 @@ def test_read_malformed_xml(session, file):
     df = (
         session.read.option("rowTag", row_tag)
         .option("mode", "dropmalformed")
+        .option("inferSchema", False)
         .xml(file_path)
     )
     result = df.collect()
@@ -219,6 +267,7 @@ def test_read_malformed_xml(session, file):
         df = (
             session.read.option("rowTag", row_tag)
             .option("mode", "failfast")
+            .option("inferSchema", False)
             .xml(file_path)
         )
 
@@ -261,6 +310,7 @@ def test_read_xml_declared_namespace(session):
     df = (
         session.read.option("rowTag", row_tag)
         .option("ignoreNamespace", True)
+        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_xml_declared_namespace}")
     )
     result = df.collect()
@@ -285,6 +335,7 @@ def test_read_xml_declared_namespace(session):
     df = (
         session.read.option("rowTag", row_tag)
         .option("ignoreNamespace", False)
+        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_xml_declared_namespace}")
     )
     result = df.collect()
@@ -302,6 +353,7 @@ def test_read_xml_undeclared_namespace(session, ignore_namespace):
     df = (
         session.read.option("rowTag", row_tag)
         .option("ignoreNamespace", ignore_namespace)
+        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_xml_undeclared_namespace}")
     )
     result = df.collect()
@@ -320,6 +372,7 @@ def test_read_xml_undeclared_attr_namespace(session, ignore_namespace):
         .option("cacheResult", False)
         .option("mode", "failfast")
         .option("ignoreNamespace", ignore_namespace)
+        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/undeclared_attr_namespace.xml")
     )
     if not ignore_namespace:
@@ -339,6 +392,7 @@ def test_read_xml_attribute_prefix(session, attribute_prefix):
     df = (
         session.read.option("rowTag", row_tag)
         .option("attributePrefix", attribute_prefix)
+        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
     )
     result = df.collect()
@@ -351,6 +405,7 @@ def test_read_xml_exclude_attributes(session):
     df = (
         session.read.option("rowTag", row_tag)
         .option("excludeAttributes", True)
+        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
     )
     result = df.collect()
@@ -364,6 +419,7 @@ def test_read_xml_value_tag(session):
     df = (
         session.read.option("rowTag", row_tag)
         .option("valueTag", "value")
+        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
     )
     result = df.collect()
@@ -375,6 +431,7 @@ def test_read_xml_value_tag(session):
     df = (
         session.read.option("rowTag", row_tag)
         .option("valueTag", "value")
+        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
     )
     result = df.collect()
@@ -405,6 +462,7 @@ def test_read_xml_null_value(session, null_value, expected_row):
     df = (
         session.read.option("rowTag", row_tag)
         .option("nullValue", null_value)
+        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
     )
     Utils.check_answer(df, [expected_row])
@@ -431,6 +489,7 @@ def test_read_xml_ignore_surrounding_whitespace(
         session.read.option("rowTag", row_tag)
         .option("nullValue", "empty")
         .option("ignoreSurroundingWhitespace", ignore_surrounding_whitespace)
+        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
     )
     Utils.check_answer(df, [expected_row])
@@ -455,6 +514,7 @@ def test_read_xml_row_validation_xsd_path(session):
         session.read.option("rowTag", row_tag)
         .option("rowValidationXSDPath", f"@{tmp_stage_name}/{test_file_books_xsd}")
         .option("mode", "dropmalformed")
+        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
     )
 
@@ -769,3 +829,176 @@ def test_value_tag_custom_schema(session):
         .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
     )
     Utils.check_answer(df, [Row(num="1", str1="NULL", str2=None, str3="xxx")])
+
+
+def test_read_xml_namespace_user_schema(session):
+    """User-provided schema with namespace-prefixed fields (ignoreNamespace=false)."""
+    user_schema = StructType(
+        [
+            StructField("eqTrace:event-id", StringType(), True),
+            StructField("eqTrace:event-name", StringType(), True),
+            StructField("eqTrace:event-version-number", DoubleType(), True),
+            StructField("eqTrace:is-planned", BooleanType(), True),
+            StructField("eqTrace:is-synthetic", BooleanType(), True),
+            StructField("eqTrace:date-time", TimestampType(), True),
+        ]
+    )
+    df = (
+        session.read.option("rowTag", "eqTrace:event")
+        .option("ignoreNamespace", False)
+        .schema(user_schema)
+        .xml(f"@{tmp_stage_name}/{test_file_dk_trace_xml}")
+    )
+    result = df.collect()
+    assert len(result) == 5
+    assert len(result[0]) == 6
+    col_names = [f.name.strip('"') for f in df.schema.fields]
+    assert "eqTrace:event-id" in col_names
+    assert "eqTrace:event-name" in col_names
+    event_ids = {r[0] for r in result}
+    assert "f0e765d9-599b-46bf-9aef-bd33e0c2183f" in event_ids
+    assert "dd9a4616-e41c-4571-9bda-9a5506a2b78d" in event_ids
+
+
+def test_read_xml_dblp_user_schema(session):
+    """User-provided schema on dblp_6kb.xml mastersthesis with nested ee StructType."""
+    user_schema = StructType(
+        [
+            StructField("_mdate", DateType(), True),
+            StructField("_key", StringType(), True),
+            StructField("author", StringType(), True),
+            StructField("title", StringType(), True),
+            StructField("year", LongType(), True),
+            StructField("school", StringType(), True),
+            StructField(
+                "ee",
+                StructType(
+                    [
+                        StructField("_VALUE", StringType(), True),
+                        StructField("_type", StringType(), True),
+                    ]
+                ),
+                True,
+            ),
+        ]
+    )
+    df = (
+        session.read.option("rowTag", "mastersthesis")
+        .schema(user_schema)
+        .xml(f"@{tmp_stage_name}/{test_file_dblp_xml}")
+    )
+    result = df.collect()
+    assert len(result) == 6
+    assert len(result[0]) == 7
+    brown = df.filter(col('"_key"') == "ms/Brown92").collect()
+    assert len(brown) == 1
+    assert json.loads(brown[0]["ee"]) == {"_VALUE": None, "_type": None}
+    assert brown[0]["year"] == 1992
+
+
+def test_read_xml_dblp_incollection_user_schema(session):
+    """User-provided ArrayType(StructType) for author, StructType for ee on dblp incollection."""
+    author_element_schema = StructType(
+        [
+            StructField("_VALUE", StringType(), True),
+            StructField("_orcid", StringType(), True),
+        ]
+    )
+    ee_schema = StructType(
+        [
+            StructField("_VALUE", StringType(), True),
+            StructField("_type", StringType(), True),
+        ]
+    )
+    user_schema = StructType(
+        [
+            StructField("_key", StringType(), True),
+            StructField("_mdate", DateType(), True),
+            StructField("author", ArrayType(author_element_schema, True), True),
+            StructField("booktitle", StringType(), True),
+            StructField("crossref", StringType(), True),
+            StructField("ee", ee_schema, True),
+            StructField("pages", StringType(), True),
+            StructField("title", StringType(), True),
+            StructField("url", StringType(), True),
+            StructField("year", LongType(), True),
+        ]
+    )
+    df = (
+        session.read.option("rowTag", "incollection")
+        .schema(user_schema)
+        .xml(f"@{tmp_stage_name}/{test_file_dblp_xml}")
+    )
+    result = df.collect()
+    assert len(result) == 6
+    assert len(result[0]) == 10
+
+    parker = df.filter(col('"_key"') == "series/ifip/ParkerD14").collect()
+    assert len(parker) == 1
+    authors = json.loads(parker[0]["author"])
+    assert len(authors) == 2
+    assert authors[0]["_VALUE"] == "Kevin R. Parker"
+    assert authors[0]["_orcid"] == "0000-0003-0549-3687"
+    assert authors[1]["_VALUE"] == "Bill Davey"
+    assert authors[1]["_orcid"] is None
+    ee = json.loads(parker[0]["ee"])
+    assert ee["_VALUE"] == "https://doi.org/10.1007/978-3-642-55119-2_14"
+    assert ee["_type"] == "oa"
+
+    scheid = df.filter(col('"_key"') == "series/ifip/ScheidRKFRS21").collect()
+    assert len(scheid) == 1
+    scheid_authors = json.loads(scheid[0]["author"])
+    assert len(scheid_authors) == 6
+    assert all(a["_orcid"] is not None for a in scheid_authors)
+
+    rheingans = df.filter(col('"_key"') == "series/ifip/RheingansL95").collect()
+    assert len(rheingans) == 1
+    ee_no_type = json.loads(rheingans[0]["ee"])
+    assert ee_no_type["_type"] is None
+    assert "doi.org" in ee_no_type["_VALUE"]
+    assert parker[0]["year"] == 2014
+
+
+def test_read_xml_attribute_value_user_schema_struct_publisher(session):
+    """User StructType schema for publisher on books_attribute_value.xml."""
+    publisher_schema = StructType(
+        [
+            StructField("_VALUE", StringType(), True),
+            StructField("_country", StringType(), True),
+            StructField("_language", StringType(), True),
+        ]
+    )
+    user_schema = StructType(
+        [
+            StructField("_id", LongType(), True),
+            StructField("title", StringType(), True),
+            StructField("author", StringType(), True),
+            StructField("price", DoubleType(), True),
+            StructField("publisher", publisher_schema, True),
+        ]
+    )
+    df = (
+        session.read.option("rowTag", "book")
+        .schema(user_schema)
+        .xml(f"@{tmp_stage_name}/{test_file_books_attr_val_xml}")
+    )
+    result = df.collect()
+    assert len(result) == 5
+    assert len(result[0]) == 5
+
+    book1 = df.filter(col('"_id"') == 1).collect()
+    assert len(book1) == 1
+    pub1 = json.loads(book1[0]["publisher"])
+    assert pub1 == {"_VALUE": "O'Reilly Media", "_country": "USA", "_language": None}
+
+    book3 = df.filter(col('"_id"') == 3).collect()
+    assert len(book3) == 1
+    pub3 = json.loads(book3[0]["publisher"])
+    assert pub3 == {"_VALUE": "Springer", "_country": "Canada", "_language": "English"}
+
+    book4 = df.filter(col('"_id"') == 4).collect()
+    assert len(book4) == 1
+    pub4 = json.loads(book4[0]["publisher"])
+    assert pub4 == {"_VALUE": "Some Publisher", "_country": None, "_language": None}
+    assert book1[0]["price"] == 29.99
+    assert book1[0]["_id"] == 1

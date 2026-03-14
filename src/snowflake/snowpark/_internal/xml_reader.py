@@ -367,7 +367,18 @@ def element_to_dict_or_str(
 
     children = list(element)
     if not children and (not element.attrib or exclude_attributes):
-        # it's a value element with no attributes or excluded attributes, so return the text
+        # When the schema (result_template) expects a struct for this element,
+        # wrap the text in the template so the output shape matches the schema.
+        # e.g. <publisher>Some Publisher</publisher> with template
+        # {"_VALUE": None, "_country": None, "_language": None} becomes
+        # {"_VALUE": "Some Publisher", "_country": None, "_language": None}
+        # instead of the raw string "Some Publisher".
+        if result_template is not None and isinstance(result_template, dict):
+            result = copy.deepcopy(result_template)
+            text = get_text(element)
+            if text is not None:
+                result[value_tag] = text
+            return result
         return get_text(element)
 
     result = copy.deepcopy(result_template) if result_template is not None else {}

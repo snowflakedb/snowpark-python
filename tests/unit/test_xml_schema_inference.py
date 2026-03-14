@@ -1,0 +1,1309 @@
+#
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
+
+import lxml.etree as ET
+import pytest
+
+from snowflake.snowpark._internal.xml_schema_inference import (
+    _normalize_text,
+    infer_type,
+    infer_element_schema,
+    compatible_type,
+    merge_struct_types,
+    add_or_update_type,
+    canonicalize_type,
+    _case_preserving_simple_string,
+    _struct_has_value_tag,
+    _merge_struct_with_primitive,
+)
+from snowflake.snowpark.types import (
+    StructType,
+    StructField,
+    ArrayType,
+    NullType,
+    StringType,
+    BooleanType,
+    LongType,
+    DoubleType,
+    DecimalType,
+    DateType,
+    TimestampType,
+)
+
+
+def _xml(xml_str: str) -> ET.Element:
+    """Parse an XML string into an lxml Element."""
+    return ET.fromstring(xml_str)
+
+
+def _infer_and_merge(xml_records, **kwargs):
+    """Infer schema for each record and merge, mimicking the UDTF behavior."""
+    merged = None
+    value_tag = kwargs.get("value_tag", "_VALUE")
+    for rec_str in xml_records:
+        rec_str = rec_str.strip()
+        if not rec_str:
+            continue
+        try:
+            elem = _xml(rec_str)
+        except Exception:
+            continue
+        schema = infer_element_schema(elem, **kwargs)
+        if not isinstance(schema, StructType):
+            schema = StructType(
+                [StructField(value_tag, schema, nullable=True)],
+                structured=False,
+            )
+        if merged is None:
+            merged = schema
+        else:
+            merged = merge_struct_types(merged, schema, value_tag)
+    return merged
+
+
+def _full_pipeline(xml_records, **kwargs):
+    """Run the full schema inference pipeline: infer + merge + canonicalize."""
+    merged = _infer_and_merge(xml_records, **kwargs)
+    if merged is not None:
+        merged = canonicalize_type(merged)
+    return merged
+
+
+# ===========================================================================
+# _normalize_text
+# ===========================================================================
+
+
+@pytest.mark.parametrize(
+    "text, strip, expected",
+    [
+        (None, True, None),
+        (None, False, None),
+        ("  hello  ", True, "hello"),
+        ("\n\thello\n\t", True, "hello"),
+        ("  hello  ", False, "  hello  "),
+        ("", True, ""),
+        ("", False, ""),
+        ("   ", True, ""),
+        ("   ", False, "   "),
+    ],
+)
+def test_normalize_text(text, strip, expected):
+    assert _normalize_text(text, strip) == expected
+
+
+# ===========================================================================
+# infer_type
+# ===========================================================================
+
+
+@pytest.mark.parametrize(
+    "value, kwargs",
+    [
+        (None, {}),
+        ("", {}),
+        ("NULL", {"null_value": "NULL"}),
+        ("  NULL  ", {"ignore_surrounding_whitespace": True, "null_value": "NULL"}),
+    ],
+)
+def test_infer_type_null(value, kwargs):
+    """Null/empty/null_value inputs → NullType."""
+    assert isinstance(infer_type(value, **kwargs), NullType)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["42", "-42", "0", str(2**63 - 1), str(-(2**63)), "+123"],
+)
+def test_infer_type_long(value):
+    """Integer strings within Long range → LongType."""
+    assert isinstance(infer_type(value), LongType)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "3.14",
+        "1.5e10",
+        "-2.5",
+        ".5",
+        "NaN",
+        "Infinity",
+        "-Infinity",
+        "92233720368547758070",
+        "-92233720368547758080",
+    ],
+)
+def test_infer_type_double(value):
+    """Decimals, scientific notation, special floats, and beyond-Long ints → DoubleType."""
+    assert isinstance(infer_type(value), DoubleType)
+
+
+@pytest.mark.parametrize("value", ["true", "false", "True", "FALSE"])
+def test_infer_type_boolean(value):
+    assert isinstance(infer_type(value), BooleanType)
+
+
+@pytest.mark.parametrize("value", ["2024-01-15", "2000-12-31"])
+def test_infer_type_date(value):
+    assert isinstance(infer_type(value), DateType)
+
+
+@pytest.mark.parametrize("value", ["2024-01-15T10:30:00", "2024-01-15T10:30:00+00:00"])
+def test_infer_type_timestamp(value):
+    assert isinstance(infer_type(value), TimestampType)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "hello",
+        "abc123",
+        "foo@bar.com",
+        "inf",
+        "Inf",
+        "+inf",
+        "+Inf",
+        "1.5d",
+        "1.5f",
+        "1.5D",
+        "1.5F",
+    ],
+)
+def test_infer_type_string(value):
+    """Plain strings and values rejected by d/D/f/F suffix check → StringType."""
+    assert isinstance(infer_type(value), StringType)
+
+
+def test_infer_type_whitespace_stripped():
+    """With ignore_surrounding_whitespace, '  42  ' is parsed as Long."""
+    assert isinstance(
+        infer_type("  42  ", ignore_surrounding_whitespace=True), LongType
+    )
+    assert isinstance(
+        infer_type("  42  ", ignore_surrounding_whitespace=False), StringType
+    )
+
+
+# ===========================================================================
+# infer_element_schema – leaf elements
+# ===========================================================================
+
+
+@pytest.mark.parametrize(
+    "xml_str, expected_type, kwargs",
+    [
+        ("<a>42</a>", LongType, {}),
+        ("<a></a>", NullType, {}),
+        ("<a/>", NullType, {}),
+        ("<a>N/A</a>", NullType, {"null_value": "N/A"}),
+        ("<a>true</a>", BooleanType, {}),
+        ("<a>3.14</a>", DoubleType, {}),
+        ("<a>hello</a>", StringType, {}),
+    ],
+)
+def test_infer_element_schema_leaf(xml_str, expected_type, kwargs):
+    """Leaf elements (no children, no attributes) infer scalar types."""
+    assert isinstance(infer_element_schema(_xml(xml_str), **kwargs), expected_type)
+
+
+# ===========================================================================
+# infer_element_schema – attributes
+# ===========================================================================
+
+
+def test_infer_element_schema_attributes_only_root():
+    """Root-level attribute-only element has no _VALUE."""
+    result = infer_element_schema(_xml('<a name="Alice" age="30"/>'), is_root=True)
+    assert isinstance(result, StructType)
+    field_names = {f._name for f in result.fields}
+    assert "_name" in field_names and "_age" in field_names
+    assert "_VALUE" not in field_names
+
+
+def test_infer_element_schema_attributes_only_child():
+    """Child-level attribute-only element adds _VALUE as NullType."""
+    result = infer_element_schema(_xml('<a name="Alice"/>'), is_root=False)
+    field_names = {f._name for f in result.fields}
+    assert "_name" in field_names and "_VALUE" in field_names
+
+
+def test_infer_element_schema_attributes_with_text():
+    """Element with attributes and text adds _VALUE."""
+    result = infer_element_schema(_xml('<a name="Alice">hello</a>'), is_root=True)
+    field_names = {f._name for f in result.fields}
+    assert "_name" in field_names and "_VALUE" in field_names
+
+
+def test_infer_element_schema_custom_attribute_prefix():
+    result = infer_element_schema(
+        _xml('<a name="Alice"/>'), attribute_prefix="@", is_root=True
+    )
+    assert "@name" in {f._name for f in result.fields}
+
+
+def test_infer_element_schema_exclude_attributes():
+    """When exclude_attributes=True, attributes are ignored."""
+    assert isinstance(
+        infer_element_schema(
+            _xml('<a name="Alice">hello</a>'), exclude_attributes=True
+        ),
+        StringType,
+    )
+    assert isinstance(
+        infer_element_schema(_xml('<a name="Alice"/>'), exclude_attributes=True),
+        NullType,
+    )
+
+
+# ===========================================================================
+# infer_element_schema – children
+# ===========================================================================
+
+
+def test_infer_element_schema_simple_children():
+    result = infer_element_schema(_xml("<row><a>1</a><b>hello</b></row>"))
+    assert isinstance(result, StructType)
+    assert {"a", "b"} <= {f._name for f in result.fields}
+
+
+def test_infer_element_schema_child_types():
+    result = infer_element_schema(_xml("<row><a>42</a><b>true</b><c>3.14</c></row>"))
+    field_map = {f._name: f.datatype for f in result.fields}
+    assert isinstance(field_map["a"], LongType)
+    assert isinstance(field_map["b"], BooleanType)
+    assert isinstance(field_map["c"], DoubleType)
+
+
+def test_infer_element_schema_repeated_children_array():
+    """Repeated child tags → ArrayType."""
+    result = infer_element_schema(
+        _xml("<row><item>1</item><item>2</item><item>3</item></row>")
+    )
+    field_map = {f._name: f.datatype for f in result.fields}
+    assert isinstance(field_map["item"], ArrayType)
+    assert isinstance(field_map["item"].element_type, LongType)
+
+
+def test_infer_element_schema_nested_children():
+    result = infer_element_schema(
+        _xml("<row><outer><inner>hello</inner></outer></row>")
+    )
+    outer_field = next(f for f in result.fields if f._name == "outer")
+    assert isinstance(outer_field.datatype, StructType)
+    inner_field = next(f for f in outer_field.datatype.fields if f._name == "inner")
+    assert isinstance(inner_field.datatype, StringType)
+
+
+def test_infer_element_schema_child_with_attributes():
+    result = infer_element_schema(_xml('<row><child id="1">text</child></row>'))
+    child_field = next(f for f in result.fields if f._name == "child")
+    assert isinstance(child_field.datatype, StructType)
+    child_names = {f._name for f in child_field.datatype.fields}
+    assert "_id" in child_names and "_VALUE" in child_names
+
+
+# ===========================================================================
+# infer_element_schema – mixed content
+# ===========================================================================
+
+
+def test_infer_element_schema_mixed_content_value_tag():
+    """Element with text and children: text goes into _VALUE."""
+    result = infer_element_schema(_xml("<row>some text<a>1</a></row>"))
+    field_names = {f._name for f in result.fields}
+    assert "_VALUE" in field_names and "a" in field_names
+
+
+def test_infer_element_schema_whitespace_only_no_value_tag():
+    """Whitespace-only text between children does not create _VALUE."""
+    result = infer_element_schema(_xml("<row>\n  <a>1</a>\n  <b>2</b>\n</row>"))
+    assert "_VALUE" not in {f._name for f in result.fields}
+
+
+# ===========================================================================
+# infer_element_schema – namespace handling
+# ===========================================================================
+
+
+def test_infer_element_schema_namespace_clark():
+    """Clark notation {uri}tag → strip namespace part."""
+    from snowflake.snowpark._internal.xml_reader import strip_xml_namespaces
+
+    elem = strip_xml_namespaces(
+        ET.fromstring('<row xmlns="http://example.com"><child>val</child></row>')
+    )
+    result = infer_element_schema(elem, ignore_namespace=True)
+    assert "child" in {f._name for f in result.fields}
+
+
+def test_infer_element_schema_namespace_prefix():
+    parser = ET.XMLParser(recover=True, ns_clean=True)
+    elem = ET.fromstring("<px:row><px:child>val</px:child></px:row>", parser)
+    result = infer_element_schema(elem, ignore_namespace=True)
+    assert "child" in {f._name for f in result.fields}
+
+
+# ===========================================================================
+# infer_element_schema – whitespace and sorting
+# ===========================================================================
+
+
+def test_infer_element_schema_whitespace_leaf():
+    assert isinstance(
+        infer_element_schema(_xml("<a>  42  </a>"), ignore_surrounding_whitespace=True),
+        LongType,
+    )
+    assert isinstance(
+        infer_element_schema(
+            _xml("<a>  42  </a>"), ignore_surrounding_whitespace=False
+        ),
+        StringType,
+    )
+
+
+def test_infer_element_schema_fields_sorted():
+    result = infer_element_schema(_xml("<row><z>1</z><a>2</a><m>3</m></row>"))
+    names = [f._name for f in result.fields]
+    assert names == sorted(names)
+
+
+def test_infer_element_schema_custom_value_tag():
+    result = infer_element_schema(_xml('<row attr="1">text</row>'), value_tag="myval")
+    field_names = {f._name for f in result.fields}
+    assert "myval" in field_names and "_VALUE" not in field_names
+
+
+# ===========================================================================
+# Spark TestXmlData-derived tests (multi-record infer + merge)
+# ===========================================================================
+
+
+def test_spark_primitive_field_value_type_conflict():
+    """Merging records with conflicting types for same fields."""
+    records = [
+        """<ROW>
+          <num_num_1>11</num_num_1><num_num_2/><num_num_3>1.1</num_num_3>
+          <num_bool>true</num_bool><num_str>13.1</num_str><str_bool>str1</str_bool>
+        </ROW>""",
+        """<ROW>
+          <num_num_1/><num_num_2>21474836470.9</num_num_2><num_num_3/>
+          <num_bool>12</num_bool><num_str/><str_bool>true</str_bool>
+        </ROW>""",
+        """<ROW>
+          <num_num_1>21474836470</num_num_1><num_num_2>92233720368547758070</num_num_2>
+          <num_num_3>100</num_num_3><num_bool>false</num_bool>
+          <num_str>str1</num_str><str_bool>false</str_bool>
+        </ROW>""",
+        """<ROW>
+          <num_num_1>21474836570</num_num_1><num_num_2>1.1</num_num_2>
+          <num_num_3>21474836470</num_num_3><num_bool/>
+          <num_str>92233720368547758070</num_str><str_bool/>
+        </ROW>""",
+    ]
+    merged = _infer_and_merge(records)
+    fm = {f._name: f.datatype for f in canonicalize_type(merged).fields}
+    assert isinstance(fm["num_bool"], StringType)
+    assert isinstance(fm["num_num_1"], LongType)
+    assert isinstance(fm["num_num_2"], DoubleType)
+    assert isinstance(fm["num_num_3"], DoubleType)
+    assert isinstance(fm["num_str"], StringType)
+    assert isinstance(fm["str_bool"], StringType)
+
+
+def test_spark_complex_field_value_type_conflict():
+    """Merging arrays with singletons and struct/primitive conflicts."""
+    records = [
+        """<ROW>
+          <num_struct>11</num_struct>
+          <str_array>1</str_array><str_array>2</str_array><str_array>3</str_array>
+          <array></array><struct_array></struct_array><struct></struct>
+        </ROW>""",
+        """<ROW>
+          <num_struct><field>false</field></num_struct>
+          <str_array/><array/><struct_array></struct_array><struct/>
+        </ROW>""",
+        """<ROW>
+          <num_struct/>
+          <str_array>str</str_array>
+          <array>4</array><array>5</array><array>6</array>
+          <struct_array>7</struct_array><struct_array>8</struct_array>
+          <struct_array>9</struct_array>
+          <struct><field/></struct>
+        </ROW>""",
+        """<ROW>
+          <num_struct></num_struct>
+          <str_array>str1</str_array><str_array>str2</str_array><str_array>33</str_array>
+          <array>7</array>
+          <struct_array><field>true</field></struct_array>
+          <struct><field>str</field></struct>
+        </ROW>""",
+    ]
+    merged = _infer_and_merge(
+        records, ignore_surrounding_whitespace=True, null_value=""
+    )
+    fm = {f._name: f.datatype for f in canonicalize_type(merged).fields}
+    assert isinstance(fm["array"], ArrayType) and isinstance(
+        fm["array"].element_type, LongType
+    )
+    assert isinstance(fm["num_struct"], StringType)
+    assert isinstance(fm["str_array"], ArrayType) and isinstance(
+        fm["str_array"].element_type, StringType
+    )
+    assert isinstance(fm["struct"], StructType)
+    assert isinstance(fm["struct_array"], ArrayType) and isinstance(
+        fm["struct_array"].element_type, StringType
+    )
+
+
+def test_spark_missing_fields():
+    """Different records have different fields; merge produces superset."""
+    records = [
+        "<ROW><a>true</a></ROW>",
+        "<ROW><b>21474836470</b></ROW>",
+        "<ROW><c>33</c><c>44</c></ROW>",
+        "<ROW><d><field>true</field></d></ROW>",
+        "<ROW><e>str</e></ROW>",
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["a"], BooleanType)
+    assert isinstance(fm["b"], LongType)
+    assert isinstance(fm["c"], ArrayType) and isinstance(fm["c"].element_type, LongType)
+    assert isinstance(fm["d"], StructType)
+    assert isinstance(fm["e"], StringType)
+
+
+def test_spark_null_struct():
+    """Null/empty struct fields merged correctly."""
+    records = [
+        """<ROW><nullstr></nullstr><ip>27.31.100.29</ip>
+          <headers><Host>1.abc.com</Host><Charset>UTF-8</Charset></headers></ROW>""",
+        "<ROW><nullstr></nullstr><ip>27.31.100.29</ip><headers/></ROW>",
+        "<ROW><nullstr></nullstr><ip>27.31.100.29</ip><headers></headers></ROW>",
+        "<ROW><nullstr/><ip>27.31.100.29</ip><headers/></ROW>",
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["nullstr"], StringType)
+    assert isinstance(fm["ip"], StringType)
+    assert isinstance(fm["headers"], StructType)
+    hf = {f._name: f.datatype for f in fm["headers"].fields}
+    assert isinstance(hf["Host"], StringType) and isinstance(hf["Charset"], StringType)
+
+
+def test_spark_empty_records():
+    """Structs with empty/null children properly handled."""
+    records = [
+        "<ROW><a><struct></struct></a></ROW>",
+        "<ROW><a><struct><b><c/></b></struct></a></ROW>",
+        "<ROW><b><item><c><struct></struct></c></item><item/></b></ROW>",
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["a"], StructType)
+    a_struct = {f._name: f.datatype for f in fm["a"].fields}["struct"]
+    b_c = {
+        f._name: f.datatype
+        for f in {f._name: f.datatype for f in a_struct.fields}["b"].fields
+    }["c"]
+    assert isinstance(b_c, StringType)
+    assert isinstance(fm["b"], StructType)
+    assert isinstance({f._name: f.datatype for f in fm["b"].fields}["item"], ArrayType)
+
+
+def test_spark_nulls_in_arrays():
+    """Null entries in arrays don't disrupt type inference."""
+    records = [
+        """<ROW><field1><array1><array2>value1</array2><array2>value2</array2></array1>
+          <array1/></field1><field1/></ROW>""",
+        """<ROW><field2/><field2><array1><Test>1</Test></array1>
+          <array1/></field2></ROW>""",
+        "<ROW><field1/><field1><array1/></field1><field2/></ROW>",
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["field1"], ArrayType)
+    assert isinstance(fm["field2"], ArrayType)
+
+
+def test_spark_value_tags_type_conflict():
+    """Mixed text and children with type conflicts in _VALUE.
+
+    lxml element.text only captures text BEFORE the first child.
+    Tail text is not captured, diverging from Spark's StAX parser.
+    """
+    records = [
+        "<ROW>\n13.1\n<a>\n11\n<b>\ntrue\n<c>1</c></b></a></ROW>",
+        "<ROW>\nstring\n<a>\n21474836470\n<b>\nfalse\n<c>2</c></b></a></ROW>",
+        "<ROW><a><b>\n12\n<c>3</c></b></a></ROW>",
+    ]
+    fm = {
+        f._name: f.datatype
+        for f in _full_pipeline(records, ignore_surrounding_whitespace=True).fields
+    }
+    assert isinstance(fm["_VALUE"], StringType)
+    assert isinstance(fm["a"], StructType)
+    af = {f._name: f.datatype for f in fm["a"].fields}
+    assert isinstance(af["_VALUE"], LongType)
+    bf = {f._name: f.datatype for f in af["b"].fields}
+    assert isinstance(bf["_VALUE"], StringType)
+    assert isinstance(bf["c"], LongType)
+
+
+def test_spark_value_tag_conflict_name():
+    """When valueTag="a" conflicts with child <a>, they merge.
+
+    lxml element.text only captures text BEFORE the first child.
+    """
+    records_before = ["<ROW>\n2\n<a>1</a></ROW>"]
+    fm = {
+        f._name: f.datatype
+        for f in _full_pipeline(
+            records_before, value_tag="a", ignore_surrounding_whitespace=True
+        ).fields
+    }
+    assert isinstance(fm["a"], ArrayType) and isinstance(fm["a"].element_type, LongType)
+
+    records_after = ["<ROW><a>1</a>\n2\n</ROW>"]
+    fm2 = {
+        f._name: f.datatype
+        for f in _full_pipeline(
+            records_after, value_tag="a", ignore_surrounding_whitespace=True
+        ).fields
+    }
+    assert isinstance(fm2["a"], LongType)
+
+
+# ===========================================================================
+# compatible_type
+# ===========================================================================
+
+
+@pytest.mark.parametrize(
+    "t1, t2, expected_type",
+    [
+        (LongType(), LongType(), LongType),
+        (StringType(), StringType(), StringType),
+        (BooleanType(), BooleanType(), BooleanType),
+        (DoubleType(), DoubleType(), DoubleType),
+        (DateType(), DateType(), DateType),
+        (TimestampType(), TimestampType(), TimestampType),
+        (NullType(), NullType(), NullType),
+    ],
+)
+def test_compatible_type_same(t1, t2, expected_type):
+    """Same types stay the same."""
+    assert isinstance(compatible_type(t1, t2), expected_type)
+
+
+@pytest.mark.parametrize(
+    "t1, t2, expected_type",
+    [
+        (NullType(), LongType(), LongType),
+        (LongType(), NullType(), LongType),
+        (NullType(), StringType(), StringType),
+    ],
+)
+def test_compatible_type_null_plus_t(t1, t2, expected_type):
+    """NullType + T → T."""
+    assert isinstance(compatible_type(t1, t2), expected_type)
+
+
+def test_compatible_type_null_plus_struct():
+    s = StructType([StructField("a", LongType(), True)])
+    assert isinstance(compatible_type(NullType(), s), StructType)
+
+
+def test_compatible_type_null_plus_array():
+    a = ArrayType(LongType(), structured=False)
+    assert isinstance(compatible_type(NullType(), a), ArrayType)
+
+
+@pytest.mark.parametrize(
+    "t1, t2",
+    [(LongType(), DoubleType()), (DoubleType(), LongType())],
+)
+def test_compatible_type_long_double_widening(t1, t2):
+    """Long + Double → Double."""
+    assert isinstance(compatible_type(t1, t2), DoubleType)
+
+
+@pytest.mark.parametrize(
+    "t1, t2",
+    [(DoubleType(), DecimalType(10, 2)), (DecimalType(10, 2), DoubleType())],
+)
+def test_compatible_type_double_decimal(t1, t2):
+    """Double + Decimal → Double."""
+    assert isinstance(compatible_type(t1, t2), DoubleType)
+
+
+@pytest.mark.parametrize(
+    "t1, t2",
+    [(TimestampType(), DateType()), (DateType(), TimestampType())],
+)
+def test_compatible_type_timestamp_date(t1, t2):
+    """Timestamp + Date → Timestamp."""
+    assert isinstance(compatible_type(t1, t2), TimestampType)
+
+
+def test_compatible_type_long_plus_decimal():
+    result = compatible_type(LongType(), DecimalType(10, 2))
+    assert (
+        isinstance(result, DecimalType) and result.precision == 22 and result.scale == 2
+    )
+
+    result2 = compatible_type(DecimalType(10, 2), LongType())
+    assert (
+        isinstance(result2, DecimalType)
+        and result2.precision == 22
+        and result2.scale == 2
+    )
+
+
+def test_compatible_type_same_struct_merge():
+    s1 = StructType(
+        [StructField("a", LongType(), True), StructField("b", StringType(), True)]
+    )
+    s2 = StructType(
+        [StructField("a", DoubleType(), True), StructField("c", BooleanType(), True)]
+    )
+    result = compatible_type(s1, s2)
+    fm = {f._name: f.datatype for f in result.fields}
+    assert (
+        isinstance(fm["a"], DoubleType)
+        and isinstance(fm["b"], StringType)
+        and isinstance(fm["c"], BooleanType)
+    )
+
+
+def test_compatible_type_same_array_merge():
+    result = compatible_type(
+        ArrayType(LongType(), structured=False),
+        ArrayType(DoubleType(), structured=False),
+    )
+    assert isinstance(result, ArrayType) and isinstance(result.element_type, DoubleType)
+
+
+def test_compatible_type_decimal_widen():
+    result = compatible_type(DecimalType(10, 2), DecimalType(15, 5))
+    assert (
+        isinstance(result, DecimalType) and result.precision == 15 and result.scale == 5
+    )
+
+
+def test_compatible_type_decimal_overflow_to_double():
+    """Decimal with precision > 38 falls back to Double."""
+    result = compatible_type(DecimalType(38, 10), DecimalType(38, 20))
+    assert isinstance(result, DoubleType)
+
+
+def test_compatible_type_array_plus_primitive():
+    result = compatible_type(ArrayType(LongType(), structured=False), DoubleType())
+    assert isinstance(result, ArrayType) and isinstance(result.element_type, DoubleType)
+
+    result2 = compatible_type(LongType(), ArrayType(StringType(), structured=False))
+    assert isinstance(result2, ArrayType) and isinstance(
+        result2.element_type, StringType
+    )
+
+
+def test_compatible_type_struct_value_tag_plus_primitive():
+    s = StructType(
+        [
+            StructField("_VALUE", LongType(), True),
+            StructField("_attr", StringType(), True),
+        ]
+    )
+    result = compatible_type(s, DoubleType())
+    fm = {f._name: f.datatype for f in result.fields}
+    assert isinstance(fm["_VALUE"], DoubleType) and isinstance(fm["_attr"], StringType)
+
+    s2 = StructType(
+        [
+            StructField("_VALUE", StringType(), True),
+            StructField("_id", LongType(), True),
+        ]
+    )
+    result2 = compatible_type(BooleanType(), s2)
+    assert isinstance(
+        {f._name: f.datatype for f in result2.fields}["_VALUE"], StringType
+    )
+
+
+@pytest.mark.parametrize(
+    "t1, t2",
+    [
+        (BooleanType(), LongType()),
+        (StringType(), LongType()),
+        (BooleanType(), DoubleType()),
+        (DateType(), LongType()),
+        (StringType(), BooleanType()),
+    ],
+)
+def test_compatible_type_fallback_string(t1, t2):
+    """Incompatible types → StringType."""
+    assert isinstance(compatible_type(t1, t2), StringType)
+
+
+def test_compatible_type_struct_no_value_tag_plus_primitive():
+    """Struct without _VALUE + primitive → StringType fallback."""
+    s = StructType([StructField("a", LongType(), True)])
+    assert isinstance(compatible_type(s, LongType()), StringType)
+
+
+# ===========================================================================
+# _struct_has_value_tag
+# ===========================================================================
+
+
+def test_struct_has_value_tag():
+    s_yes = StructType(
+        [StructField("_VALUE", LongType(), True), StructField("a", StringType(), True)]
+    )
+    assert _struct_has_value_tag(s_yes, "_VALUE") is True
+
+    s_no = StructType([StructField("a", LongType(), True)])
+    assert _struct_has_value_tag(s_no, "_VALUE") is False
+
+    s_custom = StructType([StructField("myval", LongType(), True)])
+    assert _struct_has_value_tag(s_custom, "MYVAL") is True
+    assert _struct_has_value_tag(s_custom, "myval") is False
+    assert _struct_has_value_tag(s_custom, "_VALUE") is False
+
+
+# ===========================================================================
+# _merge_struct_with_primitive
+# ===========================================================================
+
+
+def test_merge_struct_with_primitive():
+    s = StructType(
+        [
+            StructField("_VALUE", LongType(), True),
+            StructField("_attr", StringType(), True),
+        ]
+    )
+    result = _merge_struct_with_primitive(s, DoubleType(), "_VALUE")
+    fm = {f._name: f.datatype for f in result.fields}
+    assert isinstance(fm["_VALUE"], DoubleType) and isinstance(fm["_attr"], StringType)
+
+    s2 = StructType(
+        [
+            StructField("_VALUE", StringType(), True),
+            StructField("other", LongType(), True),
+        ]
+    )
+    result2 = _merge_struct_with_primitive(s2, LongType(), "_VALUE")
+    fm2 = {f._name: f.datatype for f in result2.fields}
+    assert isinstance(fm2["_VALUE"], StringType) and isinstance(fm2["other"], LongType)
+
+
+# ===========================================================================
+# merge_struct_types
+# ===========================================================================
+
+
+def test_merge_struct_types_identical():
+    s = StructType(
+        [StructField("a", LongType(), True), StructField("b", StringType(), True)]
+    )
+    fm = {f._name: f.datatype for f in merge_struct_types(s, s).fields}
+    assert isinstance(fm["a"], LongType) and isinstance(fm["b"], StringType)
+
+
+def test_merge_struct_types_disjoint():
+    result = merge_struct_types(
+        StructType([StructField("a", LongType(), True)]),
+        StructType([StructField("b", StringType(), True)]),
+    )
+    fm = {f._name: f.datatype for f in result.fields}
+    assert "a" in fm and "b" in fm
+
+
+def test_merge_struct_types_widening():
+    result = merge_struct_types(
+        StructType([StructField("a", LongType(), True)]),
+        StructType([StructField("a", DoubleType(), True)]),
+    )
+    assert isinstance({f._name: f.datatype for f in result.fields}["a"], DoubleType)
+
+
+def test_merge_struct_types_overlapping_plus_unique():
+    s1 = StructType(
+        [StructField("a", LongType(), True), StructField("b", StringType(), True)]
+    )
+    s2 = StructType(
+        [StructField("a", DoubleType(), True), StructField("c", BooleanType(), True)]
+    )
+    fm = {f._name: f.datatype for f in merge_struct_types(s1, s2).fields}
+    assert (
+        isinstance(fm["a"], DoubleType)
+        and isinstance(fm["b"], StringType)
+        and isinstance(fm["c"], BooleanType)
+    )
+
+
+def test_merge_struct_types_sorted():
+    result = merge_struct_types(
+        StructType([StructField("z", LongType(), True)]),
+        StructType([StructField("a", StringType(), True)]),
+    )
+    names = [f._name for f in result.fields]
+    assert names == sorted(names)
+
+
+def test_merge_struct_types_case_sensitive():
+    """'Name' and 'name' are separate fields (case-sensitive)."""
+    result = merge_struct_types(
+        StructType([StructField("Name", LongType(), True)]),
+        StructType([StructField("name", StringType(), True)]),
+    )
+    fm = {f._name: f.datatype for f in result.fields}
+    assert isinstance(fm["Name"], LongType) and isinstance(fm["name"], StringType)
+
+
+# ===========================================================================
+# add_or_update_type
+# ===========================================================================
+
+
+def test_add_or_update_type_first_occurrence():
+    d = {}
+    add_or_update_type(d, "a", LongType())
+    assert isinstance(d["a"], LongType)
+
+
+def test_add_or_update_type_second_promotes_array():
+    d = {"a": LongType()}
+    add_or_update_type(d, "a", LongType())
+    assert isinstance(d["a"], ArrayType) and isinstance(d["a"].element_type, LongType)
+
+
+def test_add_or_update_type_second_different_types():
+    d = {"a": LongType()}
+    add_or_update_type(d, "a", DoubleType())
+    assert isinstance(d["a"], ArrayType) and isinstance(d["a"].element_type, DoubleType)
+
+
+def test_add_or_update_type_third_merges():
+    d = {"a": ArrayType(LongType(), structured=False)}
+    add_or_update_type(d, "a", DoubleType())
+    assert isinstance(d["a"], ArrayType) and isinstance(d["a"].element_type, DoubleType)
+
+
+def test_add_or_update_type_progressive():
+    """Multiple occurrences keep widening the array element type."""
+    d = {}
+    add_or_update_type(d, "a", LongType())
+    assert isinstance(d["a"], LongType)
+    add_or_update_type(d, "a", LongType())
+    assert isinstance(d["a"], ArrayType)
+    add_or_update_type(d, "a", DoubleType())
+    assert isinstance(d["a"].element_type, DoubleType)
+    add_or_update_type(d, "a", StringType())
+    assert isinstance(d["a"].element_type, StringType)
+
+
+# ===========================================================================
+# canonicalize_type
+# ===========================================================================
+
+
+@pytest.mark.parametrize(
+    "dtype, expected_type",
+    [
+        (NullType(), StringType),
+        (LongType(), LongType),
+        (StringType(), StringType),
+        (DoubleType(), DoubleType),
+        (BooleanType(), BooleanType),
+        (DateType(), DateType),
+        (TimestampType(), TimestampType),
+        (DecimalType(10, 2), DecimalType),
+    ],
+)
+def test_canonicalize_type_primitives(dtype, expected_type):
+    """NullType → StringType; other primitives unchanged."""
+    assert isinstance(canonicalize_type(dtype), expected_type)
+
+
+def test_canonicalize_type_array_of_null():
+    result = canonicalize_type(ArrayType(NullType(), structured=False))
+    assert isinstance(result, ArrayType) and isinstance(result.element_type, StringType)
+
+
+def test_canonicalize_type_array_of_long():
+    result = canonicalize_type(ArrayType(LongType(), structured=False))
+    assert isinstance(result, ArrayType) and isinstance(result.element_type, LongType)
+
+
+def test_canonicalize_type_array_of_empty_struct():
+    """Array containing empty struct → None (removed)."""
+    result = canonicalize_type(
+        ArrayType(StructType([], structured=False), structured=False)
+    )
+    assert result is None
+
+
+def test_canonicalize_type_nested_array_null():
+    """Array<Array<NullType>> → Array<Array<StringType>>."""
+    inner = ArrayType(NullType(), structured=False)
+    result = canonicalize_type(ArrayType(inner, structured=False))
+    assert isinstance(result.element_type, ArrayType)
+    assert isinstance(result.element_type.element_type, StringType)
+
+
+def test_canonicalize_type_struct_null_fields():
+    s = StructType(
+        [StructField("a", NullType(), True), StructField("b", LongType(), True)],
+        structured=False,
+    )
+    fm = {f._name: f.datatype for f in canonicalize_type(s).fields}
+    assert isinstance(fm["a"], StringType) and isinstance(fm["b"], LongType)
+
+
+def test_canonicalize_type_empty_struct():
+    """Per SPARK-8093: empty structs → None."""
+    assert canonicalize_type(StructType([], structured=False)) is None
+
+
+def test_canonicalize_type_struct_empty_name_field():
+    """Fields with empty names are removed; if none remain, struct is None."""
+    assert (
+        canonicalize_type(
+            StructType([StructField("", LongType(), True)], structured=False)
+        )
+        is None
+    )
+
+
+def test_canonicalize_type_struct_mixed_fields():
+    s = StructType(
+        [
+            StructField("a", NullType(), True),
+            StructField("", LongType(), True),
+            StructField("b", DoubleType(), True),
+        ],
+        structured=False,
+    )
+    result = canonicalize_type(s)
+    assert len(result.fields) == 2
+    fm = {f._name: f.datatype for f in result.fields}
+    assert isinstance(fm["a"], StringType) and isinstance(fm["b"], DoubleType)
+
+
+def test_canonicalize_type_nested_struct():
+    """Nested struct: inner NullType fields become StringType."""
+    inner = StructType([StructField("x", NullType(), True)], structured=False)
+    outer = StructType([StructField("child", inner, True)], structured=False)
+    result = canonicalize_type(outer)
+    assert isinstance(result.fields[0].datatype.fields[0].datatype, StringType)
+
+
+def test_canonicalize_type_nested_struct_empty_inner():
+    """Nested struct where inner becomes empty → field is removed."""
+    inner = StructType([], structured=False)
+    outer = StructType(
+        [StructField("child", inner, True), StructField("other", LongType(), True)],
+        structured=False,
+    )
+    result = canonicalize_type(outer)
+    assert len(result.fields) == 1 and result.fields[0]._name == "other"
+
+
+# ===========================================================================
+# _case_preserving_simple_string
+# ===========================================================================
+
+
+@pytest.mark.parametrize(
+    "dtype, expected",
+    [
+        (StringType(), "string"),
+        (LongType(), "bigint"),
+        (DoubleType(), "double"),
+        (BooleanType(), "boolean"),
+        (DateType(), "date"),
+        (TimestampType(), "timestamp"),
+        (NullType(), "null"),
+    ],
+)
+def test_case_preserving_simple_string_primitives(dtype, expected):
+    assert _case_preserving_simple_string(dtype) == expected
+
+
+def test_case_preserving_simple_string_struct():
+    s = StructType([StructField("author", StringType(), True)], structured=False)
+    assert _case_preserving_simple_string(s) == "struct<author:string>"
+
+
+def test_case_preserving_simple_string_preserves_case():
+    s = StructType(
+        [
+            StructField("Author", StringType(), True),
+            StructField("title", LongType(), True),
+        ],
+        structured=False,
+    )
+    result = _case_preserving_simple_string(s)
+    assert "Author:string" in result and "title:bigint" in result
+
+
+def test_case_preserving_simple_string_nested():
+    inner = StructType([StructField("inner_field", LongType(), True)], structured=False)
+    outer = StructType([StructField("outer", inner, True)], structured=False)
+    assert (
+        _case_preserving_simple_string(outer)
+        == "struct<outer:struct<inner_field:bigint>>"
+    )
+
+
+def test_case_preserving_simple_string_array():
+    s = StructType(
+        [StructField("items", ArrayType(StringType(), structured=False), True)],
+        structured=False,
+    )
+    assert _case_preserving_simple_string(s) == "struct<items:array<string>>"
+
+
+def test_case_preserving_simple_string_array_of_struct():
+    inner = StructType([StructField("name", StringType(), True)], structured=False)
+    s = StructType(
+        [StructField("people", ArrayType(inner, structured=False), True)],
+        structured=False,
+    )
+    assert (
+        _case_preserving_simple_string(s) == "struct<people:array<struct<name:string>>>"
+    )
+
+
+def test_case_preserving_simple_string_colon_in_name():
+    """Field names with colons get quoted."""
+    s = StructType([StructField("px:name", StringType(), True)], structured=False)
+    assert _case_preserving_simple_string(s) == 'struct<"px:name":string>'
+
+    s2 = StructType(
+        [
+            StructField("px:name", StringType(), True),
+            StructField("px:value", LongType(), True),
+        ],
+        structured=False,
+    )
+    result = _case_preserving_simple_string(s2)
+    assert '"px:name":string' in result and '"px:value":bigint' in result
+
+
+def test_case_preserving_simple_string_no_unnecessary_quotes():
+    s = StructType([StructField("author", StringType(), True)], structured=False)
+    assert '"' not in _case_preserving_simple_string(s)
+
+
+# ===========================================================================
+# End-to-end: infer + merge + canonicalize (Spark parity)
+# ===========================================================================
+
+
+def test_e2e_simple_flat_record():
+    records = [
+        """<book><title>The Great Gatsby</title><author>F. Scott Fitzgerald</author>
+        <year>1925</year><price>12.99</price></book>"""
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["title"], StringType) and isinstance(fm["author"], StringType)
+    assert isinstance(fm["year"], LongType) and isinstance(fm["price"], DoubleType)
+
+
+def test_e2e_repeated_elements_array():
+    records = [
+        "<catalog><item>Apple</item><item>Banana</item><item>Cherry</item></catalog>"
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["item"], ArrayType) and isinstance(
+        fm["item"].element_type, StringType
+    )
+
+
+def test_e2e_nested_struct_and_array():
+    records = [
+        """<book><title>Test Book</title><reviews>
+        <review><user>user1</user><rating>5</rating></review>
+        <review><user>user2</user><rating>3</rating></review>
+        </reviews></book>"""
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["title"], StringType)
+    rev_fields = {f._name: f.datatype for f in fm["reviews"].fields}
+    assert isinstance(rev_fields["review"], ArrayType)
+    elem_fields = {
+        f._name: f.datatype for f in rev_fields["review"].element_type.fields
+    }
+    assert isinstance(elem_fields["user"], StringType) and isinstance(
+        elem_fields["rating"], LongType
+    )
+
+
+def test_e2e_attributes_with_text():
+    records = [
+        """<book id="1"><title>Test</title>
+        <edition year="2023" format="Hardcover"/></book>"""
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["_id"], LongType) and isinstance(fm["title"], StringType)
+    ef = {f._name: f.datatype for f in fm["edition"].fields}
+    assert isinstance(ef["_year"], LongType) and isinstance(ef["_format"], StringType)
+    assert isinstance(ef["_VALUE"], StringType)
+
+
+def test_e2e_schema_evolution():
+    """Field types evolve across records: Long + Double → Double."""
+    records = [
+        "<item><name>Widget</name><price>10</price></item>",
+        "<item><name>Gadget</name><price>19.99</price></item>",
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["name"], StringType) and isinstance(fm["price"], DoubleType)
+
+
+def test_e2e_null_fields_canonicalized():
+    """All-null fields become StringType after canonicalization."""
+    records = ["<row><a/><b>hello</b></row>", "<row><a></a><b>world</b></row>"]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["a"], StringType) and isinstance(fm["b"], StringType)
+
+
+def test_e2e_serialization_round_trip():
+    records = [
+        """<row><author>Jane</author><price>29.99</price>
+        <tags><tag>fiction</tag><tag>bestseller</tag></tags></row>"""
+    ]
+    schema_str = _case_preserving_simple_string(_full_pipeline(records))
+    assert "author:string" in schema_str and "price:double" in schema_str
+    assert "tags:struct<tag:array<string>>" in schema_str
+
+
+def test_e2e_case_sensitive_fields():
+    """'b' and 'B' are different fields (case-sensitive)."""
+    records = [
+        "<ROW><a>1</a><b>2</b><c>3</c></ROW>",
+        "<ROW><a>4</a><B>5</B><c>6</c></ROW>",
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert all(isinstance(fm[k], LongType) for k in ["a", "b", "B", "c"])
+
+
+def test_e2e_case_sensitive_value_tag():
+    """<a> with children vs <A> without → different fields."""
+    records = [
+        "<ROW><a>\n1\n<b>2</b></a></ROW>",
+        "<ROW><A>3</A></ROW>",
+    ]
+    fm = {
+        f._name: f.datatype
+        for f in _full_pipeline(records, ignore_surrounding_whitespace=True).fields
+    }
+    assert isinstance(fm["A"], LongType)
+    assert isinstance(fm["a"], StructType)
+    af = {f._name: f.datatype for f in fm["a"].fields}
+    assert isinstance(af["_VALUE"], LongType) and isinstance(af["b"], LongType)
+
+
+def test_e2e_case_sensitive_attributes():
+    """'attr' and 'aTtr' are different attribute fields."""
+    records = [
+        '<ROW attr="1"><a>1</a><b>2</b><c>3</c></ROW>',
+        '<ROW aTtr="2"><a>4</a><b>5</b><c>6</c></ROW>',
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["_attr"], LongType) and isinstance(fm["_aTtr"], LongType)
+
+
+def test_e2e_case_sensitive_struct():
+    """<A> and <a> with children → different struct fields."""
+    records = [
+        "<ROW><A><a>1</a><c>3</c></A></ROW>",
+        "<ROW><a><A>5</A><c>7</c></a></ROW>",
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["A"], StructType) and isinstance(fm["a"], StructType)
+    assert all(
+        isinstance(v, LongType)
+        for v in {f._name: f.datatype for f in fm["A"].fields}.values()
+    )
+
+
+def test_e2e_case_sensitive_array_complex():
+    records = [
+        "<ROW><a>\n1\n<b>2</b><c>3</c></a><A>4</A></ROW>",
+        "<ROW><A>5</A></ROW>",
+    ]
+    fm = {
+        f._name: f.datatype
+        for f in _full_pipeline(records, ignore_surrounding_whitespace=True).fields
+    }
+    assert isinstance(fm["A"], LongType)
+    assert isinstance(fm["a"], StructType)
+    af = {f._name: f.datatype for f in fm["a"].fields}
+    assert isinstance(af["_VALUE"], LongType) and isinstance(af["b"], LongType)
+
+
+def test_e2e_case_sensitive_array_simple():
+    records = ["<ROW><a><b>1</b><c>2</c></a><A><B>3</B><c>4</c></A></ROW>"]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["A"], StructType) and isinstance(fm["a"], StructType)
+    assert isinstance({f._name: f.datatype for f in fm["A"].fields}["B"], LongType)
+    assert isinstance({f._name: f.datatype for f in fm["a"].fields}["b"], LongType)
+
+
+def test_e2e_value_tags_spaces_and_empty_values():
+    """lxml element.text only captures text BEFORE the first child."""
+    records = [
+        "<ROW>\n    str1\n    <a>  <b>1</b>\n    </a></ROW>",
+        "<ROW> <a><b/> value</a></ROW>",
+        "<ROW><a><b>3</b> </a></ROW>",
+        "<ROW><a><b>4</b> </a></ROW>",
+    ]
+    fm_ws = {
+        f._name: f.datatype
+        for f in _full_pipeline(records, ignore_surrounding_whitespace=True).fields
+    }
+    assert isinstance(fm_ws["_VALUE"], StringType)
+    assert isinstance(fm_ws["a"], StructType)
+    assert isinstance({f._name: f.datatype for f in fm_ws["a"].fields}["b"], LongType)
+
+    fm_nws = {
+        f._name: f.datatype
+        for f in _full_pipeline(records, ignore_surrounding_whitespace=False).fields
+    }
+    assert isinstance(fm_nws["_VALUE"], StringType)
+
+
+def test_e2e_value_tags_multiline():
+    """element.text only captures text before first child."""
+    records = [
+        "<ROW>\nvalue1\n<a>1</a></ROW>",
+        "<ROW>\nvalue3\nvalue4<a>1</a></ROW>",
+    ]
+    fm = {
+        f._name: f.datatype
+        for f in _full_pipeline(records, ignore_surrounding_whitespace=True).fields
+    }
+    assert isinstance(fm["_VALUE"], StringType) and isinstance(fm["a"], LongType)
+
+
+def test_e2e_value_tag_comments():
+    """Comments should not affect value tag inference."""
+    records = ['<ROW>\n2\n<a></a><a attr="1"></a></ROW>']
+    fm = {
+        f._name: f.datatype
+        for f in _full_pipeline(records, ignore_surrounding_whitespace=True).fields
+    }
+    assert isinstance(fm["_VALUE"], LongType) and isinstance(fm["a"], ArrayType)
+
+
+def test_e2e_value_tag_null_value_option():
+    """nullValue option doesn't affect schema inference."""
+    fm = {
+        f._name: f.datatype
+        for f in _full_pipeline(
+            ["<ROW>\n    1\n</ROW>"], ignore_surrounding_whitespace=True
+        ).fields
+    }
+    assert isinstance(fm["_VALUE"], LongType)
