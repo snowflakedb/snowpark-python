@@ -31,6 +31,7 @@ from snowflake.snowpark.functions import (
     min,
     rank,
     row_number,
+    substring,
     sum,
     to_char,
     to_date,
@@ -665,3 +666,53 @@ def test_ai_complete(session):
             Row('{\n  "response": "AI response to Test prompt"\n}'),
         ],
     )
+
+def test_substring(session):
+    origin_df: DataFrame = session.create_dataframe(
+        [
+            ["hello"],
+            ["world"],
+            ["snowflake"],
+        ],
+        schema=["s"],
+    )
+
+    # Basic select usage: 1-based start positions
+    assert origin_df.select(substring(col("s"), lit(1), lit(3))).collect() == [
+        Row("hel"),
+        Row("wor"),
+        Row("sno"),
+    ]
+
+    # Length exceeds string length: returns remainder of the string
+    assert origin_df.select(substring(col("s"), lit(1), lit(100))).collect() == [
+        Row("hello"),
+        Row("world"),
+        Row("snowflake"),
+    ]
+
+    null_df: DataFrame = session.create_dataframe(
+        [
+            ["hello"],
+            [None],
+            ["world"],
+        ],
+        schema=["s"],
+    )
+
+    # NULL input string returns None
+    assert null_df.select(substring(col("s"), lit(1), lit(3))).collect() == [
+        Row("hel"),
+        Row(None),
+        Row("wor"),
+    ]
+
+    # Verify that substring carries index=base_expr.index forward
+    result = origin_df.filter(col("s") != lit("hello")).with_column(
+        "substr",
+        substring(col("s"), lit(2), lit(3)),
+    ).collect()
+
+    assert len(result) == 2, f"Expected 2 rows but got {len(result)}"
+    assert result[0]["SUBSTR"] == "orl"
+    assert result[1]["SUBSTR"] == "now"
