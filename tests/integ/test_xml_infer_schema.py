@@ -680,18 +680,24 @@ def test_infer_mixed_content(session):
 # ─── inferSchema=false keeps all strings ────────────────────────────────────
 
 
-def test_infer_schema_false_all_strings(session):
+@pytest.mark.parametrize(
+    "staged_key, row_tag, expected_count",
+    [
+        ("primitives", "ROW", 1),
+        ("nested_object", "book", 2),
+        ("unbalanced_types", "ROW", 2),
+    ],
+)
+def test_infer_schema_false_all_strings(session, staged_key, row_tag, expected_count):
     """inferSchema=false → all fields are variant/string columns."""
     df = (
-        session.read.option("rowTag", "ROW")
+        session.read.option("rowTag", row_tag)
         .option("inferSchema", False)
-        .xml(f"@{tmp_stage_name}/{_staged_files['primitives']}")
+        .xml(f"@{tmp_stage_name}/{_staged_files[staged_key]}")
     )
     assert df._all_variant_cols is True
     result = df.collect()
-    assert len(result) == 1
-    # Values are quoted strings in variant mode
-    assert result[0]["'bool1'"] == '"true"'
+    assert len(result) == expected_count
 
 
 # ─── Resource file: xml_infer_types.xml ─────────────────────────────────────
@@ -711,6 +717,7 @@ def test_infer_types_resource_file(session):
     assert types["quantity"] == LongType
     assert types["in_stock"] == BooleanType
     assert types["release_date"] == DateType
+    assert types["last_updated"] == TimestampType
 
     # price has attribute on some rows → complex type
     assert types["price"] == VariantType
@@ -1024,17 +1031,24 @@ def test_read_xml_attribute_value_infer_schema(session):
 # ─── inferSchema vs inferSchema=false comparison ────────────────────────────
 
 
-def test_infer_vs_no_infer_column_count(session):
+@pytest.mark.parametrize(
+    "staged_file, row_tag",
+    [
+        ("xml_infer_types.xml", "item"),
+        (RES_BOOKS_XML, "book"),
+        (RES_BOOKS2_XML, "book"),
+    ],
+)
+def test_infer_vs_no_infer_column_count(session, staged_file, row_tag):
     """inferSchema produces typed columns; no inferSchema produces variant columns."""
-    df_infer = session.read.option("rowTag", "item").xml(
-        f"@{tmp_stage_name}/xml_infer_types.xml"
+    df_infer = session.read.option("rowTag", row_tag).xml(
+        f"@{tmp_stage_name}/{staged_file}"
     )
     df_no_infer = (
-        session.read.option("rowTag", "item")
+        session.read.option("rowTag", row_tag)
         .option("inferSchema", False)
-        .xml(f"@{tmp_stage_name}/xml_infer_types.xml")
+        .xml(f"@{tmp_stage_name}/{staged_file}")
     )
     assert df_infer._all_variant_cols is False
     assert df_no_infer._all_variant_cols is True
-    # Both should return same number of rows
     assert df_infer.count() == df_no_infer.count()

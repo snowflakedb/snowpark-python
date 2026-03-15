@@ -2,6 +2,9 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import io
+from unittest.mock import patch
+
 import lxml.etree as ET
 import pytest
 
@@ -16,6 +19,7 @@ from snowflake.snowpark._internal.xml_schema_inference import (
     _case_preserving_simple_string,
     _struct_has_value_tag,
     _merge_struct_with_primitive,
+    infer_schema_for_xml_range,
 )
 from snowflake.snowpark.types import (
     StructType,
@@ -114,7 +118,18 @@ def test_infer_type_null(value, kwargs):
 
 @pytest.mark.parametrize(
     "value",
-    ["42", "-42", "0", str(2**63 - 1), str(-(2**63)), "+123"],
+    [
+        "42",
+        "-42",
+        "0",
+        str(2**63 - 1),
+        str(-(2**63)),
+        "+123",
+        "1",
+        "+0",
+        "-0",
+        "007",
+    ],
 )
 def test_infer_type_long(value):
     """Integer strings within Long range → LongType."""
@@ -128,11 +143,15 @@ def test_infer_type_long(value):
         "1.5e10",
         "-2.5",
         ".5",
+        "0.0",
+        "+3.14",
         "NaN",
         "Infinity",
+        "+Infinity",
         "-Infinity",
         "92233720368547758070",
         "-92233720368547758080",
+        "1.7976931348623157e+308",
     ],
 )
 def test_infer_type_double(value):
@@ -145,7 +164,7 @@ def test_infer_type_boolean(value):
     assert isinstance(infer_type(value), BooleanType)
 
 
-@pytest.mark.parametrize("value", ["2024-01-15", "2000-12-31"])
+@pytest.mark.parametrize("value", ["2024-01-15", "2000-12-31", "1999-01-01"])
 def test_infer_type_date(value):
     assert isinstance(infer_type(value), DateType)
 
@@ -202,8 +221,14 @@ def test_infer_type_whitespace_stripped():
         ("<a/>", NullType, {}),
         ("<a>N/A</a>", NullType, {"null_value": "N/A"}),
         ("<a>true</a>", BooleanType, {}),
+        ("<a>false</a>", BooleanType, {}),
         ("<a>3.14</a>", DoubleType, {}),
         ("<a>hello</a>", StringType, {}),
+        ("<a>2024-01-15</a>", DateType, {}),
+        ("<a>2024-01-15T10:30:00</a>", TimestampType, {}),
+        ("<a>2024-01-15T10:30:00Z</a>", TimestampType, {}),
+        ("<a>NaN</a>", DoubleType, {}),
+        ("<a>92233720368547758070</a>", DoubleType, {}),
     ],
 )
 def test_infer_element_schema_leaf(xml_str, expected_type, kwargs):
@@ -739,6 +764,10 @@ def test_compatible_type_struct_value_tag_plus_primitive():
         (BooleanType(), DoubleType()),
         (DateType(), LongType()),
         (StringType(), BooleanType()),
+        (DateType(), DoubleType()),
+        (BooleanType(), DateType()),
+        (StringType(), DateType()),
+        (LongType(), BooleanType()),
     ],
 )
 def test_compatible_type_fallback_string(t1, t2):
@@ -921,6 +950,7 @@ def test_add_or_update_type_progressive():
         (DateType(), DateType),
         (TimestampType(), TimestampType),
         (DecimalType(10, 2), DecimalType),
+        (DecimalType(38, 18), DecimalType),
     ],
 )
 def test_canonicalize_type_primitives(dtype, expected_type):
@@ -1165,6 +1195,26 @@ def test_e2e_schema_evolution():
     assert isinstance(fm["name"], StringType) and isinstance(fm["price"], DoubleType)
 
 
+def test_e2e_schema_evolution_bool_to_string():
+    """Boolean + String → String."""
+    records = [
+        "<item><flag>true</flag></item>",
+        "<item><flag>maybe</flag></item>",
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["flag"], StringType)
+
+
+def test_e2e_schema_evolution_date_to_timestamp():
+    """Date + Timestamp → Timestamp."""
+    records = [
+        "<item><when>2024-01-15</when></item>",
+        "<item><when>2024-01-15T10:30:00</when></item>",
+    ]
+    fm = {f._name: f.datatype for f in _full_pipeline(records).fields}
+    assert isinstance(fm["when"], TimestampType)
+
+
 def test_e2e_null_fields_canonicalized():
     """All-null fields become StringType after canonicalization."""
     records = ["<row><a/><b>hello</b></row>", "<row><a></a><b>world</b></row>"]
@@ -1310,3 +1360,144 @@ def test_e2e_value_tag_null_value_option():
         ).fields
     }
     assert isinstance(fm["_VALUE"], LongType)
+
+
+# ---------------------------------------------------------------------------
+# infer_schema_for_xml_range
+# ---------------------------------------------------------------------------
+
+
+def _mock_xml_range(xml_content, row_tag, **kwargs):
+    """Helper: run infer_schema_for_xml_range against an in-memory XML string."""
+    xml_bytes = xml_content.encode("utf-8")
+    mock_file = io.BytesIO(xml_bytes)
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+        return infer_schema_for_xml_range(
+            file_path="test.xml",
+            row_tag=row_tag,
+            approx_start=0,
+            approx_end=len(xml_bytes),
+            sampling_ratio=1.0,
+            ignore_namespace=kwargs.get("ignore_namespace", True),
+            attribute_prefix=kwargs.get("attribute_prefix", "_"),
+            exclude_attributes=kwargs.get("exclude_attributes", False),
+            value_tag=kwargs.get("value_tag", "_VALUE"),
+            null_value=kwargs.get("null_value", ""),
+            charset="utf-8",
+            ignore_surrounding_whitespace=kwargs.get(
+                "ignore_surrounding_whitespace", True
+            ),
+        )
+
+
+def test_infer_range_single_leaf_record():
+    """Single leaf record → StructType with _VALUE."""
+    schema = _mock_xml_range("<root><item>hello</item></root>", "item")
+    assert schema is not None
+    assert len(schema.fields) == 1
+    assert schema.fields[0]._name == "_VALUE"
+    assert isinstance(schema.fields[0].datatype, StringType)
+
+
+def test_infer_range_multiple_typed_records():
+    """Multiple records with different types → merged schema."""
+    xml = "<r><row><a>1</a><b>true</b></row><row><a>2</a><b>false</b><c>3.14</c></row></r>"
+    schema = _mock_xml_range(xml, "row")
+    fm = {f._name: f.datatype for f in schema.fields}
+    assert isinstance(fm["a"], LongType)
+    assert isinstance(fm["b"], BooleanType)
+    assert isinstance(fm["c"], DoubleType)
+
+
+def test_infer_range_type_widening():
+    """Long in first record, Double in second → merged to DoubleType."""
+    xml = "<r><row><val>42</val></row><row><val>3.14</val></row></r>"
+    schema = _mock_xml_range(xml, "row")
+    assert isinstance(schema.fields[0].datatype, DoubleType)
+
+
+def test_infer_range_repeated_children_become_array():
+    """Repeated child tags → ArrayType."""
+    xml = "<r><row><item>a</item><item>b</item></row></r>"
+    schema = _mock_xml_range(xml, "row")
+    assert isinstance(schema.fields[0].datatype, ArrayType)
+    assert isinstance(schema.fields[0].datatype.element_type, StringType)
+
+
+def test_infer_range_attributes():
+    """Attributes → prefixed struct fields."""
+    xml = '<r><row id="1" active="true"><name>Alice</name></row></r>'
+    schema = _mock_xml_range(xml, "row")
+    fm = {f._name: f.datatype for f in schema.fields}
+    assert isinstance(fm["_id"], LongType)
+    assert isinstance(fm["_active"], BooleanType)
+    assert isinstance(fm["name"], StringType)
+
+
+def test_infer_range_nested_struct():
+    """Nested elements → nested StructType."""
+    xml = "<r><row><address><city>NYC</city><zip>10001</zip></address></row></r>"
+    schema = _mock_xml_range(xml, "row")
+    addr = schema.fields[0]
+    assert addr._name == "address"
+    assert isinstance(addr.datatype, StructType)
+    nested_fm = {f._name: f.datatype for f in addr.datatype.fields}
+    assert isinstance(nested_fm["city"], StringType)
+    assert isinstance(nested_fm["zip"], LongType)
+
+
+def test_infer_range_self_closing_tag():
+    """Self-closing tags → StructType with attributes."""
+    xml = '<r><row id="1"/><row id="2"/></r>'
+    schema = _mock_xml_range(xml, "row")
+    assert len(schema.fields) == 1
+    assert schema.fields[0]._name == "_id"
+    assert isinstance(schema.fields[0].datatype, LongType)
+
+
+def test_infer_range_no_records():
+    xml = "<r><other>data</other></r>"
+    schema = _mock_xml_range(xml, "row")
+    assert schema is None
+
+
+def test_infer_range_malformed_record_skipped():
+    """Malformed XML between valid records is skipped."""
+    xml = "<r><row><a>1</a></row><row><<<bad</row><row><a>2</a></row></r>"
+    schema = _mock_xml_range(xml, "row")
+    assert schema is not None
+    assert isinstance(schema.fields[0].datatype, LongType)
+
+
+def test_infer_range_namespace_stripped():
+    """Namespaces are stripped when ignore_namespace=True."""
+    xml = '<r><ns:row xmlns:ns="http://example.com"><ns:val>42</ns:val></ns:row></r>'
+    schema = _mock_xml_range(xml, "ns:row", ignore_namespace=True)
+    assert schema is not None
+
+
+def test_infer_range_exclude_attributes():
+    """exclude_attributes=True omits attribute fields."""
+    xml = '<r><row id="1"><name>Alice</name></row></r>'
+    schema = _mock_xml_range(xml, "row", exclude_attributes=True)
+    fm = {f._name for f in schema.fields}
+    assert "_id" not in fm
+    assert "name" in fm
+
+
+def test_infer_range_mixed_content():
+    xml = "<r><row>text<child>1</child></row></r>"
+    schema = _mock_xml_range(xml, "row")
+    fm = {f._name: f.datatype for f in schema.fields}
+    assert "_VALUE" in fm
+    assert "child" in fm
+
+
+def test_infer_range_schema_merge_across_records():
+    """Fields present only in some records are merged into the union schema."""
+    xml = "<r><row><a>1</a></row><row><b>hello</b></row><row><a>2</a><c>true</c></row></r>"
+    schema = _mock_xml_range(xml, "row")
+    fm = {f._name: f.datatype for f in schema.fields}
+    assert isinstance(fm["a"], LongType)
+    assert isinstance(fm["b"], StringType)
+    assert isinstance(fm["c"], BooleanType)

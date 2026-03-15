@@ -162,6 +162,8 @@ def setup(session, resources_path, local_testing_mode):
         [test_file_books2_xml, "book", 2, 6],
         [test_file_house_xml, "House", 37, 22],
         [test_file_house_large_xml, "House", 740, 22],
+        [test_file_dblp_xml, "mastersthesis", 6, 8],
+        [test_file_books_attr_val_xml, "book", 5, 6],
     ],
 )
 def test_read_xml_row_tag(

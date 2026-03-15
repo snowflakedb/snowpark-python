@@ -490,6 +490,140 @@ def _case_preserving_simple_string(dt: DataType) -> str:
 # ---------------------------------------------------------------------------
 
 
+def infer_schema_for_xml_range(
+    file_path: str,
+    row_tag: str,
+    approx_start: int,
+    approx_end: int,
+    sampling_ratio: float,
+    ignore_namespace: bool,
+    attribute_prefix: str,
+    exclude_attributes: bool,
+    value_tag: str,
+    null_value: str,
+    charset: str,
+    ignore_surrounding_whitespace: bool,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+) -> Optional[StructType]:
+    """
+    Infer the merged XML schema for all records within a byte range.
+
+    Scans the file from *approx_start* to *approx_end*, parses each
+    XML record delimited by *row_tag*, infers per-record schemas, and
+    merges them into a single StructType.
+
+    Returns:
+        The merged StructType, or None if no records were found.
+    """
+    tag_start_1 = f"<{row_tag}>".encode()
+    tag_start_2 = f"<{row_tag} ".encode()
+    closing_tag = f"</{row_tag}>".encode()
+
+    merged_schema: Optional[StructType] = None
+
+    with SnowflakeFile.open(file_path, "rb", require_scoped_url=False) as f:
+        f.seek(approx_start)
+
+        while True:
+            try:
+                open_pos = find_next_opening_tag_pos(
+                    f, tag_start_1, tag_start_2, approx_end, chunk_size
+                )
+            except EOFError:
+                break
+
+            if open_pos >= approx_end:
+                break
+
+            record_start = open_pos
+            f.seek(record_start)
+
+            try:
+                is_self_close, tag_end = tag_is_self_closing(f, chunk_size)
+                if is_self_close:
+                    record_end = tag_end
+                else:
+                    f.seek(tag_end)
+                    record_end = find_next_closing_tag_pos(f, closing_tag, chunk_size)
+            except Exception:
+                try:
+                    f.seek(min(record_start + 1, approx_end))
+                except Exception:
+                    break
+                continue
+
+            if sampling_ratio < 1.0 and random.random() > sampling_ratio:
+                if record_end > approx_end:
+                    break
+                try:
+                    f.seek(min(record_end, approx_end))
+                except Exception:
+                    break
+                continue
+
+            try:
+                f.seek(record_start)
+                record_bytes = f.read(record_end - record_start)
+                record_str = record_bytes.decode(charset, errors="replace")
+                record_str = re.sub(r"&(\w+);", replace_entity, record_str)
+
+                if lxml_installed:
+                    recover = bool(":" in row_tag)
+                    parser = ET.XMLParser(recover=recover, ns_clean=True)
+                    try:
+                        element = ET.fromstring(record_str, parser)
+                    except ET.XMLSyntaxError:
+                        if ignore_namespace:
+                            cleaned = re.sub(r"\s+(\w+):(\w+)=", r" \2=", record_str)
+                            element = ET.fromstring(cleaned, parser)
+                        else:
+                            raise
+                else:
+                    element = ET.fromstring(record_str)
+
+                if ignore_namespace:
+                    element = strip_xml_namespaces(element)
+            except Exception:
+                if record_end > approx_end:
+                    break
+                try:
+                    f.seek(min(record_end, approx_end))
+                except Exception:
+                    break
+                continue
+
+            record_schema = infer_element_schema(
+                element,
+                attribute_prefix=attribute_prefix,
+                exclude_attributes=exclude_attributes,
+                value_tag=value_tag,
+                null_value=null_value,
+                ignore_surrounding_whitespace=ignore_surrounding_whitespace,
+                ignore_namespace=ignore_namespace,
+            )
+
+            if not isinstance(record_schema, StructType):
+                record_schema = StructType(
+                    [StructField(value_tag, record_schema, nullable=True)],
+                )
+
+            if merged_schema is None:
+                merged_schema = record_schema
+            else:
+                merged_schema = merge_struct_types(
+                    merged_schema, record_schema, value_tag
+                )
+
+            if record_end > approx_end:
+                break
+            try:
+                f.seek(min(record_end, approx_end))
+            except Exception:
+                break
+
+    return merged_schema
+
+
 class XMLSchemaInference:
     """
     UDTF handler for parallelized XML schema inference.
@@ -551,128 +685,21 @@ class XMLSchemaInference:
         approx_start = approx_chunk_size * i
         approx_end = approx_chunk_size * (i + 1) if i < num_workers - 1 else file_size
 
-        tag_start_1 = f"<{row_tag}>".encode()
-        tag_start_2 = f"<{row_tag} ".encode()
-        closing_tag = f"</{row_tag}>".encode()
-        chunk_size = DEFAULT_CHUNK_SIZE
+        merged_schema = infer_schema_for_xml_range(
+            file_path=filename,
+            row_tag=row_tag,
+            approx_start=approx_start,
+            approx_end=approx_end,
+            sampling_ratio=sampling_ratio,
+            ignore_namespace=ignore_namespace,
+            attribute_prefix=attribute_prefix,
+            exclude_attributes=exclude_attributes,
+            value_tag=value_tag,
+            null_value=null_value,
+            charset=charset,
+            ignore_surrounding_whitespace=ignore_surrounding_whitespace,
+        )
 
-        merged_schema: Optional[StructType] = None
-
-        with SnowflakeFile.open(filename, "rb", require_scoped_url=False) as f:
-            f.seek(approx_start)
-
-            while True:
-                # 1) Find next opening tag within byte range
-                try:
-                    open_pos = find_next_opening_tag_pos(
-                        f, tag_start_1, tag_start_2, approx_end, chunk_size
-                    )
-                except EOFError:
-                    break
-
-                if open_pos >= approx_end:
-                    break
-
-                record_start = open_pos
-                f.seek(record_start)
-
-                # 2) Find record end
-                try:
-                    is_self_close, tag_end = tag_is_self_closing(f, chunk_size)
-                    if is_self_close:
-                        record_end = tag_end
-                    else:
-                        f.seek(tag_end)
-                        record_end = find_next_closing_tag_pos(
-                            f, closing_tag, chunk_size
-                        )
-                except (Exception):
-                    # Malformed: skip
-                    try:
-                        f.seek(min(record_start + 1, approx_end))
-                    except Exception:
-                        break
-                    continue
-
-                # 3) Sampling: skip record if not sampled
-                if sampling_ratio < 1.0 and random.random() > sampling_ratio:
-                    if record_end > approx_end:
-                        break
-                    try:
-                        f.seek(min(record_end, approx_end))
-                    except Exception:
-                        break
-                    continue
-
-                # 4) Read and parse the XML record
-                try:
-                    f.seek(record_start)
-                    record_bytes = f.read(record_end - record_start)
-                    record_str = record_bytes.decode(charset, errors="replace")
-                    record_str = re.sub(r"&(\w+);", replace_entity, record_str)
-
-                    if lxml_installed:
-                        recover = bool(":" in row_tag)
-                        parser = ET.XMLParser(recover=recover, ns_clean=True)
-                        try:
-                            element = ET.fromstring(record_str, parser)
-                        except ET.XMLSyntaxError:
-                            if ignore_namespace:
-                                cleaned = re.sub(
-                                    r"\s+(\w+):(\w+)=", r" \2=", record_str
-                                )
-                                element = ET.fromstring(cleaned, parser)
-                            else:
-                                raise
-                    else:
-                        element = ET.fromstring(record_str)
-
-                    if ignore_namespace:
-                        element = strip_xml_namespaces(element)
-                except Exception:
-                    # Malformed record: skip during schema inference
-                    if record_end > approx_end:
-                        break
-                    try:
-                        f.seek(min(record_end, approx_end))
-                    except Exception:
-                        break
-                    continue
-
-                # 5) Infer schema for this record
-                record_schema = infer_element_schema(
-                    element,
-                    attribute_prefix=attribute_prefix,
-                    exclude_attributes=exclude_attributes,
-                    value_tag=value_tag,
-                    null_value=null_value,
-                    ignore_surrounding_whitespace=ignore_surrounding_whitespace,
-                    ignore_namespace=ignore_namespace,
-                )
-
-                # If result is not a StructType, wrap it
-                if not isinstance(record_schema, StructType):
-                    record_schema = StructType(
-                        [StructField(value_tag, record_schema, nullable=True)],
-                    )
-
-                # 6) Merge with accumulated schema
-                if merged_schema is None:
-                    merged_schema = record_schema
-                else:
-                    merged_schema = merge_struct_types(
-                        merged_schema, record_schema, value_tag
-                    )
-
-                # 7) Advance past this record
-                if record_end > approx_end:
-                    break
-                try:
-                    f.seek(min(record_end, approx_end))
-                except Exception:
-                    break
-
-        # Yield the merged schema string for this partition, preserving original case
         yield (
             _case_preserving_simple_string(merged_schema)
             if merged_schema is not None
