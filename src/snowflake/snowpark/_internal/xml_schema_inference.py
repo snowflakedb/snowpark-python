@@ -685,6 +685,10 @@ class XMLSchemaInference:
         approx_start = approx_chunk_size * i
         approx_end = approx_chunk_size * (i + 1) if i < num_workers - 1 else file_size
 
+        # Deterministic per-worker seed for Bernoulli sampling:
+        if sampling_ratio < 1.0:
+            random.seed(1 + i)
+
         merged_schema = infer_schema_for_xml_range(
             file_path=filename,
             row_tag=row_tag,

@@ -4,6 +4,7 @@
 import datetime
 import logging
 import json
+import os
 import pytest
 
 from snowflake.snowpark import Row
@@ -55,6 +56,47 @@ test_file_books_attr_val_xml = "books_attribute_value.xml"
 
 # Global stage name for uploading test files
 tmp_stage_name = Utils.random_stage_name()
+
+# Inline XML strings for permissive/failfast/dropmalformed mode tests
+SAMPLING_MISMATCH_XML = """\
+<?xml version="1.0"?>
+<data>
+  <ROW><name>Alice</name><value>100</value></ROW>
+  <ROW><name>Bob</name><value>200</value></ROW>
+  <ROW><name>Carol</name><value>300</value></ROW>
+  <ROW><name>Dave</name><value>400</value></ROW>
+  <ROW><name>Eve</name><value>500</value></ROW>
+  <ROW><name>Frank</name><value>hello</value></ROW>
+</data>
+"""
+
+MULTIFIELD_MISMATCH_XML = """\
+<?xml version="1.0"?>
+<data>
+  <ROW><int_col>42</int_col><bool_col>true</bool_col><dbl_col>3.14</dbl_col></ROW>
+  <ROW><int_col>not_a_num</int_col><bool_col>maybe</bool_col><dbl_col>2.72</dbl_col></ROW>
+  <ROW><int_col>99</int_col><bool_col>false</bool_col><dbl_col>not_a_dbl</dbl_col></ROW>
+</data>
+"""
+
+
+def _upload_xml_string(session, stage, filename, xml_content):
+    """Write XML string to a temp file and upload to stage."""
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".xml", delete=False, prefix=filename.replace(".xml", "_")
+    ) as f:
+        f.write(xml_content)
+        tmp_path = f.name
+    try:
+        Utils.upload_to_stage(session, stage, tmp_path, compress=False)
+    finally:
+        os.unlink(tmp_path)
+    return os.path.basename(tmp_path)
+
+
+_staged_files = {}
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -148,6 +190,16 @@ def setup(session, resources_path, local_testing_mode):
         test_files.test_books_attribute_value_xml,
         compress=False,
     )
+
+    # Upload inline XML strings for mode tests
+    for name, xml_str in {
+        "sampling_mismatch": SAMPLING_MISMATCH_XML,
+        "multifield_mismatch": MULTIFIELD_MISMATCH_XML,
+    }.items():
+        staged = _upload_xml_string(
+            session, "@" + tmp_stage_name, f"{name}.xml", xml_str
+        )
+        _staged_files[name] = staged
 
     yield
     # Clean up resources
@@ -933,7 +985,7 @@ def test_read_xml_dblp_incollection_user_schema(session):
     )
     result = df.collect()
     assert len(result) == 6
-    assert len(result[0]) == 10
+    assert len(result[0]) == 11
 
     parker = df.filter(col('"_key"') == "series/ifip/ParkerD14").collect()
     assert len(parker) == 1
@@ -1004,3 +1056,115 @@ def test_read_xml_attribute_value_user_schema_struct_publisher(session):
     assert pub4 == {"_VALUE": "Some Publisher", "_country": None, "_language": None}
     assert book1[0]["price"] == 29.99
     assert book1[0]["_id"] == 1
+
+
+def test_permissive_type_mismatch_user_schema(session):
+    schema = StructType(
+        [
+            StructField("name", StringType()),
+            StructField("value", LongType()),
+        ]
+    )
+    df = (
+        session.read.option("rowTag", "ROW")
+        .schema(schema)
+        .xml(f"@{tmp_stage_name}/{_staged_files['sampling_mismatch']}")
+    )
+    result = df.order_by('"name"').collect()
+    assert len(result) == 6
+
+    alice = [r for r in result if r["name"] == "Alice"][0]
+    assert alice["value"] == 100
+    assert alice["_corrupt_record"] is None
+
+    frank = [r for r in result if r["name"] == "Frank"][0]
+    assert frank["value"] is None
+    assert frank["_corrupt_record"] is not None
+    assert "hello" in frank["_corrupt_record"]
+
+    col_names = [c.strip('"') for c in df.columns]
+    assert "_corrupt_record" in col_names
+
+
+def test_permissive_multifield_per_field_granularity(session):
+    schema = StructType(
+        [
+            StructField("int_col", LongType()),
+            StructField("bool_col", BooleanType()),
+            StructField("dbl_col", DoubleType()),
+        ]
+    )
+    df = (
+        session.read.option("rowTag", "ROW")
+        .schema(schema)
+        .xml(f"@{tmp_stage_name}/{_staged_files['multifield_mismatch']}")
+    )
+    result = df.order_by('"int_col"').collect()
+    assert len(result) == 3
+
+    assert result[0]["int_col"] is None
+    assert result[0]["bool_col"] is None
+    assert abs(result[0]["dbl_col"] - 2.72) < 0.001
+
+    assert result[1]["int_col"] == 42
+    assert result[1]["bool_col"] is True
+    assert abs(result[1]["dbl_col"] - 3.14) < 0.001
+
+    assert result[2]["int_col"] == 99
+    assert result[2]["bool_col"] is False
+    assert result[2]["dbl_col"] is None
+
+
+def test_failfast_type_mismatch_raises(session):
+    narrow_schema = StructType(
+        [
+            StructField("name", StringType()),
+            StructField("value", LongType()),
+        ]
+    )
+    with pytest.raises(SnowparkSQLException):
+        session.read.option("rowTag", "ROW").option("mode", "FAILFAST").schema(
+            narrow_schema
+        ).xml(f"@{tmp_stage_name}/{_staged_files['sampling_mismatch']}")
+
+
+def test_dropmalformed_type_mismatch_drops_rows(session):
+    narrow_schema = StructType(
+        [
+            StructField("name", StringType()),
+            StructField("value", LongType()),
+        ]
+    )
+    df = (
+        session.read.option("rowTag", "ROW")
+        .option("mode", "DROPMALFORMED")
+        .schema(narrow_schema)
+        .xml(f"@{tmp_stage_name}/{_staged_files['sampling_mismatch']}")
+    )
+    result = df.order_by('"name"').collect()
+    assert len(result) == 5
+    names = [r["name"] for r in result]
+    assert "Frank" not in names
+    for r in result:
+        assert r["value"] is not None
+
+
+def test_dropmalformed_multifield_drops_any_bad_field(session):
+    schema = StructType(
+        [
+            StructField("int_col", LongType()),
+            StructField("bool_col", BooleanType()),
+            StructField("dbl_col", DoubleType()),
+        ]
+    )
+    df = (
+        session.read.option("rowTag", "ROW")
+        .option("mode", "DROPMALFORMED")
+        .schema(schema)
+        .xml(f"@{tmp_stage_name}/{_staged_files['multifield_mismatch']}")
+    )
+    result = df.collect()
+    assert len(result) == 1
+    assert result[0]["int_col"] == 42
+    assert result[0]["bool_col"] is True
+    assert abs(result[0]["dbl_col"] - 3.14) < 0.001

@@ -28,6 +28,8 @@ from snowflake.snowpark._internal.xml_reader import (
     _escape_colons_in_quotes,
     _restore_colons_in_template,
     _COLON_PLACEHOLDER,
+    _can_cast_to_type,
+    _validate_row_for_type_mismatch,
 )
 from snowflake.snowpark.types import (
     StructType,
@@ -37,6 +39,9 @@ from snowflake.snowpark.types import (
     DateType,
     ArrayType,
     MapType,
+    LongType,
+    BooleanType,
+    TimestampType,
 )
 
 
@@ -919,7 +924,8 @@ def test_schema_string_to_result_dict_and_struct_type(session):
     )
     attr, _, _ = session.read._get_schema_from_user_input(user_schema)
     schema_string = attribute_to_schema_string_deep(attr)
-    assert schema_string_to_result_dict_and_struct_type(schema_string) == {
+    template, schema_type = schema_string_to_result_dict_and_struct_type(schema_string)
+    assert template == {
         "Author": None,
         "TITLE": None,
         "GENRE": None,
@@ -928,6 +934,7 @@ def test_schema_string_to_result_dict_and_struct_type(session):
         "description": None,
         "map_type": None,
     }
+    assert isinstance(schema_type, StructType)
 
 
 def test_user_schema_value_tag():
@@ -1048,7 +1055,8 @@ def test_restore_colons_in_template():
 def test_schema_string_round_trip_with_colons():
     # Flat
     schema_str = 'struct<"px:name": string, "px:value": string>'
-    assert schema_string_to_result_dict_and_struct_type(schema_str) == {
+    template, _ = schema_string_to_result_dict_and_struct_type(schema_str)
+    assert template == {
         "px:name": None,
         "px:value": None,
     }
@@ -1057,14 +1065,16 @@ def test_schema_string_round_trip_with_colons():
     schema_str = (
         'struct<"eq:event-id": string,' '"eq:detail": struct<"eq:sub-id": string>>'
     )
-    assert schema_string_to_result_dict_and_struct_type(schema_str) == {
+    template, _ = schema_string_to_result_dict_and_struct_type(schema_str)
+    assert template == {
         "eq:event-id": None,
         "eq:detail": {"eq:sub-id": None},
     }
 
     # Mixed
     schema_str = 'struct<"px:name": string, "Title": string, price: double>'
-    assert schema_string_to_result_dict_and_struct_type(schema_str) == {
+    template, _ = schema_string_to_result_dict_and_struct_type(schema_str)
+    assert template == {
         "px:name": None,
         "Title": None,
         "PRICE": None,
@@ -1072,7 +1082,155 @@ def test_schema_string_round_trip_with_colons():
 
     # No colon fields
     schema_str = 'struct<"Author": string, "TITLE": string>'
-    assert schema_string_to_result_dict_and_struct_type(schema_str) == {
+    template, _ = schema_string_to_result_dict_and_struct_type(schema_str)
+    assert template == {
         "Author": None,
         "TITLE": None,
     }
+
+
+@pytest.mark.parametrize(
+    "value, target_type, expected",
+    [
+        # StringType always passes
+        ("anything", StringType(), True),
+        ("", StringType(), True),
+        # LongType
+        ("42", LongType(), True),
+        ("-7", LongType(), True),
+        ("0", LongType(), True),
+        ("3.14", LongType(), False),
+        ("hello", LongType(), False),
+        ("", LongType(), False),
+        # DoubleType
+        ("3.14", DoubleType(), True),
+        ("-0.5", DoubleType(), True),
+        ("42", DoubleType(), True),
+        ("NaN", DoubleType(), True),  # Python float("NaN") succeeds
+        ("hello", DoubleType(), False),
+        # BooleanType
+        ("true", BooleanType(), True),
+        ("false", BooleanType(), True),
+        ("True", BooleanType(), True),
+        ("1", BooleanType(), True),
+        ("0", BooleanType(), True),
+        ("yes", BooleanType(), False),
+        ("maybe", BooleanType(), False),
+        # DateType
+        ("2024-01-15", DateType(), True),
+        ("not-a-date", DateType(), False),
+        ("2024-13-01", DateType(), False),
+        # TimestampType
+        ("2024-01-15T10:30:00", TimestampType(), True),
+        ("2024-01-15", TimestampType(), True),
+        ("not-a-ts", TimestampType(), False),
+    ],
+)
+def test_can_cast_to_type(value, target_type, expected):
+    assert _can_cast_to_type(value, target_type) == expected
+
+
+# ---------------------------------------------------------------------------
+# _validate_row_for_type_mismatch tests
+# ---------------------------------------------------------------------------
+
+
+def _make_schema(*fields):
+    """Helper to build a StructType from (name, datatype) tuples."""
+    return StructType([StructField(f'"{n}"', t) for n, t in fields])
+
+
+def test_validate_permissive_all_valid_no_corrupt():
+    schema = _make_schema(("name", StringType()), ("age", LongType()))
+    row = {"name": "Alice", "age": "30"}
+    result = _validate_row_for_type_mismatch(row, schema, "PERMISSIVE", "<row/>")
+    assert result["name"] == "Alice"
+    assert result["age"] == "30"
+    assert "_corrupt_record" not in result
+
+
+def test_validate_permissive_single_field_nulled():
+    schema = _make_schema(("name", StringType()), ("age", LongType()))
+    row = {"name": "Bob", "age": "hello"}
+    result = _validate_row_for_type_mismatch(row, schema, "PERMISSIVE", "<row/>")
+    assert result["name"] == "Bob"
+    assert result["age"] is None
+    assert result["_corrupt_record"] == "<row/>"
+
+
+def test_validate_permissive_multiple_fields_nulled():
+    schema = _make_schema(("a", LongType()), ("b", BooleanType()), ("c", DoubleType()))
+    row = {"a": "not_int", "b": "maybe", "c": "1.5"}
+    result = _validate_row_for_type_mismatch(row, schema, "PERMISSIVE", "<r/>")
+    assert result["a"] is None
+    assert result["b"] is None
+    assert result["c"] == "1.5"
+    assert result["_corrupt_record"] == "<r/>"
+
+
+def test_validate_permissive_missing_field_ignored():
+    schema = _make_schema(("name", StringType()), ("age", LongType()))
+    row = {"name": "Carol"}
+    result = _validate_row_for_type_mismatch(row, schema, "PERMISSIVE", "<row/>")
+    assert result["name"] == "Carol"
+    assert "_corrupt_record" not in result
+
+
+def test_validate_permissive_none_value_ignored():
+    schema = _make_schema(("val", LongType()))
+    row = {"val": None}
+    result = _validate_row_for_type_mismatch(row, schema, "PERMISSIVE", "<row/>")
+    assert result["val"] is None
+    assert "_corrupt_record" not in result
+
+
+def test_validate_permissive_complex_type_skipped():
+    schema = _make_schema(
+        ("data", StructType([StructField("x", StringType())])),
+        ("tags", ArrayType(StringType())),
+    )
+    row = {"data": {"x": "val"}, "tags": ["a", "b"]}
+    result = _validate_row_for_type_mismatch(row, schema, "PERMISSIVE", "<row/>")
+    assert result["data"] == {"x": "val"}
+    assert result["tags"] == ["a", "b"]
+    assert "_corrupt_record" not in result
+
+
+def test_validate_permissive_custom_corrupt_col_name():
+    schema = _make_schema(("val", LongType()))
+    row = {"val": "bad"}
+    result = _validate_row_for_type_mismatch(
+        row, schema, "PERMISSIVE", "<r/>", column_name_of_corrupt_record="bad_rec"
+    )
+    assert result["val"] is None
+    assert result["bad_rec"] == "<r/>"
+    assert "_corrupt_record" not in result
+
+
+def test_validate_failfast_raises_on_mismatch():
+    schema = _make_schema(("val", LongType()))
+    row = {"val": "hello"}
+    with pytest.raises(RuntimeError, match="Failed to cast value 'hello'"):
+        _validate_row_for_type_mismatch(row, schema, "FAILFAST", "<row/>")
+
+
+def test_validate_failfast_no_error_when_valid():
+    schema = _make_schema(("val", LongType()))
+    row = {"val": "42"}
+    result = _validate_row_for_type_mismatch(row, schema, "FAILFAST", "<row/>")
+    assert result["val"] == "42"
+
+
+def test_validate_dropmalformed_returns_none_on_mismatch():
+    schema = _make_schema(("val", LongType()))
+    row = {"val": "hello"}
+    assert (
+        _validate_row_for_type_mismatch(row, schema, "DROPMALFORMED", "<row/>") is None
+    )
+
+
+def test_validate_dropmalformed_returns_row_when_valid():
+    schema = _make_schema(("val", LongType()))
+    row = {"val": "42"}
+    result = _validate_row_for_type_mismatch(row, schema, "DROPMALFORMED", "<row/>")
+    assert result["val"] == "42"

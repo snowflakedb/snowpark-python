@@ -1115,6 +1115,27 @@ class DataFrameReader:
                         quote_name_without_upper_casing(field._name)
                     )
                 )
+
+        # In PERMISSIVE mode, append the StringType column for the corrupt record if it
+        # exists in the DataFrame emitted by the UDTF on malformed or corrupted records.
+        mode = self._cur_options.get("MODE", "PERMISSIVE").upper()
+        corrupt_col_name = self._cur_options.get(
+            "COLUMNNAMEOFCORRUPTRECORD", "_corrupt_record"
+        )
+        if mode == "PERMISSIVE":
+            df_columns = {c.strip('"').strip("'") for c in df.columns}
+            if corrupt_col_name in df_columns:
+                corrupt_ref = df[single_quote(corrupt_col_name)]
+                cols.append(
+                    corrupt_ref.cast(StringType()).alias(
+                        quote_name_without_upper_casing(corrupt_col_name)
+                    )
+                )
+                if self._xml_inferred_schema is not None:
+                    self._xml_inferred_schema.fields.append(
+                        StructField(corrupt_col_name, StringType())
+                    )
+
         result = df.select(cols)
         return result
 
@@ -1460,6 +1481,10 @@ class DataFrameReader:
 
         row_tag = self._cur_options[XML_ROW_TAG_STRING]
         sampling_ratio = float(self._cur_options.get("SAMPLING_RATIO", 1.0))
+        if sampling_ratio <= 0:
+            raise ValueError(
+                f"samplingRatio ({sampling_ratio}) should be greater than 0"
+            )
         ignore_namespace = self._cur_options.get("IGNORENAMESPACE", True)
         attribute_prefix = self._cur_options.get("ATTRIBUTEPREFIX", "_")
         exclude_attributes = self._cur_options.get("EXCLUDEATTRIBUTES", False)

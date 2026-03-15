@@ -295,6 +295,35 @@ COMPLICATED_NESTED_XML = """\
 </catalog>
 """
 
+# Sampling heterogeneous: 20 rows where the first 15 have value as integer,
+# but rows 16-20 have value as a float string.  With a low sampling ratio
+# deterministic seed may only see the first chunk → LongType instead of DoubleType.
+SAMPLING_HETERO_XML = """\
+<?xml version="1.0"?>
+<data>
+  <ROW><name>r01</name><value>1</value></ROW>
+  <ROW><name>r02</name><value>2</value></ROW>
+  <ROW><name>r03</name><value>3</value></ROW>
+  <ROW><name>r04</name><value>4</value></ROW>
+  <ROW><name>r05</name><value>5</value></ROW>
+  <ROW><name>r06</name><value>6</value></ROW>
+  <ROW><name>r07</name><value>7</value></ROW>
+  <ROW><name>r08</name><value>8</value></ROW>
+  <ROW><name>r09</name><value>9</value></ROW>
+  <ROW><name>r10</name><value>10</value></ROW>
+  <ROW><name>r11</name><value>11</value></ROW>
+  <ROW><name>r12</name><value>12</value></ROW>
+  <ROW><name>r13</name><value>13</value></ROW>
+  <ROW><name>r14</name><value>14</value></ROW>
+  <ROW><name>r15</name><value>15</value></ROW>
+  <ROW><name>r16</name><value>16.1</value></ROW>
+  <ROW><name>r17</name><value>17.2</value></ROW>
+  <ROW><name>r18</name><value>18.3</value></ROW>
+  <ROW><name>r19</name><value>19.4</value></ROW>
+  <ROW><name>r20</name><value>20.5</value></ROW>
+</data>
+"""
+
 # Processing instruction XML
 PROCESSING_INSTRUCTION_XML = """\
 <?xml version="1.0"?>
@@ -381,6 +410,7 @@ def setup(session, resources_path, local_testing_mode):
         "parent_collision": PARENT_NAME_COLLISION_XML,
         "complicated_nested": COMPLICATED_NESTED_XML,
         "processing_instr": PROCESSING_INSTRUCTION_XML,
+        "sampling_hetero": SAMPLING_HETERO_XML,
     }
     for name, xml_str in inline_xmls.items():
         staged = _upload_xml_string(
@@ -941,6 +971,7 @@ def test_read_xml_dblp_incollection_infer_schema(session):
     """Infer schema on dblp_6kb.xml incollection: author array, ee struct, verify data."""
     expected_schema = StructType(
         [
+            StructField("_corrupt_record", StringType()),
             StructField("_key", StringType()),
             StructField("_mdate", DateType()),
             StructField("author", VariantType()),
@@ -1052,3 +1083,77 @@ def test_infer_vs_no_infer_column_count(session, staged_file, row_tag):
     assert df_infer._all_variant_cols is False
     assert df_no_infer._all_variant_cols is True
     assert df_infer.count() == df_no_infer.count()
+
+
+# ─── samplingRatio tests ─────────────────────────────────────────────────────
+
+
+def test_sampling_ratio_schema_books_flat(session):
+    """samplingRatio=0.5 on homogeneous books.xml: correct schema and deterministic across runs."""
+    path = f"@{tmp_stage_name}/{RES_BOOKS_XML}"
+    schemas = []
+    for _ in range(3):
+        df = (
+            session.read.option("rowTag", "book").option("samplingRatio", 0.5).xml(path)
+        )
+        schemas.append(df.schema)
+
+    assert schemas[0] == schemas[1] == schemas[2]
+    assert df._all_variant_cols is False
+    assert _schema_types(df) == {
+        "_id": StringType,
+        "author": StringType,
+        "description": StringType,
+        "genre": StringType,
+        "price": DoubleType,
+        "publish_date": DateType,
+        "title": StringType,
+    }
+    assert df.count() == 12
+
+
+@pytest.mark.parametrize("invalid_ratio", [0, -0.5])
+def test_sampling_ratio_invalid(session, invalid_ratio):
+    with pytest.raises(ValueError, match="should be greater than 0"):
+        session.read.option("rowTag", "ROW").option("samplingRatio", invalid_ratio).xml(
+            f"@{tmp_stage_name}/{_staged_files['primitives']}"
+        )
+
+
+def test_sampling_ratio_hetero_may_narrow_schema(session):
+    """Low samplingRatio on heterogeneous data may infer a narrower schema."""
+    path = f"@{tmp_stage_name}/{_staged_files['sampling_hetero']}"
+
+    df_full = session.read.option("rowTag", "ROW").xml(path)
+    assert _schema_types(df_full)["value"] == DoubleType
+
+    df_sampled = (
+        session.read.option("rowTag", "ROW").option("samplingRatio", 0.3).xml(path)
+    )
+    types_sampled = _schema_types(df_sampled)
+    assert types_sampled["value"] in (LongType, DoubleType)
+    assert types_sampled["name"] == StringType
+    assert df_sampled.count() == 20
+
+
+def test_sampling_ratio_nested_schema_preserved(session):
+    """samplingRatio < 1.0 on nested data still infers nested structure."""
+    df = (
+        session.read.option("rowTag", "book")
+        .option("samplingRatio", 0.5)
+        .xml(f"@{tmp_stage_name}/{RES_BOOKS2_XML}")
+    )
+    assert df._all_variant_cols is False
+    assert _schema_types(df) == {
+        "_id": LongType,
+        "author": StringType,
+        "editions": VariantType,
+        "price": DoubleType,
+        "reviews": VariantType,
+        "title": StringType,
+    }
+    assert df.count() == 2
+    book1 = df.filter(col('"_id"') == 1).collect()[0]
+    reviews = json.loads(book1["reviews"])
+    assert isinstance(reviews["review"], list)
+    assert len(reviews["review"]) == 2
