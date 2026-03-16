@@ -21,6 +21,7 @@ from snowflake.snowpark.types import (
     ArrayType,
     VariantType,
 )
+import snowflake.snowpark.context as context
 from tests.utils import TestFiles, Utils
 
 
@@ -355,6 +356,16 @@ def _upload_xml_string(session, stage, filename, xml_content):
 
 # Map of logical name -> (xml_content, staged_filename) populated during setup
 _staged_files = {}
+
+
+@pytest.fixture(autouse=True)
+def enable_scos_compatible_mode():
+    """XML inferSchema is gated behind _is_snowpark_connect_compatible_mode.
+    Enable it for every test in this module."""
+    original = context._is_snowpark_connect_compatible_mode
+    context._is_snowpark_connect_compatible_mode = True
+    yield
+    context._is_snowpark_connect_compatible_mode = original
 
 
 @pytest.fixture(scope="module", autouse=True)

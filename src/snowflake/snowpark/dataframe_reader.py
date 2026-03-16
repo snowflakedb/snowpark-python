@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 from datetime import datetime
 
 import snowflake.snowpark
+import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     convert_value_to_sql_option,
@@ -1644,7 +1645,11 @@ class DataFrameReader:
         xml_inferred_schema = None
         if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
             python_file_path = self._resolve_xml_file_for_udtf(XML_READER_FILE_PATH)
-            if not self._user_schema and self._cur_options.get("INFER_SCHEMA", True):
+            if (
+                context._is_snowpark_connect_compatible_mode
+                and not self._user_schema
+                and self._cur_options.get("INFER_SCHEMA", True)
+            ):
                 xml_inferred_schema = self._infer_schema_for_xml(path)
                 if xml_inferred_schema is not None:
                     self._xml_inferred_schema = xml_inferred_schema

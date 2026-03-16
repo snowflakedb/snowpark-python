@@ -230,44 +230,22 @@ def test_read_xml_row_tag(
 def test_read_xml_no_xxe(session):
     row_tag = "bar"
     stage_file_path = f"@{tmp_stage_name}/{test_file_xxe_xml}"
-    df = (
-        session.read.option("rowTag", row_tag)
-        .option("inferSchema", False)
-        .xml(stage_file_path)
-    )
+    df = session.read.option("rowTag", row_tag).xml(stage_file_path)
     Utils.check_answer(df, [Row("null")])
 
 
-@pytest.mark.parametrize("infer_schema", [True, False])
-def test_read_xml_query_nested_data(session, infer_schema):
+def test_read_xml_query_nested_data(session):
     row_tag = "tag"
-    df = (
-        session.read.option("rowTag", row_tag)
-        .option("inferSchema", infer_schema)
-        .xml(f"@{tmp_stage_name}/{test_file_nested_xml}")
+    df = session.read.option("rowTag", row_tag).xml(
+        f"@{tmp_stage_name}/{test_file_nested_xml}"
     )
-    expected_row = [
-        Row('"1"', '"str1"', '{\n  "bool": "true",\n  "str": "str2"\n}', '"true"')
-    ]
-    if infer_schema:
-        assert df._all_variant_cols is False
-        Utils.check_answer(
-            df.select(
-                col('"test"')["num"],
-                col('"test"')["str"],
-                col('"test"')["obj"],
-                col('"test"')["obj"]["bool"],
-            ),
-            expected_row,
-        )
-    else:
-        assert df._all_variant_cols is True
-        Utils.check_answer(
-            df.select(
-                "'test'.num", "'test'.str", col("'test'.obj"), col("'test'.obj.bool")
-            ),
-            expected_row,
-        )
+    assert df._all_variant_cols is True
+    Utils.check_answer(
+        df.select(
+            "'test'.num", "'test'.str", col("'test'.obj"), col("'test'.obj.bool")
+        ),
+        [Row('"1"', '"str1"', '{\n  "bool": "true",\n  "str": "str2"\n}', '"true"')],
+    )
 
 
 def test_read_xml_non_existing_file(session):
@@ -294,7 +272,6 @@ def test_read_malformed_xml(session, file):
     df = (
         session.read.option("rowTag", row_tag)
         .option("mode", "permissive")
-        .option("inferSchema", False)
         .xml(file_path)
     )
     result = df.collect()
@@ -309,7 +286,6 @@ def test_read_malformed_xml(session, file):
     df = (
         session.read.option("rowTag", row_tag)
         .option("mode", "dropmalformed")
-        .option("inferSchema", False)
         .xml(file_path)
     )
     result = df.collect()
@@ -321,7 +297,6 @@ def test_read_malformed_xml(session, file):
         df = (
             session.read.option("rowTag", row_tag)
             .option("mode", "failfast")
-            .option("inferSchema", False)
             .xml(file_path)
         )
 
@@ -364,7 +339,6 @@ def test_read_xml_declared_namespace(session):
     df = (
         session.read.option("rowTag", row_tag)
         .option("ignoreNamespace", True)
-        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_xml_declared_namespace}")
     )
     result = df.collect()
@@ -389,7 +363,6 @@ def test_read_xml_declared_namespace(session):
     df = (
         session.read.option("rowTag", row_tag)
         .option("ignoreNamespace", False)
-        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_xml_declared_namespace}")
     )
     result = df.collect()
@@ -407,7 +380,6 @@ def test_read_xml_undeclared_namespace(session, ignore_namespace):
     df = (
         session.read.option("rowTag", row_tag)
         .option("ignoreNamespace", ignore_namespace)
-        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_xml_undeclared_namespace}")
     )
     result = df.collect()
@@ -426,7 +398,6 @@ def test_read_xml_undeclared_attr_namespace(session, ignore_namespace):
         .option("cacheResult", False)
         .option("mode", "failfast")
         .option("ignoreNamespace", ignore_namespace)
-        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/undeclared_attr_namespace.xml")
     )
     if not ignore_namespace:
@@ -446,7 +417,6 @@ def test_read_xml_attribute_prefix(session, attribute_prefix):
     df = (
         session.read.option("rowTag", row_tag)
         .option("attributePrefix", attribute_prefix)
-        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
     )
     result = df.collect()
@@ -459,7 +429,6 @@ def test_read_xml_exclude_attributes(session):
     df = (
         session.read.option("rowTag", row_tag)
         .option("excludeAttributes", True)
-        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
     )
     result = df.collect()
@@ -473,7 +442,6 @@ def test_read_xml_value_tag(session):
     df = (
         session.read.option("rowTag", row_tag)
         .option("valueTag", "value")
-        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
     )
     result = df.collect()
@@ -485,7 +453,6 @@ def test_read_xml_value_tag(session):
     df = (
         session.read.option("rowTag", row_tag)
         .option("valueTag", "value")
-        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
     )
     result = df.collect()
@@ -516,7 +483,6 @@ def test_read_xml_null_value(session, null_value, expected_row):
     df = (
         session.read.option("rowTag", row_tag)
         .option("nullValue", null_value)
-        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
     )
     Utils.check_answer(df, [expected_row])
@@ -543,7 +509,6 @@ def test_read_xml_ignore_surrounding_whitespace(
         session.read.option("rowTag", row_tag)
         .option("nullValue", "empty")
         .option("ignoreSurroundingWhitespace", ignore_surrounding_whitespace)
-        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
     )
     Utils.check_answer(df, [expected_row])
@@ -568,7 +533,6 @@ def test_read_xml_row_validation_xsd_path(session):
         session.read.option("rowTag", row_tag)
         .option("rowValidationXSDPath", f"@{tmp_stage_name}/{test_file_books_xsd}")
         .option("mode", "dropmalformed")
-        .option("inferSchema", False)
         .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
     )
 
