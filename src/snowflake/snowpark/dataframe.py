@@ -4872,7 +4872,7 @@ class DataFrame:
 
         if copy_options.get("INCLUDE_METADATA", None) is not None:
             for metadata_col in copy_options["INCLUDE_METADATA"].values():
-                if quote_name(metadata_col) not in METADATA_COLUMN_TYPES:
+                if quote_name(metadata_col.upper()) not in METADATA_COLUMN_TYPES:
                     raise ValueError(
                         f"Metadata column {metadata_col} is not supported. Supported columns: {list(METADATA_COLUMN_TYPES.keys())}"
                     )

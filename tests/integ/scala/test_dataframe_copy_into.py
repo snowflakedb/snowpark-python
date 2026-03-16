@@ -1495,7 +1495,7 @@ def test_copy_into_table_include_metadata_csv(session, tmp_stage_name1):
             table_name,
             MATCH_BY_COLUMN_NAME="CASE_INSENSITIVE",
             INCLUDE_METADATA={
-                "filename_col": "METADATA$FILENAME",
+                "filename_col": '"metadata$filename"',
                 "ROW_NUM_COL": "METADATA$FILE_ROW_NUMBER",
             },
             force=True,
