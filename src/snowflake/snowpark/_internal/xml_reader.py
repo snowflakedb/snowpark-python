@@ -553,6 +553,7 @@ def process_xml_range(
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     result_template: Optional[dict] = None,
     schema_type: Optional[StructType] = None,
+    is_snowpark_connect_compatible: bool = False,
 ) -> Iterator[Optional[Dict[str, Any]]]:
     """
     Processes an XML file within a given approximate byte range.
@@ -584,6 +585,7 @@ def process_xml_range(
         chunk_size (int): Size of chunks to read.
         result_template(dict): a result template generate from user input schema
         schema_type(StructType): the parsed StructType for row validation
+        is_snowpark_connect_compatible(bool): context._is_snowpark_connect_compatible_mode
 
     Yields:
         Optional[Dict[str, Any]]: Dictionary representation of the parsed XML element.
@@ -718,8 +720,8 @@ def process_xml_range(
                 )
                 row = result if isinstance(result, dict) else {value_tag: result}
 
-                # Validate primitive field values against schema types.
-                if schema_type is not None:
+                # Validate primitive field values against schema types in Snowpark Connect mode only
+                if schema_type is not None and is_snowpark_connect_compatible:
                     # Mode handling for type mismatch errors.
                     row = _validate_row_for_type_mismatch(
                         row,
@@ -766,6 +768,7 @@ class XMLReader:
         ignore_surrounding_whitespace: bool,
         row_validation_xsd_path: str,
         custom_schema: str,
+        is_snowpark_connect_compatible: bool,
     ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
@@ -789,6 +792,7 @@ class XMLReader:
             ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
             row_validation_xsd_path (str): Path to XSD file for row validation.
             custom_schema: User input schema for xml, must be used together with row tag.
+            is_snowpark_connect_compatible (bool): context._is_snowpark_connect_compatible_mode
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
@@ -814,5 +818,6 @@ class XMLReader:
             row_validation_xsd_path=row_validation_xsd_path,
             result_template=result_template,
             schema_type=schema_type,
+            is_snowpark_connect_compatible=is_snowpark_connect_compatible,
         ):
             yield (element,)

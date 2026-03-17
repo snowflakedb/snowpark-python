@@ -24,6 +24,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     ArrayType,
 )
+import snowflake.snowpark.context as context
 from tests.utils import TestFiles, Utils
 
 
@@ -34,6 +35,15 @@ pytestmark = [
     ),
     pytest.mark.udf,
 ]
+
+
+@pytest.fixture()
+def enable_scos_compatible_mode():
+    """Enable SCOS compatible mode so that type validation runs inside the UDTF."""
+    original = context._is_snowpark_connect_compatible_mode
+    context._is_snowpark_connect_compatible_mode = True
+    yield
+    context._is_snowpark_connect_compatible_mode = original
 
 
 # XML test file constants
@@ -1022,7 +1032,7 @@ def test_read_xml_attribute_value_user_schema_struct_publisher(session):
     assert book1[0]["_id"] == 1
 
 
-def test_permissive_type_mismatch_user_schema(session):
+def test_permissive_type_mismatch_user_schema(session, enable_scos_compatible_mode):
     schema = StructType(
         [
             StructField("name", StringType()),
@@ -1050,7 +1060,9 @@ def test_permissive_type_mismatch_user_schema(session):
     assert "_corrupt_record" in col_names
 
 
-def test_permissive_multifield_per_field_granularity(session):
+def test_permissive_multifield_per_field_granularity(
+    session, enable_scos_compatible_mode
+):
     schema = StructType(
         [
             StructField("int_col", LongType()),
@@ -1079,7 +1091,7 @@ def test_permissive_multifield_per_field_granularity(session):
     assert result[2]["dbl_col"] is None
 
 
-def test_failfast_type_mismatch_raises(session):
+def test_failfast_type_mismatch_raises(session, enable_scos_compatible_mode):
     narrow_schema = StructType(
         [
             StructField("name", StringType()),
@@ -1092,7 +1104,7 @@ def test_failfast_type_mismatch_raises(session):
         ).xml(f"@{tmp_stage_name}/{_staged_files['sampling_mismatch']}")
 
 
-def test_dropmalformed_type_mismatch_drops_rows(session):
+def test_dropmalformed_type_mismatch_drops_rows(session, enable_scos_compatible_mode):
     narrow_schema = StructType(
         [
             StructField("name", StringType()),
@@ -1113,7 +1125,9 @@ def test_dropmalformed_type_mismatch_drops_rows(session):
         assert r["value"] is not None
 
 
-def test_dropmalformed_multifield_drops_any_bad_field(session):
+def test_dropmalformed_multifield_drops_any_bad_field(
+    session, enable_scos_compatible_mode
+):
     schema = StructType(
         [
             StructField("int_col", LongType()),

@@ -62,13 +62,11 @@ from snowflake.snowpark._internal.xml_schema_inference import (
 )
 from snowflake.snowpark._internal.utils import (
     SNOWURL_PREFIX,
-    STAGE_PREFIX,
     XML_ROW_TAG_STRING,
     XML_ROW_DATA_COLUMN_NAME,
     XML_READER_FILE_PATH,
     XML_SCHEMA_INFERENCE_FILE_PATH,
     XML_READER_API_SIGNATURE,
-    XML_READER_SQL_COMMENT,
     INFER_SCHEMA_FORMAT_TYPES,
     SNOWFLAKE_PATH_PREFIXES,
     TempObjectType,
@@ -1418,21 +1416,15 @@ class DataFrameReader:
     def _resolve_xml_file_for_udtf(self, local_file_path: str) -> str:
         """Return the UDTF file path, uploading to a temp stage in stored procedures."""
         if is_in_stored_procedure():  # pragma: no cover
-            temp_stage = random_name_for_temp_object(TempObjectType.STAGE)
-            sql_create_temp_stage = (
-                f"create temp stage if not exists {temp_stage} {XML_READER_SQL_COMMENT}"
-            )
-            self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
-                _emit_ast=False
-            )
+            session_stage = self._session.get_session_stage()
             self._session._conn.upload_file(
                 local_file_path,
-                temp_stage,
+                session_stage,
                 compress_data=False,
                 overwrite=True,
                 skip_upload_on_content_match=True,
             )
-            return f"{STAGE_PREFIX}{temp_stage}/{os.path.basename(local_file_path)}"
+            return f"{session_stage}/{os.path.basename(local_file_path)}"
         return local_file_path
 
     def _infer_schema_for_xml(self, path: str) -> Optional[StructType]:

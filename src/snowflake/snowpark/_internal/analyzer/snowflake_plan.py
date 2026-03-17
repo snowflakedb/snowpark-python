@@ -1882,6 +1882,7 @@ class SnowflakePlanBuilder:
                 lit(ignore_surrounding_whitespace),
                 lit(row_validation_xsd_path),
                 lit(schema_string),
+                lit(context._is_snowpark_connect_compatible_mode),
             ),
         )
 
