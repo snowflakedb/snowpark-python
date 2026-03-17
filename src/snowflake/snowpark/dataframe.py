@@ -3620,6 +3620,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
+        directed: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> "DataFrame":
@@ -3650,6 +3651,7 @@ class DataFrame:
             lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
             rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
             match_condition: The match condition for asof join.
+            directed: Whether the join is a directed join, which forces the left argument to be scanned before the right.
 
         Note:
             When both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the resulting DataFrame.
@@ -3962,6 +3964,7 @@ class DataFrame:
                     ast.join_type.join_type__asof = True
                 else:
                     raise ValueError(f"Unsupported join type {join_type_arg}")
+                ast.directed.value = directed
 
                 join_cols = kwargs.get("using_columns", on)
                 if join_cols is not None:
@@ -3994,6 +3997,7 @@ class DataFrame:
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
                 match_condition=match_condition,
+                directed=directed,
                 _ast_stmt=stmt,
             )
 
@@ -4245,6 +4249,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
+        directed: bool = False,
         _ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         if isinstance(using_columns, Column):
@@ -4255,6 +4260,7 @@ class DataFrame:
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
                 match_condition=match_condition,
+                directed=directed,
                 _ast_stmt=_ast_stmt,
             )
 
@@ -4270,6 +4276,7 @@ class DataFrame:
                 join_cond,
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
+                directed=directed,
                 _ast_stmt=_ast_stmt,
             )
         else:
@@ -4313,6 +4320,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
+        directed: bool = False,
         _ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(
@@ -4328,6 +4336,7 @@ class DataFrame:
             join_type,
             join_condition_expr,
             match_condition_expr,
+            directed,
         )
         if self._select_statement:
             return self._with_plan(
