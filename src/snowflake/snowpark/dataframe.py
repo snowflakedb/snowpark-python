@@ -10,6 +10,7 @@ import random
 import re
 import sys
 from collections import Counter
+from decimal import Decimal
 from functools import cached_property
 from logging import getLogger
 from types import ModuleType
@@ -5283,6 +5284,8 @@ class DataFrame:
                 start_field = getattr(datatype, "start_field", DayTimeIntervalType.DAY)
                 end_field = getattr(datatype, "end_field", DayTimeIntervalType.SECOND)
                 res = format_day_time_interval_for_display(cell, start_field, end_field)
+            elif isinstance(cell, Decimal):
+                res = format(cell, "f")
             else:
                 res = str(cell)
             return res.replace("\n", "\\n")
