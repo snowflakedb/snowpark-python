@@ -3444,6 +3444,8 @@ class DataFrame:
         self,
         right: "DataFrame",
         how: Optional[str] = None,
+        *,
+        directed: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> "DataFrame":
@@ -3462,6 +3464,7 @@ class DataFrame:
                 You can also use ``join_type`` keyword to specify this condition.
                 Note that to avoid breaking changes, currently when ``join_type`` is specified,
                 it overrides ``how``.
+            directed: Whether the join is a directed join, which forces the left argument to be scanned before the right.
 
         Examples::
             >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
@@ -3494,6 +3497,7 @@ class DataFrame:
             NaturalJoin(join_type),
             None,
             None,
+            directed,
         )
         stmt = None
         if _emit_ast:
@@ -3511,6 +3515,7 @@ class DataFrame:
                 ast.join_type.join_type__full_outer = True
             else:
                 raise ValueError(f"Unsupported join type {join_type}")
+            ast.directed.value = directed
 
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
@@ -3583,6 +3588,7 @@ class DataFrame:
             lateral_join_type,
             on_expr,
             None,
+            False,
         )
 
         stmt = None
@@ -4173,6 +4179,7 @@ class DataFrame:
         *,
         lsuffix: str = "",
         rsuffix: str = "",
+        directed: bool = False,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Performs a cross join, which returns the Cartesian product of the current
@@ -4214,6 +4221,7 @@ class DataFrame:
             right: the right :class:`DataFrame` to join.
             lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
             rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
+            directed: Whether the join is a directed join, which forces the left argument to be scanned before the right.
 
         Note:
             If both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the result DataFrame.
@@ -4230,6 +4238,7 @@ class DataFrame:
                 ast.lsuffix.value = lsuffix
             if rsuffix:
                 ast.rsuffix.value = rsuffix
+            ast.directed.value = directed
 
         return self._join_dataframes_internal(
             right,
@@ -4237,6 +4246,7 @@ class DataFrame:
             None,
             lsuffix=lsuffix,
             rsuffix=rsuffix,
+            directed=directed,
             _ast_stmt=stmt,
         )
 
@@ -4298,6 +4308,7 @@ class DataFrame:
                 join_type,
                 None,
                 match_condition._expression if match_condition is not None else None,
+                directed,
             )
             if self._select_statement:
                 return self._with_plan(

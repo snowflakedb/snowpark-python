@@ -195,7 +195,7 @@ class Join(BinaryNode):
         self.join_type = join_type
         self.join_condition = join_condition
         self.match_condition = match_condition
-        self.directed = False
+        self.directed = directed
 
     @property
     def sql(self) -> str:

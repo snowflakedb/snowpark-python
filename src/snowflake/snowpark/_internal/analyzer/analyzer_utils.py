@@ -104,6 +104,7 @@ JOIN = " JOIN "
 NATURAL = " NATURAL "
 ASOF = " ASOF "
 MATCH_CONDITION = " MATCH_CONDITION "
+DIRECTED = " DIRECTED"
 EXISTS = " EXISTS "
 CREATE = " CREATE "
 TABLE = " TABLE "
@@ -976,6 +977,7 @@ def snowflake_supported_join_statement(
     use_constant_subquery_alias: bool,
     left_uuid: Optional[str] = None,
     right_uuid: Optional[str] = None,
+    directed: bool = False,
 ) -> str:
     LEFT_UUID = format_uuid(left_uuid)
     RIGHT_UUID = format_uuid(right_uuid)
@@ -1020,6 +1022,8 @@ def snowflake_supported_join_statement(
         (MATCH_CONDITION + match_condition) if match_condition else EMPTY_STRING
     )
 
+    directed_sql = DIRECTED if directed else ""
+
     source = (
         LEFT_PARENTHESIS
         + NEW_LINE
@@ -1033,6 +1037,7 @@ def snowflake_supported_join_statement(
         + SPACE
         + NEW_LINE
         + join_sql
+        + directed_sql
         + JOIN
         + NEW_LINE
         + LEFT_PARENTHESIS
@@ -1062,6 +1067,7 @@ def join_statement(
     use_constant_subquery_alias: bool,
     left_uuid: Optional[str] = None,
     right_uuid: Optional[str] = None,
+    directed: bool = False,
 ) -> str:
     if isinstance(join_type, (LeftSemi, LeftAnti)):
         return left_semi_or_anti_join_statement(
@@ -1088,6 +1094,7 @@ def join_statement(
         use_constant_subquery_alias,
         left_uuid=left_uuid,
         right_uuid=right_uuid,
+        directed=directed,
     )
 
 
