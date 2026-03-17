@@ -745,21 +745,14 @@ def test_get_default_artifact_repository():
     fake_server_connection._thread_safe_session_enabled = True
     session = Session(fake_server_connection)
 
-    original_conn_implementation = session._conn._get_current_parameter
-
-    def mock_session_parameters_1(param: str, quoted: bool = True):
-        if param == "schema":
-            return "SCHEMA1"
-        elif param == "database":
-            return "DB1"
-        return original_conn_implementation(param, quoted)
-
     with mock.patch.object(
         session,
         "_run_query",
         return_value=[["snowflake.snowpark.pypi_shared_repository"]],
     ) as mocked_run_query, mock.patch.object(
-        session._conn, "_get_current_parameter", mock_session_parameters_1
+        session, "get_current_database", return_value="DB1"
+    ), mock.patch.object(
+        session, "get_current_schema", return_value="SCHEMA1"
     ):
         result = session._get_default_artifact_repository()
         assert result == "snowflake.snowpark.pypi_shared_repository"
@@ -769,19 +762,12 @@ def test_get_default_artifact_repository():
 
         assert mocked_run_query.call_count == 1
 
-    def mock_session_parameters_2(param: str, quoted: bool = True):
-        if param == "schema":
-            return "SCHEMA2"
-        elif param == "database":
-            return "DB2"
-        return original_conn_implementation(param, quoted)
-
     with mock.patch.object(
         session, "_run_query", return_value=[[None]]
     ) as mocked_run_query, mock.patch.object(
-        session._conn,
-        "_get_current_parameter",
-        mock_session_parameters_2,
+        session, "get_current_database", return_value="DB2"
+    ), mock.patch.object(
+        session, "get_current_schema", return_value="SCHEMA2"
     ):
         result = session._get_default_artifact_repository()
         assert result == _ANACONDA_SHARED_REPOSITORY
