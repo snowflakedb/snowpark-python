@@ -6,6 +6,8 @@
 
 #### New Features
 
+- Added support for DIRECTED JOIN.
+
 #### Bug Fixes
 
 - Fixed a bug in `Session.client_telemetry` that trace does not have snowflake style trace id.
