@@ -69,6 +69,9 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
 )
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    quote_name_without_upper_casing,
+)
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.ast.batch import AstBatch
 from snowflake.snowpark._internal.ast.utils import (
@@ -2424,9 +2427,13 @@ class Session:
             if isinstance(self._conn, MockServerConnection):
                 return _DEFAULT_ARTIFACT_REPOSITORY
 
-            account = self._conn._get_current_parameter("account", quoted=False)
-            database = self._conn._get_current_parameter("database", quoted=False)
-            schema = self._conn._get_current_parameter("schema", quoted=False)
+            # self.get_current_account uses a cached connector field that may not be properly cased, so we need to
+            # explicitly issue a query for it
+            account = quote_name_without_upper_casing(
+                self._conn._get_string_datum("SELECT CURRENT_ACCOUNT()")
+            )
+            database = self.get_current_database()
+            schema = self.get_current_schema()
             cache_key = (database, schema)
 
             if (

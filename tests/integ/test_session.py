@@ -1099,9 +1099,9 @@ def test_default_artifact_repository_with_no_db_schema(session, caplog):
     # The reported customer issue covered by this test (SNOW-3230493) occurs when no schema/database
     # is set and an account locator is used, so we mock schema/db to be empty for this test.
     # Oddly, getting schema and database appear to be fine (for example, schema comes back with
-    # double-quoted all-caps '"PUBLIC"') while account produces a double-quoted lowercase value
-    # ('"sfctest0') that causes an error when passed to SYSTEM$GET_DEFAULT_ARTIFACT_REPOSITORY.
-    # Apparently removing quoting makes these identifiers case-insensitive.
+    # double-quoted all-caps '"PUBLIC"') while the connector's cached _account field produces a
+    # double-quoted lowercase value ('"sfctest0') that causes an error when passed to
+    # SYSTEM$GET_DEFAULT_ARTIFACT_REPOSITORY.
     original_conn_implementation = session._conn._get_current_parameter
 
     def mock_session_parameters(param: str, quoted: bool = True):
