@@ -257,6 +257,7 @@ def test_complexity_score_adjustment_with_query_blocks(
         join_type=join_type,
         join_condition=(col("A") == col("B"))._expression,
         match_condition=None,
+        directed=False,
     )
 
     join_snowflake_plan = SnowflakePlan(
