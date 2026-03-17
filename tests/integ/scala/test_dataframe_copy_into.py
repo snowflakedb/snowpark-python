@@ -1461,6 +1461,24 @@ def test_copy_into_table_include_metadata_requires_match_by_column_name(
         )
 
 
+def test_copy_into_table_include_metadata_with_error_on_column_count_mismatch(
+    session, tmp_stage_name1
+):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.read.schema(user_schema).csv(test_file_on_stage)
+    with pytest.raises(
+        ValueError,
+        match="ERROR_ON_COLUMN_COUNT_MISMATCH must be False when INCLUDE_METADATA is used with CSV files",
+    ):
+        df.copy_into_table(
+            table_name,
+            format_type_options={"ERROR_ON_COLUMN_COUNT_MISMATCH": True},
+            INCLUDE_METADATA={"filename_col": "METADATA$FILENAME"},
+            MATCH_BY_COLUMN_NAME="CASE_INSENSITIVE",
+        )
+
+
 def test_copy_into_table_include_metadata_requires_supported_metadata_column(
     session, tmp_stage_name1
 ):

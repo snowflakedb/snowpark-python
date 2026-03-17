@@ -4877,7 +4877,6 @@ class DataFrame:
                     raise ValueError(
                         f"Metadata column {metadata_col} is not supported. Supported columns: {list(METADATA_COLUMN_TYPES.keys())}"
                     )
-
             if "MATCH_BY_COLUMN_NAME" not in copy_options:
                 raise ValueError(
                     "INCLUDE_METADATA can only be used with the MATCH_BY_COLUMN_NAME copy option."
@@ -4886,6 +4885,10 @@ class DataFrame:
                 format_type_options = (
                     format_type_options.copy() if format_type_options else {}
                 )
+                if format_type_options.get("ERROR_ON_COLUMN_COUNT_MISMATCH", False):
+                    raise ValueError(
+                        "ERROR_ON_COLUMN_COUNT_MISMATCH must be False when INCLUDE_METADATA is used with CSV files."
+                    )
                 format_type_options["ERROR_ON_COLUMN_COUNT_MISMATCH"] = False
 
         validation_mode = validation_mode or self._reader._cur_options.get(
