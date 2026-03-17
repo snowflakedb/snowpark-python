@@ -2427,11 +2427,6 @@ class Session:
             if isinstance(self._conn, MockServerConnection):
                 return _DEFAULT_ARTIFACT_REPOSITORY
 
-            # self.get_current_account uses a cached connector field that may not be properly cased, so we need to
-            # explicitly issue a query for it
-            account = quote_name_without_upper_casing(
-                self._conn._get_string_datum("SELECT CURRENT_ACCOUNT()")
-            )
             database = self.get_current_database()
             schema = self.get_current_schema()
             cache_key = (database, schema)
@@ -2449,7 +2444,10 @@ class Session:
                     if schema
                     else f"'database', '{database}'"
                     if database
-                    else f"'account', '{account}'"
+                    # self.get_current_account uses a cached connector field that may not be properly cased, so we need to
+                    # explicitly issue a query for it.
+                    # Since this issues a query, we should compute it only if database/schema are unset.
+                    else f"""'account', '{quote_name_without_upper_casing(self._conn._get_string_datum("SELECT CURRENT_ACCOUNT()"))}'"""
                 )
                 result = self._run_query(
                     f"SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('{python_version}', {entity_selector_args})"
