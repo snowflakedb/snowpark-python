@@ -229,8 +229,3 @@ def test_sql_set_variable_to_pandas(session):
     result = uncollected.to_pandas()
     assert result['"status"'][0] == "Statement executed successfully."
     assert session.sql("select $temp_snowpark_test_variable").collect() == [Row(100)]
-
-
-def test_bad_canary_test_with_a_stack_trace(session):
-    session.sql("SELECT 1").show()
-    session.sql("invalid sql statement").collect()
