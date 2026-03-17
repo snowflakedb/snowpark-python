@@ -436,7 +436,7 @@ class DataFrameReader:
             >>> # Each XML record is extracted as a separate row,
             >>> # and each field within that record becomes a separate column of type VARIANT
             >>> _ = session.file.put("tests/resources/nested.xml", "@mystage", auto_compress=False)
-            >>> df = session.read.option("rowTag", "tag").option("inferSchema", False).xml("@mystage/nested.xml")
+            >>> df = session.read.option("rowTag", "tag").xml("@mystage/nested.xml")
             >>> df.show()
             -----------------------
             |"'test'"             |
@@ -1073,16 +1073,6 @@ class DataFrameReader:
                 When set to ``True`` (default), the result is cached and all subsequent operations on the DataFrame are performed on the cached data.
                 This means the actual computation occurs before :meth:`DataFrame.collect` is called.
                 When set to ``False``, the DataFrame is computed lazily and the actual computation occurs when :meth:`DataFrame.collect` is called.
-
-              + ``inferSchema``: Whether to infer the schema of the XML data. The default value is ``True``.
-                When enabled, the XML data is sampled to determine column types (e.g., ``LongType``, ``DoubleType``,
-                ``BooleanType``, ``DateType``, ``TimestampType``, ``StringType``, ``StructType``, ``ArrayType``).
-                Schema inference follows Spark-compatible type promotion rules (e.g., ``Long`` + ``Double`` → ``Double``).
-                When disabled, all columns are returned as ``VARIANT`` type.
-
-              + ``samplingRatio``: The fraction of XML records to sample during schema inference. The default value is ``1.0``
-                (sample all records). Setting a value between ``0.0`` and ``1.0`` will randomly sample that fraction of records,
-                which can speed up schema inference on large files at the cost of potentially less accurate type detection.
         """
         df = self._read_semi_structured_file(path, "XML")
         # AST.

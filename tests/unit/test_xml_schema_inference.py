@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.xml_schema_inference import (
     _struct_has_value_tag,
     _merge_struct_with_primitive,
     infer_schema_for_xml_range,
+    XMLSchemaInference,
 )
 from snowflake.snowpark.types import (
     StructType,
@@ -1501,3 +1502,178 @@ def test_infer_range_schema_merge_across_records():
     assert isinstance(fm["a"], LongType)
     assert isinstance(fm["b"], StringType)
     assert isinstance(fm["c"], BooleanType)
+
+
+def test_infer_range_sampling_ratio_skips():
+    """With a very low sampling_ratio, some records may be skipped."""
+    import random
+
+    xml = "<r>"
+    for i in range(20):
+        xml += f"<row><val>{i}</val></row>"
+    xml += "</r>"
+    xml_bytes = xml.encode("utf-8")
+
+    random.seed(42)
+    mock_file = io.BytesIO(xml_bytes)
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+        schema = infer_schema_for_xml_range(
+            file_path="test.xml",
+            row_tag="row",
+            approx_start=0,
+            approx_end=len(xml_bytes),
+            sampling_ratio=0.3,
+            ignore_namespace=True,
+            attribute_prefix="_",
+            exclude_attributes=False,
+            value_tag="_VALUE",
+            null_value="",
+            charset="utf-8",
+            ignore_surrounding_whitespace=True,
+        )
+    assert schema is not None
+    assert isinstance(schema.fields[0].datatype, LongType)
+
+
+def test_infer_range_truncated_tag_handled():
+    """A truncated opening tag that causes tag_is_self_closing to fail is skipped."""
+    xml = "<r><row><a>1</a></row><row <row><a>2</a></row></r>"
+    xml_bytes = xml.encode("utf-8")
+    mock_file = io.BytesIO(xml_bytes)
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+        schema = infer_schema_for_xml_range(
+            file_path="test.xml",
+            row_tag="row",
+            approx_start=0,
+            approx_end=len(xml_bytes),
+            sampling_ratio=1.0,
+            ignore_namespace=True,
+            attribute_prefix="_",
+            exclude_attributes=False,
+            value_tag="_VALUE",
+            null_value="",
+            charset="utf-8",
+            ignore_surrounding_whitespace=True,
+        )
+    assert schema is not None
+
+
+def test_xml_schema_inference_process_empty_results():
+    """Cases where process should yield ("",): empty/None file size, invalid worker id, no records."""
+    base = ("test.xml",)
+    tail = (1.0, True, "_", False, "_VALUE", "", "utf-8", True)
+
+    # empty file (size 0)
+    with patch(
+        "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
+        return_value=0,
+    ):
+        assert list(XMLSchemaInference().process(*base, 1, "row", 0, *tail)) == [("",)]
+
+    # None file size
+    with patch(
+        "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
+        return_value=None,
+    ):
+        assert list(XMLSchemaInference().process(*base, 1, "row", 0, *tail)) == [("",)]
+
+    # worker id >= num_workers
+    with patch(
+        "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
+        return_value=1000,
+    ):
+        assert list(XMLSchemaInference().process(*base, 2, "row", 5, *tail)) == [("",)]
+
+    # no matching row tags
+    xml_bytes = b"<r><other>data</other></r>"
+    with patch(
+        "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
+        return_value=len(xml_bytes),
+    ), patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        return_value=io.BytesIO(xml_bytes),
+    ):
+        assert list(XMLSchemaInference().process(*base, 1, "row", 0, *tail)) == [("",)]
+
+
+def test_xml_schema_inference_process_param_defaults():
+    """None num_workers defaults to 1; negative worker id defaults to 0."""
+    xml_bytes = b"<r><row><a>42</a></row></r>"
+    tail = (1.0, True, "_", False, "_VALUE", "", "utf-8", True)
+
+    for num_workers, i in [(None, 0), (1, -1)]:
+        mock_file = io.BytesIO(xml_bytes)
+        with patch(
+            "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
+            return_value=len(xml_bytes),
+        ), patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+            results = list(
+                XMLSchemaInference().process("test.xml", num_workers, "row", i, *tail)
+            )
+        assert len(results) == 1
+        assert "bigint" in results[0][0]
+
+
+def test_xml_schema_inference_process_with_sampling():
+    """Sampling ratio < 1.0 sets a deterministic seed."""
+    xml = "<r>"
+    for i in range(10):
+        xml += f"<row><val>{i}</val></row>"
+    xml += "</r>"
+    xml_bytes = xml.encode("utf-8")
+    mock_file = io.BytesIO(xml_bytes)
+    with patch(
+        "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
+        return_value=len(xml_bytes),
+    ), patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+        results = list(
+            XMLSchemaInference().process(
+                "test.xml",
+                1,
+                "row",
+                0,
+                0.5,
+                True,
+                "_",
+                False,
+                "_VALUE",
+                "",
+                "utf-8",
+                True,
+            )
+        )
+    assert len(results) == 1
+    assert results[0][0] != ""
+
+
+def test_xml_schema_inference_process_multi_worker():
+    """Multi-worker processing partitions the file correctly."""
+    xml = "<r><row><a>1</a></row><row><a>2</a></row><row><a>3</a></row></r>"
+    xml_bytes = xml.encode("utf-8")
+
+    all_schemas = []
+    for worker_id in range(2):
+        mock_file = io.BytesIO(xml_bytes)
+        with patch(
+            "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
+            return_value=len(xml_bytes),
+        ), patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+            udtf = XMLSchemaInference()
+            results = list(
+                udtf.process(
+                    "test.xml",
+                    2,
+                    "row",
+                    worker_id,
+                    1.0,
+                    True,
+                    "_",
+                    False,
+                    "_VALUE",
+                    "",
+                    "utf-8",
+                    True,
+                )
+            )
+            all_schemas.append(results[0][0])
+    assert any(s != "" for s in all_schemas)

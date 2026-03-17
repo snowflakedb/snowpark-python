@@ -1168,3 +1168,22 @@ def test_sampling_ratio_nested_schema_preserved(session):
     reviews = json.loads(book1["reviews"])
     assert isinstance(reviews["review"], list)
     assert len(reviews["review"]) == 2
+
+
+def test_infer_schema_non_existing_file(session):
+    with pytest.raises(ValueError, match="does not exist"):
+        session.read.option("rowTag", "row").xml(
+            f"@{tmp_stage_name}/non_existing_file.xml"
+        )
+
+
+def test_infer_schema_use_leaf_row_tag(session):
+    xml_content = "<root><item>hello</item><item>world</item></root>"
+    actual_filename = _upload_xml_string(
+        session, tmp_stage_name, "leaf_only_infer.xml", xml_content
+    )
+    df = session.read.option("rowTag", "item").xml(
+        f"@{tmp_stage_name}/{actual_filename}"
+    )
+    assert df.count() == 2
+    assert "_VALUE" in [f.name for f in df.schema.fields] or len(df.schema.fields) == 1

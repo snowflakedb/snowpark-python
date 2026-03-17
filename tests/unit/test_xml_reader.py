@@ -1234,3 +1234,43 @@ def test_validate_dropmalformed_returns_row_when_valid():
     row = {"val": "42"}
     result = _validate_row_for_type_mismatch(row, schema, "DROPMALFORMED", "<row/>")
     assert result["val"] == "42"
+
+
+def test_schema_string_to_result_dict_empty_string():
+    template, schema_type = schema_string_to_result_dict_and_struct_type("")
+    assert template is None
+    assert schema_type is None
+
+
+def test_can_cast_to_complex_type_returns_true():
+    assert _can_cast_to_type("anything", ArrayType(StringType())) is True
+    assert _can_cast_to_type("anything", MapType(StringType(), StringType())) is True
+    assert _can_cast_to_type("anything", StructType([])) is True
+
+
+def test_element_to_dict_leaf_with_template_edge_cases():
+    xml_str = "<publisher/>"
+    element = ET.fromstring(xml_str)
+    result_template = {"_VALUE": None, "_country": None, "_language": None}
+    result = element_to_dict_or_str(element, result_template=result_template)
+    assert isinstance(result, dict)
+    assert result["_VALUE"] is None
+    assert result["_country"] is None
+    assert result["_language"] is None
+
+    xml_str = "<publisher>Penguin</publisher>"
+    element = ET.fromstring(xml_str)
+    result = element_to_dict_or_str(element, result_template=result_template)
+    assert isinstance(result, dict)
+    assert result["_VALUE"] == "Penguin"
+    assert result["_country"] is None
+    assert result["_language"] is None
+
+    xml_str = "<publisher>N/A</publisher>"
+    element = ET.fromstring(xml_str)
+    result_template = {"_VALUE": None, "_country": None}
+    result = element_to_dict_or_str(
+        element, result_template=result_template, null_value="N/A"
+    )
+    assert isinstance(result, dict)
+    assert result["_VALUE"] is None
