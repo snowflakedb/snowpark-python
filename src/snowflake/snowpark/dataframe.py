@@ -179,7 +179,12 @@ from snowflake.snowpark._internal.data_source.utils import (
     track_data_source_statement_params,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
+from snowflake.snowpark.column import (
+    METADATA_COLUMN_TYPES,
+    Column,
+    _to_col_if_sql_expr,
+    _to_col_if_str,
+)
 from snowflake.snowpark.dataframe_ai_functions import DataFrameAIFunctions
 from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
@@ -4885,6 +4890,27 @@ class DataFrame:
             else None
         )
         copy_options = copy_options or reader_copy_options
+
+        if copy_options.get("INCLUDE_METADATA", None) is not None:
+            for metadata_col in copy_options["INCLUDE_METADATA"].values():
+                if quote_name(metadata_col.upper()) not in METADATA_COLUMN_TYPES:
+                    raise ValueError(
+                        f"Metadata column {metadata_col} is not supported. Supported columns: {list(METADATA_COLUMN_TYPES.keys())}"
+                    )
+            if "MATCH_BY_COLUMN_NAME" not in copy_options:
+                raise ValueError(
+                    "INCLUDE_METADATA can only be used with the MATCH_BY_COLUMN_NAME copy option."
+                )
+            if self._reader._file_type and self._reader._file_type.upper() == "CSV":
+                format_type_options = (
+                    format_type_options.copy() if format_type_options else {}
+                )
+                if format_type_options.get("ERROR_ON_COLUMN_COUNT_MISMATCH", False):
+                    raise ValueError(
+                        "ERROR_ON_COLUMN_COUNT_MISMATCH must be False when INCLUDE_METADATA is used with CSV files."
+                    )
+                format_type_options["ERROR_ON_COLUMN_COUNT_MISMATCH"] = False
+
         validation_mode = validation_mode or self._reader._cur_options.get(
             "VALIDATION_MODE"
         )

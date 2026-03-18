@@ -7,6 +7,7 @@
 #### New Features
 
 - Added support for DIRECTED JOIN.
+- Added support for the `INCLUDE_METADATA` copy option in `DataFrame.copy_into_table`, allowing users to include file metadata columns in the target table.
 
 #### Bug Fixes
 

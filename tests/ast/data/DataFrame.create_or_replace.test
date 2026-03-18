@@ -27,6 +27,7 @@ df.copy_into_table(
     statement_params={"foo": "bar"},
     iceberg_config={"external_volume": "example_volume", "partition_by": [bucket(10, "n"), truncate(2, col("str"))], "target_file_size": "128MB", "catalog": "my_catalog"},
     force=True,
+    INCLUDE_METADATA={"filename_col": "METADATA$FILENAME", "row_num_col": "METADATA$FILE_ROW_NUMBER"},
 )
 
 df3 = df.cache_result()
@@ -47,7 +48,7 @@ res3 = df.create_or_replace_temp_view(["test_db", "test_schema", "test_view"], c
 
 res4 = df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar"}, copy_grants=True)
 
-df.copy_into_table(["test_db", "test_schema", "table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True, iceberg_config={"external_volume": "example_volume", "partition_by": [bucket(10, "n"), truncate(2, col("str"))], "target_file_size": "128MB", "catalog": "my_catalog"})
+df.copy_into_table(["test_db", "test_schema", "table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True, INCLUDE_METADATA={"filename_col": "METADATA$FILENAME", "row_num_col": "METADATA$FILE_ROW_NUMBER"}, iceberg_config={"external_volume": "example_volume", "partition_by": [bucket(10, "n"), truncate(2, col("str"))], "target_file_size": "128MB", "catalog": "my_catalog"})
 
 df = session.table("table1")
 
@@ -254,12 +255,78 @@ body {
             bool_val {
               src {
                 end_column: 9
-                end_line: 52
+                end_line: 53
                 file: 2
                 start_column: 8
                 start_line: 41
               }
               v: true
+            }
+          }
+        }
+        copy_options {
+          _1: "INCLUDE_METADATA"
+          _2 {
+            seq_map_val {
+              kvs {
+                vs {
+                  string_val {
+                    src {
+                      end_column: 9
+                      end_line: 53
+                      file: 2
+                      start_column: 8
+                      start_line: 41
+                    }
+                    v: "filename_col"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 9
+                      end_line: 53
+                      file: 2
+                      start_column: 8
+                      start_line: 41
+                    }
+                    v: "METADATA$FILENAME"
+                  }
+                }
+              }
+              kvs {
+                vs {
+                  string_val {
+                    src {
+                      end_column: 9
+                      end_line: 53
+                      file: 2
+                      start_column: 8
+                      start_line: 41
+                    }
+                    v: "row_num_col"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 9
+                      end_line: 53
+                      file: 2
+                      start_column: 8
+                      start_line: 41
+                    }
+                    v: "METADATA$FILE_ROW_NUMBER"
+                  }
+                }
+              }
+              src {
+                end_column: 9
+                end_line: 53
+                file: 2
+                start_column: 8
+                start_line: 41
+              }
             }
           }
         }
@@ -276,7 +343,7 @@ body {
             string_val {
               src {
                 end_column: 9
-                end_line: 52
+                end_line: 53
                 file: 2
                 start_column: 8
                 start_line: 41
@@ -291,7 +358,7 @@ body {
             string_val {
               src {
                 end_column: 9
-                end_line: 52
+                end_line: 53
                 file: 2
                 start_column: 8
                 start_line: 41
@@ -306,7 +373,7 @@ body {
             string_val {
               src {
                 end_column: 9
-                end_line: 52
+                end_line: 53
                 file: 2
                 start_column: 8
                 start_line: 41
@@ -321,7 +388,7 @@ body {
             list_val {
               src {
                 end_column: 9
-                end_line: 52
+                end_line: 53
                 file: 2
                 start_column: 8
                 start_line: 41
@@ -449,7 +516,7 @@ body {
             string_val {
               src {
                 end_column: 9
-                end_line: 52
+                end_line: 53
                 file: 2
                 start_column: 8
                 start_line: 41
@@ -464,7 +531,7 @@ body {
             string_val {
               src {
                 end_column: 9
-                end_line: 52
+                end_line: 53
                 file: 2
                 start_column: 8
                 start_line: 41
@@ -478,7 +545,7 @@ body {
         }
         src {
           end_column: 9
-          end_line: 52
+          end_line: 53
           file: 2
           start_column: 8
           start_line: 41
@@ -653,10 +720,10 @@ body {
         }
         src {
           end_column: 31
-          end_line: 54
+          end_line: 55
           file: 2
           start_column: 14
-          start_line: 54
+          start_line: 55
         }
       }
     }
@@ -685,10 +752,10 @@ body {
         }
         src {
           end_column: 62
-          end_line: 56
+          end_line: 57
           file: 2
           start_column: 14
-          start_line: 56
+          start_line: 57
         }
         statement_params {
           _1: "foo"
@@ -729,10 +796,10 @@ body {
         }
         src {
           end_column: 128
-          end_line: 58
+          end_line: 59
           file: 2
           start_column: 8
-          start_line: 58
+          start_line: 59
         }
         warehouse: "test_wh"
       }
