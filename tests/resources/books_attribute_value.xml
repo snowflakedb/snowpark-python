@@ -1,0 +1,33 @@
+<library>
+  <book id="1">
+    <title>The Art of Snowflake</title>
+    <author>Jane Doe</author>
+    <price>29.99</price>
+    <publisher country="USA">O'Reilly Media</publisher>
+  </book>
+  <book id="2">
+    <title>XML for Data Engineers</title>
+    <author>John Smith</author>
+    <price>35.50</price>
+    <publisher country="Germany">Springer</publisher>
+  </book>
+  <book id="3">
+    <title>Book 3</title>
+    <author>John Smith</author>
+    <price>35.50</price>
+    <publisher country="Canada" language="English">Springer</publisher>
+  </book>
+  <book id="4">
+    <title>Book 4</title>
+    <author>John Smith</author>
+    <price>35.50</price>
+    <publisher>Some Publisher</publisher>
+  </book>
+  <book id="5">
+    <title>Book 5</title>
+    <author>author5</author>
+    <price>35</price>
+    <publisher></publisher>
+    <pages>5</pages>
+  </book>
+</library>
