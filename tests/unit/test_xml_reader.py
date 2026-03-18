@@ -30,6 +30,7 @@ from snowflake.snowpark._internal.xml_reader import (
     _COLON_PLACEHOLDER,
     _can_cast_to_type,
     _validate_row_for_type_mismatch,
+    XMLReader,
 )
 from snowflake.snowpark.types import (
     StructType,
@@ -1274,3 +1275,75 @@ def test_element_to_dict_leaf_with_template_edge_cases():
     )
     assert isinstance(result, dict)
     assert result["_VALUE"] is None
+
+
+def test_process_xml_range_scos_permissive_type_validation():
+    """process_xml_range validates types when is_snowpark_connect_compatible=True"""
+    xml_content = (
+        "<root>"
+        "<ROW><name>Alice</name><value>100</value></ROW>"
+        "<ROW><name>Frank</name><value>hello</value></ROW>"
+        "</root>"
+    )
+    xml_bytes = xml_content.encode("utf-8")
+    schema = _make_schema(("name", StringType()), ("value", LongType()))
+    mock_file = io.BytesIO(xml_bytes)
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+        results = list(
+            process_xml_range(
+                file_path="test.xml",
+                tag_name="ROW",
+                approx_start=0,
+                approx_end=len(xml_bytes),
+                mode="PERMISSIVE",
+                column_name_of_corrupt_record="_corrupt_record",
+                ignore_namespace=True,
+                attribute_prefix="_",
+                exclude_attributes=False,
+                value_tag="_VALUE",
+                null_value="",
+                charset="utf-8",
+                ignore_surrounding_whitespace=True,
+                row_validation_xsd_path="",
+                result_template={"name": None, "value": None},
+                schema_type=schema,
+                is_snowpark_connect_compatible=True,
+            )
+        )
+    assert len(results) == 2
+    frank = [r for r in results if r.get("name") == "Frank"][0]
+    assert frank["value"] is None
+    assert "_corrupt_record" in frank
+
+
+def test_xml_reader_process_with_scos_compatible_param():
+    """XMLReader.process passes is_snowpark_connect_compatible through"""
+    xml_content = "<root><record><a>1</a></record></root>"
+    xml_bytes = xml_content.encode("utf-8")
+    mock_file = io.BytesIO(xml_bytes)
+    with patch(
+        "snowflake.snowpark._internal.xml_reader.get_file_size",
+        return_value=len(xml_bytes),
+    ), patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+        results = list(
+            XMLReader().process(
+                "test.xml",
+                1,
+                "record",
+                0,
+                "PERMISSIVE",
+                "_corrupt_record",
+                True,
+                "_",
+                False,
+                "_VALUE",
+                "",
+                "utf-8",
+                True,
+                "",
+                "",
+                True,
+            )
+        )
+    assert len(results) == 1
+    assert results[0][0]["a"] == "1"

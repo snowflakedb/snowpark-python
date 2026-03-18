@@ -3,6 +3,8 @@
 #
 
 import io
+from contextlib import ExitStack
+from unittest import mock
 from unittest.mock import patch
 
 import lxml.etree as ET
@@ -22,10 +24,13 @@ from snowflake.snowpark._internal.xml_schema_inference import (
     infer_schema_for_xml_range,
     XMLSchemaInference,
 )
+from snowflake.snowpark import DataFrameReader
+import snowflake.snowpark.dataframe_reader as _dr_mod
 from snowflake.snowpark.types import (
     StructType,
     StructField,
     ArrayType,
+    MapType,
     NullType,
     StringType,
     BooleanType,
@@ -1371,14 +1376,14 @@ def test_e2e_value_tag_null_value_option():
 def _mock_xml_range(xml_content, row_tag, **kwargs):
     """Helper: run infer_schema_for_xml_range against an in-memory XML string."""
     xml_bytes = xml_content.encode("utf-8")
-    mock_file = io.BytesIO(xml_bytes)
+    mock_file = kwargs.get("file_obj") or io.BytesIO(xml_bytes)
     with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
         return infer_schema_for_xml_range(
             file_path="test.xml",
             row_tag=row_tag,
             approx_start=0,
-            approx_end=len(xml_bytes),
-            sampling_ratio=1.0,
+            approx_end=kwargs.get("approx_end", len(xml_bytes)),
+            sampling_ratio=kwargs.get("sampling_ratio", 1.0),
             ignore_namespace=kwargs.get("ignore_namespace", True),
             attribute_prefix=kwargs.get("attribute_prefix", "_"),
             exclude_attributes=kwargs.get("exclude_attributes", False),
@@ -1677,3 +1682,212 @@ def test_xml_schema_inference_process_multi_worker():
             )
             all_schemas.append(results[0][0])
     assert any(s != "" for s in all_schemas)
+
+
+def test_infer_element_schema_clark_ns_in_children():
+    """Clark {uri}tag stripped with ignore_namespace=True"""
+    root = ET.Element("row")
+    ET.SubElement(root, "{http://example.com}child").text = "val"
+    assert "child" in {
+        f._name for f in infer_element_schema(root, ignore_namespace=True).fields
+    }
+
+
+def test_infer_range_approx_end_breaks():
+    """open_pos >= approx_end → immediate break."""
+    assert _mock_xml_range("<r><row><a>1</a></row></r>", "row", approx_end=3) is None
+
+
+def test_infer_range_tag_exception_continues():
+    """Truncated tag at EOF → tag_is_self_closing raises → seek back, continue"""
+    assert _mock_xml_range("<r><row><a>1</a></row><row", "row") is not None
+
+
+def test_infer_range_sampling_skip_past_approx_end():
+    """Sampling skip + record past approx_end → break"""
+    with patch("snowflake.snowpark._internal.xml_schema_inference.random") as rng:
+        rng.random.return_value = 0.99
+        rng.seed = lambda *a, **kw: None
+        schema = _mock_xml_range(
+            "<r><row><a>long_value</a></row></r>",
+            "row",
+            approx_end=10,
+            sampling_ratio=0.01,
+        )
+    assert schema is None
+
+
+def test_infer_range_parse_error_past_approx_end():
+    """Parse error + record past approx_end → break"""
+    schema = _mock_xml_range(
+        "<r><row><ns:a>1</ns:a></row></r>",
+        "row",
+        approx_end=10,
+        ignore_namespace=False,
+    )
+    assert schema is None
+
+
+def test_infer_range_stdlib_et_fallback():
+    """stdlib ET used when lxml not installed"""
+    import xml.etree.ElementTree as stdlib_ET
+
+    with patch(
+        "snowflake.snowpark._internal.xml_schema_inference.lxml_installed", False
+    ), patch("snowflake.snowpark._internal.xml_schema_inference.ET", stdlib_ET):
+        assert _mock_xml_range("<r><row><a>42</a></row></r>", "row") is not None
+
+
+def test_infer_range_seek_failures():
+    class FailSeek(io.BytesIO):
+        """BytesIO that raises OSError on the Nth seek to a target position.
+
+        skip=0 means fail on the very first seek to fail_pos.
+        skip=1 means allow the first seek (e.g. inside find_next_closing_tag_pos)
+        and fail on the second (the coverage-target seek).
+        """
+
+        def __init__(self, data, fail_pos, skip=0) -> None:
+            super().__init__(data)
+            self._fail_pos = fail_pos
+            self._skip = skip
+            self._hits = 0
+
+        def seek(self, pos, whence=0):
+            if whence == 0 and pos == self._fail_pos:
+                self._hits += 1
+                if self._hits > self._skip:
+                    raise OSError("forced")
+            return super().seek(pos, whence)
+
+    def _end(b):
+        return b.find(b"</row>") + len(b"</row>")
+
+    # successful parse → seek failure after merge
+    # skip=1: first seek to record_end happens inside find_next_closing_tag_pos
+    b = b"<r><row><a>7</a></row></r>"
+    assert (
+        _mock_xml_range(b.decode(), "row", file_obj=FailSeek(b, _end(b), skip=1))
+        is not None
+    )
+
+    # parse error → seek failure
+    b = b"<r><row><ns:a>1</ns:a></row></r>"
+    assert (
+        _mock_xml_range(
+            b.decode(),
+            "row",
+            file_obj=FailSeek(b, _end(b), skip=1),
+            ignore_namespace=False,
+        )
+        is None
+    )
+
+    # sampling skip → seek failure
+    b = b"<r><row><a>123</a></row></r>"
+    with patch("snowflake.snowpark._internal.xml_schema_inference.random") as rng:
+        rng.random.return_value = 0.99
+        rng.seed = lambda *a, **kw: None
+        assert (
+            _mock_xml_range(
+                b.decode(),
+                "row",
+                file_obj=FailSeek(b, _end(b), skip=1),
+                sampling_ratio=0.01,
+            )
+            is None
+        )
+
+    # tag exception → seek failure on record_start + 1
+    # skip=0: position record_start+1 is only hit in the except handler
+    b = b"<r><row><a>1</a></row><row"
+    second_row = b.find(b"<row", b.find(b"<row") + 1)
+    assert (
+        _mock_xml_range(
+            b.decode(),
+            "row",
+            file_obj=FailSeek(b, second_row + 1),
+        )
+        is not None
+    )
+
+
+def _run_infer_xml(schema_rows, *, type_string=None, canonicalize=None):
+    """Call _infer_schema_for_xml with mocked UDTF results."""
+    s = mock.MagicMock()
+    s.sql.return_value.collect.return_value = [{"size": "1024"}]
+    df = mock.MagicMock()
+    df.to_df.return_value = df
+    df.select.return_value.collect.return_value = schema_rows
+    s.range.return_value = df
+    reader = DataFrameReader(s, _emit_ast=False)
+    reader._cur_options[_dr_mod.XML_ROW_TAG_STRING] = "row"
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            mock.patch.object(
+                _dr_mod.DataFrameReader,
+                "_resolve_xml_file_for_udtf",
+                return_value="x",
+            )
+        )
+        stack.enter_context(
+            mock.patch.object(
+                _dr_mod, "get_types_from_type_hints", return_value=(None, [])
+            )
+        )
+        if type_string is not None:
+            stack.enter_context(
+                mock.patch.object(
+                    _dr_mod, "type_string_to_type_object", side_effect=type_string
+                )
+            )
+        if canonicalize is not None:
+            stack.enter_context(
+                mock.patch.object(
+                    _dr_mod, "canonicalize_type", return_value=canonicalize
+                )
+            )
+        return reader._infer_schema_for_xml("@s/f.xml")
+
+
+def test_infer_xml_bad_schema_string_and_non_struct_partial():
+    """type_string_to_type_object raises → skip; non-StructType → wrapped."""
+    result = _run_infer_xml(
+        [("bad",), ("bigint",)],
+        type_string=[ValueError("bad"), LongType()],
+        canonicalize=StructType([StructField("_VALUE", LongType())]),
+    )
+    assert result is not None and result.fields[0]._name == "_VALUE"
+
+
+def test_infer_xml_canonical_non_struct_returns_none():
+    """canonicalize_type returns non-StructType → None."""
+    result = _run_infer_xml(
+        [("struct<a:bigint>",)],
+        type_string=[StructType([StructField("a", LongType())])],
+        canonicalize=LongType(),
+    )
+    assert result is None
+
+
+def test_infer_xml_map_type_field_names_cleaned():
+    """MapType fields get quoted names stripped."""
+    result = _run_infer_xml(
+        [("x",)],
+        type_string=[StructType([StructField("a", LongType())])],
+        canonicalize=StructType(
+            [
+                StructField(
+                    '"m"',
+                    MapType(
+                        StructType([StructField('"k"', StringType())]),
+                        StructType([StructField('"v"', LongType())]),
+                    ),
+                )
+            ]
+        ),
+    )
+    assert result.fields[0]._name == "m"
+    assert result.fields[0].datatype.key_type.fields[0]._name == "k"
+    assert result.fields[0].datatype.value_type.fields[0]._name == "v"
