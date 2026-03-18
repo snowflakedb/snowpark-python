@@ -1413,8 +1413,14 @@ class DataFrameReader:
         read_file_transformations = [t._expression.sql for t in transformations]
         return new_schema, schema_to_cast, read_file_transformations
 
-    def _resolve_xml_file_for_udtf(self, local_file_path: str) -> str:
-        """Return the UDTF file path, uploading to a temp stage in stored procedures."""
+    def _register_xml_udtf(
+        self,
+        local_file_path: str,
+        handler_name: str,
+        output_schema: StructType,
+    ):
+        """Register a session-scoped XML UDTF with a deterministic fully-qualified
+        name, cached per session and schema"""
         if is_in_stored_procedure():  # pragma: no cover
             session_stage = self._session.get_session_stage()
             self._session._conn.upload_file(
@@ -1424,30 +1430,35 @@ class DataFrameReader:
                 overwrite=True,
                 skip_upload_on_content_match=True,
             )
-            return f"{session_stage}/{os.path.basename(local_file_path)}"
-        return local_file_path
+            python_file_path = f"{session_stage}/{os.path.basename(local_file_path)}"
+        else:
+            python_file_path = local_file_path
 
-    def _infer_schema_for_xml(self, path: str) -> Optional[StructType]:
-        # Register the XMLSchemaInference UDTF
-        handler_name = "XMLSchemaInference"
         _, input_types = get_types_from_type_hints(
-            (XML_SCHEMA_INFERENCE_FILE_PATH, handler_name),
-            TempObjectType.TABLE_FUNCTION,
+            (local_file_path, handler_name), TempObjectType.TABLE_FUNCTION
         )
 
-        inference_file_path = self._resolve_xml_file_for_udtf(
-            XML_SCHEMA_INFERENCE_FILE_PATH
+        udtf_name = self._session.get_fully_qualified_name_if_possible(
+            f"SNOWPARK_TEMP_XML_{handler_name}"
         )
 
-        output_schema = StructType([StructField("SCHEMA_VALUE", StringType(), True)])
-        schema_udtf = self._session.udtf.register_from_file(
-            inference_file_path,
+        return self._session.udtf.register_from_file(
+            python_file_path,
             handler_name,
+            name=udtf_name,
             output_schema=output_schema,
             input_types=input_types,
             packages=["snowflake-snowpark-python", "lxml<6"],
-            replace=True,
+            if_not_exists=True,
+            skip_upload_on_content_match=True,
             _suppress_local_package_warnings=True,
+        )
+
+    def _infer_schema_for_xml(self, path: str) -> Optional[StructType]:
+        schema_udtf = self._register_xml_udtf(
+            XML_SCHEMA_INFERENCE_FILE_PATH,
+            "XMLSchemaInference",
+            StructType([StructField("SCHEMA_VALUE", StringType(), True)]),
         )
 
         # Determine number of workers
@@ -1626,7 +1637,6 @@ class DataFrameReader:
 
         xml_inferred_schema = None
         if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
-            python_file_path = self._resolve_xml_file_for_udtf(XML_READER_FILE_PATH)
             if (
                 context._is_snowpark_connect_compatible_mode
                 and not self._user_schema
@@ -1645,22 +1655,12 @@ class DataFrameReader:
                     ]
                     use_user_schema = True
 
-            # create udtf
-            handler_name = "XMLReader"
-            _, input_types = get_types_from_type_hints(
-                (XML_READER_FILE_PATH, handler_name), TempObjectType.TABLE_FUNCTION
-            )
-            output_schema = StructType(
-                [StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True)]
-            )
-            xml_reader_udtf = self._session.udtf.register_from_file(
-                python_file_path,
-                handler_name,
-                output_schema=output_schema,
-                input_types=input_types,
-                packages=["snowflake-snowpark-python", "lxml<6"],
-                replace=True,
-                _suppress_local_package_warnings=True,
+            xml_reader_udtf = self._register_xml_udtf(
+                XML_READER_FILE_PATH,
+                "XMLReader",
+                StructType(
+                    [StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True)]
+                ),
             )
         else:
             xml_reader_udtf = None

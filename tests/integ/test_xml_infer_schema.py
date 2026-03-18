@@ -5,6 +5,8 @@
 import datetime
 import json
 import os
+from unittest import mock
+
 import pytest
 
 from snowflake.snowpark import Row
@@ -362,10 +364,8 @@ _staged_files = {}
 def enable_scos_compatible_mode():
     """XML inferSchema is gated behind _is_snowpark_connect_compatible_mode.
     Enable it for every test in this module."""
-    original = context._is_snowpark_connect_compatible_mode
-    context._is_snowpark_connect_compatible_mode = True
-    yield
-    context._is_snowpark_connect_compatible_mode = original
+    with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+        yield
 
 
 @pytest.fixture(scope="module", autouse=True)

@@ -1826,13 +1826,6 @@ def _run_infer_xml(schema_rows, *, type_string=None, canonicalize=None):
     with ExitStack() as stack:
         stack.enter_context(
             mock.patch.object(
-                _dr_mod.DataFrameReader,
-                "_resolve_xml_file_for_udtf",
-                return_value="x",
-            )
-        )
-        stack.enter_context(
-            mock.patch.object(
                 _dr_mod, "get_types_from_type_hints", return_value=(None, [])
             )
         )

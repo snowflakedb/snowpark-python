@@ -5,6 +5,8 @@ import datetime
 import logging
 import json
 import os
+from unittest import mock
+
 import pytest
 
 from snowflake.snowpark import Row
@@ -40,10 +42,8 @@ pytestmark = [
 @pytest.fixture()
 def enable_scos_compatible_mode():
     """Enable SCOS compatible mode so that type validation runs inside the UDTF."""
-    original = context._is_snowpark_connect_compatible_mode
-    context._is_snowpark_connect_compatible_mode = True
-    yield
-    context._is_snowpark_connect_compatible_mode = original
+    with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+        yield
 
 
 # XML test file constants
