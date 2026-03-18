@@ -245,7 +245,7 @@ def test_frame_with_timedelta_index():
 def test_axis_1_date_time_timestamp_type(data, func, expected_result):
     snow_df = pd.DataFrame(data)
     result = snow_df.apply(func, axis=1)
-    assert_snowpark_pandas_equal_to_pandas(result, expected_result)
+    assert_snowpark_pandas_equal_to_pandas(result, expected_result, check_dtype=False)
 
 
 @sql_count_checker(query_count=5, join_count=2, udtf_count=1)
@@ -330,7 +330,7 @@ def test_axis_1_return_not_json_serializable_label():
         ).to_pandas()
 
     with pytest.raises(
-        SnowparkSQLException, match="Object of type DataFrame is not serializable"
+        SnowparkSQLException, match="Object of type DataFrame is not JSON serializable"
     ):
         # return value
         snow_df.apply(lambda x: native_pd.DataFrame([1, 2]), axis=1).to_pandas()

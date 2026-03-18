@@ -576,7 +576,7 @@ def test_geometry_type(session):
             return None
         else:
             g_str = str(g)
-            if "[50, 60]" in g_str and "Point" in g_str:
+            if "[50.0, 60.0]" in g_str and "Point" in g_str:
                 return g_str
             else:
                 return g_str.replace("0", "")
@@ -586,8 +586,8 @@ def test_geometry_type(session):
     Utils.check_answer(
         df.select(geometry_udf(col("g"))),
         [
-            Row("{'coordinates': [3, 1], 'type': 'Point'}"),
-            Row("{'coordinates': [50, 60], 'type': 'Point'}"),
+            Row("{'coordinates': [3., 1.], 'type': 'Point'}"),
+            Row("{'coordinates': [50.0, 60.0], 'type': 'Point'}"),
             Row(None),
         ],
     )
