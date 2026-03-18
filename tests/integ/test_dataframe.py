@@ -1587,6 +1587,54 @@ def test_join_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Session.query_history is not supported",
+    run=False,
+)
+def test_join_directed(session):
+    """Test that directed joins emit the DIRECTED keyword in SQL."""
+    # While sorting the output of a DIRECTED JOIN technically defeates the purpose of the DIRECTED keyword,
+    # doing so avoids potential flakiness from scan order changes _within_ a particular table. Checking that
+    # DIRECTED JOIN is present in the query text is sufficient for our purposes, since presumably any incorrect
+    # behavior from the SQL keyword would be caught by a server-side team.
+    df1 = session.create_dataframe([[1, "a"], [3, "b"]], schema=["id", "v1"])
+    df2 = session.create_dataframe([[1, "x"], [4, "y"]], schema=["id", "v2"])
+
+    # Inner join with directed=True
+    with session.query_history() as history:
+        res = df1.join(df2, "id", "inner", directed=True).collect()
+    assert res == [Row(1, "a", "x")]
+    assert any("DIRECTED JOIN" in q.sql_text for q in history.queries)
+
+    # Outer join with directed=True
+    with session.query_history() as history:
+        res = df1.join(df2, "id", "outer", directed=True).collect()
+    assert sorted(res, key=lambda r: r[0]) == [
+        Row(1, "a", "x"),
+        Row(3, "b", None),
+        Row(4, None, "y"),
+    ]
+    assert any("DIRECTED JOIN" in q.sql_text for q in history.queries)
+
+    # Natural join with directed=True
+    with session.query_history() as history:
+        res = df1.natural_join(df2, "inner", directed=True).collect()
+    assert res == [Row(1, "a", "x")]
+    assert any("DIRECTED JOIN" in q.sql_text for q in history.queries)
+
+    # Cross join with directed=True
+    with session.query_history() as history:
+        res = df1.cross_join(df2, directed=True).collect()
+    assert sorted(res, key=lambda r: (r[0], r[2])) == [
+        Row(1, "a", 1, "x"),
+        Row(1, "a", 4, "y"),
+        Row(3, "b", 1, "x"),
+        Row(3, "b", 4, "y"),
+    ]
+    assert any("DIRECTED JOIN" in q.sql_text for q in history.queries)
+
+
 def test_toDF(session):
     """Test df.to_df()."""
 

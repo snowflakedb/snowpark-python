@@ -12,7 +12,7 @@ df1 = session.table("table1")
 
 df2 = session.table("table1")
 
-res2 = df1.cross_join(df2, rsuffix="_t2").select("*")
+res2 = df1.cross_join(df2, rsuffix="_t2", directed=False).select("*")
 
 ## EXPECTED ENCODED AST
 
@@ -89,6 +89,8 @@ body {
   bind {
     expr {
       dataframe_cross_join {
+        directed {
+        }
         lhs {
           dataframe_ref {
             id: 1

@@ -1137,6 +1137,7 @@ class Analyzer:
                 match_condition,
                 logical_plan,
                 self.session.conf.get("use_constant_subquery_alias", False),
+                directed=logical_plan.directed,
             )
 
         if isinstance(logical_plan, Sort):
