@@ -330,7 +330,8 @@ def test_axis_1_return_not_json_serializable_label():
         ).to_pandas()
 
     with pytest.raises(
-        SnowparkSQLException, match="Object of type DataFrame is not JSON serializable"
+        SnowparkSQLException,
+        match=r"Object of type DataFrame is not (JSON )?serializable",
     ):
         # return value
         snow_df.apply(lambda x: native_pd.DataFrame([1, 2]), axis=1).to_pandas()

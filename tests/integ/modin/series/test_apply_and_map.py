@@ -401,7 +401,7 @@ class TestApplyOrMapCallable:
         # In Python UDF, if the return type is variant, the return value must be
         # json serializable so it can become a variant in Snowflake.
         # type() returns a type object which is not json serializable.
-        with pytest.raises(SnowparkSQLException, match="is not JSON serializable"):
+        with pytest.raises(SnowparkSQLException, match=r"is not (JSON )?serializable"):
             getattr(snow_series, method)(type).to_pandas()
 
     @pytest.mark.parametrize("func", [str, int, float, bytes, list, dict])
