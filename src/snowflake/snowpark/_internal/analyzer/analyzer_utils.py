@@ -104,7 +104,7 @@ JOIN = " JOIN "
 NATURAL = " NATURAL "
 ASOF = " ASOF "
 MATCH_CONDITION = " MATCH_CONDITION "
-DIRECTED = " DIRECTED"
+DIRECTED_JOIN = " DIRECTED JOIN "
 EXISTS = " EXISTS "
 CREATE = " CREATE "
 TABLE = " TABLE "
@@ -1022,7 +1022,7 @@ def snowflake_supported_join_statement(
         (MATCH_CONDITION + match_condition) if match_condition else EMPTY_STRING
     )
 
-    directed_sql = DIRECTED if directed else ""
+    maybe_directed_sql = DIRECTED_JOIN if directed else JOIN
 
     source = (
         LEFT_PARENTHESIS
@@ -1037,8 +1037,7 @@ def snowflake_supported_join_statement(
         + SPACE
         + NEW_LINE
         + join_sql
-        + directed_sql
-        + JOIN
+        + maybe_directed_sql
         + NEW_LINE
         + LEFT_PARENTHESIS
         + NEW_LINE
