@@ -12,7 +12,7 @@ df1 = session.table("table1")
 
 df2 = session.table("table1")
 
-df3 = df1.join(df2, on=(df1["num"] < df2["num"]) & (df1["str"] == df2["str"]), how="inner", rsuffix="_2")
+df3 = df1.join(df2, on=(df1["num"] < df2["num"]) & (df1["str"] == df2["str"]), how="inner", rsuffix="_2", directed=False)
 
 df3 = df3.select("*")
 
@@ -91,6 +91,8 @@ body {
   bind {
     expr {
       dataframe_join {
+        directed {
+        }
         join_expr {
           and {
             lhs {

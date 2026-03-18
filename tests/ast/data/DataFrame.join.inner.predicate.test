@@ -12,7 +12,7 @@ df1 = session.table("table1")
 
 df2 = session.table("table1")
 
-df3 = df1.join(df2, on=df1["num"] == df2["num"], how="inner")
+df3 = df1.join(df2, on=df1["num"] == df2["num"], how="inner", directed=False)
 
 df3 = df3.select(df1["num"].alias("num1"), df2["num"].alias("num2"), df2["str"])
 
@@ -91,6 +91,8 @@ body {
   bind {
     expr {
       dataframe_join {
+        directed {
+        }
         join_expr {
           eq {
             lhs {
