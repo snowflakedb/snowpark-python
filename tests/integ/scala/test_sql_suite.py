@@ -220,7 +220,14 @@ def test_sql_start(session):
     assert "RESULT_SCAN" in df2.queries["queries"][1]
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="set is not supported in stored proc")
 def test_sql_set_variable_to_pandas(session):
+
+    try:
+        import pandas  # noqa: F401
+    except ImportError:
+        pytest.skip("test requires pandas")
+
     # Covers SNOW-3198369. Passing the result of a SQL SET operation to Streamlit's
     # st.write (which calls to_pandas on the result of a session.sql call) should succeed,
     # but previously errored out with

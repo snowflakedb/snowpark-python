@@ -1225,6 +1225,7 @@ class SnowflakePlanBuilder:
         match_condition: str,
         source_plan: Optional[LogicalPlan],
         use_constant_subquery_alias: bool,
+        directed: bool = False,
     ):
         return self.build_binary(
             lambda x, y: join_statement(
@@ -1242,6 +1243,7 @@ class SnowflakePlanBuilder:
                     if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
+                directed=directed,
             ),
             left,
             right,
@@ -1882,6 +1884,7 @@ class SnowflakePlanBuilder:
                 lit(ignore_surrounding_whitespace),
                 lit(row_validation_xsd_path),
                 lit(schema_string),
+                lit(context._is_snowpark_connect_compatible_mode),
             ),
         )
 

@@ -10,6 +10,7 @@ import random
 import re
 import sys
 from collections import Counter
+from decimal import Decimal
 from functools import cached_property
 from logging import getLogger
 from types import ModuleType
@@ -178,7 +179,12 @@ from snowflake.snowpark._internal.data_source.utils import (
     track_data_source_statement_params,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
+from snowflake.snowpark.column import (
+    METADATA_COLUMN_TYPES,
+    Column,
+    _to_col_if_sql_expr,
+    _to_col_if_str,
+)
 from snowflake.snowpark.dataframe_ai_functions import DataFrameAIFunctions
 from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
@@ -3443,6 +3449,8 @@ class DataFrame:
         self,
         right: "DataFrame",
         how: Optional[str] = None,
+        *,
+        directed: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> "DataFrame":
@@ -3461,6 +3469,7 @@ class DataFrame:
                 You can also use ``join_type`` keyword to specify this condition.
                 Note that to avoid breaking changes, currently when ``join_type`` is specified,
                 it overrides ``how``.
+            directed: Whether the join is a directed join, which forces the left argument to be scanned before the right.
 
         Examples::
             >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
@@ -3493,6 +3502,7 @@ class DataFrame:
             NaturalJoin(join_type),
             None,
             None,
+            directed,
         )
         stmt = None
         if _emit_ast:
@@ -3510,6 +3520,7 @@ class DataFrame:
                 ast.join_type.join_type__full_outer = True
             else:
                 raise ValueError(f"Unsupported join type {join_type}")
+            ast.directed.value = directed
 
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
@@ -3582,6 +3593,7 @@ class DataFrame:
             lateral_join_type,
             on_expr,
             None,
+            False,
         )
 
         stmt = None
@@ -3619,6 +3631,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
+        directed: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> "DataFrame":
@@ -3649,6 +3662,7 @@ class DataFrame:
             lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
             rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
             match_condition: The match condition for asof join.
+            directed: Whether the join is a directed join, which forces the left argument to be scanned before the right.
 
         Note:
             When both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the resulting DataFrame.
@@ -3961,6 +3975,7 @@ class DataFrame:
                     ast.join_type.join_type__asof = True
                 else:
                     raise ValueError(f"Unsupported join type {join_type_arg}")
+                ast.directed.value = directed
 
                 join_cols = kwargs.get("using_columns", on)
                 if join_cols is not None:
@@ -3993,6 +4008,7 @@ class DataFrame:
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
                 match_condition=match_condition,
+                directed=directed,
                 _ast_stmt=stmt,
             )
 
@@ -4168,6 +4184,7 @@ class DataFrame:
         *,
         lsuffix: str = "",
         rsuffix: str = "",
+        directed: bool = False,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Performs a cross join, which returns the Cartesian product of the current
@@ -4209,6 +4226,7 @@ class DataFrame:
             right: the right :class:`DataFrame` to join.
             lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
             rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
+            directed: Whether the join is a directed join, which forces the left argument to be scanned before the right.
 
         Note:
             If both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the result DataFrame.
@@ -4225,6 +4243,7 @@ class DataFrame:
                 ast.lsuffix.value = lsuffix
             if rsuffix:
                 ast.rsuffix.value = rsuffix
+            ast.directed.value = directed
 
         return self._join_dataframes_internal(
             right,
@@ -4232,6 +4251,7 @@ class DataFrame:
             None,
             lsuffix=lsuffix,
             rsuffix=rsuffix,
+            directed=directed,
             _ast_stmt=stmt,
         )
 
@@ -4244,6 +4264,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
+        directed: bool = False,
         _ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         if isinstance(using_columns, Column):
@@ -4254,6 +4275,7 @@ class DataFrame:
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
                 match_condition=match_condition,
+                directed=directed,
                 _ast_stmt=_ast_stmt,
             )
 
@@ -4269,6 +4291,7 @@ class DataFrame:
                 join_cond,
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
+                directed=directed,
                 _ast_stmt=_ast_stmt,
             )
         else:
@@ -4290,6 +4313,7 @@ class DataFrame:
                 join_type,
                 None,
                 match_condition._expression if match_condition is not None else None,
+                directed,
             )
             if self._select_statement:
                 return self._with_plan(
@@ -4312,6 +4336,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
+        directed: bool = False,
         _ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(
@@ -4327,6 +4352,7 @@ class DataFrame:
             join_type,
             join_condition_expr,
             match_condition_expr,
+            directed,
         )
         if self._select_statement:
             return self._with_plan(
@@ -4864,6 +4890,27 @@ class DataFrame:
             else None
         )
         copy_options = copy_options or reader_copy_options
+
+        if copy_options.get("INCLUDE_METADATA", None) is not None:
+            for metadata_col in copy_options["INCLUDE_METADATA"].values():
+                if quote_name(metadata_col.upper()) not in METADATA_COLUMN_TYPES:
+                    raise ValueError(
+                        f"Metadata column {metadata_col} is not supported. Supported columns: {list(METADATA_COLUMN_TYPES.keys())}"
+                    )
+            if "MATCH_BY_COLUMN_NAME" not in copy_options:
+                raise ValueError(
+                    "INCLUDE_METADATA can only be used with the MATCH_BY_COLUMN_NAME copy option."
+                )
+            if self._reader._file_type and self._reader._file_type.upper() == "CSV":
+                format_type_options = (
+                    format_type_options.copy() if format_type_options else {}
+                )
+                if format_type_options.get("ERROR_ON_COLUMN_COUNT_MISMATCH", False):
+                    raise ValueError(
+                        "ERROR_ON_COLUMN_COUNT_MISMATCH must be False when INCLUDE_METADATA is used with CSV files."
+                    )
+                format_type_options["ERROR_ON_COLUMN_COUNT_MISMATCH"] = False
+
         validation_mode = validation_mode or self._reader._cur_options.get(
             "VALIDATION_MODE"
         )
@@ -5283,6 +5330,8 @@ class DataFrame:
                 start_field = getattr(datatype, "start_field", DayTimeIntervalType.DAY)
                 end_field = getattr(datatype, "end_field", DayTimeIntervalType.SECOND)
                 res = format_day_time_interval_for_display(cell, start_field, end_field)
+            elif isinstance(cell, Decimal):
+                res = format(cell, "f")
             else:
                 res = str(cell)
             return res.replace("\n", "\\n")

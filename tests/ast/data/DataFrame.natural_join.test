@@ -12,7 +12,7 @@ df1 = session.table("table1")
 
 df2 = session.table("table1")
 
-res2 = df1.natural_join(df2, "inner").select("*")
+res2 = df1.natural_join(df2, "inner", directed=False).select("*")
 
 ## EXPECTED ENCODED AST
 
@@ -89,6 +89,8 @@ body {
   bind {
     expr {
       dataframe_natural_join {
+        directed {
+        }
         join_type {
           join_type__inner: true
         }
