@@ -1227,7 +1227,7 @@ class DataFrameReader:
                         prefix = match[0]
                         for regex in regexes:
                             prefix = regex.sub("", prefix)
-                        files.append(prefix)
+                        files.append(prefix.lstrip("/"))
                     infer_schema_options["FILES"] = files
 
                     # Reconstruct path using just stage and any qualifiers
