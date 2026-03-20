@@ -77,7 +77,7 @@ def analyze_attributes(
     # SQL commands which cannot be prepared
     # https://docs.snowflake.com/en/user-guide/sql-prepare.html
     if lowercase.startswith(
-        ("alter", "drop", "use", "create", "grant", "revoke", "comment")
+        ("alter", "drop", "use", "create", "grant", "revoke", "comment", "set")
     ):
         return command_attributes()
     if lowercase.startswith(("ls", "list")):

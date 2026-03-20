@@ -180,6 +180,7 @@ COPY_INTO_TABLE_COPY_OPTIONS = {
     "TRUNCATECOLUMNS",
     "FORCE",
     "LOAD_UNCERTAIN_FILES",
+    "INCLUDE_METADATA",
 }
 
 COPY_INTO_LOCATION_COPY_OPTIONS = {
@@ -199,6 +200,7 @@ NON_FORMAT_TYPE_OPTIONS = {
     # The following are not copy into SQL command options but client side options.
     "INFER_SCHEMA",
     "INFER_SCHEMA_OPTIONS",
+    "SAMPLING_RATIO",
     "FORMAT_TYPE_OPTIONS",
     "TARGET_COLUMNS",
     "TRANSFORMATIONS",
@@ -210,6 +212,9 @@ NON_FORMAT_TYPE_OPTIONS = {
 XML_ROW_TAG_STRING = "ROWTAG"
 XML_ROW_DATA_COLUMN_NAME = "ROW_DATA"
 XML_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "xml_reader.py")
+XML_SCHEMA_INFERENCE_FILE_PATH = os.path.join(
+    os.path.dirname(__file__), "xml_schema_inference.py"
+)
 XML_READER_API_SIGNATURE = "DataFrameReader.xml[rowTag]"
 XML_READER_SQL_COMMENT = f"/* Python:snowflake.snowpark.{XML_READER_API_SIGNATURE} */"
 
