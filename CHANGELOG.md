@@ -52,6 +52,7 @@
 
 - Fixed a bug where `cloudpickle` was not automatically added to the package list when using `artifact_repository` with custom packages, causing `ModuleNotFoundError` at runtime.
 - Fixed a bug when reading xml with custom schema, result include element attributes when column is not `StructType` type.
+- Fixed a bug where `INFER_SCHEMA` with `PATTERN` silently fell back to unfiltered inference when the stage location had no trailing slash, causing metadata files (e.g., `_common_metadata`) to corrupt type inference for timestamp columns.
 
 #### Improvements
 
