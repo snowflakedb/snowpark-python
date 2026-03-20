@@ -1415,10 +1415,20 @@ class DataFrameReader:
                 new_schema,
                 schema_to_cast,
                 read_file_transformations,
-                _,  # we don't check for error in case of infer schema failures. We use $1, Variant type
+                infer_schema_exception,
             ) = self._infer_schema_for_file_format(path, format)
             if new_schema:
                 schema = new_schema
+            elif infer_schema_exception is not None:
+                if isinstance(infer_schema_exception, FileNotFoundError):
+                    raise infer_schema_exception
+                logger.warning(
+                    f"Could not infer schema for {format} file due to exception: "
+                    f"{infer_schema_exception}. "
+                    "\nFalling back to $1 VARIANT schema. "
+                    "Please use DataFrameReader.schema() to specify a user schema for the file."
+                )
+                self._cur_options["INFER_SCHEMA"] = False
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
