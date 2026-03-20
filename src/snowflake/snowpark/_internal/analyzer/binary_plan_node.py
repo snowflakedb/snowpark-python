@@ -189,15 +189,17 @@ class Join(BinaryNode):
         join_type: JoinType,
         join_condition: Optional["Expression"],
         match_condition: Optional["Expression"],
+        directed: bool,
     ) -> None:
         super().__init__(left, right)
         self.join_type = join_type
         self.join_condition = join_condition
         self.match_condition = match_condition
+        self.directed = directed
 
     @property
     def sql(self) -> str:
-        return self.join_type.sql
+        return self.join_type.sql + (" DIRECTED" if self.directed else "")
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:

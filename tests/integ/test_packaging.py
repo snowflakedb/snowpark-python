@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.packaging_utils import (
     get_signature,
 )
 from snowflake.snowpark.functions import call_udf, col, count_distinct, sproc, udf
+from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import DateType, StringType
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
@@ -269,7 +270,10 @@ def test_add_packages(session, local_testing_mode):
         return match.group(1) if match else version_string
 
     resolved_packages = session._resolve_packages(
-        [numpy, pandas, dateutil], validate_package=False
+        [numpy, pandas, dateutil],
+        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+        existing_packages_dict={},
+        validate_package=False,
     )
     # resolved_packages is a list of strings like
     #   ['numpy==2.0.2', 'pandas==2.3.0', 'python-dateutil==2.9.0.post0', 'cloudpickle==3.0.0']

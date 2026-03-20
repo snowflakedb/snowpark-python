@@ -51,6 +51,7 @@ from snowflake.snowpark._internal.type_utils import (
     snow_type_to_dtype_str,
     split_top_level_comma_fields,
     type_string_to_type_object,
+    find_top_level_colon,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -1059,6 +1060,8 @@ def test_convert_sp_to_sf_type():
     assert convert_sp_to_sf_type(DoubleType()) == "DOUBLE"
     assert convert_sp_to_sf_type(StringType()) == "STRING"
     assert convert_sp_to_sf_type(StringType(77)) == "STRING(77)"
+    assert convert_sp_to_sf_type(StringType(), is_iceberg=True) == "STRING(134217728)"
+    assert convert_sp_to_sf_type(StringType(77), is_iceberg=True) == "STRING(134217728)"
     assert convert_sp_to_sf_type(NullType()) == "STRING"
     assert convert_sp_to_sf_type(BooleanType()) == "BOOLEAN"
     assert convert_sp_to_sf_type(DateType()) == "DATE"
@@ -2537,3 +2540,12 @@ class MyClass:
         "", "process", class_name="MyOtherClass", _source=source
     )
     assert arg_names is None
+
+
+def test_find_top_level_colon():
+    assert find_top_level_colon("x: int") == 1
+    assert find_top_level_colon("a struct<i: integer>") == -1
+    assert find_top_level_colon("x: struct<i: integer>") == 1
+    assert find_top_level_colon('"px:name": string') == 9
+    assert find_top_level_colon('"a:b:c": string') == 7
+    assert find_top_level_colon("plain_field") == -1
