@@ -1718,6 +1718,26 @@ class TestFiles:
         return os.path.join(self.resources_path, "dog.jpg")
 
     @property
+    def test_dk_trace_sample_xml(self):
+        return os.path.join(self.resources_path, "dk_trace_sample.xml")
+
+    @property
+    def test_dblp_6kb_xml(self):
+        return os.path.join(self.resources_path, "dblp_6kb.xml")
+
+    @property
+    def test_books_attribute_value_xml(self):
+        return os.path.join(self.resources_path, "books_attribute_value.xml")
+
+    @property
+    def test_xml_infer_types(self):
+        return os.path.join(self.resources_path, "xml_infer_types.xml")
+
+    @property
+    def test_xml_infer_mixed(self):
+        return os.path.join(self.resources_path, "xml_infer_mixed.xml")
+
+    @property
     def test_books_xsd(self):
         return os.path.join(self.resources_path, "books.xsd")
 

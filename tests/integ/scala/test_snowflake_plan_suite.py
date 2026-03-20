@@ -208,10 +208,9 @@ def test_execution_queries_and_post_actions(session):
 )
 def test_plan_height(session, temp_table, sql_simplifier_enabled):
     df1 = session.table(temp_table)
-    if sql_simplifier_enabled:
-        assert df1._plan.plan_state[PlanState.PLAN_HEIGHT] == 2
-    else:
-        assert df1._plan.plan_state[PlanState.PLAN_HEIGHT] == 1
+    assert df1._plan.plan_state[PlanState.PLAN_HEIGHT] == (
+        2 if sql_simplifier_enabled else 1
+    )
 
     df2 = session.create_dataframe([(1, 20), (3, 40)], schema=["a", "c"])
     df3 = session.create_dataframe(
@@ -227,10 +226,9 @@ def test_plan_height(session, temp_table, sql_simplifier_enabled):
     assert join1._plan.plan_state[PlanState.PLAN_HEIGHT] == 4
 
     aggregate1 = df3.distinct()
-    if sql_simplifier_enabled:
-        assert aggregate1._plan.plan_state[PlanState.PLAN_HEIGHT] == 4
-    else:
-        assert aggregate1._plan.plan_state[PlanState.PLAN_HEIGHT] == 3
+    assert aggregate1._plan.plan_state[PlanState.PLAN_HEIGHT] == (
+        4 if sql_simplifier_enabled else 3
+    )
 
     join2 = join1.join(aggregate1, on=["b"])
     assert join2._plan.plan_state[PlanState.PLAN_HEIGHT] == 6
@@ -241,24 +239,16 @@ def test_plan_height(session, temp_table, sql_simplifier_enabled):
 
     filter3 = join2.where(col("a") > 1)
     filter4 = join2.where(col("a") < 1)
-    if sql_simplifier_enabled:
-        assert (
-            filter3._plan.plan_state[PlanState.PLAN_HEIGHT]
-            == filter4._plan.plan_state[PlanState.PLAN_HEIGHT]
-            == 6
-        )
-    else:
-        assert (
-            filter3._plan.plan_state[PlanState.PLAN_HEIGHT]
-            == filter4._plan.plan_state[PlanState.PLAN_HEIGHT]
-            == 7
-        )
+    assert (
+        filter3._plan.plan_state[PlanState.PLAN_HEIGHT]
+        == filter4._plan.plan_state[PlanState.PLAN_HEIGHT]
+        == (6 if sql_simplifier_enabled else 7)
+    )
 
     union1 = filter3.union_all_by_name(filter4)
-    if sql_simplifier_enabled:
-        assert union1._plan.plan_state[PlanState.PLAN_HEIGHT] == 8
-    else:
-        assert union1._plan.plan_state[PlanState.PLAN_HEIGHT] == 9
+    assert union1._plan.plan_state[PlanState.PLAN_HEIGHT] == (
+        8 if sql_simplifier_enabled else 9
+    )
 
 
 def test_plan_num_duplicate_nodes_describe_query(session, temp_table):

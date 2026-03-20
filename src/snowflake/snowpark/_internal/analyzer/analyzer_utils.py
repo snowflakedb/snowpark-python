@@ -104,6 +104,7 @@ JOIN = " JOIN "
 NATURAL = " NATURAL "
 ASOF = " ASOF "
 MATCH_CONDITION = " MATCH_CONDITION "
+DIRECTED_JOIN = " DIRECTED JOIN "
 EXISTS = " EXISTS "
 CREATE = " CREATE "
 TABLE = " TABLE "
@@ -208,6 +209,7 @@ ICEBERG = " ICEBERG "
 ICEBERG_VERSION = "ICEBERG_VERSION"
 RENAME_FIELDS = " RENAME FIELDS"
 ADD_FIELDS = " ADD FIELDS"
+PERMISSIVE = " PERMISSIVE"
 NEW_LINE = "\n"
 TAB = "    "
 UUID_COMMENT = "-- {}"
@@ -975,6 +977,7 @@ def snowflake_supported_join_statement(
     use_constant_subquery_alias: bool,
     left_uuid: Optional[str] = None,
     right_uuid: Optional[str] = None,
+    directed: bool = False,
 ) -> str:
     LEFT_UUID = format_uuid(left_uuid)
     RIGHT_UUID = format_uuid(right_uuid)
@@ -1019,6 +1022,8 @@ def snowflake_supported_join_statement(
         (MATCH_CONDITION + match_condition) if match_condition else EMPTY_STRING
     )
 
+    maybe_directed_sql = DIRECTED_JOIN if directed else JOIN
+
     source = (
         LEFT_PARENTHESIS
         + NEW_LINE
@@ -1032,7 +1037,7 @@ def snowflake_supported_join_statement(
         + SPACE
         + NEW_LINE
         + join_sql
-        + JOIN
+        + maybe_directed_sql
         + NEW_LINE
         + LEFT_PARENTHESIS
         + NEW_LINE
@@ -1061,6 +1066,7 @@ def join_statement(
     use_constant_subquery_alias: bool,
     left_uuid: Optional[str] = None,
     right_uuid: Optional[str] = None,
+    directed: bool = False,
 ) -> str:
     if isinstance(join_type, (LeftSemi, LeftAnti)):
         return left_semi_or_anti_join_statement(
@@ -1087,6 +1093,7 @@ def join_statement(
         use_constant_subquery_alias,
         left_uuid=left_uuid,
         right_uuid=right_uuid,
+        directed=directed,
     )
 
 
@@ -1356,11 +1363,13 @@ def file_operation_statement(
 
 
 def convert_value_to_sql_option(
-    value: Optional[Union[str, bool, int, float, list, tuple]],
+    value: Optional[Union[str, bool, int, float, list, tuple, dict]],
     parse_none_as_string: bool = False,
 ) -> str:
     if value is None and parse_none_as_string:
         value = str(value)
+    if isinstance(value, dict):
+        return f"({', '.join(f'{k} = {v}' for k, v in value.items())})"
     if isinstance(value, str):
         if len(value) > 1 and is_single_quoted(value):
             return value
@@ -1469,6 +1478,7 @@ def cast_expression(
     try_: bool = False,
     is_rename: bool = False,
     is_add: bool = False,
+    is_permissive: bool = False,
 ) -> str:
     return (
         (TRY_CAST if try_ else CAST)
@@ -1478,6 +1488,7 @@ def cast_expression(
         + convert_sp_to_sf_type(datatype)
         + (RENAME_FIELDS if is_rename else "")
         + (ADD_FIELDS if is_add else "")
+        + (PERMISSIVE if is_permissive else "")
         + RIGHT_PARENTHESIS
     )
 
@@ -1991,11 +2002,13 @@ def drop_table_if_exists_statement(table_name: str) -> str:
     return DROP + TABLE + IF + EXISTS + table_name
 
 
-def attribute_to_schema_string(attributes: List[Attribute]) -> str:
+def attribute_to_schema_string(
+    attributes: List[Attribute], is_iceberg: Optional[bool] = False
+) -> str:
     return COMMA.join(
         attr.name
         + SPACE
-        + convert_sp_to_sf_type(attr.datatype, attr.nullable)
+        + convert_sp_to_sf_type(attr.datatype, attr.nullable, is_iceberg=is_iceberg)
         + (NOT_NULL if not attr.nullable else EMPTY_STRING)
         for attr in attributes
     )

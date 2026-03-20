@@ -37,6 +37,7 @@ from snowflake.snowpark.functions import (
     array_slice,
     array_sort,
     array_to_string,
+    array_union_agg,
     array_unique_agg,
     arrays_overlap,
     arrays_zip,
@@ -1947,6 +1948,12 @@ def test_array_negative(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(array_unique_agg([1])).collect()
     assert "'ARRAY_UNIQUE_AGG' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_union_agg([1])).collect()
+    assert "'ARRAY_UNION_AGG' expected Column or str, got: <class 'list'>" in str(
         ex_info
     )
 

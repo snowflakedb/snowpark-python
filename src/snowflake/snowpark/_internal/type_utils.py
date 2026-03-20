@@ -107,6 +107,8 @@ if TYPE_CHECKING:
     except ImportError:
         ResultMetadataV2 = ResultMetadata
 
+_MAX_ICEBERG_STRING_SIZE = 134217728
+
 
 def convert_metadata_to_sp_type(
     metadata: Union[ResultMetadata, "ResultMetadataV2"],
@@ -318,7 +320,9 @@ def convert_sf_to_sp_type(
     )
 
 
-def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
+def convert_sp_to_sf_type(
+    datatype: DataType, nullable_override=None, is_iceberg: Optional[bool] = False
+) -> str:
     if context._is_snowpark_connect_compatible_mode:
         if isinstance(datatype, _IntegralType) and datatype._precision is not None:
             return f"NUMBER({datatype._precision}, 0)"
@@ -341,6 +345,8 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
     # We regard NullType as String, which is required when creating
     # a dataframe from local data with all None values
     if isinstance(datatype, StringType):
+        if is_iceberg:
+            return f"STRING({_MAX_ICEBERG_STRING_SIZE})"
         if datatype.length:
             return f"STRING({datatype.length})"
         return "STRING"
@@ -1244,15 +1250,21 @@ def find_top_level_colon(field_def: str) -> int:
     """
     Returns the index of the first top-level colon in 'field_def',
     or -1 if there is no top-level colon. A colon is considered top-level
-    if it is not enclosed in <...> or (...).
+    if it is not enclosed in <...>, (...), or "...".
 
     Example:
-      'a struct<i: integer>' => returns -1 (colon is nested).
+      'a struct<i: integer>'  => returns -1 (colon is nested).
       'x: struct<i: integer>' => returns index of the colon after 'x'.
+      '"px:name": string'     => returns index of the colon after the closing '"'.
     """
     bracket_depth = 0
+    in_quotes = False
     for i, ch in enumerate(field_def):
-        if ch in ("<", "("):
+        if ch == '"':
+            in_quotes = not in_quotes
+        elif in_quotes:
+            continue
+        elif ch in ("<", "("):
             bracket_depth += 1
         elif ch in (">", ")"):
             bracket_depth -= 1
@@ -1468,18 +1480,25 @@ def format_year_month_interval_for_display(
     # Default initialization
     years = "0"
     months = "0"
-    is_negative = False
+    is_negative = cell.startswith("-")
+    # Remove the sign prefix and parse the remaining part
+    remaining = cell[1:]  # Remove the "+" or "-" prefix: "1-6"
 
     if has_internal_dash:
         # Format like "+1-03" or "-1-03" or "-1-6" (compound year-month)
-        is_negative = cell.startswith("-")
-
-        # Remove the sign prefix and parse the remaining "year-month" part
-        remaining = cell[1:]  # Remove the "+" or "-" prefix: "1-6"
         if "-" in remaining:
             parts = remaining.split("-", 1)  # Split only on first dash: ["1", "6"]
             years = str(int(parts[0]))
             months = str(int(parts[1]))
+    else:
+        # Format like "+2" or "-3"
+        if (
+            start_field == YearMonthIntervalType.YEAR
+            and end_field == YearMonthIntervalType.YEAR
+        ):
+            years = str(int(remaining))
+        else:
+            months = str(int(remaining))
 
     # Format based on start/end field
     sign_prefix = "-" if is_negative else ""
@@ -1502,9 +1521,7 @@ def format_year_month_interval_for_display(
     ):
         # Months only: MONTH - calculate total months
         total_months = int(years) * 12 + int(months)
-        if is_negative:
-            total_months = -total_months
-        return f"INTERVAL '{total_months}' MONTH"
+        return f"INTERVAL '{sign_prefix}{total_months}' MONTH"
 
 
 def format_day_time_interval_for_display(

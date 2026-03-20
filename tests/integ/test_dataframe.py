@@ -1587,6 +1587,54 @@ def test_join_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Session.query_history is not supported",
+    run=False,
+)
+def test_join_directed(session):
+    """Test that directed joins emit the DIRECTED keyword in SQL."""
+    # While sorting the output of a DIRECTED JOIN technically defeates the purpose of the DIRECTED keyword,
+    # doing so avoids potential flakiness from scan order changes _within_ a particular table. Checking that
+    # DIRECTED JOIN is present in the query text is sufficient for our purposes, since presumably any incorrect
+    # behavior from the SQL keyword would be caught by a server-side team.
+    df1 = session.create_dataframe([[1, "a"], [3, "b"]], schema=["id", "v1"])
+    df2 = session.create_dataframe([[1, "x"], [4, "y"]], schema=["id", "v2"])
+
+    # Inner join with directed=True
+    with session.query_history() as history:
+        res = df1.join(df2, "id", "inner", directed=True).collect()
+    assert res == [Row(1, "a", "x")]
+    assert any("DIRECTED JOIN" in q.sql_text for q in history.queries)
+
+    # Outer join with directed=True
+    with session.query_history() as history:
+        res = df1.join(df2, "id", "outer", directed=True).collect()
+    assert sorted(res, key=lambda r: r[0]) == [
+        Row(1, "a", "x"),
+        Row(3, "b", None),
+        Row(4, None, "y"),
+    ]
+    assert any("DIRECTED JOIN" in q.sql_text for q in history.queries)
+
+    # Natural join with directed=True
+    with session.query_history() as history:
+        res = df1.natural_join(df2, "inner", directed=True).collect()
+    assert res == [Row(1, "a", "x")]
+    assert any("DIRECTED JOIN" in q.sql_text for q in history.queries)
+
+    # Cross join with directed=True
+    with session.query_history() as history:
+        res = df1.cross_join(df2, directed=True).collect()
+    assert sorted(res, key=lambda r: (r[0], r[2])) == [
+        Row(1, "a", 1, "x"),
+        Row(1, "a", 4, "y"),
+        Row(3, "b", 1, "x"),
+        Row(3, "b", 4, "y"),
+    ]
+    assert any("DIRECTED JOIN" in q.sql_text for q in history.queries)
+
+
 def test_toDF(session):
     """Test df.to_df()."""
 
@@ -2744,6 +2792,18 @@ def test_show_interval_formatting(session):
         """
     )
 
+    # Single negative year intervals (not YEAR TO MONTH)
+    df = session.sql("SELECT INTERVAL '-5' YEAR as single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"SINGLE_YEAR"     |
+        +------------------+
+        |INTERVAL '-5' YEAR|
+        +------------------+
+        """
+    )
+
     # Single month intervals (not YEAR TO MONTH)
     df = session.sql("SELECT INTERVAL '8' MONTH as single_month")
     assert df._show_string_spark(truncate=False) == dedent(
@@ -2753,6 +2813,18 @@ def test_show_interval_formatting(session):
         +------------------+
         |INTERVAL '8' MONTH|
         +------------------+
+        """
+    )
+
+    # Single negative month intervals (not YEAR TO MONTH)
+    df = session.sql("SELECT INTERVAL '-8' MONTH as single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------+
+        |"SINGLE_MONTH"     |
+        +-------------------+
+        |INTERVAL '-8' MONTH|
+        +-------------------+
         """
     )
 
@@ -3456,6 +3528,461 @@ def test_show_interval_formatting(session):
     )
 
 
+_SKIP_LOCAL_TESTING_DECIMAL = pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local testing mock does not normalize Decimal scale to match DecimalType",
+    run=False,
+)
+
+
+@_SKIP_LOCAL_TESTING_DECIMAL
+@pytest.mark.parametrize(
+    "schema, data, expected",
+    [
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 15))]),
+            [
+                [Decimal("0.000000000000001")],
+                [Decimal("-0.000000000000001")],
+                [Decimal("-0.000000000000001")],
+            ],
+            """\
+            +------------------+
+            |"VAL"             |
+            +------------------+
+            |0.000000000000001 |
+            |-0.000000000000001|
+            |-0.000000000000001|
+            +------------------+
+            """,
+            id="positive_and_negative_small_p38_s15",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 30))]),
+            [
+                [Decimal("1E-30")],
+                [Decimal("9.999999999E-15")],
+                [Decimal("1.23456789012345E-10")],
+            ],
+            """\
+            +--------------------------------+
+            |"VAL"                           |
+            +--------------------------------+
+            |0.000000000000000000000000000001|
+            |0.000000000000009999999999000000|
+            |0.000000000123456789012345000000|
+            +--------------------------------+
+            """,
+            id="extreme_precision_p38_s30",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 0))]),
+            [
+                [Decimal("1000000000000000000000000000000")],
+                [Decimal("-9999999999000000")],
+                [Decimal("12345678901")],
+            ],
+            """\
+            +-------------------------------+
+            |"VAL"                          |
+            +-------------------------------+
+            |1000000000000000000000000000000|
+            |-9999999999000000              |
+            |12345678901                    |
+            +-------------------------------+
+            """,
+            id="large_whole_numbers_p38_s0",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 10))]),
+            [
+                [Decimal("123.456")],
+                [Decimal("-987.654321")],
+                [Decimal("0")],
+                [Decimal("0.0000000001")],
+                [Decimal("-0.0000000001")],
+            ],
+            """\
+            +---------------+
+            |"VAL"          |
+            +---------------+
+            |123.4560000000 |
+            |-987.6543210000|
+            |0.0000000000   |
+            |0.0000000001   |
+            |-0.0000000001  |
+            +---------------+
+            """,
+            id="mixed_positive_negative_zero_p38_s10",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 20))]),
+            [
+                [Decimal("0.1")],
+                [Decimal("0.00001")],
+                [Decimal("0.0000000001")],
+                [Decimal("0.000000000000001")],
+                [Decimal("10")],
+                [Decimal("100000")],
+                [Decimal("10000000000")],
+            ],
+            """\
+            +--------------------------------+
+            |"VAL"                           |
+            +--------------------------------+
+            |0.10000000000000000000          |
+            |0.00001000000000000000          |
+            |0.00000000010000000000          |
+            |0.00000000000000100000          |
+            |10.00000000000000000000         |
+            |100000.00000000000000000000     |
+            |10000000000.00000000000000000000|
+            +--------------------------------+
+            """,
+            id="wide_magnitude_range_p38_s20",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 0))]),
+            [
+                [Decimal("1E+5")],
+                [Decimal("2.5E+8")],
+                [Decimal("1.25E+15")],
+                [Decimal("-9.99E+10")],
+                [Decimal("1E+30")],
+            ],
+            """\
+            +-------------------------------+
+            |"VAL"                          |
+            +-------------------------------+
+            |100000                         |
+            |250000000                      |
+            |1250000000000000               |
+            |-99900000000                   |
+            |1000000000000000000000000000000|
+            +-------------------------------+
+            """,
+            id="eplus_large_integers_p38_s0",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 4))]),
+            [
+                [Decimal("1.5E+8")],
+                [Decimal("3.14159E+5")],
+                [Decimal("-2.718E+3")],
+                [Decimal("9.99E+1")],
+            ],
+            """\
+            +--------------+
+            |"VAL"         |
+            +--------------+
+            |150000000.0000|
+            |314159.0000   |
+            |-2718.0000    |
+            |99.9000       |
+            +--------------+
+            """,
+            id="eplus_fractional_scale_p38_s4",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(38, 10))]),
+            [
+                [Decimal("1E+5")],
+                [Decimal("1E-5")],
+                [Decimal("2.5E+8")],
+                [Decimal("2.5E-8")],
+                [Decimal("-1E+3")],
+                [Decimal("-1E-3")],
+            ],
+            """\
+            +--------------------+
+            |"VAL"               |
+            +--------------------+
+            |100000.0000000000   |
+            |0.0000100000        |
+            |250000000.0000000000|
+            |0.0000000250        |
+            |-1000.0000000000    |
+            |-0.0010000000       |
+            +--------------------+
+            """,
+            id="mixed_eplus_eminus_p38_s10",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(5, 2))]),
+            [
+                [Decimal("9.9999E+2")],
+                [Decimal("-9.9999E+2")],
+                [Decimal("1E-2")],
+                [Decimal("0E+0")],
+                [Decimal("1.234E+2")],
+            ],
+            """\
+            +-------+
+            |"VAL"  |
+            +-------+
+            |999.99 |
+            |-999.99|
+            |0.01   |
+            |0.00   |
+            |123.40 |
+            +-------+
+            """,
+            id="low_precision_p5_s2",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(10, 4))]),
+            [
+                [Decimal("1.234567890E+5")],
+                [Decimal("-9.99999999E+4")],
+                [Decimal("1E-4")],
+                [Decimal("1E+5")],
+                [Decimal("1E-4")],
+            ],
+            """\
+            +-----------+
+            |"VAL"      |
+            +-----------+
+            |123456.7890|
+            |-99999.9999|
+            |0.0001     |
+            |100000.0000|
+            |0.0001     |
+            +-----------+
+            """,
+            id="medium_precision_p10_s4",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(7, 5))]),
+            [
+                [Decimal("9.999999E+1")],
+                [Decimal("-9.999999E+1")],
+                [Decimal("1E-5")],
+                [Decimal("5.012345E+1")],
+            ],
+            """\
+            +---------+
+            |"VAL"    |
+            +---------+
+            |99.99999 |
+            |-99.99999|
+            |0.00001  |
+            |50.12345 |
+            +---------+
+            """,
+            id="tight_fit_p7_s5",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(6, 6))]),
+            [
+                [Decimal("1.23456E-1")],
+                [Decimal("-1E-6")],
+                [Decimal("9.99999E-1")],
+                [Decimal("0E-6")],
+            ],
+            """\
+            +---------+
+            |"VAL"    |
+            +---------+
+            |0.123456 |
+            |-0.000001|
+            |0.999999 |
+            |0.000000 |
+            +---------+
+            """,
+            id="precision_equals_scale_p6_s6",
+        ),
+        pytest.param(
+            StructType([StructField("VAL", DecimalType(3, 0))]),
+            [
+                [Decimal("9.99E+2")],
+                [Decimal("-9.99E+2")],
+                [Decimal("0E+0")],
+                [Decimal("4.2E+1")],
+            ],
+            """\
+            +-----+
+            |"VAL"|
+            +-----+
+            |999  |
+            |-999 |
+            |0    |
+            |42   |
+            +-----+
+            """,
+            id="small_integer_p3_s0",
+        ),
+    ],
+)
+def test_show_decimal_scientific_notation_single_column(
+    session, schema, data, expected
+):
+    """Verify single-column decimal values in scientific notation display as plain numbers."""
+    df = session.create_dataframe(data, schema=schema)
+    result = df._show_string_spark(truncate=False)
+    assert result == dedent(expected), f"Unexpected output:\n{result}"
+
+
+@_SKIP_LOCAL_TESTING_DECIMAL
+@pytest.mark.parametrize(
+    "schema, data, expected",
+    [
+        pytest.param(
+            StructType(
+                [
+                    StructField("SMALL_VAL", DecimalType(38, 22)),
+                    StructField("LARGE_VAL", DecimalType(38, 0)),
+                    StructField("NORMAL_VAL", DecimalType(38, 3)),
+                ]
+            ),
+            [
+                [Decimal("1E-10"), Decimal("1250000000000000"), Decimal("3.14")],
+                [Decimal("9.99E-20"), Decimal("500000000"), Decimal("-0.001")],
+                [Decimal("-1E-5"), Decimal("-2500000000000"), Decimal("0")],
+                [Decimal("0"), Decimal("1"), Decimal("0.1")],
+            ],
+            """\
+            +-------------------------+----------------+------------+
+            |"SMALL_VAL"              |"LARGE_VAL"     |"NORMAL_VAL"|
+            +-------------------------+----------------+------------+
+            |0.0000000001000000000000 |1250000000000000|3.140       |
+            |0.0000000000000000000999 |500000000       |-0.001      |
+            |-0.0000100000000000000000|-2500000000000  |0.000       |
+            |0.0000000000000000000000 |1               |0.100       |
+            +-------------------------+----------------+------------+
+            """,
+            id="small_large_normal_p38",
+        ),
+        pytest.param(
+            StructType(
+                [
+                    StructField("CAST_DECIMAL", DecimalType(38, 20)),
+                    StructField("CAST_LARGE", DecimalType(38, 2)),
+                    StructField("CAST_ZERO", DecimalType(38, 10)),
+                ]
+            ),
+            [
+                [Decimal("0.0000000001"), Decimal("150000000"), Decimal("0")],
+            ],
+            """\
+            +----------------------+------------+------------+
+            |"CAST_DECIMAL"        |"CAST_LARGE"|"CAST_ZERO" |
+            +----------------------+------------+------------+
+            |0.00000000010000000000|150000000.00|0.0000000000|
+            +----------------------+------------+------------+
+            """,
+            id="cast_like_behavior_p38",
+        ),
+        pytest.param(
+            StructType(
+                [
+                    StructField("ZERO_S0", DecimalType(38, 0)),
+                    StructField("ZERO_S5", DecimalType(38, 5)),
+                    StructField("ZERO_S10", DecimalType(38, 10)),
+                ]
+            ),
+            [
+                [Decimal("0"), Decimal("0"), Decimal("0")],
+            ],
+            """\
+            +---------+---------+------------+
+            |"ZERO_S0"|"ZERO_S5"|"ZERO_S10"  |
+            +---------+---------+------------+
+            |0        |0.00000  |0.0000000000|
+            +---------+---------+------------+
+            """,
+            id="zeros_different_scales_p38",
+        ),
+        pytest.param(
+            StructType(
+                [
+                    StructField("SMALL", DecimalType(38, 15)),
+                    StructField("LARGE", DecimalType(38, 0)),
+                    StructField("MID", DecimalType(38, 6)),
+                ]
+            ),
+            [
+                [Decimal("1E-10"), Decimal("1E+10"), Decimal("1E+3")],
+                [Decimal("5.5E-8"), Decimal("5.5E+8"), Decimal("5.5E+2")],
+                [Decimal("-3.14E-5"), Decimal("-3.14E+5"), Decimal("-3.14E+1")],
+            ],
+            """\
+            +------------------+-----------+-----------+
+            |"SMALL"           |"LARGE"    |"MID"      |
+            +------------------+-----------+-----------+
+            |0.000000000100000 |10000000000|1000.000000|
+            |0.000000055000000 |550000000  |550.000000 |
+            |-0.000031400000000|-314000    |-31.400000 |
+            +------------------+-----------+-----------+
+            """,
+            id="eplus_multi_column_p38",
+        ),
+        pytest.param(
+            StructType(
+                [
+                    StructField("PRICE", DecimalType(8, 2)),
+                    StructField("QUANTITY", DecimalType(5, 0)),
+                    StructField("RATE", DecimalType(12, 8)),
+                ]
+            ),
+            [
+                [Decimal("1.234567E+4"), Decimal("1E+2"), Decimal("1.2345E-4")],
+                [
+                    Decimal("-9.99999E+3"),
+                    Decimal("9.9999E+4"),
+                    Decimal("1.23456789012E+3"),
+                ],
+                [Decimal("1E-2"), Decimal("1E+0"), Decimal("1E-8")],
+            ],
+            """\
+            +--------+----------+-------------+
+            |"PRICE" |"QUANTITY"|"RATE"       |
+            +--------+----------+-------------+
+            |12345.67|100       |0.00012345   |
+            |-9999.99|99999     |1234.56789012|
+            |0.01    |1         |0.00000001   |
+            +--------+----------+-------------+
+            """,
+            id="mixed_precisions_p8_p5_p12",
+        ),
+    ],
+)
+def test_show_decimal_scientific_notation_multi_column(session, schema, data, expected):
+    """Verify multi-column decimal values in scientific notation display as plain numbers."""
+    df = session.create_dataframe(data, schema=schema)
+    result = df._show_string_spark(truncate=False)
+    assert result == dedent(expected), f"Unexpected output:\n{result}"
+
+
+@_SKIP_LOCAL_TESTING_DECIMAL
+def test_show_decimal_scientific_notation_with_nulls(session):
+    """Verify decimal display when NULLs are mixed into the data."""
+    schema = StructType([StructField("VAL", DecimalType(38, 10))])
+    df = session.create_dataframe(
+        [
+            [Decimal("0.0000000001")],
+            [None],
+            [Decimal("10000000000")],
+            [None],
+            [Decimal("-0.00000055")],
+        ],
+        schema=schema,
+    )
+    result = df._show_string_spark(truncate=False)
+    assert result == dedent(
+        """\
+        +----------------------+
+        |"VAL"                 |
+        +----------------------+
+        |0.0000000001          |
+        |NULL                  |
+        |10000000000.0000000000|
+        |NULL                  |
+        |-0.0000005500         |
+        +----------------------+
+        """
+    ), f"Unexpected output:\n{result}"
+
+
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):
     expected_names = ["_1"]
@@ -3541,6 +4068,30 @@ def test_create_dataframe_from_none_data(session):
 
     # large None data
     assert session.create_dataframe([None] * 20000).collect() == [Row(None)] * 20000
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="This test exercises VALUES SQL generation and large local relation plan",
+    run=False,
+)
+def test_create_dataframe_decimal_string_value_inline_and_large(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    schema = StructType([StructField("a", DecimalType(10, 2))])
+
+    # Small local data insert string with decimal type shall not fail.
+    df_small = session.create_dataframe([["1.23"]], schema=schema)
+    assert len(df_small.queries["queries"]) == 1
+    assert df_small.collect()[0][0] == Decimal("1.23")
+
+    # Large local data insert string with decimal type shall not fail.
+    df_large = session.create_dataframe(
+        ["4.56"] * analyzer.ARRAY_BIND_THRESHOLD, schema=schema
+    )
+    assert len(df_large.queries["queries"]) == 3
+    assert df_large.count() == analyzer.ARRAY_BIND_THRESHOLD
+    assert df_large.limit(1).collect()[0][0] == Decimal("4.56")
 
 
 @pytest.mark.xfail(
