@@ -6,6 +6,9 @@
 
 #### New Features
 
+- Added support for DIRECTED JOIN.
+- Added support for the `INCLUDE_METADATA` copy option in `DataFrame.copy_into_table`, allowing users to include file metadata columns in the target table.
+
 #### Bug Fixes
 
 - Fixed a bug in `Session.client_telemetry` that trace does not have snowflake style trace id.
@@ -14,6 +17,7 @@
 - Fixed a bug in `DataFrameReader.xml()` where reading XML with a custom schema whose field names contain colons (e.g., `px:name`) raised a `SnowparkColumnException`.
 - Fixed a bug in that caused SQL compilation errors in `Session.read.json` when `INFER_SCHEMA` was set to True, and the `USE_RELAXED_TYPES` field of `INFER_SCHEMA_OPTIONS` was also set to True.
 - Fixed a bug where passing a DataFrame created from a SQL `SET` command to Streamlit's `st.write` method would raise an exception.
+- Fixed a bug where the account-level default artifact repository setting was not reflected in creation of stored procedures/UDFs.
 
 #### Improvements
 
@@ -48,6 +52,7 @@
 
 - Fixed a bug where `cloudpickle` was not automatically added to the package list when using `artifact_repository` with custom packages, causing `ModuleNotFoundError` at runtime.
 - Fixed a bug when reading xml with custom schema, result include element attributes when column is not `StructType` type.
+- Fixed a bug where `INFER_SCHEMA` with `PATTERN` silently fell back to unfiltered inference when the stage location had no trailing slash, causing metadata files (e.g., `_common_metadata`) to corrupt type inference for timestamp columns.
 
 #### Improvements
 

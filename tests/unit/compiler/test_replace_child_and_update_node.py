@@ -164,6 +164,7 @@ def test_logical_plan(
         join_type=Inner,
         join_condition=None,
         match_condition=None,
+        directed=False,
     )
 
     if using_snowflake_plan:

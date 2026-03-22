@@ -417,6 +417,19 @@ def test_convert_value_to_sql_option():
     assert convert_value_to_sql_option(None, parse_none_as_string=True) == "'None'"
     assert convert_value_to_sql_option((1,)) == "(1)"
     assert convert_value_to_sql_option((1, 2)) == "(1, 2)"
+    assert (
+        convert_value_to_sql_option({"col1": "METADATA$FILENAME"})
+        == "(col1 = METADATA$FILENAME)"
+    )
+    assert (
+        convert_value_to_sql_option(
+            {
+                "col1": "METADATA$FILENAME",
+                "col2": "METADATA$FILE_ROW_NUMBER",
+            }
+        )
+        == "(col1 = METADATA$FILENAME, col2 = METADATA$FILE_ROW_NUMBER)"
+    )
 
 
 def test_file_operation_negative():
@@ -835,3 +848,15 @@ def test_get_options_statement():
     )
     # already single-quoted string should pass through unchanged
     assert get_options_statement({"P": "'abc'"}) == " P = 'abc' "
+    # dict handling (e.g. INCLUDE_METADATA)
+    assert (
+        get_options_statement(
+            {
+                "INCLUDE_METADATA": {
+                    "col1": "METADATA$FILENAME",
+                    "col2": "METADATA$FILE_ROW_NUMBER",
+                }
+            }
+        )
+        == " INCLUDE_METADATA = (col1 = METADATA$FILENAME, col2 = METADATA$FILE_ROW_NUMBER) "
+    )
