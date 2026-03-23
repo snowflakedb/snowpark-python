@@ -9,7 +9,7 @@ compilation are mocked so the tests run without any external dependencies.
 """
 
 from unittest import mock
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -17,9 +17,6 @@ from snowflake.connector import SnowflakeConnection
 from snowflake.connector.cursor import SnowflakeCursor
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType, Query
-from snowflake.snowpark._internal.compiler.telemetry_constants import (
-    CompilationStageTelemetryField,
-)
 from snowflake.snowpark._internal.server_connection import (
     ServerConnection,
     _CTE_FALLBACK_AUTO_DISABLE_THRESHOLD,
@@ -239,9 +236,7 @@ def test_retry_succeeds_returns_non_cte_result(mock_desc):
         PlanQueryType.POST_ACTIONS: [],
     }
 
-    with patch.object(
-        sc, "run_query", side_effect=[prog_err, retry_result]
-    ), patch(
+    with patch.object(sc, "run_query", side_effect=[prog_err, retry_result]), patch(
         "snowflake.snowpark._internal.server_connection.PlanCompiler"
     ) as MockCompiler:
         MockCompiler.return_value.compile.return_value = retry_plan_queries
@@ -267,9 +262,7 @@ def test_retry_increments_fallback_count(mock_desc):
 
     retry_plan_queries = _make_plan_queries()
 
-    with patch.object(
-        sc, "run_query", side_effect=[prog_err, retry_result]
-    ), patch(
+    with patch.object(sc, "run_query", side_effect=[prog_err, retry_result]), patch(
         "snowflake.snowpark._internal.server_connection.PlanCompiler"
     ) as MockCompiler:
         MockCompiler.return_value.compile.return_value = retry_plan_queries
@@ -292,9 +285,7 @@ def test_retry_sends_fallback_telemetry_on_success(mock_desc):
     retry_result = _run_query_success()
     retry_plan_queries = _make_plan_queries()
 
-    with patch.object(
-        sc, "run_query", side_effect=[prog_err, retry_result]
-    ), patch(
+    with patch.object(sc, "run_query", side_effect=[prog_err, retry_result]), patch(
         "snowflake.snowpark._internal.server_connection.PlanCompiler"
     ) as MockCompiler:
         MockCompiler.return_value.compile.return_value = retry_plan_queries
@@ -334,9 +325,7 @@ def test_retry_fails_reraises_original_error(mock_desc):
 
     retry_plan_queries = _make_plan_queries()
 
-    with patch.object(
-        sc, "run_query", side_effect=[original_err, retry_err]
-    ), patch(
+    with patch.object(sc, "run_query", side_effect=[original_err, retry_err]), patch(
         "snowflake.snowpark._internal.server_connection.PlanCompiler"
     ) as MockCompiler:
         MockCompiler.return_value.compile.return_value = retry_plan_queries
@@ -360,9 +349,7 @@ def test_retry_fails_sends_fallback_telemetry_with_retry_succeeded_false(mock_de
     retry_err = ProgrammingError("retry error")
     retry_plan_queries = _make_plan_queries()
 
-    with patch.object(
-        sc, "run_query", side_effect=[original_err, retry_err]
-    ), patch(
+    with patch.object(sc, "run_query", side_effect=[original_err, retry_err]), patch(
         "snowflake.snowpark._internal.server_connection.PlanCompiler"
     ) as MockCompiler:
         MockCompiler.return_value.compile.return_value = retry_plan_queries
@@ -400,9 +387,7 @@ def test_auto_disable_triggers_at_threshold(mock_desc):
     retry_result = _run_query_success()
     retry_plan_queries = _make_plan_queries()
 
-    with patch.object(
-        sc, "run_query", side_effect=[prog_err, retry_result]
-    ), patch(
+    with patch.object(sc, "run_query", side_effect=[prog_err, retry_result]), patch(
         "snowflake.snowpark._internal.server_connection.PlanCompiler"
     ) as MockCompiler:
         MockCompiler.return_value.compile.return_value = retry_plan_queries
@@ -428,9 +413,7 @@ def test_auto_disable_sends_separate_telemetry_event(mock_desc):
     retry_result = _run_query_success()
     retry_plan_queries = _make_plan_queries()
 
-    with patch.object(
-        sc, "run_query", side_effect=[prog_err, retry_result]
-    ), patch(
+    with patch.object(sc, "run_query", side_effect=[prog_err, retry_result]), patch(
         "snowflake.snowpark._internal.server_connection.PlanCompiler"
     ) as MockCompiler:
         MockCompiler.return_value.compile.return_value = retry_plan_queries
@@ -459,9 +442,7 @@ def test_no_auto_disable_below_threshold(mock_desc):
     retry_result = _run_query_success()
     retry_plan_queries = _make_plan_queries()
 
-    with patch.object(
-        sc, "run_query", side_effect=[prog_err, retry_result]
-    ), patch(
+    with patch.object(sc, "run_query", side_effect=[prog_err, retry_result]), patch(
         "snowflake.snowpark._internal.server_connection.PlanCompiler"
     ) as MockCompiler:
         MockCompiler.return_value.compile.return_value = retry_plan_queries
@@ -481,7 +462,6 @@ def test_plan_compiler_cte_enabled_false_skips_cte_step():
     """compile(cte_enabled=False) must not apply CTE optimization even when
     session.cte_optimization_enabled is True."""
     from snowflake.snowpark._internal.compiler.plan_compiler import PlanCompiler
-    from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 
     plan = MagicMock()
     plan.session.cte_optimization_enabled = True
@@ -506,8 +486,6 @@ def test_plan_compiler_cte_enabled_none_uses_session_setting():
     plan.session._query_compilation_stage_enabled = True
     plan.source_plan = MagicMock()
 
-    from snowflake.snowpark.mock._connection import MockServerConnection
-
     plan.session._conn.__class__ = object  # not MockServerConnection
 
     compiler = PlanCompiler(plan)
@@ -527,8 +505,6 @@ def test_plan_compiler_cte_enabled_false_with_lqb_still_compiles():
     plan.session.large_query_breakdown_enabled = True
     plan.session._query_compilation_stage_enabled = True
     plan.source_plan = MagicMock()
-
-    from snowflake.snowpark.mock._connection import MockServerConnection
 
     plan.session._conn.__class__ = object  # not MockServerConnection
 

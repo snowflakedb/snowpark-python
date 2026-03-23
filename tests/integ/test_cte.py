@@ -1344,7 +1344,9 @@ def test_cte_execution_fallback_retries_on_programming_error(session):
             raise err
         return original_run_query(sql, *args, **kwargs)
 
-    with mock.patch.object(session._conn, "run_query", side_effect=run_query_first_call_fails):
+    with mock.patch.object(
+        session._conn, "run_query", side_effect=run_query_first_call_fails
+    ):
         # Should not raise: the retry with CTE off must succeed.
         result = df_union.collect()
 
@@ -1406,11 +1408,12 @@ def test_cte_execution_fallback_telemetry_sent(session):
             raise err
         return original_run_query(sql, *args, **kwargs)
 
-    with mock.patch.object(session._conn, "run_query", side_effect=fail_once), \
-         mock.patch.object(
-             session._conn._telemetry_client,
-             "send_cte_execution_fallback_telemetry",
-         ) as mock_telemetry:
+    with mock.patch.object(
+        session._conn, "run_query", side_effect=fail_once
+    ), mock.patch.object(
+        session._conn._telemetry_client,
+        "send_cte_execution_fallback_telemetry",
+    ) as mock_telemetry:
         df_union.collect()
 
     mock_telemetry.assert_called_once()
