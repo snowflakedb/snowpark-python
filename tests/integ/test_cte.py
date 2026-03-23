@@ -8,8 +8,9 @@ from unittest import mock
 
 import pytest
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.connector.options import installed_pandas
-from snowflake.snowpark import Window
+from snowflake.snowpark import Row, Window
 from snowflake.snowpark._internal.analyzer import analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.utils import (
@@ -1324,6 +1325,102 @@ def test_table_select_cte(session):
         (False, [1, 1]),  # Without caching: both calls issue describe queries
     ],
 )
+def test_cte_execution_fallback_retries_on_programming_error(session):
+    """When a ProgrammingError is raised during execution and CTE is enabled,
+    the query should be retried with CTE disabled.  The result should be
+    identical to what a non-CTE run would produce."""
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    # Create a plan that triggers CTE optimization (duplicate subtree).
+    df_union = df.union_all(df)
+
+    original_run_query = session._conn.run_query
+    call_count = [0]
+
+    def run_query_first_call_fails(sql, *args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            err = ProgrammingError("Simulated CTE execution error")
+            err.sfqid = "simulated_sfqid"
+            raise err
+        return original_run_query(sql, *args, **kwargs)
+
+    with mock.patch.object(session._conn, "run_query", side_effect=run_query_first_call_fails):
+        # Should not raise: the retry with CTE off must succeed.
+        result = df_union.collect()
+
+    assert result == [Row(A=1, B=2), Row(A=3, B=4), Row(A=1, B=2), Row(A=3, B=4)]
+    assert call_count[0] == 2  # first call failed, second (retry) succeeded
+    assert session._cte_optimization_fallback_count == 1
+
+
+def test_cte_execution_fallback_auto_disables_after_threshold(session):
+    """After _CTE_FALLBACK_AUTO_DISABLE_THRESHOLD consecutive fallbacks, CTE
+    optimization is permanently disabled for the session."""
+    from snowflake.snowpark._internal.server_connection import (
+        _CTE_FALLBACK_AUTO_DISABLE_THRESHOLD,
+    )
+
+    df = session.create_dataframe([[1]], schema=["a"])
+    df_union = df.union_all(df)
+
+    original_run_query = session._conn.run_query
+    # Track which call within each collect() is the first (the CTE attempt).
+    call_count_per_collect = [0]
+
+    def always_fail_first_call(sql, *args, **kwargs):
+        call_count_per_collect[0] += 1
+        if call_count_per_collect[0] == 1:
+            err = ProgrammingError("Simulated CTE error")
+            err.sfqid = "sfqid"
+            raise err
+        return original_run_query(sql, *args, **kwargs)
+
+    # Trigger fallback _CTE_FALLBACK_AUTO_DISABLE_THRESHOLD times.
+    for _ in range(_CTE_FALLBACK_AUTO_DISABLE_THRESHOLD):
+        call_count_per_collect[0] = 0
+        with mock.patch.object(
+            session._conn, "run_query", side_effect=always_fail_first_call
+        ):
+            df_union.collect()
+
+    assert session._cte_optimization_enabled is False
+    assert (
+        session._cte_optimization_fallback_count == _CTE_FALLBACK_AUTO_DISABLE_THRESHOLD
+    )
+
+
+def test_cte_execution_fallback_telemetry_sent(session):
+    """Verify that send_cte_execution_fallback_telemetry is called with the
+    correct fields when a fallback occurs."""
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df_union = df.union_all(df)
+
+    original_run_query = session._conn.run_query
+    call_count = [0]
+
+    def fail_once(sql, *args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            err = ProgrammingError("CTE error for telemetry test")
+            err.sfqid = "telemetry_sfqid"
+            raise err
+        return original_run_query(sql, *args, **kwargs)
+
+    with mock.patch.object(session._conn, "run_query", side_effect=fail_once), \
+         mock.patch.object(
+             session._conn._telemetry_client,
+             "send_cte_execution_fallback_telemetry",
+         ) as mock_telemetry:
+        df_union.collect()
+
+    mock_telemetry.assert_called_once()
+    _, kwargs = mock_telemetry.call_args
+    assert kwargs["sfqid"] == "telemetry_sfqid"
+    assert kwargs["retry_succeeded"] is True
+    assert kwargs["fallback_count"] == 1
+    assert kwargs["error_type"] == "ProgrammingError"
+
+
 def test_dataframe_queries_with_cte_reuses_schema_cache(
     session, reduce_describe_enabled, expected_describe_counts
 ):

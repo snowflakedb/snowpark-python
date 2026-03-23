@@ -738,6 +738,52 @@ class TelemetryClient:
         }
         self.send(message)
 
+    def send_cte_execution_fallback_telemetry(
+        self,
+        session_id: int,
+        plan_uuid: str,
+        sfqid: Optional[str],
+        error_type: str,
+        error_message: str,
+        api_calls: List[Dict],
+        retry_succeeded: bool,
+        fallback_count: int,
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_CTE_EXECUTION_FALLBACK.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_CTE_EXECUTION_FALLBACK.value,
+                CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
+                CompilationStageTelemetryField.CTE_FALLBACK_SFQID.value: sfqid,
+                CompilationStageTelemetryField.ERROR_TYPE.value: error_type,
+                CompilationStageTelemetryField.ERROR_MESSAGE.value: error_message,
+                TelemetryField.KEY_API_CALLS.value: api_calls,
+                CompilationStageTelemetryField.CTE_FALLBACK_RETRY_SUCCEEDED.value: retry_succeeded,
+                CompilationStageTelemetryField.CTE_FALLBACK_COUNT.value: fallback_count,
+            },
+        }
+        self.send(message)
+
+    def send_cte_auto_disabled_telemetry(
+        self,
+        session_id: int,
+        fallback_count: int,
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_CTE_EXECUTION_FALLBACK.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_CTE_AUTO_DISABLED.value,
+                CompilationStageTelemetryField.CTE_FALLBACK_COUNT.value: fallback_count,
+            },
+        }
+        self.send(message)
+
     def send_plan_metrics_telemetry(
         self, session_id: int, data: Dict[str, Any]
     ) -> None:
