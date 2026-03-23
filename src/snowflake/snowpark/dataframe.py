@@ -689,7 +689,15 @@ class DataFrame:
 
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
+        # Internal state variables used to construct flattened GROUP BY clauses in the correct order
+        # in SCOS compatibility mode.
+        # See comments on `_build_post_agg_df` for details.
         self._ops_after_agg = None
+        self._agg_base_plan = None
+        self._agg_base_select_statement = None
+        self._pending_having = None
+        self._pending_order_by = None
+        self._pending_limit = None
 
         # Whether all columns are VARIANT data type,
         # which support querying nested fields via dot notations
@@ -2114,28 +2122,24 @@ class DataFrame:
                 stmt = _ast_stmt
 
         # In snowpark_connect_compatible mode, we need to handle
-        # the filtering for dataframe after aggregation without nesting using HAVING
+        # the filtering for dataframe after aggregation without nesting using HAVING.
+        # We defer the HAVING expression and rebuild the plan from the
+        # aggregate base so that SQL clauses are emitted in the correct order
+        # (HAVING -> ORDER BY -> LIMIT) regardless of the user's call order.
         if (
             context._is_snowpark_connect_compatible_mode
             and self._ops_after_agg is not None
             and "filter" not in self._ops_after_agg
         ):
-            having_plan = Filter(filter_col_expr, self._plan, is_having=True)
-            if self._select_statement:
-                df = self._with_plan(
-                    self._session._analyzer.create_select_statement(
-                        from_=self._session._analyzer.create_select_snowflake_plan(
-                            having_plan, analyzer=self._session._analyzer
-                        ),
-                        analyzer=self._session._analyzer,
-                    ),
-                    _ast_stmt=stmt,
-                )
-            else:
-                df = self._with_plan(having_plan, _ast_stmt=stmt)
-            df._ops_after_agg = self._ops_after_agg.copy()
-            df._ops_after_agg.add("filter")
-            return df
+            new_ops = self._ops_after_agg.copy()
+            new_ops.add("filter")
+            return self._build_post_agg_df(
+                ops_after_agg=new_ops,
+                pending_having=filter_col_expr,
+                pending_order_by=self._pending_order_by,
+                pending_limit=self._pending_limit,
+                _ast_stmt=stmt,
+            )
         else:
             if self._select_statement:
                 return self._with_plan(
@@ -2330,28 +2334,23 @@ class DataFrame:
                     )
 
         # In snowpark_connect_compatible mode, we need to handle
-        # the sorting for dataframe after aggregation without nesting
+        # the sorting for dataframe after aggregation without nesting.
+        # We defer the ORDER BY expressions and rebuild the plan from
+        # the aggregate base in correct SQL clause order.
         if (
             context._is_snowpark_connect_compatible_mode
             and self._ops_after_agg is not None
             and "sort" not in self._ops_after_agg
         ):
-            sort_plan = Sort(sort_exprs, self._plan, is_order_by_append=True)
-            if self._select_statement:
-                df = self._with_plan(
-                    self._session._analyzer.create_select_statement(
-                        from_=self._session._analyzer.create_select_snowflake_plan(
-                            sort_plan, analyzer=self._session._analyzer
-                        ),
-                        analyzer=self._session._analyzer,
-                    ),
-                    _ast_stmt=stmt,
-                )
-            else:
-                df = self._with_plan(sort_plan, _ast_stmt=stmt)
-            df._ops_after_agg = self._ops_after_agg.copy()
-            df._ops_after_agg.add("sort")
-            return df
+            new_ops = self._ops_after_agg.copy()
+            new_ops.add("sort")
+            return self._build_post_agg_df(
+                ops_after_agg=new_ops,
+                pending_having=self._pending_having,
+                pending_order_by=sort_exprs,
+                pending_limit=self._pending_limit,
+                _ast_stmt=stmt,
+            )
         else:
             df = (
                 self._with_plan(self._select_statement.sort(sort_exprs))
@@ -3057,30 +3056,23 @@ class DataFrame:
             stmt = None
 
         # In snowpark_connect_compatible mode, we need to handle
-        # the limit for dataframe after aggregation without nesting
+        # the limit for dataframe after aggregation without nesting.
+        # We defer the LIMIT values and rebuild the plan from
+        # the aggregate base in correct SQL clause order.
         if (
             context._is_snowpark_connect_compatible_mode
             and self._ops_after_agg is not None
             and "limit" not in self._ops_after_agg
         ):
-            limit_plan = Limit(
-                Literal(n), Literal(offset), self._plan, is_limit_append=True
+            new_ops = self._ops_after_agg.copy()
+            new_ops.add("limit")
+            return self._build_post_agg_df(
+                ops_after_agg=new_ops,
+                pending_having=self._pending_having,
+                pending_order_by=self._pending_order_by,
+                pending_limit=(n, offset),
+                _ast_stmt=stmt,
             )
-            if self._select_statement:
-                df = self._with_plan(
-                    self._session._analyzer.create_select_statement(
-                        from_=self._session._analyzer.create_select_snowflake_plan(
-                            limit_plan, analyzer=self._session._analyzer
-                        ),
-                        analyzer=self._session._analyzer,
-                    ),
-                    _ast_stmt=stmt,
-                )
-            else:
-                df = self._with_plan(limit_plan, _ast_stmt=stmt)
-            df._ops_after_agg = self._ops_after_agg.copy()
-            df._ops_after_agg.add("limit")
-            return df
         else:
             if self._select_statement:
                 return self._with_plan(
@@ -6834,6 +6826,63 @@ Query List:
             for name, field in zip(self.schema.names, self.schema.fields)
         ]
         return dtypes
+
+    def _build_post_agg_df(
+        self,
+        ops_after_agg,
+        pending_having,
+        pending_order_by,
+        pending_limit,
+        _ast_stmt=None,
+    ) -> "DataFrame":
+        """
+        When constructing group by aggregation queries in SCOS compatibility mode, we must ensure that
+        filter (HAVING), sorting (ORDER BY), and LIMIT clauses are emitted in the correct order, regardless of
+        the order in which the user specified those operations. For example:
+
+        df.groupBy("dept").agg(
+            count("*").alias("headcount"),
+            avg("salary").alias("avg_salary"),
+        )
+            .orderBy(col("avg_salary").desc())
+            .limit(2)
+            .filter(col("headcount") > 1)
+
+        Even though `orderBy` is the first operation, we must re-order the `filter` to be first because
+        SQL syntax requires HAVING, ORDER BY, and LIMIT clauses to appear in that specific order.
+
+        We use `_agg_base_plan` and `_agg_base_select_statement` to re-construct SQL with this constraint.
+
+        This method should only be called in SCOS compatibility mode (context._is_snowpark_connect_compatible_mode).
+        """
+        current = self._agg_base_plan
+
+        if pending_having is not None:
+            current = Filter(pending_having, current, is_having=True)
+        if pending_order_by is not None:
+            current = Sort(pending_order_by, current, is_order_by_append=True)
+        if pending_limit is not None:
+            n, offset = pending_limit
+            current = Limit(Literal(n), Literal(offset), current, is_limit_append=True)
+
+        if self._agg_base_select_statement is not None:
+            new_plan = self._session._analyzer.create_select_statement(
+                from_=self._session._analyzer.create_select_snowflake_plan(
+                    current, analyzer=self._session._analyzer
+                ),
+                analyzer=self._session._analyzer,
+            )
+        else:
+            new_plan = current
+
+        df = self._with_plan(new_plan, _ast_stmt=_ast_stmt)
+        df._ops_after_agg = ops_after_agg
+        df._agg_base_plan = self._agg_base_plan
+        df._agg_base_select_statement = self._agg_base_select_statement
+        df._pending_having = pending_having
+        df._pending_order_by = pending_order_by
+        df._pending_limit = pending_limit
+        return df
 
     def _with_plan(self, plan, _ast_stmt=None) -> "DataFrame":
         """
