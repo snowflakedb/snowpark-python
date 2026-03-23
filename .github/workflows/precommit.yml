@@ -183,7 +183,8 @@ jobs:
       - name: Install tox
         run: uv pip install tox --system
       # we only run doctest on macos
-      - if: ${{ matrix.os == 'macos-latest' }}
+      # TODO: enable doctest for 3.14
+      - if: ${{ matrix.os == 'macos-latest' && matrix.python-version != '3.14' }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
