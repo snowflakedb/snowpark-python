@@ -1318,13 +1318,6 @@ def test_table_select_cte(session):
     )
 
 
-@pytest.mark.parametrize(
-    "reduce_describe_enabled,expected_describe_counts",
-    [
-        (True, [1, 0]),  # With caching: first call misses, second call hits cache
-        (False, [1, 1]),  # Without caching: both calls issue describe queries
-    ],
-)
 def test_cte_execution_fallback_retries_on_programming_error(session):
     """When a ProgrammingError is raised during execution and CTE is enabled,
     the query should be retried with CTE disabled.  The result should be
@@ -1424,6 +1417,13 @@ def test_cte_execution_fallback_telemetry_sent(session):
     assert kwargs["error_type"] == "ProgrammingError"
 
 
+@pytest.mark.parametrize(
+    "reduce_describe_enabled,expected_describe_counts",
+    [
+        (True, [1, 0]),  # With caching: first call misses, second call hits cache
+        (False, [1, 1]),  # Without caching: both calls issue describe queries
+    ],
+)
 def test_dataframe_queries_with_cte_reuses_schema_cache(
     session, reduce_describe_enabled, expected_describe_counts
 ):

@@ -48,6 +48,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
+from snowflake.snowpark._internal.compiler.plan_compiler import PlanCompiler
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import (
     TelemetryClient,
@@ -824,10 +825,6 @@ class ServerConnection:
                     # Recompile the plan with CTE optimization disabled and
                     # re-execute.  We never mutate session state here; the
                     # cte_enabled override is local to this compile() call.
-                    from snowflake.snowpark._internal.compiler.plan_compiler import (
-                        PlanCompiler,
-                    )
-
                     sfqid = getattr(exec_err, "sfqid", None)
                     retry_succeeded = False
                     try:
