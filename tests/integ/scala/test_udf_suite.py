@@ -567,7 +567,7 @@ def test_geometry_type(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "g geometry", is_temporary=True)
     session._run_query(
-        f"insert into {table_name} values ('POINT(30 10)'), ('POINT(50 60)'), (null)"
+        f"insert into {table_name} values ('POINT(30.5 10.5)'), ('POINT(50.5 60.5)'), (null)"
     )
     df = session.table(table_name)
 
@@ -576,18 +576,18 @@ def test_geometry_type(session):
             return None
         else:
             g_str = str(g)
-            if "[50, 60]" in g_str and "Point" in g_str:
+            if "[50.5, 60.5]" in g_str and "Point" in g_str:
                 return g_str
             else:
-                return g_str.replace("0", "")
+                return g_str.replace(".5", ".2")
 
     geometry_udf = udf(geometry, return_type=StringType(), input_types=[GeometryType()])
 
     Utils.check_answer(
         df.select(geometry_udf(col("g"))),
         [
-            Row("{'coordinates': [3, 1], 'type': 'Point'}"),
-            Row("{'coordinates': [50, 60], 'type': 'Point'}"),
+            Row("{'coordinates': [30.2, 10.2], 'type': 'Point'}"),
+            Row("{'coordinates': [50.5, 60.5], 'type': 'Point'}"),
             Row(None),
         ],
     )

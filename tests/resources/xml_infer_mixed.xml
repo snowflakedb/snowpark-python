@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<data>
+  <record type="full">
+    <parent>
+      <parent>
+        <child>Child 1.1</child>
+      </parent>
+      <child>Child 1.2</child>
+    </parent>
+    <age born="1990-02-24">25</age>
+    <value attr="a1">text1</value>
+    <mixed_field>Hello <inner>World</inner></mixed_field>
+    <opt_struct>
+      <a>1</a>
+      <b>2</b>
+    </opt_struct>
+  </record>
+  <record type="sparse">
+    <parent>
+      <parent>
+        <child>Child 2.1</child>
+      </parent>
+      <child>Child 2.2</child>
+    </parent>
+    <age>30</age>
+    <value>text2</value>
+    <mixed_field>Plain text only</mixed_field>
+  </record>
+  <record type="typed">
+    <parent>
+      <child>Child 3</child>
+    </parent>
+    <age born="1980-06-15">35</age>
+    <value attr="a3">999</value>
+    <mixed_field>Another <inner>Nested</inner></mixed_field>
+    <opt_struct>
+      <a>3</a>
+      <b>4</b>
+    </opt_struct>
+  </record>
+</data>

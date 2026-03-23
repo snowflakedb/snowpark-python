@@ -223,13 +223,6 @@ def test_iceberg(session, local_testing_mode):
     if not iceberg_supported(session, local_testing_mode) or is_in_stored_procedure():
         pytest.skip("Test requires iceberg support.")
 
-    session.sql(
-        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
-    ).collect()
-    session.sql(
-        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_IN_MEMORY=DISABLED"
-    ).collect()
-
     table_name = Utils.random_table_name()
     df = session.create_dataframe(
         [],
@@ -279,13 +272,6 @@ def test_iceberg(session, local_testing_mode):
 def test_iceberg_partition_by(session, local_testing_mode):
     if not iceberg_supported(session, local_testing_mode) or is_in_stored_procedure():
         pytest.skip("Test requires iceberg support.")
-
-    session.sql(
-        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
-    ).collect()
-    session.sql(
-        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_IN_MEMORY=DISABLED"
-    ).collect()
 
     df = session.create_dataframe(
         [],

@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+<catalog>
+  <item id="1">
+    <name>Widget A</name>
+    <price unit="$">44.95</price>
+    <quantity>100</quantity>
+    <in_stock>true</in_stock>
+    <release_date>2021-02-01</release_date>
+    <last_updated>2015-01-01 00:00:00</last_updated>
+    <tags>
+      <tag>electronics</tag>
+      <tag>gadget</tag>
+    </tags>
+    <specs>
+      <weight>1.5</weight>
+      <dimensions>
+        <length>10</length>
+        <width>5</width>
+        <height>3</height>
+      </dimensions>
+    </specs>
+    <rating score="5">Excellent</rating>
+  </item>
+  <item id="2">
+    <name>Widget B</name>
+    <price>29.99</price>
+    <quantity>50</quantity>
+    <in_stock>false</in_stock>
+    <release_date>2022-06-15</release_date>
+    <last_updated>2023-03-10 12:30:00</last_updated>
+    <tags>
+      <tag>home</tag>
+    </tags>
+    <specs>
+      <weight>2.3</weight>
+      <dimensions>
+        <length>20</length>
+        <width>10</width>
+        <height>8</height>
+      </dimensions>
+    </specs>
+    <rating>Good</rating>
+  </item>
+  <item id="3">
+    <name>Widget C</name>
+    <price unit="EUR">15.00</price>
+    <quantity>200</quantity>
+    <in_stock>true</in_stock>
+    <release_date>2020-11-30</release_date>
+    <tags>
+      <tag>office</tag>
+      <tag>supplies</tag>
+      <tag>paper</tag>
+    </tags>
+    <rating score="3">Average</rating>
+  </item>
+</catalog>

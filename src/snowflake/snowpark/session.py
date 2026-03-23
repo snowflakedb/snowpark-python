@@ -69,6 +69,9 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
 )
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    quote_name_without_upper_casing,
+)
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.ast.batch import AstBatch
 from snowflake.snowpark._internal.ast.utils import (
@@ -2424,7 +2427,6 @@ class Session:
             if isinstance(self._conn, MockServerConnection):
                 return _DEFAULT_ARTIFACT_REPOSITORY
 
-            account = self.get_current_account()
             database = self.get_current_database()
             schema = self.get_current_schema()
             cache_key = (database, schema)
@@ -2442,7 +2444,10 @@ class Session:
                     if schema
                     else f"'database', '{database}'"
                     if database
-                    else f"'account', '{account}'"
+                    # self.get_current_account uses a cached connector field that may not be properly cased, so we need to
+                    # explicitly issue a query for it.
+                    # Since this issues a query, we should compute it only if database/schema are unset.
+                    else f"""'account', '{quote_name_without_upper_casing(self._conn._get_string_datum("SELECT CURRENT_ACCOUNT()"))}'"""
                 )
                 result = self._run_query(
                     f"SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('{python_version}', {entity_selector_args})"
@@ -4509,10 +4514,11 @@ class Session:
             # describe procedure returns two column table with columns - property and value
             # the second row in the sproc_desc is property=returns and value=<return type of procedure>
             # when no procedure of the signature is found, SQL exception is raised
-            sproc_desc = self._run_query(
+            sproc_desc = self._conn.run_query(
                 f"describe procedure {func_signature}",
+                _is_internal=True,
                 log_on_exception=log_on_exception,
-            )
+            )["data"]
             return_type = sproc_desc[1][1]
             return return_type.upper().startswith("TABLE")
         except Exception as exc:

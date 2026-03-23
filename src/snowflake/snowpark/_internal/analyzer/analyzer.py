@@ -795,6 +795,7 @@ class Analyzer:
                 expr.try_,
                 expr.is_rename,
                 expr.is_add,
+                expr.is_permissive,
             )
         else:
             return unary_expression(
@@ -1144,6 +1145,7 @@ class Analyzer:
                 match_condition,
                 logical_plan,
                 self.session.conf.get("use_constant_subquery_alias", False),
+                directed=logical_plan.directed,
             )
 
         if isinstance(logical_plan, Sort):
