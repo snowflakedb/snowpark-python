@@ -165,7 +165,8 @@ jobs:
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
         run: uv pip install tox --system
-      - if: ${{ contains('macos', matrix.os.download_name) }}
+      # TODO: enable doctest for 3.14
+      - if: ${{ contains('macos', matrix.os.download_name) && matrix.python-version != '3.14' }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -176,7 +177,9 @@ jobs:
           # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.12 with no server-side support
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
-      - name: Run tests (excluding doctests)
+      # TODO: enable for 3.14
+      - if: ${{ matrix.python-version != '3.14' }}
+        name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -185,6 +188,16 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
           SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
+        shell: bash
+      # TODO: remove the test below and run udf tests for 3.14
+      - if: ${{ matrix.python-version == '3.14' }}
+        name: Run tests (excluding udf, doctests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Install MS ODBC Driver (Ubuntu only)
         if: ${{ matrix.os.download_name == 'linux' }}

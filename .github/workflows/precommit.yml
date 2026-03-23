@@ -206,7 +206,7 @@ jobs:
           SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
-      # SNOW-2213578 : Remove the test below and run udf tests for 3.14
+      # TODO: Remove the test below and run udf tests for 3.14
       # for 3.14, skip udf, doctest
       - if: ${{ matrix.os != 'macos-latest' && matrix.python-version == '3.14' }}
         name: Run tests (excluding udf, doctests)
