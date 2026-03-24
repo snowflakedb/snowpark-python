@@ -4,7 +4,7 @@
 
 import copy
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
@@ -53,7 +53,9 @@ class PlanCompiler:
     def __init__(self, plan: SnowflakePlan) -> None:
         self._plan = plan
 
-    def should_start_query_compilation(self) -> bool:
+    def should_start_query_compilation(
+        self, cte_enabled: Optional[bool] = None
+    ) -> bool:
         """
         Whether optimization should be applied to the plan or not.
         Optimization can be applied if
@@ -61,6 +63,11 @@ class PlanCompiler:
         2) the query compilation stage is enabled
         3) optimizations are enabled in the current session, such as cte_optimization_enabled
 
+        Parameters
+        ----------
+        cte_enabled:
+            Override for CTE optimization.  ``None`` (default) reads from the
+            session setting.  ``False`` disables CTE regardless of the session.
 
         Returns
         -------
@@ -68,17 +75,21 @@ class PlanCompiler:
         """
 
         current_session = self._plan.session
+        effective_cte = (
+            cte_enabled
+            if cte_enabled is not None
+            else current_session.cte_optimization_enabled
+        )
         return (
             not isinstance(current_session._conn, MockServerConnection)
             and (self._plan.source_plan is not None)
             and current_session._query_compilation_stage_enabled
-            and (
-                current_session.cte_optimization_enabled
-                or current_session.large_query_breakdown_enabled
-            )
+            and (effective_cte or current_session.large_query_breakdown_enabled)
         )
 
-    def compile(self) -> Dict[PlanQueryType, List[Query]]:
+    def compile(
+        self, cte_enabled: Optional[bool] = None
+    ) -> Dict[PlanQueryType, List[Query]]:
         # initialize the queries with the original queries without optimization
         final_plan = self._plan
         queries = {
@@ -86,8 +97,13 @@ class PlanCompiler:
             PlanQueryType.POST_ACTIONS: final_plan.post_actions,
         }
 
-        if self.should_start_query_compilation():
+        if self.should_start_query_compilation(cte_enabled=cte_enabled):
             session = self._plan.session
+            effective_cte = (
+                cte_enabled
+                if cte_enabled is not None
+                else session.cte_optimization_enabled
+            )
             try:
                 with measure_time() as total_time:
                     # preparation for compilation
@@ -107,7 +123,7 @@ class PlanCompiler:
                     # 3. apply each optimizations if needed
                     # CTE optimization
                     with measure_time() as cte_time:
-                        if session.cte_optimization_enabled:
+                        if effective_cte:
                             repeated_subquery_eliminator = RepeatedSubqueryElimination(
                                 logical_plans, query_generator
                             )

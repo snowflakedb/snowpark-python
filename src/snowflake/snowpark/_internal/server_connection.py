@@ -48,6 +48,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
+from snowflake.snowpark._internal.compiler.plan_compiler import PlanCompiler
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import (
     TelemetryClient,
@@ -80,6 +81,19 @@ if TYPE_CHECKING:
         ResultMetadataV2 = ResultMetadata
 
 logger = getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# CTE dry-run constants (internally configurable)
+# ---------------------------------------------------------------------------
+# Maximum number of SQL strings to retain in the per-session dry-run result
+# cache.  lru_cache uses the SQL string itself as the key, so each entry is
+# bounded by the SQL length, but is typically a few hundred bytes.
+_CTE_DRYRUN_CACHE_MAX_SIZE: int = 10_000
+# After this many distinct dry-run failures the session permanently disables
+# CTE optimisation.  Higher than the Option-1 retry threshold (3) because
+# dry-run failures are invisible to the user and individually cheap.
+_CTE_DRYRUN_AUTO_DISABLE_THRESHOLD: int = 10
+
 
 # parameters needed for usage tracking
 PARAM_APPLICATION = "application"
@@ -702,6 +716,26 @@ class ServerConnection:
         statement_params = kwargs.get("_statement_params", None) or {}
         statement_params["_PLAN_UUID"] = plan.uuid
         kwargs["_statement_params"] = statement_params
+
+        # --- CTE dry-run guard ---
+        # Before executing, validate the CTE-optimized SQL via a describe-only
+        # (compile-only) request.  session._cte_dryrun_check() is an
+        # lru_cache-backed closure: repeated calls for the same SQL never
+        # re-issue the round-trip.  Auto-disable fires inside the closure once
+        # the failure threshold is reached.
+        session = plan.session
+        if block and session.cte_optimization_enabled and session.cte_dryrun_enabled:
+            _cte_main_queries = plan_queries[PlanQueryType.QUERIES]
+            _has_batch_insert = any(
+                isinstance(q, BatchInsertQuery) for q in _cte_main_queries
+            )
+            if _cte_main_queries and not _has_batch_insert:
+                _main_sql = _cte_main_queries[-1].sql
+                if _main_sql.lstrip().upper().startswith(
+                    "WITH "
+                ) and not session._cte_dryrun_check(_main_sql):
+                    plan_queries = PlanCompiler(plan).compile(cte_enabled=False)
+
         try:
             main_queries = plan_queries[PlanQueryType.QUERIES]
             post_actions = plan_queries[PlanQueryType.POST_ACTIONS]

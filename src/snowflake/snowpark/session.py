@@ -15,6 +15,7 @@ import tempfile
 import warnings
 from array import array
 from collections import defaultdict
+import functools
 from functools import reduce
 from logging import getLogger
 from threading import RLock
@@ -98,7 +99,11 @@ from snowflake.snowpark._internal.packaging_utils import (
     pip_install_packages_to_target_folder,
     zip_directory_contents,
 )
-from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark._internal.server_connection import (
+    ServerConnection,
+    _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD,
+    _CTE_DRYRUN_CACHE_MAX_SIZE,
+)
 from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.temp_table_auto_cleaner import TempTableAutoCleaner
 from snowflake.snowpark._internal.type_utils import (
@@ -269,6 +274,7 @@ _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE = (
 _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION = (
     "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION"
 )
+_PYTHON_SNOWPARK_USE_CTE_DRYRUN = True
 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
     "PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED"
 )
@@ -668,6 +674,42 @@ class Session:
         self._cte_optimization_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION
         )
+        self._cte_dryrun_enabled: bool = _PYTHON_SNOWPARK_USE_CTE_DRYRUN
+        self._cte_dryrun_fallback_count: int = 0
+
+        # Per-session lru_cache-backed dry-run checker.
+        # The function performs a describe-only (compile-only) request for the
+        # given CTE SQL.  lru_cache ensures the round-trip is only issued once
+        # per unique SQL string — subsequent calls return the cached bool.
+        # Counter increment, telemetry, and auto-disable are side-effects that
+        # fire only on a cache miss (first time a given SQL is seen to fail),
+        # because lru_cache does not re-execute the function body on a hit.
+        _self = self  # explicit closure reference
+
+        @functools.lru_cache(maxsize=_CTE_DRYRUN_CACHE_MAX_SIZE)
+        def _cte_dryrun_check(sql: str) -> bool:
+            try:
+                _self._conn._cursor._describe_internal(sql)  # pyright: ignore
+                return True
+            except ProgrammingError:
+                _self._cte_dryrun_fallback_count += 1
+                _self._conn._telemetry_client.send_cte_dryrun_fallback_telemetry(
+                    session_id=_self._session_id,
+                    error_type="ProgrammingError",
+                    fallback_count=_self._cte_dryrun_fallback_count,
+                )
+                if (
+                    _self._cte_dryrun_fallback_count
+                    >= _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD
+                ):
+                    _self._cte_optimization_enabled = False
+                    _self._conn._telemetry_client.send_cte_dryrun_auto_disabled_telemetry(
+                        session_id=_self._session_id,
+                        fallback_count=_self._cte_dryrun_fallback_count,
+                    )
+                return False
+
+        self._cte_dryrun_check = _cte_dryrun_check
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True

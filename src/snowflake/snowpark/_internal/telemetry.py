@@ -63,6 +63,8 @@ class TelemetryField(Enum):
     TYPE_CURSOR_CREATED = "snowpark_cursor_created"
     TYPE_SQL_SIMPLIFIER_ENABLED = "snowpark_sql_simplifier_enabled"
     TYPE_CTE_OPTIMIZATION_ENABLED = "snowpark_cte_optimization_enabled"
+    TYPE_CTE_DRYRUN_FALLBACK = "snowpark_cte_dryrun_fallback"
+    TYPE_CTE_DRYRUN_AUTO_DISABLED = "snowpark_cte_dryrun_auto_disabled"
     # telemetry for optimization that eliminates the extra cast expression generated for expressions
     TYPE_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
         "snowpark_eliminate_numeric_sql_value_cast_enabled"
@@ -107,6 +109,8 @@ class TelemetryField(Enum):
     SESSION_ID = "session_id"
     SQL_SIMPLIFIER_ENABLED = "sql_simplifier_enabled"
     CTE_OPTIMIZATION_ENABLED = "cte_optimization_enabled"
+    CTE_DRYRUN_ERROR_TYPE = "cte_dryrun_error_type"
+    CTE_DRYRUN_FALLBACK_COUNT = "cte_dryrun_fallback_count"
     LARGE_QUERY_BREAKDOWN_ENABLED = "large_query_breakdown_enabled"
     # temp table cleanup
     TYPE_TEMP_TABLE_CLEANUP = "snowpark_temp_table_cleanup"
@@ -656,6 +660,35 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.CTE_OPTIMIZATION_ENABLED.value: True,
+            },
+        }
+        self.send(message)
+
+    def send_cte_dryrun_fallback_telemetry(
+        self, session_id: str, error_type: str, fallback_count: int
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_CTE_DRYRUN_FALLBACK.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.CTE_DRYRUN_ERROR_TYPE.value: error_type,
+                TelemetryField.CTE_DRYRUN_FALLBACK_COUNT.value: fallback_count,
+            },
+        }
+        self.send(message)
+
+    def send_cte_dryrun_auto_disabled_telemetry(
+        self, session_id: str, fallback_count: int
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_CTE_DRYRUN_AUTO_DISABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.CTE_DRYRUN_FALLBACK_COUNT.value: fallback_count,
             },
         }
         self.send(message)

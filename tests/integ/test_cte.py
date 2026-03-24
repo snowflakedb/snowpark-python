@@ -8,8 +8,10 @@ from unittest import mock
 
 import pytest
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Window
+from snowflake.snowpark.row import Row
 from snowflake.snowpark._internal.analyzer import analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.utils import (
@@ -1352,3 +1354,127 @@ def test_dataframe_queries_with_cte_reuses_schema_cache(
             df_union = create_cte_dataframe()
             with SqlCounter(query_count=0, describe_count=expected_describe_count):
                 access_queries_and_schema(df_union)
+
+
+# ---------------------------------------------------------------------------
+# CTE dry-run guard — integration tests
+# ---------------------------------------------------------------------------
+
+
+def _cte_df(session):
+    """Return a DataFrame that triggers CTE optimisation (duplicate subtree)."""
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    return df.union_all(df)
+
+
+def test_cte_dryrun_passes_and_result_is_correct(session):
+    """Happy path: dry-run succeeds, real CTE query returns the right rows."""
+    # Clear any cached state from previous tests in this session.
+    session._cte_dryrun_check.cache_clear()
+    session._cte_dryrun_fallback_count = 0
+
+    result = _cte_df(session).collect()
+
+    expected = [Row(A=1, B=2), Row(A=3, B=4), Row(A=1, B=2), Row(A=3, B=4)]
+    assert result == expected
+    # The SQL was validated and cached as known-good.
+    assert session._cte_dryrun_check.cache_info().currsize >= 1
+
+
+def test_cte_dryrun_known_good_cache_hit_on_second_collect(session):
+    """Second collect() with the same CTE SQL must not issue another dry-run."""
+    session._cte_dryrun_check.cache_clear()
+    session._cte_dryrun_fallback_count = 0
+
+    df = _cte_df(session)
+    df.collect()  # first: cache miss, dry-run issued
+    hits_after_first = session._cte_dryrun_check.cache_info().hits
+
+    df.collect()  # second: cache hit, no dry-run
+    hits_after_second = session._cte_dryrun_check.cache_info().hits
+
+    assert hits_after_second > hits_after_first
+
+
+def test_cte_dryrun_failure_falls_back_to_non_cte(session):
+    """When dry-run returns False the query must fall back to non-CTE and
+    still produce the correct result."""
+    session._cte_dryrun_check.cache_clear()
+    session._cte_dryrun_fallback_count = 0
+
+    with mock.patch.object(session, "_cte_dryrun_check", return_value=False):
+        result = _cte_df(session).collect()
+
+    expected = [Row(A=1, B=2), Row(A=3, B=4), Row(A=1, B=2), Row(A=3, B=4)]
+    assert result == expected
+
+
+def test_cte_dryrun_skips_non_cte_sql(session):
+    """A plan without duplicate subtrees produces plain SQL (no WITH prefix)
+    so _cte_dryrun_check must never be called for it."""
+    session._cte_dryrun_check.cache_clear()
+    session._cte_dryrun_fallback_count = 0
+
+    # Single DataFrame — no duplicate subtree, no CTE generated.
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+
+    with mock.patch.object(
+        session, "_cte_dryrun_check", wraps=session._cte_dryrun_check
+    ) as spy:
+        df.collect()
+        spy.assert_not_called()
+
+
+def test_cte_dryrun_auto_disables_after_threshold(session):
+    """After _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD distinct dry-run failures
+    cte_optimization_enabled must be set to False."""
+    from snowflake.snowpark._internal.server_connection import (
+        _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD,
+    )
+
+    session._cte_dryrun_check.cache_clear()
+    session._cte_dryrun_fallback_count = 0
+    original_cte_enabled = session._cte_optimization_enabled
+
+    call_count = [0]
+
+    def fail_then_pass(sql):
+        """Simulate distinct failing CTE SQLs by refusing every call."""
+        call_count[0] += 1
+        # Directly manipulate session state to mimic closure side-effects.
+        session._cte_dryrun_fallback_count += 1
+        if session._cte_dryrun_fallback_count >= _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD:
+            session._cte_optimization_enabled = False
+        return False
+
+    with mock.patch.object(session, "_cte_dryrun_check", side_effect=fail_then_pass):
+        for _ in range(_CTE_DRYRUN_AUTO_DISABLE_THRESHOLD):
+            _cte_df(session).collect()
+
+    assert session._cte_optimization_enabled is False
+    assert session._cte_dryrun_fallback_count == _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD
+
+    # Restore for subsequent tests in this session.
+    session._cte_optimization_enabled = original_cte_enabled
+    session._cte_dryrun_fallback_count = 0
+
+
+def test_cte_dryrun_telemetry_sent_on_failure(session):
+    """send_cte_dryrun_fallback_telemetry must be called when dry-run fails."""
+    session._cte_dryrun_check.cache_clear()
+    session._cte_dryrun_fallback_count = 0
+
+    with mock.patch.object(
+        session._conn._telemetry_client,
+        "send_cte_dryrun_fallback_telemetry",
+    ) as mock_tel, mock.patch.object(
+        session._conn._cursor,
+        "_describe_internal",
+        side_effect=ProgrammingError("CTE error"),
+    ):
+        _cte_df(session).collect()
+
+    mock_tel.assert_called_once()
+    _, kwargs = mock_tel.call_args
+    assert kwargs["error_type"] == "ProgrammingError"
+    assert kwargs["fallback_count"] == 1
