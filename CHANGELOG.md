@@ -8,6 +8,8 @@
 
 #### Bug Fixes
 
+- Fix a bug where `dense_rank()` would fail with `ValueError` on NULL partition values.
+
 #### Improvements
 
 - Restored the following query improvements that were reverted in 1.47.0 due to bugs:

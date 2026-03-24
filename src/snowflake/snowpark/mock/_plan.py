@@ -2626,6 +2626,7 @@ def calculate_expression(
                 keys,
                 sort=False,
                 as_index=False,
+                dropna=False,
             )
             res_index = []
             for r in res:
