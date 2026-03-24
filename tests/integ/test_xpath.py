@@ -32,6 +32,7 @@ pytestmark = [
         "config.getoption('local_testing_mode', default=False)",
         reason="list command not supported in local testing mode",
     ),
+    pytest.mark.udf,
 ]
 
 
