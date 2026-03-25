@@ -15,7 +15,6 @@ import tempfile
 import warnings
 from array import array
 from collections import defaultdict
-import functools
 from functools import reduce
 from logging import getLogger
 from threading import RLock
@@ -102,7 +101,6 @@ from snowflake.snowpark._internal.packaging_utils import (
 from snowflake.snowpark._internal.server_connection import (
     ServerConnection,
     _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD,
-    _CTE_DRYRUN_CACHE_MAX_SIZE,
 )
 from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.temp_table_auto_cleaner import TempTableAutoCleaner
@@ -676,29 +674,6 @@ class Session:
         )
         self._cte_dryrun_enabled: bool = _PYTHON_SNOWPARK_USE_CTE_DRYRUN
         self._cte_dryrun_fallback_count: int = 0
-
-        # Per-session lru_cache-backed dry-run checker.  Keyed on the raw CTE
-        # SQL string.  Only SQL starting with "WITH " is ever passed in (gated
-        # by server_connection.py), so the cache only holds CTE queries.
-        # This function only checks whether the CTE SQL compiles; counter
-        # increment, telemetry, and auto-disable are handled by
-        # _record_cte_dryrun_fallback() after the non-CTE execution succeeds,
-        # confirming that CTE optimisation was truly the cause.
-        _self = self  # explicit closure reference
-
-        @functools.lru_cache(maxsize=_CTE_DRYRUN_CACHE_MAX_SIZE)
-        def _cte_dryrun_check(sql: str) -> bool:
-            try:
-                _self._conn._cursor._describe_internal(sql)  # pyright: ignore
-                return True
-            except Exception as ex:
-                _logger.debug(
-                    "CTE dry-run failed (%s), falling back to non-CTE SQL.",
-                    type(ex).__name__,
-                )
-                return False
-
-        self._cte_dryrun_check = _cte_dryrun_check
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
@@ -1066,22 +1041,39 @@ class Session:
         """
         return self._cte_optimization_enabled
 
-    def _record_cte_dryrun_fallback(self) -> None:
+    def _record_cte_dryrun_fallback(self, error: Exception) -> None:
         """Record a confirmed CTE dry-run fallback.
 
         Called by server_connection after the non-CTE execution succeeds,
         proving that the CTE rewrite (not the query itself) caused the
         dry-run failure.
+
+        The actual error type is reported in telemetry.  Only
+        ``ProgrammingError`` (compilation failure) counts toward the
+        auto-disable threshold.
         """
+        from snowflake.connector.errors import ProgrammingError
+
+        error_type = type(error).__name__
+
+        self._conn._telemetry_client.send_cte_dryrun_fallback_telemetry(
+            session_id=self._session_id,
+            error_type=error_type,
+            fallback_count=self._cte_dryrun_fallback_count + 1,
+        )
+
+        if not isinstance(error, ProgrammingError):
+            _logger.debug(
+                "CTE dry-run fallback (%s) — not a compilation error, "
+                "skipping auto-disable counter.",
+                error_type,
+            )
+            return
+
         self._cte_dryrun_fallback_count += 1
         _logger.debug(
             "CTE dry-run fallback confirmed (fallback_count=%d).",
             self._cte_dryrun_fallback_count,
-        )
-        self._conn._telemetry_client.send_cte_dryrun_fallback_telemetry(
-            session_id=self._session_id,
-            error_type="ProgrammingError",
-            fallback_count=self._cte_dryrun_fallback_count,
         )
         if self._cte_dryrun_fallback_count >= _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD:
             self._cte_optimization_enabled = False

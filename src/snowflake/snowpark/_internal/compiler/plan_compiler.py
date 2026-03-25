@@ -53,6 +53,27 @@ class PlanCompiler:
     def __init__(self, plan: SnowflakePlan) -> None:
         self._plan = plan
 
+    # ------------------------------------------------------------------
+    # CTE dry-run
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def cte_dryrun_check(plan: SnowflakePlan, sql: str) -> Optional[Exception]:
+        """DESCRIBE-only validation of *sql* via the plan's cursor.
+
+        Returns ``None`` if the SQL compiles successfully, or the caught
+        exception if it fails.
+        """
+        try:
+            plan.session._conn._cursor._describe_internal(sql)
+            return None
+        except Exception as ex:
+            _logger.debug(
+                "CTE dry-run failed (%s), falling back to non-CTE SQL.",
+                type(ex).__name__,
+            )
+            return ex
+
     def should_start_query_compilation(
         self, cte_enabled: Optional[bool] = None
     ) -> bool:
@@ -75,18 +96,17 @@ class PlanCompiler:
         """
 
         current_session = self._plan.session
-        effective_cte = self._resolve_cte_enabled(cte_enabled)
+        effective_cte = (
+            cte_enabled
+            if cte_enabled is not None
+            else current_session.cte_optimization_enabled
+        )
         return (
             not isinstance(current_session._conn, MockServerConnection)
             and (self._plan.source_plan is not None)
             and current_session._query_compilation_stage_enabled
             and (effective_cte or current_session.large_query_breakdown_enabled)
         )
-
-    def _resolve_cte_enabled(self, cte_enabled: Optional[bool] = None) -> bool:
-        if cte_enabled is not None:
-            return cte_enabled
-        return self._plan.session.cte_optimization_enabled
 
     def compile(
         self, cte_enabled: Optional[bool] = None
@@ -100,7 +120,11 @@ class PlanCompiler:
 
         if self.should_start_query_compilation(cte_enabled=cte_enabled):
             session = self._plan.session
-            effective_cte = self._resolve_cte_enabled(cte_enabled)
+            effective_cte = (
+                cte_enabled
+                if cte_enabled is not None
+                else session.cte_optimization_enabled
+            )
             try:
                 with measure_time() as total_time:
                     # preparation for compilation

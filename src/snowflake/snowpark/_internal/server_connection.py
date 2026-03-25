@@ -81,16 +81,8 @@ if TYPE_CHECKING:
 
 logger = getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# CTE dry-run constants (internally configurable)
-# ---------------------------------------------------------------------------
-# Maximum number of SQL strings to retain in the per-session dry-run result
-# cache.  lru_cache uses the SQL string itself as the key, so each entry is
-# bounded by the SQL length, but is typically a few hundred bytes.
-_CTE_DRYRUN_CACHE_MAX_SIZE: int = 1_000
 # After this many distinct dry-run failures the session permanently disables
-# CTE optimisation.  Higher than the Option-1 retry threshold (3) because
-# dry-run failures are invisible to the user and individually cheap.
+# CTE optimization.
 _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD: int = 10
 
 
@@ -713,33 +705,29 @@ class ServerConnection:
 
         action_id = plan.session._generate_new_action_id()
         session = plan.session
-        plan_queries = PlanCompiler(plan).compile()
+        plan_queries = plan.execution_queries
         result, result_meta = None, None
         statement_params = kwargs.get("_statement_params", None) or {}
         statement_params["_PLAN_UUID"] = plan.uuid
         kwargs["_statement_params"] = statement_params
 
         # --- CTE dry-run guard ---
-        # Validate the CTE-optimized SQL via a describe-only (compile-only)
-        # request.  session._cte_dryrun_check() is lru_cache-backed: repeated
-        # calls for the same SQL skip the round-trip.  If the check fails,
-        # recompile with CTE disabled so only the fallback path pays the cost
-        # of a second compilation.  The fallback counter is only incremented
-        # after the non-CTE execution succeeds, confirming that the CTE
-        # rewrite (not the query itself) was the problem.
-        _cte_dryrun_fell_back = False
-        if block and session.cte_optimization_enabled and session._cte_dryrun_enabled:
+        # Validate the CTE-optimized SQL via a DESCRIBE-only round-trip.
+        # If the check fails, recompile with CTE disabled.  The fallback
+        # is only recorded after the non-CTE execution succeeds, confirming
+        # that the CTE rewrite (not the query itself) was the problem.
+        _cte_dryrun_error = None
+        if session.cte_optimization_enabled and session._cte_dryrun_enabled:
             _cte_main_queries = plan_queries[PlanQueryType.QUERIES]
             _has_batch_insert = any(
                 isinstance(q, BatchInsertQuery) for q in _cte_main_queries
             )
             if _cte_main_queries and not _has_batch_insert:
                 _main_sql = _cte_main_queries[-1].sql
-                if _main_sql.lstrip().upper().startswith(
-                    "WITH "
-                ) and not session._cte_dryrun_check(_main_sql):
-                    plan_queries = PlanCompiler(plan).compile(cte_enabled=False)
-                    _cte_dryrun_fell_back = True
+                if _main_sql.lstrip().upper().startswith("WITH "):
+                    _cte_dryrun_error = PlanCompiler.cte_dryrun_check(plan, _main_sql)
+                    if _cte_dryrun_error is not None:
+                        plan_queries = PlanCompiler(plan).compile(cte_enabled=False)
 
         try:
             main_queries = plan_queries[PlanQueryType.QUERIES]
@@ -852,8 +840,8 @@ class ServerConnection:
         if result is None:
             raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
 
-        if _cte_dryrun_fell_back:
-            session._record_cte_dryrun_fallback()
+        if _cte_dryrun_error is not None:
+            session._record_cte_dryrun_fallback(_cte_dryrun_error)
 
         return result, result_meta
 
