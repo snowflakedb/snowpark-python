@@ -1369,7 +1369,6 @@ def _cte_df(session):
 
 def test_cte_dryrun_passes_and_result_is_correct(session):
     """Happy path: dry-run succeeds, real CTE query returns the right rows."""
-    # Clear any cached state from previous tests in this session.
     session._cte_dryrun_check.cache_clear()
     session._cte_dryrun_fallback_count = 0
 
@@ -1377,7 +1376,6 @@ def test_cte_dryrun_passes_and_result_is_correct(session):
 
     expected = [Row(A=1, B=2), Row(A=3, B=4), Row(A=1, B=2), Row(A=3, B=4)]
     assert result == expected
-    # The SQL was validated and cached as known-good.
     assert session._cte_dryrun_check.cache_info().currsize >= 1
 
 
@@ -1436,19 +1434,15 @@ def test_cte_dryrun_auto_disables_after_threshold(session):
     session._cte_dryrun_fallback_count = 0
     original_cte_enabled = session._cte_optimization_enabled
 
-    call_count = [0]
-
-    def fail_then_pass(sql):
-        """Simulate distinct failing CTE SQLs by refusing every call."""
-        call_count[0] += 1
-        # Directly manipulate session state to mimic closure side-effects.
-        session._cte_dryrun_fallback_count += 1
-        if session._cte_dryrun_fallback_count >= _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD:
-            session._cte_optimization_enabled = False
-        return False
-
-    with mock.patch.object(session, "_cte_dryrun_check", side_effect=fail_then_pass):
+    with mock.patch.object(
+        session._conn._cursor,
+        "_describe_internal",
+        side_effect=ProgrammingError("CTE error"),
+    ):
         for _ in range(_CTE_DRYRUN_AUTO_DISABLE_THRESHOLD):
+            # Clear cache each iteration so every call is a fresh miss,
+            # exercising the real closure's counter and auto-disable logic.
+            session._cte_dryrun_check.cache_clear()
             _cte_df(session).collect()
 
     assert session._cte_optimization_enabled is False

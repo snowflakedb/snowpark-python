@@ -75,17 +75,18 @@ class PlanCompiler:
         """
 
         current_session = self._plan.session
-        effective_cte = (
-            cte_enabled
-            if cte_enabled is not None
-            else current_session.cte_optimization_enabled
-        )
+        effective_cte = self._resolve_cte_enabled(cte_enabled)
         return (
             not isinstance(current_session._conn, MockServerConnection)
             and (self._plan.source_plan is not None)
             and current_session._query_compilation_stage_enabled
             and (effective_cte or current_session.large_query_breakdown_enabled)
         )
+
+    def _resolve_cte_enabled(self, cte_enabled: Optional[bool] = None) -> bool:
+        if cte_enabled is not None:
+            return cte_enabled
+        return self._plan.session.cte_optimization_enabled
 
     def compile(
         self, cte_enabled: Optional[bool] = None
@@ -99,11 +100,7 @@ class PlanCompiler:
 
         if self.should_start_query_compilation(cte_enabled=cte_enabled):
             session = self._plan.session
-            effective_cte = (
-                cte_enabled
-                if cte_enabled is not None
-                else session.cte_optimization_enabled
-            )
+            effective_cte = self._resolve_cte_enabled(cte_enabled)
             try:
                 with measure_time() as total_time:
                     # preparation for compilation

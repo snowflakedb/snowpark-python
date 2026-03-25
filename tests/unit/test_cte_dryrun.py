@@ -5,8 +5,8 @@
 """Unit tests for the CTE dry-run guard.
 
 Covers:
-  - _cte_dryrun_check closure: return values, lru_cache behaviour, fallback
-    counter, telemetry, and auto-disable logic.
+  - _cte_dryrun_check closure: return values, lru_cache behaviour.
+  - _record_cte_dryrun_fallback: counter, telemetry, auto-disable.
   - PlanCompiler.compile / should_start_query_compilation: cte_enabled override.
 """
 
@@ -36,13 +36,12 @@ def cte_session():
     with Session.builder.config("local_testing", True).create() as s:
         s._cte_optimization_enabled = True
         s._cte_dryrun_fallback_count = 0
-        # Ensure cache is empty (defence against any startup side-effects).
         s._cte_dryrun_check.cache_clear()
         yield s
 
 
 # ---------------------------------------------------------------------------
-# Return values
+# _cte_dryrun_check: return values
 # ---------------------------------------------------------------------------
 
 
@@ -58,8 +57,26 @@ def test_dryrun_check_returns_false_on_programming_error(cte_session):
     assert cte_session._cte_dryrun_check(_WITH_SQL) is False
 
 
+def test_dryrun_check_returns_false_on_non_programming_error(cte_session):
+    """Any exception from _describe_internal is caught — no crash."""
+    cte_session._conn._cursor._describe_internal = MagicMock(
+        side_effect=RuntimeError("unexpected connection error")
+    )
+    assert cte_session._cte_dryrun_check(_WITH_SQL) is False
+
+
+def test_dryrun_check_does_not_increment_counter(cte_session):
+    """_cte_dryrun_check must never touch the fallback counter — that is
+    the responsibility of _record_cte_dryrun_fallback."""
+    cte_session._conn._cursor._describe_internal = MagicMock(
+        side_effect=ProgrammingError("err")
+    )
+    cte_session._cte_dryrun_check(_WITH_SQL)
+    assert cte_session._cte_dryrun_fallback_count == 0
+
+
 # ---------------------------------------------------------------------------
-# lru_cache behaviour
+# _cte_dryrun_check: lru_cache behaviour
 # ---------------------------------------------------------------------------
 
 
@@ -80,10 +97,9 @@ def test_dryrun_check_failure_result_is_cached(cte_session):
     cte_session._conn._cursor._describe_internal = describe
 
     cte_session._cte_dryrun_check(_WITH_SQL)
-    cte_session._cte_dryrun_check(_WITH_SQL)  # cache hit — no re-execution
+    cte_session._cte_dryrun_check(_WITH_SQL)  # cache hit
 
     describe.assert_called_once()
-    assert cte_session._cte_dryrun_fallback_count == 1  # incremented only once
 
 
 def test_dryrun_check_different_sqls_are_independent_cache_entries(cte_session):
@@ -103,66 +119,17 @@ def test_dryrun_check_different_sqls_are_independent_cache_entries(cte_session):
 
 
 # ---------------------------------------------------------------------------
-# Fallback counter
+# _record_cte_dryrun_fallback: counter and auto-disable
 # ---------------------------------------------------------------------------
 
 
-def test_dryrun_fallback_count_increments_per_unique_failing_sql(cte_session):
-    cte_session._conn._cursor._describe_internal = MagicMock(
-        side_effect=ProgrammingError("err")
-    )
-
-    sql_a = "WITH a AS (SELECT 1) SELECT * FROM a"
-    sql_b = "WITH b AS (SELECT 2) SELECT * FROM b"
-
-    cte_session._cte_dryrun_check(sql_a)
-    cte_session._cte_dryrun_check(sql_a)  # cached — no extra increment
-    cte_session._cte_dryrun_check(sql_b)
-
-    assert cte_session._cte_dryrun_fallback_count == 2
+def test_record_fallback_increments_counter(cte_session):
+    cte_session._record_cte_dryrun_fallback()
+    assert cte_session._cte_dryrun_fallback_count == 1
 
 
-# ---------------------------------------------------------------------------
-# Auto-disable
-# ---------------------------------------------------------------------------
-
-
-def test_dryrun_auto_disable_triggered_at_threshold(cte_session):
-    cte_session._conn._cursor._describe_internal = MagicMock(
-        side_effect=ProgrammingError("err")
-    )
-
-    for i in range(_CTE_DRYRUN_AUTO_DISABLE_THRESHOLD):
-        cte_session._cte_dryrun_check(f"WITH cte AS (SELECT {i}) SELECT * FROM cte")
-
-    assert cte_session._cte_optimization_enabled is False
-    assert cte_session._cte_dryrun_fallback_count == _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD
-
-
-def test_dryrun_auto_disable_not_triggered_below_threshold(cte_session):
-    cte_session._conn._cursor._describe_internal = MagicMock(
-        side_effect=ProgrammingError("err")
-    )
-
-    for i in range(_CTE_DRYRUN_AUTO_DISABLE_THRESHOLD - 1):
-        cte_session._cte_dryrun_check(f"WITH cte AS (SELECT {i}) SELECT * FROM cte")
-
-    assert cte_session._cte_optimization_enabled is True
-
-
-# ---------------------------------------------------------------------------
-# Telemetry
-# ---------------------------------------------------------------------------
-
-
-def test_dryrun_fallback_telemetry_sent_once_per_unique_sql(cte_session):
-    cte_session._conn._cursor._describe_internal = MagicMock(
-        side_effect=ProgrammingError("err")
-    )
-
-    cte_session._cte_dryrun_check(_WITH_SQL)
-    cte_session._cte_dryrun_check(_WITH_SQL)  # cached — no second telemetry call
-
+def test_record_fallback_sends_telemetry(cte_session):
+    cte_session._record_cte_dryrun_fallback()
     cte_session._conn._telemetry_client.send_cte_dryrun_fallback_telemetry.assert_called_once_with(
         session_id=cte_session._session_id,
         error_type="ProgrammingError",
@@ -170,23 +137,23 @@ def test_dryrun_fallback_telemetry_sent_once_per_unique_sql(cte_session):
     )
 
 
-def test_dryrun_auto_disable_telemetry_sent_once_at_threshold(cte_session):
-    cte_session._conn._cursor._describe_internal = MagicMock(
-        side_effect=ProgrammingError("err")
-    )
+def test_record_fallback_auto_disables_at_threshold(cte_session):
+    for _ in range(_CTE_DRYRUN_AUTO_DISABLE_THRESHOLD):
+        cte_session._record_cte_dryrun_fallback()
 
-    for i in range(_CTE_DRYRUN_AUTO_DISABLE_THRESHOLD):
-        cte_session._cte_dryrun_check(f"WITH cte AS (SELECT {i}) SELECT * FROM cte")
-
+    assert cte_session._cte_optimization_enabled is False
+    assert cte_session._cte_dryrun_fallback_count == _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD
     cte_session._conn._telemetry_client.send_cte_dryrun_auto_disabled_telemetry.assert_called_once_with(
         session_id=cte_session._session_id,
         fallback_count=_CTE_DRYRUN_AUTO_DISABLE_THRESHOLD,
     )
-    # One fallback telemetry event per unique failing SQL.
-    assert (
-        cte_session._conn._telemetry_client.send_cte_dryrun_fallback_telemetry.call_count
-        == _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD
-    )
+
+
+def test_record_fallback_not_auto_disabled_below_threshold(cte_session):
+    for _ in range(_CTE_DRYRUN_AUTO_DISABLE_THRESHOLD - 1):
+        cte_session._record_cte_dryrun_fallback()
+
+    assert cte_session._cte_optimization_enabled is True
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +168,6 @@ def _make_cte_plan(*, cte_enabled: bool, lqb_enabled: bool = False):
     plan.session._cte_optimization_enabled = cte_enabled
     plan.session.large_query_breakdown_enabled = lqb_enabled
     plan.session._query_compilation_stage_enabled = True
-    # Simulate a non-mock connection so MockServerConnection check passes.
     plan.session._conn.__class__ = object
     return plan
 

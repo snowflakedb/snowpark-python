@@ -677,13 +677,13 @@ class Session:
         self._cte_dryrun_enabled: bool = _PYTHON_SNOWPARK_USE_CTE_DRYRUN
         self._cte_dryrun_fallback_count: int = 0
 
-        # Per-session lru_cache-backed dry-run checker.
-        # The function performs a describe-only (compile-only) request for the
-        # given CTE SQL.  lru_cache ensures the round-trip is only issued once
-        # per unique SQL string — subsequent calls return the cached bool.
-        # Counter increment, telemetry, and auto-disable are side-effects that
-        # fire only on a cache miss (first time a given SQL is seen to fail),
-        # because lru_cache does not re-execute the function body on a hit.
+        # Per-session lru_cache-backed dry-run checker.  Keyed on the raw CTE
+        # SQL string.  Only SQL starting with "WITH " is ever passed in (gated
+        # by server_connection.py), so the cache only holds CTE queries.
+        # This function only checks whether the CTE SQL compiles; counter
+        # increment, telemetry, and auto-disable are handled by
+        # _record_cte_dryrun_fallback() after the non-CTE execution succeeds,
+        # confirming that CTE optimisation was truly the cause.
         _self = self  # explicit closure reference
 
         @functools.lru_cache(maxsize=_CTE_DRYRUN_CACHE_MAX_SIZE)
@@ -691,22 +691,11 @@ class Session:
             try:
                 _self._conn._cursor._describe_internal(sql)  # pyright: ignore
                 return True
-            except ProgrammingError:
-                _self._cte_dryrun_fallback_count += 1
-                _self._conn._telemetry_client.send_cte_dryrun_fallback_telemetry(
-                    session_id=_self._session_id,
-                    error_type="ProgrammingError",
-                    fallback_count=_self._cte_dryrun_fallback_count,
+            except Exception as ex:
+                _logger.debug(
+                    "CTE dry-run failed (%s), falling back to non-CTE SQL.",
+                    type(ex).__name__,
                 )
-                if (
-                    _self._cte_dryrun_fallback_count
-                    >= _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD
-                ):
-                    _self._cte_optimization_enabled = False
-                    _self._conn._telemetry_client.send_cte_dryrun_auto_disabled_telemetry(
-                        session_id=_self._session_id,
-                        fallback_count=_self._cte_dryrun_fallback_count,
-                    )
                 return False
 
         self._cte_dryrun_check = _cte_dryrun_check
@@ -1076,6 +1065,34 @@ class Session:
         The generated SQLs from ``DataFrame`` transformations would have duplicate subquery as CTEs if the CTE optimization is enabled.
         """
         return self._cte_optimization_enabled
+
+    def _record_cte_dryrun_fallback(self) -> None:
+        """Record a confirmed CTE dry-run fallback.
+
+        Called by server_connection after the non-CTE execution succeeds,
+        proving that the CTE rewrite (not the query itself) caused the
+        dry-run failure.
+        """
+        self._cte_dryrun_fallback_count += 1
+        _logger.debug(
+            "CTE dry-run fallback confirmed (fallback_count=%d).",
+            self._cte_dryrun_fallback_count,
+        )
+        self._conn._telemetry_client.send_cte_dryrun_fallback_telemetry(
+            session_id=self._session_id,
+            error_type="ProgrammingError",
+            fallback_count=self._cte_dryrun_fallback_count,
+        )
+        if self._cte_dryrun_fallback_count >= _CTE_DRYRUN_AUTO_DISABLE_THRESHOLD:
+            self._cte_optimization_enabled = False
+            _logger.debug(
+                "CTE dry-run auto-disabled after %d fallbacks.",
+                self._cte_dryrun_fallback_count,
+            )
+            self._conn._telemetry_client.send_cte_dryrun_auto_disabled_telemetry(
+                session_id=self._session_id,
+                fallback_count=self._cte_dryrun_fallback_count,
+            )
 
     @property
     def eliminate_numeric_sql_value_cast_enabled(self) -> bool:
