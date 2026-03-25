@@ -8,6 +8,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug where Iceberg integration tests failed because get_ddl expectations omitted ICEBERG_VERSION = 2.
+
 #### Improvements
 
 - Restored the following query improvements that were reverted in 1.47.0 due to bugs:

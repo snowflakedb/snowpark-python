@@ -299,7 +299,7 @@ def test_iceberg_partition_by(session, local_testing_mode):
             ddl[0][0] == f"create or replace ICEBERG TABLE {table_name_1} (\n\t"
             f"A STRING,\n\tB LONG\n)\n "
             f"PARTITION BY (B)\n "
-            f"EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE';"
+            f"EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n ICEBERG_VERSION = 2\n CATALOG = 'SNOWFLAKE';"
         )
 
     finally:
