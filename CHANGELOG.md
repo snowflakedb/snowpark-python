@@ -8,6 +8,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug where `collect()` raised `KeyError` after `save_as_table(column_order="name")` when the source DataFrame omitted columns of `VariantType`, `MapType`, or `ArrayType` present in the target table schema in local testing.
+
 #### Improvements
 
 - Restored the following query improvements that were reverted in 1.47.0 due to bugs:
