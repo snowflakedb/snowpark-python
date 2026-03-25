@@ -23,6 +23,7 @@ from snowflake.snowpark.functions import (
     current_date,
     current_time,
     current_timestamp,
+    dense_rank,
     desc,
     get,
     is_null,
@@ -510,6 +511,133 @@ def test_rank(session):
             Row("B", 3, 3, 3),
             Row("B", 3, 1, 4),
             Row("B", 4, 5, 5),
+        ],
+    )
+
+
+def test_dense_rank(session):
+    df = session.create_dataframe(
+        [
+            ("A", 1),
+            ("A", 1),
+            ("A", 2),
+            ("A", 3),
+            ("B", 2),
+            ("B", 3),
+        ],
+        ["cat", "val"],
+    )
+    window_spec = Window.partition_by(col("cat")).order_by(col("val").asc())
+    result = df.with_column("dense_rank", dense_rank().over(window_spec))
+    Utils.check_answer(
+        result,
+        [
+            Row("A", 1, 1),
+            Row("A", 1, 1),
+            Row("A", 2, 2),
+            Row("A", 3, 3),
+            Row("B", 2, 1),
+            Row("B", 3, 2),
+        ],
+    )
+
+
+def test_dense_rank_null_partition(session):
+    """dense_rank() should handle NULL partition values (SNOW-3244422)."""
+    df = session.create_dataframe(
+        [
+            ("A", 1),
+            ("A", 2),
+            (None, 3),
+            (None, 1),
+            ("B", 5),
+        ],
+        ["cat", "val"],
+    )
+    window_spec = Window.partition_by(col("cat")).order_by(col("val").asc())
+    result = df.with_column("dense_rank", dense_rank().over(window_spec))
+    Utils.check_answer(
+        result,
+        [
+            Row("A", 1, 1),
+            Row("A", 2, 2),
+            Row("B", 5, 1),
+            Row(None, 1, 1),
+            Row(None, 3, 2),
+        ],
+    )
+
+
+def test_rank_null_partition(session):
+    """rank() should handle NULL partition values."""
+    df = session.create_dataframe(
+        [
+            ("A", 1),
+            ("A", 1),
+            (None, 2),
+            (None, 3),
+            (None, 3),
+        ],
+        ["cat", "val"],
+    )
+    window_spec = Window.partition_by(col("cat")).order_by(col("val").asc())
+    result = df.with_column("rank", rank().over(window_spec))
+    Utils.check_answer(
+        result,
+        [
+            Row("A", 1, 1),
+            Row("A", 1, 1),
+            Row(None, 2, 1),
+            Row(None, 3, 2),
+            Row(None, 3, 2),
+        ],
+    )
+
+
+def test_row_number_null_partition(session):
+    """row_number() should handle NULL partition values."""
+    df = session.create_dataframe(
+        [
+            ("A", 1),
+            ("A", 2),
+            (None, 3),
+            (None, 1),
+        ],
+        ["cat", "val"],
+    )
+    window_spec = Window.partition_by(col("cat")).order_by(col("val").asc())
+    result = df.with_column("row_num", row_number().over(window_spec))
+    Utils.check_answer(
+        result,
+        [
+            Row("A", 1, 1),
+            Row("A", 2, 2),
+            Row(None, 1, 1),
+            Row(None, 3, 2),
+        ],
+    )
+
+
+def test_window_agg_null_partition(session):
+    """Aggregate window functions should handle NULL partition values."""
+    df = session.create_dataframe(
+        [
+            ("A", 1),
+            ("A", 3),
+            (None, 2),
+            (None, 4),
+        ],
+        ["cat", "val"],
+    )
+    window_spec = Window.partition_by(col("cat"))
+    result = df.with_column("total", sum("val").over(window_spec))
+    Utils.check_answer(
+        result,
+        [
+            Row("A", 1, 4),
+            Row("A", 3, 4),
+            Row(None, 2, 6),
+            Row(None, 4, 6),
         ],
     )
 
