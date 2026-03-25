@@ -642,10 +642,10 @@ class DataFrameReader:
 
     @publicapi
     def schema(self, schema: StructType, _emit_ast: bool = True) -> "DataFrameReader":
-        """Define the schema for CSV or XML files that you want to read.
+        """Define the schema for CSV, JSON, Parquet, or XML files that you want to read.
 
         Args:
-            schema: Schema configuration for the CSV or XML file to be read.
+            schema: Schema configuration for the file to be read.
 
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
@@ -1596,7 +1596,7 @@ class DataFrameReader:
                     raise_error=NotImplementedError,
                 )
 
-        if self._user_schema and format.lower() not in ["json", "xml"]:
+        if self._user_schema and format.lower() not in ["json", "xml", "parquet"]:
             raise ValueError(f"Read {format} does not support user schema")
         if (
             self._user_schema
