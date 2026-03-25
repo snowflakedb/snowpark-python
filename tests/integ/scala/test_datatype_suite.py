@@ -560,7 +560,7 @@ def test_structured_dtypes_iceberg(
         assert save_ddl[0][0] == (
             f"create or replace ICEBERG TABLE {table_name.upper()} (\n\t"
             "MAP MAP(STRING, LONG),\n\tOBJ OBJECT(A STRING, b DOUBLE),\n\tARR ARRAY(DOUBLE)\n)\n "
-            "EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n "
+            "EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n ICEBERG_VERSION = 2\n CATALOG = 'SNOWFLAKE'\n "
             "BASE_LOCATION = 'python_connector_merge_gate/';"
         )
 
@@ -588,7 +588,7 @@ def test_structured_dtypes_iceberg(
             f"create or replace dynamic iceberg table {dynamic_table_name}(\n\tMAP,\n\tOBJ,\n\tARR\n)"
             " target_lag = '16 hours, 40 minutes' refresh_mode = AUTO initialize = ON_CREATE "
             f"warehouse = {warehouse} external_volume = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'  "
-            "catalog = 'SNOWFLAKE'  base_location = 'python_connector_merge_gate/' \n as  "
+            "catalog = 'SNOWFLAKE' ICEBERG_VERSION = 2 base_location = 'python_connector_merge_gate/' \n as  "
             f"SELECT  * \n FROM (\n SELECT  *  FROM {formatted_table_name}\n);"
         )
 
