@@ -769,10 +769,6 @@ class ServerConnection:
             except Exception:
                 raise cte_error
             else:
-                with session._lock:
-                    session._cte_error_count += 1
-                    current_count = session._cte_error_count
-
                 cte_query_id = getattr(cte_error, "sfqid", None)
                 retry_query_id = (
                     result.get("sfqid") if isinstance(result, dict) else None
@@ -787,24 +783,26 @@ class ServerConnection:
                     retry_query_id=retry_query_id,
                 )
 
-                if (
-                    context._cte_error_threshold > 0
-                    and current_count >= context._cte_error_threshold
-                ):
-                    logger.warning(
-                        "CTE optimization has caused %d execution failures "
-                        "(threshold=%d). Auto-disabling CTE optimization for "
-                        "the remainder of this session to avoid further "
-                        "performance impact and pipeline failures.",
-                        current_count,
-                        context._cte_error_threshold,
-                    )
+                if context._cte_error_threshold > 0:
                     with session._lock:
-                        session._cte_optimization_enabled = False
-                    self._telemetry_client.send_cte_optimization_auto_disabled_telemetry(
-                        session_id=self.get_session_id(),
-                        cte_error_count=current_count,
-                    )
+                        session._cte_error_count += 1
+                        current_count = session._cte_error_count
+
+                    if current_count >= context._cte_error_threshold:
+                        logger.warning(
+                            "CTE optimization has caused %d execution failures "
+                            "(threshold=%d). Auto-disabling CTE optimization for "
+                            "the remainder of this session to avoid further "
+                            "performance impact.",
+                            current_count,
+                            context._cte_error_threshold,
+                        )
+                        with session._lock:
+                            session._cte_optimization_enabled = False
+                        self._telemetry_client.send_cte_optimization_auto_disabled_telemetry(
+                            session_id=self.get_session_id(),
+                            cte_error_count=current_count,
+                        )
 
         if result is None:
             raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
