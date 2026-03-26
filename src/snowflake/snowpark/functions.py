@@ -3715,8 +3715,9 @@ def collation(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 def _rewrite_concat_arg_if_double_quote_string_literal(
     c: Column, *, _emit_ast: bool
 ) -> Column:
-    # SNOW-3259059: Some Snowflake releases (10.7.1 -> 10.9.2 are confimed in the JIRA) dropped CONCAT's leading lit('"') through EXCEPT /
-    # chained set-op plans; CHR(34) is the same character in SQL without that literal shape.
+    # SNOW-3259059: Some Snowflake releases (10.7.1–10.9.2 per JIRA) dropped CONCAT's leading
+    # lit('"') through EXCEPT / chained set-op plans. CHR(34) is the same VARCHAR character in SQL
+    # without that specific single-character literal form.
     expr = c._expression
     if (
         isinstance(expr, Literal)
@@ -3741,10 +3742,11 @@ def concat(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
         --------------------------
         <BLANKLINE>
     """
-    columns = [_to_col_if_str(c, "concat") for c in cols]
     columns = [
-        _rewrite_concat_arg_if_double_quote_string_literal(c, _emit_ast=_emit_ast)
-        for c in columns
+        _rewrite_concat_arg_if_double_quote_string_literal(
+            _to_col_if_str(c, "concat"), _emit_ast=_emit_ast
+        )
+        for c in cols
     ]
     return _call_function("concat", *columns, _emit_ast=_emit_ast)
 

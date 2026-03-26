@@ -378,6 +378,10 @@ def test_concat(session, col_a, col_b, col_c):
     assert res[0][0] == "123"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local testing replaces plan SQL with MOCK_TEST_FAKE_QUERY(); CHR(34) assertion needs real SQL.",
+)
 def test_concat_rewrites_lit_double_quote_to_chr_sql(session):
     df = session.create_dataframe([["fn"]], schema=["a"])
     out = df.select(concat(lit('"'), col("a")).alias("q"))
@@ -388,6 +392,10 @@ def test_concat_rewrites_lit_double_quote_to_chr_sql(session):
     assert len(rows) == 1 and rows[0][0] == '"fn'
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local testing replaces plan SQL with MOCK_TEST_FAKE_QUERY(); literal SQL assertions need real SQL.",
+)
 def test_concat_preserves_other_string_literals_sql(session):
     df = session.create_dataframe([["x"]], schema=["a"])
     out = df.select(concat(lit("##"), col("a")).alias("q"))
