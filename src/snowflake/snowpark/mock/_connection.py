@@ -186,6 +186,7 @@ class MockServerConnection:
                                     table.sf_types[missing_col] = target_table[
                                         missing_col
                                     ].sf_type
+                                    table._null_rows_idxs_map[missing_col] = []
                                 else:
                                     invalid_non_nullable_cols.append(missing_col)
                             if invalid_non_nullable_cols:
@@ -666,7 +667,9 @@ class MockServerConnection:
                         else:
                             # snowflake returns Python None instead of the str 'null' for DataType data
                             res.loc[idx, col] = (
-                                "null" if idx in res._null_rows_idxs_map[col] else None
+                                "null"
+                                if idx in res._null_rows_idxs_map.get(col, [])
+                                else None
                             )
 
             # when setting output rows, snowpark python running against snowflake don't escape double quotes
