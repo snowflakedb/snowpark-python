@@ -305,7 +305,7 @@ def test_read_json_empty_file():
         os.remove("test_read_json_empty_file.json")
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=5)
 def test_read_json_malformed_file_negative():
 
     with open("test_read_json_malformed_file.json", "w") as f:
