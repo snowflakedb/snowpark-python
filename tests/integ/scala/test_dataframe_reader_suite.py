@@ -375,6 +375,25 @@ def test_read_csv(session, mode):
     assert "is out of range" in str(ex_info.value)
 
 
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_csv_with_user_schema_try_cast(session, mode):
+    reader = get_reader(session, mode)
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    try_cast_schema = StructType(
+        [
+            StructField("a", IntegerType()),
+            StructField("b", IntegerType()),
+            StructField("c", DoubleType()),
+        ]
+    )
+    df_try_cast = (
+        reader.schema(try_cast_schema).option("TRY_CAST", True).csv(test_file_on_stage)
+    )
+    try_cast_res = df_try_cast.collect()
+    try_cast_res.sort(key=lambda x: x[0])
+    assert try_cast_res == [Row(1, None, 1.2), Row(2, None, 2.2)]
+
+
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1435112: csv infer schema option is not supported",
