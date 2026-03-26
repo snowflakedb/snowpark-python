@@ -790,10 +790,13 @@ class Analyzer:
                 expr.is_permissive,
             )
         else:
+            child_sql = self.analyze(
+                child, df_aliased_col_name_to_real_col_name, parse_local_name
+            )
+            if isinstance(child, UnresolvedAttribute) and child.is_sql_text:
+                child_sql = f"({child_sql})"
             return unary_expression(
-                self.analyze(
-                    child, df_aliased_col_name_to_real_col_name, parse_local_name
-                ),
+                child_sql,
                 expr.sql_operator,
                 expr.operator_first,
             )
@@ -822,6 +825,10 @@ class Analyzer:
             right_sql_expr = self.analyze(
                 right, df_aliased_col_name_to_real_col_name, parse_local_name
             )
+        if isinstance(left, UnresolvedAttribute) and left.is_sql_text:
+            left_sql_expr = f"({left_sql_expr})"
+        if isinstance(right, UnresolvedAttribute) and right.is_sql_text:
+            right_sql_expr = f"({right_sql_expr})"
         if isinstance(expr, BinaryArithmeticExpression):
             return binary_arithmetic_expression(
                 expr.sql_operator,
