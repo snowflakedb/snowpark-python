@@ -4,10 +4,12 @@
 
 import re
 import tracemalloc
+from contextlib import contextmanager
 from unittest import mock
 
 import pytest
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Window
 from snowflake.snowpark._internal.analyzer import analyzer
@@ -34,6 +36,7 @@ from snowflake.snowpark.types import (
     TimestampType,
 )
 import snowflake.snowpark.context as context
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
@@ -1352,3 +1355,222 @@ def test_dataframe_queries_with_cte_reuses_schema_cache(
             df_union = create_cte_dataframe()
             with SqlCounter(query_count=0, describe_count=expected_describe_count):
                 access_queries_and_schema(df_union)
+
+
+# ---------------------------------------------------------------------------
+# CTE retry integration tests
+# ---------------------------------------------------------------------------
+
+
+@contextmanager
+def _patch_run_query_fail_on_cte(
+    session,
+    error_msg="Simulated CTE error",
+    failed_sfqid="sim_cte_qid_001",
+    fail_all=False,
+):
+    """Wrap ``run_query`` so the first call whose SQL starts with ``WITH ``
+    raises ``ProgrammingError``.  All other calls (setup DDLs, retry queries)
+    pass through to the real implementation.
+
+    When *fail_all* is True every call raises, which simulates the case where
+    the retry also fails.
+    """
+    original_run_query = session._conn.run_query
+    cte_failed = [False]
+
+    def side_effect(sql, *args, **kwargs):
+        if fail_all:
+            err = ProgrammingError(error_msg)
+            err.sfqid = failed_sfqid
+            raise err
+        if (
+            not cte_failed[0]
+            and isinstance(sql, str)
+            and sql.strip().startswith("WITH ")
+        ):
+            cte_failed[0] = True
+            err = ProgrammingError(error_msg)
+            err.sfqid = failed_sfqid
+            raise err
+        return original_run_query(sql, *args, **kwargs)
+
+    with mock.patch.object(session._conn, "run_query", side_effect=side_effect):
+        yield
+
+
+def _build_cte_plan(session):
+    """Return a real plan whose last execution query uses CTE syntax."""
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df_cte = df.union_all(df)
+    plan = df_cte._plan
+    queries = plan.execution_queries[PlanQueryType.QUERIES]
+    assert queries[-1].sql.strip().startswith("WITH "), "Plan should produce CTE SQL"
+    return plan
+
+
+def _build_non_cte_plan(session):
+    """Return a real plan whose last execution query does NOT use CTE syntax."""
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    plan = df.select("a")._plan
+    queries = plan.execution_queries[PlanQueryType.QUERIES]
+    assert not queries[-1].sql.strip().startswith("WITH ")
+    return plan
+
+
+class TestCteRetryIntegration:
+    """Integration tests for the CTE retry logic in
+    ``ServerConnection.get_result_set``.  Each test uses a *real* Snowpark
+    session and real DataFrame operations to produce genuine CTE-optimized
+    plans.  Only ``run_query`` is mocked to simulate server-side failure on
+    the CTE-bearing query."""
+
+    @pytest.fixture(autouse=True)
+    def cte_retry_setup(self, session):
+        original_count = session._cte_error_count
+        original_cte_enabled = session._cte_optimization_enabled
+        session._cte_error_count = 0
+        session._cte_optimization_enabled = True
+        yield
+        session._cte_error_count = original_count
+        session._cte_optimization_enabled = original_cte_enabled
+
+    def test_retry_succeeds_increments_counter(self, session):
+        plan = _build_cte_plan(session)
+
+        with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+            with _patch_run_query_fail_on_cte(session):
+                session._conn.get_result_set(plan)
+
+        assert session._cte_error_count == 1
+        assert session._cte_optimization_enabled is True
+
+    def test_retry_fails_reraises_original_error(self, session):
+        plan = _build_cte_plan(session)
+
+        with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+            with _patch_run_query_fail_on_cte(session, fail_all=True):
+                with pytest.raises(SnowparkSQLException):
+                    session._conn.get_result_set(plan)
+
+        assert session._cte_error_count == 0
+
+    def test_no_retry_when_cte_disabled(self, session):
+        session._cte_optimization_enabled = False
+        plan = _build_non_cte_plan(session)
+
+        with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+            with mock.patch.object(
+                session._conn, "run_query", side_effect=ProgrammingError("fail")
+            ):
+                with pytest.raises(SnowparkSQLException):
+                    session._conn.get_result_set(plan)
+
+        assert session._cte_error_count == 0
+
+    def test_no_retry_when_not_compatible_mode(self, session):
+        plan = _build_cte_plan(session)
+
+        with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", False):
+            with _patch_run_query_fail_on_cte(session):
+                with pytest.raises(SnowparkSQLException):
+                    session._conn.get_result_set(plan)
+
+        assert session._cte_error_count == 0
+
+    def test_no_retry_on_async_queries(self, session):
+        plan = _build_cte_plan(session)
+
+        with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+            with _patch_run_query_fail_on_cte(session):
+                with pytest.raises(SnowparkSQLException):
+                    session._conn.get_result_set(plan, block=False)
+
+        assert session._cte_error_count == 0
+
+    def test_auto_disable_cte_at_threshold(self, session):
+        session._cte_error_count = 2
+        plan = _build_cte_plan(session)
+
+        with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+            with _patch_run_query_fail_on_cte(session):
+                with mock.patch.object(
+                    session._conn._telemetry_client,
+                    "send_cte_optimization_auto_disabled_telemetry",
+                ) as mock_disable_telemetry:
+                    session._conn.get_result_set(plan)
+
+        assert session._cte_error_count == 3
+        assert session._cte_optimization_enabled is False
+        mock_disable_telemetry.assert_called_once()
+
+    def test_counter_below_threshold_does_not_disable(self, session):
+        session._cte_error_count = 0
+        plan = _build_cte_plan(session)
+
+        with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+            with _patch_run_query_fail_on_cte(session):
+                with mock.patch.object(
+                    session._conn._telemetry_client,
+                    "send_cte_optimization_auto_disabled_telemetry",
+                ) as mock_disable_telemetry:
+                    session._conn.get_result_set(plan)
+
+        assert session._cte_error_count == 1
+        assert session._cte_optimization_enabled is True
+        mock_disable_telemetry.assert_not_called()
+
+    def test_retry_telemetry_contains_reproduction_data(self, session):
+        plan = _build_cte_plan(session)
+        plan.api_calls = [
+            {"name": "DataFrame.filter"},
+            {"name": "DataFrame.collect"},
+        ]
+
+        with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+            with _patch_run_query_fail_on_cte(
+                session,
+                error_msg="CTE error: invalid identifier",
+                failed_sfqid="cte_qid_abc",
+            ):
+                with mock.patch.object(
+                    session._conn._telemetry_client,
+                    "send_cte_execution_retry_telemetry",
+                ) as mock_retry_telemetry:
+                    session._conn.get_result_set(plan)
+
+        mock_retry_telemetry.assert_called_once()
+        call_kwargs = mock_retry_telemetry.call_args.kwargs
+        assert call_kwargs["api_calls"] == plan.api_calls
+        assert call_kwargs["cte_query_id"] == "cte_qid_abc"
+        assert call_kwargs["retry_query_id"] is not None
+        assert "CTE error" in call_kwargs["error_message"]
+        assert call_kwargs["plan_uuid"] == plan.uuid
+
+    def test_threshold_zero_disables_auto_disable(self, session):
+        session._cte_error_count = 100
+        plan = _build_cte_plan(session)
+
+        with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+            with mock.patch.object(context, "_cte_error_threshold", 0):
+                with _patch_run_query_fail_on_cte(session):
+                    with mock.patch.object(
+                        session._conn._telemetry_client,
+                        "send_cte_optimization_auto_disabled_telemetry",
+                    ) as mock_disable_telemetry:
+                        session._conn.get_result_set(plan)
+
+        assert session._cte_optimization_enabled is True
+        mock_disable_telemetry.assert_not_called()
+
+    def test_no_retry_when_query_has_no_cte_prefix(self, session):
+        plan = _build_non_cte_plan(session)
+
+        with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+            with mock.patch.object(
+                session._conn, "run_query", side_effect=ProgrammingError("fail")
+            ):
+                with pytest.raises(SnowparkSQLException):
+                    session._conn.get_result_set(plan)
+
+        assert session._cte_error_count == 0

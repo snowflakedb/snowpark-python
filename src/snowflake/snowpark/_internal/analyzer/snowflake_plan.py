@@ -524,6 +524,14 @@ class SnowflakePlan(LogicalPlan):
         compiler = PlanCompiler(self)
         return compiler.compile()
 
+    def get_execution_queries_without_cte(self) -> Dict["PlanQueryType", List["Query"]]:
+        """Compile execution queries with CTE optimization skipped.
+        Used for retry when CTE-optimized SQL fails at the server."""
+        from snowflake.snowpark._internal.compiler.plan_compiler import PlanCompiler
+
+        compiler = PlanCompiler(self)
+        return compiler.compile(skip_cte_optimization=True)
+
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", "SnowflakePlan"]]:
         """
