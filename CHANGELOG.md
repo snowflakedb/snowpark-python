@@ -10,6 +10,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug where chained `DataFrame.filter()` calls with raw SQL text containing `OR` produced incorrect results.
+
 #### Improvements
 
 - Restored the following query improvements that were reverted in 1.47.0 due to bugs:
