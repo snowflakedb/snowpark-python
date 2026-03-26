@@ -10,6 +10,8 @@
 
 #### Bug Fixes
 
+- Fixed a Snowflake platform compatibility issue (SNOW-3259059) where `concat(lit('"'), ...)` could lose the leading quote through some `EXCEPT` / chained set-operation plans by lowering that literal to `CHR(34)` in generated SQL.
+
 #### Improvements
 
 - Restored the following query improvements that were reverted in 1.47.0 due to bugs:

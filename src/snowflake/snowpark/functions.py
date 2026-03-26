@@ -3712,6 +3712,21 @@ def collation(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     return _call_function("collation", c, _emit_ast=_emit_ast)
 
 
+def _rewrite_concat_arg_if_double_quote_string_literal(
+    c: Column, *, _emit_ast: bool
+) -> Column:
+    # SNOW-3259059: Some Snowflake releases (10.7.1 -> 10.9.2 are confimed in the JIRA) dropped CONCAT's leading lit('"') through EXCEPT /
+    # chained set-op plans; CHR(34) is the same character in SQL without that literal shape.
+    expr = c._expression
+    if (
+        isinstance(expr, Literal)
+        and isinstance(expr.datatype, StringType)
+        and expr.value == '"'
+    ):
+        return _call_function("chr", lit(34, _emit_ast=_emit_ast), _emit_ast=_emit_ast)
+    return c
+
+
 @publicapi
 def concat(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Concatenates one or more strings, or concatenates one or more binary values. If any of the values is null, the result is also null.
@@ -3727,6 +3742,10 @@ def concat(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
         <BLANKLINE>
     """
     columns = [_to_col_if_str(c, "concat") for c in cols]
+    columns = [
+        _rewrite_concat_arg_if_double_quote_string_literal(c, _emit_ast=_emit_ast)
+        for c in columns
+    ]
     return _call_function("concat", *columns, _emit_ast=_emit_ast)
 
 

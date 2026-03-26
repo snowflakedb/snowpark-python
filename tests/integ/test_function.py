@@ -378,6 +378,24 @@ def test_concat(session, col_a, col_b, col_c):
     assert res[0][0] == "123"
 
 
+def test_concat_rewrites_lit_double_quote_to_chr_sql(session):
+    df = session.create_dataframe([["fn"]], schema=["a"])
+    out = df.select(concat(lit('"'), col("a")).alias("q"))
+    sql = out.queries["queries"][0].upper()
+    assert "CHR(34)" in sql
+    assert "CONCAT(" in sql
+    rows = out.collect()
+    assert len(rows) == 1 and rows[0][0] == '"fn'
+
+
+def test_concat_preserves_other_string_literals_sql(session):
+    df = session.create_dataframe([["x"]], schema=["a"])
+    out = df.select(concat(lit("##"), col("a")).alias("q"))
+    sql = out.queries["queries"][0]
+    assert "##" in sql
+    assert "CHR(34)" not in sql.upper()
+
+
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
