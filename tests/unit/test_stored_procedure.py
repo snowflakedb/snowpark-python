@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from collections import defaultdict
 import sys
 from unittest import mock
 
@@ -42,6 +43,7 @@ def test_stored_procedure_execute_as(execute_as):
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
     fake_session._analyzer = Analyzer(fake_session)
     fake_session._runtime_version_from_requirement = None
+    fake_session._artifact_repository_packages = defaultdict(dict)
     fake_session._packages = {}
 
     def return1(_):
@@ -90,6 +92,7 @@ def test_do_register_sp_negative(cleanup_registration_patch):
     )
     fake_session._run_query = mock.Mock(side_effect=ProgrammingError())
     fake_session.sproc = StoredProcedureRegistration(fake_session)
+    fake_session._artifact_repository_packages = defaultdict(dict)
     fake_session._packages = {}
     with pytest.raises(SnowparkSQLException) as ex_info:
         sproc(lambda: 1, session=fake_session, return_type=IntegerType(), packages=[])

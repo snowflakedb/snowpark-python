@@ -51,6 +51,7 @@ from snowflake.snowpark.types import (
     DateType,
     DayTimeInterval,
     DayTimeIntervalType,
+    DecFloatType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -105,6 +106,8 @@ if TYPE_CHECKING:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
         ResultMetadataV2 = ResultMetadata
+
+_MAX_ICEBERG_STRING_SIZE = 134217728
 
 
 def convert_metadata_to_sp_type(
@@ -188,7 +191,7 @@ def convert_metadata_to_sp_type(
         return convert_sf_to_sp_type(
             column_type_name,
             metadata.precision or 0,
-            metadata.scale or 0,
+            metadata.scale,
             metadata.internal_size or 0,
             max_string_size,
         )
@@ -197,7 +200,7 @@ def convert_metadata_to_sp_type(
 def convert_sf_to_sp_type(
     column_type_name: str,
     precision: int,
-    scale: int,
+    scale: Optional[int],
     internal_size: int,
     max_string_size: int,
 ) -> DataType:
@@ -291,6 +294,8 @@ def convert_sf_to_sp_type(
         return TimestampType(timezone=TimestampTimeZone.TZ)
     if column_type_name == "DATE":
         return DateType()
+    if column_type_name == "FIXED" and scale is None:
+        return DecFloatType()
     if column_type_name == "DECIMAL" or (
         (column_type_name == "FIXED" or column_type_name == "NUMBER") and scale != 0
     ):
@@ -315,7 +320,12 @@ def convert_sf_to_sp_type(
     )
 
 
-def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
+def convert_sp_to_sf_type(
+    datatype: DataType, nullable_override=None, is_iceberg: Optional[bool] = False
+) -> str:
+    if context._is_snowpark_connect_compatible_mode:
+        if isinstance(datatype, _IntegralType) and datatype._precision is not None:
+            return f"NUMBER({datatype._precision}, 0)"
     if isinstance(datatype, DecimalType):
         return f"NUMBER({datatype.precision}, {datatype.scale})"
     if isinstance(datatype, IntegerType):
@@ -330,9 +340,13 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
         return "FLOAT"
     if isinstance(datatype, DoubleType):
         return "DOUBLE"
+    if isinstance(datatype, DecFloatType):
+        return "DECFLOAT"
     # We regard NullType as String, which is required when creating
     # a dataframe from local data with all None values
     if isinstance(datatype, StringType):
+        if is_iceberg:
+            return f"STRING({_MAX_ICEBERG_STRING_SIZE})"
         if datatype.length:
             return f"STRING({datatype.length})"
         return "STRING"
@@ -842,6 +856,7 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
             BooleanType,
             FloatType,
             DoubleType,
+            DecFloatType,
             DateType,
             TimestampType,
             TimeType,
@@ -1043,6 +1058,54 @@ def retrieve_func_type_hints_from_source(
     return visitor.type_hints
 
 
+def retrieve_func_arg_names_from_source(
+    file_path: str,
+    func_name: str,
+    class_name: Optional[str] = None,
+    _source: Optional[str] = None,
+) -> Optional[List[str]]:
+    """
+    Retrieve argument names of a function from a source file, or a source string (test only).
+    Returns None if the function is not found.
+    """
+
+    class FuncNodeVisitor(ast.NodeVisitor):
+        arg_names: List[str] = []
+        func_exist = False
+
+        def visit_FunctionDef(self, node):
+            if node.name == func_name:
+                self.arg_names = [arg.arg for arg in node.args.args]
+                self.func_exist = True
+
+    if not _source:
+        with open(file_path) as f:
+            _source = f.read()
+
+    if class_name:
+
+        class ClassNodeVisitor(ast.NodeVisitor):
+            class_node = None
+
+            def visit_ClassDef(self, node):
+                if node.name == class_name:
+                    self.class_node = node
+
+        class_visitor = ClassNodeVisitor()
+        class_visitor.visit(ast.parse(_source))
+        if class_visitor.class_node is None:
+            return None
+        to_visit_node_for_func = class_visitor.class_node
+    else:
+        to_visit_node_for_func = ast.parse(_source)
+
+    visitor = FuncNodeVisitor()
+    visitor.visit(to_visit_node_for_func)
+    if not visitor.func_exist:
+        return None
+    return visitor.arg_names
+
+
 # Get a mapping from type string to type object, for cast() function
 def get_data_type_string_object_mappings(
     to_fill_dict: Dict[str, Type[DataType]],
@@ -1187,15 +1250,21 @@ def find_top_level_colon(field_def: str) -> int:
     """
     Returns the index of the first top-level colon in 'field_def',
     or -1 if there is no top-level colon. A colon is considered top-level
-    if it is not enclosed in <...> or (...).
+    if it is not enclosed in <...>, (...), or "...".
 
     Example:
-      'a struct<i: integer>' => returns -1 (colon is nested).
+      'a struct<i: integer>'  => returns -1 (colon is nested).
       'x: struct<i: integer>' => returns index of the colon after 'x'.
+      '"px:name": string'     => returns index of the colon after the closing '"'.
     """
     bracket_depth = 0
+    in_quotes = False
     for i, ch in enumerate(field_def):
-        if ch in ("<", "("):
+        if ch == '"':
+            in_quotes = not in_quotes
+        elif in_quotes:
+            continue
+        elif ch in ("<", "("):
             bracket_depth += 1
         elif ch in (">", ")"):
             bracket_depth -= 1
@@ -1411,18 +1480,25 @@ def format_year_month_interval_for_display(
     # Default initialization
     years = "0"
     months = "0"
-    is_negative = False
+    is_negative = cell.startswith("-")
+    # Remove the sign prefix and parse the remaining part
+    remaining = cell[1:]  # Remove the "+" or "-" prefix: "1-6"
 
     if has_internal_dash:
         # Format like "+1-03" or "-1-03" or "-1-6" (compound year-month)
-        is_negative = cell.startswith("-")
-
-        # Remove the sign prefix and parse the remaining "year-month" part
-        remaining = cell[1:]  # Remove the "+" or "-" prefix: "1-6"
         if "-" in remaining:
             parts = remaining.split("-", 1)  # Split only on first dash: ["1", "6"]
             years = str(int(parts[0]))
             months = str(int(parts[1]))
+    else:
+        # Format like "+2" or "-3"
+        if (
+            start_field == YearMonthIntervalType.YEAR
+            and end_field == YearMonthIntervalType.YEAR
+        ):
+            years = str(int(remaining))
+        else:
+            months = str(int(remaining))
 
     # Format based on start/end field
     sign_prefix = "-" if is_negative else ""
@@ -1445,9 +1521,7 @@ def format_year_month_interval_for_display(
     ):
         # Months only: MONTH - calculate total months
         total_months = int(years) * 12 + int(months)
-        if is_negative:
-            total_months = -total_months
-        return f"INTERVAL '{total_months}' MONTH"
+        return f"INTERVAL '{sign_prefix}{total_months}' MONTH"
 
 
 def format_day_time_interval_for_display(

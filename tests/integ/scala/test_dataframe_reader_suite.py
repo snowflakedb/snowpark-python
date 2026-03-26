@@ -1407,10 +1407,6 @@ def test_read_parquet_with_no_schema(session, mode):
     res = df1.where(col('"num"') > 1).collect()
     assert res == [Row(str="str2", num=2)]
 
-    # assert user cannot input a schema to read json
-    with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).parquet(path)
-
     # user can input customized formatTypeOptions
     df2 = get_reader(session, mode).option("COMPRESSION", "NONE").parquet(path)
     res = df2.collect()
@@ -1418,6 +1414,68 @@ def test_read_parquet_with_no_schema(session, mode):
         Row(str="str1", num=1),
         Row(str="str2", num=2),
     ]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: parquet not supported",
+)
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_parquet_user_input_schema(session, mode):
+    test_file = f"@{tmp_stage_name1}/{test_file_parquet}"
+
+    # Read with matching schema
+    schema = StructType(
+        [
+            StructField("str", StringType(), True),
+            StructField("num", LongType(), True),
+        ]
+    )
+    df = get_reader(session, mode).schema(schema).parquet(test_file)
+    Utils.check_answer(df, [Row(str="str1", num=1), Row(str="str2", num=2)])
+
+    # Schema with a column not present in the file (should return None)
+    schema = StructType(
+        [
+            StructField("str", StringType(), True),
+            StructField("not_included_column", StringType(), True),
+        ]
+    )
+    df = get_reader(session, mode).schema(schema).parquet(test_file)
+    Utils.check_answer(
+        df,
+        [
+            Row(str="str1", not_included_column=None),
+            Row(str="str2", not_included_column=None),
+        ],
+    )
+
+    # Schema with an extra column beyond what the file has
+    schema = StructType(
+        [
+            StructField("str", StringType(), True),
+            StructField("num", LongType(), True),
+            StructField("extra_column", StringType(), True),
+        ]
+    )
+    df = get_reader(session, mode).schema(schema).parquet(test_file)
+    Utils.check_answer(
+        df,
+        [
+            Row(str="str1", num=1, extra_column=None),
+            Row(str="str2", num=2, extra_column=None),
+        ],
+    )
+
+    # Schema with wrong datatype (should fail with cast error)
+    schema = StructType(
+        [
+            StructField("str", IntegerType(), True),
+            StructField("num", LongType(), True),
+        ]
+    )
+    with pytest.raises(SnowparkSQLException, match="Failed to cast variant value"):
+        get_reader(session, mode).schema(schema).parquet(test_file).collect()
 
 
 @pytest.mark.skipif(
@@ -1625,10 +1683,6 @@ def test_read_xml_with_no_schema(session, mode, resources_path):
     # query_test
     res = df1.where(sql_expr("xmlget($1, 'num', 0):\"$\"") > 1).collect()
     assert res == [Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>")]
-
-    # assert user cannot input a schema to read json
-    with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).xml(path)
 
     # assert local directory is invalid
     with pytest.raises(
@@ -2436,6 +2490,44 @@ def test_use_relaxed_types(session):
             os.remove(short_path)
         if os.path.exists(long_path):
             os.remove(long_path)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="relaxed_types not supported by local testing mode",
+)
+def test_use_relaxed_types_json(session):
+    # Covers SNOW-3198432, where the inferred type was not properly used with relaxed types.
+    nrows = 20
+    ndjson_blob = "\n".join([json.dumps({"x": i}) for i in range(nrows)])
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".ndjson") as file:
+        filename = file.name
+        file.write(ndjson_blob)
+        file.flush()
+        stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+        try:
+            Utils.create_stage(session, stage_name, is_temporary=True)
+            session.file.put(
+                filename, f"@{stage_name}", auto_compress=False, overwrite=True
+            )
+            infer_schema_options = {
+                "MAX_RECORDS_PER_FILE": 10,
+                "USE_RELAXED_TYPES": True,
+            }
+            df = (
+                session.read.option("INFER_SCHEMA", True)
+                .option("INFER_SCHEMA_OPTIONS", infer_schema_options)
+                .json(f"@{stage_name}/{os.path.basename(filename)}")
+            )
+            Utils.check_answer(df, [Row(i) for i in range(nrows)])
+            assert df.schema == StructType(
+                [StructField('"x"', DoubleType(), nullable=True)]
+            )
+        finally:
+            Utils.drop_stage(session, stage_name)
+    if os.path.exists(filename):
+        os.remove(filename)
 
 
 @pytest.mark.skipif(

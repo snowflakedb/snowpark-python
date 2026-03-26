@@ -47,6 +47,16 @@ _enable_trace_sql_errors_to_dataframe = False
 # Global flag for fix 2360274. When enabled schema queries will use NULL as a place holder for any values inside structured objects
 _enable_fix_2360274 = False
 
+# internal only dictionary store the default precision of integral types, if the type does not appear in the
+# dictionary, the default precision is None.
+# example: _integral_type_default_precision = {IntegerType: 9}, IntegerType default _precision is 9 now
+_integral_type_default_precision = {}
+
+# The fully qualified name of the Anaconda shared repository (conda channel).
+_ANACONDA_SHARED_REPOSITORY = "snowflake.snowpark.anaconda_shared_repository"
+# In case of failures or the current default artifact repository is unset, we fallback to this
+_DEFAULT_ARTIFACT_REPOSITORY = _ANACONDA_SHARED_REPOSITORY
+
 
 def configure_development_features(
     *,
@@ -76,21 +86,19 @@ def configure_development_features(
     _debug_eager_schema_validation = enable_eager_schema_validation
 
     if enable_dataframe_trace_on_error or enable_trace_sql_errors_to_dataframe:
-        try:
-            session = get_active_session()
-            if session is None:
-                _logger.warning(
-                    "No active session found. Please create a session first and call "
-                    "`configure_development_features()` after creating the session.",
-                )
-                return
-            _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
-            _enable_trace_sql_errors_to_dataframe = enable_trace_sql_errors_to_dataframe
-            session.ast_enabled = True
-        except Exception as e:
-            _logger.warning(
-                f"Cannot enable AST collection in the session due to {str(e)}. Some development features may not work as expected.",
+        _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
+        _enable_trace_sql_errors_to_dataframe = enable_trace_sql_errors_to_dataframe
+        with snowflake.snowpark.session._session_management_lock:
+            sessions = snowflake.snowpark.session._get_active_sessions(
+                require_at_least_one=False
             )
+            try:
+                for active_session in sessions:
+                    active_session._set_ast_enabled_internal(True)
+            except Exception as e:  # pragma: no cover
+                _logger.warning(
+                    f"Cannot enable AST collection in the session due to {str(e)}. Some development features may not work as expected.",
+                )
     else:
         _enable_dataframe_trace_on_error = False
         _enable_trace_sql_errors_to_dataframe = False

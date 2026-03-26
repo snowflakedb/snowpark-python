@@ -16,6 +16,7 @@ from tests.integ.modin.series.test_apply_and_map import (
     create_func_with_return_type_hint,
 )
 from tests.integ.modin.utils import (
+    NEWER_CLASS_NAMES,
     assert_snowpark_pandas_equal_to_pandas,
     create_test_dfs,
     eval_snowpark_pandas_result,
@@ -58,7 +59,7 @@ def test_applymap_basic_with_type_hints(data, func, return_type, method):
     "data,func,return_type,expected_result",
     DATE_TIME_TIMESTAMP_DATA_FUNC_RETURN_TYPE_MAP,
 )
-@sql_count_checker(query_count=4, udf_count=1)
+@sql_count_checker(query_count=5, udf_count=2, strict=False)
 def test_applymap_date_time_timestamp(data, func, return_type, expected_result):
     func_with_type_hint = create_func_with_return_type_hint(func, return_type)
 
@@ -68,7 +69,11 @@ def test_applymap_date_time_timestamp(data, func, return_type, expected_result):
 
     snow_df = pd.DataFrame(frame_data)
     result = snow_df.applymap(func_with_type_hint)
-    assert_snowpark_pandas_equal_to_pandas(result, frame_expected_result)
+    try:
+        assert_snowpark_pandas_equal_to_pandas(result, frame_expected_result)
+    except AssertionError:
+        newer_expected_result = frame_expected_result.replace(NEWER_CLASS_NAMES)
+        assert_snowpark_pandas_equal_to_pandas(result, newer_expected_result)
 
 
 @pytest.mark.xfail(strict=True, raises=NotImplementedError)

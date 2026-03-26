@@ -454,6 +454,30 @@ def test_register_udf_from_file(session, resources_path):
     )
 
 
+def test_udf_register_from_file_strict_secure(session, resources_path):
+    test_files = TestFiles(resources_path)
+    df = session.create_dataframe([[6, 8], [10, None]]).to_df("a", "b")
+    # This registration call previously errored here because setting strict would accidentally
+    # set max_batch_size instead, causing it to attempt to create a vectorized UDF.
+    # See GH#4064.
+    mod5_udf = session.udf.register_from_file(
+        test_files.test_udf_py_file,
+        "mod5",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        strict=True,
+        secure=False,
+    )
+    assert isinstance(mod5_udf.func, tuple)
+    Utils.check_answer(
+        df.select(mod5_udf("a"), mod5_udf("b")).collect(),
+        [
+            Row(1, 3),
+            Row(0, None),
+        ],
+    )
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="Vectorized UDF is not supported in Local Testing",
@@ -1213,6 +1237,63 @@ def return_all_datatypes(
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql not supported in local testing",
+)
+def test_register_udf_with_preserve_parameter_names(session, resources_path):
+    pow_udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    pow_udf_name2 = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    mod5_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    pow_udf = udf(
+        lambda x, y: x**y,
+        name=pow_udf_name,
+        return_type=DoubleType(),
+        input_types=[IntegerType(), IntegerType()],
+        preserve_parameter_names=True,
+    )
+
+    test_files = TestFiles(resources_path)
+    df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
+
+    mod5_udf = session.udf.register_from_file(
+        test_files.test_udf_py_file,
+        "mod5",
+        name=mod5_name,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        preserve_parameter_names=True,
+    )
+
+    Utils.check_answer(
+        df.select(mod5_udf("a"), mod5_udf("b")).collect(),
+        [
+            Row(3, 4),
+            Row(0, 1),
+        ],
+    )
+    assert session.sql(f"select {mod5_name}(x=>2)").collect()[0][0] == 2
+
+    Utils.check_answer(
+        df.select(pow_udf(col("a"), "b"), "b"),
+        [
+            Row(81.0, 4),
+            Row(15625.0, 6),
+        ],
+    )
+    assert session.sql(f"select {pow_udf_name}(y=>3, x=>2)").collect()[0][0] == 8
+
+    # without preserve_parameter_names, it should use arg1 and arg2 as parameter names
+    udf(
+        lambda x, y: x**y,
+        name=pow_udf_name2,
+        return_type=DoubleType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+    assert session.sql(f"select {pow_udf_name2}(arg2=>3, arg1=>2)").collect()[0][0] == 8
+
+
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="Database objects are session scoped in Local Testing",
@@ -1890,20 +1971,36 @@ def test_basic_pandas_udf(session):
     Utils.check_answer(df.select(return1_pandas_udf()), [Row("1"), Row("1")])
     Utils.check_answer(df.select(add_series_pandas_udf("a", "b")), [Row(3), Row(7)])
     Utils.check_answer(df.select(add_one_df_pandas_udf("a", "b")), [Row(4), Row(8)])
-    Utils.check_answer(
-        df.select(get_type_str_series_udf("a")),
-        [
-            Row("<class 'pandas.core.series.Series'>"),
-            Row("<class 'pandas.core.series.Series'>"),
-        ],
-    )
-    Utils.check_answer(
-        df.select(get_type_str_df_udf("a")),
-        [
-            Row("<class 'pandas.core.frame.DataFrame'>"),
-            Row("<class 'pandas.core.frame.DataFrame'>"),
-        ],
-    )
+    try:
+        Utils.check_answer(
+            df.select(get_type_str_series_udf("a")),
+            [
+                Row("<class 'pandas.core.series.Series'>"),
+                Row("<class 'pandas.core.series.Series'>"),
+            ],
+        )
+        Utils.check_answer(
+            df.select(get_type_str_df_udf("a")),
+            [
+                Row("<class 'pandas.core.frame.DataFrame'>"),
+                Row("<class 'pandas.core.frame.DataFrame'>"),
+            ],
+        )
+    except AssertionError:
+        Utils.check_answer(
+            df.select(get_type_str_series_udf("a")),
+            [
+                Row("<class 'pandas.Series'>"),
+                Row("<class 'pandas.Series'>"),
+            ],
+        )
+        Utils.check_answer(
+            df.select(get_type_str_df_udf("a")),
+            [
+                Row("<class 'pandas.DataFrame'>"),
+                Row("<class 'pandas.DataFrame'>"),
+            ],
+        )
 
 
 @pytest.mark.skipif(
@@ -2019,20 +2116,29 @@ def test_pandas_udf_type_hints(session):
         (
             DateType,
             [[datetime.date(2021, 12, 20)]],
-            ("<class 'pandas._libs.tslibs.timestamps.Timestamp'>",),
+            (
+                "<class 'pandas._libs.tslibs.timestamps.Timestamp'>",
+                "<class 'pandas.Timestamp'>",
+            ),
             ("datetime64[s]", "datetime64[ns]", "datetime64[us]"),
         ),
         (ArrayType, [[[1]]], ("<class 'list'>",), ("object",)),
         (
             TimeType,
             [[datetime.time(1, 1, 1)]],
-            ("<class 'pandas._libs.tslibs.timedeltas.Timedelta'>",),
+            (
+                "<class 'pandas._libs.tslibs.timedeltas.Timedelta'>",
+                "<class 'pandas.Timedelta'>",
+            ),
             ("timedelta64[s]", "timedelta64[ns]", "timedelta64[us]"),
         ),
         (
             TimestampType,
             [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
-            ("<class 'pandas._libs.tslibs.timestamps.Timestamp'>",),
+            (
+                "<class 'pandas._libs.tslibs.timestamps.Timestamp'>",
+                "<class 'pandas.Timestamp'>",
+            ),
             ("datetime64[s]", "datetime64[ns]", "datetime64[us]"),
         ),
     ],
@@ -2863,6 +2969,43 @@ def test_register_artifact_repository(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",
 )
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+def test_register_artifact_repository_with_packages_includes_cloudpickle(session):
+    """Test that cloudpickle is available when using artifact_repository with packages."""
+
+    def test_cloudpickle() -> str:
+        import cloudpickle
+
+        # Test that cloudpickle is available and works
+        def test_func(x):
+            return x + 1
+
+        pickled = cloudpickle.dumps(test_func)
+        unpickled = cloudpickle.loads(pickled)
+        return str(unpickled(5))
+
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    try:
+        # Test function registration with packages list
+        udf(
+            func=test_cloudpickle,
+            name=temp_func_name,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            packages=["urllib3", "requests"],  # cloudpickle should be auto-added
+        )
+
+        # Test UDF call - should return "6" if cloudpickle works
+        df = session.create_dataframe([1]).to_df(["a"])
+        Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("6")])
+    finally:
+        session._run_query(f"drop function if exists {temp_func_name}()")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Stored proc env does not have permissions to look up warehouse details",
@@ -2952,3 +3095,69 @@ def test_udf_artifact_repository_from_file(session, tmpdir):
     )
     df = session.create_dataframe([1]).to_df(["a"])
     Utils.check_answer(df.select(ar_udf()), [Row("test")])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_use_default_artifact_repository(db_parameters):
+    with Session.builder.configs(db_parameters).create() as session:
+        temp_database = Utils.random_temp_database()
+        temp_schema = Utils.random_temp_schema()
+        session.sql(f"create database {temp_database}").collect()
+        session.sql(f"use database {temp_database}").collect()
+        session.sql(
+            "ALTER SESSION SET ENABLE_DEFAULT_PYTHON_ARTIFACT_REPOSITORY = true"
+        ).collect()
+        session.sql(
+            "ALTER database set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = snowflake.snowpark.anaconda_shared_repository"
+        ).collect()
+
+        def test_art() -> str:
+            import art  # art is not available in the conda channel, but is in pypi
+
+            _ = art.text2art("test")
+            return "art works!"
+
+        temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        # should not work in the database where the default is anaconda
+        with pytest.raises(
+            Exception,
+            match="Cannot add package art because it is not available in Snowflake",
+        ):
+            udf(
+                session=session,
+                func=test_art,
+                name=temp_func_name,
+                packages=["art", "cloudpickle"],
+            )
+
+        session.sql(f"create schema {temp_schema}").collect()
+        session.use_schema(temp_schema)
+        session.sql(
+            "ALTER schema set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = testdb_snowpark_python.testschema_snowpark_python.SNOWPARK_PYTHON_TEST_REPOSITORY"
+        ).collect()
+        session.add_packages("art", "cloudpickle")
+
+        try:
+            # Test function registration
+            udf(
+                session=session,
+                func=test_art,
+                name=temp_func_name,
+            )
+
+            # Test UDF call
+            df = session.create_dataframe([1]).to_df(["a"])
+            Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("art works!")])
+        finally:
+            session._run_query(f"drop function if exists {temp_func_name}(int)")
+
+        session.sql(f"drop database {temp_database}").collect()

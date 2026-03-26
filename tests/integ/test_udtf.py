@@ -8,10 +8,11 @@ import os
 import sys
 from textwrap import dedent
 from typing import Dict, List, Tuple
+from unittest import mock
 
 import pytest
 
-from snowflake.snowpark import Row, Table, context
+from snowflake.snowpark import Row, Table
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -359,6 +360,64 @@ def test_udtf_register_with_optional_args(
     )
 
 
+def test_register_udtf_with_preserve_parameter_names(session, resources_path):
+    udtf_echo_name = Utils.random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    generator_udtf_name = Utils.random_name_for_temp_object(
+        TempObjectType.TABLE_FUNCTION
+    )
+
+    @udtf(
+        output_schema=["a", "b"],
+        input_types=[IntegerType(), IntegerType()],
+        preserve_parameter_names=True,
+        name=udtf_echo_name,
+    )
+    class UDTFEcho:
+        def process(
+            self,
+            a: int,
+            b: int,
+        ) -> Iterable[Tuple[int, int]]:
+            return [(a, b)]
+
+    df = session.table_function(UDTFEcho(lit(3), lit(4)))
+    Utils.check_answer(
+        df,
+        [Row(3, 4)],
+    )
+    describe_udaf = session.sql(
+        f"describe function {udtf_echo_name}(int, int)"
+    ).collect()
+    assert describe_udaf[0][1] == "(A NUMBER, B NUMBER)"
+
+    test_files = TestFiles(resources_path)
+    my_udtf = session.udtf.register_from_file(
+        test_files.test_udtf_py_file,
+        "GeneratorUDTF",
+        name=generator_udtf_name,
+        input_types=[IntegerType()],
+        output_schema=StructType([StructField("number", IntegerType())]),
+        preserve_parameter_names=True,
+    )
+
+    df = session.table_function(
+        my_udtf(
+            lit(2),
+        )
+    )
+    Utils.check_answer(
+        df,
+        [
+            Row(0),
+            Row(1),
+        ],
+    )
+    describe_udaf = session.sql(
+        f"describe function {generator_udtf_name}(int)"
+    ).collect()
+    assert describe_udaf[0][1] == "(N NUMBER)"
+
+
 def test_strict_udtf(session):
     @udtf(output_schema=["num"], strict=True)
     class UDTFEcho:
@@ -557,100 +616,102 @@ def test_apply_in_pandas_snowpark_compatible(session):
         df._column_map.columns = [Column("id"), Column("v")]
         return df
 
-    context._is_snowpark_connect_compatible_mode = True
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
 
-    df = create_snowpark_compatible_dataframe()
+        df = create_snowpark_compatible_dataframe()
 
-    def normalize(pdf):
-        v = pdf.v
-        return pdf.assign(v=(v - v.mean()) / v.std())
+        def normalize(pdf):
+            v = pdf.v
+            return pdf.assign(v=(v - v.mean()) / v.std())
 
-    df = (
-        df.group_by("id")
-        .applyInPandas(
-            normalize,
-            output_schema=StructType(
-                [
-                    StructField("id", IntegerType()),
-                    StructField("v", DoubleType()),
-                ]
-            ),
+        df = (
+            df.group_by("id")
+            .applyInPandas(
+                normalize,
+                output_schema=StructType(
+                    [
+                        StructField("id", IntegerType()),
+                        StructField("v", DoubleType()),
+                    ]
+                ),
+            )
+            .orderBy(["id", "v"])
         )
-        .orderBy(["id", "v"])
-    )
 
-    Utils.check_answer(
-        df,
-        [
-            Row(ID=1, V=-0.7071067811865475),
-            Row(ID=1, V=0.7071067811865475),
-            Row(ID=2, V=-0.8320502943378437),
-            Row(ID=2, V=-0.2773500981126146),
-            Row(ID=2, V=1.1094003924504583),
-        ],
-    )
-
-    df = create_snowpark_compatible_dataframe()
-
-    def sum_func(key, pdf):
-        # key is a tuple of two numpy.int64s, which is the values
-        # of 'id' and 'ceil(df.v / 2)' for the current group
-        return pd.DataFrame([key + (pdf.v.sum(),)])
-
-    df = (
-        df.group_by("id", ceil(df.v / 2).alias("newcol"))
-        .applyInPandas(
-            sum_func,
-            output_schema=StructType(
-                [
-                    StructField("id", IntegerType()),
-                    StructField("c", IntegerType()),
-                    StructField("v", DoubleType()),
-                ]
-            ),
+        Utils.check_answer(
+            df,
+            [
+                Row(ID=1, V=-0.7071067811865475),
+                Row(ID=1, V=0.7071067811865475),
+                Row(ID=2, V=-0.8320502943378437),
+                Row(ID=2, V=-0.2773500981126146),
+                Row(ID=2, V=1.1094003924504583),
+            ],
         )
-        .orderBy(["id", "v"])
-    )
 
-    Utils.check_answer(
-        df,
-        [
-            Row(ID=1, C=1, V=3.0),
-            Row(ID=2, C=2, V=3.0),
-            Row(ID=2, C=3, V=5.0),
-            Row(ID=2, C=5, V=10.0),
-        ],
-    )
+        df = create_snowpark_compatible_dataframe()
 
-    df = create_snowpark_compatible_dataframe()
+        def sum_func(key, pdf):
+            # key is a tuple of two numpy.int64s, which is the values
+            # of 'id' and 'ceil(df.v / 2)' for the current group
+            return pd.DataFrame([key + (pdf.v.sum(),)])
 
-    def sum_func_with_single_input(pdf):
-        # key is a tuple of two numpy.int64s, which is the values
-        # of 'id' and 'ceil(df.v / 2)' for the current group
-        return pd.DataFrame([(pdf.v.sum(),)])
-
-    df = (
-        df.group_by("id", ceil(df.v / 2))
-        .applyInPandas(
-            sum_func_with_single_input,
-            output_schema=StructType(
-                [
-                    StructField("v", DoubleType()),
-                ]
-            ),
+        df = (
+            df.group_by("id", ceil(df.v / 2).alias("newcol"))
+            .applyInPandas(
+                sum_func,
+                output_schema=StructType(
+                    [
+                        StructField("id", IntegerType()),
+                        StructField("c", IntegerType()),
+                        StructField("v", DoubleType()),
+                    ]
+                ),
+            )
+            .orderBy(["id", "v"])
         )
-        .orderBy(["v"])
-    )
 
-    Utils.check_answer(
-        df,
-        [
-            Row(V=3.0),
-            Row(V=3.0),
-            Row(V=5.0),
-            Row(V=10.0),
-        ],
-    )
+        Utils.check_answer(
+            df,
+            [
+                Row(ID=1, C=1, V=3.0),
+                Row(ID=2, C=2, V=3.0),
+                Row(ID=2, C=3, V=5.0),
+                Row(ID=2, C=5, V=10.0),
+            ],
+        )
+
+        df = create_snowpark_compatible_dataframe()
+
+        def sum_func_with_single_input(pdf):
+            # key is a tuple of two numpy.int64s, which is the values
+            # of 'id' and 'ceil(df.v / 2)' for the current group
+            return pd.DataFrame([(pdf.v.sum(),)])
+
+        df = (
+            df.group_by("id", ceil(df.v / 2))
+            .applyInPandas(
+                sum_func_with_single_input,
+                output_schema=StructType(
+                    [
+                        StructField("v", DoubleType()),
+                    ]
+                ),
+            )
+            .orderBy(["v"])
+        )
+
+        Utils.check_answer(
+            df,
+            [
+                Row(V=3.0),
+                Row(V=3.0),
+                Row(V=5.0),
+                Row(V=10.0),
+            ],
+        )
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")

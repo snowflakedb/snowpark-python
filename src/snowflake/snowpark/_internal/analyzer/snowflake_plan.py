@@ -90,6 +90,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     table_function_statement,
     unpivot_statement,
     update_statement,
+    attribute_to_schema_string_deep,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
@@ -1224,6 +1225,7 @@ class SnowflakePlanBuilder:
         match_condition: str,
         source_plan: Optional[LogicalPlan],
         use_constant_subquery_alias: bool,
+        directed: bool = False,
     ):
         return self.build_binary(
             lambda x, y: join_statement(
@@ -1241,6 +1243,7 @@ class SnowflakePlanBuilder:
                     if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
+                directed=directed,
             ),
             left,
             right,
@@ -1267,6 +1270,7 @@ class SnowflakePlanBuilder:
         child_attributes: Optional[List[Attribute]],
         iceberg_config: Optional[dict] = None,
         table_exists: Optional[bool] = None,
+        overwrite_condition: Optional[str] = None,
     ) -> SnowflakePlan:
         """Returns a SnowflakePlan to materialize the child plan into a table.
 
@@ -1334,9 +1338,10 @@ class SnowflakePlanBuilder:
         # in save as table. So we rename ${number} with COL{number}.
         hidden_column_pattern = r"\"\$(\d+)\""
         column_definition = None
+        is_iceberg = iceberg_config is not None
         if child_attributes is not None:
             column_definition_with_hidden_columns = attribute_to_schema_string(
-                child_attributes or []
+                child_attributes or [], is_iceberg=is_iceberg
             )
             column_definition = re.sub(
                 hidden_column_pattern,
@@ -1417,6 +1422,47 @@ class SnowflakePlanBuilder:
                 referenced_ctes=child.referenced_ctes,
             )
 
+        def get_overwrite_delete_insert_plan(child: SnowflakePlan):
+            """Build a plan for targeted delete + insert with transaction.
+
+            Deletes rows matching the overwrite_condition condition, then inserts
+            all rows from the source DataFrame. Wrapped in a transaction for atomicity.
+            """
+            child = self.add_result_scan_if_not_select(child)
+
+            return SnowflakePlan(
+                [
+                    *child.queries[:-1],
+                    Query("BEGIN TRANSACTION"),
+                    Query(
+                        delete_statement(
+                            table_name=full_table_name,
+                            condition=overwrite_condition,
+                            source_data=None,
+                        ),
+                        params=child.queries[-1].params,
+                        is_ddl_on_temp_object=is_temp_table_type,
+                    ),
+                    Query(
+                        insert_into_statement(
+                            table_name=full_table_name,
+                            child=child.queries[-1].sql,
+                            column_names=column_names,
+                        ),
+                        params=child.queries[-1].params,
+                        is_ddl_on_temp_object=is_temp_table_type,
+                    ),
+                    Query("COMMIT"),
+                ],
+                schema_query=None,
+                post_actions=child.post_actions,
+                expr_to_alias={},
+                source_plan=source_plan,
+                api_calls=child.api_calls,
+                session=self.session,
+                referenced_ctes=child.referenced_ctes,
+            )
+
         if mode == SaveMode.APPEND:
             assert table_exists is not None
             if table_exists:
@@ -1446,7 +1492,12 @@ class SnowflakePlanBuilder:
                 return get_create_table_as_select_plan(child, replace=True, error=True)
 
         elif mode == SaveMode.OVERWRITE:
-            return get_create_table_as_select_plan(child, replace=True, error=True)
+            if overwrite_condition is not None and table_exists:
+                # Selective overwrite: delete matching rows, then insert
+                return get_overwrite_delete_insert_plan(child)
+            else:
+                # Default overwrite: drop and recreate table
+                return get_create_table_as_select_plan(child, replace=True, error=True)
 
         elif mode == SaveMode.IGNORE:
             return get_create_table_as_select_plan(child, replace=False, error=False)
@@ -1766,6 +1817,7 @@ class SnowflakePlanBuilder:
         xml_reader_udtf: "UserDefinedTableFunction",
         file_path: str,
         options: Dict[str, str],
+        schema: Optional[List[Attribute]] = None,
     ) -> str:
         """
         Creates a DataFrame from a UserDefinedTableFunction that reads XML files.
@@ -1773,6 +1825,9 @@ class SnowflakePlanBuilder:
         from snowflake.snowpark.functions import lit, col, seq8, flatten
         from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
 
+        schema_string = (
+            attribute_to_schema_string_deep(schema) if schema is not None else ""
+        )
         worker_column_name = "WORKER"
         xml_row_number_column_name = "XML_ROW_NUMBER"
         row_tag = options[XML_ROW_TAG_STRING]
@@ -1828,6 +1883,8 @@ class SnowflakePlanBuilder:
                 lit(charset),
                 lit(ignore_surrounding_whitespace),
                 lit(row_validation_xsd_path),
+                lit(schema_string),
+                lit(context._is_snowpark_connect_compatible_mode),
             ),
         )
 
@@ -1859,9 +1916,10 @@ class SnowflakePlanBuilder:
         source_plan: Optional[ReadFileNode] = None,
     ) -> SnowflakePlan:
         thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
-
         if xml_reader_udtf is not None:
-            xml_query = self._create_xml_query(xml_reader_udtf, path, options)
+            xml_query = self._create_xml_query(
+                xml_reader_udtf, path, options, schema if use_user_schema else None
+            )
             return SnowflakePlan(
                 [Query(xml_query)],
                 # the schema query of dynamic pivot must be the same as the original query

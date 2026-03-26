@@ -87,6 +87,7 @@ HIGH_QUERY_COUNT_THRESHOLD = 9
 # that this parameter is unset, as currently required by Snowpark pandas.
 # 8. SHOW OBJECTS LIKE [TABLE_NAME] IN SCHEMA [SCHEMA] LIMIT 1 ... is to check the row count of a table we are reading
 # from, if it exists
+# 9. SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY is cached per DB/schema context, so it's not consistent when it is executed
 FILTER_OUT_QUERIES = [
     ["create SCOPED TEMPORARY", "stage if not exists"],
     ["PUT", "file:///tmp/placeholder/snowpark.zip"],
@@ -96,6 +97,7 @@ FILTER_OUT_QUERIES = [
     ["drop table if exists", "/* internal query to drop unused temp table */"],
     ["SHOW PARAMETERS LIKE", "QUOTED_IDENTIFIERS_IGNORE_CASE"],
     ["SHOW OBJECTS LIKE", "IN SCHEMA", "LIMIT 1"],
+    ["SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY"],
 ]
 
 # define global at module-level
@@ -255,17 +257,10 @@ class SqlCounter(QueryListener):
             raise AssertionError("SqlCounter not configured for test.")
 
         failed = False
-        # Get the actual counts and check they match assumptions.
-        actual_counts = self.get_actual_counts()
-        stack_trace = (
-            "\nOriginal stack trace:\n"
-            + "".join(
-                filter(lambda s: "site-package" not in s, traceback.format_stack())
-            )
-            if self._log_stack_trace
-            else ""
-        )
 
+        # Get the actual counts and check they match assumptions.
+        invalid_counts = {}
+        actual_counts = self.get_actual_counts()
         for key in kwargs.keys():
             if key in BOOL_PARAMETERS:
                 continue
@@ -279,10 +274,24 @@ class SqlCounter(QueryListener):
                 else actual_count <= expected_count
             )
             failed = failed or not valid_count
-            pytest.assume(
-                valid_count,
-                f"Sql count check '{key}' failed.  expected_{key}={expected_count}, actual_{key}={actual_count}{stack_trace}",
+            if not valid_count:
+                invalid_counts[key] = (expected_count, actual_count)
+        # For performance reasons, we check counts before calling pytest.assume so we can avoid a
+        # potentially expensive stack trace generation call on counts that did not fail.
+        if len(invalid_counts) > 0:
+            stack_trace = (
+                "\nOriginal stack trace:\n"
+                + "".join(
+                    filter(lambda s: "site-package" not in s, traceback.format_stack())
+                )
+                if self._log_stack_trace
+                else ""
             )
+            for key, (expected_count, actual_count) in invalid_counts.items():
+                pytest.assume(
+                    False,
+                    f"Sql count check '{key}' failed.  expected_{key}={expected_count}, actual_{key}={actual_count}{stack_trace}",
+                )
 
         # If there are no failures, then check if we fail due to high query count.
         if not failed:
@@ -455,6 +464,7 @@ def sql_count_checker(
     udf_count=None,
     udtf_count=None,
     union_count=None,
+    strict=False,
     *args,
     **kwargs,
 ):
@@ -478,7 +488,7 @@ def sql_count_checker(
     }
     # also look into kwargs for count configuration. Right now, describe_count and window_count are the
     # counts can be passed optionally
-    for (key, value) in kwargs.items():
+    for key, value in kwargs.items():
         if key.endswith("_count"):
             count_kwargs.update({key: value})
 
@@ -490,6 +500,7 @@ def sql_count_checker(
                 log_stack_trace=False,
                 high_count_expected=high_count_expected,
                 high_count_reason=high_count_reason,
+                strict=strict,
             )
 
             result = func(*args, **kwargs)
@@ -521,7 +532,7 @@ def get_readable_sql_count_values(tr):
 
 
 def update_test_code_with_sql_counts(
-    sql_count_records: Dict[str, Dict[str, List[Dict[str, Optional[PythonScalar]]]]]
+    sql_count_records: Dict[str, Dict[str, List[Dict[str, Optional[PythonScalar]]]]],
 ):
     """This helper takes sql count records and rewrites the source test files to validate sql counts where possible.
 

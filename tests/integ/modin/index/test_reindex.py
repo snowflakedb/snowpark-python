@@ -170,7 +170,7 @@ def test_non_overlapping_different_types_index_negative_SNOW_1622502():
 
     with pytest.raises(
         SnowparkSQLException,
-        match='Failed to cast variant value "A" to TIMESTAMP_NTZ',
+        match='Failed to cast variant value "[ABC]" to TIMESTAMP_NTZ',
     ):
         date_index.reindex(list("ABC"))
 

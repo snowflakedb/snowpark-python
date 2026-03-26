@@ -24,6 +24,7 @@ from snowflake.snowpark.types import (
     ByteType,
     DateType,
     DayTimeIntervalType,
+    DecFloatType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -74,6 +75,7 @@ def test_to_sql():
     assert to_sql(None, ByteType()) == "NULL :: INT"
     assert to_sql(None, LongType()) == "NULL :: INT"
     assert to_sql(None, FloatType()) == "NULL :: FLOAT"
+    assert to_sql(None, DecFloatType()) == "NULL :: DECFLOAT"
     assert to_sql(None, StringType()) == "NULL :: STRING"
     assert to_sql(None, DoubleType()) == "NULL :: FLOAT"
     assert to_sql(None, BooleanType()) == "NULL :: BOOLEAN"
@@ -98,6 +100,8 @@ def test_to_sql():
     assert to_sql(0, IntegerType()) == "0 :: INT"
     assert to_sql(0, LongType()) == "0 :: INT"
     assert to_sql(0, BooleanType()) == "0 :: BOOLEAN"
+    assert to_sql(Decimal("-1.23E+400"), DecFloatType()) == "DECFLOAT '-1.23E+400'"
+    assert to_sql("-1.23E+400", DecFloatType()) == "DECFLOAT '-1.23E+400'"
 
     assert to_sql(float("nan"), FloatType()) == "'NAN' :: FLOAT"
     assert to_sql(float("inf"), FloatType()) == "'INF' :: FLOAT"
@@ -110,6 +114,7 @@ def test_to_sql():
     assert to_sql(1.2, DoubleType()) == "'1.2' :: FLOAT"
 
     assert to_sql(Decimal(0.5), DecimalType(2, 1)) == "0.5 ::  NUMBER (2, 1)"
+    assert to_sql("0.5", DecimalType(2, 1)) == "0.5 ::  NUMBER (2, 1)"
 
     assert to_sql(397, DateType()) == "DATE '1971-02-02'"
     # value type must be int
@@ -695,6 +700,8 @@ def test_numeric_to_sql_without_cast():
 
     assert numeric_to_sql_without_cast(float("nan"), FloatType()) == "'NAN' :: FLOAT"
     assert numeric_to_sql_without_cast(float("inf"), DoubleType()) == "'INF' :: FLOAT"
+
+    assert numeric_to_sql_without_cast(Decimal(0.5), DecFloatType()) == "0.5"
 
 
 @pytest.mark.parametrize(

@@ -11,6 +11,9 @@ import html.entities
 from unittest.mock import patch
 import pytest
 
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    attribute_to_schema_string_deep,
+)
 from snowflake.snowpark._internal.xml_reader import (
     replace_entity,
     element_to_dict_or_str,
@@ -20,6 +23,26 @@ from snowflake.snowpark._internal.xml_reader import (
     tag_is_self_closing,
     process_xml_range,
     DEFAULT_CHUNK_SIZE,
+    struct_type_to_result_template,
+    schema_string_to_result_dict_and_struct_type,
+    _escape_colons_in_quotes,
+    _restore_colons_in_template,
+    _COLON_PLACEHOLDER,
+    _can_cast_to_type,
+    _validate_row_for_type_mismatch,
+    XMLReader,
+)
+from snowflake.snowpark.types import (
+    StructType,
+    StructField,
+    StringType,
+    DoubleType,
+    DateType,
+    ArrayType,
+    MapType,
+    LongType,
+    BooleanType,
+    TimestampType,
 )
 
 
@@ -571,3 +594,756 @@ def test_process_xml_range_charset_decode_error():
     assert len(results) == 1
     # The replacement character () should be present in the decoded text
     assert "Caf" in str(results[0])  # Should get "Caf" or similar
+
+
+@pytest.mark.parametrize(
+    "user_schema, expected_result_template, expected_result",
+    [
+        (
+            StructType(  # matched schema
+                [
+                    StructField("author", StringType(), True),
+                    StructField("title", StringType(), True),
+                    StructField("genre", StringType(), True),
+                    StructField("price", DoubleType(), True),
+                    StructField("publish_date", DateType(), True),
+                    StructField("description", StringType(), True),
+                ]
+            ),
+            {
+                "AUTHOR": None,
+                "TITLE": None,
+                "GENRE": None,
+                "PRICE": None,
+                "PUBLISH_DATE": None,
+                "DESCRIPTION": None,
+            },
+            {
+                "AUTHOR": "Corets, Eva",
+                "TITLE": "Oberon's Legacy",
+                "GENRE": "Fantasy",
+                "PRICE": "5.95",
+                "PUBLISH_DATE": "2001-03-10",
+                "DESCRIPTION": "In post-apocalypse England, the mysterious\n          agent known only as Oberon helps to create a new life\n          for the inhabitants of London. Sequel to Maeve\n          Ascendant.",
+            },
+        ),
+        (
+            StructType(  # schema with extra column
+                [
+                    StructField("author", StringType(), True),
+                    StructField("title", StringType(), True),
+                    StructField("genre", StringType(), True),
+                    StructField("price", DoubleType(), True),
+                    StructField("publish_date", DateType(), True),
+                    StructField("description", StringType(), True),
+                    StructField("extra_col", StringType(), True),
+                ]
+            ),
+            {
+                "AUTHOR": None,
+                "TITLE": None,
+                "GENRE": None,
+                "PRICE": None,
+                "PUBLISH_DATE": None,
+                "DESCRIPTION": None,
+                "EXTRA_COL": None,
+            },
+            {
+                "AUTHOR": "Corets, Eva",
+                "TITLE": "Oberon's Legacy",
+                "GENRE": "Fantasy",
+                "PRICE": "5.95",
+                "PUBLISH_DATE": "2001-03-10",
+                "DESCRIPTION": "In post-apocalypse England, the mysterious\n          agent known only as Oberon helps to create a new life\n          for the inhabitants of London. Sequel to Maeve\n          Ascendant.",
+                "EXTRA_COL": None,
+            },
+        ),
+        (
+            StructType(  # schema with less column
+                [
+                    StructField("author", StringType(), True),
+                    StructField("title", StringType(), True),
+                    StructField("genre", StringType(), True),
+                    StructField("price", DoubleType(), True),
+                    StructField("publish_date", DateType(), True),
+                ]
+            ),
+            {
+                "AUTHOR": None,
+                "TITLE": None,
+                "GENRE": None,
+                "PRICE": None,
+                "PUBLISH_DATE": None,
+            },
+            {
+                "AUTHOR": "Corets, Eva",
+                "TITLE": "Oberon's Legacy",
+                "GENRE": "Fantasy",
+                "PRICE": "5.95",
+                "PUBLISH_DATE": "2001-03-10",
+            },
+        ),
+    ],
+)
+def test_flat_xml_custom_schema(user_schema, expected_result_template, expected_result):
+    xml_string = """
+        <book id="bk104">
+          <author>Corets, Eva</author>
+          <title>Oberon's Legacy</title>
+          <genre>Fantasy</genre>
+          <price>5.95</price>
+          <publish_date>2001-03-10</publish_date>
+          <description>In post-apocalypse England, the mysterious
+          agent known only as Oberon helps to create a new life
+          for the inhabitants of London. Sequel to Maeve
+          Ascendant.</description>
+       </book>
+        """
+    result_template = struct_type_to_result_template(user_schema)
+    assert result_template == expected_result_template
+
+    element = ET.fromstring(xml_string)
+    res = element_to_dict_or_str(element, result_template=result_template)
+    assert res == expected_result
+
+
+def test_nested_xml_custom_schema():
+    xml_string = """
+  <book id="1">
+    <title>The Art of Snowflake</title>
+    <author>Jane Doe</author>
+    <price>29.99</price>
+    <reviews>
+      <review>
+        <user>tech_guru_87</user>
+        <rating>5</rating>
+        <comment>Very insightful and practical.</comment>
+      </review>
+      <review>
+        <user>datawizard</user>
+        <rating>4</rating>
+        <comment>Great read for data engineers.</comment>
+      </review>
+    </reviews>
+    <editions>
+      <edition year="2023" format="Hardcover"/>
+      <edition year="2024" format="eBook"/>
+    </editions>
+  </book>
+        """
+
+    review_schema = StructType(
+        [
+            StructField('"User"', StringType(), True),
+            StructField(
+                '"Rating"', StringType(), True
+            ),  # keep as StringType (XML reader returns strings)
+            StructField('"comment"', StringType(), True),
+        ]
+    )
+
+    edition_schema = StructType(
+        [
+            StructField("_year", StringType(), True),  # attributes -> prefixed with "_"
+            StructField("_format", StringType(), True),
+        ]
+    )
+
+    user_schema = StructType(
+        [
+            StructField('"Title"', StringType(), True),
+            StructField('"Author"', StringType(), True),
+            StructField('"Price"', StringType(), True),
+            StructField(
+                "reviews",
+                StructType(
+                    [
+                        StructField("review", ArrayType(review_schema), True),
+                    ]
+                ),
+                True,
+            ),
+            StructField(
+                "editions",
+                StructType(
+                    [
+                        StructField("edition", ArrayType(edition_schema), True),
+                    ]
+                ),
+                True,
+            ),
+        ]
+    )
+
+    result_template = struct_type_to_result_template(user_schema)
+    assert result_template == {
+        "Title": None,
+        "Author": None,
+        "Price": None,
+        "REVIEWS": {"REVIEW": {"User": None, "Rating": None, "comment": None}},
+        "EDITIONS": {"EDITION": {"_YEAR": None, "_FORMAT": None}},
+    }
+    element = ET.fromstring(xml_string)
+    res = element_to_dict_or_str(element, result_template=result_template)
+    assert res == {
+        "Title": "The Art of Snowflake",
+        "Author": "Jane Doe",
+        "Price": "29.99",
+        "REVIEWS": {
+            "REVIEW": [
+                {
+                    "User": "tech_guru_87",
+                    "Rating": "5",
+                    "comment": "Very insightful and practical.",
+                },
+                {
+                    "User": "datawizard",
+                    "Rating": "4",
+                    "comment": "Great read for data engineers.",
+                },
+            ]
+        },
+        "EDITIONS": {
+            "EDITION": [
+                {"_YEAR": "2023", "_FORMAT": "Hardcover"},
+                {"_YEAR": "2024", "_FORMAT": "eBook"},
+            ]
+        },
+    }
+
+
+def test_case_sensitive_in_custom_schema():
+    xml_string = """
+    <book id="bk104">
+      <author>Corets, Eva</author>
+      <title>Oberon's Legacy</title>
+      <genre>Fantasy</genre>
+      <price>5.95</price>
+      <publish_date>2001-03-10</publish_date>
+      <description>In post-apocalypse England, the mysterious
+      agent known only as Oberon helps to create a new life
+      for the inhabitants of London. Sequel to Maeve
+      Ascendant.</description>
+   </book>
+    """
+
+    user_schema = StructType(
+        [
+            StructField('"Author"', StringType(), True),
+            StructField("title", StringType(), True),
+            StructField('"GENRE"', StringType(), True),
+            StructField('"Price"', DoubleType(), True),
+            StructField('"publish_Date"', DateType(), True),
+            StructField('"description"', StringType(), True),
+        ]
+    )
+
+    result_template = struct_type_to_result_template(user_schema)
+    assert result_template == {
+        "Author": None,
+        "TITLE": None,
+        "GENRE": None,
+        "Price": None,
+        "publish_Date": None,
+        "description": None,
+    }
+
+    element = ET.fromstring(xml_string)
+    res = element_to_dict_or_str(element, result_template=result_template)
+    assert res == {
+        "Author": "Corets, Eva",
+        "TITLE": "Oberon's Legacy",
+        "GENRE": "Fantasy",
+        "Price": "5.95",
+        "publish_Date": "2001-03-10",
+        "description": "In post-apocalypse England, the mysterious\n      agent known only as Oberon helps to create a new life\n      for the inhabitants of London. Sequel to Maeve\n      Ascendant.",
+    }
+
+
+def test_attribute_to_schema_string_deep(session):
+    review_schema = StructType(
+        [
+            StructField("User", StringType(), True),
+            StructField(
+                "Rating", StringType(), True
+            ),  # keep as StringType (XML reader returns strings)
+            StructField("comment", StringType(), True),
+        ]
+    )
+
+    edition_schema = StructType(
+        [
+            StructField("_year", StringType(), True),  # attributes -> prefixed with "_"
+            StructField("_format", StringType(), True),
+        ]
+    )
+
+    user_schema = StructType(
+        [
+            StructField("Title", StringType(), True),
+            StructField("Author", StringType(), True),
+            StructField("Price", StringType(), True),
+            StructField(
+                "reviews",
+                StructType(
+                    [
+                        StructField("review", ArrayType(review_schema), True),
+                    ]
+                ),
+                True,
+            ),
+            StructField(
+                "editions",
+                StructType(
+                    [
+                        StructField("edition", ArrayType(edition_schema), True),
+                    ]
+                ),
+                True,
+            ),
+        ]
+    )
+    attr, _, _ = session.read._get_schema_from_user_input(user_schema)
+    schema_string = attribute_to_schema_string_deep(attr)
+    assert (
+        schema_string
+        == """struct<"Title": string, "Author": string, "Price": string, "reviews": struct<"review": array<struct<"User": string, "Rating": string, "comment": string>>>, "editions": struct<"edition": array<struct<"_year": string, "_format": string>>>>"""
+    )
+
+
+def test_schema_string_to_result_dict_and_struct_type(session):
+    user_schema = StructType(
+        [
+            StructField("Author", StringType(), True),
+            StructField("TITLE", StringType(), True),
+            StructField("GENRE", StringType(), True),
+            StructField("Price", DoubleType(), True),
+            StructField("publish_Date", DateType(), True),
+            StructField("description", StringType(), True),
+            StructField("map_type", MapType(), True),
+        ]
+    )
+    attr, _, _ = session.read._get_schema_from_user_input(user_schema)
+    schema_string = attribute_to_schema_string_deep(attr)
+    template, schema_type = schema_string_to_result_dict_and_struct_type(schema_string)
+    assert template == {
+        "Author": None,
+        "TITLE": None,
+        "GENRE": None,
+        "Price": None,
+        "publish_Date": None,
+        "description": None,
+        "map_type": None,
+    }
+    assert isinstance(schema_type, StructType)
+
+
+def test_user_schema_value_tag():
+    xml_string = """
+    <test>
+        <num>1</num>
+        <str1>NULL</str1>
+        <str2></str2>
+        <str3 id="empty">xxx</str3>
+    </test>
+    """
+
+    user_schema = StructType(
+        [
+            StructField("num", StringType(), True),
+            StructField("str1", StringType(), True),
+            StructField("str2", StringType(), True),
+            StructField(
+                "str3",
+                StructType(
+                    [
+                        StructField(
+                            "_VALUE", StringType(), True
+                        ),  # element text (because str3 has an attribute)
+                        StructField(
+                            "_id", StringType(), True
+                        ),  # attribute id (default attributePrefix is "_")
+                    ]
+                ),
+                True,
+            ),
+        ]
+    )
+
+    result_template = struct_type_to_result_template(user_schema)
+
+    element = ET.fromstring(xml_string)
+    res = element_to_dict_or_str(element, result_template=result_template)
+    assert result_template == {
+        "NUM": None,
+        "STR1": None,
+        "STR2": None,
+        "STR3": {"_VALUE": None, "_ID": None},
+    }
+    assert res == {
+        "NUM": "1",
+        "STR1": "NULL",
+        "STR2": None,
+        "STR3": {"_VALUE": "xxx", "_ID": "empty"},
+    }
+
+    user_schema = StructType(
+        [
+            StructField("num", StringType(), True),
+            StructField("str1", StringType(), True),
+            StructField("str2", StringType(), True),
+            StructField("str3", StringType(), True),
+        ]
+    )
+
+    result_template = struct_type_to_result_template(user_schema)
+
+    element = ET.fromstring(xml_string)
+    res = element_to_dict_or_str(element, result_template=result_template)
+    assert result_template == {"NUM": None, "STR1": None, "STR2": None, "STR3": None}
+    assert res == {"NUM": "1", "STR1": "NULL", "STR2": None, "STR3": "xxx"}
+
+
+def test_escape_colons_in_quotes():
+    s = '"px:name": string'
+    escaped = _escape_colons_in_quotes(s)
+    assert escaped.count(":") == 1
+    assert _COLON_PLACEHOLDER in escaped
+
+    s = '"px:name": string, "px:value": string'
+    escaped = _escape_colons_in_quotes(s)
+    assert escaped.count(":") == 2
+    assert escaped.count(_COLON_PLACEHOLDER) == 2
+
+    s = 'struct<"px:name": string, "detail": struct<"px:sub": string>>'
+    escaped = _escape_colons_in_quotes(s)
+    assert escaped.count(_COLON_PLACEHOLDER) == 2
+    assert escaped.count(":") == 3
+
+    s = '"Author": string, "Title": string'
+    assert _escape_colons_in_quotes(s) == s
+    assert _escape_colons_in_quotes("") == ""
+    assert _escape_colons_in_quotes("a: int, b: string") == "a: int, b: string"
+
+
+def test_restore_colons_in_template():
+    assert _restore_colons_in_template(None) is None
+    assert _restore_colons_in_template({"Author": None}) == {"Author": None}
+
+    # Flat
+    template = {
+        f"px{_COLON_PLACEHOLDER}name": None,
+        f"px{_COLON_PLACEHOLDER}value": None,
+    }
+    assert _restore_colons_in_template(template) == {
+        "px:name": None,
+        "px:value": None,
+    }
+
+    # Nested
+    template = {
+        f"eq{_COLON_PLACEHOLDER}event": {
+            f"eq{_COLON_PLACEHOLDER}sub-id": None,
+        },
+        "plain": None,
+    }
+    assert _restore_colons_in_template(template) == {
+        "eq:event": {"eq:sub-id": None},
+        "plain": None,
+    }
+
+
+def test_schema_string_round_trip_with_colons():
+    # Flat
+    schema_str = 'struct<"px:name": string, "px:value": string>'
+    template, _ = schema_string_to_result_dict_and_struct_type(schema_str)
+    assert template == {
+        "px:name": None,
+        "px:value": None,
+    }
+
+    # Nested
+    schema_str = (
+        'struct<"eq:event-id": string,' '"eq:detail": struct<"eq:sub-id": string>>'
+    )
+    template, _ = schema_string_to_result_dict_and_struct_type(schema_str)
+    assert template == {
+        "eq:event-id": None,
+        "eq:detail": {"eq:sub-id": None},
+    }
+
+    # Mixed
+    schema_str = 'struct<"px:name": string, "Title": string, price: double>'
+    template, _ = schema_string_to_result_dict_and_struct_type(schema_str)
+    assert template == {
+        "px:name": None,
+        "Title": None,
+        "PRICE": None,
+    }
+
+    # No colon fields
+    schema_str = 'struct<"Author": string, "TITLE": string>'
+    template, _ = schema_string_to_result_dict_and_struct_type(schema_str)
+    assert template == {
+        "Author": None,
+        "TITLE": None,
+    }
+
+
+@pytest.mark.parametrize(
+    "value, target_type, expected",
+    [
+        # StringType always passes
+        ("anything", StringType(), True),
+        ("", StringType(), True),
+        # LongType
+        ("42", LongType(), True),
+        ("-7", LongType(), True),
+        ("0", LongType(), True),
+        ("3.14", LongType(), False),
+        ("hello", LongType(), False),
+        ("", LongType(), False),
+        # DoubleType
+        ("3.14", DoubleType(), True),
+        ("-0.5", DoubleType(), True),
+        ("42", DoubleType(), True),
+        ("NaN", DoubleType(), True),  # Python float("NaN") succeeds
+        ("hello", DoubleType(), False),
+        # BooleanType
+        ("true", BooleanType(), True),
+        ("false", BooleanType(), True),
+        ("True", BooleanType(), True),
+        ("1", BooleanType(), True),
+        ("0", BooleanType(), True),
+        ("yes", BooleanType(), False),
+        ("maybe", BooleanType(), False),
+        # DateType
+        ("2024-01-15", DateType(), True),
+        ("not-a-date", DateType(), False),
+        ("2024-13-01", DateType(), False),
+        # TimestampType
+        ("2024-01-15T10:30:00", TimestampType(), True),
+        ("2024-01-15", TimestampType(), True),
+        ("not-a-ts", TimestampType(), False),
+    ],
+)
+def test_can_cast_to_type(value, target_type, expected):
+    assert _can_cast_to_type(value, target_type) == expected
+
+
+# ---------------------------------------------------------------------------
+# _validate_row_for_type_mismatch tests
+# ---------------------------------------------------------------------------
+
+
+def _make_schema(*fields):
+    """Helper to build a StructType from (name, datatype) tuples."""
+    return StructType([StructField(f'"{n}"', t) for n, t in fields])
+
+
+def test_validate_permissive_all_valid_no_corrupt():
+    schema = _make_schema(("name", StringType()), ("age", LongType()))
+    row = {"name": "Alice", "age": "30"}
+    result = _validate_row_for_type_mismatch(row, schema, "PERMISSIVE", "<row/>")
+    assert result["name"] == "Alice"
+    assert result["age"] == "30"
+    assert "_corrupt_record" not in result
+
+
+def test_validate_permissive_single_field_nulled():
+    schema = _make_schema(("name", StringType()), ("age", LongType()))
+    row = {"name": "Bob", "age": "hello"}
+    result = _validate_row_for_type_mismatch(row, schema, "PERMISSIVE", "<row/>")
+    assert result["name"] == "Bob"
+    assert result["age"] is None
+    assert result["_corrupt_record"] == "<row/>"
+
+
+def test_validate_permissive_multiple_fields_nulled():
+    schema = _make_schema(("a", LongType()), ("b", BooleanType()), ("c", DoubleType()))
+    row = {"a": "not_int", "b": "maybe", "c": "1.5"}
+    result = _validate_row_for_type_mismatch(row, schema, "PERMISSIVE", "<r/>")
+    assert result["a"] is None
+    assert result["b"] is None
+    assert result["c"] == "1.5"
+    assert result["_corrupt_record"] == "<r/>"
+
+
+def test_validate_permissive_missing_field_ignored():
+    schema = _make_schema(("name", StringType()), ("age", LongType()))
+    row = {"name": "Carol"}
+    result = _validate_row_for_type_mismatch(row, schema, "PERMISSIVE", "<row/>")
+    assert result["name"] == "Carol"
+    assert "_corrupt_record" not in result
+
+
+def test_validate_permissive_none_value_ignored():
+    schema = _make_schema(("val", LongType()))
+    row = {"val": None}
+    result = _validate_row_for_type_mismatch(row, schema, "PERMISSIVE", "<row/>")
+    assert result["val"] is None
+    assert "_corrupt_record" not in result
+
+
+def test_validate_permissive_complex_type_skipped():
+    schema = _make_schema(
+        ("data", StructType([StructField("x", StringType())])),
+        ("tags", ArrayType(StringType())),
+    )
+    row = {"data": {"x": "val"}, "tags": ["a", "b"]}
+    result = _validate_row_for_type_mismatch(row, schema, "PERMISSIVE", "<row/>")
+    assert result["data"] == {"x": "val"}
+    assert result["tags"] == ["a", "b"]
+    assert "_corrupt_record" not in result
+
+
+def test_validate_permissive_custom_corrupt_col_name():
+    schema = _make_schema(("val", LongType()))
+    row = {"val": "bad"}
+    result = _validate_row_for_type_mismatch(
+        row, schema, "PERMISSIVE", "<r/>", column_name_of_corrupt_record="bad_rec"
+    )
+    assert result["val"] is None
+    assert result["bad_rec"] == "<r/>"
+    assert "_corrupt_record" not in result
+
+
+def test_validate_failfast_raises_on_mismatch():
+    schema = _make_schema(("val", LongType()))
+    row = {"val": "hello"}
+    with pytest.raises(RuntimeError, match="Failed to cast value 'hello'"):
+        _validate_row_for_type_mismatch(row, schema, "FAILFAST", "<row/>")
+
+
+def test_validate_failfast_no_error_when_valid():
+    schema = _make_schema(("val", LongType()))
+    row = {"val": "42"}
+    result = _validate_row_for_type_mismatch(row, schema, "FAILFAST", "<row/>")
+    assert result["val"] == "42"
+
+
+def test_validate_dropmalformed_returns_none_on_mismatch():
+    schema = _make_schema(("val", LongType()))
+    row = {"val": "hello"}
+    assert (
+        _validate_row_for_type_mismatch(row, schema, "DROPMALFORMED", "<row/>") is None
+    )
+
+
+def test_validate_dropmalformed_returns_row_when_valid():
+    schema = _make_schema(("val", LongType()))
+    row = {"val": "42"}
+    result = _validate_row_for_type_mismatch(row, schema, "DROPMALFORMED", "<row/>")
+    assert result["val"] == "42"
+
+
+def test_schema_string_to_result_dict_empty_string():
+    template, schema_type = schema_string_to_result_dict_and_struct_type("")
+    assert template is None
+    assert schema_type is None
+
+
+def test_can_cast_to_complex_type_returns_true():
+    assert _can_cast_to_type("anything", ArrayType(StringType())) is True
+    assert _can_cast_to_type("anything", MapType(StringType(), StringType())) is True
+    assert _can_cast_to_type("anything", StructType([])) is True
+
+
+def test_element_to_dict_leaf_with_template_edge_cases():
+    xml_str = "<publisher/>"
+    element = ET.fromstring(xml_str)
+    result_template = {"_VALUE": None, "_country": None, "_language": None}
+    result = element_to_dict_or_str(element, result_template=result_template)
+    assert isinstance(result, dict)
+    assert result["_VALUE"] is None
+    assert result["_country"] is None
+    assert result["_language"] is None
+
+    xml_str = "<publisher>Penguin</publisher>"
+    element = ET.fromstring(xml_str)
+    result = element_to_dict_or_str(element, result_template=result_template)
+    assert isinstance(result, dict)
+    assert result["_VALUE"] == "Penguin"
+    assert result["_country"] is None
+    assert result["_language"] is None
+
+    xml_str = "<publisher>N/A</publisher>"
+    element = ET.fromstring(xml_str)
+    result_template = {"_VALUE": None, "_country": None}
+    result = element_to_dict_or_str(
+        element, result_template=result_template, null_value="N/A"
+    )
+    assert isinstance(result, dict)
+    assert result["_VALUE"] is None
+
+
+def test_process_xml_range_scos_permissive_type_validation():
+    """process_xml_range validates types when is_snowpark_connect_compatible=True"""
+    xml_content = (
+        "<root>"
+        "<ROW><name>Alice</name><value>100</value></ROW>"
+        "<ROW><name>Frank</name><value>hello</value></ROW>"
+        "</root>"
+    )
+    xml_bytes = xml_content.encode("utf-8")
+    schema = _make_schema(("name", StringType()), ("value", LongType()))
+    mock_file = io.BytesIO(xml_bytes)
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+        results = list(
+            process_xml_range(
+                file_path="test.xml",
+                tag_name="ROW",
+                approx_start=0,
+                approx_end=len(xml_bytes),
+                mode="PERMISSIVE",
+                column_name_of_corrupt_record="_corrupt_record",
+                ignore_namespace=True,
+                attribute_prefix="_",
+                exclude_attributes=False,
+                value_tag="_VALUE",
+                null_value="",
+                charset="utf-8",
+                ignore_surrounding_whitespace=True,
+                row_validation_xsd_path="",
+                result_template={"name": None, "value": None},
+                schema_type=schema,
+                is_snowpark_connect_compatible=True,
+            )
+        )
+    assert len(results) == 2
+    frank = [r for r in results if r.get("name") == "Frank"][0]
+    assert frank["value"] is None
+    assert "_corrupt_record" in frank
+
+
+def test_xml_reader_process_with_scos_compatible_param():
+    """XMLReader.process passes is_snowpark_connect_compatible through"""
+    xml_content = "<root><record><a>1</a></record></root>"
+    xml_bytes = xml_content.encode("utf-8")
+    mock_file = io.BytesIO(xml_bytes)
+    with patch(
+        "snowflake.snowpark._internal.xml_reader.get_file_size",
+        return_value=len(xml_bytes),
+    ), patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+        results = list(
+            XMLReader().process(
+                "test.xml",
+                1,
+                "record",
+                0,
+                "PERMISSIVE",
+                "_corrupt_record",
+                True,
+                "_",
+                False,
+                "_VALUE",
+                "",
+                "utf-8",
+                True,
+                "",
+                "",
+                True,
+            )
+        )
+    assert len(results) == 1
+    assert results[0][0]["a"] == "1"

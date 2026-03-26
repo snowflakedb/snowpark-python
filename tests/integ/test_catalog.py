@@ -241,7 +241,11 @@ def test_list_tables(session, temp_db1, temp_schema1, temp_table1, temp_table2):
     assert cols[0].datatype == "NUMBER(38,0)"
     assert cols[0].nullable is True
     assert cols[1].name == "B"
-    assert cols[1].datatype == "VARCHAR(16777216)"
+    # 2025_07/bcr-2118 changes the default string length from 16777216 to 134217728
+    assert (
+        cols[1].datatype == "VARCHAR(16777216)"
+        or cols[1].datatype == "VARCHAR(134217728)"
+    )
     assert cols[1].nullable is True
 
 

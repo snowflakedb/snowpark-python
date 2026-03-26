@@ -37,6 +37,7 @@ from snowflake.snowpark.functions import (
     array_slice,
     array_sort,
     array_to_string,
+    array_union_agg,
     array_unique_agg,
     arrays_overlap,
     arrays_zip,
@@ -145,6 +146,7 @@ from snowflake.snowpark.functions import (
     to_boolean,
     to_char,
     to_date,
+    to_decfloat,
     to_decimal,
     to_double,
     to_json,
@@ -374,6 +376,32 @@ def test_concat(session, col_a, col_b, col_c):
     df = session.create_dataframe([["1", "2", "3"]], schema=["a", "b", "c"])
     res = df.select(concat(col_a, col_b, col_c)).collect()
     assert res[0][0] == "123"
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local testing replaces plan SQL with MOCK_TEST_FAKE_QUERY(); CHR(34) assertion needs real SQL.",
+)
+def test_concat_rewrites_lit_double_quote_to_chr_sql(session):
+    df = session.create_dataframe([["fn"]], schema=["a"])
+    out = df.select(concat(lit('"'), col("a")).alias("q"))
+    sql = out.queries["queries"][0].upper()
+    assert "CHR(34)" in sql
+    assert "CONCAT(" in sql
+    rows = out.collect()
+    assert len(rows) == 1 and rows[0][0] == '"fn'
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local testing replaces plan SQL with MOCK_TEST_FAKE_QUERY(); literal SQL assertions need real SQL.",
+)
+def test_concat_preserves_other_string_literals_sql(session):
+    df = session.create_dataframe([["x"]], schema=["a"])
+    out = df.select(concat(lit("##"), col("a")).alias("q"))
+    sql = out.queries["queries"][0]
+    assert "##" in sql
+    assert "CHR(34)" not in sql.upper()
 
 
 @pytest.mark.parametrize(
@@ -1949,6 +1977,12 @@ def test_array_negative(session):
         ex_info
     )
 
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_union_agg([1])).collect()
+    assert "'ARRAY_UNION_AGG' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
 
 def test_object_negative(session):
     df = session.create_dataframe([1], schema=["a"])
@@ -2350,6 +2384,53 @@ def test_to_double(session, local_testing_mode):
             [Row(1.2, -2.34, -2.34)],
             sort=False,
         )
+
+
+def test_to_decfloat(session, local_testing_mode):
+    # Test supported input type
+    with decimal.localcontext() as ctx:
+        # by default, decimal.Decimal uses 28 digits of precision
+        # we need to set the local context to use 38 digits so that the connector will return the precision stored in the DB
+        ctx.prec = 38
+        long_dec = (
+            "12345678901234567890123456789012345678"  # ensure 38 digits are preserved
+        )
+        df = session.create_dataframe(
+            [[long_dec, False, 12e6, "3.45e-4", decimal.Decimal("12.34"), None]],
+            schema=StructType(
+                [
+                    StructField("str_col1", StringType()),
+                    StructField("bool_col", BooleanType()),
+                    StructField("float_col", FloatType()),
+                    StructField("str_col2", StringType()),
+                    StructField("number_col", DecimalType(scale=2)),
+                    StructField("str_col3", StringType()),
+                ]
+            ),
+        )
+
+        Utils.check_answer(
+            df.select([to_decfloat(c) for c in df.columns]),
+            [
+                Row(
+                    decimal.Decimal(long_dec),
+                    decimal.Decimal("0"),
+                    decimal.Decimal("12000000"),
+                    decimal.Decimal("3.45e-4"),
+                    decimal.Decimal("12.34"),
+                    None,
+                )
+            ],
+        )
+
+        # Test unsupported input type
+        df = session.create_dataframe(
+            [[datetime.date.today()]],
+            schema=StructType([StructField("date_col", DateType())]),
+        )
+
+        with pytest.raises(SnowparkSQLException):
+            df.select([to_decfloat(c) for c in df.columns]).collect()
 
 
 def test_to_decimal(session, local_testing_mode):

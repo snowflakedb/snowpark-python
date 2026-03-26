@@ -48,7 +48,7 @@ from snowflake.snowpark._internal.utils import (
     warning,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.column import Column, _to_col_if_str
+from snowflake.snowpark.column import Column, _to_col_if_str, _to_col_if_sql_expr
 from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
@@ -256,6 +256,7 @@ class DataFrameWriter:
             Dict[str, Union[str, Iterable[ColumnOrSqlExpr]]]
         ] = None,
         table_exists: Optional[bool] = None,
+        overwrite_condition: Optional[ColumnOrSqlExpr] = None,
         _emit_ast: bool = True,
         **kwargs: Optional[Dict[str, Any]],
     ) -> Optional[AsyncJob]:
@@ -270,7 +271,9 @@ class DataFrameWriter:
 
                 "append": Append data of this DataFrame to the existing table. Creates a table if it does not exist.
 
-                "overwrite": Overwrite the existing table by dropping old table.
+                "overwrite": Overwrite the existing table. By default, drops and recreates the table.
+                    When ``overwrite_condition`` is specified, performs selective overwrite: deletes only
+                    rows matching the condition, then inserts new data.
 
                 "truncate": Overwrite the existing table by truncating old table.
 
@@ -330,7 +333,12 @@ class DataFrameWriter:
                 * iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
             table_exists: Optional parameter to specify if the table is known to exist or not.
                 Set to ``True`` if table exists, ``False`` if it doesn't, or ``None`` (default) for automatic detection.
-                Primarily useful for "append" and "truncate" modes to avoid running query for automatic detection.
+                Primarily useful for "append", "truncate", and "overwrite" with overwrite_condition modes to avoid running query for automatic detection.
+            overwrite_condition: Specifies the overwrite condition to perform atomic targeted delete-insert.
+                Can only be used when ``mode`` is "overwrite". When provided and the table exists, rows matching
+                the condition are atomically deleted and all rows from the DataFrame are inserted, preserving
+                non-matching rows. When not provided, the default "overwrite" behavior applies (drop and recreate table).
+                If the table does not exist, ``overwrite_condition`` is ignored and the table is created normally.
 
 
         Example 1::
@@ -364,6 +372,21 @@ class DataFrameWriter:
             ...     "partition_by": ["a", bucket(3, col("b"))],
             ... }
             >>> df.write.mode("overwrite").save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
+
+        Example 3::
+
+            Using overwrite_condition for targeted delete and insert:
+
+            >>> from snowflake.snowpark.functions import col
+            >>> df = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"]], schema=["id", "val"])
+            >>> df.write.mode("overwrite").save_as_table("my_table", table_type="temporary")
+            >>> session.table("my_table").order_by("id").collect()
+            [Row(ID=1, VAL='a'), Row(ID=2, VAL='b'), Row(ID=3, VAL='c')]
+
+            >>> new_df = session.create_dataframe([[2, "updated2"], [5, "updated5"]], schema=["id", "val"])
+            >>> new_df.write.mode("overwrite").save_as_table("my_table", overwrite_condition="id = 1 or val = 'b'")
+            >>> session.table("my_table").order_by("id").collect()
+            [Row(ID=2, VAL='updated2'), Row(ID=3, VAL='c'), Row(ID=5, VAL='updated5')]
         """
 
         statement_params = track_data_source_statement_params(
@@ -392,6 +415,8 @@ class DataFrameWriter:
             # change_tracking: Optional[bool] = None,
             # copy_grants: bool = False,
             # iceberg_config: Optional[dict] = None,
+            # table_exists: Optional[bool] = None,
+            # overwrite_condition: Optional[ColumnOrSqlExpr] = None,
 
             build_table_name(expr.table_name, table_name)
 
@@ -433,6 +458,12 @@ class DataFrameWriter:
                     t = expr.iceberg_config.add()
                     t._1 = k
                     build_expr_from_python_val(t._2, v)
+            if table_exists is not None:
+                expr.table_exists.value = table_exists
+            if overwrite_condition is not None:
+                build_expr_from_snowpark_column_or_sql_str(
+                    expr.overwrite_condition, overwrite_condition
+                )
 
             self._dataframe._session._ast_batch.eval(stmt)
 
@@ -486,18 +517,33 @@ class DataFrameWriter:
                     f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
                 )
 
+            # overwrite_condition must be used with OVERWRITE mode only
+            if overwrite_condition is not None and save_mode != SaveMode.OVERWRITE:
+                raise ValueError(
+                    f"'overwrite_condition' is only supported with mode='overwrite'. "
+                    f"Got mode='{save_mode.value}'."
+                )
+
+            overwrite_condition_expr = (
+                _to_col_if_sql_expr(
+                    overwrite_condition, "DataFrameWriter.save_as_table"
+                )._expression
+                if overwrite_condition is not None
+                else None
+            )
+
             session = self._dataframe._session
+            needs_table_exists_check = save_mode in [
+                SaveMode.APPEND,
+                SaveMode.TRUNCATE,
+            ] or (save_mode == SaveMode.OVERWRITE and overwrite_condition is not None)
             if (
                 table_exists is None
                 and not isinstance(session._conn, MockServerConnection)
-                and save_mode
-                in [
-                    SaveMode.APPEND,
-                    SaveMode.TRUNCATE,
-                ]
+                and needs_table_exists_check
             ):
                 # whether the table already exists in the database
-                # determines the compiled SQL for APPEND and TRUNCATE mode
+                # determines the compiled SQL for APPEND, TRUNCATE, and OVERWRITE with overwrite_condition
                 # if the table does not exist, we need to create it first;
                 # if the table exists, we can skip the creation step and insert data directly
                 table_exists = session._table_exists(table_name)
@@ -518,6 +564,7 @@ class DataFrameWriter:
                 copy_grants,
                 iceberg_config,
                 table_exists,
+                overwrite_condition_expr,
             )
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
             result = session._conn.execute(
