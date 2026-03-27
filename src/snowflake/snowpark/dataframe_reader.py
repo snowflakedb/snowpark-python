@@ -835,15 +835,19 @@ class DataFrameReader:
                 transformations = []
         else:
             self._cur_options["INFER_SCHEMA"] = False
-            (
-                schema,
-                schema_to_cast,
-                transformations,
-            ) = self._get_schema_from_csv_user_input(
-                self._user_schema,
-                self._cur_options.get("TRY_CAST", False),
-            )
-            use_user_schema = True
+            try_cast = self._cur_options.get("TRY_CAST", False)
+            if try_cast:
+                (
+                    schema,
+                    schema_to_cast,
+                    transformations,
+                ) = self._get_schema_from_csv_user_input(
+                    self._user_schema,
+                    try_cast,
+                )
+                use_user_schema = True
+            else:
+                schema = self._user_schema._to_attributes()
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
@@ -1410,10 +1414,9 @@ class DataFrameReader:
         transformations = []
         new_schema = []
         for index, field in enumerate(user_schema.fields, start=1):
-            name = quote_name_without_upper_casing(field._name)
             new_schema.append(
                 Attribute(
-                    name,
+                    field.column_identifier.quoted_name,
                     field.datatype,
                     field.nullable,
                 )
@@ -1425,7 +1428,7 @@ class DataFrameReader:
                 if try_cast
                 else f"{source_column}::{sf_type}"
             )
-            schema_to_cast.append((identifier, field._name))
+            schema_to_cast.append((identifier, field.name))
             transformations.append(sql_expr(identifier))
 
         read_file_transformations = [t._expression.sql for t in transformations]
@@ -1439,7 +1442,7 @@ class DataFrameReader:
         transformations = []
         new_schema = []
         for field in user_schema.fields:
-            name = quote_name_without_upper_casing(field._name)
+            name = quote_name_without_upper_casing(field.name)
             new_schema.append(
                 Attribute(
                     name,
@@ -1448,7 +1451,7 @@ class DataFrameReader:
                 )
             )
             identifier = f"$1:{name}::{convert_sp_to_sf_type(field.datatype)}"
-            schema_to_cast.append((identifier, field._name))
+            schema_to_cast.append((identifier, field.name))
             transformations.append(sql_expr(identifier))
         self._infer_schema_transformations = transformations
         self._infer_schema_target_columns = StructType._from_attributes(
