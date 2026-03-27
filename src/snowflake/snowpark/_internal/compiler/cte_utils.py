@@ -159,12 +159,13 @@ def find_duplicate_subtrees(
         """
         total = len(id_node_map[encoded_node_id_with_query])
         if use_object_identity:
-            unique_objects = len(object_ids_per_node_id[encoded_node_id_with_query])
-            if unique_objects > 1:
-                # Multiple distinct objects share the same encoded id.
-                # None of them should be considered duplicates of each other.
-                return 1
-            # All entries are the same object (same id()) → keep original count.
+            # If there are multiple distinct objects with the same encoded id, return 1.
+            # Otherwise, return the total number of occurrences.
+            return (
+                1
+                if len(object_ids_per_node_id[encoded_node_id_with_query]) > 1
+                else total
+            )
         return total
 
     def is_duplicate_subtree(encoded_node_id_with_query: str) -> bool:
