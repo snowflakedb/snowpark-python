@@ -930,9 +930,9 @@ def test_filter_sort_limit_snowpark_connect_compatible(session, sql_simplifier_e
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="exclude_grouping_columns is not supported",
+    reason="HAVING, ORDER BY append, and limit append are not supported in local testing mode",
 )
-def test_group_by_agg_sort_filter(session):
+def test_group_by_agg_sort_filter_sanity(session):
     """
     Tests that post-aggregation clauses (HAVING, ORDER BY, LIMIT) are emitted in valid SQL order
     regardless of the DataFrame call order (see SNOW-3266495).
@@ -958,21 +958,59 @@ def test_group_by_agg_sort_filter(session):
             count("*").alias("headcount"),
             avg("salary").alias("avg_salary"),
         )
+        # Checking against exact query text structure is less than ideal, but these tests need to
+        # verify the level of nesting of certain sub-queries, making it a necessary evil.
+        agg_query_base = """
+        SELECT "DEPT", count(1) AS "HEADCOUNT", avg("SALARY") AS "AVG_SALARY"
+        FROM (
+            SELECT "ID", "DEPT", "SALARY" FROM (
+                SELECT $1 AS "ID", $2 AS "DEPT", $3 AS "SALARY" FROM VALUES
+                (1 :: INT, 'engineering' :: STRING, 80000 :: INT),
+                (2 :: INT, 'engineering' :: STRING, 90000 :: INT),
+                (3 :: INT, 'sales' :: STRING, 50000 :: INT),
+                (4 :: INT, 'sales' :: STRING, 60000 :: INT),
+                (5 :: INT, 'hr' :: STRING, 45000 :: INT),
+                (6 :: INT, 'hr' :: STRING, 55000 :: INT),
+                (7 :: INT, 'engineering' :: STRING, 85000 :: INT)
+            )
+        )
+        GROUP BY "DEPT"
+        """
 
-        expected_all = [
+        def check_agg_sql(df, expected_sql):
+            assert Utils.normalize_sql(df.queries["queries"][0]) == Utils.normalize_sql(
+                expected_sql
+            )
+
+        base_expected_result = [
             Row("engineering", 3, 85000.0),
             Row("sales", 2, 55000.0),
             Row("hr", 2, 50000.0),
         ]
 
-        # sort -> filter: ORDER BY before HAVING in user code, but
-        # SQL must be HAVING before ORDER BY.
+        # sort -> filter: ORDER BY before HAVING in user code, but SQL must be HAVING before ORDER BY.
         result1 = agg_df.orderBy(col("avg_salary").desc()).filter(col("headcount") > 1)
-        Utils.check_answer(result1, expected_all)
+        Utils.check_answer(result1, base_expected_result)
+        check_agg_sql(
+            result1,
+            f"""
+            {agg_query_base}
+            HAVING ("HEADCOUNT" > 1)
+            ORDER BY "AVG_SALARY" DESC NULLS LAST
+            """,
+        )
 
         # filter -> sort: already in correct SQL clause order.
         result2 = agg_df.filter(col("headcount") > 1).orderBy(col("avg_salary").desc())
-        Utils.check_answer(result2, expected_all)
+        Utils.check_answer(result2, base_expected_result)
+        check_agg_sql(
+            result2,
+            f"""
+            {agg_query_base}
+            HAVING ("HEADCOUNT" > 1)
+            ORDER BY "AVG_SALARY" DESC NULLS LAST
+            """,
+        )
 
         # sort -> filter -> limit (must swap filter with sort)
         result3 = (
@@ -987,91 +1025,196 @@ def test_group_by_agg_sort_filter(session):
                 Row("sales", 2, 55000.0),
             ],
         )
-
-        # sort -> limit -> filter: all three clauses in wrong order
-        # (must move filter to first operation)
-        result4 = (
-            agg_df.orderBy(col("avg_salary").desc())
-            .limit(2)
-            .filter(col("headcount") > 1)
-        )
-        Utils.check_answer(
-            result4,
-            [
-                Row("engineering", 3, 85000.0),
-                Row("sales", 2, 55000.0),
-            ],
+        check_agg_sql(
+            result3,
+            f"""
+            {agg_query_base}
+            HAVING ("HEADCOUNT" > 1)
+            ORDER BY "AVG_SALARY" DESC NULLS LAST
+            LIMIT 2 OFFSET 0
+            """,
         )
 
-        # limit -> sort: LIMIT before ORDER BY in user code.
-        result5 = agg_df.limit(2).orderBy(col("avg_salary").desc())
-        assert result5.count() == 2
-
-        # limit -> filter: LIMIT before HAVING in user code.
-        result6 = agg_df.limit(2).filter(col("headcount") > 1)
-        assert result6.count() <= 2
-
-        # filter -> limit -> sort (must swap sort and limit)
-        result7 = (
-            agg_df.filter(col("headcount") > 1)
-            .limit(2)
-            .orderBy(col("avg_salary").desc())
-        )
-        Utils.check_answer(
-            result7,
-            [
-                Row("engineering", 3, 85000.0),
-                Row("sales", 2, 55000.0),
-            ],
-        )
-
-        # select/distinct between sort and filter should break the
+        # A new select between sort and filter should break the
         # _ops_after_agg chain, so the subsequent filter uses a regular
         # WHERE via subquery rather than a flattened HAVING.
-        result8 = (
+        result4 = (
             agg_df.orderBy(col("avg_salary").desc())
             .select("dept", "headcount", "avg_salary")
             .filter(col("headcount") > 1)
         )
-        Utils.check_answer(result8, expected_all)
-
-        result9 = (
-            agg_df.orderBy(col("avg_salary").desc())
-            .distinct()
-            .filter(col("headcount") > 1)
+        Utils.check_answer(result4, base_expected_result)
+        check_agg_sql(
+            result4,
+            (
+                f"""
+            SELECT "DEPT", "HEADCOUNT", "AVG_SALARY"
+            FROM (
+                {agg_query_base}
+                ORDER BY "AVG_SALARY" DESC NULLS LAST
+            )
+            WHERE ("HEADCOUNT" > 1)
+            """
+                if session.sql_simplifier_enabled
+                else f"""
+            SELECT * FROM (
+                SELECT "DEPT", "HEADCOUNT", "AVG_SALARY"
+                FROM (
+                    {agg_query_base}
+                    ORDER BY "AVG_SALARY" DESC NULLS LAST
+                )
+            )
+            WHERE ("HEADCOUNT" > 1)
+            """
+            ),
         )
-        Utils.check_answer(result9, expected_all)
 
-        # Repeated sort: first sort uses the _ops_after_agg append path,
-        # second sort falls back to the regular (subquery) path.
-        result10 = (
-            agg_df.filter(col("headcount") > 1)
+        # Repeated sort: all clauses are placed in a single ORDER BY clause, in the reverse
+        # order of their declaration. Note that referencing the same column multiple times is valid.
+        result5 = (
+            agg_df.orderBy(col("avg_salary").asc())
+            .filter(col("headcount") > 1)
             .orderBy(col("avg_salary").desc())
             .orderBy(col("headcount").asc())
         )
         Utils.check_answer(
-            result10,
+            result5,
             [
                 Row("sales", 2, 55000.0),
                 Row("hr", 2, 50000.0),
                 Row("engineering", 3, 85000.0),
             ],
         )
+        check_agg_sql(
+            result5,
+            f"""
+            {agg_query_base}
+            HAVING ("HEADCOUNT" > 1)
+            ORDER BY "HEADCOUNT" ASC NULLS FIRST,
+                "AVG_SALARY" DESC NULLS LAST,
+                "AVG_SALARY" ASC NULLS FIRST
+            """,
+        )
 
-        # Repeated filter: first filter uses the HAVING append path,
-        # second filter falls back to the regular (subquery WHERE) path.
-        result11 = (
-            agg_df.orderBy(col("avg_salary").desc())
-            .filter(col("headcount") > 1)
+        # Repeated filter: each clause is ANDed together.
+        result6 = (
+            agg_df.filter(col("headcount") > 1)
+            .orderBy(col("avg_salary").desc())
             .filter(col("avg_salary") > 50000)
         )
         Utils.check_answer(
-            result11,
+            result6,
             [
                 Row("engineering", 3, 85000.0),
                 Row("sales", 2, 55000.0),
             ],
         )
+        check_agg_sql(
+            result6,
+            f"""
+            {agg_query_base}
+            HAVING (("HEADCOUNT" > 1) AND ("AVG_SALARY" > 50000))
+            ORDER BY "AVG_SALARY" DESC NULLS LAST
+            """,
+        )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="HAVING, ORDER BY append, and limit append are not supported in local testing mode",
+)
+def test_group_by_agg_sort_filter_limit_ordering(session):
+    """
+    Tests that aggregations involving HAVING and ORDER BY/LIMIT apply operations in the correct order.
+
+    ORDER BY -> LIMIT -> FILTER and FILTER -> ORDER BY -> LIMIT do not generally commute.
+    """
+    df = session.createDataFrame(
+        [
+            (1, "engineering", 80000),
+            (2, "engineering", 90000),
+            (3, "sales", 50000),
+            (4, "sales", 60000),
+            (5, "hr", 45000),
+            (6, "hr", 55000),
+            (7, "engineering", 85000),
+            (8, "research", 90000),
+            (9, "research", 100000),
+            (10, "research", 140000),
+            (11, "AAA", 130000),
+        ],
+        ["id", "dept", "salary"],
+    )
+    agg_df = df.groupBy("dept").agg(
+        count("*").alias("headcount"),
+        avg("salary").alias("avg_salary"),
+    )
+
+    # 1. ORDER BY -> LIMIT -> FILTER
+    # The ordering drops the AAA group before the filter occurs.
+    result1 = (
+        agg_df.orderBy(col("avg_salary").asc())
+        .limit(3)
+        .filter(col("avg_salary") > 54000)
+    )
+    Utils.check_answer(
+        result1,
+        [
+            Row("sales", 2, 55000.0),
+            Row("engineering", 3, 85000.0),
+        ],
+    )
+
+    # 2. FILTER -> ORDER BY -> LIMIT
+    # This is different from case (1), as filtering occurs before ordering/limiting.
+    result2 = (
+        agg_df.filter(col("avg_salary") > 54000)
+        .orderBy(col("avg_salary").asc())
+        .limit(3)
+    )
+    Utils.check_answer(
+        result2,
+        [
+            Row("sales", 2, 55000.0),
+            Row("engineering", 3, 85000.0),
+            Row("research", 3, 110000.0),
+        ],
+    )
+
+    # 3. FILTER -> ORDER BY -> LIMIT -> FILTER
+    # The ordering drops the RESEARCH group, so even though it should survive the final filter, it
+    # gets dropped from the final result.
+    result3 = (
+        agg_df.filter(col("headcount") > 1)
+        .orderBy(col("avg_salary").asc())
+        .limit(3)
+        .filter(col("avg_salary") > 54000)
+    )
+    Utils.check_answer(
+        result3,
+        [
+            Row("sales", 2, 55000.0),
+            Row("engineering", 3, 85000.0),
+        ],
+    )
+
+    # 4. FILTER -> ORDER BY -> LIMIT -> FILTER -> LIMIT
+    # The final limit is not necessarily deterministic, but does not commute with the prior LIMIT.
+    result4 = result2.limit(1)
+    Utils.check_answer(result4, [Row("sales", 2, 55000.0)])
+
+    # 5. ORDER BY -> LIMIT -> ORDER BY -> LIMIT
+    # The RESEARCH group is dropped by the first ORDER BY + LIMIT.
+    # The SALES and HR groups are dropped by the second ORDER BY + LIMIT.
+    result5 = (
+        agg_df.orderBy(col("headcount").asc())
+        .limit(4)
+        .orderBy(col("avg_salary").desc())
+        .limit(2)
+    )
+    Utils.check_answer(
+        result5, [Row("AAA", 1, 130000.0), Row("engineering", 3, 85000.0)]
+    )
 
 
 @pytest.mark.skipif(

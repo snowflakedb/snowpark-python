@@ -11,7 +11,7 @@ import re
 import sys
 from collections import Counter
 from decimal import Decimal
-from functools import cached_property
+from functools import cached_property, reduce
 from logging import getLogger
 from types import ModuleType
 from typing import (
@@ -54,6 +54,9 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     create_join_type,
 )
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
+from snowflake.snowpark._internal.analyzer.binary_expression import (
+    And,
+)
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     Expression,
@@ -695,9 +698,8 @@ class DataFrame:
         self._ops_after_agg = None
         self._agg_base_plan = None
         self._agg_base_select_statement = None
-        self._pending_having = None
-        self._pending_order_by = None
-        self._pending_limit = None
+        self._pending_havings = []
+        self._pending_order_bys = []
 
         # Whether all columns are VARIANT data type,
         # which support querying nested fields via dot notations
@@ -2126,18 +2128,19 @@ class DataFrame:
         # We defer the HAVING expression and rebuild the plan from the
         # aggregate base so that SQL clauses are emitted in the correct order
         # (HAVING -> ORDER BY -> LIMIT) regardless of the user's call order.
+        # If there is a LIMIT earlier in the expression tree, then we must produce a new
+        # sub-query from this filter to ensure correctness.
         if (
             context._is_snowpark_connect_compatible_mode
             and self._ops_after_agg is not None
-            and "filter" not in self._ops_after_agg
+            and "limit" not in self._ops_after_agg
         ):
             new_ops = self._ops_after_agg.copy()
             new_ops.add("filter")
             return self._build_post_agg_df(
                 ops_after_agg=new_ops,
-                pending_having=filter_col_expr,
-                pending_order_by=self._pending_order_by,
-                pending_limit=self._pending_limit,
+                pending_havings=self._pending_havings + [filter_col_expr],
+                pending_order_bys=self._pending_order_bys,
                 _ast_stmt=stmt,
             )
         else:
@@ -2337,18 +2340,20 @@ class DataFrame:
         # the sorting for dataframe after aggregation without nesting.
         # We defer the ORDER BY expressions and rebuild the plan from
         # the aggregate base in correct SQL clause order.
+        # If there is a LIMIT earlier in the expression tree, then we must produce a new
+        # sub-query from this filter to ensure correctness.
         if (
             context._is_snowpark_connect_compatible_mode
             and self._ops_after_agg is not None
-            and "sort" not in self._ops_after_agg
+            and "limit" not in self._ops_after_agg
         ):
             new_ops = self._ops_after_agg.copy()
             new_ops.add("sort")
             return self._build_post_agg_df(
                 ops_after_agg=new_ops,
-                pending_having=self._pending_having,
-                pending_order_by=sort_exprs,
-                pending_limit=self._pending_limit,
+                pending_havings=self._pending_havings,
+                # New ordering clauses must be placed before previously-declared ones
+                pending_order_bys=sort_exprs + self._pending_order_bys,
                 _ast_stmt=stmt,
             )
         else:
@@ -3068,9 +3073,9 @@ class DataFrame:
             new_ops.add("limit")
             return self._build_post_agg_df(
                 ops_after_agg=new_ops,
-                pending_having=self._pending_having,
-                pending_order_by=self._pending_order_by,
-                pending_limit=(n, offset),
+                pending_havings=self._pending_havings,
+                pending_order_bys=self._pending_order_bys,
+                limit_parameters=(n, offset),
                 _ast_stmt=stmt,
             )
         else:
@@ -6829,10 +6834,10 @@ Query List:
 
     def _build_post_agg_df(
         self,
-        ops_after_agg,
-        pending_having,
-        pending_order_by,
-        pending_limit,
+        ops_after_agg: set[str],
+        pending_havings: list[Expression],
+        pending_order_bys: list[Expression],
+        limit_parameters: Optional[tuple[int, int]] = None,
         _ast_stmt=None,
     ) -> "DataFrame":
         """
@@ -6857,12 +6862,19 @@ Query List:
         """
         current = self._agg_base_plan
 
-        if pending_having is not None:
-            current = Filter(pending_having, current, is_having=True)
-        if pending_order_by is not None:
-            current = Sort(pending_order_by, current, is_order_by_append=True)
-        if pending_limit is not None:
-            n, offset = pending_limit
+        if len(pending_havings) > 0:
+            current = Filter(
+                reduce(
+                    lambda acc, expr: And(acc, expr),
+                    pending_havings,
+                ),
+                current,
+                is_having=True,
+            )
+        if len(pending_order_bys) > 0:
+            current = Sort(pending_order_bys, current, is_order_by_append=True)
+        if limit_parameters is not None:
+            n, offset = limit_parameters
             current = Limit(Literal(n), Literal(offset), current, is_limit_append=True)
 
         if self._agg_base_select_statement is not None:
@@ -6879,9 +6891,8 @@ Query List:
         df._ops_after_agg = ops_after_agg
         df._agg_base_plan = self._agg_base_plan
         df._agg_base_select_statement = self._agg_base_select_statement
-        df._pending_having = pending_having
-        df._pending_order_by = pending_order_by
-        df._pending_limit = pending_limit
+        df._pending_havings = pending_havings
+        df._pending_order_bys = pending_order_bys
         return df
 
     def _with_plan(self, plan, _ast_stmt=None) -> "DataFrame":
