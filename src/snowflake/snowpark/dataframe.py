@@ -3062,8 +3062,6 @@ class DataFrame:
 
         # In snowpark_connect_compatible mode, we need to handle
         # the limit for dataframe after aggregation without nesting.
-        # We defer the LIMIT values and rebuild the plan from
-        # the aggregate base in correct SQL clause order.
         if (
             context._is_snowpark_connect_compatible_mode
             and self._ops_after_agg is not None
@@ -6850,13 +6848,16 @@ Query List:
             avg("salary").alias("avg_salary"),
         )
             .orderBy(col("avg_salary").desc())
-            .limit(2)
             .filter(col("headcount") > 1)
+            .limit(2)
 
         Even though `orderBy` is the first operation, we must re-order the `filter` to be first because
         SQL syntax requires HAVING, ORDER BY, and LIMIT clauses to appear in that specific order.
-
         We use `_agg_base_plan` and `_agg_base_select_statement` to re-construct SQL with this constraint.
+
+        Note that LIMIT itself does not commute with ORDER BY and FILTER, so if another FILTER or
+        ORDER BY appears after a LIMIT, we must generate a new sub-query. This invariant is enforced
+        when chaining new filter/order by operations.
 
         This method should only be called in SCOS compatibility mode (context._is_snowpark_connect_compatible_mode).
         """
