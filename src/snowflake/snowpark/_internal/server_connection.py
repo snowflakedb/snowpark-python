@@ -730,11 +730,11 @@ class ServerConnection:
             if not should_retry_without_cte:
                 raise
 
-            # CTE definitions are only prepended to the last query in the plan
-            # (see compile_queries_for_plan in compiler/utils.py), so checking
-            # the last query is sufficient to determine if CTE rewriting occurred.
+            # Skip retry if CTE optimization didn't affect the SQL.
+            # Check for the Snowpark CTE prefix to cover both bare SELECTs
+            # and DML with embedded CTEs (e.g. INSERT INTO t WITH ...).
             main_queries = plan_queries[PlanQueryType.QUERIES]
-            if not main_queries or not main_queries[-1].sql.strip().startswith("WITH "):
+            if not any("SNOWPARK_TEMP_CTE_" in q.sql for q in main_queries):
                 raise
 
             unoptimized_plan_queries = plan.get_execution_queries_without_cte()
@@ -745,11 +745,10 @@ class ServerConnection:
                 cte_error,
             )
 
-            # Re-running _execute_queries is safe: setup queries preceding the
-            # main query are Snowpark-generated temp object DDL (e.g., CREATE
-            # TEMP FILE FORMAT IF NOT EXISTS) that are idempotent. CTE rewriting
-            # only affects the last query, so setup queries are identical across
-            # both plans.
+            # Retry safety: CTE errors are compilation-time rejections (no
+            # partial DML side effects).  Setup DDLs are idempotent, post-
+            # actions run in a finally block (cleanup on failure), and
+            # compile() generates fresh temp object names each call.
             try:
                 retry_action_id = session._generate_new_action_id()
                 result, result_meta = self._execute_queries(
@@ -784,24 +783,24 @@ class ServerConnection:
                 )
 
                 if context._cte_error_threshold > 0:
+                    cte_disabled = False
                     with session._lock:
                         session._cte_error_count += 1
-                        current_count = session._cte_error_count
+                        if session._cte_error_count >= context._cte_error_threshold:
+                            session._cte_optimization_enabled = False
+                            cte_disabled = True
 
-                    if current_count >= context._cte_error_threshold:
+                    if cte_disabled:
                         logger.warning(
-                            "CTE optimization has caused %d execution failures "
-                            "(threshold=%d). Auto-disabling CTE optimization for "
+                            "CTE optimization has caused %d execution failures."
+                            "Auto-disabling CTE optimization for "
                             "the remainder of this session to avoid further "
                             "performance impact.",
-                            current_count,
                             context._cte_error_threshold,
                         )
-                        with session._lock:
-                            session._cte_optimization_enabled = False
                         self._telemetry_client.send_cte_optimization_auto_disabled_telemetry(
                             session_id=self.get_session_id(),
-                            cte_error_count=current_count,
+                            cte_error_count=context._cte_error_threshold,
                         )
 
         if result is None:
