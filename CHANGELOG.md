@@ -10,6 +10,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug that `TRY_CAST` reader option is ignored when calling `DataFrameReader.schema().csv()`.
 - Fixed a Snowflake platform compatibility issue (SNOW-3259059) where `concat(lit('"'), ...)` could lose the leading quote through some `EXCEPT` / chained set-operation plans by lowering that literal to `CHR(34)` in generated SQL.
 - Fixed a bug where chained `DataFrame.filter()` calls with raw SQL text containing `OR` produced incorrect results.
 
