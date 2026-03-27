@@ -86,6 +86,107 @@ def test_find_duplicate_subtrees(test_case):
     assert repeated_node_complexity == expected_repeated_node_complexity
 
 
+def _create_mock_node(encoded_id, complexity=3):
+    """Helper to create a mock SnowflakePlan node for CTE tests."""
+    node = mock.create_autospec(SnowflakePlan)
+    node.encoded_node_id_with_query = encoded_id
+    node.source_plan = None
+    node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: complexity}
+    node.children_plan_nodes = []
+    return node
+
+
+def test_connect_mode_same_object_still_deduplicated():
+    """When the same Python object is referenced multiple times (e.g. df.union_all(df)),
+    it should still be detected as a duplicate even in connect-compatible mode."""
+    root = _create_mock_node("root_R")
+    shared_child = _create_mock_node("child_C")
+    leaf = _create_mock_node("leaf_L")
+    root.children_plan_nodes = [shared_child, shared_child]
+    shared_child.children_plan_nodes = [leaf]
+
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
+        duplicated_ids, _ = find_duplicate_subtrees(root)
+    assert "child_C" in duplicated_ids
+
+
+def test_connect_mode_different_objects_same_id_not_deduplicated():
+    """When two different Python objects have the same encoded_node_id_with_query
+    (e.g. df1.union_all(df2) where df1 and df2 produce the same SQL),
+    they should NOT be treated as duplicates in connect-compatible mode."""
+    root = _create_mock_node("root_R")
+    child_a = _create_mock_node("same_S")
+    child_b = _create_mock_node("same_S")
+    leaf_a = _create_mock_node("leaf_L")
+    leaf_b = _create_mock_node("leaf_L")
+    root.children_plan_nodes = [child_a, child_b]
+    child_a.children_plan_nodes = [leaf_a]
+    child_b.children_plan_nodes = [leaf_b]
+
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
+        duplicated_ids, _ = find_duplicate_subtrees(root)
+    assert len(duplicated_ids) == 0
+
+
+def test_connect_mode_mixed_shared_and_distinct_objects():
+    """A tree with both shared objects (same ref) and distinct objects (different refs,
+    same encoded id). Only the shared object should be deduplicated in connect mode.
+
+    Tree:   root
+           /    \\
+        left    right    (different objects, same encoded id "branch_B")
+          |       |
+        shared  shared   (same object, appears twice → should be deduplicated)
+    """
+    root = _create_mock_node("root_R")
+    left = _create_mock_node("branch_B")
+    right = _create_mock_node("branch_B")
+    shared = _create_mock_node("shared_S")
+    root.children_plan_nodes = [left, right]
+    left.children_plan_nodes = [shared]
+    right.children_plan_nodes = [shared]
+
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
+        duplicated_ids, _ = find_duplicate_subtrees(root)
+    assert "shared_S" in duplicated_ids
+    assert "branch_B" not in duplicated_ids
+
+
+def test_existing_cases_unchanged_in_connect_mode():
+    """Existing test cases use the same object referenced multiple times,
+    so results should be the same even in connect-compatible mode."""
+    for create_fn in [create_test_case1, create_test_case2]:
+        plan, expected_ids, expected_complexity = create_fn()
+        with mock.patch(
+            "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+        ):
+            dup_ids, _ = find_duplicate_subtrees(plan)
+        assert dup_ids == expected_ids
+
+
+def test_connect_mode_with_propagate_complexity_hist():
+    """Verify that propagate_complexity_hist still works correctly in connect mode."""
+    root = _create_mock_node("root_R")
+    shared = _create_mock_node("shared_S", complexity=50000)
+    root.children_plan_nodes = [shared, shared]
+
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
+        dup_ids, complexity_hist = find_duplicate_subtrees(
+            root, propagate_complexity_hist=True
+        )
+    assert "shared_S" in dup_ids
+    assert complexity_hist is not None
+    assert complexity_hist[1] == 2  # 50000 falls in bin 1 (> 10,000, <= 100,000)
+
+
 def test_encode_node_id_with_query_select_sql(mock_session, mock_analyzer):
     sql_text = "select 1 as a, 2 as b"
     select_sql_node = SelectSQL(
