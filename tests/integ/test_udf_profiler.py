@@ -38,6 +38,7 @@ def setup(profiler_session, resources_path, local_testing_mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.udf
 def test_udf_profiler_basic(profiler_session):
     @udf(
         name="str_udf", replace=True, return_type=StringType(), session=profiler_session
@@ -65,6 +66,7 @@ def test_udf_profiler_basic(profiler_session):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.udf
 def test_anonymous_udf(profiler_session):
     add_one = udf(
         lambda x: x + 1,

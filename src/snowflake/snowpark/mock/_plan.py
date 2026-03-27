@@ -590,7 +590,7 @@ def handle_function_expression(
             if param_name in exp.named_arguments:
                 type_hint = str(type_hints.get(param_name, ""))
                 keep_literal = "Column" not in type_hint
-                if type_hint == "typing.Optional[dict]":
+                if type_hint in ["typing.Optional[dict]", "dict | None"]:
                     to_pass_kwargs[param_name] = json.loads(
                         exp.named_arguments[param_name].sql.replace("'", '"')
                     )
