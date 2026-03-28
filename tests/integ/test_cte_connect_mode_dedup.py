@@ -412,3 +412,30 @@ def test_imbalanced_join_shared_base_cte_connect_mode(session, test_table_name):
     assert (
         lhs_uuids != rhs_uuids
     ), "Joined distinct DFs should have different uuid columns even with shared CTE base"
+
+
+def test_distinct_objects_each_duplicated_still_cte(session, test_table_name):
+    """When multiple distinct objects share the same SQL AND each object is
+    itself referenced more than once, each should still be CTE-deduplicated.
+
+    Tree:       union_all (outer)
+               /              \\
+        union_all (left)   union_all (right)
+          /     \\             /      \\
+        df1     df1         df2      df2
+
+    df1 and df2 are different objects with the same SQL.
+    df1 appears twice → should be CTE'd.
+    df2 appears twice → should be CTE'd.
+    """
+    base = session.table(test_table_name).select(
+        col("a").alias("a"), col("b").alias("b")
+    )
+    df1 = base.select(col("a").alias("a"), lit(1).alias("v"))
+    df2 = base.select(col("a").alias("a"), lit(1).alias("v"))
+    left = df1.union_all(df1)
+    right = df2.union_all(df2)
+    df_outer = left.union_all(right)
+
+    query_off, query_on = _get_query_cte_off_and_on(session, df_outer)
+    assert_cte_sql_shape(query_off, query_on, expect_cte=True)

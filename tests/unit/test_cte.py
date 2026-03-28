@@ -158,6 +158,35 @@ def test_connect_mode_mixed_shared_and_distinct_objects():
     assert "branch_B" not in duplicated_ids
 
 
+def test_connect_mode_distinct_objects_each_duplicated():
+    """When multiple distinct objects share the same encoded id AND each object
+    itself appears more than once, each should still be CTE-deduplicated.
+
+    Tree:       root
+               /    \\
+           union1   union2
+            / \\      / \\
+          df1 df1  df2 df2   ← df1 and df2 are different objects, same encoded id
+                               df1 appears twice, df2 appears twice
+
+    Both df1 and df2 should be deduplicated individually.
+    """
+    root = _create_mock_node("root_R")
+    union1 = _create_mock_node("union1_U")
+    union2 = _create_mock_node("union2_U2")
+    df1 = _create_mock_node("same_S")
+    df2 = _create_mock_node("same_S")
+    root.children_plan_nodes = [union1, union2]
+    union1.children_plan_nodes = [df1, df1]
+    union2.children_plan_nodes = [df2, df2]
+
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
+        duplicated_ids, _ = find_duplicate_subtrees(root)
+    assert "same_S" in duplicated_ids
+
+
 def test_existing_cases_unchanged_in_connect_mode():
     """Existing test cases use the same object referenced multiple times,
     so results should be the same even in connect-compatible mode."""
