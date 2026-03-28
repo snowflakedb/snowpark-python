@@ -809,7 +809,6 @@ class ServerConnection:
                             "the remainder of this session to avoid further "
                             "performance impact.",
                             context._cte_error_threshold,
-
                         )
                         self._telemetry_client.send_cte_optimization_auto_disabled_telemetry(
                             session_id=self.get_session_id(),
