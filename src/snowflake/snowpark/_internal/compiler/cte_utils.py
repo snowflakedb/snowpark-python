@@ -4,7 +4,7 @@
 
 import hashlib
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
@@ -156,16 +156,21 @@ def find_duplicate_subtrees(
         encoded id are counted as distinct nodes (occurrence = 1 each).
         A true duplicate requires the *same* object referenced from
         multiple parents.
+
+        When multiple distinct objects share the same encoded id, we return
+        the max occurrence count among any single object. This handles cases
+        like union(union(df1, df1), union(df2, df2)) where df1 and df2
+        produce identical SQL but df1 itself appears twice and should be
+        CTE-deduplicated.
         """
         total = len(id_node_map[encoded_node_id_with_query])
         if use_object_identity:
-            # If there are multiple distinct objects with the same encoded id, return 1.
-            # Otherwise, return the total number of occurrences.
-            return (
-                1
-                if len(object_ids_per_node_id[encoded_node_id_with_query]) > 1
-                else total
-            )
+            object_ids = object_ids_per_node_id[encoded_node_id_with_query]
+            if len(object_ids) > 1:
+                id_counts = Counter(
+                    id(node) for node in id_node_map[encoded_node_id_with_query]
+                )
+                return max(id_counts.values())
         return total
 
     def is_duplicate_subtree(encoded_node_id_with_query: str) -> bool:
