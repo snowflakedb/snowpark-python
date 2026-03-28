@@ -69,6 +69,7 @@ from snowflake.snowpark._internal.utils import (
     result_set_to_rows,
     unwrap_stage_location_single_quote,
 )
+from snowflake.snowpark import context
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.query_history import QueryListener, QueryRecord
 from snowflake.snowpark.row import Row
@@ -696,12 +697,145 @@ class ServerConnection:
         ],
         Union[List[ResultMetadata], List["ResultMetadataV2"]],
     ]:
-        action_id = plan.session._generate_new_action_id()
+        session = plan.session
+        action_id = session._generate_new_action_id()
         plan_queries = plan.execution_queries
         result, result_meta = None, None
         statement_params = kwargs.get("_statement_params", None) or {}
         statement_params["_PLAN_UUID"] = plan.uuid
         kwargs["_statement_params"] = statement_params
+
+        should_retry_without_cte = (
+            block  # Snowpark Connect does not use async queries. Async queries retry tracked by SNOW-3293313
+            and context._is_snowpark_connect_compatible_mode
+            and session.cte_optimization_enabled
+        )
+
+        try:
+            result, result_meta = self._execute_queries(
+                plan,
+                plan_queries,
+                action_id,
+                to_pandas=to_pandas,
+                to_iter=to_iter,
+                block=block,
+                data_type=data_type,
+                log_on_exception=log_on_exception,
+                case_sensitive=case_sensitive,
+                ignore_results=ignore_results,
+                to_arrow=to_arrow,
+                **kwargs,
+            )
+        except ProgrammingError as cte_error:
+            if not should_retry_without_cte:
+                raise
+
+            # Skip retry if CTE optimization didn't affect the SQL.
+            # Check for the Snowpark CTE prefix to cover both bare SELECTs
+            # and DML with embedded CTEs (e.g. INSERT INTO t WITH ...).
+            main_queries = plan_queries[PlanQueryType.QUERIES]
+            if not any("SNOWPARK_TEMP_CTE_" in q.sql for q in main_queries):
+                raise
+
+            unoptimized_plan_queries = plan.get_execution_queries_without_cte()
+
+            logger.debug(
+                "CTE-optimized query failed with ProgrammingError: %s. "
+                "Retrying without CTE optimization.",
+                cte_error,
+            )
+
+            # Retry safety: CTE errors are compilation-time rejections (no
+            # partial DML side effects).  Setup DDLs are idempotent, post-
+            # actions run in a finally block (cleanup on failure), and
+            # compile() generates fresh temp object names each call.
+            try:
+                retry_action_id = session._generate_new_action_id()
+                result, result_meta = self._execute_queries(
+                    plan,
+                    unoptimized_plan_queries,
+                    retry_action_id,
+                    to_pandas=to_pandas,
+                    to_iter=to_iter,
+                    block=block,
+                    data_type=data_type,
+                    log_on_exception=log_on_exception,
+                    case_sensitive=case_sensitive,
+                    ignore_results=ignore_results,
+                    to_arrow=to_arrow,
+                    **kwargs,
+                )
+
+            except ProgrammingError:
+                raise cte_error
+            except Exception as retry_error:
+                # Log both errors for debugging
+                logger.error(
+                    "Retry without CTE optimization failed with different error: %s. "
+                    "Original CTE error: %s",
+                    retry_error,
+                    cte_error,
+                )
+                raise  # Raise the actual retry error, not the original
+
+            else:
+                cte_query_id = getattr(cte_error, "sfqid", None)
+                retry_query_id = (
+                    result.get("sfqid") if isinstance(result, dict) else None
+                )
+
+                self._telemetry_client.send_cte_execution_retry_telemetry(
+                    session_id=self.get_session_id(),
+                    plan_uuid=plan.uuid,
+                    error_message=str(cte_error),
+                    api_calls=plan.api_calls,
+                    cte_query_id=cte_query_id,
+                    retry_query_id=retry_query_id,
+                )
+
+                if context._cte_error_threshold > 0:
+                    cte_disabled = False
+                    with session._lock:
+                        session._cte_error_count += 1
+                        if session._cte_error_count >= context._cte_error_threshold:
+                            session._cte_optimization_enabled = False
+                            cte_disabled = True
+
+                    if cte_disabled:
+
+                        logger.warning(
+                            "CTE optimization has caused %d execution failures. "
+                            "Auto-disabling CTE optimization for "
+                            "the remainder of this session to avoid further "
+                            "performance impact.",
+                            context._cte_error_threshold,
+                        )
+                        self._telemetry_client.send_cte_optimization_auto_disabled_telemetry(
+                            session_id=self.get_session_id(),
+                            cte_error_count=context._cte_error_threshold,
+                        )
+
+        if result is None:
+            raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
+
+        return result, result_meta
+
+    def _execute_queries(
+        self,
+        plan: SnowflakePlan,
+        plan_queries,
+        action_id: int,
+        to_pandas: bool = False,
+        to_iter: bool = False,
+        block: bool = True,
+        data_type: _AsyncResultType = _AsyncResultType.ROW,
+        log_on_exception: bool = False,
+        case_sensitive: bool = True,
+        ignore_results: bool = False,
+        to_arrow: bool = False,
+        **kwargs,
+    ) -> Tuple[Optional[Any], Optional[Any]]:
+        result, result_meta = None, None
         try:
             main_queries = plan_queries[PlanQueryType.QUERIES]
             post_actions = plan_queries[PlanQueryType.POST_ACTIONS]
@@ -809,9 +943,6 @@ class ServerConnection:
                     session_id=self.get_session_id(),
                     data=get_plan_telemetry_metrics(plan),
                 )
-
-        if result is None:
-            raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
 
         return result, result_meta
 
