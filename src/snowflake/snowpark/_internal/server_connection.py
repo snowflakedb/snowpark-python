@@ -765,8 +765,19 @@ class ServerConnection:
                     to_arrow=to_arrow,
                     **kwargs,
                 )
-            except Exception:
+
+            except ProgrammingError:
                 raise cte_error
+            except Exception as retry_error:
+                # Log both errors for debugging
+                logger.error(
+                    "Retry without CTE optimization failed with different error: %s. "
+                    "Original CTE error: %s",
+                    retry_error,
+                    cte_error,
+                )
+                raise  # Raise the actual retry error, not the original
+
             else:
                 cte_query_id = getattr(cte_error, "sfqid", None)
                 retry_query_id = (
