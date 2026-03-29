@@ -28,7 +28,8 @@ Before using this skill, ensure the following are set up:
 4. Find the relevant code in `src/snowflake/snowpark/_internal/mock/`
 5. Implement the fix
 6. Write or update tests (see Test approach below)
-7. Create a commit with message format: `SNOW-XXXXXXX: <description>`
+7. Update `CHANGELOG.md` (see Changelog below)
+8. Create a commit with message format: `SNOW-XXXXXXX: <description>`
 
 ## Codebase layout
 
@@ -88,6 +89,22 @@ Run mock-only tests:
 ```bash
 pytest tests/mock/<test_file>.py
 ```
+
+## Changelog
+
+Add an entry under the **top-most unreleased version** in `CHANGELOG.md`, in the `### Snowpark Local Testing Updates > #### Bug Fixes` section:
+
+```markdown
+## x.y.z (TBD)
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug where <description of the fix>.
+```
+
+If the `### Snowpark Local Testing Updates` section doesn't exist yet in the TBD block, add it after `### Snowpark Python API Updates`.
 
 ## Known Limitations
 
