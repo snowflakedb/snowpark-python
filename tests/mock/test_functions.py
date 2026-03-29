@@ -17,6 +17,7 @@ from snowflake.snowpark.functions import (
     asc,
     call_function,
     col,
+    concat,
     concat_ws,
     contains,
     count,
@@ -35,6 +36,7 @@ from snowflake.snowpark.functions import (
     sum,
     to_char,
     to_date,
+    when,
 )
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry, patch
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
@@ -756,6 +758,24 @@ def test_concat_ws_indexing(session):
     filtered = df.where(df.A > 1)
     final = filtered.with_column("concat", concat_ws(lit("-"), "A", "B"))
     Utils.check_answer(final, [Row(2, "B", "2-B"), Row(3, "C", "3-C")])
+
+
+def test_concat_indexing(session):
+    """SNOW-3203859: filter + withColumn(concat) should not produce split NaN rows."""
+    df = session.create_dataframe(
+        [("A", "a1"), ("A", "a2"), ("B", "b1"), ("B", "b2")],
+        StructType(
+            [StructField("TYPE", StringType()), StructField("NAME", StringType())]
+        ),
+    )
+    df = df.with_column(
+        "LABEL",
+        when(col("TYPE") == lit("A"), lit("a")).otherwise(lit("b")),
+    )
+    result = df.filter(col("LABEL") == lit("b")).with_column(
+        "NAME", concat(col("TYPE"), lit("_x"))
+    )
+    Utils.check_answer(result, [Row("B", "b", "B_x"), Row("B", "b", "B_x")])
 
 
 def test_ai_complete(session):
