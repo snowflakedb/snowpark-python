@@ -19,6 +19,7 @@ from snowflake.snowpark.functions import (
     col,
     concat_ws,
     contains,
+    convert_timezone,
     count,
     current_date,
     current_time,
@@ -871,3 +872,48 @@ def test_save_as_table_column_order_name_array_type(session):
     assert len(result) == 1
     assert result[0]["ID"] == 1
     assert result[0]["TAGS"] is None
+
+
+def test_convert_timezone_with_string_input(session):
+    """Regression test for SNOW-3217482 / GitHub #4110:
+    convert_timezone should parse string timestamps."""
+    df = session.create_dataframe([["2023-03-10T08:00:00+03:00"]], schema=["date"])
+    result = df.select(convert_timezone(lit("UTC"), col("date"))).collect()
+    assert result[0][0] == datetime.datetime(
+        2023, 3, 10, 5, 0, tzinfo=datetime.timezone.utc
+    )
+
+
+def test_convert_timezone_with_string_input_ntz(session):
+    """String input without timezone info should use the session/local timezone."""
+    df = session.create_dataframe([["2023-06-15T12:30:00"]], schema=["date"])
+    result = df.select(convert_timezone(lit("UTC"), col("date"))).collect()
+    assert result[0][0] is not None
+    assert result[0][0].year == 2023
+    assert result[0][0].month == 6
+    assert result[0][0].day == 15
+
+
+def test_convert_timezone_with_string_input_null(session):
+    """String column with None values should return None."""
+    df = session.create_dataframe([[None]], schema=["date"])
+    result = df.select(convert_timezone(lit("UTC"), col("date"))).collect()
+    assert result[0][0] is None
+
+
+def test_convert_timezone_with_string_input_three_args(session):
+    """Three-arg form: convert_timezone(target_tz, source_time, source_tz) with string input."""
+    from snowflake.snowpark.mock._functions import LocalTimezone
+    import pytz
+
+    LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+    try:
+        df = session.create_dataframe([["2023-03-10T08:00:00"]], schema=["date"])
+        # target=UTC, source_time=date (NTZ string), source_tz=US/Eastern
+        # 08:00 in US/Eastern → 13:00 UTC (EST is UTC-5)
+        result = df.select(
+            convert_timezone(lit("UTC"), col("date"), lit("US/Eastern"))
+        ).collect()
+        assert result[0][0] == datetime.datetime(2023, 3, 10, 13, 0)
+    finally:
+        LocalTimezone.set_local_timezone()
