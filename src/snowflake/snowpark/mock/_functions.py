@@ -2056,7 +2056,10 @@ def mock_convert_timezone(
     else:
         source_timezone, target_timezone, source_time = args
         return_type = TimestampTimeZone.NTZ
-        if source_time.sf_type.datatype.tz is not TimestampTimeZone.NTZ:
+        if (
+            isinstance(source_time.sf_type.datatype, TimestampType)
+            and source_time.sf_type.datatype.tz is not TimestampTimeZone.NTZ
+        ):
             raise ValueError(
                 "[Local Testing] convert_timezone can only convert NTZ timestamps when source_timezone is specified."
             )
@@ -2069,6 +2072,9 @@ def mock_convert_timezone(
         source_timezone, target_timezone, source_time = row
         if source_time is None:
             return None
+
+        if isinstance(source_time, str):
+            source_time = dateutil.parser.parse(source_time)
 
         if source_timezone is not None:
             # Using dateutil because it uses iana timezones while pytz would use Olson tzdb.
