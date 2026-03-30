@@ -1506,6 +1506,7 @@ class DataFrameReader:
                 lit(null_value),
                 lit(charset),
                 lit(ignore_surrounding_whitespace),
+                lit(file_size),
             )
         )
 
