@@ -1438,19 +1438,13 @@ class DataFrameReader:
             (local_file_path, handler_name), TempObjectType.TABLE_FUNCTION
         )
 
-        udtf_name = self._session.get_fully_qualified_name_if_possible(
-            f"SNOWPARK_TEMP_XML_{handler_name}"
-        )
-
         return self._session.udtf.register_from_file(
             python_file_path,
             handler_name,
-            name=udtf_name,
             output_schema=output_schema,
             input_types=input_types,
             packages=["snowflake-snowpark-python", "lxml<6"],
-            if_not_exists=True,
-            skip_upload_on_content_match=True,
+            replace=True,
             _suppress_local_package_warnings=True,
         )
 
