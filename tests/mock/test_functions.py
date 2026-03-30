@@ -39,7 +39,15 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry, patch
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
-from snowflake.snowpark.types import IntegerType
+from snowflake.snowpark.types import (
+    ArrayType,
+    IntegerType,
+    MapType,
+    StringType,
+    StructField,
+    StructType,
+    VariantType,
+)
 from snowflake.snowpark.window import Window
 
 from tests.utils import Utils
@@ -793,3 +801,73 @@ def test_ai_complete(session):
             Row('{\n  "response": "AI response to Test prompt"\n}'),
         ],
     )
+
+
+def test_save_as_table_column_order_name_variant_type(session):
+    schema = StructType(
+        [
+            StructField("ID", IntegerType()),
+            StructField("NAME", StringType()),
+            StructField("METADATA", VariantType()),
+        ]
+    )
+    session.create_dataframe([], schema=schema).write.save_as_table(
+        "TEST_VARIANT_COL_ORDER", table_type="temporary"
+    )
+    df = session.create_dataframe(
+        [Row(ID=1, NAME="test")],
+        schema=StructType(
+            [
+                StructField("ID", IntegerType()),
+                StructField("NAME", StringType()),
+            ]
+        ),
+    )
+    df.write.mode("append").save_as_table("TEST_VARIANT_COL_ORDER", column_order="name")
+    result = session.table("TEST_VARIANT_COL_ORDER").collect()
+    assert len(result) == 1
+    assert result[0]["ID"] == 1
+    assert result[0]["NAME"] == "test"
+    assert result[0]["METADATA"] is None
+
+
+def test_save_as_table_column_order_name_map_type(session):
+    schema = StructType(
+        [
+            StructField("ID", IntegerType()),
+            StructField("DATA", MapType(StringType(), StringType())),
+        ]
+    )
+    session.create_dataframe([], schema=schema).write.save_as_table(
+        "TEST_MAP_COL_ORDER", table_type="temporary"
+    )
+    df = session.create_dataframe(
+        [Row(ID=1)],
+        schema=StructType([StructField("ID", IntegerType())]),
+    )
+    df.write.mode("append").save_as_table("TEST_MAP_COL_ORDER", column_order="name")
+    result = session.table("TEST_MAP_COL_ORDER").collect()
+    assert len(result) == 1
+    assert result[0]["ID"] == 1
+    assert result[0]["DATA"] is None
+
+
+def test_save_as_table_column_order_name_array_type(session):
+    schema = StructType(
+        [
+            StructField("ID", IntegerType()),
+            StructField("TAGS", ArrayType(StringType())),
+        ]
+    )
+    session.create_dataframe([], schema=schema).write.save_as_table(
+        "TEST_ARRAY_COL_ORDER", table_type="temporary"
+    )
+    df = session.create_dataframe(
+        [Row(ID=1)],
+        schema=StructType([StructField("ID", IntegerType())]),
+    )
+    df.write.mode("append").save_as_table("TEST_ARRAY_COL_ORDER", column_order="name")
+    result = session.table("TEST_ARRAY_COL_ORDER").collect()
+    assert len(result) == 1
+    assert result[0]["ID"] == 1
+    assert result[0]["TAGS"] is None

@@ -10,6 +10,9 @@
 
 #### Bug Fixes
 
+- Fixed a Snowflake platform compatibility issue (SNOW-3259059) where `concat(lit('"'), ...)` could lose the leading quote through some `EXCEPT` / chained set-operation plans by lowering that literal to `CHR(34)` in generated SQL.
+- Fixed a bug where chained `DataFrame.filter()` calls with raw SQL text containing `OR` produced incorrect results.
+
 #### Improvements
 
 - Restored the following query improvements that were reverted in 1.47.0 due to bugs:
@@ -21,6 +24,7 @@
 #### Bug Fixes
 
 - Fix a bug where `dense_rank()` would fail with `ValueError` on NULL partition values.
+- Fixed a bug where `collect()` raised `KeyError` after `save_as_table(column_order="name")` when the source DataFrame omitted columns of `VariantType`, `MapType`, or `ArrayType` present in the target table schema in local testing.
 
 ## 1.48.0 (2026-03-23)
 
