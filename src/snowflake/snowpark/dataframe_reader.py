@@ -845,9 +845,9 @@ class DataFrameReader:
                     self._user_schema,
                     try_cast,
                 )
-                use_user_schema = True
             else:
                 schema = self._user_schema._to_attributes()
+            use_user_schema = True
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
