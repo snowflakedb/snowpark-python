@@ -2146,7 +2146,7 @@ def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
         SnowparkLocalTestingException.raise_from_error(
             ValueError("concat expects one or more column(s) to be passed in.")
         )
-    pdf = pandas.concat(columns, axis=1)
+    pdf = pandas.concat(columns, axis=1).reset_index(drop=True)
     result = pdf.T.apply(
         lambda c: None if c.isnull().values.any() else c.astype(str).str.cat()
     )
