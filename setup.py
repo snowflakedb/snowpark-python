@@ -28,7 +28,7 @@ INSTALL_REQ_LIST = [
     "pyyaml",
     "cloudpickle>=1.6.0,<=3.1.1,!=2.1.0,!=2.2.0",
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
-    "protobuf>=3.20, <6.32",  # Snowpark IR
+    "protobuf>=3.20, <6.34",  # Snowpark IR
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
@@ -93,8 +93,6 @@ version = ".".join([str(v) for v in VERSION if v is not None])
 
 with open(os.path.join(THIS_DIR, "README.md"), encoding="utf-8") as f:
     readme = f.read()
-with open(os.path.join(THIS_DIR, "CHANGELOG.md"), encoding="utf-8") as f:
-    changelog = f.read()
 
 # Find the Protocol Compiler.
 if "PROTOC" in os.environ and os.path.exists(os.environ["PROTOC"]):
@@ -166,7 +164,7 @@ setup(
     name="snowflake-snowpark-python",
     version=version,
     description="Snowflake Snowpark for Python",
-    long_description=readme + "\n\n" + changelog,
+    long_description=readme,
     long_description_content_type="text/markdown",
     author="Snowflake, Inc",
     author_email="snowflake-python-libraries-dl@snowflake.com",

@@ -281,7 +281,7 @@ def test_copy_into_csv_iceberg(
         ddl = session._run_query(f"select get_ddl('table', '{test_table_name}')")
         assert (
             ddl[0][0]
-            == f"create or replace ICEBERG TABLE {test_table_name} (\n\tA LONG,\n\tB STRING,\n\tC DOUBLE\n)\n PARTITION BY (B, BUCKET(10, A), TRUNCATE(3, B))\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
+            == f"create or replace ICEBERG TABLE {test_table_name} (\n\tA LONG,\n\tB STRING,\n\tC DOUBLE\n)\n PARTITION BY (B, BUCKET(10, A), TRUNCATE(3, B))\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n ICEBERG_VERSION = 2\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
         )
         # Check that a copy_into works on the newly created table.
         df.copy_into_table(test_table_name)
@@ -528,6 +528,16 @@ def test_copy_json_write_with_column_names(session, tmp_stage_name1):
         Utils.drop_table(session, table_name)
 
 
+special_format_schema = StructType(
+    [
+        StructField("ID", IntegerType()),
+        StructField("USERNAME", StringType()),
+        StructField("FIRSTNAME", StringType()),
+        StructField("LASTNAME", StringType()),
+    ]
+)
+
+
 def test_csv_read_format_name(session, tmp_stage_name1):
     temp_file_fmt_name = Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
     session.sql(
@@ -535,16 +545,7 @@ def test_csv_read_format_name(session, tmp_stage_name1):
         "null_if = ('none','NA');"
     ).collect()
     df = (
-        session.read.schema(
-            StructType(
-                [
-                    StructField("ID", IntegerType()),
-                    StructField("USERNAME", StringType()),
-                    StructField("FIRSTNAME", StringType()),
-                    StructField("LASTNAME", StringType()),
-                ]
-            )
-        )
+        session.read.schema(special_format_schema)
         .option("format_name", temp_file_fmt_name)
         .csv(
             f"@{tmp_stage_name1}/{test_file_csv_special_format}",
@@ -1442,3 +1443,87 @@ def test_copy_into_table_names(session, db_parameters, tmp_stage_name1):
         # drop schema
         Utils.drop_schema(session, schema)
         Utils.drop_schema(session, double_quoted_schema)
+
+
+def test_copy_into_table_include_metadata_requires_match_by_column_name(
+    session, tmp_stage_name1
+):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.read.schema(user_schema).csv(test_file_on_stage)
+    with pytest.raises(
+        ValueError,
+        match="INCLUDE_METADATA can only be used with the MATCH_BY_COLUMN_NAME copy option.",
+    ):
+        df.copy_into_table(
+            table_name,
+            INCLUDE_METADATA={"filename_col": "METADATA$FILENAME"},
+        )
+
+
+def test_copy_into_table_include_metadata_with_error_on_column_count_mismatch(
+    session, tmp_stage_name1
+):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.read.schema(user_schema).csv(test_file_on_stage)
+    with pytest.raises(
+        ValueError,
+        match="ERROR_ON_COLUMN_COUNT_MISMATCH must be False when INCLUDE_METADATA is used with CSV files",
+    ):
+        df.copy_into_table(
+            table_name,
+            format_type_options={"ERROR_ON_COLUMN_COUNT_MISMATCH": True},
+            INCLUDE_METADATA={"filename_col": "METADATA$FILENAME"},
+            MATCH_BY_COLUMN_NAME="CASE_INSENSITIVE",
+        )
+
+
+def test_copy_into_table_include_metadata_requires_supported_metadata_column(
+    session, tmp_stage_name1
+):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.read.schema(user_schema).csv(test_file_on_stage)
+    with pytest.raises(
+        ValueError,
+        match="Metadata column NON_EXISTING_COLUMN is not supported",
+    ):
+        df.copy_into_table(
+            table_name,
+            INCLUDE_METADATA={"filename_col": "NON_EXISTING_COLUMN"},
+        )
+
+
+def test_copy_into_table_include_metadata_csv(session, tmp_stage_name1):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv_special_format}"
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(
+        session,
+        table_name,
+        "id String, username String, firstname String, lastname String, filename_col String, row_num_col Int",
+    )
+    try:
+        df = (
+            session.read.schema(special_format_schema)
+            .option("PARSE_HEADER", True)
+            .csv(test_file_on_stage)
+        )
+        df.copy_into_table(
+            table_name,
+            MATCH_BY_COLUMN_NAME="CASE_INSENSITIVE",
+            INCLUDE_METADATA={
+                "filename_col": '"metadata$filename"',
+                "ROW_NUM_COL": "METADATA$FILE_ROW_NUMBER",
+            },
+            force=True,
+        )
+        result = session.table(table_name).sort("ID").collect()
+        assert len(result) > 0
+        for i, row in enumerate(result):
+            assert all(v is not None for v in row)
+            assert len(row) == 6
+            assert row["FILENAME_COL"] == test_file_csv_special_format
+            assert row["ROW_NUM_COL"] == i + 1
+    finally:
+        Utils.drop_table(session, table_name)

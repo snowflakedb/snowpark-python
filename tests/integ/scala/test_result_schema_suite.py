@@ -89,7 +89,12 @@ def test_show_database_objects(
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_show_account_objects(session):
-    sqls = ["show functions", "show network policies", "show roles", "show databases"]
+    sqls = [
+        "show functions limit 10000",
+        "show network policies limit 10000",
+        "show roles limit 10000",
+        "show databases limit 10000",
+    ]
     for sql in sqls:
         Utils.verify_schema(sql, session.sql(sql).schema, session)
 
@@ -101,13 +106,13 @@ def test_show_session_operations(session):
 
 def test_show_terse(session):
     sqls = [
-        "show terse databases",
-        "show terse schemas",
-        "show terse tables",
-        "show terse views",
-        "show terse streams",
-        "show terse tasks",
-        "show terse external tables",
+        "show terse databases limit 10000",
+        "show terse schemas limit 10000",
+        "show terse tables limit 10000",
+        "show terse views limit 10000",
+        "show terse streams limit 10000",
+        "show terse tasks limit 10000",
+        "show terse external tables limit 10000",
     ]
     for sql in sqls:
         Utils.verify_schema(sql, session.sql(sql).schema, session)

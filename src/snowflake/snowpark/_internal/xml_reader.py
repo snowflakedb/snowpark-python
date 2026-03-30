@@ -2,12 +2,29 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
 import os
 import re
 import html.entities
 import struct
+import copy
 from typing import Optional, Dict, Any, Iterator, BinaryIO, Union, Tuple
+
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
+from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark.files import SnowflakeFile
+from snowflake.snowpark.types import (
+    ArrayType,
+    BooleanType,
+    DataType,
+    DateType,
+    DoubleType,
+    LongType,
+    MapType,
+    StringType,
+    StructType,
+    TimestampType,
+)
 
 # lxml is only a dev dependency so use try/except to import it if available
 try:
@@ -50,6 +67,160 @@ def replace_entity(match: re.Match) -> str:
     else:
         # For any entity we don't recognize, leave it unchanged.
         return match.group(0)
+
+
+# TODO SNOW-3217320: The escape/restore below works around a bug in
+# type_utils.find_top_level_colon which mis-splits colons inside double-quoted
+# identifiers. The fix for find_top_level_colon will ship in this same release
+# (type_utils.py), but the UDTF resolves snowflake-snowpark-python from
+# Snowflake's Anaconda channel at runtime, so the server may still run an older
+# version. Once the Anaconda-channel version includes the fix, this
+# escape/restore logic becomes a harmless no-op and can be removed.
+_COLON_PLACEHOLDER = "\x00COLON\x00"
+
+
+def _escape_colons_in_quotes(schema_str: str) -> str:
+    """Replace colons inside double-quoted identifiers with a placeholder.
+
+    The server-side type_utils.find_top_level_colon does not skip colons inside
+    double-quoted identifiers, so a field like ``"px:name": string`` gets split at
+    the wrong colon.  By replacing those colons with a placeholder, we let the existing
+    parser find the correct top-level colon that separates the field name from its type.
+    """
+    result = []
+    in_quotes = False
+    for ch in schema_str:
+        if ch == '"':
+            in_quotes = not in_quotes
+            result.append(ch)
+        elif ch == ":" and in_quotes:
+            result.append(_COLON_PLACEHOLDER)
+        else:
+            result.append(ch)
+    return "".join(result)
+
+
+def _restore_colons_in_template(template: Optional[dict]) -> Optional[dict]:
+    """Recursively restore colon placeholders back to real colons in template keys."""
+    if template is None:
+        return None
+    restored: Dict[str, Any] = {}
+    for key, value in template.items():
+        real_key = key.replace(_COLON_PLACEHOLDER, ":")
+        if isinstance(value, dict):
+            restored[real_key] = _restore_colons_in_template(value)
+        else:
+            restored[real_key] = value
+    return restored
+
+
+def schema_string_to_result_dict_and_struct_type(
+    schema_string: str,
+) -> Tuple[Optional[dict], Optional[StructType]]:
+    if schema_string == "":
+        return None, None
+    safe_string = _escape_colons_in_quotes(schema_string)
+    schema = type_string_to_type_object(safe_string)
+    template = struct_type_to_result_template(schema)
+    return _restore_colons_in_template(template), schema
+
+
+def _can_cast_to_type(value: str, target_type: DataType) -> bool:
+    if isinstance(target_type, StringType):
+        return True
+    if isinstance(target_type, LongType):
+        try:
+            int(value)
+            return True
+        except (ValueError, OverflowError):
+            return False
+    if isinstance(target_type, DoubleType):
+        try:
+            float(value)
+            return True
+        except ValueError:
+            return False
+    if isinstance(target_type, BooleanType):
+        return value.lower() in ("true", "false", "1", "0")
+    if isinstance(target_type, DateType):
+        try:
+            datetime.date.fromisoformat(value)
+            return True
+        except (ValueError, TypeError):
+            return False
+    if isinstance(target_type, TimestampType):
+        try:
+            datetime.datetime.fromisoformat(value)
+            return True
+        except (ValueError, TypeError):
+            return False
+    return True
+
+
+def _validate_row_for_type_mismatch(
+    row: dict,
+    schema: StructType,
+    mode: str,
+    record_str: str = "",
+    column_name_of_corrupt_record: str = "_corrupt_record",
+) -> Optional[dict]:
+    """Validate a parsed row dict against the expected schema types for mode handling:
+    - PERMISSIVE: set mismatched fields to ``None`` and store the raw XML
+      record in *column_name_of_corrupt_record* (Spark compatible).
+    - FAILFAST: raise immediately on the first mismatch.
+    - DROPMALFORMED: return ``None`` so the caller skips the row.
+
+    Only top-level primitive fields are validated because complex types
+    are kept as VARIANT and never cast downstream.
+    """
+    had_error = False
+    for field in schema.fields:
+        field_name = unquote_if_quoted(field.name)
+        if field_name not in row:
+            continue
+
+        value = row[field_name]
+        if value is None:
+            continue
+
+        # Skip complex types as these are kept as VARIANT
+        if isinstance(field.datatype, (StructType, ArrayType, MapType)):
+            continue
+
+        castable = isinstance(value, str) and _can_cast_to_type(value, field.datatype)
+        if not castable:
+            if mode == "FAILFAST":
+                raise RuntimeError(
+                    f"Failed to cast value '{value}' to "
+                    f"{field.datatype.simple_string()} for field "
+                    f"'{field_name}'.\nXML record: {record_str}"
+                )
+            if mode == "DROPMALFORMED":
+                return None
+            # PERMISSIVE: null the bad field, continue checking remaining fields
+            row[field_name] = None
+            had_error = True
+
+    if had_error and mode == "PERMISSIVE":
+        row[column_name_of_corrupt_record] = record_str
+
+    return row
+
+
+def struct_type_to_result_template(dt: DataType) -> Optional[dict]:
+    if isinstance(dt, StructType):
+        out: Dict[str, Any] = {}
+        for f in dt.fields:
+            out[unquote_if_quoted(f.name)] = struct_type_to_result_template(f.datatype)
+        return out
+
+    if isinstance(dt, ArrayType) and dt.element_type is not None:
+        return struct_type_to_result_template(dt.element_type)
+
+    if isinstance(dt, MapType) and dt.value_type is not None:
+        return struct_type_to_result_template(dt.value_type)
+
+    return None
 
 
 def get_file_size(filename: str) -> Optional[int]:
@@ -270,10 +441,16 @@ def element_to_dict_or_str(
     value_tag: str = "_VALUE",
     null_value: str = "",
     ignore_surrounding_whitespace: bool = False,
+    result_template: Optional[dict] = None,
 ) -> Optional[Union[Dict[str, Any], str]]:
     """
     Recursively converts an XML Element to a dictionary.
     """
+    norm_name_to_ori_name = (
+        {key.lower(): key for key in result_template.keys()}
+        if result_template is not None
+        else None
+    )
 
     def get_text(element: ET.Element) -> Optional[str]:
         """Do not strip the text"""
@@ -286,31 +463,63 @@ def element_to_dict_or_str(
 
     children = list(element)
     if not children and (not element.attrib or exclude_attributes):
-        # it's a value element with no attributes or excluded attributes, so return the text
+        # When the schema (result_template) expects a struct for this element,
+        # wrap the text in the template so the output shape matches the schema.
+        # e.g. <publisher>Some Publisher</publisher> with template
+        # {"_VALUE": None, "_country": None, "_language": None} becomes
+        # {"_VALUE": "Some Publisher", "_country": None, "_language": None}
+        # instead of the raw string "Some Publisher".
+        if result_template is not None and isinstance(result_template, dict):
+            result = copy.deepcopy(result_template)
+            text = get_text(element)
+            if text is not None:
+                result[value_tag] = text
+            return result
         return get_text(element)
 
-    result = {}
+    result = copy.deepcopy(result_template) if result_template is not None else {}
 
     if not exclude_attributes:
         for attr_name, attr_value in element.attrib.items():
             if ignore_surrounding_whitespace:
                 attr_value = attr_value.strip()
-            result[f"{attribute_prefix}{attr_name}"] = (
-                None if attr_value == null_value else attr_value
-            )
+            attribute_name = f"{attribute_prefix}{attr_name}"
+            # when custom_schema exists, only exact mathc is allowed
+            if result_template is None:
+                result[attribute_name] = (
+                    None if attr_value == null_value else attr_value
+                )
+            elif attribute_name.lower() in norm_name_to_ori_name:
+                result[norm_name_to_ori_name[attribute_name.lower()]] = (
+                    None if attr_value == null_value else attr_value
+                )
 
     if children:
         temp_dict = {}
         for child in children:
+            tag = child.tag
+            child_result_template = None
+            child_exclude_attributes = exclude_attributes
+            if result_template is not None:
+                # skip if not in custom schema
+                if tag.lower() not in norm_name_to_ori_name:
+                    continue
+                tag = norm_name_to_ori_name[tag.lower()]
+                child_result_template = result_template[tag]
+                # result_template is not None means custom schema is present
+                # child_result_template is None in this case means that
+                # child schema not treated as struct type, thus element attributes should be excluded
+                if child_result_template is None:
+                    child_exclude_attributes = True
             child_dict = element_to_dict_or_str(
                 child,
                 attribute_prefix=attribute_prefix,
-                exclude_attributes=exclude_attributes,
+                exclude_attributes=child_exclude_attributes,
                 value_tag=value_tag,
                 null_value=null_value,
                 ignore_surrounding_whitespace=ignore_surrounding_whitespace,
+                result_template=child_result_template,
             )
-            tag = child.tag
             if tag in temp_dict:
                 if not isinstance(temp_dict[tag], list):
                     temp_dict[tag] = [temp_dict[tag]]
@@ -342,6 +551,9 @@ def process_xml_range(
     ignore_surrounding_whitespace: bool,
     row_validation_xsd_path: str,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
+    result_template: Optional[dict] = None,
+    schema_type: Optional[StructType] = None,
+    is_snowpark_connect_compatible: bool = False,
 ) -> Iterator[Optional[Dict[str, Any]]]:
     """
     Processes an XML file within a given approximate byte range.
@@ -371,6 +583,9 @@ def process_xml_range(
         ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
         row_validation_xsd_path (str): Path to XSD file for row validation.
         chunk_size (int): Size of chunks to read.
+        result_template(dict): a result template generate from user input schema
+        schema_type(StructType): the parsed StructType for row validation
+        is_snowpark_connect_compatible(bool): context._is_snowpark_connect_compatible_mode
 
     Yields:
         Optional[Dict[str, Any]]: Dictionary representation of the parsed XML element.
@@ -501,11 +716,24 @@ def process_xml_range(
                     value_tag=value_tag,
                     null_value=null_value,
                     ignore_surrounding_whitespace=ignore_surrounding_whitespace,
+                    result_template=copy.deepcopy(result_template),
                 )
-                if isinstance(result, dict):
-                    yield result
-                else:
-                    yield {value_tag: result}
+                row = result if isinstance(result, dict) else {value_tag: result}
+
+                # Validate primitive field values against schema types in Snowpark Connect mode only
+                if schema_type is not None and is_snowpark_connect_compatible:
+                    # Mode handling for type mismatch errors.
+                    row = _validate_row_for_type_mismatch(
+                        row,
+                        schema_type,
+                        mode,
+                        record_str,
+                        column_name_of_corrupt_record,
+                    )
+
+                if row is not None:
+                    yield row
+            # Mode handling for malformed XML records that fail to parse.
             except ET.ParseError as e:
                 if mode == "PERMISSIVE":
                     yield {column_name_of_corrupt_record: record_str}
@@ -539,6 +767,8 @@ class XMLReader:
         charset: str,
         ignore_surrounding_whitespace: bool,
         row_validation_xsd_path: str,
+        custom_schema: str,
+        is_snowpark_connect_compatible: bool,
     ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
@@ -561,11 +791,16 @@ class XMLReader:
             charset (str): The character encoding of the XML file.
             ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
             row_validation_xsd_path (str): Path to XSD file for row validation.
+            custom_schema: User input schema for xml, must be used together with row tag.
+            is_snowpark_connect_compatible (bool): context._is_snowpark_connect_compatible_mode
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
         approx_start = approx_chunk_size * i
         approx_end = approx_chunk_size * (i + 1) if i < num_workers - 1 else file_size
+        result_template, schema_type = schema_string_to_result_dict_and_struct_type(
+            custom_schema
+        )
         for element in process_xml_range(
             filename,
             row_tag,
@@ -581,5 +816,8 @@ class XMLReader:
             charset,
             ignore_surrounding_whitespace,
             row_validation_xsd_path=row_validation_xsd_path,
+            result_template=result_template,
+            schema_type=schema_type,
+            is_snowpark_connect_compatible=is_snowpark_connect_compatible,
         ):
             yield (element,)

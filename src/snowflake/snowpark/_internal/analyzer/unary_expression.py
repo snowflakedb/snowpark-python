@@ -56,12 +56,14 @@ class Cast(UnaryExpression):
         try_: bool = False,
         is_rename: bool = False,
         is_add: bool = False,
+        is_permissive: bool = False,
     ) -> None:
         super().__init__(child)
         self.to = to
         self.try_ = try_
         self.is_rename = is_rename
         self.is_add = is_add
+        self.is_permissive = is_permissive
 
 
 class UnaryMinus(UnaryExpression):

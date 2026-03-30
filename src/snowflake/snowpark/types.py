@@ -370,7 +370,29 @@ class DayTimeIntervalType(_AnsiIntervalType):
 
 # Numeric types
 class _IntegralType(_NumericType):
-    pass
+    def __init__(self, **kwargs) -> None:
+        self._precision = kwargs.pop(
+            "_precision", context._integral_type_default_precision.get(type(self), None)
+        )
+
+        if kwargs != {}:
+            raise TypeError(
+                f"__init__() takes 0 argument but {len(kwargs.keys())} were given"
+            )
+
+    def __eq__(self, other):
+        def filtered(d: dict) -> dict:
+            return {k: v for k, v in d.items() if k != "_precision"}
+
+        if context._is_snowpark_connect_compatible_mode:
+            return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+        else:
+            return isinstance(other, self.__class__) and filtered(
+                self.__dict__
+            ) == filtered(other.__dict__)
+
+    def __hash__(self):
+        return hash(repr(self))
 
 
 class _FractionalType(_NumericType):
@@ -437,6 +459,13 @@ class DoubleType(_FractionalType):
 
     def _fill_ast(self, ast: proto.DataType) -> None:
         ast.double_type = True
+
+
+class DecFloatType(_FractionalType):
+    """DecFloat data type. This maps to the DECFLOAT data type in Snowflake."""
+
+    def _fill_ast(self, ast: proto.DataType) -> None:
+        ast.dec_float_type = True
 
 
 class DecimalType(_FractionalType):
@@ -1086,6 +1115,7 @@ _atomic_types: List[Type[DataType]] = [
     BinaryType,
     BooleanType,
     DecimalType,
+    DecFloatType,
     FloatType,
     DoubleType,
     ByteType,

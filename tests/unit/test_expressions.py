@@ -25,7 +25,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark.exceptions import SnowparkPlanException
 from snowflake.snowpark.functions import col
-from snowflake.snowpark.types import DataType, PandasSeriesType
+from snowflake.snowpark.types import DataType, DecFloatType, PandasSeriesType
 
 
 def test_literal():
@@ -49,6 +49,11 @@ def test_literal():
 
     for d in valid_data:
         assert isinstance(Literal(d).datatype, infer_type(d).__class__)
+
+    # check explicitly setting the datatype
+    explicit_literal = Literal(decimal.Decimal(0.5), datatype=DecFloatType())
+    assert explicit_literal.datatype == DecFloatType()
+    assert explicit_literal.value == decimal.Decimal(0.5)
 
     for d in invalid_data:
         with pytest.raises(SnowparkPlanException) as ex_info:

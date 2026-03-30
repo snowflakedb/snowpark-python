@@ -763,10 +763,18 @@ class Analyzer:
                     for k, v in df_alias_dict.items():
                         if v == expr.child.name:
                             df_alias_dict[k] = updated_due_to_inheritance  # type: ignore
+            origin = self.analyze(
+                expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
+            )
+            if (
+                isinstance(expr.child, (Attribute, UnresolvedAttribute))
+                and origin == quoted_name
+            ):
+                # If the column name matches the target of the alias (`quoted_name`),
+                # we can directly emit the column name without an AS clause.
+                return origin
             return alias_expression(
-                self.analyze(
-                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
-                ),
+                origin,
                 quoted_name,
             )
 
@@ -787,6 +795,7 @@ class Analyzer:
                 expr.try_,
                 expr.is_rename,
                 expr.is_add,
+                expr.is_permissive,
             )
         else:
             return unary_expression(
@@ -1136,6 +1145,7 @@ class Analyzer:
                 match_condition,
                 logical_plan,
                 self.session.conf.get("use_constant_subquery_alias", False),
+                directed=logical_plan.directed,
             )
 
         if isinstance(logical_plan, Sort):
@@ -1228,6 +1238,12 @@ class Analyzer:
                 child_attributes=resolved_child.attributes,
                 iceberg_config=iceberg_config,
                 table_exists=logical_plan.table_exists,
+                overwrite_condition=self.analyze(
+                    logical_plan.overwrite_condition,
+                    df_aliased_col_name_to_real_col_name,
+                )
+                if logical_plan.overwrite_condition
+                else None,
             )
 
         if isinstance(logical_plan, Limit):

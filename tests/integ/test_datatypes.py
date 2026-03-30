@@ -1,12 +1,19 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import csv
+import os
+import tempfile
 from decimal import Decimal
+from unittest import mock
 
-from snowflake.snowpark import DataFrame, Row
+import pytest
+
+from snowflake.snowpark import DataFrame, Row, context
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
     BooleanType,
+    DecFloatType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -14,6 +21,8 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    IntegerType,
+    ShortType,
 )
 from tests.utils import Utils
 
@@ -43,13 +52,14 @@ def test_basic_filter(session):
 
 def test_plus_basic(session):
     df = session.create_dataframe(
-        [[1, 1.1, 2.2, 3.3]],
+        [[1, 1.1, 2.2, 3.3, 4.4]],
         schema=StructType(
             [
                 StructField("a", LongType(), nullable=False),
                 StructField("b", DecimalType(3, 1), nullable=False),
                 StructField("c", DoubleType(), nullable=False),
                 StructField("d", DecimalType(4, 2), nullable=False),
+                StructField("e", DecFloatType(), nullable=False),
             ]
         ),
     )
@@ -58,6 +68,7 @@ def test_plus_basic(session):
         (df["a"] + 1).as_("new_a"),
         (df["b"] + df["d"]).as_("new_b"),
         (df["c"] + 3).as_("new_c"),
+        (df["e"] + df["c"]).as_("new_e"),
     )
     assert repr(df.schema) == repr(
         StructType(
@@ -65,6 +76,7 @@ def test_plus_basic(session):
                 StructField("NEW_A", LongType(), nullable=False),
                 StructField("NEW_B", DecimalType(5, 2), nullable=False),
                 StructField("NEW_C", DoubleType(), nullable=False),
+                StructField("NEW_E", DecFloatType(), nullable=False),
             ]
         )
     )
@@ -72,13 +84,14 @@ def test_plus_basic(session):
 
 def test_minus_basic(session):
     df = session.create_dataframe(
-        [[1, 1.1, 2.2, 3.3]],
+        [[1, 1.1, 2.2, 3.3, 4.4]],
         schema=StructType(
             [
                 StructField("a", LongType(), nullable=False),
                 StructField("b", DecimalType(3, 1), nullable=False),
                 StructField("c", DoubleType(), nullable=False),
                 StructField("d", DecimalType(4, 2), nullable=False),
+                StructField("e", DecFloatType(), nullable=False),
             ]
         ),
     )
@@ -87,6 +100,7 @@ def test_minus_basic(session):
         (df["a"] - 1).as_("new_a"),
         (df["b"] - df["d"]).as_("new_b"),
         (df["c"] - 3).as_("new_c"),
+        (df["e"] - df["a"]).as_("new_e"),
     )
     assert repr(df.schema) == repr(
         StructType(
@@ -94,6 +108,7 @@ def test_minus_basic(session):
                 StructField("NEW_A", LongType(), nullable=False),
                 StructField("NEW_B", DecimalType(5, 2), nullable=False),
                 StructField("NEW_C", DoubleType(), nullable=False),
+                StructField("NEW_E", DecFloatType(), nullable=False),
             ]
         )
     )
@@ -101,13 +116,14 @@ def test_minus_basic(session):
 
 def test_multiple_basic(session):
     df = session.create_dataframe(
-        [[1, 1.1, 2.2, 3.3]],
+        [[1, 1.1, 2.2, 3.3, 4.4]],
         schema=StructType(
             [
                 StructField("a", LongType(), nullable=False),
                 StructField("b", DecimalType(3, 1), nullable=False),
                 StructField("c", FloatType(), nullable=False),
                 StructField("d", DecimalType(4, 2), nullable=False),
+                StructField("e", DecFloatType(), nullable=False),
             ]
         ),
     )
@@ -116,6 +132,7 @@ def test_multiple_basic(session):
         (df["a"] * 1).as_("new_a"),
         (df["b"] * df["d"]).as_("new_b"),
         (df["c"] * 3).as_("new_c"),
+        (df["e"] * df["b"]).as_("new_e"),
     )
     assert repr(df.schema) == repr(
         StructType(
@@ -123,6 +140,7 @@ def test_multiple_basic(session):
                 StructField("NEW_A", LongType(), nullable=False),
                 StructField("NEW_B", DecimalType(7, 3), nullable=False),
                 StructField("NEW_C", DoubleType(), nullable=False),
+                StructField("NEW_E", DecFloatType(), nullable=False),
             ]
         )
     )
@@ -408,3 +426,258 @@ def test_join_basic(session):
             ]
         )
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql not supported by local testing mode",
+)
+@pytest.mark.parametrize(
+    "massive_number, precision", [("9" * 38, 38), ("5" * 20, 20), ("7" * 10, 10)]
+)
+def test_numeric_type_store_precision_and_scale(session, massive_number, precision):
+    table_name = Utils.random_table_name()
+    try:
+        df = session.create_dataframe(
+            [Decimal(massive_number)],
+            StructType([StructField("large_value", DecimalType(precision, 0), True)]),
+        )
+        datatype = df.schema.fields[0].datatype
+        assert isinstance(datatype, LongType)
+        assert datatype._precision == precision
+
+        # after save as table, the precision information is lost, because it is basically save LongType(), which
+        # does not have precision information, thus set to default 38.
+        df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+        result = session.sql(f"select * from {table_name}")
+        datatype = result.schema.fields[0].datatype
+        assert isinstance(datatype, LongType)
+        assert datatype._precision == 38
+    finally:
+        session.sql(f"drop table if exists {table_name}").collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="relaxed_types not supported by local testing mode",
+)
+@pytest.mark.parametrize("massive_number", ["9" * 38, "5" * 20, "7" * 10])
+def test_numeric_type_store_precision_and_scale_read_file(session, massive_number):
+    stage_name = Utils.random_stage_name()
+    header = ("BIG_NUM",)
+    test_data = [(massive_number,)]
+
+    def write_csv(data):
+        with tempfile.NamedTemporaryFile(
+            mode="w+",
+            delete=False,
+            suffix=".csv",
+            newline="",
+        ) as file:
+            writer = csv.writer(file)
+            writer.writerow(header)
+            for row in data:
+                writer.writerow(row)
+            return file.name
+
+    file_path = write_csv(test_data)
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        result = session.file.put(
+            file_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+
+        # Infer schema from only the short file
+        constrained_reader = session.read.options(
+            {
+                "INFER_SCHEMA": True,
+                "INFER_SCHEMA_OPTIONS": {"FILES": [result[0].target]},
+                "PARSE_HEADER": True,
+                # Only load the short file
+                "PATTERN": f".*{result[0].target}",
+            }
+        )
+
+        # df1 uses constrained types
+        df1 = constrained_reader.csv(f"@{stage_name}/")
+        datatype = df1.schema.fields[0].datatype
+        assert isinstance(datatype, LongType)
+        assert datatype._precision == 38
+
+    finally:
+        Utils.drop_stage(session, stage_name)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+
+def test_illegal_argument_intergraltype():
+    with pytest.raises(TypeError, match="takes 0 argument but 1 were given"):
+        LongType(b=10)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql not supported by local testing mode",
+)
+@pytest.mark.parametrize("precision", [38, 19, 5, 3])
+def test_write_to_sf_with_correct_precision(session, precision):
+    table_name = Utils.random_table_name()
+
+    with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+        df = session.create_dataframe(
+            [],
+            StructType([StructField("large_value", DecimalType(precision, 0), True)]),
+        )
+        datatype = df.schema.fields[0].datatype
+        assert datatype._precision == precision
+
+        df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+        result = session.sql(f"select * from {table_name}")
+        datatype = result.schema.fields[0].datatype
+        assert datatype._precision == precision
+
+
+@pytest.mark.parametrize(
+    "mock_default_precision",
+    [
+        {IntegerType: 5, LongType: 4},
+        {LongType: 19, IntegerType: 10},
+    ],
+)
+def test_integral_type_default_precision(mock_default_precision):
+    with mock.patch(
+        "snowflake.snowpark.context._integral_type_default_precision",
+        mock_default_precision,
+    ):
+        integer_type = IntegerType()
+        assert integer_type._precision == mock_default_precision[IntegerType]
+
+        long_type = LongType()
+        assert long_type._precision == mock_default_precision[LongType]
+
+        short_type = ShortType()
+        assert short_type._precision is None
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql not supported by local testing mode",
+)
+@pytest.mark.parametrize(
+    "mock_default_precision",
+    [
+        {IntegerType: 5, LongType: 4},
+        {LongType: 19, IntegerType: 10},
+    ],
+)
+def test_end_to_end_default_precision(session, mock_default_precision):
+    table_name = Utils.random_table_name()
+
+    with mock.patch.object(
+        context, "_is_snowpark_connect_compatible_mode", True
+    ), mock.patch.object(
+        context, "_integral_type_default_precision", mock_default_precision
+    ):
+
+        schema = StructType(
+            [
+                StructField("D38", DecimalType(38, 0), True),
+                StructField("D19", DecimalType(19, 0), True),
+                StructField("D5", DecimalType(5, 0), True),
+                StructField("D3", DecimalType(3, 0), True),
+                StructField("integer_value", IntegerType(), True),
+                StructField("long_value", LongType(), True),
+            ]
+        )
+
+        df = session.create_dataframe(
+            [],
+            schema,
+        )
+        assert df.schema.fields[0].datatype._precision == 38
+        assert df.schema.fields[1].datatype._precision == 19
+        assert df.schema.fields[2].datatype._precision == 5
+        assert df.schema.fields[3].datatype._precision == 3
+        assert (
+            df.schema.fields[4].datatype._precision
+            == mock_default_precision[IntegerType]
+        )
+        assert (
+            df.schema.fields[5].datatype._precision == mock_default_precision[LongType]
+        )
+
+        df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+        result = session.sql(f"select * from {table_name}")
+        assert result.schema.fields[0].datatype._precision == 38
+        assert result.schema.fields[1].datatype._precision == 19
+        assert result.schema.fields[2].datatype._precision == 5
+        assert result.schema.fields[3].datatype._precision == 3
+        assert (
+            result.schema.fields[4].datatype._precision
+            == mock_default_precision[IntegerType]
+        )
+        assert (
+            result.schema.fields[5].datatype._precision
+            == mock_default_precision[LongType]
+        )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="relaxed_types not supported by local testing mode",
+)
+@pytest.mark.parametrize("massive_number", ["9" * 38, "5" * 19, "7" * 5])
+def test_default_precision_read_file(session, massive_number):
+    mock_default_precision = {LongType: 19, IntegerType: 10}
+    with mock.patch.object(
+        context, "_is_snowpark_connect_compatible_mode", True
+    ), mock.patch.object(
+        context, "_integral_type_default_precision", mock_default_precision
+    ):
+        stage_name = Utils.random_stage_name()
+        header = ("BIG_NUM",)
+        test_data = [(massive_number,)]
+
+        def write_csv(data):
+            with tempfile.NamedTemporaryFile(
+                mode="w+",
+                delete=False,
+                suffix=".csv",
+                newline="",
+            ) as file:
+                writer = csv.writer(file)
+                writer.writerow(header)
+                for row in data:
+                    writer.writerow(row)
+                return file.name
+
+        file_path = write_csv(test_data)
+
+        try:
+            Utils.create_stage(session, stage_name, is_temporary=True)
+            result = session.file.put(
+                file_path, f"@{stage_name}", auto_compress=False, overwrite=True
+            )
+
+            # Infer schema from only the short file
+            constrained_reader = session.read.options(
+                {
+                    "INFER_SCHEMA": True,
+                    "INFER_SCHEMA_OPTIONS": {"FILES": [result[0].target]},
+                    "PARSE_HEADER": True,
+                    # Only load the short file
+                    "PATTERN": f".*{result[0].target}",
+                }
+            )
+
+            # df1 uses constrained types
+            df1 = constrained_reader.csv(f"@{stage_name}/")
+            datatype = df1.schema.fields[0].datatype
+            assert isinstance(datatype, LongType)
+            assert datatype._precision == len(massive_number)
+
+        finally:
+            Utils.drop_stage(session, stage_name)
+            if os.path.exists(file_path):
+                os.remove(file_path)

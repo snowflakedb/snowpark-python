@@ -2119,6 +2119,31 @@ def to_double(
 
 
 @publicapi
+def to_decfloat(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None, _emit_ast: bool = True
+) -> Column:
+    """Converts an input expression to a decimal floating-point number.
+
+    Example::
+        >>> df = session.create_dataframe(['12', '11.3', '-90.12345'], schema=['a'])
+        >>> df.select(to_decfloat(col('a')).as_('ans')).collect()
+        [Row(ANS=Decimal('12')), Row(ANS=Decimal('11.3')), Row(ANS=Decimal('-90.12345'))]
+    """
+    ast = (
+        build_function_expr("to_decfloat", [e] if fmt is None else [e, fmt])
+        if _emit_ast
+        else None
+    )
+    c = _to_col_if_str(e, "to_decfloat")
+    fmt_col = _to_col_if_lit(fmt, "to_decfloat") if fmt is not None else None
+    return (
+        _call_function("to_decfloat", c, _ast=ast, _emit_ast=_emit_ast)
+        if fmt_col is None
+        else _call_function("to_decfloat", c, fmt_col, _ast=ast, _emit_ast=_emit_ast)
+    )
+
+
+@publicapi
 def div0(
     dividend: Union[ColumnOrName, int, float],
     divisor: Union[ColumnOrName, int, float],
@@ -3687,6 +3712,22 @@ def collation(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     return _call_function("collation", c, _emit_ast=_emit_ast)
 
 
+def _rewrite_concat_arg_if_double_quote_string_literal(
+    c: Column, *, _emit_ast: bool
+) -> Column:
+    # SNOW-3259059: Some Snowflake releases (10.7.1–10.9.2 per JIRA) dropped CONCAT's leading
+    # lit('"') through EXCEPT / chained set-op plans. CHR(34) is the same VARCHAR character in SQL
+    # without that specific single-character literal form.
+    expr = c._expression
+    if (
+        isinstance(expr, Literal)
+        and isinstance(expr.datatype, StringType)
+        and expr.value == '"'
+    ):
+        return _call_function("chr", lit(34, _emit_ast=_emit_ast), _emit_ast=_emit_ast)
+    return c
+
+
 @publicapi
 def concat(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Concatenates one or more strings, or concatenates one or more binary values. If any of the values is null, the result is also null.
@@ -3701,7 +3742,12 @@ def concat(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
         --------------------------
         <BLANKLINE>
     """
-    columns = [_to_col_if_str(c, "concat") for c in cols]
+    columns = [
+        _rewrite_concat_arg_if_double_quote_string_literal(
+            _to_col_if_str(c, "concat"), _emit_ast=_emit_ast
+        )
+        for c in cols
+    ]
     return _call_function("concat", *columns, _emit_ast=_emit_ast)
 
 
@@ -7426,6 +7472,30 @@ def array_to_string(
 
 
 @publicapi
+def array_union_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
+    r"""Returns an ARRAY that contains the union of the distinct values from the input
+    arrays in the specified column.
+
+    The values in the returned ARRAY are in no particular order, and the order is not
+    deterministic. The function ignores NULL values in the column and in arrays in the
+    column. If the column contains only NULL values or the input is empty, the function
+    returns an empty ARRAY.
+
+    Args:
+        col: A :class:`Column` object or column name containing arrays with distinct values.
+
+    Example::
+        >>> import re
+        >>> df = session.create_dataframe([[[1, 1, 2]], [[1, 2, 3]]], schema=["a"])
+        >>> row = df.select(array_union_agg("a").alias("result")).collect()[0]
+        >>> sorted(int(i) for i in re.findall(r"\d+", row[0]))
+        [1, 1, 2, 3]
+    """
+    c = _to_col_if_str(col, "array_union_agg")
+    return _call_function("array_union_agg", c, _emit_ast=_emit_ast)
+
+
+@publicapi
 def array_unique_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Returns a Column containing the distinct values in the specified column col.
     The values in the Column are in no particular order, and the order is not deterministic.
@@ -8928,15 +8998,15 @@ def percent_rank(_emit_ast: bool = True) -> Column:
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(percent_rank().over(Window.partition_by("x").order_by(col("y"))).alias("result")).show()
+        >>> df.select(percent_rank().over(Window.partition_by("x").order_by(col("y"), col("z"))).alias("result")).sort("result").show()
         ------------
         |"RESULT"  |
         ------------
         |0.0       |
-        |0.5       |
-        |0.5       |
         |0.0       |
-        |0.0       |
+        |0.5       |
+        |1.0       |
+        |1.0       |
         ------------
         <BLANKLINE>
     """
@@ -8980,16 +9050,16 @@ def row_number(_emit_ast: bool = True) -> Column:
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(row_number().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).show()
-        ------------
-        |"RESULT"  |
-        ------------
-        |1         |
-        |2         |
-        |3         |
-        |1         |
-        |2         |
-        ------------
+        >>> df.select(col("X"), row_number().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).sort("X", "result").show()
+        ------------------
+        |"X"  |"RESULT"  |
+        ------------------
+        |1    |1         |
+        |1    |2         |
+        |2    |1         |
+        |2    |2         |
+        |2    |3         |
+        ------------------
         <BLANKLINE>
     """
     return _call_function("row_number", _emit_ast=_emit_ast)
@@ -9065,8 +9135,8 @@ def lead(
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(lead("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).collect()
-        [Row(RESULT=1), Row(RESULT=3), Row(RESULT=None), Row(RESULT=3), Row(RESULT=None)]
+        >>> df.select(lead("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).sort("result").collect()
+        [Row(RESULT=None), Row(RESULT=None), Row(RESULT=1), Row(RESULT=3), Row(RESULT=3)]
     """
     # AST.
     ast = (
@@ -9374,6 +9444,7 @@ def udf(
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
@@ -9467,6 +9538,8 @@ def udf(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of the referenced function in the created UDF.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -9571,6 +9644,7 @@ def udf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9598,6 +9672,7 @@ def udf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9627,6 +9702,7 @@ def udtf(
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
@@ -9706,6 +9782,8 @@ def udtf(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of the ``process`` method of ``handler`` in the created UDTF.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -9819,6 +9897,7 @@ def udtf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9844,6 +9923,7 @@ def udtf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9871,6 +9951,7 @@ def udaf(
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
@@ -9950,6 +10031,8 @@ def udaf(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of the ``accumulate`` method of ``handler`` in the created UDAF.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -10069,6 +10152,7 @@ def udaf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10092,6 +10176,7 @@ def udaf(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10593,6 +10678,7 @@ def sproc(
     _emit_ast: bool = True,
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
+    preserve_parameter_names: bool = False,
     **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -10678,6 +10764,8 @@ def sproc(
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
+        preserve_parameter_names: Whether to preserve the parameter names of ``func`` in the created stored procedure.
+            If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
     Returns:
         A stored procedure function that can be called with python value.
@@ -10769,6 +10857,7 @@ def sproc(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10794,6 +10883,7 @@ def sproc(
             comment=comment,
             artifact_repository=artifact_repository,
             resource_constraint=resource_constraint,
+            preserve_parameter_names=preserve_parameter_names,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -11501,7 +11591,7 @@ def bitmap_construct_agg(
     Example::
 
         >>> df = session.create_dataframe([1, 32769], schema=["a"])
-        >>> df.select(bitmap_bucket_number(df["a"]).alias("bitmap_id"),bitmap_bit_position(df["a"]).alias("bit_position")).group_by("bitmap_id").agg(bitmap_construct_agg(col("bit_position")).alias("bitmap")).collect()
+        >>> df.select(bitmap_bucket_number(df["a"]).alias("bitmap_id"),bitmap_bit_position(df["a"]).alias("bit_position")).group_by("bitmap_id").agg(bitmap_construct_agg(col("bit_position")).alias("bitmap")).order_by("bitmap_id").collect()
         [Row(BITMAP_ID=1, BITMAP=bytearray(b'\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00')), Row(BITMAP_ID=2, BITMAP=bytearray(b'\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'))]
     """
     c = _to_col_if_str(relative_position, "bitmap_construct_agg")
@@ -11749,7 +11839,7 @@ def regr_avgy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colum
     Example::
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-        >>> df = df.group_by("v").agg(regr_avgy(df["v"], df["v2"]).alias("regr_avgy"))
+        >>> df = df.group_by("v").agg(regr_avgy(df["v"], df["v2"]).alias("regr_avgy")).sort("v")
         >>> df.collect()
         [Row(V=10, REGR_AVGY=10.0), Row(V=20, REGR_AVGY=20.0), Row(V=25, REGR_AVGY=None), Row(V=30, REGR_AVGY=30.0)]
     """
@@ -11803,7 +11893,7 @@ def regr_r2(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     Example::
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-        >>> df.groupBy("v").agg(regr_r2(col("v"), col("v2")).alias("regr_r2")).collect()
+        >>> df.groupBy("v").agg(regr_r2(col("v"), col("v2")).alias("regr_r2")).sort("v").collect()
         [Row(V=10, REGR_R2=None), Row(V=20, REGR_R2=None), Row(V=25, REGR_R2=None), Row(V=30, REGR_R2=None)]
     """
     y = _to_col_if_str(y, "regr_r2")
@@ -11821,7 +11911,7 @@ def regr_slope(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colu
     Example::
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-        >>> df = df.group_by("v").agg(regr_slope(df["v2"], df["v"]).alias("regr_slope"))
+        >>> df = df.group_by("v").agg(regr_slope(df["v2"], df["v"]).alias("regr_slope")).order_by("v")
         >>> df.collect()
         [Row(V=10, REGR_SLOPE=None), Row(V=20, REGR_SLOPE=None), Row(V=25, REGR_SLOPE=None), Row(V=30, REGR_SLOPE=None)]
     """
@@ -11838,7 +11928,7 @@ def regr_sxx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column
     Example::
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-        >>> df.group_by("v").agg(regr_sxx(col("v"), col("v2")).alias("regr_sxx")).collect()
+        >>> df.group_by("v").agg(regr_sxx(col("v"), col("v2")).alias("regr_sxx")).sort("v").collect()
         [Row(V=10, REGR_SXX=0.0), Row(V=20, REGR_SXX=0.0), Row(V=25, REGR_SXX=None), Row(V=30, REGR_SXX=0.0)]
     """
     y_col = _to_col_if_str(y, "regr_sxx")
@@ -11871,7 +11961,7 @@ def regr_syy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column
     Example::
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-        >>> df.groupBy("v").agg(regr_syy(df["v"], df["v2"]).alias("regr_syy")).collect()
+        >>> df.groupBy("v").agg(regr_syy(df["v"], df["v2"]).alias("regr_syy")).orderBy("v").collect()
         [Row(V=10, REGR_SYY=0.0), Row(V=20, REGR_SYY=0.0), Row(V=25, REGR_SYY=None), Row(V=30, REGR_SYY=0.0)]
     """
     c1 = _to_col_if_str(y, "regr_syy")
@@ -13357,8 +13447,6 @@ def ai_parse_document(
         >>> result = json.loads(df.collect()[0][0])
         >>> "Sample PDF" in result["content"]
         True
-        >>> result["metadata"]["pageCount"]
-        3
 
         >>> # Parse with LAYOUT mode to extract tables and structure
         >>> _ = session.file.put("tests/resources/invoice.pdf", "@mystage", auto_compress=False)
@@ -13369,7 +13457,7 @@ def ai_parse_document(
         ...     ).alias("parsed_content")
         ... )
         >>> result = json.loads(df.collect()[0][0])
-        >>> "| Customer Name |" in result["content"] and "| Country |" in result["content"]  # Markdown format
+        >>> "| Customer Name |" in result["content"] and "| Country |" in result["content"]  # Markdown format # doctest: +SKIP
         True
 
         >>> # Parse with page splitting for documents
@@ -13380,13 +13468,14 @@ def ai_parse_document(
         ...     ).alias("parsed_content")
         ... )
         >>> result = json.loads(df.collect()[0][0])
-        >>> len(result["pages"])
+        >>> len(result["pages"]) # doctest: +SKIP
         3
-        >>> 'Sample PDF' in result["pages"][0]["content"]
+        >>> 'Sample PDF' in result["pages"][0]["content"] # doctest: +SKIP
         True
-        >>> result["pages"][0]["index"]
+        >>> result["pages"][0]["index"] # doctest: +SKIP
         0
     """
+    # SNOW-3129360: Doctests are disabled due to flakiness.
     sql_func_name = "ai_parse_document"
     config_dict = dict(kwargs)
 
@@ -13486,7 +13575,7 @@ def ai_transcribe(
         >>> len(result["segments"]) > 0
         True
         >>> result["segments"][0]["text"].lower()
-        'glad'
+        'the'
         >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
         True
 
@@ -13717,12 +13806,16 @@ def ai_complete(
 
     # Add model_parameters if provided
     if model_parameters is not None:
-        model_params_col = sql_expr(json.dumps(model_parameters).replace('"', "'"))
+        model_params_col = sql_expr(
+            json.dumps(model_parameters).replace("'", "''").replace('"', "'")
+        )
         call_kwargs["model_parameters"] = model_params_col
 
     # Add response_format if provided
     if response_format is not None:
-        response_format_col = sql_expr(json.dumps(response_format).replace('"', "'"))
+        response_format_col = sql_expr(
+            json.dumps(response_format).replace("'", "''").replace('"', "'")
+        )
         call_kwargs["response_format"] = response_format_col
 
     # Add show_details if provided

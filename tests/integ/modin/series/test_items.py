@@ -26,14 +26,14 @@ def assert_items_results_equal(snow_result, pandas_result) -> None:
     snow_list = list(snow_result)
     pandas_list = list(pandas_result)
     assert len(snow_list) == len(pandas_list), "lengths of items are not equal."
-    if len(snow_list) == 0:
-        # Expect no queries if there are no columns.
-        with SqlCounter(query_count=0):
+    with SqlCounter(query_count=0):
+        if len(snow_list) == 0:
+            # Expect no queries if there are no columns.
             return
-    for ((snow_index, snow_value), (pandas_index, pandas_value)) in zip(
-        snow_list, pandas_list
-    ):
-        with SqlCounter(query_count=0):
+        # If there are columns, then they were materialized by the list() call above.
+        for ((snow_index, snow_value), (pandas_index, pandas_value)) in zip(
+            snow_list, pandas_list
+        ):
             assert_values_equal(snow_index, pandas_index)
             assert_values_equal(snow_value, pandas_value)
 

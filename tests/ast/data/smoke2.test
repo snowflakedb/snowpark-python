@@ -63,7 +63,7 @@ filtered_profiles_df = user_profiles_df.filter(col("membership_type").in_(["Gold
 
 filtered_profiles_df = filtered_profiles_df.with_column("age", floor(months_between(to_date(lit(datetime.date(2025, 3, 4))), col("dob")) / 12))
 
-joined_df = filtered_visits_df.join(filtered_profiles_df, on="user_id", how="inner")
+joined_df = filtered_visits_df.join(filtered_profiles_df, on="user_id", how="inner", directed=False)
 
 joined_df = joined_df.with_column("visit_duration_seconds", datediff("second", col("start_time"), col("end_time")))
 
@@ -87,7 +87,7 @@ filtered_profiles_df = user_profiles_df.filter(col("membership_type").in_(["Gold
 
 filtered_profiles_df = filtered_profiles_df.with_column("age", floor(months_between(to_date(lit(datetime.date(2025, 3, 4))), col("dob")) / 12))
 
-joined_df = filtered_visits_df.join(filtered_profiles_df, on="user_id", how="inner")
+joined_df = filtered_visits_df.join(filtered_profiles_df, on="user_id", how="inner", directed=False)
 
 joined_df = joined_df.with_column("visit_duration_seconds", datediff("second", col("start_time"), col("end_time")))
 
@@ -609,6 +609,8 @@ body {
   bind {
     expr {
       dataframe_join {
+        directed {
+        }
         join_expr {
           string_val {
             src {
@@ -1723,6 +1725,8 @@ body {
   bind {
     expr {
       dataframe_join {
+        directed {
+        }
         join_expr {
           string_val {
             src {
@@ -2352,6 +2356,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 42
+  minor: 48
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE dblp SYSTEM "dblp.dtd">
+<dblp>
+<mastersthesis mdate="2020-03-12" key="ms/Hoffmann2008">
+<author>Oliver Hoffmann 0002</author>
+<title>Regelbasierte Extraktion und asymmetrische Fusion bibliographischer Informationen.</title>
+<year>2009</year>
+<school>University of Trier</school>
+<note>Diplomarbeit, Universit&auml;t Trier, FB IV, DBIS/DBLP</note>
+<ee type="oa">http://dblp.uni-trier.de/papers/DiplomarbeitOliverHoffmann.pdf</ee>
+</mastersthesis>
+<mastersthesis mdate="2020-03-12" key="ms/Ley2006">
+<author>Rita Ley</author>
+<title>Der Einfluss kleiner naturnaher Retentionsma&szlig;nahmen in der Fl&auml;che auf den Hochwasserabfluss - Kleinr&uuml;ckhaltebecken -.</title>
+<year>2006</year>
+<school>Diplomarbeit, Universit&auml;t Trier, FB VI, Physische Geographie</school>
+<ee type="oa">http://dblp.uni-trier.de/papers/DiplomarbeitRitaLey.pdf</ee>
+</mastersthesis>
+<mastersthesis mdate="2018-06-13" key="ms/Brown92">
+<author>Kurt P. Brown</author>
+<title>PRPL: A Database Workload Specification Language, v1.3.</title>
+<year>1992</year>
+<school>University of Wisconsin-Madison</school>
+</mastersthesis>
+
+
+<mastersthesis mdate="2018-06-13" key="ms/Vollmer2006">
+<author>Stephan Vollmer</author>
+<title>Portierung des DBLP-Systems auf ein relationales Datenbanksystem und Evaluation der Performance.</title>
+<year>2006</year>
+<school>Diplomarbeit, Universit&auml;t Trier, FB IV, Informatik</school>
+<ee>http://dbis.uni-trier.de/Diplomanden/Vollmer/vollmer.shtml</ee>
+</mastersthesis>
+
+
+<mastersthesis mdate="2020-03-12" key="ms/Klaas2007">
+<author>Vanessa C. Klaas</author>
+<title>Who's Who in the World Wide Web: Approaches to Name Disambiguation</title>
+<year>2007</year>
+<school>Diplomarbeit, LMU M&uuml;nchen, Informatik</school>
+<ee type="oa">http://www.pms.ifi.lmu.de/publikationen/diplomarbeiten/Vanessa.Klaas/thesis.pdf</ee>
+</mastersthesis>
+<mastersthesis mdate="2018-06-13" key="ms/Yurek97">
+<author>Tolga Yurek</author>
+<title>Efficient View Maintenance at Data Warehouses.</title>
+<year>1997</year>
+<school>University of California at Santa Barbara, Department of Computer Science, CA, USA</school>
+</mastersthesis>
+
+
+<book mdate="2017-05-16" key="series/ifip/computerization1985">
+<editor>Ulrich Briefs</editor>
+<editor>John Kjaer</editor>
+<editor>Jean-Louis Rigal</editor>
+<title>Computerization and Work, A Reader on Social Aspects of Computerization</title>
+<booktitle>Computerization and Work</booktitle>
+<publisher>Springer</publisher>
+<year>1985</year>
+<isbn>978-3-540-15367-2</isbn>
+<isbn>978-3-642-70453-6</isbn>
+<ee>https://doi.org/10.1007/978-3-642-70453-6</ee>
+<series href="db/series/ifip/stateoftheart.html">IFIP State-of-the-Art Reports</series>
+<url>db/series/ifip/computerization1985.html</url>
+</book><incollection mdate="2023-06-26" key="series/ifip/ParkerD14">
+<author orcid="0000-0003-0549-3687">Kevin R. Parker</author>
+<author>Bill Davey</author>
+<title>Computers in Schools in the USA: A Social History.</title>
+<pages>203-211</pages>
+<year>2014</year>
+<booktitle>Reflections on the History of Computers in Education</booktitle>
+<ee type="oa">https://doi.org/10.1007/978-3-642-55119-2_14</ee>
+<crossref>series/ifip/hedu2014</crossref>
+<url>db/series/ifip/hedu2014.html#ParkerD14</url>
+</incollection><incollection mdate="2017-05-16" key="series/ifip/RheingansL95">
+<author>Penny Rheingans</author>
+<author>Chris Landreth</author>
+<title>Perceptual Principles for Effective Visualizations.</title>
+<pages>59-73</pages>
+<year>1995</year>
+<booktitle>Perceptual Issues in Visualization</booktitle>
+<ee>https://doi.org/10.1007/978-3-642-79057-7_6</ee>
+<crossref>series/ifip/piv1995</crossref>
+<url>db/series/ifip/piv1995.html#RheingansL95</url>
+</incollection><incollection mdate="2018-06-26" key="series/ifip/ButlerV14">
+<author>Rory Butler</author>
+<author>Adrie J. Visscher</author>
+<title>The Hopes and Realities of the Computer as a School Administration and School Management Tool.</title>
+<pages>197-202</pages>
+<year>2014</year>
+<booktitle>Reflections on the History of Computers in Education</booktitle>
+<ee type="oa">https://doi.org/10.1007/978-3-642-55119-2_13</ee>
+<crossref>series/ifip/hedu2014</crossref>
+<url>db/series/ifip/hedu2014.html#ButlerV14</url>
+</incollection><incollection mdate="2021-08-19" key="series/ifip/ScheidRKFRS21">
+<author orcid="0000-0002-7989-5286">Eder J. Scheid</author>
+<author orcid="0000-0003-3277-3799">Bruno Bastos Rodrigues</author>
+<author orcid="0000-0001-7943-1185">Christian Killer</author>
+<author orcid="0000-0002-0208-0521">Muriel Figueredo Franco</author>
+<author orcid="0000-0001-6265-4657">Sina Rafati 0001</author>
+<author orcid="0000-0002-7461-7463">Burkhard Stiller</author>
+<title>Blockchains and Distributed Ledgers Uncovered: Clarifications, Achievements, and Open Issues.</title>
+<pages>289-317</pages>
+<year>2021</year>
+<booktitle>IFIP's Exciting First 60+ Years</booktitle>
+<ee>https://doi.org/10.1007/978-3-030-81701-5_12</ee>
+<crossref>series/ifip/600</crossref>
+<url>db/series/ifip/sixty2021.html#ScheidRKFRS21</url>
+</incollection><incollection mdate="2018-06-26" key="series/ifip/Lecomber14">
+<author>Angela Lecomber</author>
+<title>Pioneering the Internet in the Nineties - An Innovative Project Involving UK and Australian Schools.</title>
+<pages>384-393</pages>
+<year>2014</year>
+<booktitle>Reflections on the History of Computers in Education</booktitle>
+<ee type="oa">https://doi.org/10.1007/978-3-642-55119-2_27</ee>
+<crossref>series/ifip/hedu2014</crossref>
+<url>db/series/ifip/hedu2014.html#Lecomber14</url>
+</incollection><incollection mdate="2017-05-16" key="series/ifip/EhrigK99">
+<author>Hartmut Ehrig</author>
+<author>Hans-J&ouml;rg Kreowski</author>
+<title>Refinement and Implementation.</title>
+<pages>201-242</pages>
+<year>1999</year>
+<booktitle>Algebraic Foundations of Systems Specification</booktitle>
+<ee>https://doi.org/10.1007/978-3-642-59851-7_7</ee>
+<crossref>series/ifip/afss1999</crossref>
+<url>db/series/ifip/afss1999.ht

@@ -19,11 +19,13 @@ from snowflake.snowpark._internal.udf_utils import (
     generate_anonymous_python_sp_sql,
     generate_python_code,
     get_error_message_abbr,
+    get_func_arg_names,
     pickle_function,
     resolve_imports_and_packages,
     resolve_packages_in_client_side_sandbox,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import StringType
 from snowflake.snowpark.version import VERSION
 
@@ -223,7 +225,9 @@ def test_resolve_imports_and_packages_imports_as_str(tmp_path_factory):
 )
 def test_add_snowpark_package_to_sproc_packages_add_package(packages):
     old_packages_length = len(packages) if packages else 0
-    result = add_snowpark_package_to_sproc_packages(session=None, packages=packages)
+    result = add_snowpark_package_to_sproc_packages(
+        session=None, packages=packages, artifact_repository=_ANACONDA_SHARED_REPOSITORY
+    )
 
     major, minor, patch = VERSION
     package_name = "snowflake-snowpark-python"
@@ -239,7 +243,9 @@ def test_add_snowpark_package_to_sproc_packages_does_not_replace_package():
         "random_package_two",
         "snowflake-snowpark-python==1.12.0",
     ]
-    result = add_snowpark_package_to_sproc_packages(session=None, packages=packages)
+    result = add_snowpark_package_to_sproc_packages(
+        session=None, packages=packages, artifact_repository=_ANACONDA_SHARED_REPOSITORY
+    )
 
     assert len(result) == len(packages)
     assert "snowflake-snowpark-python==1.12.0" in result
@@ -252,7 +258,14 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
         "random_package_two": "random_package_two",
     }
     fake_session._package_lock = threading.RLock()
-    result = add_snowpark_package_to_sproc_packages(session=fake_session, packages=None)
+    fake_session._get_packages_by_artifact_repository.side_effect = (
+        lambda a: Session._get_packages_by_artifact_repository(fake_session, a)
+    )
+    result = add_snowpark_package_to_sproc_packages(
+        session=fake_session,
+        packages=None,
+        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+    )
 
     major, minor, patch = VERSION
     package_name = "snowflake-snowpark-python"
@@ -263,7 +276,11 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
     fake_session._packages[
         "snowflake-snowpark-python"
     ] = "snowflake-snowpark-python==1.12.0"
-    result = add_snowpark_package_to_sproc_packages(session=fake_session, packages=None)
+    result = add_snowpark_package_to_sproc_packages(
+        session=fake_session,
+        packages=None,
+        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+    )
     assert result is None
 
 
@@ -353,3 +370,67 @@ def test_generate_anonymous_python_sp_sql_with_none_session():
         )
 
     mock_callback.assert_called_once()
+
+
+def test_get_func_arg_names():
+    def my_no_arg_sproc(session):
+        pass
+
+    arg_names = get_func_arg_names(my_no_arg_sproc, TempObjectType.PROCEDURE, 0, False)
+    assert arg_names == []
+    arg_names = get_func_arg_names(my_no_arg_sproc, TempObjectType.PROCEDURE, 0, True)
+    assert arg_names == []
+
+    def my_sproc(session, first_arg, second_arg):
+        pass
+
+    arg_names = get_func_arg_names(my_sproc, TempObjectType.PROCEDURE, 2, True)
+    assert arg_names == ["first_arg", "second_arg"]
+    arg_names = get_func_arg_names(my_sproc, TempObjectType.PROCEDURE, 2, False)
+    assert arg_names == ["arg1", "arg2"]
+
+    def my_udf(x, y, z):
+        pass
+
+    arg_names = get_func_arg_names(my_udf, TempObjectType.FUNCTION, 3, True)
+    assert arg_names == ["x", "y", "z"]
+
+    # wrong number of arguments found should fallback to default arg names
+    arg_names = get_func_arg_names(my_udf, TempObjectType.FUNCTION, 2, True)
+    assert arg_names == ["arg1", "arg2"]
+
+    # failures should fallback to default arg names
+    # we can reproduce failure by passing in a python builtin function, which cannot be inspected
+    arg_names = get_func_arg_names(min, TempObjectType.FUNCTION, 2, True)
+    assert arg_names == ["arg1", "arg2"]
+
+    class MyUDTF:
+        def process(self, x, y, z):
+            return [(x, y, z)]
+
+    arg_names = get_func_arg_names(MyUDTF, TempObjectType.TABLE_FUNCTION, 3, True)
+    assert arg_names == ["x", "y", "z"]
+
+    class SumUDAF:
+        def __init__(self) -> None:
+            self._partial_sum = 0
+
+        @property
+        def aggregate_state(self):
+            return self._partial_sum
+
+        def accumulate(self, input_value, input_value2):
+            self._partial_sum += input_value + input_value2
+
+        def merge(self, other_partial_sum):
+            self._partial_sum += other_partial_sum
+
+        def finish(self):
+            return self._partial_sum
+
+    arg_names = get_func_arg_names(SumUDAF, TempObjectType.AGGREGATE_FUNCTION, 2, True)
+    assert arg_names == ["input_value", "input_value2"]
+
+    # wrong class type should fallback to default arg names
+    arg_names = get_func_arg_names(SumUDAF, TempObjectType.TABLE_FUNCTION, 2, True)
+    assert arg_names == ["arg1", "arg2"]

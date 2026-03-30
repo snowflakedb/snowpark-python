@@ -560,7 +560,7 @@ def test_structured_dtypes_iceberg(
         assert save_ddl[0][0] == (
             f"create or replace ICEBERG TABLE {table_name.upper()} (\n\t"
             "MAP MAP(STRING, LONG),\n\tOBJ OBJECT(A STRING, b DOUBLE),\n\tARR ARRAY(DOUBLE)\n)\n "
-            "EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n "
+            "EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n ICEBERG_VERSION = 2\n CATALOG = 'SNOWFLAKE'\n "
             "BASE_LOCATION = 'python_connector_merge_gate/';"
         )
 
@@ -588,7 +588,7 @@ def test_structured_dtypes_iceberg(
             f"create or replace dynamic iceberg table {dynamic_table_name}(\n\tMAP,\n\tOBJ,\n\tARR\n)"
             " target_lag = '16 hours, 40 minutes' refresh_mode = AUTO initialize = ON_CREATE "
             f"warehouse = {warehouse} external_volume = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'  "
-            "catalog = 'SNOWFLAKE'  base_location = 'python_connector_merge_gate/' \n as  "
+            "catalog = 'SNOWFLAKE' ICEBERG_VERSION = 2 base_location = 'python_connector_merge_gate/' \n as  "
             f"SELECT  * \n FROM (\n SELECT  *  FROM {formatted_table_name}\n);"
         )
 
@@ -805,6 +805,76 @@ def test_iceberg_nested_fields(
     finally:
         Utils.drop_table(structured_type_session, table_name)
         Utils.drop_table(structured_type_session, transformed_table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support iceberg tables yet.",
+)
+def test_iceberg_string_columns_use_max_size(session, local_testing_mode):
+    if not iceberg_supported(session, local_testing_mode):
+        pytest.skip("Test requires iceberg support.")
+
+    fdn_src_table = Utils.random_table_name()
+    iceberg_dest_table = Utils.random_table_name()
+    base_location = (
+        f"{ICEBERG_CONFIG['base_location']}/ice_varchar_repro_{uuid.uuid4().hex}"
+    )
+    iceberg_config = dict(ICEBERG_CONFIG)
+    iceberg_config["base_location"] = base_location
+
+    try:
+        # 1) Create destination Iceberg table.
+        session.sql(
+            f"""
+            CREATE OR REPLACE ICEBERG TABLE {iceberg_dest_table} (
+                NAME STRING, AGE INTEGER
+            )
+            CATALOG = '{ICEBERG_CONFIG["catalog"]}'
+            EXTERNAL_VOLUME = '{ICEBERG_CONFIG["external_volume"]}'
+            BASE_LOCATION = '{base_location}';
+            """
+        ).collect()
+
+        # 2) Create regular (FDN) source table.
+        session.sql(
+            f"CREATE OR REPLACE TABLE {fdn_src_table} (NAME VARCHAR, AGE INTEGER)"
+        ).collect()
+        session.sql(f"INSERT INTO {fdn_src_table} VALUES ('Bob', 25)").collect()
+
+        # 3) Read from normal table: VARCHAR maps to StringType(length=16777216).
+        fdn_df = session.table(fdn_src_table)
+        name_field = next(f for f in fdn_df.schema.fields if f.name.upper() == "NAME")
+        assert isinstance(name_field.datatype, StringType)
+        assert name_field.datatype.length == MAX_TABLE_STRING_SIZE
+
+        # 4) Overwrite Iceberg table using iceberg_config: STRING should be max-sized.
+        with session.query_history() as query_history:
+            fdn_df.write.mode("overwrite").save_as_table(
+                iceberg_dest_table, column_order="name", iceberg_config=iceberg_config
+            )
+
+        normalized_sqls = [
+            Utils.normalize_sql(q.sql_text).upper() for q in query_history.queries
+        ]
+        create_iceberg_sqls = [
+            s for s in normalized_sqls if "CREATE" in s and "ICEBERG TABLE" in s
+        ]
+        assert create_iceberg_sqls, (
+            "Expected Snowpark to issue a CREATE ... ICEBERG TABLE during overwrite, "
+            f"but none was found. Queries were: {normalized_sqls}"
+        )
+        assert any(
+            ("NAME STRING(134217728)" in s or '"NAME" STRING(134217728)' in s)
+            for s in create_iceberg_sqls
+        ), (
+            "Expected Iceberg CREATE TABLE to use max string size 134217728 for NAME, "
+            f"but got: {create_iceberg_sqls}"
+        )
+        assert not any("NAME STRING(16777216)" in s for s in create_iceberg_sqls)
+    finally:
+        Utils.drop_table(session, fdn_src_table)
+        Utils.drop_table(session, iceberg_dest_table)
 
 
 @pytest.mark.xfail(
@@ -1600,7 +1670,8 @@ def test_cast_structtype_rename(structured_type_session, structured_type_support
         ],
     )
     with pytest.raises(
-        ValueError, match="is_add and is_rename cannot be set to True at the same time"
+        ValueError,
+        match="multiple of rename_fields, add_fields, and permissive cannot be set to True at the same time",
     ):
         df.select(
             col("name")
@@ -1658,7 +1729,8 @@ def test_cast_structtype_add(structured_type_session, structured_type_support):
         ],
     )
     with pytest.raises(
-        ValueError, match="is_add and is_rename cannot be set to True at the same time"
+        ValueError,
+        match="multiple of rename_fields, add_fields, and permissive cannot be set to True at the same time",
     ):
         df.select(
             col("name")

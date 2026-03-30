@@ -223,13 +223,6 @@ def test_iceberg(session, local_testing_mode):
     if not iceberg_supported(session, local_testing_mode) or is_in_stored_procedure():
         pytest.skip("Test requires iceberg support.")
 
-    session.sql(
-        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
-    ).collect()
-    session.sql(
-        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_IN_MEMORY=DISABLED"
-    ).collect()
-
     table_name = Utils.random_table_name()
     df = session.create_dataframe(
         [],
@@ -256,9 +249,11 @@ def test_iceberg(session, local_testing_mode):
         ddl = session._run_query(f"select get_ddl('table', '{table_name}')")
         assert (
             ddl[0][0] == f"create or replace ICEBERG TABLE {table_name} (\n\t"
-            f"A STRING,\n\tB LONG,\n\tTS TIMESTAMP_NTZ(6)\n)\n "
+            f"A STRING,\n\tB LONG,\n\tTS TIMESTAMP_NTZ(9)\n)\n "
             f"PARTITION BY (A, BUCKET(5, B), TRUNCATE(3, A), DAY(TS))\n "
-            f"EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n "
+            f"EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n "
+            f"ICEBERG_VERSION = 3\n "
+            f"CATALOG = 'SNOWFLAKE'\n "
             f"BASE_LOCATION = 'snowpark_python_tests/';"
         )
 
@@ -277,13 +272,6 @@ def test_iceberg(session, local_testing_mode):
 def test_iceberg_partition_by(session, local_testing_mode):
     if not iceberg_supported(session, local_testing_mode) or is_in_stored_procedure():
         pytest.skip("Test requires iceberg support.")
-
-    session.sql(
-        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
-    ).collect()
-    session.sql(
-        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_IN_MEMORY=DISABLED"
-    ).collect()
 
     df = session.create_dataframe(
         [],
@@ -311,7 +299,7 @@ def test_iceberg_partition_by(session, local_testing_mode):
             ddl[0][0] == f"create or replace ICEBERG TABLE {table_name_1} (\n\t"
             f"A STRING,\n\tB LONG\n)\n "
             f"PARTITION BY (B)\n "
-            f"EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE';"
+            f"EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n ICEBERG_VERSION = 2\n CATALOG = 'SNOWFLAKE';"
         )
 
     finally:

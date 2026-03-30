@@ -5,7 +5,11 @@
 import copy
 from typing import List
 from unittest.mock import patch
+import tempfile
+import os
+import re
 
+import pandas
 import pytest
 
 import snowflake.snowpark._internal.analyzer.snowflake_plan as snowflake_plan
@@ -549,6 +553,102 @@ def test_select_alias(session):
     # Add a new column d that doesn't use c after c was added previously. Flatten safely.
     df2 = df1.select("a", "b", "c", (col("a") + col("b") + 1).as_("d"))
     check_generated_plan_queries(df2._plan)
+
+
+def test_select_alias_identity(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df_res = df.select("a", col("b").as_("b"))
+    if session.sql_simplifier_enabled:
+        # Because "b" was aliased to itself, the emitted SQL should drop the AS clause.
+        ref_query = 'SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, 2 :: INT), (3 :: INT, 4 :: INT))'
+    else:
+        ref_query = 'SELECT "A", "B" FROM (SELECT "A", "B" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, 2 :: INT), (3 :: INT, 4 :: INT)))'
+    assert Utils.normalize_sql(df_res.queries["queries"][-1]) == Utils.normalize_sql(
+        ref_query
+    )
+
+
+def test_disambiguate_skips_quoted_alias(session):
+    # SNOW-3176017: This tests a previous regression in a SnowML pipeline where alias optimization
+    # incorrectly removed an alias from """col_0""" (triple-quoted in SQL) to "col_0" (single-quoted).
+    # Due to differences in code paths for generating select statements, this bug is only apparent with
+    # triple-quoted identifiers created from a file read operation, and not from a direct `.project` call.
+    session_stage = session.get_session_stage()
+    data = [[0, 1, 2], [3, 4, 5]]
+    pandas_df = pandas.DataFrame(data, columns=["ID", '"COL_0"', '"COL_1"'])
+    stage_filename = f"{session_stage}/disambiguate_test.parquet"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local_path = os.path.join(temp_dir, "disambiguate_test.parquet")
+        pandas_df.to_parquet(local_path)
+        Utils.upload_to_stage(session, stage_filename, local_path, compress=False)
+    df1 = session.read.parquet(stage_filename)
+    df2 = session.create_dataframe(data, schema=["ID", "A", "B"])
+    df_res = df1.join(df2, on=["ID"])[['"COL_0"', '"COL_1"']]
+    # TODO run with sql simplifier disabled
+    actual_query = re.sub(
+        r'@"[\d\w\_]+"\."[\d\w\_]+"\.',
+        '@"DB_SCHEMA_NAME".',
+        re.sub(
+            r"SNOWPARK_TEMP_(STAGE|FILE_FORMAT)_[\d\w]+",
+            "SNOWPARK_TEMP_NAME",
+            df_res.queries["queries"][-1],
+        ),
+    )
+    if session.sql_simplifier_enabled:
+        rhs_creation_sql = """
+        SELECT
+            "ID",
+            "A",
+            "B"
+        FROM (
+            SELECT $1 AS "ID", $2 AS "A", $3 AS "B" FROM  VALUES (0 :: INT, 1 :: INT, 2 :: INT), (3 :: INT, 4 :: INT, 5 :: INT)
+        )
+        """
+    else:
+        rhs_creation_sql = """
+        SELECT
+            "ID",
+            "A",
+            "B"
+        FROM (
+            SELECT
+                "ID",
+                "A",
+                "B"
+            FROM (
+                SELECT $1 AS "ID", $2 AS "A", $3 AS "B" FROM  VALUES (0 :: INT, 1 :: INT, 2 :: INT), (3 :: INT, 4 :: INT, 5 :: INT)
+            )
+        )
+        """
+
+    ref_query = f'''
+    SELECT
+        "COL_0",
+        "COL_1"
+    FROM (
+        SELECT *
+        FROM (
+            (
+                SELECT
+                    "ID",
+                    """COL_0""" AS "COL_0",
+                    """COL_1""" AS "COL_1"
+                FROM (
+                    SELECT $1:"ID"::NUMBER(38, 0) AS "ID", $1:"""COL_0"""::NUMBER(38, 0) AS """COL_0""", $1:"""COL_1"""::NUMBER(38, 0) AS """COL_1""" FROM @"DB_SCHEMA_NAME".SNOWPARK_TEMP_NAME/disambiguate_test.parquet( FILE_FORMAT  => 'SNOWPARK_TEMP_NAME')
+                )
+            ) AS SNOWPARK_LEFT
+            INNER JOIN
+            (
+                {rhs_creation_sql}
+            ) AS SNOWPARK_RIGHT
+            USING (ID)
+        )
+    )
+    '''
+    assert Utils.normalize_sql(actual_query) == Utils.normalize_sql(ref_query)
+    # Ensure the DF can be materialized without error
+    materialized = df_res.to_pandas()
+    assert list(materialized.columns) == ["COL_0", "COL_1"]
 
 
 def test_nullable_is_false_dataframe(session):

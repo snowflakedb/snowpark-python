@@ -218,3 +218,21 @@ def test_sql_start(session):
         len(df2.queries["queries"]) == 2
     )  # convert to result_scan because sql is non-select
     assert "RESULT_SCAN" in df2.queries["queries"][1]
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="set is not supported in stored proc")
+def test_sql_set_variable_to_pandas(session):
+
+    try:
+        import pandas  # noqa: F401
+    except ImportError:
+        pytest.skip("test requires pandas")
+
+    # Covers SNOW-3198369. Passing the result of a SQL SET operation to Streamlit's
+    # st.write (which calls to_pandas on the result of a session.sql call) should succeed,
+    # but previously errored out with
+    # 000007 (0A000): Statement provided can not be prepared.
+    uncollected = session.sql("set temp_snowpark_test_variable = 100")
+    result = uncollected.to_pandas()
+    assert result['"status"'][0] == "Statement executed successfully."
+    assert session.sql("select $temp_snowpark_test_variable").collect() == [Row(100)]

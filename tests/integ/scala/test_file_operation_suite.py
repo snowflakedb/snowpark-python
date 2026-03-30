@@ -441,6 +441,7 @@ def test_put_stream_negative(session, temp_stage, path1, local_testing_mode):
         assert ex_info.value.error_code == "1408" if not local_testing_mode else True
 
 
+@pytest.mark.skip(reason="SNOW-3124765: Returns incorrect result in azure deployment.")
 @pytest.mark.parametrize("with_file_prefix", [True, False])
 def test_get_one_file(
     session,

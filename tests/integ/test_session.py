@@ -8,6 +8,7 @@ import copy
 import io
 from functools import partial
 from unittest.mock import patch
+import logging
 
 import pytest
 
@@ -41,6 +42,7 @@ from snowflake.snowpark.session import (
     _get_active_session,
     _get_active_sessions,
 )
+from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
@@ -1069,3 +1071,49 @@ def test_transaction(session):
             session.sql(f"DROP TABLE IF EXISTS {temp_table_name}").collect()
         except Exception:
             pass
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_session_enable_development_features(db_parameters):
+    from snowflake.snowpark import context
+
+    with patch.object(
+        context, "_enable_trace_sql_errors_to_dataframe", return_value=True
+    ):
+        with Session.builder.configs(db_parameters).create() as new_session:
+            assert new_session.ast_enabled is True
+
+    with patch.object(context, "_enable_dataframe_trace_on_error", return_value=True):
+        with Session.builder.configs(db_parameters).create() as new_session:
+            assert new_session.ast_enabled is True
+
+
+def test_get_active_sessions_empty():
+    from snowflake.snowpark import session as session_module
+
+    with patch.object(session_module, "_active_sessions", return_value=set()):
+        assert session_module._get_active_sessions(require_at_least_one=False) == set()
+
+
+def test_default_artifact_repository_with_no_db_schema(session, caplog):
+    # The reported customer issue covered by this test (SNOW-3230493) occurs when no schema/database
+    # is set and an account locator is used, so we mock schema/db to be empty for this test.
+    # Oddly, getting schema and database appear to be fine (for example, schema comes back with
+    # double-quoted all-caps '"PUBLIC"') while the connector's cached _account field produces a
+    # double-quoted lowercase value ('"sfctest0') that causes an error when passed to
+    # SYSTEM$GET_DEFAULT_ARTIFACT_REPOSITORY.
+    original_conn_implementation = session._conn._get_current_parameter
+
+    def mock_session_parameters(param: str, quoted: bool = True):
+        if param == "schema" or param == "database":
+            return None
+        return original_conn_implementation(param, quoted)
+
+    with patch.object(
+        session._conn,
+        "_get_current_parameter",
+        mock_session_parameters,
+    ), caplog.at_level(logging.WARNING):
+        result = session._get_default_artifact_repository()
+        assert result == _ANACONDA_SHARED_REPOSITORY
+        assert caplog.text.count("Error getting default artifact repository") == 0
