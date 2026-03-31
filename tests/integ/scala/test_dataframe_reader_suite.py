@@ -386,9 +386,9 @@ def test_read_csv_with_user_schema_try_cast(session, mode):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     try_cast_schema = StructType(
         [
-            StructField("a", IntegerType()),
-            StructField("b", IntegerType()),
-            StructField("c", DoubleType()),
+            StructField("A", LongType()),
+            StructField("B", StringType()),
+            StructField("C", DoubleType()),
         ]
     )
     df_try_cast = (
@@ -396,7 +396,23 @@ def test_read_csv_with_user_schema_try_cast(session, mode):
     )
     try_cast_res = df_try_cast.collect()
     try_cast_res.sort(key=lambda x: x[0])
-    assert try_cast_res == [Row(1, None, 1.2), Row(2, None, 2.2)]
+    assert try_cast_res == [Row(A=1, B="one", C=1.2), Row(A=2, B="two", C=2.2)]
+    assert df_try_cast.schema == try_cast_schema
+
+    try_cast_schema = StructType(
+        [
+            StructField("A", LongType()),
+            StructField("B", LongType()),
+            StructField("C", DoubleType()),
+        ]
+    )
+    df_try_cast = (
+        reader.schema(try_cast_schema).option("TRY_CAST", True).csv(test_file_on_stage)
+    )
+    try_cast_res = df_try_cast.collect()
+    try_cast_res.sort(key=lambda x: x[0])
+    assert try_cast_res == [Row(A=1, B=None, C=1.2), Row(A=2, B=None, C=2.2)]
+    assert df_try_cast.schema == try_cast_schema
 
 
 @pytest.mark.xfail(

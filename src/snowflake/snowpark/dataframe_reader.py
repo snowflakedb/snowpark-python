@@ -836,17 +836,11 @@ class DataFrameReader:
         else:
             self._cur_options["INFER_SCHEMA"] = False
             try_cast = self._cur_options.get("TRY_CAST", False)
-            if try_cast:
-                (
-                    schema,
-                    schema_to_cast,
-                    transformations,
-                ) = self._get_schema_from_csv_user_input(
-                    self._user_schema,
-                    try_cast,
-                )
-            else:
-                schema = self._user_schema._to_attributes()
+            (
+                schema,
+                schema_to_cast,
+                transformations,
+            ) = self._get_schema_from_csv_user_input(self._user_schema, try_cast)
             use_user_schema = True
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
@@ -1422,12 +1416,10 @@ class DataFrameReader:
                 )
             )
             sf_type = convert_sp_to_sf_type(field.datatype)
-            source_column = f"${index}"
-            identifier = (
-                f"TRY_CAST({source_column} AS {sf_type})"
-                if try_cast
-                else f"{source_column}::{sf_type}"
-            )
+            if try_cast:
+                identifier = f"TRY_CAST(${index} AS {sf_type})"
+            else:
+                identifier = f"${index}::{sf_type}"
             schema_to_cast.append((identifier, field.name))
             transformations.append(sql_expr(identifier))
 
