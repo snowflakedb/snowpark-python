@@ -1399,7 +1399,7 @@ class DataFrameReader:
 
     def _get_schema_from_csv_user_input(
         self, user_schema: StructType, try_cast: bool
-    ) -> Tuple[List, List, List]:
+    ) -> Tuple[List, Optional[List], Optional[List]]:
         """
         This function accept a user input structtype and return schemas needed for reading CSV file.
         CSV files are processed differently than semi-structured file so need a different helper function.
@@ -1418,12 +1418,14 @@ class DataFrameReader:
             sf_type = convert_sp_to_sf_type(field.datatype)
             if try_cast:
                 identifier = f"TRY_CAST(${index} AS {sf_type})"
-            else:
-                identifier = f"${index}::{sf_type}"
-            schema_to_cast.append((identifier, field.name))
-            transformations.append(sql_expr(identifier))
+                schema_to_cast.append((identifier, field.name))
+                transformations.append(sql_expr(identifier))
 
         read_file_transformations = [t._expression.sql for t in transformations]
+        # schema_to_cast and read_file_transformations should only exist when try_cast is True
+        # this is meant to not break the current behavior
+        if not try_cast:
+            return new_schema, None, None
         return new_schema, schema_to_cast, read_file_transformations
 
     def _get_schema_from_user_input(
