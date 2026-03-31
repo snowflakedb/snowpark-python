@@ -17,6 +17,7 @@ from snowflake.snowpark.functions import (
     asc,
     call_function,
     col,
+    concat,
     concat_ws,
     contains,
     count,
@@ -756,6 +757,14 @@ def test_concat_ws_indexing(session):
     filtered = df.where(df.A > 1)
     final = filtered.with_column("concat", concat_ws(lit("-"), "A", "B"))
     Utils.check_answer(final, [Row(2, "B", "2-B"), Row(3, "C", "3-C")])
+
+
+def test_concat_indexing(session):
+    """SNOW-3203859: filter + withColumn(concat) should not produce extra NaN rows."""
+    df = session.create_dataframe([(1, "A"), (2, "B"), (3, "C")], schema=["A", "B"])
+    filtered = df.where(df.A > 1)
+    final = filtered.with_column("concat", concat(col("A"), lit("_"), col("B")))
+    Utils.check_answer(final, [Row(2, "B", "2_B"), Row(3, "C", "3_C")])
 
 
 def test_ai_complete(session):
