@@ -1931,7 +1931,6 @@ class DataFrameReader:
         set_api_call_source(res_df, DATA_SOURCE_JDBC_SIGNATURE)
         return res_df
 
-    @private_preview(version="1.29.0")
     @publicapi
     def dbapi(
         self,
