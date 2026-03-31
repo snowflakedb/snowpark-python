@@ -62,6 +62,7 @@ from snowflake.snowpark._internal.xml_schema_inference import (
 )
 from snowflake.snowpark._internal.utils import (
     SNOWURL_PREFIX,
+    STAGE_PREFIX,
     XML_ROW_TAG_STRING,
     XML_ROW_DATA_COLUMN_NAME,
     XML_READER_FILE_PATH,
@@ -1422,15 +1423,23 @@ class DataFrameReader:
         """Register a session-scoped XML UDTF with a deterministic fully-qualified
         name, cached per session and schema"""
         if is_in_stored_procedure():  # pragma: no cover
-            session_stage = self._session.get_session_stage()
+            # Use TEMPORARY instead of SCOPED TEMPORARY session stage
+            import_stage_name = self._session.get_fully_qualified_name_if_possible(
+                "SNOWPARK_TEMP_STAGE_XMLIMPORTS"
+            )
+            self._session._run_query(
+                f"CREATE TEMPORARY STAGE IF NOT EXISTS {import_stage_name}",
+                is_ddl_on_temp_object=True,
+            )
+            import_stage = f"{STAGE_PREFIX}{import_stage_name}"
             self._session._conn.upload_file(
                 local_file_path,
-                session_stage,
+                import_stage,
                 compress_data=False,
                 overwrite=True,
                 skip_upload_on_content_match=True,
             )
-            python_file_path = f"{session_stage}/{os.path.basename(local_file_path)}"
+            python_file_path = f"{import_stage}/{os.path.basename(local_file_path)}"
         else:
             python_file_path = local_file_path
 
