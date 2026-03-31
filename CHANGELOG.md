@@ -27,6 +27,14 @@
 - Fix a bug where `dense_rank()` would fail with `ValueError` on NULL partition values.
 - Fixed a bug where `collect()` raised `KeyError` after `save_as_table(column_order="name")` when the source DataFrame omitted columns of `VariantType`, `MapType`, or `ArrayType` present in the target table schema in local testing.
 
+## 1.48.1 (TBD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug for XML schema inference session resolution in spark compatible mode.
+
 ## 1.48.0 (2026-03-23)
 
 ### Snowpark Python API Updates
