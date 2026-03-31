@@ -14,6 +14,7 @@ from snowflake.snowpark.functions import (
     col,
     lit,
     parse_json,
+    sql_expr,
     try_parse_json,
     second,
     to_timestamp,
@@ -329,6 +330,67 @@ def test_when_accept_sql_expr(session):
     assert TestData.null_data1(session).select(
         when("a is NULL", 5).when("a = 1", 6).as_("a")
     ).collect() == [Row(5), Row(None), Row(6), Row(None), Row(5)]
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL expr is not supported in Local Testing",
+    run=False,
+)
+def test_sql_text_parenthesis_wrapped(session):
+    df = session.create_dataframe(
+        [
+            ("E", "XX", "EQ"),
+            ("OTHER", "EQ", "EQ"),
+            ("E", "XX", "OTHER"),
+            ("OTHER", "XX", "OTHER"),
+        ],
+        schema=["a", "b", "c"],
+    )
+
+    Utils.check_answer(
+        df.filter("a = 'E' or b = 'EQ'").filter("c = 'EQ'"),
+        df.filter((col("a") == "E") | (col("b") == "EQ")).filter(col("c") == "EQ"),
+    )
+
+    Utils.check_answer(
+        df.filter("a = 'E' or b = 'EQ'").filter("c = 'EQ'"),
+        df.filter(sql_expr("a = 'E' or b = 'EQ'")).filter(sql_expr("c = 'EQ'")),
+    )
+
+    Utils.check_answer(
+        df.filter("a = 'E' or b = 'EQ'").filter("c = 'EQ' or b = 'XX'"),
+        df.filter((col("a") == "E") | (col("b") == "EQ")).filter(
+            (col("c") == "EQ") | (col("b") == "XX")
+        ),
+    )
+
+    df2 = session.create_dataframe(
+        [("E", "XX"), ("OTHER", "EQ"), ("OTHER", "XX")],
+        schema=["a", "b"],
+    )
+    Utils.check_answer(
+        df2.filter(~sql_expr("a = 'E' or b = 'EQ'")),
+        [Row("OTHER", "XX")],
+    )
+
+    df3 = session.create_dataframe(
+        [[1, 2], [3, 4], [5, 6]],
+        schema=["a", "b"],
+    )
+    Utils.check_answer(
+        df3.filter(sql_expr("a > 2")),
+        df3.filter(col("a") > 2),
+    )
+    Utils.check_answer(
+        df3.select(sql_expr("a + b")),
+        [Row(3), Row(7), Row(11)],
+        sort=False,
+    )
+    Utils.check_answer(
+        df3.filter("a > 2 and b < 6"),
+        [Row(3, 4)],
+    )
 
 
 @pytest.mark.skipif(

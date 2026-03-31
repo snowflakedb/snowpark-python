@@ -1,5 +1,14 @@
 # Release History
 
+## 1.48.1 (2026-03-31)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where chained `DataFrame.filter()` calls with raw SQL text containing `OR` produced incorrect results.
+- Fixed a Snowflake platform compatibility issue where `concat(lit('"'), ...)` could lose the leading quote through chained set-operation plans.
+
 ## 1.48.0 (2026-03-23)
 
 ### Snowpark Python API Updates
