@@ -667,6 +667,7 @@ class XMLSchemaInference:
             null_value: Value to treat as null.
             charset: Character encoding of the XML file.
             ignore_surrounding_whitespace: Whether to strip whitespace from values.
+            file_size: Size of the file in bytes (provided by the client via LS).
         """
         file_size = get_file_size(filename)
         if not file_size or file_size <= 0:

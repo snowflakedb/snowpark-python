@@ -1569,36 +1569,27 @@ def test_xml_schema_inference_process_empty_results():
     tail = (1.0, True, "_", False, "_VALUE", "", "utf-8", True)
 
     # empty file (size 0)
-    with patch(
-        "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
-        return_value=0,
-    ):
-        assert list(XMLSchemaInference().process(*base, 1, "row", 0, *tail)) == [("",)]
+    assert list(XMLSchemaInference().process(*base, 1, "row", 0, *tail, 0)) == [("",)]
 
     # None file size
-    with patch(
-        "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
-        return_value=None,
-    ):
-        assert list(XMLSchemaInference().process(*base, 1, "row", 0, *tail)) == [("",)]
+    assert list(XMLSchemaInference().process(*base, 1, "row", 0, *tail, None)) == [
+        ("",)
+    ]
 
     # worker id >= num_workers
-    with patch(
-        "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
-        return_value=1000,
-    ):
-        assert list(XMLSchemaInference().process(*base, 2, "row", 5, *tail)) == [("",)]
+    assert list(XMLSchemaInference().process(*base, 2, "row", 5, *tail, 1000)) == [
+        ("",)
+    ]
 
     # no matching row tags
     xml_bytes = b"<r><other>data</other></r>"
     with patch(
-        "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
-        return_value=len(xml_bytes),
-    ), patch(
         "snowflake.snowpark.files.SnowflakeFile.open",
         return_value=io.BytesIO(xml_bytes),
     ):
-        assert list(XMLSchemaInference().process(*base, 1, "row", 0, *tail)) == [("",)]
+        assert list(
+            XMLSchemaInference().process(*base, 1, "row", 0, *tail, len(xml_bytes))
+        ) == [("",)]
 
 
 def test_xml_schema_inference_process_param_defaults():
@@ -1609,11 +1600,12 @@ def test_xml_schema_inference_process_param_defaults():
     for num_workers, i in [(None, 0), (1, -1)]:
         mock_file = io.BytesIO(xml_bytes)
         with patch(
-            "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
-            return_value=len(xml_bytes),
-        ), patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+            "snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file
+        ):
             results = list(
-                XMLSchemaInference().process("test.xml", num_workers, "row", i, *tail)
+                XMLSchemaInference().process(
+                    "test.xml", num_workers, "row", i, *tail, len(xml_bytes)
+                )
             )
         assert len(results) == 1
         assert "bigint" in results[0][0]
@@ -1627,10 +1619,7 @@ def test_xml_schema_inference_process_with_sampling():
     xml += "</r>"
     xml_bytes = xml.encode("utf-8")
     mock_file = io.BytesIO(xml_bytes)
-    with patch(
-        "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
-        return_value=len(xml_bytes),
-    ), patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
         results = list(
             XMLSchemaInference().process(
                 "test.xml",
@@ -1645,6 +1634,7 @@ def test_xml_schema_inference_process_with_sampling():
                 "",
                 "utf-8",
                 True,
+                len(xml_bytes),
             )
         )
     assert len(results) == 1
@@ -1660,9 +1650,8 @@ def test_xml_schema_inference_process_multi_worker():
     for worker_id in range(2):
         mock_file = io.BytesIO(xml_bytes)
         with patch(
-            "snowflake.snowpark._internal.xml_schema_inference.get_file_size",
-            return_value=len(xml_bytes),
-        ), patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+            "snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file
+        ):
             udtf = XMLSchemaInference()
             results = list(
                 udtf.process(
@@ -1678,6 +1667,7 @@ def test_xml_schema_inference_process_multi_worker():
                     "",
                     "utf-8",
                     True,
+                    len(xml_bytes),
                 )
             )
             all_schemas.append(results[0][0])
