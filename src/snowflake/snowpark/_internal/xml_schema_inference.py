@@ -9,7 +9,6 @@ from typing import Optional, Dict, List
 
 from snowflake.snowpark._internal.xml_reader import (
     DEFAULT_CHUNK_SIZE,
-    get_file_size,
     find_next_opening_tag_pos,
     tag_is_self_closing,
     find_next_closing_tag_pos,
@@ -650,6 +649,7 @@ class XMLSchemaInference:
         null_value: str,
         charset: str,
         ignore_surrounding_whitespace: bool,
+        file_size: int,
     ):
         """
         Infer XML schema for a byte-range partition of the file.
@@ -669,7 +669,6 @@ class XMLSchemaInference:
             ignore_surrounding_whitespace: Whether to strip whitespace from values.
             file_size: Size of the file in bytes (provided by the client via LS).
         """
-        file_size = get_file_size(filename)
         if not file_size or file_size <= 0:
             yield ("",)
             return

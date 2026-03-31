@@ -10,6 +10,14 @@
 - Fixed a bug where chained `DataFrame.filter()` calls with raw SQL text containing `OR` produced incorrect results.
 - Fixed a Snowflake platform compatibility issue (SNOW-3259059) where `concat(lit('"'), ...)` could lose the leading quote through some `EXCEPT` / chained set-operation plans by lowering that literal to `CHR(34)` in generated SQL.
 
+## 1.48.1 (TBD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug for XML schema inference session resolution in spark compatible mode.
+
 ## 1.48.0 (2026-03-23)
 
 ### Snowpark Python API Updates
