@@ -841,7 +841,7 @@ class DataFrameReader:
                 schema_to_cast,
                 transformations,
             ) = self._get_schema_from_csv_user_input(self._user_schema, try_cast)
-            use_user_schema = True
+            use_user_schema = try_cast
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
