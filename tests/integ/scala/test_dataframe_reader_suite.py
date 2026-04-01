@@ -1407,10 +1407,6 @@ def test_read_parquet_with_no_schema(session, mode):
     res = df1.where(col('"num"') > 1).collect()
     assert res == [Row(str="str2", num=2)]
 
-    # assert user cannot input a schema to read json
-    with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).parquet(path)
-
     # user can input customized formatTypeOptions
     df2 = get_reader(session, mode).option("COMPRESSION", "NONE").parquet(path)
     res = df2.collect()
@@ -1418,6 +1414,68 @@ def test_read_parquet_with_no_schema(session, mode):
         Row(str="str1", num=1),
         Row(str="str2", num=2),
     ]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: parquet not supported",
+)
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_parquet_user_input_schema(session, mode):
+    test_file = f"@{tmp_stage_name1}/{test_file_parquet}"
+
+    # Read with matching schema
+    schema = StructType(
+        [
+            StructField("str", StringType(), True),
+            StructField("num", LongType(), True),
+        ]
+    )
+    df = get_reader(session, mode).schema(schema).parquet(test_file)
+    Utils.check_answer(df, [Row(str="str1", num=1), Row(str="str2", num=2)])
+
+    # Schema with a column not present in the file (should return None)
+    schema = StructType(
+        [
+            StructField("str", StringType(), True),
+            StructField("not_included_column", StringType(), True),
+        ]
+    )
+    df = get_reader(session, mode).schema(schema).parquet(test_file)
+    Utils.check_answer(
+        df,
+        [
+            Row(str="str1", not_included_column=None),
+            Row(str="str2", not_included_column=None),
+        ],
+    )
+
+    # Schema with an extra column beyond what the file has
+    schema = StructType(
+        [
+            StructField("str", StringType(), True),
+            StructField("num", LongType(), True),
+            StructField("extra_column", StringType(), True),
+        ]
+    )
+    df = get_reader(session, mode).schema(schema).parquet(test_file)
+    Utils.check_answer(
+        df,
+        [
+            Row(str="str1", num=1, extra_column=None),
+            Row(str="str2", num=2, extra_column=None),
+        ],
+    )
+
+    # Schema with wrong datatype (should fail with cast error)
+    schema = StructType(
+        [
+            StructField("str", IntegerType(), True),
+            StructField("num", LongType(), True),
+        ]
+    )
+    with pytest.raises(SnowparkSQLException, match="Failed to cast variant value"):
+        get_reader(session, mode).schema(schema).parquet(test_file).collect()
 
 
 @pytest.mark.skipif(

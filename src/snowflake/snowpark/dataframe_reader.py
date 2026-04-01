@@ -643,10 +643,10 @@ class DataFrameReader:
 
     @publicapi
     def schema(self, schema: StructType, _emit_ast: bool = True) -> "DataFrameReader":
-        """Define the schema for CSV or XML files that you want to read.
+        """Define the schema for CSV, JSON, Parquet, or XML files that you want to read.
 
         Args:
-            schema: Schema configuration for the CSV or XML file to be read.
+            schema: Schema configuration for the file to be read.
 
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
@@ -1606,7 +1606,7 @@ class DataFrameReader:
                     raise_error=NotImplementedError,
                 )
 
-        if self._user_schema and format.lower() not in ["json", "xml"]:
+        if self._user_schema and format.lower() not in ["json", "xml", "parquet"]:
             raise ValueError(f"Read {format} does not support user schema")
         if (
             self._user_schema
@@ -1634,14 +1634,25 @@ class DataFrameReader:
             use_user_schema = True
 
         elif self._infer_schema:
-            (
-                new_schema,
-                schema_to_cast,
-                read_file_transformations,
-                _,  # we don't check for error in case of infer schema failures. We use $1, Variant type
-            ) = self._infer_schema_for_file_format(path, format)
-            if new_schema:
-                schema = new_schema
+            if not isinstance(self._session._conn, MockServerConnection):
+                (
+                    new_schema,
+                    schema_to_cast,
+                    read_file_transformations,
+                    infer_schema_exception,
+                ) = self._infer_schema_for_file_format(path, format)
+                if new_schema:
+                    schema = new_schema
+                elif infer_schema_exception is not None:
+                    if isinstance(infer_schema_exception, FileNotFoundError):
+                        raise infer_schema_exception
+                    logger.warning(
+                        f"Could not infer schema for {format} file due to exception: "
+                        f"{infer_schema_exception}. "
+                        "\nFalling back to $1 VARIANT schema. "
+                        "Please use DataFrameReader.schema() to specify a user schema for the file."
+                    )
+                    self._cur_options["INFER_SCHEMA"] = False
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
@@ -1930,7 +1941,6 @@ class DataFrameReader:
         set_api_call_source(res_df, DATA_SOURCE_JDBC_SIGNATURE)
         return res_df
 
-    @private_preview(version="1.29.0")
     @publicapi
     def dbapi(
         self,
