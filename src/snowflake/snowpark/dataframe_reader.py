@@ -798,7 +798,9 @@ class DataFrameReader:
         self._file_type = "CSV"
 
         schema_to_cast, transformations = None, None
-        use_user_schema = False
+        # this parameter determine whether generate schema_to_cast and transformations when user schema exist
+        # schema_to_cast and transformations is needed to apply try_cast to data
+        user_schema_with_try_cast = False
 
         if not self._user_schema:
             if not self._infer_schema:
@@ -841,7 +843,7 @@ class DataFrameReader:
                 schema_to_cast,
                 transformations,
             ) = self._get_schema_from_csv_user_input(self._user_schema, try_cast)
-            use_user_schema = try_cast
+            user_schema_with_try_cast = try_cast
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
@@ -867,7 +869,7 @@ class DataFrameReader:
                             transformations=transformations,
                             metadata_project=metadata_project,
                             metadata_schema=metadata_schema,
-                            use_user_schema=use_user_schema,
+                            use_user_schema=user_schema_with_try_cast,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -888,7 +890,7 @@ class DataFrameReader:
                     transformations=transformations,
                     metadata_project=metadata_project,
                     metadata_schema=metadata_schema,
-                    use_user_schema=use_user_schema,
+                    use_user_schema=user_schema_with_try_cast,
                 ),
                 _ast_stmt=stmt,
                 _emit_ast=_emit_ast,
@@ -1416,6 +1418,7 @@ class DataFrameReader:
                 )
             )
             sf_type = convert_sp_to_sf_type(field.datatype)
+            # TODO: SNOW-3324409 Support relaxed schema when read csv in copy mode
             if try_cast:
                 identifier = f"TRY_CAST(${index} AS {sf_type})"
                 schema_to_cast.append((identifier, field.name))
