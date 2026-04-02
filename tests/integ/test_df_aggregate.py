@@ -1001,8 +1001,10 @@ def test_group_by_agg_sort_filter_limit_ordering(session):
     # 5. ORDER BY -> LIMIT -> ORDER BY -> LIMIT
     # The RESEARCH group is dropped by the first ORDER BY + LIMIT.
     # The SALES and HR groups are dropped by the second ORDER BY + LIMIT.
+    # Note that SQL ORDER BY is not stable, and the final result has no ordering guarantees
+    # on the "headcount" column. Spark's DataFrame.orderBy is also unstable.
     result5 = (
-        agg_df.orderBy(col("headcount").asc())
+        agg_df.orderBy(col("headcount").asc(), col("avg_salary").asc())
         .limit(4)
         .orderBy(col("avg_salary").desc())
         .limit(2)

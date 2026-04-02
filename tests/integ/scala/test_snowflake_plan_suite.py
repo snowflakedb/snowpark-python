@@ -223,7 +223,11 @@ def test_plan_height(session, temp_table, sql_simplifier_enabled):
     assert filter1._plan.plan_state[PlanState.PLAN_HEIGHT] == 2
 
     join1 = filter1.join(df2, on=["a"])
-    assert join1._plan.plan_state[PlanState.PLAN_HEIGHT] == 4
+    assert (
+        join1._plan.plan_state[PlanState.PLAN_HEIGHT] == 4
+        if sql_simplifier_enabled
+        else 3
+    )
 
     aggregate1 = df3.distinct()
     assert aggregate1._plan.plan_state[PlanState.PLAN_HEIGHT] == (
@@ -231,23 +235,31 @@ def test_plan_height(session, temp_table, sql_simplifier_enabled):
     )
 
     join2 = join1.join(aggregate1, on=["b"])
-    assert join2._plan.plan_state[PlanState.PLAN_HEIGHT] == 6
+    assert (
+        join2._plan.plan_state[PlanState.PLAN_HEIGHT] == 6
+        if sql_simplifier_enabled
+        else 4
+    )
 
     split_to_table = table_function("split_to_table")
     table_function1 = join2.select("a", "b", split_to_table("d", lit(" ")))
-    assert table_function1._plan.plan_state[PlanState.PLAN_HEIGHT] == 8
+    assert (
+        table_function1._plan.plan_state[PlanState.PLAN_HEIGHT] == 8
+        if sql_simplifier_enabled
+        else 6
+    )
 
     filter3 = join2.where(col("a") > 1)
     filter4 = join2.where(col("a") < 1)
     assert (
         filter3._plan.plan_state[PlanState.PLAN_HEIGHT]
         == filter4._plan.plan_state[PlanState.PLAN_HEIGHT]
-        == (6 if sql_simplifier_enabled else 7)
+        == (6 if sql_simplifier_enabled else 5)
     )
 
     union1 = filter3.union_all_by_name(filter4)
     assert union1._plan.plan_state[PlanState.PLAN_HEIGHT] == (
-        8 if sql_simplifier_enabled else 9
+        8 if sql_simplifier_enabled else 7
     )
 
 
