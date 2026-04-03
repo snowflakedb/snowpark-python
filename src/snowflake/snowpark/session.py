@@ -4981,7 +4981,7 @@ class Session:
                     handler_name,
                     return_type=return_type_map[return_type],
                     input_types=[StringType(), StringType()],
-                    packages=["snowflake-snowpark-python", "lxml<6"],
+                    packages=["snowflake-snowpark-python", "lxml<7"],
                     replace=True,
                     _emit_ast=False,
                     _suppress_local_package_warnings=True,
