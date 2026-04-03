@@ -3677,7 +3677,7 @@ class DataFrame:
     def join(
         self,
         right: "DataFrame",
-        on: Optional[Union[ColumnOrName, Iterable[ColumnOrName]]] = None,
+        on: Optional[Union[ColumnOrName, Iterable[str]]] = None,
         how: Optional[str] = None,
         *,
         lsuffix: str = "",
@@ -3986,19 +3986,17 @@ class DataFrame:
             elif (
                 isinstance(using_columns, Iterable)
                 and len(using_columns) > 0
+                and not all([isinstance(col, str) for col in using_columns])
             ):
-                converted_using_columns = []
-                for i, c in enumerate(using_columns):
-                    if isinstance(c, str):
-                        converted_using_columns.append(c)
-                    elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
-                        converted_using_columns.append(c._expression.name)
-                    else:
-                        raise TypeError(
-                            f"All list elements for 'on' or 'using_columns' must be a column name (str) or a Column referencing a named column. "
-                            f"Got: '{type(c)}' at index {i}"
-                        )
-                using_columns = converted_using_columns
+                bad_idx, bad_col = next(
+                    (idx, col)
+                    for idx, col in enumerate(using_columns)
+                    if not isinstance(col, str)
+                )
+                raise TypeError(
+                    f"All list elements for 'on' or 'using_columns' must be string type. "
+                    f"Got: '{type(bad_col)}' at index {bad_idx}"
+                )
             elif not isinstance(using_columns, Iterable):
                 raise TypeError(
                     f"Invalid input type for join column: {type(using_columns)}"
