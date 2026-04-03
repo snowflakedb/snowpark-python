@@ -229,6 +229,13 @@ def _parse_structured_type_str(type_str, max_string_size):
     if not type_str:
         return VariantType()
 
+    # wufan TODO:
+    # # Strip top-level NOT NULL before routing. INFER_SCHEMA may annotate
+    # # any column type (e.g., "TEXT NOT NULL"). The nullable info is not
+    # # used at this level since column nullability comes from INFER_SCHEMA's
+    # # nullable field, not from the type string.
+    # type_str, _ = extract_nullable_keyword(type_str)
+
     result = _extract_paren_content(type_str)
     base_upper = result[0].upper() if result else type_str.upper()
 
