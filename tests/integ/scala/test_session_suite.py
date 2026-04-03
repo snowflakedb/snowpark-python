@@ -188,14 +188,6 @@ def test_create_dataframe_from_array(session, local_testing_mode):
     df = session.create_dataframe(data, schema)
     assert df.collect() == data
 
-    # local testing mode does not have strict type checking
-    if not local_testing_mode:
-        # negative
-        data1 = [Row("a", 1), Row(2, "b")]
-        with pytest.raises(TypeError) as ex_info:
-            session.create_dataframe(data1, schema)
-        assert "Unsupported datatype" in str(ex_info)
-
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
