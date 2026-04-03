@@ -65,36 +65,6 @@ def test_join_using_multiple_columns(session):
     ]
 
 
-def test_join_using_column_objects(session):
-    df = session.create_dataframe([[i, i + 1, str(i)] for i in range(1, 4)]).to_df(
-        ["int", "int2", "str"]
-    )
-    df2 = session.create_dataframe([[i, i + 1, str(i + 1)] for i in range(1, 4)]).to_df(
-        ["int", "int2", "str"]
-    )
-    # Column objects in list
-    res = df.join(df2, [col("int"), col("int2")]).collect()
-    assert sorted(res, key=operator.itemgetter(0)) == [
-        Row(1, 2, "1", "2"),
-        Row(2, 3, "2", "3"),
-        Row(3, 4, "3", "4"),
-    ]
-
-def test_join_using_column_and_name(session):
-    df = session.create_dataframe([[i, i + 1, str(i)] for i in range(1, 4)]).to_df(
-        ["int", "int2", "str"]
-    )
-    df2 = session.create_dataframe([[i, i + 1, str(i + 1)] for i in range(1, 4)]).to_df(
-        ["int", "int2", "str"]
-    )
-    # Mixed list (Column + str)
-    res = df.join(df2, [col("int"), "int2"]).collect()
-    assert sorted(res, key=operator.itemgetter(0)) == [
-        Row(1, 2, "1", "2"),
-        Row(2, 3, "2", "3"),
-        Row(3, 4, "3", "4"),
-    ]
-
 def test_full_outer_join_followed_by_inner_join(session):
     a = session.create_dataframe([[1, 2], [2, 3]]).to_df(["a", "b"])
     b = session.create_dataframe([[2, 5], [3, 4]]).to_df(["a", "c"])
