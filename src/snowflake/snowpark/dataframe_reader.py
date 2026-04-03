@@ -1457,7 +1457,7 @@ class DataFrameReader:
             name=udtf_name,
             output_schema=output_schema,
             input_types=input_types,
-            packages=["snowflake-snowpark-python", "lxml<6"],
+            packages=["snowflake-snowpark-python", "lxml<7"],
             if_not_exists=True,
             skip_upload_on_content_match=True,
             _suppress_local_package_warnings=True,
