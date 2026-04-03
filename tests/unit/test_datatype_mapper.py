@@ -92,6 +92,13 @@ def test_to_sql():
     )
     assert to_sql(42, StringType()) == "'42'"
     assert to_sql(42, StringType(), True) == "'42' :: STRING"
+    assert to_sql(3.14, StringType()) == "'3.14'"
+    assert to_sql(3.14, StringType(), True) == "'3.14' :: STRING"
+    assert to_sql(True, StringType()) == "'true'"
+    assert to_sql(True, StringType(), True) == "'true' :: STRING"
+    assert to_sql(False, StringType()) == "'false'"
+    assert to_sql(Decimal("9.99"), StringType()) == "'9.99'"
+    assert to_sql(Decimal("9.99"), StringType(), True) == "'9.99' :: STRING"
     assert to_sql(1, ByteType()) == "1 :: INT"
     assert to_sql(1, ShortType()) == "1 :: INT"
     assert to_sql(1, IntegerType()) == "1 :: INT"

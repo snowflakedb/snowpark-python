@@ -401,9 +401,15 @@ def to_sql(
             else str_to_sql(value)
         )
 
-    if isinstance(datatype, StringType) and isinstance(value, int):
-        # Local VALUES SQL: allow int (and bool, a subclass of int) for STRING columns.
-        return to_sql(str(value), datatype, from_values_statement=from_values_statement)
+    if isinstance(datatype, StringType) and isinstance(
+        value, (bool, int, float, Decimal)
+    ):
+        # Coerce common Python scalars to str so that VALUES and bind-param
+        # paths produce identical string representations.  bool is a subclass
+        # of int so it must be checked first.  Use lowercase for bools to
+        # match Snowflake's BOOLEAN::STRING cast semantics.
+        s = str(value).lower() if isinstance(value, bool) else str(value)
+        return to_sql(s, datatype, from_values_statement=from_values_statement)
 
     if isinstance(datatype, _IntegralType):
         return f"{value} :: INT"
