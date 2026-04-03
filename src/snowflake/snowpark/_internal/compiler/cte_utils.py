@@ -4,7 +4,7 @@
 
 import hashlib
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     WithQueryBlock,
 )
 from snowflake.snowpark._internal.utils import is_sql_select_statement
+import snowflake.snowpark.context as context
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.compiler.utils import TreeNode  # pragma: no cover
@@ -56,6 +57,14 @@ def find_duplicate_subtrees(
     # set of encoded node ids which are ineligible to be deduplicated
     # during this process
     invalid_ids_for_deduplication = set()
+
+    # When _is_snowpark_connect_compatible_mode is enabled, we track unique
+    # object identities per encoded_node_id to avoid merging nodes from
+    # different DataFrame construction calls that happen to produce
+    # identical SQL. Only the same Python object appearing multiple times
+    # (e.g. df.union_all(df)) should be treated as a duplicate.
+    use_object_identity = context._is_snowpark_connect_compatible_mode
+    object_ids_per_node_id: Dict[str, Set[int]] = defaultdict(set)
 
     from snowflake.snowpark._internal.analyzer.select_statement import (
         Selectable,
@@ -115,15 +124,17 @@ def find_duplicate_subtrees(
         while len(current_level) > 0:
             next_level = []
             for node in current_level:
-                id_node_map[node.encoded_node_id_with_query].append(node)
+                encoded_id = node.encoded_node_id_with_query
+                id_node_map[encoded_id].append(node)
+
+                if use_object_identity:
+                    object_ids_per_node_id[encoded_id].add(id(node))
 
                 if is_select_from_file_node(node):
-                    invalid_ids_for_deduplication.add(node.encoded_node_id_with_query)
+                    invalid_ids_for_deduplication.add(encoded_id)
 
                 for child in node.children_plan_nodes:
-                    id_parents_map[child.encoded_node_id_with_query].add(
-                        node.encoded_node_id_with_query
-                    )
+                    id_parents_map[child.encoded_node_id_with_query].add(encoded_id)
                     next_level.append(child)
             current_level = next_level
 
@@ -137,6 +148,30 @@ def find_duplicate_subtrees(
                     invalid_ids_for_deduplication.add(parent_id)
                     next_level.append(parent_id)
             current_level = next_level
+
+    def _node_occurrence_count(encoded_node_id_with_query: str) -> int:
+        """How many times this node appears in the tree.
+
+        In connect-compatible mode, different Python objects with the same
+        encoded id are counted as distinct nodes (occurrence = 1 each).
+        A true duplicate requires the *same* object referenced from
+        multiple parents.
+
+        When multiple distinct objects share the same encoded id, we return
+        the max occurrence count among any single object. This handles cases
+        like union(union(df1, df1), union(df2, df2)) where df1 and df2
+        produce identical SQL but df1 itself appears twice and should be
+        CTE-deduplicated.
+        """
+        total = len(id_node_map[encoded_node_id_with_query])
+        if use_object_identity:
+            object_ids = object_ids_per_node_id[encoded_node_id_with_query]
+            if len(object_ids) > 1:
+                id_counts = Counter(
+                    id(node) for node in id_node_map[encoded_node_id_with_query]
+                )
+                return max(id_counts.values())
+        return total
 
     def is_duplicate_subtree(encoded_node_id_with_query: str) -> bool:
         # when a sql query is a select statement, its encoded_node_id_with_query
@@ -154,10 +189,10 @@ def find_duplicate_subtrees(
         if encoded_node_id_with_query in invalid_ids_for_deduplication:
             return False
 
-        is_duplicate_node = len(id_node_map[encoded_node_id_with_query]) > 1
+        is_duplicate_node = _node_occurrence_count(encoded_node_id_with_query) > 1
         if is_duplicate_node:
             is_any_parent_unique_node = any(
-                len(id_node_map[id]) == 1
+                _node_occurrence_count(id) == 1
                 for id in id_parents_map[encoded_node_id_with_query]
             )
             if is_any_parent_unique_node:
