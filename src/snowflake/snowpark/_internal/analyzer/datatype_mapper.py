@@ -401,6 +401,10 @@ def to_sql(
             else str_to_sql(value)
         )
 
+    if isinstance(datatype, StringType) and isinstance(value, int):
+        # Local VALUES SQL: allow int (and bool, a subclass of int) for STRING columns.
+        return to_sql(str(value), datatype, from_values_statement=from_values_statement)
+
     if isinstance(datatype, _IntegralType):
         return f"{value} :: INT"
 

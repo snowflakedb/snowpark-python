@@ -4078,20 +4078,37 @@ def test_create_dataframe_from_none_data(session):
 def test_create_dataframe_decimal_string_value_inline_and_large(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
-    schema = StructType([StructField("a", DecimalType(10, 2))])
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 10
 
-    # Small local data insert string with decimal type shall not fail.
-    df_small = session.create_dataframe([["1.23"]], schema=schema)
-    assert len(df_small.queries["queries"]) == 1
-    assert df_small.collect()[0][0] == Decimal("1.23")
+        schema = StructType(
+            [
+                StructField("a", DecimalType(10, 2)),
+                StructField("b", StringType()),
+            ]
+        )
 
-    # Large local data insert string with decimal type shall not fail.
-    df_large = session.create_dataframe(
-        ["4.56"] * analyzer.ARRAY_BIND_THRESHOLD, schema=schema
-    )
-    assert len(df_large.queries["queries"]) == 3
-    assert df_large.count() == analyzer.ARRAY_BIND_THRESHOLD
-    assert df_large.limit(1).collect()[0][0] == Decimal("4.56")
+        # Small local data: decimal from string literal, STRING column from int — single VALUES query.
+        df_small = session.create_dataframe([["1.23", 42]], schema=schema)
+        assert len(df_small.queries["queries"]) == 1
+        small_row = df_small.collect()[0]
+        assert small_row[0] == Decimal("1.23")
+        assert small_row[1] == "42"
+
+        # Large local data: same types; batch temp-table path (3 queries).
+        n = analyzer.ARRAY_BIND_THRESHOLD
+        df_large = session.create_dataframe(
+            [["4.56", 99] for _ in range(n)],
+            schema=schema,
+        )
+        assert len(df_large.queries["queries"]) == 3
+        assert df_large.count() == n
+        large_row = df_large.limit(1).collect()[0]
+        assert large_row[0] == Decimal("4.56")
+        assert large_row[1] == "99"
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
 
 
 @pytest.mark.xfail(

@@ -15,6 +15,10 @@
   - Removed redundant aliases in generated queries (for example, `SELECT "A" AS "A"` is now always simplified to `SELECT "A"`).
 - Removed warning that `DataFrameReader.dbapi` feature was in private preview.
 
+#### Bug Fixes
+
+- Fixed a bug where `Session.create_dataframe` raised `TypeError` when a `StringType` column was given a Python `int` for a small local relation (below the array bind threshold); `VALUES` SQL generation now treats such values as string literals.
+
 ### Snowpark Local Testing Updates
 
 #### Bug Fixes
