@@ -112,10 +112,6 @@ jobs:
           - python-version: "3.9"
             os: ubuntu-latest-64-cores
             cloud-provider: aws
-          # only run gcp tests with latest python and ubuntu
-          - cloud-provider: gcp
-            python-version: "3.12"
-            os: ubuntu-latest-64-cores
           # only run azure tests with latest python and ubuntu
           - cloud-provider: azure
             python-version: "3.12"
