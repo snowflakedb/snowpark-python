@@ -668,6 +668,9 @@ class Session:
         self._cte_optimization_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION
         )
+        # Counts how many times CTE execution has fallen back to a non-CTE retry.
+        # Used to auto-disable CTE optimization when the threshold is exceeded.
+        self._cte_optimization_fallback_count: int = 0
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True

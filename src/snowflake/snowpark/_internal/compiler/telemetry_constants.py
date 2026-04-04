@@ -45,6 +45,16 @@ class CompilationStageTelemetryField(Enum):
     # keys for repeated subquery elimination
     CTE_NODE_CREATED = "cte_node_created"
 
+    # types / categories for CTE execution fallback
+    TYPE_CTE_EXECUTION_FALLBACK = "snowpark_cte_execution_fallback"
+    CAT_CTE_EXECUTION_FALLBACK = "cte_execution_fallback"
+    CAT_CTE_AUTO_DISABLED = "cte_auto_disabled"
+
+    # keys for CTE execution fallback events
+    CTE_FALLBACK_SFQID = "sfqid"
+    CTE_FALLBACK_RETRY_SUCCEEDED = "retry_succeeded"
+    CTE_FALLBACK_COUNT = "fallback_count"
+
     # keys for large query breakdown
     BREAKDOWN_SUMMARY = "breakdown_summary"
     COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION = "complexity_score_after_cte_optimization"

@@ -48,6 +48,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
+from snowflake.snowpark._internal.compiler.plan_compiler import PlanCompiler
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import (
     TelemetryClient,
@@ -80,6 +81,23 @@ if TYPE_CHECKING:
         ResultMetadataV2 = ResultMetadata
 
 logger = getLogger(__name__)
+
+# Number of CTE execution fallbacks after which CTE optimization is permanently
+# disabled for the session.  Kept as a private module variable so it can be
+# adjusted in one place without touching session state.
+_CTE_FALLBACK_AUTO_DISABLE_THRESHOLD = 3
+
+
+def _should_retry_cte_error(err: ProgrammingError) -> bool:
+    """Return True if *err* warrants re-executing the query with CTE optimization
+    disabled.
+
+    Currently accepts any ``ProgrammingError``.  The ``err.errno`` and
+    ``err.sqlstate`` attributes are intentionally available here for targeted
+    filtering once specific error codes are identified from production data.
+    """
+    return True
+
 
 # parameters needed for usage tracking
 PARAM_APPLICATION = "application"
@@ -756,39 +774,110 @@ class ServerConnection:
                 else:
                     dataframe_ast = None
 
-                for i, query in enumerate(main_queries):
-                    if isinstance(query, BatchInsertQuery):
-                        self.run_batch_insert(query.sql, query.rows, **kwargs)
-                    else:
-                        is_last = i == len(main_queries) - 1 and not block
-                        final_query = query.sql
-                        for holder, id_ in placeholders.items():
-                            final_query = final_query.replace(holder, id_)
-                        if i == len(main_queries) - 1 and dataframe_ast:
-                            kwargs[DATAFRAME_AST_PARAMETER] = dataframe_ast
-                        is_final_query = i == len(main_queries) - 1
+                # CTE retry is eligible when the sync path is used, CTE was
+                # applied to this plan, and there is exactly one main query
+                # (guarantees no partial side-effects that would make a full
+                # restart unsafe).  Multi-query retry support is a TODO.
+                cte_retry_eligible = (
+                    block
+                    and plan.session.cte_optimization_enabled
+                    and len(main_queries) == 1
+                )
+                try:
+                    for i, query in enumerate(main_queries):
+                        if isinstance(query, BatchInsertQuery):
+                            self.run_batch_insert(query.sql, query.rows, **kwargs)
+                        else:
+                            is_last = i == len(main_queries) - 1 and not block
+                            final_query = query.sql
+                            for holder, id_ in placeholders.items():
+                                final_query = final_query.replace(holder, id_)
+                            if i == len(main_queries) - 1 and dataframe_ast:
+                                kwargs[DATAFRAME_AST_PARAMETER] = dataframe_ast
+                            is_final_query = i == len(main_queries) - 1
+                            result = self.run_query(
+                                final_query,
+                                to_pandas,
+                                to_iter and is_final_query,
+                                is_ddl_on_temp_object=query.is_ddl_on_temp_object,
+                                block=not is_last,
+                                data_type=data_type,
+                                async_job_plan=plan,
+                                log_on_exception=log_on_exception,
+                                case_sensitive=case_sensitive,
+                                params=query.params,
+                                ignore_results=ignore_results,
+                                async_post_actions=post_actions,
+                                to_arrow=to_arrow and is_final_query,
+                                **kwargs,
+                            )
+                            placeholders[query.query_id_place_holder] = (
+                                result["sfqid"] if not is_last else result.query_id
+                            )
+                            result_meta = get_new_description(self._cursor)
+                        if action_id < plan.session._last_canceled_id:
+                            raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
+                except ProgrammingError as exec_err:
+                    if not (cte_retry_eligible and _should_retry_cte_error(exec_err)):
+                        raise
+
+                    # --- CTE execution fallback ---
+                    # Recompile the plan with CTE optimization disabled and
+                    # re-execute.  We never mutate session state here; the
+                    # cte_enabled override is local to this compile() call.
+                    sfqid = getattr(exec_err, "sfqid", None)
+                    retry_succeeded = False
+                    try:
+                        retry_plan_queries = PlanCompiler(plan).compile(
+                            cte_enabled=False
+                        )
+                        retry_main = retry_plan_queries[PlanQueryType.QUERIES]
+                        retry_query = retry_main[0]
                         result = self.run_query(
-                            final_query,
+                            retry_query.sql,
                             to_pandas,
-                            to_iter and is_final_query,
-                            is_ddl_on_temp_object=query.is_ddl_on_temp_object,
-                            block=not is_last,
+                            to_iter,
+                            is_ddl_on_temp_object=retry_query.is_ddl_on_temp_object,
+                            block=True,
                             data_type=data_type,
                             async_job_plan=plan,
                             log_on_exception=log_on_exception,
                             case_sensitive=case_sensitive,
-                            params=query.params,
+                            params=retry_query.params,
                             ignore_results=ignore_results,
-                            async_post_actions=post_actions,
-                            to_arrow=to_arrow and is_final_query,
+                            to_arrow=to_arrow,
                             **kwargs,
                         )
-                        placeholders[query.query_id_place_holder] = (
-                            result["sfqid"] if not is_last else result.query_id
-                        )
                         result_meta = get_new_description(self._cursor)
-                    if action_id < plan.session._last_canceled_id:
-                        raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
+                        # Switch post_actions to the retry compilation so the
+                        # finally block cleans up the correct temp objects.
+                        post_actions = retry_plan_queries[PlanQueryType.POST_ACTIONS]
+                        retry_succeeded = True
+                    except Exception:
+                        pass  # fall through to telemetry then re-raise
+
+                    session = plan.session
+                    session._cte_optimization_fallback_count += 1
+                    fallback_count = session._cte_optimization_fallback_count
+                    self._telemetry_client.send_cte_execution_fallback_telemetry(
+                        session_id=session.session_id,
+                        plan_uuid=plan.uuid,
+                        sfqid=sfqid,
+                        error_type=type(exec_err).__name__,
+                        error_message=str(exec_err),
+                        api_calls=plan.api_calls,
+                        retry_succeeded=retry_succeeded,
+                        fallback_count=fallback_count,
+                    )
+                    if fallback_count >= _CTE_FALLBACK_AUTO_DISABLE_THRESHOLD:
+                        session._cte_optimization_enabled = False
+                        self._telemetry_client.send_cte_auto_disabled_telemetry(
+                            session_id=session.session_id,
+                            fallback_count=fallback_count,
+                        )
+
+                    if not retry_succeeded:
+                        raise exec_err
         finally:
             # delete created tmp object
             if block:
