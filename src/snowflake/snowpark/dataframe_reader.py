@@ -51,7 +51,12 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sf_to_sp_type,
     convert_sp_to_sf_type,
+    DATA_TYPE_STRING_OBJECT_MAPPINGS,
+    extract_nullable_keyword,
+    get_number_precision_scale,
+    get_string_length,
     most_permissive_type,
+    split_top_level_comma_fields,
     type_string_to_type_object,
 )
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
@@ -93,6 +98,10 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     ArrayType,
+    DataType,
+    DecimalType,
+    DoubleType,
+    LongType,
     MapType,
     StringType,
     StructType,
@@ -110,6 +119,135 @@ else:
     from collections.abc import Iterable
 
 logger = getLogger(__name__)
+
+_STRUCTURED_TYPE_KEYWORDS = frozenset({"OBJECT", "MAP", "ARRAY"})
+
+_SF_EXTRA_TYPE_MAPPINGS = {
+    "text": StringType,
+    "real": DoubleType,
+    "fixed": LongType,
+}
+
+
+def _extract_paren_content(type_str: str) -> Optional[Tuple[str, str]]:
+    """Extract the base keyword and content inside matching parentheses.
+
+    Returns (base, inner_content) or None if no matching parens found.
+    E.g. "OBJECT(city VARCHAR, zip NUMBER(38,0))" -> ("OBJECT", "city VARCHAR, zip NUMBER(38,0)")
+    """
+    paren_idx = type_str.find("(")
+    if paren_idx == -1:
+        return None
+    base = type_str[:paren_idx].strip()
+    depth = 0
+    for i in range(paren_idx, len(type_str)):
+        if type_str[i] == "(":
+            depth += 1
+        elif type_str[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return base, type_str[paren_idx + 1 : i]
+    return None
+
+
+def _sf_type_to_type_object(type_str: str) -> DataType:
+    """Parse a Snowflake SQL type string directly into a Snowpark DataType.
+
+    Handles both simple types and structured types returned by INFER_SCHEMA:
+    - Simple: VARCHAR, NUMBER(38,0), BOOLEAN, TIMESTAMP_NTZ, etc.
+    - ARRAY(element_type)
+    - MAP(key_type, value_type)
+    - OBJECT(field1 type1, field2 type2 NOT NULL, ...)
+    - Nested combinations of the above
+    """
+    type_str = type_str.strip()
+    if not type_str:
+        raise ValueError("Empty type string")
+
+    result = _extract_paren_content(type_str)
+    if result is None:
+        normalized = type_str.replace(" ", "").lower()
+        if normalized in DATA_TYPE_STRING_OBJECT_MAPPINGS:
+            return DATA_TYPE_STRING_OBJECT_MAPPINGS[normalized]()
+        if normalized in _SF_EXTRA_TYPE_MAPPINGS:
+            return _SF_EXTRA_TYPE_MAPPINGS[normalized]()
+        raise ValueError(f"'{type_str}' is not a supported type")
+
+    base, inner = result
+    base_upper = base.upper()
+
+    if base_upper == "ARRAY":
+        element_type = _sf_type_to_type_object(inner)
+        return ArrayType(element_type, structured=True)
+
+    if base_upper == "MAP":
+        parts = split_top_level_comma_fields(inner)
+        if len(parts) != 2:
+            raise ValueError(f"Invalid MAP type definition: '{type_str}'")
+        key_type = _sf_type_to_type_object(parts[0])
+        value_type = _sf_type_to_type_object(parts[1])
+        return MapType(key_type, value_type, structured=True)
+
+    if base_upper == "OBJECT":
+        fields = split_top_level_comma_fields(inner)
+        struct_fields = []
+        for field_def in fields:
+            field_def = field_def.strip()
+            if not field_def:
+                continue
+            parts = field_def.split(None, 1)
+            if len(parts) != 2:
+                raise ValueError(f"Cannot parse OBJECT field definition: '{field_def}'")
+            field_name = parts[0]
+            type_part, nullable = extract_nullable_keyword(parts[1])
+            field_type = _sf_type_to_type_object(type_part)
+            struct_fields.append(StructField(field_name, field_type, nullable=nullable))
+        return StructType(struct_fields, structured=True)
+
+    precision_scale = get_number_precision_scale(type_str)
+    if precision_scale:
+        return DecimalType(*precision_scale)
+    length = get_string_length(type_str)
+    if length:
+        return StringType(length)
+
+    normalized = base_upper.replace(" ", "").lower()
+    if normalized in DATA_TYPE_STRING_OBJECT_MAPPINGS:
+        return DATA_TYPE_STRING_OBJECT_MAPPINGS[normalized]()
+    if normalized in _SF_EXTRA_TYPE_MAPPINGS:
+        return _SF_EXTRA_TYPE_MAPPINGS[normalized]()
+    raise ValueError(f"'{type_str}' is not a supported type")
+
+
+def _parse_structured_type_str(type_str, max_string_size):
+    """Parse a Snowflake type string from INFER_SCHEMA into a Snowpark DataType.
+
+    For structured types (OBJECT, MAP, ARRAY), uses the recursive parser.
+    For simple types, delegates to convert_sf_to_sp_type for precision/scale.
+    """
+    type_str = type_str.strip()
+    if not type_str:
+        return VariantType()
+
+    result = _extract_paren_content(type_str)
+    base_upper = result[0].upper() if result else type_str.upper()
+
+    if base_upper in _STRUCTURED_TYPE_KEYWORDS and result is not None:
+        return _sf_type_to_type_object(type_str)
+
+    if result is None:
+        return convert_sf_to_sp_type(base_upper, 0, 0, 0, max_string_size)
+
+    inner = result[1]
+    parts = inner.split(",")
+    try:
+        precision = int(parts[0].strip())
+        scale = int(parts[1].strip()) if len(parts) > 1 else 0
+    except (ValueError, IndexError):
+        precision = 0
+        scale = 0
+    return convert_sf_to_sp_type(base_upper, precision, scale, 0, max_string_size)
+
 
 LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
 
@@ -1335,19 +1473,10 @@ class DataFrameReader:
                 name = quote_name_without_upper_casing(column_name)
                 # Parse the type returned by infer_schema command to
                 # pass to determine datatype for schema
-                data_type_parts = type.split("(")
-                parts_length = len(data_type_parts)
-                if parts_length == 1:
-                    data_type = type
-                    precision = 0
-                    scale = 0
-                else:
-                    data_type = data_type_parts[0]
-                    precision = int(data_type_parts[1].split(",")[0])
-                    scale = int(data_type_parts[1].split(",")[1][:-1])
-                datatype = convert_sf_to_sp_type(
-                    data_type, precision, scale, 0, self._session._conn.max_string_size
+                datatype = _parse_structured_type_str(
+                    type, self._session._conn.max_string_size
                 )
+                is_structured = isinstance(datatype, (StructType, ArrayType, MapType))
                 if use_relaxed_types:
                     datatype = most_permissive_type(datatype)
                 new_schema.append(
@@ -1367,6 +1496,8 @@ class DataFrameReader:
                     "GET_IGNORE_CASE"
                 ):
                     identifier = expression
+                elif format == "PARQUET" and is_structured:
+                    identifier = f"TRY_CAST($1:{name} AS {type})"
                 else:
                     identifier = f"$1:{name}::{convert_sp_to_sf_type(datatype) if use_relaxed_types else type}"
 
