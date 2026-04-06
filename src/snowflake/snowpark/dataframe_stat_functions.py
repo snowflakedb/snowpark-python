@@ -23,7 +23,7 @@ from snowflake.snowpark._internal.telemetry import (
     adjust_api_subcalls,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
-from snowflake.snowpark._internal.utils import publicapi, warning
+from snowflake.snowpark._internal.utils import column_to_bool, publicapi, warning
 from snowflake.snowpark.functions import (
     _to_col_if_str,
     approx_percentile_accumulate,
@@ -91,7 +91,7 @@ class DataFrameStatFunctions:
              approximate percentile values if ``col`` is a list of column names.
         """
 
-        if not percentile or not col:
+        if not percentile or not column_to_bool(col):
             return []
 
         kwargs = {}
