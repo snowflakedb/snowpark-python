@@ -110,6 +110,7 @@ jobs:
           - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.11", cloud-provider: gcp }
           - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.12", cloud-provider: aws }
           - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.13", cloud-provider: azure }
+          - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.14", cloud-provider: gcp }
 
           # macOS + rotating cloud providers
           - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.9", cloud-provider: gcp }
@@ -117,6 +118,7 @@ jobs:
           - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.11", cloud-provider: azure }
           - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.12", cloud-provider: gcp }
           - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.13", cloud-provider: aws }
+          - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.14", cloud-provider: azure }
 
           # Windows + rotating cloud providers
           - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.9", cloud-provider: azure }
@@ -124,6 +126,7 @@ jobs:
           - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.11", cloud-provider: aws }
           - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.12", cloud-provider: azure }
           - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.13", cloud-provider: gcp }
+          - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.14", cloud-provider: aws }
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -162,7 +165,8 @@ jobs:
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
         run: uv pip install tox --system
-      - if: ${{ contains('macos', matrix.os.download_name) }}
+      # TODO: enable doctest for 3.14
+      - if: ${{ contains('macos', matrix.os.download_name) && matrix.python-version != '3.14' }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -173,7 +177,9 @@ jobs:
           # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.12 with no server-side support
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
-      - name: Run tests (excluding doctests)
+      # TODO: enable for 3.14
+      - if: ${{ matrix.python-version != '3.14' }}
+        name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -182,6 +188,16 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
           SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
+        shell: bash
+      # TODO: remove the test below and run udf tests for 3.14
+      - if: ${{ matrix.python-version == '3.14' }}
+        name: Run tests (excluding udf, doctests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Install MS ODBC Driver (Ubuntu only)
         if: ${{ matrix.os.download_name == 'linux' }}
@@ -193,7 +209,8 @@ jobs:
         shell: bash
       - name: Run data source tests
         # psycopg2 is not supported on macos 3.9
-        if: ${{ !(contains('macos', matrix.os.download_name) && matrix.python-version == '3.9') }}
+        # TODO: enable datasource tests for 3.14
+        if: ${{ !(contains('macos', matrix.os.download_name) && matrix.python-version == '3.9') && !(matrix.python-version == '3.14') }}
         run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -418,7 +435,7 @@ jobs:
             image_name: windows-latest
           - download_name: ubuntu
             image_name: ubuntu-latest
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
         cloud-provider: [azure]
     steps:
       - name: Checkout Code
@@ -488,7 +505,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]  # SNOW-2230787 test failing on Python 3.13
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.14"]  # SNOW-2230787 test failing on Python 3.13
         cloud-provider: [gcp]
         protobuf-version: ["3.20.1", "4.25.3", "5.28.3"]
     steps:
@@ -558,7 +575,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos  # it includes doctest
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
         cloud-provider: [azure]
     steps:
       - name: Checkout Code

@@ -588,9 +588,9 @@ def handle_function_expression(
         to_pass_kwargs = {}
         for param_name in parameters_except_ast:
             if param_name in exp.named_arguments:
-                type_hint = str(type_hints.get(param_name, ""))
-                keep_literal = "Column" not in type_hint
-                if type_hint == "typing.Optional[dict]":
+                type_hint = type_hints.get(param_name)
+                keep_literal = "Column" not in str(type_hint)
+                if type_hint == typing.Optional[dict]:
                     to_pass_kwargs[param_name] = json.loads(
                         exp.named_arguments[param_name].sql.replace("'", '"')
                     )

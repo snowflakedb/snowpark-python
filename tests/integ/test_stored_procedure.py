@@ -1181,7 +1181,12 @@ def test_sp_negative(session, local_testing_mode):
         def _(_: Session, x: int, y: Union[int, float]) -> Union[int, float]:
             return x + y
 
-    assert "invalid type typing.Union[int, float]" in str(ex_info)
+    msgs = [
+        "invalid type typing.Union[int, float]",
+        # python 3.14 changed the string representation of Union types
+        "invalid type int | float",
+    ]
+    assert any(msg in str(ex_info) for msg in msgs)
 
     with pytest.raises(TypeError) as ex_info:
 
