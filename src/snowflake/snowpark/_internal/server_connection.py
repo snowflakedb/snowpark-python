@@ -765,19 +765,15 @@ class ServerConnection:
                     to_arrow=to_arrow,
                     **kwargs,
                 )
-
-            except ProgrammingError:
-                raise cte_error
             except Exception as retry_error:
                 # Log both errors for debugging
                 logger.error(
-                    "Retry without CTE optimization failed with different error: %s. "
+                    "Retry without CTE optimization also failed: %s. "
                     "Original CTE error: %s",
                     retry_error,
                     cte_error,
                 )
-                raise  # Raise the actual retry error, not the original
-
+                raise retry_error from cte_error  # Raise the actual retry error, not the original
             else:
                 cte_query_id = getattr(cte_error, "sfqid", None)
                 retry_query_id = (
@@ -802,7 +798,6 @@ class ServerConnection:
                             cte_disabled = True
 
                     if cte_disabled:
-
                         logger.warning(
                             "CTE optimization has caused %d execution failures. "
                             "Auto-disabling CTE optimization for "
