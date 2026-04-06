@@ -115,7 +115,9 @@ def test_connect_mode_same_object_still_deduplicated():
 def test_connect_mode_different_objects_same_id_not_deduplicated():
     """When two different Python objects have the same encoded_node_id_with_query
     (e.g. df1.union_all(df2) where df1 and df2 produce the same SQL),
-    they should NOT be treated as duplicates in connect-compatible mode."""
+    find_duplicate_subtrees flags the encoded ID (raw count > 1), but
+    the per-object filtering in _replace_duplicate_node_with_cte will
+    skip them since each object appears only once."""
     root = _create_mock_node("root_R")
     child_a = _create_mock_node("same_S")
     child_b = _create_mock_node("same_S")
@@ -129,18 +131,24 @@ def test_connect_mode_different_objects_same_id_not_deduplicated():
         "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
     ):
         duplicated_ids, _ = find_duplicate_subtrees(root)
-    assert len(duplicated_ids) == 0
+    # The encoded IDs are flagged by raw count; per-object filtering
+    # happens downstream in _replace_duplicate_node_with_cte.
+    assert "same_S" in duplicated_ids
 
 
 def test_connect_mode_mixed_shared_and_distinct_objects():
     """A tree with both shared objects (same ref) and distinct objects (different refs,
-    same encoded id). Only the shared object should be deduplicated in connect mode.
+    same encoded id).
 
     Tree:   root
            /    \\
         left    right    (different objects, same encoded id "branch_B")
           |       |
         shared  shared   (same object, appears twice → should be deduplicated)
+
+    find_duplicate_subtrees flags both encoded IDs by raw count.
+    The per-object filtering in _replace_duplicate_node_with_cte will
+    skip left/right (each appears once) and only CTE-ify shared.
     """
     root = _create_mock_node("root_R")
     left = _create_mock_node("branch_B")
@@ -154,8 +162,11 @@ def test_connect_mode_mixed_shared_and_distinct_objects():
         "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
     ):
         duplicated_ids, _ = find_duplicate_subtrees(root)
-    assert "shared_S" in duplicated_ids
-    assert "branch_B" not in duplicated_ids
+    # branch_B has raw count 2 (left + right) → flagged as duplicate.
+    # shared_S has raw count 2 but its only parent (branch_B) is also
+    # duplicated, so it's not the root of a duplicate subtree.
+    assert "branch_B" in duplicated_ids
+    assert "shared_S" not in duplicated_ids
 
 
 def test_connect_mode_distinct_objects_each_duplicated():
@@ -214,6 +225,38 @@ def test_connect_mode_with_propagate_complexity_hist():
     assert "shared_S" in dup_ids
     assert complexity_hist is not None
     assert complexity_hist[1] == 2  # 50000 falls in bin 1 (> 10,000, <= 100,000)
+
+
+def test_connect_mode_mixed_duplicated_and_unique_objects():
+    """When multiple distinct objects share the same encoded id but only some
+    appear more than once, the encoded ID should still be flagged as
+    duplicated (because at least one object is genuinely duplicated).
+
+    Tree:       root
+               /    \\
+           union1   union2
+            / \\      / \\
+          df1 df1  df2 df3   ← df1 appears 2x (duplicated), df2 and df3 appear 1x each
+
+    The encoded ID "same_S" should be in duplicated_node_ids because df1
+    appears twice. The per-object filtering (df2/df3 not replaced) is
+    handled downstream in _replace_duplicate_node_with_cte.
+    """
+    root = _create_mock_node("root_R")
+    union1 = _create_mock_node("union1_U")
+    union2 = _create_mock_node("union2_U2")
+    df1 = _create_mock_node("same_S")
+    df2 = _create_mock_node("same_S")
+    df3 = _create_mock_node("same_S")
+    root.children_plan_nodes = [union1, union2]
+    union1.children_plan_nodes = [df1, df1]
+    union2.children_plan_nodes = [df2, df3]
+
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
+        duplicated_ids, _ = find_duplicate_subtrees(root)
+    assert "same_S" in duplicated_ids
 
 
 def test_encode_node_id_with_query_select_sql(mock_session, mock_analyzer):

@@ -585,6 +585,65 @@ def test_different_df_same_query(session, is_connect_mode):
         assert count_number_of_ctes(df.queries["queries"][-1]) == expected_cte_count
 
 
+def test_mixed_duplicated_and_unique_objects_same_sql(session, is_connect_mode):
+    """
+    union(union(df1, df1), union(df2, df3)) where df1, df2, df3 all produce
+    identical SQL but are different Python objects.
+
+    In connect mode:
+      - df1 appears twice (same object) -> should be CTE-deduplicated
+      - df2 and df3 each appear once -> should NOT be CTE-deduplicated
+      - Expect 1 CTE (for df1 only)
+    In non-connect mode:
+      - All share the same encoded ID -> treated as one CTE
+      - Expect 1 CTE (all unified)
+    """
+    df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
+    df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
+    df3 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
+    df = df1.union_all(df1).union_all(df2.union_all(df3))
+    check_result(
+        session,
+        df,
+        expect_cte_optimized=True,
+        query_count=1,
+        describe_count=0,
+        union_count=3,
+        join_count=0,
+    )
+    with SqlCounter(query_count=0, describe_count=0):
+        assert count_number_of_ctes(df.queries["queries"][-1]) == 1
+
+
+def test_distinct_objects_each_duplicated(session, is_connect_mode):
+    """
+    union(union(df1, df1), union(df2, df2)) where df1 and df2 produce
+    identical SQL but are different Python objects.
+
+    In connect mode:
+      - df1 appears twice, df2 appears twice -> each gets its own CTE
+      - Expect 2 CTEs
+    In non-connect mode:
+      - All share the same encoded ID -> one CTE
+      - Expect 1 CTE
+    """
+    df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
+    df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
+    df = df1.union_all(df1).union_all(df2.union_all(df2))
+    check_result(
+        session,
+        df,
+        expect_cte_optimized=True,
+        query_count=1,
+        describe_count=0,
+        union_count=3,
+        join_count=0,
+    )
+    with SqlCounter(query_count=0, describe_count=0):
+        expected_cte_count = 2 if is_connect_mode else 1
+        assert count_number_of_ctes(df.queries["queries"][-1]) == expected_cte_count
+
+
 def test_same_duplicate_subtree(session):
     """
             root
