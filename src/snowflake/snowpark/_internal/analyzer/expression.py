@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import copy
 import uuid
 from typing import TYPE_CHECKING, AbstractSet, Any, Dict, List, Optional, Tuple
 
@@ -158,7 +157,9 @@ class NamedExpression:
         return self._expr_id
 
     def __copy__(self):
-        new = copy.copy(super())
+        cls = self.__class__
+        new = cls.__new__(cls)
+        new.__dict__.update(self.__dict__)
         new._expr_id = None  # type: ignore
         return new
 

@@ -500,6 +500,7 @@ def test_telemetry_tracking(caplog, session, fetch_with_process):
     RUNNING_ON_JENKINS,
     reason="SNOW-2089683: oracledb real connection test failed on jenkins",
 )
+@pytest.mark.udf
 def test_telemetry_tracking_for_udtf(caplog, session, ast_enabled):
 
     if ast_enabled:
@@ -1013,6 +1014,7 @@ def test_empty_table(session, fetch_with_process):
     assert df.collect() == []
 
 
+@pytest.mark.udf
 def test_sql_server_udtf_ingestion(session):
     raw_schema = [
         ("Id", int, None, None, 10, 0, False),
