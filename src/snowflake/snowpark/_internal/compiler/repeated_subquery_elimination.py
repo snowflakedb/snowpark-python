@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import hashlib
 from collections import Counter, defaultdict
 from typing import Dict, List, Optional, Set
 
@@ -151,14 +152,6 @@ class RepeatedSubqueryElimination:
         # track the resolved WithQueryBlock node has been created for each duplicated node.
         # In per-object mode the key is str(id(node)); otherwise it is encoded_node_id_with_query.
         resolved_with_block_map: Dict[str, SnowflakePlan] = {}
-        # Counter for deterministic CTE naming when multiple distinct objects
-        # share the same encoded ID (connect mode only).
-        per_object_cte_counter: Dict[str, int] = defaultdict(int)
-
-        def _map_key_for(node: TreeNode) -> str:
-            if use_per_object:
-                return str(id(node))
-            return node.encoded_node_id_with_query
 
         def _update_parents(
             node: TreeNode,
@@ -189,7 +182,11 @@ class RepeatedSubqueryElimination:
                         _update_parents(node, should_replace_child=False)
                     continue
 
-                map_key = _map_key_for(node)
+                map_key = (
+                    node.encoded_node_id_with_query
+                    if not use_per_object
+                    else str(id(node))
+                )
                 if map_key in resolved_with_block_map:
                     resolved_with_block = resolved_with_block_map[map_key]
                 else:
@@ -197,15 +194,19 @@ class RepeatedSubqueryElimination:
                         self._query_generator.session.reduce_describe_query_enabled
                         and context._is_snowpark_connect_compatible_mode
                     ):
-                        base = f"{TEMP_OBJECT_NAME_PREFIX}{TempObjectType.CTE.value}_{node.encoded_node_id_with_query[:HASH_LENGTH].upper()}"
                         if use_per_object:
-                            idx = per_object_cte_counter[
-                                node.encoded_node_id_with_query
-                            ]
-                            per_object_cte_counter[node.encoded_node_id_with_query] += 1
-                            cte_name = f"{base}_{idx}" if idx > 0 else base
+                            obj_hash = (
+                                hashlib.sha256(
+                                    f"{node.encoded_node_id_with_query}:{id(node)}".encode()
+                                )
+                                .hexdigest()[:HASH_LENGTH]
+                                .upper()
+                            )
                         else:
-                            cte_name = base
+                            obj_hash = node.encoded_node_id_with_query[
+                                :HASH_LENGTH
+                            ].upper()
+                        cte_name = f"{TEMP_OBJECT_NAME_PREFIX}{TempObjectType.CTE.value}_{obj_hash}"
                     else:
                         cte_name = random_name_for_temp_object(TempObjectType.CTE)
                     with_block = WithQueryBlock(name=cte_name, child=node)  # type: ignore
