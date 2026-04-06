@@ -18,6 +18,7 @@
 #### Bug Fixes
 
 - Fixed a bug where `Session.create_dataframe` raised `TypeError` when a `StringType` column was given a non-string Python value (e.g. `int`, `float`, `bool`, `Decimal`) for a small local relation (below the array bind threshold); `VALUES` SQL generation now coerces these types to string literals, consistent with the large-data bind-parameter path.
+- Fixed a bug where `DataFrame.approxQuantile` did not accept a `Column` for the `col` parameter.
 
 ### Snowpark Local Testing Updates
 

@@ -608,36 +608,47 @@ def test_df_stat_cov(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: function approx_percentile_accumulate not supported",
 )
-def test_df_stat_approx_quantile(session):
-    assert TestData.approx_numbers(session).stat.approx_quantile("a", [0.5]) == [4.5]
+@pytest.mark.parametrize("use_col_object", [False, True], ids=["str", "Column"])
+def test_df_stat_approx_quantile(session, use_col_object):
+    def _col(name):
+        return col(name) if use_col_object else name
+
+    assert TestData.approx_numbers(session).stat.approx_quantile(_col("a"), [0.5]) == [
+        4.5
+    ]
     assert TestData.approx_numbers(session).stat.approx_quantile(
-        "a", [0.5], statement_params={"SF_PARTNER": "FAKE_PARTNER"}
+        _col("a"), [0.5], statement_params={"SF_PARTNER": "FAKE_PARTNER"}
     ) == [4.5]
 
     assert TestData.approx_numbers(session).stat.approx_quantile(
-        "a", [0, 0.1, 0.4, 0.6, 1]
+        _col("a"), [0, 0.1, 0.4, 0.6, 1]
     ) in (
         [-0.5, 0.5, 3.5, 5.5, 9.5],  # old behavior of Snowflake
         [0.0, 0.9, 3.6, 5.3999999999999995, 9.0],
     )  # new behavior of Snowflake
 
     with pytest.raises(SnowparkSQLException) as exec_info:
-        TestData.approx_numbers(session).stat.approx_quantile("a", [-1])
+        TestData.approx_numbers(session).stat.approx_quantile(_col("a"), [-1])
     assert "Invalid value [-1.0] for function 'APPROX_PERCENTILE_ESTIMATE'" in str(
         exec_info.value
     )
 
     with pytest.raises(SnowparkSQLException) as exec_info:
-        TestData.string1(session).stat.approx_quantile("a", [0.5])
+        TestData.string1(session).stat.approx_quantile(_col("a"), [0.5])
     assert "Numeric value 'test1' is not recognized" in str(exec_info.value)
 
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "num int")
 
     try:
-        assert session.table(table_name).stat.approx_quantile("num", [0.5])[0] is None
+        assert (
+            session.table(table_name).stat.approx_quantile(_col("num"), [0.5])[0]
+            is None
+        )
 
-        res = TestData.double2(session).stat.approx_quantile(["a", "b"], [0, 0.1, 0.6])
+        res = TestData.double2(session).stat.approx_quantile(
+            [_col("a"), _col("b")], [0, 0.1, 0.6]
+        )
         try:
             Utils.assert_rows(
                 res,
@@ -660,13 +671,15 @@ def test_df_stat_approx_quantile(session):
         # ApproxNumbers2 contains a column called T, which conflicts with tmpColumnName.
         # This test demos that the query still works.
         assert (
-            TestData.approx_numbers2(session).stat.approx_quantile("a", [0.5])[0] == 4.5
+            TestData.approx_numbers2(session).stat.approx_quantile(_col("a"), [0.5])[0]
+            == 4.5
         )
         assert (
-            TestData.approx_numbers2(session).stat.approx_quantile("t", [0.5])[0] == 3.0
+            TestData.approx_numbers2(session).stat.approx_quantile(_col("t"), [0.5])[0]
+            == 3.0
         )
 
-        assert TestData.double2(session).stat.approx_quantile("a", []) == []
+        assert TestData.double2(session).stat.approx_quantile(_col("a"), []) == []
         assert TestData.double2(session).stat.approx_quantile([], []) == []
         assert TestData.double2(session).stat.approx_quantile([], [0.5]) == []
     finally:
