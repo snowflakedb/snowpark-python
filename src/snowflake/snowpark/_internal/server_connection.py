@@ -791,7 +791,7 @@ class ServerConnection:
 
                 if context._cte_error_threshold > 0:
                     cte_disabled = False
-                    with session._lock:
+                    with session._cte_error_lock:
                         session._cte_error_count += 1
                         if session._cte_error_count >= context._cte_error_threshold:
                             session._cte_optimization_enabled = False

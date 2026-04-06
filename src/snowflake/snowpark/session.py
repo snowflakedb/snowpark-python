@@ -825,6 +825,10 @@ class Session:
             self._conn._thread_safe_session_enabled
         )
 
+        # this lock is used to protect CTE error counting and auto-disable logic
+        # to avoid contention with the general session _lock
+        self._cte_error_lock = create_rlock(self._conn._thread_safe_session_enabled)
+
         self._custom_package_usage_config: Dict = {}
 
         # Cache for XPath UDFs (thread-safe)
