@@ -107,6 +107,8 @@ SEQUENCE_DEPENDENT_DATA_GENERATION = (
     "seq2",
     "seq4",
     "seq8",
+    "uuid_string",
+    "randstr",
 )
 
 
@@ -918,6 +920,32 @@ class SelectStatement(Selectable):
         self.df_ast_ids = (
             from_.df_ast_ids.copy() if from_.df_ast_ids is not None else None
         )
+        self._contains_data_generation: Optional[bool] = None
+
+    @property
+    def contains_data_generation(self) -> bool:
+        """Whether this node's own expressions (projection, where, order_by) contain
+        truly non-deterministic data generation functions that produce different
+        results on each evaluation (e.g., uuid_string() with no arguments). Used by
+        CTE dedup to skip deduplication for such nodes, since Snowflake materializes
+        CTEs causing all references to share the same generated values.
+
+        This does NOT flag deterministic sequence-dependent functions with arguments
+        (seq1(0), uniform(1,10,gen)) or window expressions, which produce identical
+        results with or without CTE. See has_nondeterministic_data_generation_exp()
+        for the full heuristic and empirical findings.
+
+        Lazily computed and cached. Safe with the copy-on-write pattern because
+        __copy__ goes through __init__ which resets the cache to None."""
+        if self._contains_data_generation is None:
+            self._contains_data_generation = (
+                has_nondeterministic_data_generation_exp(self.projection)
+                or has_nondeterministic_data_generation_exp(
+                    [self.where] if self.where else None
+                )
+                or has_nondeterministic_data_generation_exp(self.order_by)
+            )
+        return self._contains_data_generation
 
     def __copy__(self):
         new = SelectStatement(
@@ -2308,5 +2336,63 @@ def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
             # https://docs.snowflake.com/en/sql-reference/functions-data-generation
             return True
         if exp is not None and has_data_generator_exp(exp.children):
+            return True
+    return False
+
+
+def has_nondeterministic_data_generation_exp(
+    expressions: Optional[List["Expression"]],
+) -> bool:
+    """Check if expressions contain truly non-deterministic data generation
+    functions that produce different results on each evaluation. This is used
+    by CTE dedup to skip deduplication for such nodes, since Snowflake
+    materializes CTEs and all references share the same generated values.
+
+    Unlike has_data_generator_exp (used for query flattening), this uses a
+    narrower check. Empirical testing against Snowflake confirms the following:
+
+    CTE dedup UNSAFE (results differ with vs. without CTE):
+        - uuid_string()            -- random UUID each evaluation
+        - random()                 -- random value each evaluation (no seed)
+        - uniform(1, 100, random()) -- non-deterministic because nested random()
+        - normal(0, 1, random())   -- non-deterministic because nested random()
+        - randstr(10, random())    -- non-deterministic because nested random()
+
+    CTE dedup SAFE (results identical with vs. without CTE):
+        - seq1(0), seq8(0), ...    -- deterministic sequence given same input rows
+        - uniform(1, 100, 42)      -- deterministic with literal gen value
+        - normal(0, 1, random(42)) -- deterministic with seeded random
+        - randstr(10, 42)          -- deterministic with literal gen value
+        - window functions         -- deterministic given same input and partitioning
+
+    The heuristic: flag any zero-argument FunctionExpression that is marked as
+    a data generator or whose name is a known data generation function. This
+    catches uuid_string() directly. Functions with arguments (seq1(0),
+    uniform(1,10,gen)) are safe because their output is determined by those
+    arguments. The recursive child check catches cases like
+    uniform(1, 100, random()) where random() is nested inside.
+
+    Known limitations:
+        - random() called via builtin("random")() bypasses Snowpark's Python-side
+          seed generation and produces bare "random()" SQL. This is not caught
+          because "random" is intentionally excluded from the name-based set to
+          avoid flattening side-effects. The native Snowpark random() API is safe
+          because it generates a unique Python-side seed per call.
+        - session.sql() with raw SQL containing non-deterministic functions is not
+          detected because SelectSQL has no expression tree to inspect.
+    """
+    if expressions is None:
+        return False
+    for exp in expressions:
+        if (
+            isinstance(exp, FunctionExpression)
+            and len(exp.children) == 0
+            and (
+                exp.is_data_generator
+                or exp.name.lower() in SEQUENCE_DEPENDENT_DATA_GENERATION
+            )
+        ):
+            return True
+        if exp is not None and has_nondeterministic_data_generation_exp(exp.children):
             return True
     return False

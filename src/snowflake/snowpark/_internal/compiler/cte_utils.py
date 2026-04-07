@@ -105,6 +105,32 @@ def find_duplicate_subtrees(
 
         return False
 
+    def is_node_with_data_generation_exp(node: "TreeNode") -> bool:
+        """
+        Check if the current node contains non-deterministic data generation
+        expressions (e.g., uuid_string() with no arguments). Nodes containing
+        such expressions must not be deduplicated via CTE because Snowflake
+        materializes CTEs, causing all references to share the same generated
+        values instead of producing independent results.
+
+        This only flags truly non-deterministic expressions (zero-argument
+        data generation functions like uuid_string()). Deterministic
+        sequence-dependent functions with arguments (seq1(0), uniform(1,10,gen))
+        produce identical results with or without CTE and are safe to deduplicate.
+        See has_nondeterministic_data_generation_exp() for full details.
+        """
+        if isinstance(node, SelectStatement):
+            return node.contains_data_generation
+
+        if isinstance(node, SnowflakePlan) and (node.source_plan is not None):
+            if isinstance(node.source_plan, SelectStatement):
+                return node.source_plan.contains_data_generation
+
+        if isinstance(node, SelectSnowflakePlan):
+            return is_node_with_data_generation_exp(node.snowflake_plan)
+
+        return False
+
     def traverse(root: "TreeNode") -> None:
         """
         This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
@@ -118,6 +144,9 @@ def find_duplicate_subtrees(
                 id_node_map[node.encoded_node_id_with_query].append(node)
 
                 if is_select_from_file_node(node):
+                    invalid_ids_for_deduplication.add(node.encoded_node_id_with_query)
+
+                if is_node_with_data_generation_exp(node):
                     invalid_ids_for_deduplication.add(node.encoded_node_id_with_query)
 
                 for child in node.children_plan_nodes:

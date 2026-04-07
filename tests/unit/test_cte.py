@@ -8,6 +8,7 @@ from unittest import mock
 
 import pytest
 
+from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
 )
@@ -130,3 +131,160 @@ def test_encode_node_id_with_query_includes_aliases():
 
     expected_hash = hashlib.sha256(expected_string.encode()).hexdigest()[:10]
     assert encode_node_id_with_query(node) == f"{expected_hash}_SimpleNamespace"
+
+
+def _make_mock_nodes(count, *, source_plans=None):
+    """Helper to create mock SnowflakePlan nodes for CTE dedup tests."""
+    nodes = [mock.create_autospec(SnowflakePlan) for _ in range(count)]
+    for i, node in enumerate(nodes):
+        node.encoded_node_id_with_query = f"{i}_{i}"
+        node.source_plan = source_plans[i] if source_plans else None
+        node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 3}
+    return nodes
+
+
+def test_find_duplicate_subtrees_excludes_data_generation_nodes():
+    """Duplicate nodes that contain data generation expressions (e.g., uuid_string())
+    should be excluded from CTE deduplication because Snowflake materializes CTEs,
+    causing all references to share the same generated values."""
+    nodes = _make_mock_nodes(5)
+    # Tree:  0 -> [1, 2], 1 -> [3, 3], 2 -> [3, 3]
+    # Node 3 appears 4 times with 2 different parents => duplicate
+    nodes[0].children_plan_nodes = [nodes[1], nodes[2]]
+    nodes[1].children_plan_nodes = [nodes[3], nodes[3]]
+    nodes[2].children_plan_nodes = [nodes[3], nodes[3]]
+    nodes[3].children_plan_nodes = [nodes[4]]
+    nodes[4].children_plan_nodes = []
+
+    # Without data generation: node 3 should be deduplicated
+    duplicate_ids, _ = find_duplicate_subtrees(nodes[0])
+    assert "3_3" in duplicate_ids
+
+    # Now make node 3's source_plan a SelectStatement with a data generation expression
+    mock_select = mock.create_autospec(SelectStatement)
+    mock_select.contains_data_generation = True
+    mock_select.projection = [mock.MagicMock()]
+    nodes[3].source_plan = mock_select
+
+    duplicate_ids, _ = find_duplicate_subtrees(nodes[0])
+    assert (
+        "3_3" not in duplicate_ids
+    ), "Node with data generation expressions should not be deduplicated"
+
+
+def test_find_duplicate_subtrees_propagates_data_gen_to_parents():
+    """Parents of data-generation nodes should also be excluded from deduplication
+    because deduplicating a parent would transitively share the generated values."""
+    nodes = _make_mock_nodes(5)
+    # Tree:  0 -> [1, 2], 1 -> [3], 2 -> [3]
+    # Both node 1 and 2 reference node 3 (duplicate)
+    # Node 1 and 2 also have the same encoded_id (both are "duplicates")
+    nodes[1].encoded_node_id_with_query = "shared_shared"
+    nodes[2].encoded_node_id_with_query = "shared_shared"
+    nodes[0].children_plan_nodes = [nodes[1], nodes[2]]
+    nodes[1].children_plan_nodes = [nodes[3]]
+    nodes[2].children_plan_nodes = [nodes[3]]
+    nodes[3].children_plan_nodes = []
+    nodes[4].children_plan_nodes = []
+
+    # Make node 3 a data generation node
+    mock_select = mock.create_autospec(SelectStatement)
+    mock_select.contains_data_generation = True
+    mock_select.projection = [mock.MagicMock()]
+    nodes[3].source_plan = mock_select
+
+    duplicate_ids, _ = find_duplicate_subtrees(nodes[0])
+    assert "3_3" not in duplicate_ids
+    assert (
+        "shared_shared" not in duplicate_ids
+    ), "Parents of data-generation nodes should also be excluded"
+
+
+def test_select_statement_contains_data_generation_projection(
+    mock_session, mock_analyzer
+):
+    """SelectStatement.contains_data_generation detects data gen in projection."""
+    base = SelectSQL(sql="select 1", analyzer=mock_analyzer)
+    uuid_expr = FunctionExpression("uuid_string", [], is_distinct=False)
+
+    stmt = SelectStatement(
+        projection=[uuid_expr],
+        from_=base,
+        analyzer=mock_analyzer,
+    )
+    assert stmt.contains_data_generation is True
+
+
+def test_select_statement_contains_data_generation_flagged_zero_args(
+    mock_session, mock_analyzer
+):
+    """is_data_generator with zero args is non-deterministic and should be flagged."""
+    base = SelectSQL(sql="select 1", analyzer=mock_analyzer)
+    expr = FunctionExpression("my_func", [], is_distinct=False, is_data_generator=True)
+
+    stmt = SelectStatement(
+        projection=[expr],
+        from_=base,
+        analyzer=mock_analyzer,
+    )
+    assert stmt.contains_data_generation is True
+
+
+def test_select_statement_data_generation_with_args_not_flagged(
+    mock_session, mock_analyzer
+):
+    """Deterministic data generation functions with arguments (seq1(0), uniform(...))
+    should NOT be flagged -- they produce the same results given the same input."""
+    from snowflake.snowpark._internal.analyzer.expression import Literal
+
+    base = SelectSQL(sql="select 1", analyzer=mock_analyzer)
+    seq_expr = FunctionExpression(
+        "seq1", [Literal(0)], is_distinct=False, is_data_generator=True
+    )
+
+    stmt = SelectStatement(
+        projection=[seq_expr],
+        from_=base,
+        analyzer=mock_analyzer,
+    )
+    assert stmt.contains_data_generation is False
+
+
+def test_select_statement_contains_data_generation_where(mock_session, mock_analyzer):
+    """SelectStatement.contains_data_generation detects data gen in where clause."""
+    base = SelectSQL(sql="select 1", analyzer=mock_analyzer)
+    uuid_expr = FunctionExpression("uuid_string", [], is_distinct=False)
+
+    stmt = SelectStatement(
+        from_=base,
+        where=uuid_expr,
+        analyzer=mock_analyzer,
+    )
+    assert stmt.contains_data_generation is True
+
+
+def test_select_statement_no_data_generation(mock_session, mock_analyzer):
+    """SelectStatement.contains_data_generation is False for deterministic queries."""
+    base = SelectSQL(sql="select 1", analyzer=mock_analyzer)
+
+    stmt = SelectStatement(
+        from_=base,
+        analyzer=mock_analyzer,
+    )
+    assert stmt.contains_data_generation is False
+
+
+def test_select_statement_contains_data_generation_cached(mock_session, mock_analyzer):
+    """The contains_data_generation property should be lazily cached."""
+    base = SelectSQL(sql="select 1", analyzer=mock_analyzer)
+    uuid_expr = FunctionExpression("uuid_string", [], is_distinct=False)
+
+    stmt = SelectStatement(
+        projection=[uuid_expr],
+        from_=base,
+        analyzer=mock_analyzer,
+    )
+    assert stmt._contains_data_generation is None
+    result = stmt.contains_data_generation
+    assert result is True
+    assert stmt._contains_data_generation is True
