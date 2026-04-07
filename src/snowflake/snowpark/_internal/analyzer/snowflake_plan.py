@@ -165,6 +165,34 @@ class SnowflakePlan(LogicalPlan):
         __wrap_exception_regex_sub = re.compile(r"""^"|"$""")
 
         @staticmethod
+        def _collect_quoted_identifiers_from_plan_nodes(
+            nodes: Sequence[Any],
+        ) -> List[str]:
+            """Gather column identifiers for invalid-identifier error hints.
+
+            ``children_plan_nodes`` may return ``LogicalPlan`` nodes (e.g. ``Sort``)
+            when ``source_plan`` is not a ``Selectable``; those nodes have no
+            ``quoted_identifiers`` and must be traversed via ``children``.
+            """
+            from snowflake.snowpark._internal.analyzer.select_statement import (
+                Selectable,
+            )
+
+            out: List[str] = []
+            for node in nodes:
+                if isinstance(node, Selectable):
+                    out.extend(node.snowflake_plan.quoted_identifiers)
+                elif isinstance(node, SnowflakePlan):
+                    out.extend(node.quoted_identifiers)
+                elif isinstance(node, LogicalPlan) and node.children:
+                    out.extend(
+                        SnowflakePlan.Decorator._collect_quoted_identifiers_from_plan_nodes(
+                            node.children
+                        )
+                    )
+            return out
+
+        @staticmethod
         def wrap_exception(func):
             """This wrapper is used to wrap snowflake connector ProgrammingError into SnowparkSQLException.
             It also adds additional debug information to the raised exception when possible.
@@ -318,18 +346,13 @@ class SnowflakePlan(LogicalPlan):
                                 raise ne.with_traceback(tb) from None
                             col = match.group(1)
 
-                            quoted_identifiers = []
+                            quoted_identifiers: List[str] = []
                             for child in children:
-                                plan_nodes = child.children_plan_nodes
-                                for node in plan_nodes:
-                                    if isinstance(node, Selectable):
-                                        quoted_identifiers.extend(
-                                            node.snowflake_plan.quoted_identifiers
-                                        )
-                                    else:
-                                        quoted_identifiers.extend(
-                                            node.quoted_identifiers
-                                        )
+                                quoted_identifiers.extend(
+                                    SnowflakePlan.Decorator._collect_quoted_identifiers_from_plan_nodes(
+                                        child.children_plan_nodes
+                                    )
+                                )
 
                             # No context available to enhance error message
                             if not quoted_identifiers:
