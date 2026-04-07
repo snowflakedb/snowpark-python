@@ -17,6 +17,7 @@ from snowflake.snowpark.functions import (
     asc,
     call_function,
     col,
+    concat,
     concat_ws,
     contains,
     count,
@@ -758,6 +759,14 @@ def test_concat_ws_indexing(session):
     Utils.check_answer(final, [Row(2, "B", "2-B"), Row(3, "C", "3-C")])
 
 
+def test_concat_indexing(session):
+    """SNOW-3203859: filter + withColumn(concat) should not produce extra NaN rows."""
+    df = session.create_dataframe([(1, "A"), (2, "B"), (3, "C")], schema=["A", "B"])
+    filtered = df.where(df.A > 1)
+    final = filtered.with_column("concat", concat(col("A"), lit("_"), col("B")))
+    Utils.check_answer(final, [Row(2, "B", "2_B"), Row(3, "C", "3_C")])
+
+
 def test_ai_complete(session):
     """Test that ai_complete (NamedFunctionExpression) works with mock framework."""
     df = session.create_dataframe(
@@ -767,7 +776,11 @@ def test_ai_complete(session):
     # Mock the ai_complete function to return a simple response
     @patch("ai_complete")
     def mock_ai_complete(
-        model=None, prompt=None, response_format=None, model_parameters=None, **kwargs
+        model=None,
+        prompt=None,
+        response_format=None,
+        model_parameters=None,
+        **kwargs,
     ) -> ColumnEmulator:
         """Simple mock that returns 'AI response: <prompt>' for each input."""
         assert (
