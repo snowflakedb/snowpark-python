@@ -1486,8 +1486,26 @@ class SelectStatement(Selectable):
                 self.df_ast_ids.copy() if self.df_ast_ids is not None else None
             )
         else:
+            new_order_by = None
+            if context._is_snowpark_connect_compatible_mode and self.order_by:
+                order_by_dependent_columns = derive_dependent_columns(*self.order_by)
+                if order_by_dependent_columns in (
+                    COLUMN_DEPENDENCY_DOLLAR,
+                    COLUMN_DEPENDENCY_ALL,
+                ) or any(
+                    _col not in self.column_states
+                    or self.column_states[_col].change_state
+                    in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.DROPPED)
+                    for _col in order_by_dependent_columns
+                ):
+                    new_order_by = None
+                else:
+                    new_order_by = self.order_by
             new = SelectStatement(
-                projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
+                projection=cols,
+                from_=self.to_subqueryable(),
+                order_by=new_order_by,
+                analyzer=self.analyzer,
             )
             new._merge_projection_complexity_with_subquery = (
                 can_select_projection_complexity_be_merged(

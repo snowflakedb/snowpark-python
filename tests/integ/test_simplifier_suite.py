@@ -1863,14 +1863,14 @@ def test_select_after_filter(
         (
             lambda df: df.order_by(col("A")).select(seq1(0)),
             'SELECT seq1(0) FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ORDER BY "A" ASC NULLS FIRST )',
-            None,
+            'SELECT seq1(0) FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ORDER BY "A" ASC NULLS FIRST ) ORDER BY "A" ASC NULLS FIRST',
             True,
         ),
         # Not flattened, unlike filter, current query takes precendence when there are duplicate column names from a ORDERBY clause
         (
             lambda df: df.order_by(col("A")).select((col("B") + 1).alias("A")),
             'SELECT ("B" + 1{POSTFIX}) AS "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ORDER BY "A" ASC NULLS FIRST )',
-            None,
+            'SELECT ("B" + 1{POSTFIX}) AS "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ORDER BY "A" ASC NULLS FIRST ) ORDER BY "A" ASC NULLS FIRST',
             True,
         ),
         # Not flattened, since we cannot detect dependent columns from sql_expr
@@ -1928,7 +1928,7 @@ def test_select_after_filter(
             .order_by(col("D"))
             .select(col("A").alias("E")),
             'SELECT "A" AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) ORDER BY "D" ASC NULLS FIRST',
-            'SELECT "A" AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "D" ASC NULLS FIRST)',
+            'SELECT "A" AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "D" ASC NULLS FIRST) ORDER BY "D" ASC NULLS FIRST',
             True,
         ),
         # Not flattened if a dropped new column is used in the order by clause's dependent columns
@@ -1937,7 +1937,27 @@ def test_select_after_filter(
             .order_by(col("D") - 1)
             .select((col("A") + 1).alias("E")),
             'SELECT ("A" + 1{POSTFIX}) AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) ORDER BY ("D" - 1{POSTFIX}) ASC NULLS FIRST',
-            'SELECT ("A" + 1{POSTFIX}) AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY ("D" - 1{POSTFIX}) ASC NULLS FIRST)',
+            'SELECT ("A" + 1{POSTFIX}) AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY ("D" - 1{POSTFIX}) ASC NULLS FIRST) ORDER BY ("D" - 1{POSTFIX}) ASC NULLS FIRST',
+            True,
+        ),
+        # Not flattened if a dropped new column is used in the order by clause, select without alias
+        (
+            lambda df: df.select(col("A"), col("B").alias("D"))
+            .order_by(col("D"))
+            .select(col("A")),
+            'SELECT "A" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) ORDER BY "D" ASC NULLS FIRST',
+            'SELECT "A" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "D" ASC NULLS FIRST) ORDER BY "D" ASC NULLS FIRST',
+            True,
+        ),
+        # Not flattened with multiple order by columns and partial drop
+        (
+            lambda df: df.select(
+                col("A"), col("B").alias("D"), (col("A") + col("B")).alias("E")
+            )
+            .order_by(col("D"), col("E"))
+            .select(col("A")),
+            'SELECT "A" FROM (SELECT "A", "B" AS "D", ("A" + "B") AS "E" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) ORDER BY "D" ASC NULLS FIRST, "E" ASC NULLS FIRST',
+            'SELECT "A" FROM (SELECT "A", "B" AS "D", ("A" + "B") AS "E" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "D" ASC NULLS FIRST, "E" ASC NULLS FIRST) ORDER BY "D" ASC NULLS FIRST, "E" ASC NULLS FIRST',
             True,
         ),
         # Not flattened if a dropped column that was changed expression is used in the select clause's dependent columns
@@ -1984,6 +2004,101 @@ def test_select_after_orderby(
     ) == Utils.normalize_sql(simplified_query)
     if execute_sql:
         Utils.check_answer(operation(df1), operation(df2))
+
+
+@pytest.mark.parametrize("is_snowpark_connect_compatible_mode", [True, False])
+def test_order_by_preserved_after_non_flattened_select(
+    session, monkeypatch, is_snowpark_connect_compatible_mode
+):
+    """When select() can't be flattened and drops columns used in order_by,
+    compat mode should preserve the order_by on the outer SelectStatement
+    so that subsequent operations like limit() maintain correct ordering.
+    In both modes, data ordering should be correct."""
+    if is_snowpark_connect_compatible_mode:
+        import snowflake.snowpark.context as context
+
+        monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+
+    df = session.create_dataframe(
+        [[1, 3], [2, 1], [3, 2]],
+        schema=["a", "b"],
+    )
+
+    # order_by uses a column (D) that gets dropped by the subsequent select
+    df1 = df.select(col("A"), col("B").alias("D")).order_by(col("D")).select(col("A"))
+
+    assert "ORDER BY" in df1.queries["queries"][-1]
+    # B values [3,1,2] → sorted D [1,2,3] → A order is [2,3,1]
+    Utils.check_answer(df1, [Row(2), Row(3), Row(1)], sort=False)
+
+    if is_snowpark_connect_compatible_mode:
+        # In compat mode, the order_by should be preserved on the outer statement
+        assert df1._select_statement.order_by is not None
+
+    # Verify ordering survives through limit()
+    limited = df1.limit(2)
+    Utils.check_answer(limited, [Row(2), Row(3)], sort=False)
+
+    # Verify with multiple order_by columns where some are dropped
+    df2 = (
+        df.select(col("A"), col("B").alias("D"), (col("A") + col("B")).alias("E"))
+        .order_by(col("D"), col("E"))
+        .select(col("A"))
+    )
+    Utils.check_answer(df2, [Row(2), Row(3), Row(1)], sort=False)
+
+    # Verify the chained select().orderBy().select() pattern from the bug report:
+    # columns used in orderBy are dropped by the outer select
+    df3 = (
+        df.select(col("A"), col("A").alias("S"), col("B").alias("SK"))
+        .order_by(col("A"), col("SK"))
+        .select("A", "S")
+    )
+    assert "ORDER BY" in df3.queries["queries"][-1]
+    Utils.check_answer(df3, [Row(1, 1), Row(2, 2), Row(3, 3)], sort=False)
+
+    # Verify order survives through limit on the chained pattern
+    limited3 = df3.limit(2)
+    Utils.check_answer(limited3, [Row(1, 1), Row(2, 2)], sort=False)
+
+
+def test_order_by_outer_hoist_skipped_when_unsafe_compat_mode(session, monkeypatch):
+    """When select() is not flattened, compat mode only hoists order_by to the outer
+    SelectStatement when dependency is known and no ORDER BY column is CHANGED_EXP/DROPPED
+    (see select_statement non-flatten branch)."""
+    import snowflake.snowpark.context as context
+
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+
+    df = session.create_dataframe(
+        [[1, 3], [2, 1], [3, 2]],
+        schema=["A", "B"],
+    )
+
+    # sql_expr ORDER BY: dependent columns are ALL/unknown -> do not hoist
+    df_sql = df.order_by(sql_expr("A")).select(col("B"))
+    assert df_sql._select_statement.order_by is None
+    assert "ORDER BY" in df_sql.queries["queries"][-1]
+
+    # Positional $n ORDER BY: DOLLAR dependency -> do not hoist
+    df_dollar = df.order_by(col("$1")).select(col("B"))
+    assert df_dollar._select_statement.order_by is None
+
+    # ORDER BY column is CHANGED_EXP in the inner projection -> do not hoist
+    df_changed = (
+        df.select((col("A") * 2).alias("A"), col("B"))
+        .order_by(col("A"))
+        .select(col("B"))
+    )
+    assert df_changed._select_statement.order_by is None
+    # Inner sort by computed A (2, 4, 6) -> B order 3, 1, 2
+    Utils.check_answer(df_changed, [Row(3), Row(1), Row(2)], sort=False)
+
+    # Contrast: ordering by a plain renamed column still hoists (safe path)
+    df_hoist = (
+        df.select(col("A"), col("B").alias("D")).order_by(col("D")).select(col("A"))
+    )
+    assert df_hoist._select_statement.order_by is not None
 
 
 def test_window_with_filter(session):
