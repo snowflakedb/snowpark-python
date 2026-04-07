@@ -78,7 +78,9 @@ class PlanCompiler:
             )
         )
 
-    def compile(self) -> Dict[PlanQueryType, List[Query]]:
+    def compile(
+        self, *, skip_cte_optimization: bool = False
+    ) -> Dict[PlanQueryType, List[Query]]:
         # initialize the queries with the original queries without optimization
         final_plan = self._plan
         queries = {
@@ -107,7 +109,10 @@ class PlanCompiler:
                     # 3. apply each optimizations if needed
                     # CTE optimization
                     with measure_time() as cte_time:
-                        if session.cte_optimization_enabled:
+                        if (
+                            session.cte_optimization_enabled
+                            and not skip_cte_optimization
+                        ):
                             repeated_subquery_eliminator = RepeatedSubqueryElimination(
                                 logical_plans, query_generator
                             )
