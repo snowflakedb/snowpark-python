@@ -6862,21 +6862,32 @@ Query List:
         This method should only be called in SCOS compatibility mode (context._is_snowpark_connect_compatible_mode).
         """
         current = self._agg_base_plan
+        # We must call `resolve`` on each expression node to ensure compatibility with CTE optimization, which assumes
+        # that a LogicalPlan's child  node is always a SnowflakePlan. While this introduces some overhead, it does
+        # not affect the correctness of the output value.
+        # Skipping the `resolve`` call and instead including raw Expression nodes will cause an error in error handling in
+        # `wrap_exception`, which assumes all children are either instances of Selectable or SnowflakePlan.
+        # See test_df_aggregate.py::test_group_by_sort_by_nonexistent for an example that triggered this failure.
+        resolve = self._session._analyzer.resolve
 
         if len(pending_havings) > 0:
-            current = Filter(
-                reduce(
-                    lambda acc, expr: And(acc, expr),
-                    pending_havings,
-                ),
-                current,
-                is_having=True,
+            current = resolve(
+                Filter(
+                    reduce(
+                        lambda acc, expr: And(acc, expr),
+                        pending_havings,
+                    ),
+                    current,
+                    is_having=True,
+                )
             )
         if len(pending_order_bys) > 0:
-            current = Sort(pending_order_bys, current, is_order_by_append=True)
+            current = resolve(Sort(pending_order_bys, current, is_order_by_append=True))
         if limit_parameters is not None:
             n, offset = limit_parameters
-            current = Limit(Literal(n), Literal(offset), current, is_limit_append=True)
+            current = resolve(
+                Limit(Literal(n), Literal(offset), current, is_limit_append=True)
+            )
 
         if self._agg_base_select_statement is not None:
             new_plan = self._session._analyzer.create_select_statement(
