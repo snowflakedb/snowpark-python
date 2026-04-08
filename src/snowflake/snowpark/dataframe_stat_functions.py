@@ -102,7 +102,7 @@ class DataFrameStatFunctions:
             expr = with_src_position(stmt.expr.dataframe_stat_approx_quantile, stmt)
             self._dataframe._set_ast_ref(expr.df)
 
-            if isinstance(col, Iterable) and not isinstance(col, str):
+            if isinstance(col, Iterable) and not isinstance(col, (str, Column)):
                 expr.cols.variadic = False
                 for c in col:
                     build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
