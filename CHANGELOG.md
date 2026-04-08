@@ -1,12 +1,12 @@
 # Release History
 
-## 1.49.0 (TBD)
+## 1.49.0 (2026-04-08)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
-- Allow user input schema when reading Parquet file on stage.
+- Allow a user-specified schema when reading Parquet files from a stage.
 
 #### Improvements
 
@@ -25,8 +25,8 @@
 #### Bug Fixes
 
 - Fixed a bug where `concat` produced extra NaN rows and mismatched values after a `filter` operation in local testing.
-- Fix a bug where `dense_rank()` would fail with `ValueError` on NULL partition values.
-- Fixed a bug where `collect()` raised `KeyError` after `save_as_table(column_order="name")` when the source DataFrame omitted columns of `VariantType`, `MapType`, or `ArrayType` present in the target table schema in local testing.
+- Fixed a bug where `dense_rank()` would fail with `ValueError` on NULL partition values.
+- Fixed a bug where `collect()` raised `KeyError` after `save_as_table(column_order="name")` when the source DataFrame omitted columns with types `VariantType`, `MapType`, or `ArrayType` that were present in the target table schema in local testing.
 
 ## 1.48.1 (2026-03-31)
 
