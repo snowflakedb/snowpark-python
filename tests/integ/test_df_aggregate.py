@@ -1204,6 +1204,30 @@ def test_group_by_agg_sort_filter_limit_ordering(session):
     )
 
 
+def test_group_by_sort_by_nonexistent(session):
+    df = session.create_dataframe(
+        [(1, "a"), (1, "b"), (2, "c")],
+        schema=["id", "val"],
+    )
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
+        original_cte_optimization = session._cte_optimization_enabled
+        try:
+            session._cte_optimization_enabled = True
+            agg_df = df.group_by("id").count()
+            # When CTE optimization and SCOS compatible mode are both enabled, this raised the
+            # following error after the initial fix for SNOW-3266495:
+            # AttributeError: 'Sort' object has no attribute 'quoted_identifiers'
+            # This is specifically triggered by `show`, and not `collect`.
+            with pytest.raises(
+                SnowparkSQLException, match="invalid identifier 'NONEXISTENT'"
+            ):
+                agg_df.sort('"NONEXISTENT"').show()
+        finally:
+            session._cte_optimization_enabled = original_cte_optimization
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="exclude_grouping_columns is not supported",
