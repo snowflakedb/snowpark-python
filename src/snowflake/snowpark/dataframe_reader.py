@@ -121,12 +121,15 @@ else:
 logger = getLogger(__name__)
 
 _STRUCTURED_TYPE_KEYWORDS = frozenset({"OBJECT", "MAP", "ARRAY"})
+_NOT_NULL_RE = re.compile(r"\s+NOT\s+NULL", re.IGNORECASE)
 
 _SF_EXTRA_TYPE_MAPPINGS = {
     "text": StringType,
     "real": DoubleType,
     "fixed": LongType,
 }
+
+_NOT_NULL_RE = re.compile(r"\s+NOT\s+NULL", re.IGNORECASE)
 
 
 def _extract_paren_content(type_str: str) -> Optional[Tuple[str, str]]:
@@ -155,14 +158,24 @@ def _sf_type_to_type_object(type_str: str) -> DataType:
 
     Handles both simple types and structured types returned by INFER_SCHEMA:
     - Simple: VARCHAR, NUMBER(38,0), BOOLEAN, TIMESTAMP_NTZ, etc.
-    - ARRAY(element_type)
-    - MAP(key_type, value_type)
+    - ARRAY(element_type [NOT NULL])
+    - MAP(key_type, value_type [NOT NULL])
     - OBJECT(field1 type1, field2 type2 NOT NULL, ...)
     - Nested combinations of the above
+
+    NOT NULL annotations are respected:
+    - On ARRAY elements: sets ArrayType.contains_null = False
+    - On MAP values: sets MapType.value_contains_null = False
+    - On OBJECT fields: sets StructField.nullable = False
     """
     type_str = type_str.strip()
     if not type_str:
         raise ValueError("Empty type string")
+
+    # Strip NOT NULL before parsing — the caller is responsible for using
+    # the nullable info. For top-level calls from ARRAY/MAP/OBJECT handlers
+    # below, NOT NULL is handled before recursing.
+    type_str, _ = extract_nullable_keyword(type_str)
 
     result = _extract_paren_content(type_str)
     if result is None:
@@ -177,16 +190,20 @@ def _sf_type_to_type_object(type_str: str) -> DataType:
     base_upper = base.upper()
 
     if base_upper == "ARRAY":
-        element_type = _sf_type_to_type_object(inner)
-        return ArrayType(element_type, structured=True)
+        element_str, element_nullable = extract_nullable_keyword(inner)
+        element_type = _sf_type_to_type_object(element_str)
+        return ArrayType(element_type, structured=True, contains_null=element_nullable)
 
     if base_upper == "MAP":
         parts = split_top_level_comma_fields(inner)
         if len(parts) != 2:
             raise ValueError(f"Invalid MAP type definition: '{type_str}'")
         key_type = _sf_type_to_type_object(parts[0])
-        value_type = _sf_type_to_type_object(parts[1])
-        return MapType(key_type, value_type, structured=True)
+        value_str, value_nullable = extract_nullable_keyword(parts[1])
+        value_type = _sf_type_to_type_object(value_str)
+        return MapType(
+            key_type, value_type, structured=True, value_contains_null=value_nullable
+        )
 
     if base_upper == "OBJECT":
         fields = split_top_level_comma_fields(inner)
@@ -1485,16 +1502,35 @@ class DataFrameReader:
             schema_to_cast = []
             transformations: List["snowflake.snowpark.column.Column"] = []
             read_file_transformations = None
+            use_parquet_structured_type_infer_schema = (
+                self._session._use_parquet_structured_type_infer_schema
+            )
             for r in results:
                 # Columns for r [column_name, type, nullable, expression, filenames, order_id]
                 column_name, type, nullable, expression = r[0], r[1], r[2], r[3]
                 name = quote_name_without_upper_casing(column_name)
                 # Parse the type returned by infer_schema command to
-                # pass to determine datatype for schema
+                # pass to determine datatype for schema.
+                # _parse_structured_type_str handles both simple types
+                # (delegates to convert_sf_to_sp_type, same as old path)
+                # and structured types with inner details (new path).
                 datatype = _parse_structured_type_str(
                     type, self._session._conn.max_string_size
                 )
-                is_structured = isinstance(datatype, (StructType, ArrayType, MapType))
+                # Only treat as "detailed structured type" when the guard
+                # is enabled AND the raw INFER_SCHEMA type string has a
+                # structured keyword with parenthesized inner type details
+                # (e.g., "ARRAY(TEXT)", "OBJECT(city TEXT)"). Plain keywords
+                # like "ARRAY" or "OBJECT" without parens go through
+                # convert_sf_to_sp_type, which may also return
+                # ArrayType/MapType/StructType when structured type semantics
+                # are enabled, but those should NOT use the TRY_CAST path.
+                _paren = _extract_paren_content(type.strip())
+                is_structured = (
+                    use_parquet_structured_type_infer_schema
+                    and _paren is not None
+                    and _paren[0].upper() in _STRUCTURED_TYPE_KEYWORDS
+                )
                 if use_relaxed_types:
                     datatype = most_permissive_type(datatype)
                 new_schema.append(
@@ -1515,7 +1551,20 @@ class DataFrameReader:
                 ):
                     identifier = expression
                 elif format == "PARQUET" and is_structured:
-                    identifier = f"TRY_CAST($1:{name} AS {type})"
+                    # TODO(SNOW-3237416): INFER_SCHEMA may return NOT NULL
+                    # annotations in structured type strings (e.g.,
+                    # "ARRAY(NUMBER(10,0) NOT NULL)"). TRY_CAST does not
+                    # accept NOT NULL in the target type and fails with
+                    # "unexpected 'NOT'" syntax error. Strip all NOT NULL
+                    # annotations before embedding in SQL. The nullable info
+                    # is already captured in the parsed DataType objects
+                    # (ArrayType.contains_null, MapType.value_contains_null,
+                    # StructField.nullable). If Snowflake adds TRY_CAST
+                    # support for NOT NULL in the future, this strip can be
+                    # removed.
+                    cast_type = _NOT_NULL_RE.sub("", type)
+                    # identifier = f"TRY_CAST($1:{name} AS {cast_type})"
+                    identifier = f"$1:{name}::{cast_type}"
                 else:
                     identifier = f"$1:{name}::{convert_sp_to_sf_type(datatype) if use_relaxed_types else type}"
 

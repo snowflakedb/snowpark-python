@@ -314,6 +314,12 @@ _SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED = (
     "SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED"
 )
 _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED = "SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED"
+# When enabled, INFER_SCHEMA results for parquet files with structured types
+# (OBJECT, MAP, ARRAY with inner type details) are parsed into full structured
+# DataType objects and TRY_CAST is used in the SELECT expression.
+_PYTHON_SNOWPARK_USE_PARQUET_STRUCTURED_TYPE_INFER_SCHEMA = (
+    "PYTHON_SNOWPARK_USE_PARQUET_STRUCTURED_TYPE_INFER_SCHEMA"
+)
 
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
@@ -707,6 +713,12 @@ class Session:
         self._internal_telemetry_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED, False
+            )
+        )
+
+        self._use_parquet_structured_type_infer_schema: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_PARQUET_STRUCTURED_TYPE_INFER_SCHEMA, False
             )
         )
 
