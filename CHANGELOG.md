@@ -1,5 +1,13 @@
 # Release History
 
+# 1.50.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed invalid-identifier error handling raising `AttributeError` when the plan exposed intermediate nodes that are not a selectable or compiled subplan; those nodes are skipped when building column hints.
+
 ## 1.49.0 (TBD)
 
 ### Snowpark Python API Updates

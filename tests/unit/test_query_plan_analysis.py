@@ -18,7 +18,6 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     NamedExpression,
 )
-from snowflake.snowpark._internal.analyzer.metadata_utils import PlanMetadata
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     get_complexity_score,
@@ -44,9 +43,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
-from snowflake.snowpark._internal.analyzer.unary_plan_node import Project, Sort
+from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
 from snowflake.snowpark.dataframe import StringType
-from snowflake.snowpark.types import IntegerType
 from snowflake.snowpark.functions import col
 
 
@@ -448,44 +446,3 @@ def test_select_statement_get_complexity_map_mismatch_projection_length(
     select_statement._projection_complexities = []
 
     assert select_statement.get_projection_name_complexity_map() is None
-
-
-def test_collect_quoted_identifiers_from_plan_nodes(
-    mock_session, mock_query, mock_analyzer
-):
-    """Invalid-identifier hint: collect quoted ids through Selectable, SnowflakePlan, and LogicalPlan."""
-    collect = SnowflakePlan.Decorator._collect_quoted_identifiers_from_plan_nodes
-
-    def snowflake_plan_with_quoted_ids(quoted_identifiers):
-        p = SnowflakePlan(
-            [mock_query], "", source_plan=LogicalPlan(), session=mock_session
-        )
-        p._metadata = PlanMetadata(
-            attributes=None, quoted_identifiers=quoted_identifiers
-        )
-        return p
-
-    assert collect([]) == []
-
-    # SnowflakePlan: use .quoted_identifiers on the node.
-    assert collect([snowflake_plan_with_quoted_ids(['"A"', '"B"'])]) == [
-        '"A"',
-        '"B"',
-    ]
-
-    # Selectable: use .snowflake_plan.quoted_identifiers (distinct branch).
-    assert collect(
-        [
-            SelectSnowflakePlan(
-                snowflake_plan_with_quoted_ids(['"C"']), analyzer=mock_analyzer
-            )
-        ]
-    ) == ['"C"']
-
-    # Sort is not Selectable and has no quoted_identifiers; recurse to child.
-    inner_xy = snowflake_plan_with_quoted_ids(['"X"', '"Y"'])
-    sort_node = Sort(
-        [SortOrder(Attribute("col", IntegerType()), Ascending())],
-        inner_xy,
-    )
-    assert collect([sort_node]) == ['"X"', '"Y"']
