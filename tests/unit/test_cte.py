@@ -8,12 +8,14 @@ from unittest import mock
 
 import pytest
 
+from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSQL,
     SelectStatement,
+    has_nondeterministic_data_generation_exp,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.compiler.cte_utils import (
@@ -130,3 +132,189 @@ def test_encode_node_id_with_query_includes_aliases():
 
     expected_hash = hashlib.sha256(expected_string.encode()).hexdigest()[:10]
     assert encode_node_id_with_query(node) == f"{expected_hash}_SimpleNamespace"
+
+
+# ---------------------------------------------------------------------------
+# Tests for non-deterministic data-generation detection (CTE safety)
+# ---------------------------------------------------------------------------
+
+
+class TestHasNondeterministicDataGenerationExp:
+    """Tests for has_nondeterministic_data_generation_exp."""
+
+    def test_none_returns_false(self):
+        assert has_nondeterministic_data_generation_exp(None) is False
+
+    def test_empty_list_returns_false(self):
+        assert has_nondeterministic_data_generation_exp([]) is False
+
+    def test_zero_arg_uuid_string_flagged(self):
+        expr = FunctionExpression(
+            "uuid_string", [], is_distinct=False, is_data_generator=True
+        )
+        assert has_nondeterministic_data_generation_exp([expr]) is True
+
+    def test_zero_arg_uuid_string_by_name(self):
+        """Even without is_data_generator, a zero-arg call whose name is in the
+        constant set should be flagged."""
+        expr = FunctionExpression(
+            "uuid_string", [], is_distinct=False, is_data_generator=False
+        )
+        assert has_nondeterministic_data_generation_exp([expr]) is True
+
+    def test_two_arg_uuid_string_not_flagged(self):
+        """uuid_string(uuid, name) is deterministic — UUID5."""
+        arg1 = FunctionExpression("col", [], is_distinct=False)
+        arg2 = FunctionExpression("col", [], is_distinct=False)
+        expr = FunctionExpression(
+            "uuid_string", [arg1, arg2], is_distinct=False, is_data_generator=False
+        )
+        assert has_nondeterministic_data_generation_exp([expr]) is False
+
+    def test_seq1_with_args_not_flagged(self):
+        """seq1(sign) has 1 arg → should NOT be flagged by the narrow check."""
+        from snowflake.snowpark._internal.analyzer.expression import Literal
+
+        sign_arg = Literal(1)
+        expr = FunctionExpression(
+            "seq1", [sign_arg], is_distinct=False, is_data_generator=True
+        )
+        assert has_nondeterministic_data_generation_exp([expr]) is False
+
+    def test_nested_nondeterministic_child(self):
+        """A parent function with args that wraps a zero-arg nondeterministic
+        child should be caught by child recursion."""
+        uuid_expr = FunctionExpression(
+            "uuid_string", [], is_distinct=False, is_data_generator=True
+        )
+        wrapper = FunctionExpression(
+            "upper", [uuid_expr], is_distinct=False, is_data_generator=False
+        )
+        assert has_nondeterministic_data_generation_exp([wrapper]) is True
+
+    def test_nested_random_is_known_limitation(self):
+        """random() without is_data_generator and not in the constant set
+        is a known limitation — it won't be caught."""
+        from snowflake.snowpark._internal.analyzer.expression import Literal
+
+        random_expr = FunctionExpression(
+            "random", [], is_distinct=False, is_data_generator=False
+        )
+        lo = Literal(1)
+        hi = Literal(100)
+        uniform_expr = FunctionExpression(
+            "uniform", [lo, hi, random_expr], is_distinct=False, is_data_generator=True
+        )
+        assert has_nondeterministic_data_generation_exp([uniform_expr]) is False
+
+    def test_zero_arg_randstr_flagged(self):
+        expr = FunctionExpression(
+            "randstr", [], is_distinct=False, is_data_generator=False
+        )
+        assert has_nondeterministic_data_generation_exp([expr]) is True
+
+
+class TestContainsDataGeneration:
+    """Tests for SelectStatement.contains_data_generation property."""
+
+    def test_cached_property(self, mock_session, mock_analyzer):
+        select_sql = SelectSQL(
+            sql="select 1", convert_to_select=False, analyzer=mock_analyzer
+        )
+        stmt = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
+        stmt.projection = None
+        stmt.where = None
+        stmt.order_by = None
+
+        result1 = stmt.contains_data_generation
+        result2 = stmt.contains_data_generation
+        assert result1 is False
+        assert result1 is result2
+
+    def test_true_when_projection_has_uuid_string(self, mock_session, mock_analyzer):
+        select_sql = SelectSQL(
+            sql="select 1", convert_to_select=False, analyzer=mock_analyzer
+        )
+        stmt = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
+        stmt.projection = [
+            FunctionExpression(
+                "uuid_string", [], is_distinct=False, is_data_generator=True
+            )
+        ]
+        stmt.where = None
+        stmt.order_by = None
+        assert stmt.contains_data_generation is True
+
+
+class TestFindDuplicateSubtreesDataGen:
+    """find_duplicate_subtrees should exclude nodes that contain
+    non-deterministic data-generation expressions."""
+
+    def test_data_gen_node_excluded_from_dedup(self):
+        """Duplicate subtrees with data-generation expressions should NOT
+        appear in the result set."""
+        nodes = [mock.create_autospec(SnowflakePlan) for _ in range(4)]
+        for i, node in enumerate(nodes):
+            node.encoded_node_id_with_query = f"{i}_{i}"
+            node.source_plan = None
+            node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 3}
+
+        # Build tree:  root -> [left, right], left -> [leaf], right -> [leaf]
+        # leaf is duplicated and would normally be a CTE candidate.
+        nodes[0].children_plan_nodes = [nodes[1], nodes[2]]
+        nodes[1].children_plan_nodes = [nodes[3]]
+        nodes[2].children_plan_nodes = [nodes[3]]
+        nodes[3].children_plan_nodes = []
+
+        # Without data generation → leaf is dedup candidate
+        dup_ids, _ = find_duplicate_subtrees(nodes[0])
+        assert "3_3" in dup_ids
+
+        # Now make leaf a SelectStatement with data generation
+        select_stmt = mock.create_autospec(SelectStatement)
+        select_stmt.encoded_node_id_with_query = "3_3"
+        select_stmt.source_plan = None
+        select_stmt.children_plan_nodes = []
+        select_stmt.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 3}
+        select_stmt.contains_data_generation = True
+        select_stmt.projection = None
+        select_stmt.from_ = mock.MagicMock()
+
+        nodes[1].children_plan_nodes = [select_stmt]
+        nodes[2].children_plan_nodes = [select_stmt]
+
+        dup_ids, _ = find_duplicate_subtrees(nodes[0])
+        assert "3_3" not in dup_ids
+
+    def test_data_gen_propagates_to_parents(self):
+        """When a child is invalid due to data generation, its parents should
+        also be marked invalid (same as SelectFromFileNode behaviour)."""
+        nodes = [mock.create_autospec(SnowflakePlan) for _ in range(5)]
+        for i, node in enumerate(nodes):
+            node.encoded_node_id_with_query = f"{i}_{i}"
+            node.source_plan = None
+            node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 3}
+
+        # root -> [a, b], a -> [mid], b -> [mid], mid -> [leaf]
+        nodes[0].children_plan_nodes = [nodes[1], nodes[2]]
+        nodes[1].children_plan_nodes = [nodes[3]]
+        nodes[2].children_plan_nodes = [nodes[3]]
+        nodes[3].children_plan_nodes = [nodes[4]]
+        nodes[4].children_plan_nodes = []
+
+        # Make leaf a data-gen SelectStatement
+        leaf = mock.create_autospec(SelectStatement)
+        leaf.encoded_node_id_with_query = "4_4"
+        leaf.source_plan = None
+        leaf.children_plan_nodes = []
+        leaf.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 3}
+        leaf.contains_data_generation = True
+        leaf.projection = None
+        leaf.from_ = mock.MagicMock()
+
+        nodes[3].children_plan_nodes = [leaf]
+
+        dup_ids, _ = find_duplicate_subtrees(nodes[0])
+        # Both mid (3_3) and leaf (4_4) should be excluded
+        assert "3_3" not in dup_ids
+        assert "4_4" not in dup_ids
