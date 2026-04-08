@@ -4,6 +4,7 @@
 #
 import os
 from logging import getLogger
+import sys
 from typing import Dict
 
 import pytest
@@ -236,6 +237,8 @@ def connection(db_parameters, local_testing_mode):
         _keys = [
             "user",
             "password",
+            "authenticator",
+            "token",
             "private_key_file",
             "private_key_file_pwd",
             "host",
@@ -357,6 +360,8 @@ def session(
             "alter session set ENABLE_EXTRACTION_PUSHDOWN_EXTERNAL_PARQUET_FOR_COPY_PHASE_I='Track';"
         ).collect()
         session.sql("alter session set ENABLE_ROW_ACCESS_POLICY=true").collect()
+        if sys.version_info.major == 3 and sys.version_info.minor == 14:
+            session.sql("alter session set ENABLE_PYTHON_3_14=true").collect()
 
     try:
         yield session

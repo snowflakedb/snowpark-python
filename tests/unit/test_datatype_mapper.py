@@ -90,6 +90,15 @@ def test_to_sql():
         to_sql("\\ '  ' abc \n \\", StringType(), True)
         == "'\\\\ ''  '' abc \\n \\\\' :: STRING"
     )
+    assert to_sql(42, StringType()) == "'42'"
+    assert to_sql(42, StringType(), True) == "'42' :: STRING"
+    assert to_sql(3.14, StringType()) == "'3.14'"
+    assert to_sql(3.14, StringType(), True) == "'3.14' :: STRING"
+    assert to_sql(True, StringType()) == "'true'"
+    assert to_sql(True, StringType(), True) == "'true' :: STRING"
+    assert to_sql(False, StringType()) == "'false'"
+    assert to_sql(Decimal("9.99"), StringType()) == "'9.99'"
+    assert to_sql(Decimal("9.99"), StringType(), True) == "'9.99' :: STRING"
     assert to_sql(1, ByteType()) == "1 :: INT"
     assert to_sql(1, ShortType()) == "1 :: INT"
     assert to_sql(1, IntegerType()) == "1 :: INT"
@@ -702,18 +711,6 @@ def test_numeric_to_sql_without_cast():
     assert numeric_to_sql_without_cast(float("inf"), DoubleType()) == "'INF' :: FLOAT"
 
     assert numeric_to_sql_without_cast(Decimal(0.5), DecFloatType()) == "0.5"
-
-
-@pytest.mark.parametrize(
-    "value, datatype",
-    [
-        (123, StringType()),
-        (0.2, StringType()),
-    ],
-)
-def test_numeric_to_sql_without_cast_invalid(value, datatype):
-    with pytest.raises(TypeError, match="Unsupported datatype"):
-        assert numeric_to_sql_without_cast(value, datatype)
 
 
 def test_schema_expression():

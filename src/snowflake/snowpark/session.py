@@ -668,6 +668,7 @@ class Session:
         self._cte_optimization_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION
         )
+        self._cte_error_count: int = 0
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
@@ -823,6 +824,10 @@ class Session:
         self._xpath_udf_cache_lock = create_rlock(
             self._conn._thread_safe_session_enabled
         )
+
+        # this lock is used to protect CTE error counting and auto-disable logic
+        # to avoid contention with the general session _lock
+        self._cte_error_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
         self._custom_package_usage_config: Dict = {}
 
@@ -4981,7 +4986,7 @@ class Session:
                     handler_name,
                     return_type=return_type_map[return_type],
                     input_types=[StringType(), StringType()],
-                    packages=["snowflake-snowpark-python", "lxml<6"],
+                    packages=["snowflake-snowpark-python", "lxml<7"],
                     replace=True,
                     _emit_ast=False,
                     _suppress_local_package_warnings=True,
