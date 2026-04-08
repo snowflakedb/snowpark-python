@@ -6,6 +6,7 @@ import re
 import tracemalloc
 from contextlib import contextmanager
 from unittest import mock
+import uuid
 
 import pytest
 
@@ -63,8 +64,17 @@ binary_operations = [
 WITH = "WITH"
 
 
+@pytest.fixture(params=[False, True], ids=["connect_mode_off", "connect_mode_on"])
+def is_connect_mode(request):
+    """Parametrize every test over _is_snowpark_connect_compatible_mode."""
+    with mock.patch.object(
+        context, "_is_snowpark_connect_compatible_mode", request.param
+    ):
+        yield request.param
+
+
 @pytest.fixture(autouse=True)
-def setup(request, session):
+def setup(request, session, is_connect_mode):
     is_cte_optimization_enabled = session._cte_optimization_enabled
     is_query_compilation_enabled = session._query_compilation_stage_enabled
     session._query_compilation_stage_enabled = True
@@ -254,7 +264,9 @@ def test_binary(session, type, action):
     assert len(plan_queries["post_actions"]) == 1
 
 
-def test_join_with_alias_dataframe(session):
+def test_join_with_alias_dataframe(session, is_connect_mode):
+    c1 = f"col1_{uuid.uuid4().hex[:8]}"
+    c2 = f"col2_{uuid.uuid4().hex[:8]}"
     expected_describe_count = (
         3
         if (session.reduce_describe_query_enabled and session.sql_simplifier_enabled)
@@ -263,11 +275,11 @@ def test_join_with_alias_dataframe(session):
     with SqlCounter(
         query_count=2, describe_count=expected_describe_count, join_count=2
     ):
-        df1 = session.create_dataframe([[1, 6]], schema=["col1", "col2"])
+        df1 = session.create_dataframe([[1, 6]], schema=[c1, c2])
         df_res = (
             df1.alias("L")
-            .join(df1.alias("R"), col("L", "col1") == col("R", "col1"))
-            .select(col("L", "col1"), col("R", "col2"))
+            .join(df1.alias("R"), col("L", c1) == col("R", c1))
+            .select(col("L", c1), col("R", c2))
         )
 
         session._cte_optimization_enabled = False
@@ -358,7 +370,7 @@ def test_join_with_set_operation(session):
 
 
 @pytest.mark.parametrize("type, action", binary_operations)
-def test_variable_binding_binary(session, type, action):
+def test_variable_binding_binary(session, type, action, is_connect_mode):
     df1 = session.sql(
         "select $1 as a, $2 as b from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]
     )
@@ -375,10 +387,12 @@ def test_variable_binding_binary(session, type, action):
         join_count = 1
     if type == "union":
         union_count = 1
+    # df1 and df3 are different Python objects with the same SQL.
+    # In connect mode they should NOT be deduplicated.
     check_result(
         session,
         action(df1, df3),
-        expect_cte_optimized=True,
+        expect_cte_optimized=not is_connect_mode,
         query_count=1,
         describe_count=0,
         union_count=union_count,
@@ -554,21 +568,83 @@ def test_number_of_ctes(session, type, action):
         )
 
 
-def test_different_df_same_query(session):
+def test_different_df_same_query(session, is_connect_mode):
     df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
     df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
     df = df2.union_all(df1)
+    # df1 and df2 are different Python objects with the same SQL.
+    # In connect mode they should NOT be deduplicated.
     check_result(
         session,
         df,
-        expect_cte_optimized=True,
+        expect_cte_optimized=not is_connect_mode,
         query_count=1,
         describe_count=0,
         union_count=1,
         join_count=0,
     )
     with SqlCounter(query_count=0, describe_count=0):
+        expected_cte_count = 0 if is_connect_mode else 1
+        assert count_number_of_ctes(df.queries["queries"][-1]) == expected_cte_count
+
+
+def test_mixed_duplicated_and_unique_objects_same_sql(session, is_connect_mode):
+    """
+    union(union(df1, df1), union(df2, df3)) where df1, df2, df3 all produce
+    identical SQL but are different Python objects.
+
+    In connect mode:
+      - df1 appears twice (same object) -> should be CTE-deduplicated
+      - df2 and df3 each appear once -> should NOT be CTE-deduplicated
+      - Expect 1 CTE (for df1 only)
+    In non-connect mode:
+      - All share the same encoded ID -> treated as one CTE
+      - Expect 1 CTE (all unified)
+    """
+    df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
+    df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
+    df3 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
+    df = df1.union_all(df1).union_all(df2.union_all(df3))
+    check_result(
+        session,
+        df,
+        expect_cte_optimized=True,
+        query_count=1,
+        describe_count=0,
+        union_count=3,
+        join_count=0,
+    )
+    with SqlCounter(query_count=0, describe_count=0):
         assert count_number_of_ctes(df.queries["queries"][-1]) == 1
+
+
+def test_distinct_objects_each_duplicated(session, is_connect_mode):
+    """
+    union(union(df1, df1), union(df2, df2)) where df1 and df2 produce
+    identical SQL but are different Python objects.
+
+    In connect mode:
+      - df1 appears twice, df2 appears twice -> each gets its own CTE
+      - Expect 2 CTEs
+    In non-connect mode:
+      - All share the same encoded ID -> one CTE
+      - Expect 1 CTE
+    """
+    df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
+    df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
+    df = df1.union_all(df1).union_all(df2.union_all(df2))
+    check_result(
+        session,
+        df,
+        expect_cte_optimized=True,
+        query_count=1,
+        describe_count=0,
+        union_count=3,
+        join_count=0,
+    )
+    with SqlCounter(query_count=0, describe_count=0):
+        expected_cte_count = 2 if is_connect_mode else 1
+        assert count_number_of_ctes(df.queries["queries"][-1]) == expected_cte_count
 
 
 def test_same_duplicate_subtree(session):
@@ -627,7 +703,7 @@ def test_same_duplicate_subtree(session):
 
 
 @pytest.mark.parametrize("use_different_df", [True, False])
-def test_cte_preserves_join_suffix_aliases(session, use_different_df):
+def test_cte_preserves_join_suffix_aliases(session, use_different_df, is_connect_mode):
     df_ad_group = session.create_dataframe(
         [["1048771", "group_1", "campaign_1"]],
         schema=["ACCOUNT_ID", "AD_GROUP_ID", "CAMPAIGN_ID"],
@@ -698,8 +774,14 @@ def test_cte_preserves_join_suffix_aliases(session, use_different_df):
     assert 'ON ("AD_GROUP_ID" = "AD_GROUP_ID")' not in union_sql
     # when using different df_ad_group with disambiguation, because rsuffix in join,
     # they have different alias map (expr_to_alias), so they are considered different and we can't convert them to a CTE
-    # However there is still a CTE for create_dataframe call
-    assert count_number_of_ctes(Utils.normalize_sql(union_sql)) == 1
+    # However there is still a CTE for create_dataframe call.
+    # In connect mode with use_different_df, all create_dataframe calls are
+    # distinct objects so no CTEs are produced.
+    if is_connect_mode and use_different_df:
+        expected_cte_count = 0
+    else:
+        expected_cte_count = 1
+    assert count_number_of_ctes(Utils.normalize_sql(union_sql)) == expected_cte_count
 
 
 @pytest.mark.parametrize(
@@ -810,7 +892,7 @@ def test_explain(session):
     assert "WITH SNOWPARK_TEMP_CTE" in explain_string
 
 
-def test_sql_simplifier(session):
+def test_sql_simplifier(session, is_connect_mode):
     if not session._sql_simplifier_enabled:
         pytest.skip("SQL simplifier is not enabled")
 
@@ -825,6 +907,9 @@ def test_sql_simplifier(session):
     df2 = df1.select("a", "b")
     df3 = df1.select("a", "b").select("a", "b")
     df4 = df1.union_by_name(df2).union_by_name(df3)
+    # df1, df2, df3 are different Python objects that simplify to the same SQL.
+    # In connect mode they are not deduplicated, but df (create_dataframe) is
+    # still the same object appearing across all branches → still CTE'd.
     check_result(
         session,
         df4,
@@ -835,11 +920,35 @@ def test_sql_simplifier(session):
         join_count=0,
     )
     with SqlCounter(query_count=0, describe_count=0):
-        # after applying sql simplifier, there is only one CTE (df1, df2, df3 have the same query)
-        assert (
-            count_number_of_ctes(Utils.normalize_sql(df4.queries["queries"][-1])) == 1
-        )
-        assert Utils.normalize_sql(df4.queries["queries"][-1]).count(filter_clause) == 1
+        if is_connect_mode:
+            # df1, df2, df3 are different objects → not merged.
+            # Only df (create_dataframe) is the same object across all branches → 1 CTE.
+            # Generated SQL:
+            #   WITH CTE AS (SELECT $1 AS "A", $2 AS "B" FROM VALUES ...)
+            #   (SELECT "A","B" FROM (CTE) WHERE ("A"=1))
+            #   UNION (SELECT "A","B" FROM (CTE) WHERE ("A"=1))
+            #   UNION (SELECT "A","B" FROM (CTE) WHERE ("A"=1))
+            assert (
+                count_number_of_ctes(Utils.normalize_sql(df4.queries["queries"][-1]))
+                == 1
+            )
+            assert (
+                Utils.normalize_sql(df4.queries["queries"][-1]).count(filter_clause)
+                == 3
+            )
+        else:
+            # df1, df2, df3 all simplify to the same SQL and are merged into 1 CTE.
+            # Generated SQL:
+            #   WITH CTE AS (SELECT "A","B" FROM (VALUES ...) WHERE ("A"=1))
+            #   (CTE) UNION (CTE) UNION (CTE)
+            assert (
+                count_number_of_ctes(Utils.normalize_sql(df4.queries["queries"][-1]))
+                == 1
+            )
+            assert (
+                Utils.normalize_sql(df4.queries["queries"][-1]).count(filter_clause)
+                == 1
+            )
 
     df5 = df1.join(df2).join(df3)
     check_result(
@@ -991,18 +1100,20 @@ def test_sql_non_select(session):
     )
 
 
-def test_sql_with(session):
+def test_sql_with(session, is_connect_mode):
     df1 = session.sql("with t as (select 1 as A) select * from t")
     df2 = session.sql("with t as (select 1 as A) select * from t")
 
     df_result = df1.union(df2).select("A").filter(lit(True))
 
+    # df1 and df2 are different Python objects with the same SQL.
+    # In connect mode they should NOT be deduplicated.
     check_result(
         session,
         df_result,
         # with ... select is also treated as a select query
         # see is_sql_select_statement() function
-        expect_cte_optimized=True,
+        expect_cte_optimized=not is_connect_mode,
         query_count=1,
         describe_count=0,
         union_count=1,
@@ -1328,7 +1439,7 @@ def test_table_select_cte(session):
     ],
 )
 def test_dataframe_queries_with_cte_reuses_schema_cache(
-    session, reduce_describe_enabled, expected_describe_counts
+    session, reduce_describe_enabled, expected_describe_counts, is_connect_mode
 ):
     """Test that calling dataframe.queries (not same dataframe but same operation) multiple times with CTE optimization
     does not issue extra DESCRIBE queries when reduce_describe_query_enabled is True.
@@ -1338,9 +1449,13 @@ def test_dataframe_queries_with_cte_reuses_schema_cache(
     identical SQL (with same CTE names), allowing the schema cache to hit.
     """
 
+    # randomize column names to avoid schema cache hits from prior test runs in the same session.
+    col_a = f"col_{uuid.uuid4().hex[:8]}"
+    col_b = f"col_{uuid.uuid4().hex[:8]}"
+
     def create_cte_dataframe():
         """Create a DataFrame that triggers CTE optimization (same df used twice)."""
-        df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        df = session.create_dataframe([[1, 2], [3, 4]], schema=[col_a, col_b])
         return df.union_all(df)
 
     def access_queries_and_schema(df):
@@ -1350,7 +1465,7 @@ def test_dataframe_queries_with_cte_reuses_schema_cache(
 
     with mock.patch.object(
         session, "_reduce_describe_query_enabled", reduce_describe_enabled
-    ), mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+    ):
         for expected_describe_count in expected_describe_counts:
             df_union = create_cte_dataframe()
             with SqlCounter(query_count=0, describe_count=expected_describe_count):
