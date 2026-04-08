@@ -689,6 +689,7 @@ class DataFrame:
 
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
+        self._ops_after_agg = None
 
         # Whether all columns are VARIANT data type,
         # which support querying nested fields via dot notations
