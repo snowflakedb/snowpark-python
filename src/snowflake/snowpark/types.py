@@ -596,7 +596,9 @@ class MapType(DataType):
         value_type = self.value_type
         if isinstance(value_type, (ArrayType, MapType, StructType)):
             value_type = value_type._as_nested()
-        return MapType(self.key_type, value_type, self.structured)
+        return MapType(
+            self.key_type, value_type, self.structured, self.value_contains_null
+        )
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> "MapType":
