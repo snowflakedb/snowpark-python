@@ -23,6 +23,8 @@
 
 ### Snowpark Local Testing Updates
 
+- Changed cla-db repository's organization in `cla_bot.yaml` from snowflakedb to new post-migration snowflake-eng.
+
 #### Bug Fixes
 
 - Fixed a bug where `concat` produced extra NaN rows and mismatched values after a `filter` operation in local testing.
