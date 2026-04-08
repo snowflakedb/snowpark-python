@@ -12,7 +12,6 @@ from snowflake.snowpark.column import (
     _to_col_if_str_or_int,
 )
 from snowflake.snowpark._functions.general_functions import (
-    _call_function,
     builtin,
     lit,
 )
@@ -4455,13 +4454,7 @@ def uuid_string(
         True
     """
     if uuid is None and name is None:
-        # No-arg uuid_string() is non-deterministic: each call generates a new
-        # random UUID.  Flag it as a data generator so the CTE optimizer won't
-        # deduplicate duplicate subtrees that contain it (dedup would cause
-        # every branch of a UNION to share the same materialized values).
-        return _call_function(
-            "uuid_string", is_data_generator=True, _emit_ast=_emit_ast
-        )
+        return builtin("uuid_string", _emit_ast=_emit_ast)()
     else:
         uuid_col = _to_col_if_str(uuid, "uuid_string")
         name_col = _to_col_if_str(name, "uuid_string")

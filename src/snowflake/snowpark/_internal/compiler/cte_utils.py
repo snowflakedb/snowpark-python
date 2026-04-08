@@ -136,10 +136,9 @@ def find_duplicate_subtrees(
             for node in current_level:
                 id_node_map[node.encoded_node_id_with_query].append(node)
 
-                if is_select_from_file_node(node):
-                    invalid_ids_for_deduplication.add(node.encoded_node_id_with_query)
-
-                if is_node_with_data_generation_exp(node):
+                if is_select_from_file_node(node) or is_node_with_data_generation_exp(
+                    node
+                ):
                     invalid_ids_for_deduplication.add(node.encoded_node_id_with_query)
 
                 for child in node.children_plan_nodes:

@@ -25,6 +25,7 @@ from snowflake.snowpark.functions import (
     lit,
     seq1,
     uniform,
+    uuid_string,
     when_matched,
     to_timestamp,
 )
@@ -1892,3 +1893,24 @@ def test_cte_retry_save_as_table_large_data_post_actions(session):
     finally:
         if table_name:
             Utils.drop_table(session, table_name)
+
+
+def test_data_generation_not_cte_optimized(session):
+    """Non-deterministic data generation functions (e.g. uuid_string()) should
+    not be deduplicated by CTE optimization because Snowflake materializes CTEs
+    and would repeat the same generated values across branches."""
+    df1 = session.create_dataframe([[1], [2]], schema=["a"])
+    df2 = session.create_dataframe([[1], [2]], schema=["a"])
+
+    result_df = df1.select(uuid_string().alias("id")).union_all(
+        df2.select(uuid_string().alias("id"))
+    )
+    assert (
+        not result_df.queries["queries"][-1].upper().startswith("WITH")
+    ), "uuid_string() union should not be CTE-optimized"
+
+    result = result_df.collect()
+    ids = [row["ID"] for row in result]
+    assert (
+        len(ids) == 4 and len(set(ids)) == 4
+    ), f"All UUIDs should be unique but got duplicates: {ids}"
