@@ -1219,7 +1219,8 @@ def test_group_by_sort_by_nonexistent(session):
             # When CTE optimization and SCOS compatible mode are both enabled, this raised the
             # following error after the initial fix for SNOW-3266495:
             # AttributeError: 'Sort' object has no attribute 'quoted_identifiers'
-            # This is specifically triggered by `show`, and not `collect`.
+            # This is specifically triggered by `show`, and not `collect`, since `show` adds an
+            # implicit call to `limit`.
             with pytest.raises(
                 SnowparkSQLException, match="invalid identifier 'NONEXISTENT'"
             ):
