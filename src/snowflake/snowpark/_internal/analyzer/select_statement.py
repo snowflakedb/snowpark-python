@@ -109,15 +109,14 @@ SEQUENCE_DEPENDENT_DATA_GENERATION = (
     "seq8",
 )
 
-# Superset of SEQUENCE_DEPENDENT_DATA_GENERATION used only by the CTE
-# optimizer's nondeterministic check. These additional names are safe to
-# include here because has_nondeterministic_data_generation_exp applies a
-# zero-arg gate — e.g. random() is nondeterministic, random(seed) is not.
-# The broader has_data_generator_exp (used for flattening) has NO such gate,
-# so these names must NOT be added to SEQUENCE_DEPENDENT_DATA_GENERATION.
-NONDETERMINISTIC_DATA_GENERATION = SEQUENCE_DEPENDENT_DATA_GENERATION + (
+# Functions that are non-deterministic when called with zero arguments.
+# Used only by the CTE optimizer to prevent deduplication of subtrees that
+# generate random data.  Other data generation functions (normal, zipf,
+# uniform, randstr) always require a generator argument (e.g. random()),
+# which is caught by recursive child inspection.  seq* functions produce
+# deterministic row-local counters and are safe to dedup.
+NONDETERMINISTIC_DATA_GENERATION = (
     "uuid_string",
-    "randstr",
     "random",
 )
 
@@ -2352,10 +2351,15 @@ def has_nondeterministic_data_generation_exp(
     sequence-dependent generators invoked **without arguments** (zero-arg
     ``random()``, ``uuid_string()``, ``randstr()``).
 
-    Deterministic generators like ``seq1(sign)``, ``uniform(lo, hi, gen)``
-    with explicit seed, or ``uuid_string(uuid, name)`` are *not* flagged by
-    this function because CTE deduplication is safe for them (identical inputs
-    produce identical outputs).
+    Generators like ``seq1(sign)``, ``uniform(lo, hi, gen)`` with explicit
+    seed, or ``uuid_string(uuid, name)`` are *not* flagged by this function
+    because CTE deduplication is safe for them.  Note that ``seq*`` functions
+    are not fully deterministic — values may have gaps and ordering is not
+    guaranteed (see https://docs.snowflake.com/en/user-guide/querying-sequences),
+    however values within a single query are always distinct.  This does not
+    affect CTE safety: the concern here is whether *re-evaluating* a subtree
+    would produce *entirely different* values (as ``random()`` or
+    ``uuid_string()`` would), not whether sequences are gap-free or ordered.
 
     Heuristic: a ``FunctionExpression`` is flagged when:
       - it has ``is_data_generator=True`` **and** zero arguments, OR

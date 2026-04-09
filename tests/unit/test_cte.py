@@ -8,7 +8,16 @@ from unittest import mock
 
 import pytest
 
-from snowflake.snowpark.functions import uuid_string, col, upper
+from snowflake.snowpark.functions import (
+    uuid_string,
+    col,
+    upper,
+    seq1,
+    uniform,
+    normal,
+    random as random_,
+    builtin,
+)
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
 )
@@ -154,6 +163,30 @@ def test_select_statement_contains_data_generation(mock_session, mock_analyzer):
     stmt3 = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
     stmt3.projection = [uuid_string(col("uuid"), col("name"))._expression]
     assert stmt3.contains_data_generation is False
+
+    # seq1(1) — deterministic row-local counter, safe to dedup
+    stmt4 = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
+    stmt4.projection = [seq1(1)._expression]
+    assert stmt4.contains_data_generation is False
+
+    # Snowpark's random() always generates a seed internally (line 1903 of
+    # functions.py), so the FunctionExpression always has 1 child — it's never
+    # truly zero-arg.  This makes it deterministic per-query and safe to dedup.
+    # uniform/normal with random() gen inherit this behavior.
+    stmt5 = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
+    stmt5.projection = [uniform(1, 100, random_())._expression]
+    assert stmt5.contains_data_generation is False
+
+    stmt6 = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
+    stmt6.projection = [normal(0, 1, random_())._expression]
+    assert stmt6.contains_data_generation is False
+
+    # builtin("random")() produces a true zero-arg FunctionExpression —
+    # caught by name in NONDETERMINISTIC_DATA_GENERATION via child recursion
+    stmt7 = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
+    bare_random = builtin("random")()
+    stmt7.projection = [uniform(1, 100, bare_random)._expression]
+    assert stmt7.contains_data_generation is True
 
 
 def test_find_duplicate_subtrees_excludes_data_gen_nodes():
