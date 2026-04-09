@@ -116,7 +116,9 @@ def find_duplicate_subtrees(
         if isinstance(node, SelectStatement) and node.contains_data_generation:
             return True
 
-        if isinstance(node, SnowflakePlan) and node.source_plan is not None:
+        if isinstance(node, SnowflakePlan) and isinstance(
+            node.source_plan, (SnowflakePlan, Selectable)
+        ):
             return is_node_with_data_generation_exp(node.source_plan)
 
         if isinstance(node, SelectSnowflakePlan):
