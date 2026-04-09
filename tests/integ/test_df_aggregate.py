@@ -1204,6 +1204,10 @@ def test_group_by_agg_sort_filter_limit_ordering(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="HAVING, ORDER BY append, and limit append are not supported in local testing mode",
+)
 def test_group_by_sort_by_nonexistent(session):
     df = session.create_dataframe(
         [(1, "a"), (1, "b"), (2, "c")],
