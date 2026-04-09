@@ -21,10 +21,13 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.functions import (
     avg,
+    builtin,
     col,
     lit,
+    random as random_,
     seq1,
     uniform,
+    uuid_string,
     when_matched,
     to_timestamp,
 )
@@ -1892,3 +1895,57 @@ def test_cte_retry_save_as_table_large_data_post_actions(session):
     finally:
         if table_name:
             Utils.drop_table(session, table_name)
+
+
+def test_data_generation_not_cte_optimized(session):
+    """Non-deterministic data generation functions (e.g. uuid_string()) should
+    not be deduplicated by CTE optimization because Snowflake materializes CTEs
+    and would repeat the same generated values across branches."""
+    df1 = session.create_dataframe([[1], [2]], schema=["a"])
+    df2 = session.create_dataframe([[1], [2]], schema=["a"])
+
+    result_df = df1.select(uuid_string().alias("id")).union_all(
+        df2.select(uuid_string().alias("id"))
+    )
+    assert (
+        not result_df.queries["queries"][-1].upper().startswith("WITH")
+    ), "uuid_string() union should not be CTE-optimized"
+
+    result = result_df.collect()
+    ids = [row["ID"] for row in result]
+    assert (
+        len(ids) == 4 and len(set(ids)) == 4
+    ), f"All UUIDs should be unique but got duplicates: {ids}"
+
+
+def test_deterministic_data_generation_still_cte_optimized(session):
+    """Deterministic data generation functions like seq1() should still be
+    CTE-optimized since they produce row-local counters that are safe to
+    deduplicate."""
+    df = session.create_dataframe([[1], [2], [3]], schema=["a"])
+    df1 = df.select(seq1(1).alias("id"))
+    result_df = df1.union_all(df1)
+    sql = result_df.queries["queries"][-1]
+    assert sql.upper().startswith("WITH"), "seq1() union should still be CTE-optimized"
+
+
+@pytest.mark.parametrize(
+    "use_bare_random, expect_cte",
+    [
+        (True, False),  # builtin("random")() — true zero-arg → not CTE-optimized
+        (False, True),  # Snowpark random() — auto-seeds → CTE-optimized
+    ],
+)
+def test_uniform_cte_optimization_depends_on_gen(session, use_bare_random, expect_cte):
+    """builtin('random')() is a true zero-arg call that must not be
+    deduplicated; Snowpark random() auto-generates a seed so the expression
+    always has an argument and is safe to dedup."""
+    gen_expr = builtin("random")() if use_bare_random else random_()
+    df = session.create_dataframe([[1], [2], [3], [4], [5]], schema=["a"])
+    df_sel = df.select(uniform(1, 1000000, gen_expr).alias("val"))
+    result_df = df_sel.union_all(df_sel)
+
+    assert result_df.queries["queries"][-1].upper().startswith("WITH") == expect_cte
+
+    vals = [row["VAL"] for row in result_df.collect()]
+    assert (vals[:5] == vals[5:]) == expect_cte
