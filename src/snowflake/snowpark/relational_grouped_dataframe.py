@@ -338,8 +338,6 @@ class RelationalGroupedDataFrame:
         # if no grouping exprs, there is already a LIMIT 1 in the query
         # see aggregate_statement in analyzer_utils.py
         df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
-        df._agg_base_plan = df._plan
-        df._agg_base_select_statement = df._select_statement
 
         if _emit_ast:
             df._ast_id = stmt.uid
@@ -533,8 +531,6 @@ class RelationalGroupedDataFrame:
         # if no grouping exprs, there is already a LIMIT 1 in the query
         # see aggregate_statement in analyzer_utils.py
         df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
-        df._agg_base_plan = df._plan
-        df._agg_base_select_statement = df._select_statement
 
         if _emit_ast:
             stmt = working_dataframe._session._ast_batch.bind()
@@ -770,8 +766,6 @@ class RelationalGroupedDataFrame:
         # if no grouping exprs, there is already a LIMIT 1 in the query
         # see aggregate_statement in analyzer_utils.py
         df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
-        df._agg_base_plan = df._plan
-        df._agg_base_select_statement = df._select_statement
 
         # TODO: count seems similar to mean, min, .... Can we unify implementation here?
         if _emit_ast:
@@ -821,8 +815,6 @@ class RelationalGroupedDataFrame:
         # if no grouping exprs, there is already a LIMIT 1 in the query
         # see aggregate_statement in analyzer_utils.py
         df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
-        df._agg_base_plan = df._plan
-        df._agg_base_select_statement = df._select_statement
 
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.bind()
@@ -917,8 +909,6 @@ class RelationalGroupedDataFrame:
         # if no grouping exprs, there is already a LIMIT 1 in the query
         # see aggregate_statement in analyzer_utils.py
         df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
-        df._agg_base_plan = df._plan
-        df._agg_base_select_statement = df._select_statement
 
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.bind()
