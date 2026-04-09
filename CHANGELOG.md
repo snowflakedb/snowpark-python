@@ -1,5 +1,13 @@
 # Release History
 
+## 1.50.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where CTE optimization incorrectly deduplicated subtrees containing non-deterministic data generation functions (e.g. `uuid_string()`). 
+
 ## 1.49.0 (TBD)
 
 ### Snowpark Python API Updates

@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
 from copy import copy, deepcopy
 from enum import Enum
-from functools import reduce
+from functools import cached_property, reduce
 from typing import (
     TYPE_CHECKING,
     AbstractSet,
@@ -107,6 +107,17 @@ SEQUENCE_DEPENDENT_DATA_GENERATION = (
     "seq2",
     "seq4",
     "seq8",
+)
+
+# Functions that are non-deterministic when called with zero arguments.
+# Used only by the CTE optimizer to prevent deduplication of subtrees that
+# generate random data.  Other data generation functions (normal, zipf,
+# uniform, randstr) always require a generator argument (e.g. random()),
+# which is caught by recursive child inspection.  seq* functions produce
+# deterministic row-local counters and are safe to dedup.
+NONDETERMINISTIC_DATA_GENERATION = (
+    "uuid_string",
+    "random",
 )
 
 
@@ -994,6 +1005,21 @@ class SelectStatement(Selectable):
             else None
         )
         return copied
+
+    @cached_property
+    def contains_data_generation(self) -> bool:
+        """True when this node's projection, where, or order_by clauses
+        contain non-deterministic data-generation expressions (e.g. zero-arg
+        ``uuid_string()``, ``random()``, ``uniform(1,100,random())``).
+        limit and offset do not accept data generation expressions in snowflake.
+        """
+        return (
+            has_nondeterministic_data_generation_exp(self.projection)
+            or has_nondeterministic_data_generation_exp(
+                [self.where] if self.where else None
+            )
+            or has_nondeterministic_data_generation_exp(self.order_by)
+        )
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -2308,5 +2334,57 @@ def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
             # https://docs.snowflake.com/en/sql-reference/functions-data-generation
             return True
         if exp is not None and has_data_generator_exp(exp.children):
+            return True
+    return False
+
+
+def has_nondeterministic_data_generation_exp(
+    expressions: Optional[List["Expression"]],
+) -> bool:
+    """Check if expressions contain non-deterministic data generation that would
+    produce different results when materialized once via a CTE vs evaluated
+    multiple times.
+
+    This is a different check than ``has_data_generator_exp`` (which is used
+    for SQL-flattening decisions).  Here we only care about functions whose
+    output *changes across evaluations* — i.e. true randomness or
+    sequence-dependent generators invoked **without arguments** (zero-arg
+    ``random()``, ``uuid_string()``, ``randstr()``).
+
+    Generators like ``seq1(sign)``, ``uniform(lo, hi, gen)`` with explicit
+    seed, or ``uuid_string(uuid, name)`` are *not* flagged by this function
+    because CTE deduplication is safe for them.  Note that ``seq*`` functions
+    are not fully deterministic — values may have gaps and ordering is not
+    guaranteed (see https://docs.snowflake.com/en/user-guide/querying-sequences),
+    however values within a single query are always distinct.  This does not
+    affect CTE safety: the concern here is whether *re-evaluating* a subtree
+    would produce *entirely different* values (as ``random()`` or
+    ``uuid_string()`` would), not whether sequences are gap-free or ordered.
+
+    Heuristic: a ``FunctionExpression`` is flagged when:
+      - it has ``is_data_generator=True`` **and** zero arguments, OR
+      - its name is in ``NONDETERMINISTIC_DATA_GENERATION`` **and** zero
+        arguments, OR
+      - any of its *children* satisfy the above recursively (catches patterns
+        like ``uniform(1, 100, random())``).
+
+    The zero-arg gate safely distinguishes non-deterministic calls (e.g.
+    ``random()``) from deterministic ones (e.g. ``random(seed)``), because the
+    latter have ``len(children) > 0``.
+
+    Known limitations:
+      - ``session.sql(...)`` has no expression tree, so it cannot be
+        auto-detected.
+    """
+    if expressions is None:
+        return False
+    for exp in expressions:
+        if (
+            isinstance(exp, FunctionExpression)
+            and len(exp.children) == 0
+            and exp.name.lower() in NONDETERMINISTIC_DATA_GENERATION
+        ):
+            return True
+        if exp is not None and has_nondeterministic_data_generation_exp(exp.children):
             return True
     return False
