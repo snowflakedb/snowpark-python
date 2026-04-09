@@ -11,6 +11,7 @@ from array import array
 from collections import defaultdict
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
+from unittest import mock
 
 import pytest
 
@@ -1119,6 +1120,47 @@ def test_convert_sp_to_sf_type():
     assert convert_sp_to_sf_type(VectorType("float", 3)) == "VECTOR(float,3)"
     with pytest.raises(TypeError, match="Unsupported data type"):
         convert_sp_to_sf_type(None)
+
+
+@pytest.mark.parametrize("use_structured_type_semantics", [True, False])
+def test_map_type_as_nested_preserves_value_contains_null(
+    use_structured_type_semantics,
+):
+    """Test that MapType._as_nested() preserves value_contains_null attribute."""
+    with mock.patch(
+        "snowflake.snowpark.types.context._should_use_structured_type_semantics",
+        return_value=use_structured_type_semantics,
+    ):
+        # Test with value_contains_null=False
+        mt = MapType(StringType(), IntegerType(), value_contains_null=False)
+        mt_nested = mt._as_nested()
+
+        if use_structured_type_semantics:
+            # When structured semantics is enabled, _as_nested() should create a new object
+            # and preserve value_contains_null
+            assert mt_nested is not mt
+            assert mt_nested.value_contains_null is False
+        else:
+            # When structured semantics is disabled, _as_nested() should return self
+            assert mt_nested is mt
+            assert mt_nested.value_contains_null is False
+
+        # Test with value_contains_null=True (default)
+        mt_true = MapType(StringType(), IntegerType(), value_contains_null=True)
+        mt_true_nested = mt_true._as_nested()
+
+        if use_structured_type_semantics:
+            # When structured semantics is enabled, should create a new object
+            assert mt_true_nested is not mt_true
+            assert mt_true_nested.value_contains_null is True
+        else:
+            assert mt_true_nested is mt_true
+            assert mt_true_nested.value_contains_null is True
+
+        # Test with nested MapType in StructType.add()
+        mt = MapType(StringType(), IntegerType(), value_contains_null=False)
+        st = StructType([StructField("col", mt)])
+        assert st.fields[0].datatype.value_contains_null is False
 
 
 def test_infer_schema_exceptions():
