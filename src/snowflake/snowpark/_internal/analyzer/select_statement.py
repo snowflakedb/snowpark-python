@@ -2379,13 +2379,12 @@ def has_nondeterministic_data_generation_exp(
     if expressions is None:
         return False
     for exp in expressions:
-        if isinstance(exp, FunctionExpression):
-            is_zero_arg = len(exp.children) == 0
-            if is_zero_arg and (
-                exp.is_data_generator
-                or exp.name.lower() in NONDETERMINISTIC_DATA_GENERATION
-            ):
-                return True
+        if (
+            isinstance(exp, FunctionExpression)
+            and len(exp.children) == 0
+            and exp.name.lower() in NONDETERMINISTIC_DATA_GENERATION
+        ):
+            return True
         if exp is not None and has_nondeterministic_data_generation_exp(exp.children):
             return True
     return False
