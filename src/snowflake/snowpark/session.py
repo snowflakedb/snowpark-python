@@ -317,8 +317,8 @@ _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED = "SNOWPARK_PANDAS_HYBRID_EXECUTION_EN
 # When enabled, INFER_SCHEMA results for parquet files with structured types
 # (OBJECT, MAP, ARRAY with inner type details) are parsed into full structured
 # DataType objects and TRY_CAST is used in the SELECT expression.
-_PYTHON_SNOWPARK_USE_PARQUET_STRUCTURED_TYPE_INFER_SCHEMA = (
-    "PYTHON_SNOWPARK_USE_PARQUET_STRUCTURED_TYPE_INFER_SCHEMA"
+_PYTHON_SNOWPARK_USE_STRUCTURED_TYPE_INFER_SCHEMA = (
+    "PYTHON_SNOWPARK_USE_STRUCTURED_TYPE_INFER_SCHEMA"
 )
 
 # AST encoding.
@@ -716,9 +716,9 @@ class Session:
             )
         )
 
-        self._use_parquet_structured_type_infer_schema: bool = (
+        self._use_structured_type_infer_schema: bool = (
             self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_USE_PARQUET_STRUCTURED_TYPE_INFER_SCHEMA, False
+                _PYTHON_SNOWPARK_USE_STRUCTURED_TYPE_INFER_SCHEMA, False
             )
         )
 

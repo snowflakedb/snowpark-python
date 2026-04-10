@@ -1502,35 +1502,39 @@ class DataFrameReader:
             schema_to_cast = []
             transformations: List["snowflake.snowpark.column.Column"] = []
             read_file_transformations = None
-            use_parquet_structured_type_infer_schema = (
-                self._session._use_parquet_structured_type_infer_schema
+            use_structured_type_infer_schema = (
+                self._session._use_structured_type_infer_schema
             )
             for r in results:
                 # Columns for r [column_name, type, nullable, expression, filenames, order_id]
                 column_name, type, nullable, expression = r[0], r[1], r[2], r[3]
                 name = quote_name_without_upper_casing(column_name)
-                # Parse the type returned by infer_schema command to
-                # pass to determine datatype for schema.
-                # _parse_structured_type_str handles both simple types
-                # (delegates to convert_sf_to_sp_type, same as old path)
-                # and structured types with inner details (new path).
-                datatype = _parse_structured_type_str(
-                    type, self._session._conn.max_string_size
-                )
-                # Only treat as "detailed structured type" when the guard
-                # is enabled AND the raw INFER_SCHEMA type string has a
-                # structured keyword with parenthesized inner type details
-                # (e.g., "ARRAY(TEXT)", "OBJECT(city TEXT)"). Plain keywords
-                # like "ARRAY" or "OBJECT" without parens go through
-                # convert_sf_to_sp_type, which may also return
-                # ArrayType/MapType/StructType when structured type semantics
-                # are enabled, but those should NOT use the TRY_CAST path.
-                _paren = _extract_paren_content(type.strip())
-                is_structured = (
-                    use_parquet_structured_type_infer_schema
-                    and _paren is not None
-                    and _paren[0].upper() in _STRUCTURED_TYPE_KEYWORDS
-                )
+                # Parse the type returned by infer_schema command.
+                if use_structured_type_infer_schema:
+                    # handles both simple types and structured
+                    # types (OBJECT, MAP, ARRAY with inner details).
+                    datatype = _parse_structured_type_str(
+                        type, self._session._conn.max_string_size
+                    )
+                else:
+                    data_type_parts = type.split("(")
+                    parts_length = len(data_type_parts)
+                    if parts_length == 1:
+                        data_type = type
+                        precision = 0
+                        scale = 0
+                    else:
+                        data_type = data_type_parts[0]
+                        precision = int(data_type_parts[1].split(",")[0])
+                        scale = int(data_type_parts[1].split(",")[1][:-1])
+                    datatype = convert_sf_to_sp_type(
+                        data_type,
+                        precision,
+                        scale,
+                        0,
+                        self._session._conn.max_string_size,
+                    )
+
                 if use_relaxed_types:
                     datatype = most_permissive_type(datatype)
                 new_schema.append(
@@ -1550,21 +1554,18 @@ class DataFrameReader:
                     "GET_IGNORE_CASE"
                 ):
                     identifier = expression
-                elif format == "PARQUET" and is_structured:
-                    # TODO(SNOW-3237416): INFER_SCHEMA may return NOT NULL
-                    # annotations in structured type strings (e.g.,
-                    # "ARRAY(NUMBER(10,0) NOT NULL)"). TRY_CAST does not
-                    # accept NOT NULL in the target type and fails with
-                    # "unexpected 'NOT'" syntax error. Strip all NOT NULL
-                    # annotations before embedding in SQL. The nullable info
-                    # is already captured in the parsed DataType objects
-                    # (ArrayType.contains_null, MapType.value_contains_null,
-                    # StructField.nullable). If Snowflake adds TRY_CAST
-                    # support for NOT NULL in the future, this strip can be
-                    # removed.
-                    cast_type = _NOT_NULL_RE.sub("", type)
-                    # identifier = f"TRY_CAST($1:{name} AS {cast_type})"
-                    identifier = f"$1:{name}::{cast_type}"
+                elif format == "PARQUET" and use_structured_type_infer_schema:
+
+                    if use_relaxed_types:
+                        identifier = f"$1:{name}::{convert_sp_to_sf_type(datatype)}"
+                    else:
+                        # INFER_SCHEMA may return NOT NULL annotations in
+                        # structured type strings (e.g.,
+                        # "ARRAY(NUMBER(10,0) NOT NULL)"). Strip them before
+                        # embedding in SQL — nullable info is already captured
+                        # in the parsed DataType objects.
+                        cast_type = _NOT_NULL_RE.sub("", type)
+                        identifier = f"$1:{name}::{cast_type}"
                 else:
                     identifier = f"$1:{name}::{convert_sp_to_sf_type(datatype) if use_relaxed_types else type}"
 
