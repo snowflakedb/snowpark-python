@@ -129,8 +129,6 @@ _SF_EXTRA_TYPE_MAPPINGS = {
     "fixed": LongType,
 }
 
-_NOT_NULL_RE = re.compile(r"\s+NOT\s+NULL", re.IGNORECASE)
-
 
 def _extract_paren_content(type_str: str) -> Optional[Tuple[str, str]]:
     """Extract the base keyword and content inside matching parentheses.
@@ -1548,7 +1546,6 @@ class DataFrameReader:
                 ):
                     identifier = expression
                 elif format == "PARQUET" and use_structured_type_infer_schema:
-
                     if use_relaxed_types:
                         identifier = f"$1:{name}::{convert_sp_to_sf_type(datatype)}"
                     else:
