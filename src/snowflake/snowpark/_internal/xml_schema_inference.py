@@ -126,16 +126,18 @@ def _infer_primitive_type(text: str) -> DataType:
 def infer_type(
     value: Optional[str],
     ignore_surrounding_whitespace: bool = False,
-    null_value: str = "",
+    string_types_only: bool = False,
 ) -> DataType:
     """
     Infer the DataType from a single string value.
-    Normalizes *value*, checks for null / empty / null_value, then delegates
+    Normalizes *value*, checks for null / empty, then delegates
     to :func:`_infer_primitive_type`.
     """
     text = _normalize_text(value, ignore_surrounding_whitespace)
-    if text is None or text == null_value or text == "":
+    if text is None or text == "":
         return NullType()
+    if string_types_only:
+        return StringType()
     return _infer_primitive_type(text)
 
 
@@ -144,10 +146,10 @@ def infer_element_schema(
     attribute_prefix: str = "_",
     exclude_attributes: bool = False,
     value_tag: str = "_VALUE",
-    null_value: str = "",
     ignore_surrounding_whitespace: bool = False,
     ignore_namespace: bool = False,
     is_root: bool = True,
+    string_types_only: bool = False,
 ) -> DataType:
     """
     Infer the schema (DataType) from a parsed XML Element.
@@ -161,13 +163,17 @@ def infer_element_schema(
       Spark treats these differently: at root level, self-closing attribute-only
       elements do NOT get _VALUE. At child level, they always get _VALUE
       (NullType -> StringType after canonicalization).
+
+    string_types_only: When True, all leaf types are StringType (inferSchema=false).
     """
     children = list(element)
     has_attributes = bool(element.attrib) and not exclude_attributes
 
     # Case: leaf element with no attributes -> infer from text content
     if not children and not has_attributes:
-        return infer_type(element.text, ignore_surrounding_whitespace, null_value)
+        return infer_type(
+            element.text, ignore_surrounding_whitespace, string_types_only
+        )
 
     # This element will become a StructType
     # Use a dict to track field names and types (for array detection)
@@ -179,7 +185,9 @@ def infer_element_schema(
         for attr_name, attr_value in element.attrib.items():
             prefixed_name = f"{attribute_prefix}{attr_name}"
             attr_type = infer_type(
-                attr_value, ignore_surrounding_whitespace, null_value
+                attr_value,
+                ignore_surrounding_whitespace,
+                string_types_only,
             )
             if prefixed_name not in name_to_type:
                 field_order.append(prefixed_name)
@@ -203,7 +211,9 @@ def infer_element_schema(
             if not child_children and not child_has_attrs:
                 # Leaf element
                 child_type = infer_type(
-                    child.text, ignore_surrounding_whitespace, null_value
+                    child.text,
+                    ignore_surrounding_whitespace,
+                    string_types_only,
                 )
             else:
                 # Non-leaf element: recurse into inferObject
@@ -212,10 +222,10 @@ def infer_element_schema(
                     attribute_prefix=attribute_prefix,
                     exclude_attributes=exclude_attributes,
                     value_tag=value_tag,
-                    null_value=null_value,
                     ignore_surrounding_whitespace=ignore_surrounding_whitespace,
                     ignore_namespace=ignore_namespace,
                     is_root=False,
+                    string_types_only=string_types_only,
                 )
 
             # When child_has_attrs is True, the recursive infer_element_schema call
@@ -227,8 +237,10 @@ def infer_element_schema(
 
         # Handle mixed content: text + child elements
         text = _normalize_text(element.text, ignore_surrounding_whitespace)
-        if text is not None and text != null_value and text.strip() != "":
-            text_type = _infer_primitive_type(text)
+        if text is not None and text.strip() != "":
+            text_type = (
+                StringType() if string_types_only else _infer_primitive_type(text)
+            )
             if value_tag not in name_to_type:
                 field_order.append(value_tag)
             add_or_update_type(name_to_type, value_tag, text_type, value_tag)
@@ -240,8 +252,10 @@ def infer_element_schema(
         #     to StringType later). This covers cases like self-closing
         #     <edition year="2023" format="Hardcover"/>.
         text = _normalize_text(element.text, ignore_surrounding_whitespace)
-        if text is not None and text != null_value and text != "":
-            text_type = _infer_primitive_type(text)
+        if text is not None and text != "":
+            text_type = (
+                StringType() if string_types_only else _infer_primitive_type(text)
+            )
             if value_tag not in name_to_type:
                 field_order.append(value_tag)
             add_or_update_type(name_to_type, value_tag, text_type, value_tag)
@@ -499,10 +513,10 @@ def infer_schema_for_xml_range(
     attribute_prefix: str,
     exclude_attributes: bool,
     value_tag: str,
-    null_value: str,
     charset: str,
     ignore_surrounding_whitespace: bool,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
+    string_types_only: bool = False,
 ) -> Optional[StructType]:
     """
     Infer the merged XML schema for all records within a byte range.
@@ -596,9 +610,9 @@ def infer_schema_for_xml_range(
                 attribute_prefix=attribute_prefix,
                 exclude_attributes=exclude_attributes,
                 value_tag=value_tag,
-                null_value=null_value,
                 ignore_surrounding_whitespace=ignore_surrounding_whitespace,
                 ignore_namespace=ignore_namespace,
+                string_types_only=string_types_only,
             )
 
             if not isinstance(record_schema, StructType):
@@ -646,10 +660,10 @@ class XMLSchemaInference:
         attribute_prefix: str,
         exclude_attributes: bool,
         value_tag: str,
-        null_value: str,
         charset: str,
         ignore_surrounding_whitespace: bool,
         file_size: int,
+        string_types_only: bool = False,
     ):
         """
         Infer XML schema for a byte-range partition of the file.
@@ -664,10 +678,10 @@ class XMLSchemaInference:
             attribute_prefix: Prefix for attribute names.
             exclude_attributes: Whether to exclude attributes.
             value_tag: Tag name for the value column.
-            null_value: Value to treat as null.
             charset: Character encoding of the XML file.
             ignore_surrounding_whitespace: Whether to strip whitespace from values.
             file_size: Size of the file in bytes (provided by the client via LS).
+            string_types_only: When True, all leaf types inferred as StringType.
         """
         if not file_size or file_size <= 0:
             yield ("",)
@@ -699,9 +713,9 @@ class XMLSchemaInference:
             attribute_prefix=attribute_prefix,
             exclude_attributes=exclude_attributes,
             value_tag=value_tag,
-            null_value=null_value,
             charset=charset,
             ignore_surrounding_whitespace=ignore_surrounding_whitespace,
+            string_types_only=string_types_only,
         )
 
         yield (
