@@ -2971,10 +2971,14 @@ def calculate_expression(
         return res
     elif isinstance(exp, SubfieldInt):
         col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
-        res = col.apply(
-            lambda x: None if x is None or exp.field >= len(x) else x[exp.field]
-        )
-        res.sf_type = ColumnType(VariantType(), col.sf_type.nullable)
+        result_data = [
+            None if x is None or exp.field >= len(x) else x[exp.field] for x in col
+        ]
+        res = ColumnEmulator(
+            data=result_data,
+            dtype=object,
+            sf_type=ColumnType(VariantType(), col.sf_type.nullable),
+        )  # dtype=object prevents implicit converting None to NaN
         return res
     elif isinstance(exp, SnowflakeUDF):
         # Could be either UDAF or UDF, decide on type.
