@@ -45,6 +45,11 @@ class CompilationStageTelemetryField(Enum):
     # keys for repeated subquery elimination
     CTE_NODE_CREATED = "cte_node_created"
 
+    # keys for CTE execution retry
+    CTE_ERROR_COUNT = "cte_error_count"
+    CTE_QUERY_ID = "cte_query_id"
+    RETRY_QUERY_ID = "retry_query_id"
+
     # keys for large query breakdown
     BREAKDOWN_SUMMARY = "breakdown_summary"
     COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION = "complexity_score_after_cte_optimization"

@@ -1,5 +1,13 @@
 # Release History
 
+## 1.50.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where CTE optimization incorrectly deduplicated subtrees containing non-deterministic data generation functions (e.g. `uuid_string()`). 
+
 ## 1.49.0 (TBD)
 
 ### Snowpark Python API Updates
@@ -7,6 +15,10 @@
 #### New Features
 
 - Allow user input schema when reading Parquet file on stage.
+
+#### Bug Fixes
+
+- Fixed a bug that `TRY_CAST` reader option is ignored when calling `DataFrameReader.schema().csv()`.
 
 #### Improvements
 
@@ -19,6 +31,8 @@
 
 - Fixed a bug where `Session.create_dataframe` raised `TypeError` when a `StringType` column was given a non-string Python value (e.g. `int`, `float`, `bool`, `Decimal`) for a small local relation (below the array bind threshold); `VALUES` SQL generation now coerces these types to string literals, consistent with the large-data bind-parameter path.
 - Fixed a bug where `DataFrame.approxQuantile` did not accept a `Column` for the `col` parameter.
+- Fixed a bug where `event_table_telemetry` is using incorrect resource attributes.
+- Fixed a bug where `value_contains_null` was not propagated for `MapType` in `_as_nested` function.
 
 ### Snowpark Local Testing Updates
 

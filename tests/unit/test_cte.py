@@ -8,6 +8,16 @@ from unittest import mock
 
 import pytest
 
+from snowflake.snowpark.functions import (
+    uuid_string,
+    col,
+    upper,
+    seq1,
+    uniform,
+    normal,
+    random as random_,
+    builtin,
+)
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
 )
@@ -130,3 +140,88 @@ def test_encode_node_id_with_query_includes_aliases():
 
     expected_hash = hashlib.sha256(expected_string.encode()).hexdigest()[:10]
     assert encode_node_id_with_query(node) == f"{expected_hash}_SimpleNamespace"
+
+
+def test_select_statement_contains_data_generation(mock_session, mock_analyzer):
+    """SelectStatement.contains_data_generation should detect zero-arg
+    nondeterministic functions in projection, where, and order_by."""
+    select_sql = SelectSQL(
+        sql="select 1", convert_to_select=False, analyzer=mock_analyzer
+    )
+
+    # No data generation — regular function
+    stmt = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
+    stmt.projection = [upper(col("a"))._expression]
+    assert stmt.contains_data_generation is False
+
+    # uuid_string() zero-arg in projection — nondeterministic
+    stmt2 = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
+    stmt2.projection = [uuid_string()._expression]
+    assert stmt2.contains_data_generation is True
+
+    # uuid_string(uuid, name) with args — deterministic, not flagged
+    stmt3 = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
+    stmt3.projection = [uuid_string(col("uuid"), col("name"))._expression]
+    assert stmt3.contains_data_generation is False
+
+    # seq1(1) — deterministic row-local counter, safe to dedup
+    stmt4 = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
+    stmt4.projection = [seq1(1)._expression]
+    assert stmt4.contains_data_generation is False
+
+    # Snowpark's random() always generates a seed internally (line 1903 of
+    # functions.py), so the FunctionExpression always has 1 child — it's never
+    # truly zero-arg.  This makes it deterministic per-query and safe to dedup.
+    # uniform/normal with random() gen inherit this behavior.
+    stmt5 = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
+    stmt5.projection = [uniform(1, 100, random_())._expression]
+    assert stmt5.contains_data_generation is False
+
+    stmt6 = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
+    stmt6.projection = [normal(0, 1, random_())._expression]
+    assert stmt6.contains_data_generation is False
+
+    # builtin("random")() produces a true zero-arg FunctionExpression —
+    # caught by name in NONDETERMINISTIC_DATA_GENERATION via child recursion
+    stmt7 = SelectStatement(from_=select_sql, analyzer=mock_analyzer)
+    bare_random = builtin("random")()
+    stmt7.projection = [uniform(1, 100, bare_random)._expression]
+    assert stmt7.contains_data_generation is True
+
+
+def test_find_duplicate_subtrees_excludes_data_gen_nodes():
+    """Duplicate subtrees with data-generation expressions should NOT be
+    deduplicated, and the invalidation should propagate to parents."""
+    nodes = [mock.create_autospec(SnowflakePlan) for _ in range(5)]
+    for i, node in enumerate(nodes):
+        node.encoded_node_id_with_query = f"{i}_{i}"
+        node.source_plan = None
+        node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 3}
+
+    # root -> [a, b], a -> [mid], b -> [mid], mid -> [leaf]
+    nodes[0].children_plan_nodes = [nodes[1], nodes[2]]
+    nodes[1].children_plan_nodes = [nodes[3]]
+    nodes[2].children_plan_nodes = [nodes[3]]
+    nodes[3].children_plan_nodes = [nodes[4]]
+    nodes[4].children_plan_nodes = []
+
+    # Without data gen: mid (3_3) is a dedup candidate
+    dup_ids, _ = find_duplicate_subtrees(nodes[0])
+    assert "3_3" in dup_ids
+
+    # Make leaf a SelectStatement with data generation
+    leaf = mock.create_autospec(SelectStatement)
+    leaf.encoded_node_id_with_query = "4_4"
+    leaf.source_plan = None
+    leaf.children_plan_nodes = []
+    leaf.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 3}
+    leaf.contains_data_generation = True
+    leaf.projection = None
+    leaf.from_ = mock.MagicMock()
+
+    nodes[3].children_plan_nodes = [leaf]
+
+    dup_ids, _ = find_duplicate_subtrees(nodes[0])
+    # Both mid (3_3) and leaf (4_4) should be excluded via propagation
+    assert "3_3" not in dup_ids
+    assert "4_4" not in dup_ids
