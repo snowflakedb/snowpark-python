@@ -1487,23 +1487,45 @@ class SelectStatement(Selectable):
             )
         else:
             new_order_by = None
+            new_from = self
             if context._is_snowpark_connect_compatible_mode and self.order_by:
                 order_by_dependent_columns = derive_dependent_columns(*self.order_by)
                 if order_by_dependent_columns in (
                     COLUMN_DEPENDENCY_DOLLAR,
                     COLUMN_DEPENDENCY_ALL,
-                ) or any(
+                ):
+                    new_order_by = None
+                elif any(
+                    col not in self.from_.column_states
+                    and col not in self.column_states
+                    for col in order_by_dependent_columns
+                ):
+                    new_order_by = None
+                elif any(
                     _col not in self.column_states
                     or self.column_states[_col].change_state
                     in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.DROPPED)
                     for _col in order_by_dependent_columns
                 ):
-                    new_order_by = None
+                    new_from = copy(self)
+                    missing_columns = (
+                        order_by_dependent_columns
+                        - new_from.column_states.active_columns
+                    )
+                    new_from.projection = new_from.projection + [
+                        Attribute(col, DataType()) for col in missing_columns
+                    ]
+                    new_from.column_states = derive_column_states_from_subquery(
+                        new_from.projection, new_from.from_
+                    )
+                    new_from._commented_sql = None
+                    new_from._sql_query = None
+                    new_order_by = self.order_by
                 else:
                     new_order_by = self.order_by
             new = SelectStatement(
                 projection=cols,
-                from_=self.to_subqueryable(),
+                from_=new_from.to_subqueryable(),
                 order_by=new_order_by,
                 analyzer=self.analyzer,
             )

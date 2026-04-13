@@ -2063,9 +2063,23 @@ def test_order_by_preserved_after_non_flattened_select(
 
 
 def test_order_by_outer_hoist_skipped_when_unsafe_compat_mode(session, monkeypatch):
-    """When select() is not flattened, compat mode only hoists order_by to the outer
-    SelectStatement when dependency is known and no ORDER BY column is CHANGED_EXP/DROPPED
-    (see select_statement non-flatten branch)."""
+    """Snowpark Connect compat mode: non-flattened ``select()`` may clear outer ``order_by``
+    when ORDER BY deps are ALL/DOLLAR, or missing from both ``from_.column_states`` and
+    ``self.column_states`` (non-flatten path only).
+
+    When the plan **flattens** (e.g. ``order_by(col("Z")).select(col("A"))`` with no ``Z``
+    in the schema), ORDER BY is merged into a single ``SELECT ... ORDER BY "Z"`` and
+    ``_select_statement.order_by`` stays populated.
+
+    To hit the non-flattened path where ``order_by`` deps are missing from both
+    ``from_.column_states`` and ``self.column_states`` (lines 1498-1499), use
+    ``order_by(col("Z")).select(seq1(0))``: ``seq1`` forces non-flatten, so outer
+    ``order_by`` is cleared in compat mode.
+
+    If ORDER BY references CHANGED_EXP/DROPPED keys present in ``self.column_states``,
+    the inner projection may be augmented before wrapping; outer ``order_by`` is still
+    set so limit() and similar keep a deterministic sort (see select_statement.select).
+    """
     import snowflake.snowpark.context as context
 
     monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
@@ -2075,26 +2089,41 @@ def test_order_by_outer_hoist_skipped_when_unsafe_compat_mode(session, monkeypat
         schema=["A", "B"],
     )
 
-    # sql_expr ORDER BY: dependent columns are ALL/unknown -> do not hoist
+    # sql_expr ORDER BY: ALL/unknown deps -> do not set outer order_by
     df_sql = df.order_by(sql_expr("A")).select(col("B"))
     assert df_sql._select_statement.order_by is None
     assert "ORDER BY" in df_sql.queries["queries"][-1]
 
-    # Positional $n ORDER BY: DOLLAR dependency -> do not hoist
+    # Positional $n ORDER BY: DOLLAR -> do not set outer order_by
     df_dollar = df.order_by(col("$1")).select(col("B"))
     assert df_dollar._select_statement.order_by is None
 
-    # ORDER BY column is CHANGED_EXP in the inner projection -> do not hoist
+    # ORDER BY unknown column "Z" then select: typically flattens to one SELECT with
+    # ORDER BY "Z" (does not use the non-flatten compat outer order_by=None branch).
+    df_order_by_z = df.order_by(col("Z")).select(col("A"))
+    assert df_order_by_z._select_statement.order_by is not None
+    normalized_z = Utils.normalize_sql(df_order_by_z.queries["queries"][-1])
+    assert "ORDER BY" in normalized_z
+    assert '"Z"' in normalized_z
+
+    # Non-flatten: seq1() in select blocks flattening; ORDER BY "Z" with Z not in either
+    # column_states -> compat mode clears outer order_by (select_statement lines 1498-1499).
+    df_order_by_z_seq = df.order_by(col("Z")).select(seq1(0))
+    assert df_order_by_z_seq._select_statement.order_by is None
+    assert "ORDER BY" in Utils.normalize_sql(df_order_by_z_seq.queries["queries"][-1])
+
+    # ORDER BY on CHANGED_EXP column: augment inner projection; outer still has order_by
     df_changed = (
         df.select((col("A") * 2).alias("A"), col("B"))
         .order_by(col("A"))
         .select(col("B"))
     )
-    assert df_changed._select_statement.order_by is None
+    assert df_changed._select_statement.order_by is not None
     # Inner sort by computed A (2, 4, 6) -> B order 3, 1, 2
     Utils.check_answer(df_changed, [Row(3), Row(1), Row(2)], sort=False)
 
-    # Contrast: ordering by a plain renamed column still hoists (safe path)
+    # ORDER BY on alias only in this select (not in from_.column_states): still in
+    # self.column_states, so outer order_by is set (not the "missing from both" case)
     df_hoist = (
         df.select(col("A"), col("B").alias("D")).order_by(col("D")).select(col("A"))
     )
