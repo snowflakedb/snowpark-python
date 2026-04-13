@@ -86,6 +86,7 @@ def infer_quoted_identifiers_from_expressions(
 
 def _extract_inferable_attribute_names(
     attributes: Optional[List[Expression]],
+    from_attributes: Optional[List[Attribute]] = None,
 ) -> tuple[Optional[List[Attribute]], Optional[List[Attribute]]]:
     """
     Returns a list of attribute names that can be infered from a list of Expressions.
@@ -93,6 +94,8 @@ def _extract_inferable_attribute_names(
     """
     if attributes is None:
         return None, None
+
+    from_attr_map = {a.name: a for a in from_attributes} if from_attributes else None
 
     new_attributes = []
     old_attributes = []
@@ -105,7 +108,20 @@ def _extract_inferable_attribute_names(
         if isinstance(attr, Alias):
             # If the first non-aliased child of an Alias node is Literal or Attribute
             # the column can be inferred.
-            if isinstance(attr.child, (Literal, Attribute)) and attr.datatype:
+            if (
+                isinstance(attr.child, (Literal, Attribute))
+                and attr.datatype
+                and type(attr.datatype) is not DataType
+            ):
+                attr = Attribute(attr.name, attr.datatype, attr.nullable)
+            elif (
+                isinstance(attr.child, Attribute)
+                and from_attr_map is not None
+                and attr.child.name in from_attr_map
+            ):
+                parent = from_attr_map[attr.child.name]
+                attr = Attribute(attr.name, parent.datatype, parent.nullable)
+            elif isinstance(attr.child, (Literal, Attribute)) and attr.datatype:
                 attr = Attribute(attr.name, attr.datatype, attr.nullable)
         elif isinstance(attr, Literal) and type(attr.datatype) != DataType:
             # Names of literal values can be inferred
@@ -142,12 +158,9 @@ def _extract_selectable_attributes(
         else:
             # Get the attributes from the child plan
             from_attributes = _extract_selectable_attributes(current_plan.from_)
-            (
-                expected_attributes,
-                new_attributes,
-                # Extract expected attributes and knowable new attributes
-                # from current plan
-            ) = _extract_inferable_attribute_names(current_plan.projection)
+            (expected_attributes, new_attributes,) = _extract_inferable_attribute_names(
+                current_plan.projection, from_attributes
+            )
             # Check that the expected attributes match the attributes from the child plan
             if (
                 from_attributes is not None
@@ -157,13 +170,12 @@ def _extract_selectable_attributes(
                 missing_attrs = {attr.name for attr in expected_attributes} - {
                     attr.name for attr in from_attributes
                 }
+                resolved = expected_attributes + new_attributes
                 if not missing_attrs and all(
-                    isinstance(attr, (Attribute, Alias))
-                    # If the attribute datatype is specifically DataType then it is not fully resolved
-                    and type(attr.datatype) is not DataType
-                    for attr in current_plan.projection or []
+                    isinstance(attr, Attribute) and type(attr.datatype) is not DataType
+                    for attr in resolved
                 ):
-                    attributes = current_plan.projection  # type: ignore
+                    attributes = resolved
     elif (
         isinstance(
             current_plan,
