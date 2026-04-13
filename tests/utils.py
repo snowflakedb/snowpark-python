@@ -77,7 +77,6 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
-from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 
 IS_WINDOWS = platform.system() == "Windows"
 IS_MACOS = platform.system() == "Darwin"
@@ -107,12 +106,6 @@ STRUCTURED_TYPE_PARAMETERS = {
 }
 
 IS_PY314 = (sys.version_info.major, sys.version_info.minor) == (3, 14)
-
-EXPECTED_DEFAULT_ARTIFACT_REPOSITORY = (
-    "snowflake.snowpark.pypi_shared_repository"
-    if IS_PY314
-    else _ANACONDA_SHARED_REPOSITORY
-)
 
 
 def current_account(session):

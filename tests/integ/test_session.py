@@ -24,6 +24,7 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     StringType,
 )
+from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     get_version,
@@ -45,9 +46,9 @@ from snowflake.snowpark.session import (
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_IN_STORED_PROC_LOCALFS,
+    IS_PY314,
     TestFiles,
     Utils,
-    EXPECTED_DEFAULT_ARTIFACT_REPOSITORY,
 )
 
 
@@ -1100,7 +1101,9 @@ def test_get_active_sessions_empty():
         assert session_module._get_active_sessions(require_at_least_one=False) == set()
 
 
-def test_default_artifact_repository_with_no_db_schema(session, caplog):
+def test_default_artifact_repository_with_no_db_schema(
+    session, caplog, local_testing_mode
+):
     # The reported customer issue covered by this test (SNOW-3230493) occurs when no schema/database
     # is set and an account locator is used, so we mock schema/db to be empty for this test.
     # Oddly, getting schema and database appear to be fine (for example, schema comes back with
@@ -1120,5 +1123,9 @@ def test_default_artifact_repository_with_no_db_schema(session, caplog):
         mock_session_parameters,
     ), caplog.at_level(logging.WARNING):
         result = session._get_default_artifact_repository()
-        assert result == EXPECTED_DEFAULT_ARTIFACT_REPOSITORY
+        assert (
+            result == "snowflake.snowpark.pypi_shared_repository"
+            if (IS_PY314 and not local_testing_mode)
+            else _ANACONDA_SHARED_REPOSITORY
+        )
         assert caplog.text.count("Error getting default artifact repository") == 0
