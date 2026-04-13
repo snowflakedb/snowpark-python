@@ -2409,14 +2409,7 @@ def _check_expressions_for_types(
         if check_window and isinstance(exp, WindowExpression):
             return True
 
-        # Check data generators (including window in non-connect mode)
         if check_data_gen:
-            # In non-connect mode, windows are treated as data generators
-            if not context._is_snowpark_connect_compatible_mode and isinstance(
-                exp, WindowExpression
-            ):
-                return True
-            # Check actual data generator functions
             if isinstance(exp, FunctionExpression) and (
                 exp.is_data_generator
                 or exp.name.lower() in SEQUENCE_DEPENDENT_DATA_GENERATION
@@ -2442,23 +2435,20 @@ def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
     """Check if expressions contain data generator functions.
 
     Note:
-        In non-connect mode, check_data_gen check both data generator and window expressions for backward compatibility.
-        In connect mode, check_data_gen only checks data generator expressions.
+        In non-connect mode, window expressions are also treated as data generators
+        for backward compatibility.
     """
+    if not context._is_snowpark_connect_compatible_mode:
+        return _check_expressions_for_types(
+            expressions, check_data_gen=True, check_window=True
+        )
     return _check_expressions_for_types(expressions, check_data_gen=True)
 
 
 def has_data_generator_or_window_function_exp(
     expressions: Optional[List["Expression"]],
 ) -> bool:
-    """Check if expressions contain data generators or window functions.
-
-    Optimized to do a single pass checking both types simultaneously.
-    """
-    if not context._is_snowpark_connect_compatible_mode:
-        # In non-connect mode, windows are already treated as data generators
-        return _check_expressions_for_types(expressions, check_data_gen=True)
-    # In connect mode, check both in a single pass
+    """Check if expressions contain data generators or window functions."""
     return _check_expressions_for_types(
         expressions, check_data_gen=True, check_window=True
     )
