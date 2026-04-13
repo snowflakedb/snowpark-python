@@ -5044,21 +5044,39 @@ class Session:
 
         retrieved_set = set()
 
-        for sql in [
-            """select function_name from information_schema.functions where is_aggregate = 'YES'""",
-            """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'""",
-        ]:
-            try:
-                retrieved_set.update({r[0].lower() for r in self.sql(sql).collect()})
-            except BaseException as e:
-                _logger.debug(
-                    "Unable to get aggregation functions from the database: %s",
-                    e,
-                )
-                # we raise error here as a pessimistic tactics
-                # the reason is that if we fail to retrieve the aggregation function list, we have empty set
-                # the simplifier will flatten the query which contains aggregation functions leading to incorrect results
-                raise
+        # User-defined aggregation functions
+        try:
+            retrieved_set.update(
+                {
+                    r[0].lower()
+                    for r in self.sql(
+                        """select function_name from information_schema.functions where is_aggregate = 'YES'"""
+                    ).collect()
+                }
+            )
+        except BaseException as e:
+            _logger.debug(
+                "Unable to get user-defined aggregation functions: %s",
+                e,
+            )
+
+        # System built-in aggregation functions
+        try:
+            retrieved_set.update(
+                {
+                    r[0].lower()
+                    for r in self.sql(
+                        """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'"""
+                    ).collect()
+                }
+            )
+        except BaseException as e:
+            _logger.debug(
+                "Unable to get system aggregation functions, "
+                "falling back to hardcoded list: %s",
+                e,
+            )
+            retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
 
         with context._aggregation_function_set_lock:
             context._aggregation_function_set.update(retrieved_set)
