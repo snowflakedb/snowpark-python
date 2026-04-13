@@ -7,6 +7,7 @@
 #### Bug Fixes
 
 - Fixed a bug where CTE optimization incorrectly deduplicated subtrees containing non-deterministic data generation functions (e.g. `uuid_string()`). 
+- Fixed a bug where vectorized UDFs using non-anaconda package repositories did not specify the pandas package by default.
 
 ## 1.49.0 (TBD)
 
