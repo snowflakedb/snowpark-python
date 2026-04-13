@@ -113,12 +113,10 @@ def test_normalize_text(text, strip, expected):
     [
         (None, {}),
         ("", {}),
-        ("NULL", {"null_value": "NULL"}),
-        ("  NULL  ", {"ignore_surrounding_whitespace": True, "null_value": "NULL"}),
     ],
 )
 def test_infer_type_null(value, kwargs):
-    """Null/empty/null_value inputs → NullType."""
+    """Null/empty inputs → NullType."""
     assert isinstance(infer_type(value, **kwargs), NullType)
 
 
@@ -225,7 +223,7 @@ def test_infer_type_whitespace_stripped():
         ("<a>42</a>", LongType, {}),
         ("<a></a>", NullType, {}),
         ("<a/>", NullType, {}),
-        ("<a>N/A</a>", NullType, {"null_value": "N/A"}),
+        ("<a>N/A</a>", StringType, {}),
         ("<a>true</a>", BooleanType, {}),
         ("<a>false</a>", BooleanType, {}),
         ("<a>3.14</a>", DoubleType, {}),
@@ -474,9 +472,7 @@ def test_spark_complex_field_value_type_conflict():
           <struct><field>str</field></struct>
         </ROW>""",
     ]
-    merged = _infer_and_merge(
-        records, ignore_surrounding_whitespace=True, null_value=""
-    )
+    merged = _infer_and_merge(records, ignore_surrounding_whitespace=True)
     fm = {f._name: f.datatype for f in canonicalize_type(merged).fields}
     assert isinstance(fm["array"], ArrayType) and isinstance(
         fm["array"].element_type, LongType
@@ -1388,7 +1384,6 @@ def _mock_xml_range(xml_content, row_tag, **kwargs):
             attribute_prefix=kwargs.get("attribute_prefix", "_"),
             exclude_attributes=kwargs.get("exclude_attributes", False),
             value_tag=kwargs.get("value_tag", "_VALUE"),
-            null_value=kwargs.get("null_value", ""),
             charset="utf-8",
             ignore_surrounding_whitespace=kwargs.get(
                 "ignore_surrounding_whitespace", True
@@ -1532,7 +1527,6 @@ def test_infer_range_sampling_ratio_skips():
             attribute_prefix="_",
             exclude_attributes=False,
             value_tag="_VALUE",
-            null_value="",
             charset="utf-8",
             ignore_surrounding_whitespace=True,
         )
@@ -1556,7 +1550,6 @@ def test_infer_range_truncated_tag_handled():
             attribute_prefix="_",
             exclude_attributes=False,
             value_tag="_VALUE",
-            null_value="",
             charset="utf-8",
             ignore_surrounding_whitespace=True,
         )
@@ -1566,7 +1559,7 @@ def test_infer_range_truncated_tag_handled():
 def test_xml_schema_inference_process_empty_results():
     """Cases where process should yield ("",): empty/None file size, invalid worker id, no records."""
     base = ("test.xml",)
-    tail = (1.0, True, "_", False, "_VALUE", "", "utf-8", True)
+    tail = (1.0, True, "_", False, "_VALUE", "utf-8", True)
 
     # empty file (size 0)
     assert list(XMLSchemaInference().process(*base, 1, "row", 0, *tail, 0)) == [("",)]
@@ -1595,7 +1588,7 @@ def test_xml_schema_inference_process_empty_results():
 def test_xml_schema_inference_process_param_defaults():
     """None num_workers defaults to 1; negative worker id defaults to 0."""
     xml_bytes = b"<r><row><a>42</a></row></r>"
-    tail = (1.0, True, "_", False, "_VALUE", "", "utf-8", True)
+    tail = (1.0, True, "_", False, "_VALUE", "utf-8", True)
 
     for num_workers, i in [(None, 0), (1, -1)]:
         mock_file = io.BytesIO(xml_bytes)
@@ -1631,7 +1624,6 @@ def test_xml_schema_inference_process_with_sampling():
                 "_",
                 False,
                 "_VALUE",
-                "",
                 "utf-8",
                 True,
                 len(xml_bytes),
@@ -1664,7 +1656,6 @@ def test_xml_schema_inference_process_multi_worker():
                     "_",
                     False,
                     "_VALUE",
-                    "",
                     "utf-8",
                     True,
                     len(xml_bytes),
@@ -1874,3 +1865,75 @@ def test_infer_xml_map_type_field_names_cleaned():
     assert result.fields[0]._name == "m"
     assert result.fields[0].datatype.key_type.fields[0]._name == "k"
     assert result.fields[0].datatype.value_type.fields[0]._name == "v"
+
+
+# ===========================================================================
+# string_types_only parameter (inferSchema=False)
+# ===========================================================================
+
+
+def test_infer_type_string_types_only():
+    """string_types_only=True: non-empty text → StringType, null/empty → NullType.
+    Spark's inferField returns NullType for empty/self-closing elements before
+    inferFrom is called.  inferFrom returns StringType unconditionally when
+    inferSchema=false."""
+    for val in ("42", "3.14", "true", "2024-01-15", "hello", "N/A"):
+        assert isinstance(infer_type(val, string_types_only=True), StringType), val
+    for val in (None, ""):
+        assert isinstance(infer_type(val, string_types_only=True), NullType), val
+
+
+def test_infer_element_schema_string_types_only():
+    """One complex XML exercises all infer_element_schema codepaths with string_types_only:
+    attributes, nested struct, repeated children (array), mixed content, empty children.
+    Non-empty leaves → StringType; empty leaves → NullType; structural types preserved."""
+    xml_str = """<book id="1">
+        mixed text
+        <title>Test</title>
+        <price>29.99</price>
+        <empty/>
+        <tag>fiction</tag><tag>classic</tag>
+        <info><publisher>Acme</publisher><year>2020</year></info>
+    </book>"""
+    result = infer_element_schema(_xml(xml_str), string_types_only=True)
+    assert isinstance(result, StructType)
+    fm = {f._name: f.datatype for f in result.fields}
+
+    assert isinstance(fm["_id"], StringType)
+    assert isinstance(fm["_VALUE"], StringType)
+    assert isinstance(fm["title"], StringType)
+    assert isinstance(fm["price"], StringType)
+    assert isinstance(fm["empty"], NullType)
+
+    assert isinstance(fm["tag"], ArrayType)
+    assert isinstance(fm["tag"].element_type, StringType)
+
+    assert isinstance(fm["info"], StructType)
+    info_fm = {f._name: f.datatype for f in fm["info"].fields}
+    assert isinstance(info_fm["publisher"], StringType)
+    assert isinstance(info_fm["year"], StringType)
+
+    # Empty element + struct element across records: struct must survive merge
+    records = [
+        "<row><nested><a>1</a><b>2</b></nested></row>",
+        "<row><nested/></row>",
+    ]
+    merged = canonicalize_type(_infer_and_merge(records, string_types_only=True))
+    nested = {f._name: f.datatype for f in merged.fields}["nested"]
+    assert isinstance(nested, StructType), f"Expected StructType, got {type(nested)}"
+
+
+def test_udtf_process_string_types_only():
+    """End-to-end: XMLSchemaInference.process threads string_types_only through
+    infer_schema_for_xml_range → infer_element_schema → infer_type."""
+    xml_bytes = b"<r><row><a>42</a><b>2024-01-15</b><c>true</c></row></r>"
+    tail = (1.0, True, "_", False, "_VALUE", "utf-8", True)
+    mock_file = io.BytesIO(xml_bytes)
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+        schema_str = list(
+            XMLSchemaInference().process(
+                "test.xml", 1, "row", 0, *tail, len(xml_bytes), True
+            )
+        )[0][0]
+    assert "string" in schema_str
+    assert "bigint" not in schema_str and "date" not in schema_str

@@ -718,29 +718,6 @@ def test_infer_mixed_content(session):
     assert len(result) == 2
 
 
-# ─── inferSchema=false keeps all strings ────────────────────────────────────
-
-
-@pytest.mark.parametrize(
-    "staged_key, row_tag, expected_count",
-    [
-        ("primitives", "ROW", 1),
-        ("nested_object", "book", 2),
-        ("unbalanced_types", "ROW", 2),
-    ],
-)
-def test_infer_schema_false_all_strings(session, staged_key, row_tag, expected_count):
-    """inferSchema=false → all fields are variant/string columns."""
-    df = (
-        session.read.option("rowTag", row_tag)
-        .option("inferSchema", False)
-        .xml(f"@{tmp_stage_name}/{_staged_files[staged_key]}")
-    )
-    assert df._all_variant_cols is True
-    result = df.collect()
-    assert len(result) == expected_count
-
-
 # ─── Resource file: xml_infer_types.xml ─────────────────────────────────────
 
 
@@ -1070,32 +1047,6 @@ def test_read_xml_attribute_value_infer_schema(session):
     assert pub5 == {"_VALUE": None, "_country": None, "_language": None}
 
 
-# ─── inferSchema vs inferSchema=false comparison ────────────────────────────
-
-
-@pytest.mark.parametrize(
-    "staged_file, row_tag",
-    [
-        ("xml_infer_types.xml", "item"),
-        (RES_BOOKS_XML, "book"),
-        (RES_BOOKS2_XML, "book"),
-    ],
-)
-def test_infer_vs_no_infer_column_count(session, staged_file, row_tag):
-    """inferSchema produces typed columns; no inferSchema produces variant columns."""
-    df_infer = session.read.option("rowTag", row_tag).xml(
-        f"@{tmp_stage_name}/{staged_file}"
-    )
-    df_no_infer = (
-        session.read.option("rowTag", row_tag)
-        .option("inferSchema", False)
-        .xml(f"@{tmp_stage_name}/{staged_file}")
-    )
-    assert df_infer._all_variant_cols is False
-    assert df_no_infer._all_variant_cols is True
-    assert df_infer.count() == df_no_infer.count()
-
-
 # ─── samplingRatio tests ─────────────────────────────────────────────────────
 
 
@@ -1187,3 +1138,102 @@ def test_infer_schema_use_leaf_row_tag(session):
     )
     assert df.count() == 2
     assert "_VALUE" in [f.name for f in df.schema.fields] or len(df.schema.fields) == 1
+
+
+# ─── inferSchema=False ──────────────────────────────
+
+
+def _assert_all_leaves_string(dt):
+    if isinstance(dt, StructType):
+        for f in dt.fields:
+            _assert_all_leaves_string(f.datatype)
+    elif isinstance(dt, ArrayType):
+        _assert_all_leaves_string(dt.element_type)
+    else:
+        assert isinstance(
+            dt, StringType
+        ), f"Expected StringType leaf, got {type(dt).__name__}"
+
+
+@pytest.mark.parametrize(
+    "res_file, row_tag, extra_opts, expected_count, expected_variant_cols",
+    [
+        (RES_BOOKS2_XML, "book", {}, 2, {"editions", "reviews"}),
+        (
+            RES_DK_TRACE_XML,
+            "eqTrace:event",
+            {"ignoreNamespace": False},
+            5,
+            {
+                "eqtrace:equipment-cycle-status-changed",
+                "eqtrace:event-descriptor-list",
+                "eqtrace:interchanged",
+                "eqtrace:location-id",
+                "eqtrace:placement-at-industry-planned",
+                "eqtrace:reporting-detail",
+                "eqtrace:tag-name-list",
+                "eqtrace:waybill-applied",
+            },
+        ),
+        (RES_DBLP_XML, "mastersthesis", {}, 6, {"ee"}),
+        (RES_DBLP_XML, "incollection", {}, 6, {"author", "ee"}),
+        (RES_BOOKS_ATTR_VAL_XML, "book", {}, 5, {"publisher"}),
+        (RES_BOOKS_XML, "book", {}, 12, set()),
+        ("xml_infer_types.xml", "item", {}, 3, {"price", "tags", "specs", "rating"}),
+        ("primitives", "ROW", {}, 1, set()),
+        ("nested_object", "book", {}, 2, {"info"}),
+        ("unbalanced_types", "ROW", {}, 2, set()),
+    ],
+)
+def test_infer_schema_false_resource_files(
+    session, res_file, row_tag, extra_opts, expected_count, expected_variant_cols
+):
+    """inferSchema=False on resource files: complex fields stay VariantType,
+    scalar fields become StringType, all inferred leaves are StringType."""
+    reader_false = session.read.option("rowTag", row_tag).option("inferSchema", False)
+    for k, v in extra_opts.items():
+        reader_false = reader_false.option(k, v)
+    file_name = _staged_files.get(res_file, res_file)
+    path = f"@{tmp_stage_name}/{file_name}"
+
+    df = reader_false.xml(path)
+
+    assert df._all_variant_cols is False
+    assert len(df.collect()) == expected_count
+
+    types = _schema_types(df)
+    for field_name, type_cls in types.items():
+        if field_name in expected_variant_cols:
+            assert (
+                type_cls == VariantType
+            ), f"{field_name}: expected VariantType, got {type_cls.__name__}"
+        else:
+            assert (
+                type_cls == StringType
+            ), f"{field_name}: expected StringType, got {type_cls.__name__}"
+
+    schema_false = reader_false._xml_inferred_schema
+    assert schema_false is not None
+    _assert_all_leaves_string(schema_false)
+
+
+def test_user_schema_takes_precedence_over_infer_schema(session):
+    """User schema overrides inference regardless of inferSchema value."""
+    user_schema = StructType(
+        [
+            StructField("_id", LongType()),
+            StructField("author", StringType()),
+            StructField("title", StringType()),
+        ]
+    )
+    path = f"@{tmp_stage_name}/{RES_BOOKS2_XML}"
+    for infer in (True, False):
+        df = (
+            session.read.option("rowTag", "book")
+            .option("inferSchema", infer)
+            .schema(user_schema)
+            .xml(path)
+        )
+        types = _schema_types(df)
+        assert types == {"_id": LongType, "author": StringType, "title": StringType}
+        assert df.count() == 2
