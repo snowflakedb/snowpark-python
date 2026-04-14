@@ -25,7 +25,10 @@ from snowflake.snowpark._internal.udf_utils import (
     resolve_packages_in_client_side_sandbox,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
+from snowflake.snowpark.context import (
+    _ANACONDA_SHARED_REPOSITORY,
+    _DEFAULT_ARTIFACT_REPOSITORY,
+)
 from snowflake.snowpark.types import StringType
 from snowflake.snowpark.version import VERSION
 
@@ -264,7 +267,7 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
     result = add_snowpark_package_to_sproc_packages(
         session=fake_session,
         packages=None,
-        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+        artifact_repository=_DEFAULT_ARTIFACT_REPOSITORY,
     )
 
     major, minor, patch = VERSION
@@ -279,7 +282,7 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
     result = add_snowpark_package_to_sproc_packages(
         session=fake_session,
         packages=None,
-        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+        artifact_repository=_DEFAULT_ARTIFACT_REPOSITORY,
     )
     assert result is None
 
