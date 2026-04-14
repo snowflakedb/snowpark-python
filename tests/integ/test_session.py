@@ -46,7 +46,6 @@ from snowflake.snowpark.session import (
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_IN_STORED_PROC_LOCALFS,
-    IS_PY314,
     TestFiles,
     Utils,
 )
@@ -1123,9 +1122,5 @@ def test_default_artifact_repository_with_no_db_schema(
         mock_session_parameters,
     ), caplog.at_level(logging.WARNING):
         result = session._get_default_artifact_repository()
-        assert result == (
-            "snowflake.snowpark.pypi_shared_repository"
-            if (IS_PY314 and not local_testing_mode)
-            else _ANACONDA_SHARED_REPOSITORY
-        )
+        assert result == _ANACONDA_SHARED_REPOSITORY
         assert caplog.text.count("Error getting default artifact repository") == 0
