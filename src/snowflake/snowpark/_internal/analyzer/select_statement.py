@@ -1541,12 +1541,18 @@ class SelectStatement(Selectable):
                     new_from.projection = new_from.projection + [
                         Attribute(col, DataType()) for col in missing_columns
                     ]
-                    new_from.column_states = derive_column_states_from_subquery(
+                    new_col_states = derive_column_states_from_subquery(
                         new_from.projection, new_from.from_
                     )
-                    new_from._commented_sql = None
-                    new_from._sql_query = None
-                    new_order_by = self.order_by
+                    if new_col_states is not None:
+                        new_from.column_states = new_col_states
+                        new_from._projection_in_str = None
+                        new_from._commented_sql = None
+                        new_from._sql_query = None
+                        new_order_by = self.order_by
+                    else:
+                        new_from = self
+                        new_order_by = None
                 else:
                     new_order_by = self.order_by
             new = SelectStatement(
