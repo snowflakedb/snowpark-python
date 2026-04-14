@@ -22,7 +22,7 @@ from snowflake.snowpark._internal.packaging_utils import (
 from snowflake.snowpark.functions import call_udf, col, count_distinct, sproc, udf
 from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import DateType, StringType
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils, IS_PY314
 
 pytestmark = pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
@@ -478,6 +478,10 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
 )
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Python 3.14 uses pypi repository",
+)
 def test_add_unsupported_requirements_should_fail_if_custom_packages_upload_enabled_not_switched_on(
     session, resources_path
 ):
@@ -532,6 +536,10 @@ def test_add_requirements_artifact_repository(
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
+)
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Python 3.14 uses pypi repository",
 )
 def test_add_unsupported_packages_should_fail_if_custom_packages_upload_enabled_not_switched_on(
     session,
@@ -1004,6 +1012,10 @@ def test_add_requirements_unsupported_with_empty_stage_as_cache_path(
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
+)
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Python 3.14 uses pypi repository",
 )
 def test_add_requirements_unsupported_with_cache_path_negative(
     session, resources_path, temporary_stage
