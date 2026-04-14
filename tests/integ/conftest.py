@@ -357,6 +357,9 @@ def session(
     # TODO: SNOW-2346239: Set parameter on user level instead of in config file
     if not local_testing_mode:
         session.sql(
+            "ALTER SESSION SET ENABLE_DEFAULT_PYTHON_ARTIFACT_REPOSITORY = true"
+        ).collect()
+        session.sql(
             "alter session set ENABLE_EXTRACTION_PUSHDOWN_EXTERNAL_PARQUET_FOR_COPY_PHASE_I='Track';"
         ).collect()
         session.sql("alter session set ENABLE_ROW_ACCESS_POLICY=true").collect()
