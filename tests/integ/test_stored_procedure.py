@@ -63,6 +63,7 @@ from tests.integ.session_parameters import create_session_for_test
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
+    IS_PY314,
     TempObjectType,
     TestFiles,
     Utils,
@@ -405,6 +406,8 @@ def test_sproc_pass_system_reference(session, validate_ast):
 
 @pytest.mark.parametrize("anonymous", [True, False])
 def test_call_table_sproc_triggers_action(session, anonymous):
+    if IS_PY314 and anonymous:
+        pytest.skip("Anonymous stored procedures not supported in Python 3.14 yet")
     """Here we create a table sproc which creates a table. we call the table sproc using
     session.call trigger this action and test using session.table that the table was
     indeed created
@@ -1250,6 +1253,8 @@ def test_sp_negative(session, local_testing_mode):
     reason="Named temporary procedure is not supported in stored proc",
 )
 def test_table_sproc(session, is_permanent, anonymous, ret_type):
+    if IS_PY314 and anonymous:
+        pytest.skip("Anonymous stored procedures not supported in Python 3.14 yet")
     """Ensure the following scenarios work:
     - register sproc with session.sproc.register
     - register sproc with @sproc decorator
@@ -1503,6 +1508,8 @@ def test_async_stored_procedure_execution(session):
     reason="SNOW-1370056: Anonymous stored procedure is not supported yet",
 )
 def test_async_anonymous_stored_procedure(session):
+    if IS_PY314:
+        pytest.skip("Anonymous stored procedures not supported in Python 3.14 yet")
     anonymous_sproc = session.sproc.register(
         lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
         return_type=IntegerType(),
@@ -2135,6 +2142,8 @@ def test_strict_stored_procedure(session):
     reason="SNOW-1370056: Anonymous stored procedure is not supported yet",
 )
 def test_anonymous_stored_procedure(session):
+    if IS_PY314:
+        pytest.skip("Anonymous stored procedures not supported in Python 3.14 yet")
     add_sp = session.sproc.register(
         lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
         return_type=IntegerType(),
@@ -2152,6 +2161,8 @@ def test_anonymous_stored_procedure(session):
 )
 @pytest.mark.parametrize("anonymous", [True, False])
 def test_stored_procedure_call_with_statement_params(session, anonymous):
+    if IS_PY314 and anonymous:
+        pytest.skip("Anonymous stored procedures not supported in Python 3.14 yet")
     query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
     statement_params = {"QUERY_TAG": query_tag}
     add_sp = session.sproc.register(

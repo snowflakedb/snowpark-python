@@ -1615,7 +1615,6 @@ HANDLER='{handler}'{execute_as_sql}
         is_ddl_on_temp_object=not is_permanent,
         statement_params=statement_params,
     )
-
     if comment is not None:
         object_signature_sql = f"{object_name}({','.join(input_sql_types)})"
         comment = escape_single_quotes(comment)
