@@ -247,8 +247,14 @@ def _parse_structured_type_str(type_str, max_string_size):
     result = _extract_paren_content(type_str)
     base_upper = result[0].upper() if result else type_str.upper()
 
-    if base_upper in _STRUCTURED_TYPE_KEYWORDS and result is not None:
-        return _sf_type_to_type_object(type_str)
+    if base_upper in _STRUCTURED_TYPE_KEYWORDS:
+        if result is not None:
+            return _sf_type_to_type_object(type_str)
+        # Bare structured keyword (e.g. "OBJECT", "MAP", "ARRAY") without
+        # inner type details — older backends may return these.  Return
+        # VariantType so column names are preserved and callers (e.g. SAS)
+        # can apply their own structured-type discovery.
+        return VariantType()
 
     if result is None:
         return convert_sf_to_sp_type(base_upper, 0, 0, 0, max_string_size)
@@ -1549,7 +1555,13 @@ class DataFrameReader:
                     format.lower() in ("parquet", "json")
                     and use_structured_type_infer_schema
                 ):
-                    if use_relaxed_types:
+                    if isinstance(datatype, VariantType):
+                        # Bare structured keyword was returned by the backend
+                        # (no inner details).  Skip the cast — $1:{name}
+                        # extracts as variant and lets callers handle
+                        # structured-type discovery.
+                        identifier = f"$1:{name}"
+                    elif use_relaxed_types:
                         identifier = f"$1:{name}::{convert_sp_to_sf_type(datatype)}"
                     else:
                         # INFER_SCHEMA may return NOT NULL annotations in

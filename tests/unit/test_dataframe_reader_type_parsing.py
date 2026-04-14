@@ -396,6 +396,22 @@ class TestParseStructuredTypeStr:
         assert inner.structured is True
         assert inner.fields[1].nullable is False
 
+    def test_bare_object_returns_variant(self):
+        result = _parse_structured_type_str("OBJECT", MAX_STRING_SIZE)
+        assert result == VariantType()
+
+    def test_bare_map_returns_variant(self):
+        result = _parse_structured_type_str("MAP", MAX_STRING_SIZE)
+        assert result == VariantType()
+
+    def test_bare_array_returns_variant(self):
+        result = _parse_structured_type_str("ARRAY", MAX_STRING_SIZE)
+        assert result == VariantType()
+
+    def test_bare_object_lowercase_returns_variant(self):
+        result = _parse_structured_type_str("object", MAX_STRING_SIZE)
+        assert result == VariantType()
+
 
 # ---------------------------------------------------------------------------
 # _infer_schema_for_file_format  (mock-based)
@@ -427,7 +443,13 @@ def _build_infer_schema_rows(columns):
 class TestInferSchemaStructuredTypePath:
     """Tests the structured-type branch inside _infer_schema_for_file_format."""
 
-    def _run_infer(self, columns, use_structured=True, use_relaxed_types=False):
+    def _run_infer(
+        self,
+        columns,
+        use_structured=True,
+        use_relaxed_types=False,
+        file_format="PARQUET",
+    ):
         session = _make_mock_session(use_structured=use_structured)
         rows = _build_infer_schema_rows(columns)
 
@@ -453,7 +475,7 @@ class TestInferSchemaStructuredTypePath:
             schema_to_cast,
             transformations,
             exception,
-        ) = reader._infer_schema_for_file_format("@stage/path", "PARQUET")
+        ) = reader._infer_schema_for_file_format("@stage/path", file_format)
         assert exception is None, f"Unexpected exception: {exception}"
         return new_schema, schema_to_cast, transformations
 
@@ -624,3 +646,149 @@ class TestInferSchemaStructuredTypePath:
 
         assert len(schema_to_cast) == 5
         assert len(transformations) == 5
+
+    # --- bare structured keywords (older backends) ---
+
+    def test_bare_object_returns_variant_type(self):
+        columns = [
+            ("address", "OBJECT", True, "$1:address::OBJECT"),
+        ]
+        schema, schema_to_cast, _ = self._run_infer(columns)
+
+        assert schema[0].datatype == VariantType()
+        assert schema_to_cast[0][0] == '$1:"address"'
+
+    def test_bare_map_returns_variant_type(self):
+        columns = [
+            ("props", "MAP", True, "$1:props::MAP"),
+        ]
+        schema, schema_to_cast, _ = self._run_infer(columns)
+
+        assert schema[0].datatype == VariantType()
+        assert schema_to_cast[0][0] == '$1:"props"'
+
+    def test_bare_array_returns_variant_type(self):
+        columns = [
+            ("tags", "ARRAY", True, "$1:tags::ARRAY"),
+        ]
+        schema, schema_to_cast, _ = self._run_infer(columns)
+
+        assert schema[0].datatype == VariantType()
+        assert schema_to_cast[0][0] == '$1:"tags"'
+
+    def test_mixed_bare_and_detailed_structured(self):
+        columns = [
+            ("id", "NUMBER(38,0)", True, "$1:id::NUMBER(38,0)"),
+            ("addr", "OBJECT", True, "$1:addr::OBJECT"),
+            (
+                "tags",
+                "ARRAY(VARCHAR NOT NULL)",
+                True,
+                "$1:tags::ARRAY(VARCHAR NOT NULL)",
+            ),
+            ("meta", "MAP", True, "$1:meta::MAP"),
+        ]
+        schema, schema_to_cast, _ = self._run_infer(columns)
+
+        assert schema[0].datatype == LongType()
+        assert schema[1].datatype == VariantType()
+        assert isinstance(schema[2].datatype, ArrayType)
+        assert schema[3].datatype == VariantType()
+        # bare keywords get no cast; detailed types get the cast
+        assert schema_to_cast[1][0] == '$1:"addr"'
+        assert "::ARRAY(VARCHAR)" in schema_to_cast[2][0]
+        assert schema_to_cast[3][0] == '$1:"meta"'
+
+    # --- JSON format path ---
+
+    def test_json_format_uses_structured_path(self):
+        columns = [
+            ("id", "NUMBER(38,0)", True, "$1:id::NUMBER(38,0)"),
+            ("name", "TEXT", True, "$1:name::TEXT"),
+        ]
+        schema, schema_to_cast, _ = self._run_infer(columns, file_format="JSON")
+
+        assert len(schema) == 2
+        assert schema[0].datatype == LongType()
+        assert schema[1].datatype == StringType()
+        assert "::NUMBER(38,0)" in schema_to_cast[0][0]
+        assert "::TEXT" in schema_to_cast[1][0]
+
+    def test_json_format_structured_array(self):
+        columns = [
+            (
+                "tags",
+                "ARRAY(VARCHAR NOT NULL)",
+                True,
+                "$1:tags::ARRAY(VARCHAR NOT NULL)",
+            ),
+        ]
+        schema, schema_to_cast, _ = self._run_infer(columns, file_format="JSON")
+
+        dt = schema[0].datatype
+        assert isinstance(dt, ArrayType)
+        assert dt.structured is True
+        assert dt.contains_null is False
+        assert "NOT NULL" not in schema_to_cast[0][0]
+
+    def test_json_format_bare_map(self):
+        columns = [
+            ("props", "MAP", True, "$1:props::MAP"),
+        ]
+        schema, schema_to_cast, _ = self._run_infer(columns, file_format="JSON")
+
+        assert schema[0].datatype == VariantType()
+        assert schema_to_cast[0][0] == '$1:"props"'
+
+
+# ---------------------------------------------------------------------------
+# Session parameter defaults
+# ---------------------------------------------------------------------------
+
+
+class TestSessionParameterDefaults:
+    def test_structured_infer_schema_default_is_false(self):
+        session = _make_mock_session(use_structured=False)
+        assert session._use_structured_type_infer_schema is False
+
+    def test_structured_infer_schema_can_be_enabled(self):
+        session = _make_mock_session(use_structured=True)
+        assert session._use_structured_type_infer_schema is True
+
+    def test_flag_controls_parser_path(self):
+        """When the flag is True, structured types are parsed recursively;
+        when False, the legacy identifier path is used."""
+        struct_columns = [
+            (
+                "addr",
+                "OBJECT(city VARCHAR, zip NUMBER(38,0))",
+                True,
+                "$1:addr::OBJECT(city VARCHAR, zip NUMBER(38,0))",
+            ),
+        ]
+
+        # With flag ON: recursive parser produces StructType
+        session_on = _make_mock_session(use_structured=True)
+        rows = _build_infer_schema_rows(struct_columns)
+        session_on._conn.run_query.side_effect = [{}, {"data": rows}, {}]
+        reader_on = DataFrameReader(session_on, _emit_ast=False)
+        schema_on, _, _, exc_on = reader_on._infer_schema_for_file_format(
+            "@stage/path", "PARQUET"
+        )
+        assert exc_on is None
+        assert isinstance(schema_on[0].datatype, StructType)
+
+        # With flag OFF: uses the legacy identifier path (raw type string)
+        simple_columns = [
+            ("id", "NUMBER(38,0)", True, "$1:id::NUMBER(38,0)"),
+        ]
+        session_off = _make_mock_session(use_structured=False)
+        rows = _build_infer_schema_rows(simple_columns)
+        session_off._conn.run_query.side_effect = [{}, {"data": rows}, {}]
+        reader_off = DataFrameReader(session_off, _emit_ast=False)
+        schema_off, cast_off, _, exc_off = reader_off._infer_schema_for_file_format(
+            "@stage/path", "PARQUET"
+        )
+        assert exc_off is None
+        assert schema_off[0].datatype == LongType()
+        assert "::NUMBER(38,0)" in cast_off[0][0]
