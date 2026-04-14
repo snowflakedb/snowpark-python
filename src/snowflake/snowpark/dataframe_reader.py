@@ -1545,7 +1545,10 @@ class DataFrameReader:
                     "GET_IGNORE_CASE"
                 ):
                     identifier = expression
-                elif format == "PARQUET" and use_structured_type_infer_schema:
+                elif (
+                    format.lower() in ("parquet", "json")
+                    and use_structured_type_infer_schema
+                ):
                     if use_relaxed_types:
                         identifier = f"$1:{name}::{convert_sp_to_sf_type(datatype)}"
                     else:
