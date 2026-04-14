@@ -59,7 +59,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-
+from tests.integ.session_parameters import create_session_for_test
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
@@ -113,10 +113,11 @@ def test_add_packages_failures(packages, should_fail, db_parameters):
     def return1(session_):
         return session_.sql("select '1'").collect()[0][0]
 
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         if should_fail:
             with pytest.raises(
-                RuntimeError, match="Cannot add package snowflake-snowpark-python"
+                SnowparkSQLException,
+                match="Cannot create a Python function with the specified artifact repository packages",
             ):
                 sproc(
                     return1,
@@ -166,7 +167,7 @@ def test__do_register_sp_submits_correct_packages(
     def return1(session_):
         return session_.sql("select '1'").collect()[0][0]
 
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         # Adding the testing version of the package fails, but the package list should still be correct
         with pytest.raises(
             RuntimeError, match="Cannot add package snowflake-snowpark-python"
@@ -1028,7 +1029,7 @@ def test_register_sp_with_preserve_parameter_names(session, resources_path):
 def test_permanent_sp(session, db_parameters):
     stage_name = Utils.random_stage_name()
     sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         new_session.add_packages("snowflake-snowpark-python")
         try:
@@ -1061,7 +1062,7 @@ def test_permanent_sp(session, db_parameters):
 def test_permanent_sp_negative(session, db_parameters):
     stage_name = Utils.random_stage_name()
     sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         new_session.add_packages("snowflake-snowpark-python")
         try:
@@ -2621,7 +2622,7 @@ def test_data_source_udtf_ingestion(db_parameters):
         oracledb_real_data,
     )
 
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         new_session.custom_package_usage_config["enabled"] = True
         new_session.custom_package_usage_config["force_push"] = True
         new_session.add_packages("oracledb")

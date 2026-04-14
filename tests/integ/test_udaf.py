@@ -18,8 +18,8 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udaf
-from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType, Variant, StringType
+from tests.integ.session_parameters import create_session_for_test
 from tests.utils import IS_IN_STORED_PROC, IS_NOT_ON_GITHUB, TestFiles, Utils
 
 pytestmark = [
@@ -513,7 +513,7 @@ def test_permanent_udaf_negative(session, db_parameters):
         def finish(self):
             return self._sum
 
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         df2 = new_session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df(
             "a", "b"

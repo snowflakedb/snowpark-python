@@ -30,6 +30,7 @@ from snowflake.snowpark.types import (
     StructType,
 )
 from snowflake.snowpark.udtf import UserDefinedTableFunction
+from tests.integ.session_parameters import create_session_for_test
 from tests.utils import IS_IN_STORED_PROC, IS_NOT_ON_GITHUB, TestFiles, Utils
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -726,7 +727,7 @@ def test_permanent_udtf_negative(session, db_parameters):
         ) -> Iterable[Tuple[int]]:
             return [(num,)]
 
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         try:
             Utils.create_stage(session, stage_name, is_temporary=False)

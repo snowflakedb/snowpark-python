@@ -343,17 +343,23 @@ def test_add_packages_with_underscore_and_versions(session):
 )
 def test_add_packages_negative(session, caplog):
     with pytest.raises(ValueError) as ex_info:
-        session.add_packages("python-dateutil****")
+        session.add_packages(
+            "python-dateutil****", artifact_repository=_ANACONDA_SHARED_REPOSITORY
+        )
     assert "InvalidRequirement" in str(ex_info)
 
     session.custom_package_usage_config = {"enabled": True}
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError, match="Pip failed with return code 1"):
-            session.add_packages("dateutil")
+            session.add_packages(
+                "dateutil", artifact_repository=_ANACONDA_SHARED_REPOSITORY
+            )
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
         with pytest.raises(RuntimeError, match="Cannot add package dateutil"):
-            session.add_packages("dateutil")
+            session.add_packages(
+                "dateutil", artifact_repository=_ANACONDA_SHARED_REPOSITORY
+            )
 
     # Verify multiple errors can be raised at once
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
@@ -361,7 +367,9 @@ def test_add_packages_negative(session, caplog):
             RuntimeError,
             match="Cannot add package dateutil.*Cannot add package functools",
         ):
-            session.add_packages("dateutil", "functools")
+            session.add_packages(
+                "dateutil", "functools", artifact_repository=_ANACONDA_SHARED_REPOSITORY
+            )
 
     with pytest.raises(ValueError, match="is already added"):
         with caplog.at_level(logging.WARNING):
@@ -374,10 +382,16 @@ def test_add_packages_negative(session, caplog):
             #     from information_schema.packages
             #     where language='python' and package_name like 'numpy'
             #     group by package_name;
-            session.add_packages("numpy", "numpy==1.16.6")
+            session.add_packages(
+                "numpy",
+                "numpy==1.16.6",
+                artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+            )
 
     with pytest.raises(ValueError, match="is not in the package list"):
-        session.remove_package("python-dateutil")
+        session.remove_package(
+            "python-dateutil", artifact_repository=_ANACONDA_SHARED_REPOSITORY
+        )
 
 
 @pytest.mark.udf

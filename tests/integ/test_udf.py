@@ -83,6 +83,7 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
 )
+from tests.integ.session_parameters import create_session_for_test
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
@@ -206,11 +207,8 @@ def test_call_named_udf(session, temp_schema, db_parameters, local_testing_mode)
 
     if not local_testing_mode:  # this test case does not apply to Local Testing
         # create a UDF when the session doesn't have a schema
-        new_session = (
-            Session.builder.configs(db_parameters)._remove_config("schema").create()
-        )
-        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
-        try:
+        with create_session_for_test(db_parameters, remove_schema=True) as new_session:
+            new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
             assert not new_session.get_current_schema()
             add_udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
             tmp_stage_name_in_temp_schema = f"{temp_schema}.{Utils.random_name_for_temp_object(TempObjectType.STAGE)}"
@@ -240,9 +238,6 @@ def test_call_named_udf(session, temp_schema, db_parameters, local_testing_mode)
                 )
                 == 1
             )
-        finally:
-            new_session.close()
-            # restore active session
 
 
 def test_recursive_udf(session):
@@ -1303,7 +1298,7 @@ def test_register_udf_with_preserve_parameter_names(session, resources_path):
 def test_permanent_udf(session, db_parameters):
     stage_name = Utils.random_stage_name()
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         try:
             Utils.create_stage(session, stage_name, is_temporary=False)
@@ -1336,7 +1331,7 @@ def test_permanent_udf(session, db_parameters):
 def test_permanent_udf_negative(session, db_parameters):
     stage_name = Utils.random_stage_name()
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         try:
             Utils.create_stage(session, stage_name, is_temporary=False)
@@ -3112,14 +3107,11 @@ def test_udf_artifact_repository_from_file(session, tmpdir):
     sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
 )
 def test_use_default_artifact_repository(db_parameters):
-    with Session.builder.configs(db_parameters).create() as session:
+    with create_session_for_test(db_parameters) as session:
         temp_database = Utils.random_temp_database()
         temp_schema = Utils.random_temp_schema()
         session.sql(f"create database {temp_database}").collect()
         session.sql(f"use database {temp_database}").collect()
-        session.sql(
-            "ALTER SESSION SET ENABLE_DEFAULT_PYTHON_ARTIFACT_REPOSITORY = true"
-        ).collect()
         session.sql(
             "ALTER database set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = snowflake.snowpark.anaconda_shared_repository"
         ).collect()
