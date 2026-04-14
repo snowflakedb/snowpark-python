@@ -23,10 +23,6 @@
 
 - Allow user input schema when reading Parquet file on stage.
 
-#### Bug Fixes
-
-- Fixed a bug that `TRY_CAST` reader option is ignored when calling `DataFrameReader.schema().csv()`.
-
 #### Improvements
 
 - Restored the following query improvements that were reverted in 1.47.0 due to bugs:

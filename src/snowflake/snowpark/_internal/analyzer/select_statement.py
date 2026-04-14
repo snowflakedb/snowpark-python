@@ -20,6 +20,7 @@ from typing import (
     Sequence,
     Set,
     Union,
+    Literal,
 )
 
 import snowflake.snowpark._internal.utils
@@ -86,6 +87,7 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     ExprAliasUpdateDict,
 )
+import snowflake.snowpark.context as context
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -1412,9 +1414,9 @@ class SelectStatement(Selectable):
         ):
             # TODO: Clean up, this entire if case is parameter protection
             can_be_flattened = False
-        elif (self.where or self.order_by or self.limit_) and has_data_generator_exp(
-            cols
-        ):
+        elif (
+            self.where or self.order_by or self.limit_
+        ) and has_data_generator_or_window_function_exp(cols):
             can_be_flattened = False
         elif self.where and (
             (subquery_dependent_columns := derive_dependent_columns(self.where))
@@ -1423,6 +1425,20 @@ class SelectStatement(Selectable):
                 new_column_states[_col].change_state == ColumnChangeState.NEW
                 for _col in (
                     subquery_dependent_columns & new_column_states.active_columns
+                )
+            )
+            or (
+                # unflattenable condition: dropped column is used in subquery WHERE clause and dropped column status is NEW or CHANGED in the subquery
+                # reason: we should not flatten because the dropped column is not available in the new query, leading to WHERE clause error
+                # sample query: 'select "b" from (select "a" as "c", "b" from table where "c" > 1)' can not be flatten to 'select "b" from table where "c" > 1'
+                context._is_snowpark_connect_compatible_mode
+                and new_column_states.dropped_columns
+                and any(
+                    self.column_states[_col].change_state
+                    in (ColumnChangeState.NEW, ColumnChangeState.CHANGED_EXP)
+                    for _col in (
+                        subquery_dependent_columns & new_column_states.dropped_columns
+                    )
                 )
             )
         ):
@@ -1435,6 +1451,20 @@ class SelectStatement(Selectable):
                 in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.NEW)
                 for _col in (
                     subquery_dependent_columns & new_column_states.active_columns
+                )
+            )
+            or (
+                # unflattenable condition: dropped column is used in subquery ORDER BY clause and dropped column status is NEW or CHANGED in the subquery
+                # reason: we should not flatten because the dropped column is not available in the new query, leading to ORDER BY clause error
+                # sample query: 'select "b" from (select "a" as "c", "b" order by "c")' can not be flatten to 'select "b" from table order by "c"'
+                context._is_snowpark_connect_compatible_mode
+                and new_column_states.dropped_columns
+                and any(
+                    self.column_states[_col].change_state
+                    in (ColumnChangeState.NEW, ColumnChangeState.CHANGED_EXP)
+                    for _col in (
+                        subquery_dependent_columns & new_column_states.dropped_columns
+                    )
                 )
             )
         ):
@@ -1482,8 +1512,54 @@ class SelectStatement(Selectable):
                 self.df_ast_ids.copy() if self.df_ast_ids is not None else None
             )
         else:
+            new_order_by = None
+            new_from = self
+            if context._is_snowpark_connect_compatible_mode and self.order_by:
+                order_by_dependent_columns = derive_dependent_columns(*self.order_by)
+                if order_by_dependent_columns in (
+                    COLUMN_DEPENDENCY_DOLLAR,
+                    COLUMN_DEPENDENCY_ALL,
+                ):
+                    new_order_by = None
+                elif any(
+                    col not in self.from_.column_states
+                    and col not in self.column_states
+                    for col in order_by_dependent_columns
+                ):
+                    new_order_by = None
+                elif any(
+                    _col not in self.column_states
+                    or self.column_states[_col].change_state
+                    in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.DROPPED)
+                    for _col in order_by_dependent_columns
+                ):
+                    new_from = copy(self)
+                    missing_columns = (
+                        order_by_dependent_columns
+                        - new_from.column_states.active_columns
+                    )
+                    new_from.projection = new_from.projection + [
+                        Attribute(col, DataType()) for col in missing_columns
+                    ]
+                    new_col_states = derive_column_states_from_subquery(
+                        new_from.projection, new_from.from_
+                    )
+                    if new_col_states is not None:
+                        new_from.column_states = new_col_states
+                        new_from._projection_in_str = None
+                        new_from._commented_sql = None
+                        new_from._sql_query = None
+                        new_order_by = self.order_by
+                    else:
+                        new_from = self
+                        new_order_by = None
+                else:
+                    new_order_by = self.order_by
             new = SelectStatement(
-                projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
+                projection=cols,
+                from_=new_from.to_subqueryable(),
+                order_by=new_order_by,
+                analyzer=self.analyzer,
             )
             new._merge_projection_complexity_with_subquery = (
                 can_select_projection_complexity_be_merged(
@@ -1504,12 +1580,17 @@ class SelectStatement(Selectable):
         return new
 
     def filter(self, col: Expression) -> "SelectStatement":
+        self._session._retrieve_aggregation_function_list()
         can_be_flattened = (
             (not self.flatten_disabled)
             and can_clause_dependent_columns_flatten(
-                derive_dependent_columns(col), self.column_states
+                derive_dependent_columns(col), self.column_states, "filter"
             )
-            and not has_data_generator_exp(self.projection)
+            and not has_data_generator_or_window_function_exp(self.projection)
+            and not (
+                context._is_snowpark_connect_compatible_mode
+                and has_aggregation_function_exp(self.projection)
+            )  # sum(col) as new_col, new_col can not be flattened in where clause
             and not (self.order_by and self.limit_ is not None)
         )
         if can_be_flattened:
@@ -1535,18 +1616,14 @@ class SelectStatement(Selectable):
     def sort(self, cols: List[Expression]) -> "SelectStatement":
         can_be_flattened = (
             (not self.flatten_disabled)
-            # limit order by and order by limit can cause big performance
-            # difference, because limit can stop table scanning whenever the
-            # number of record is satisfied.
-            # Therefore, disallow sql simplification when the
-            # current SelectStatement has a limit clause to avoid moving
-            # order by in front of limit.
+            # Disallow flattening when the current SelectStatement has a
+            # limit clause to avoid moving order by in front of limit.
             and (not self.limit_)
             and (not self.offset)
             and can_clause_dependent_columns_flatten(
-                derive_dependent_columns(*cols), self.column_states
+                derive_dependent_columns(*cols), self.column_states, "sort"
             )
-            and not has_data_generator_exp(self.projection)
+            and not has_data_generator_or_window_function_exp(self.projection)
         )
         if can_be_flattened:
             new = copy(self)
@@ -1583,7 +1660,7 @@ class SelectStatement(Selectable):
             # .order_by(col1).select(col2).distinct() cannot be flattened because
             # SELECT DISTINCT B FROM TABLE ORDER BY A is not valid SQL
             and (not (self.order_by and self.has_projection))
-            and not has_data_generator_exp(self.projection)
+            and not has_data_generator_or_window_function_exp(self.projection)
         )
         if can_be_flattened:
             new = copy(self)
@@ -2074,7 +2151,12 @@ def can_projection_dependent_columns_be_flattened(
 def can_clause_dependent_columns_flatten(
     dependent_columns: Optional[AbstractSet[str]],
     subquery_column_states: ColumnStateDict,
+    clause: Literal["filter", "sort"],
 ) -> bool:
+    assert clause in (
+        "filter",
+        "sort",
+    ), f"Invalid clause called in can_clause_dependent_columns_flatten: {clause}"
     if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
         return False
     elif (
@@ -2089,15 +2171,25 @@ def can_clause_dependent_columns_flatten(
             dc_state = subquery_column_states.get(dc)
             if dc_state:
                 if dc_state.change_state == ColumnChangeState.CHANGED_EXP:
-                    return False
+                    if clause == "filter":
+                        return False
+                    # sort + CHANGED_EXP: safe in SCOS mode since ORDER BY
+                    # is evaluated after projection. Keep checking remaining
+                    # columns though — another column may be unsafe.
+                    elif not context._is_snowpark_connect_compatible_mode:
+                        return False
                 elif dc_state.change_state == ColumnChangeState.NEW:
-                    # Most of the time this can be flattened. But if a new column uses window function and this column
-                    # is used in a clause, the sql doesn't work in Snowflake.
-                    # For instance `select a, rank() over(order by b) as d from test_table where d = 1` doesn't work.
-                    # But `select a, b as d from test_table where d = 1` works
-                    # We can inspect whether the referenced new column uses window function. Here we are being
-                    # conservative for now to not flatten the SQL.
-                    return False
+                    if clause == "sort" and dc_state.dependent_columns in (
+                        COLUMN_DEPENDENCY_DOLLAR,
+                        COLUMN_DEPENDENCY_ALL,
+                    ):
+                        # Scalar subqueries in sort can trigger Snowflake
+                        # internal errors when ORDER BY references them
+                        # at the same SELECT level.
+                        return False
+                    if not context._is_snowpark_connect_compatible_mode:
+                        return False
+
     return True
 
 
@@ -2321,21 +2413,87 @@ def derive_column_states_from_subquery(
     return column_states
 
 
-def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
+def _check_expressions_for_types(
+    expressions: Optional[List["Expression"]],
+    check_data_gen: bool = False,
+    check_window: bool = False,
+    check_aggregation: bool = False,
+) -> bool:
+    """Efficiently check if expressions contain specific types in a single pass.
+
+    Args:
+        expressions: List of expressions to check
+        check_data_gen: Check for data generator functions
+        check_window: Check for window functions
+        check_aggregation: Check for aggregation functions
+
+    Returns:
+        True if any requested type is found
+    """
     if expressions is None:
         return False
+
     for exp in expressions:
-        if isinstance(exp, WindowExpression):
+        if exp is None:
+            continue
+
+        # Check window functions
+        if check_window and isinstance(exp, WindowExpression):
             return True
-        if isinstance(exp, FunctionExpression) and (
-            exp.is_data_generator
-            or exp.name.lower() in SEQUENCE_DEPENDENT_DATA_GENERATION
+
+        if check_data_gen:
+            if isinstance(exp, FunctionExpression) and (
+                exp.is_data_generator
+                or exp.name.lower() in SEQUENCE_DEPENDENT_DATA_GENERATION
+            ):
+                # https://docs.snowflake.com/en/sql-reference/functions-data-generation
+                return True
+
+        # Check aggregation functions
+        if check_aggregation and isinstance(exp, FunctionExpression):
+            if exp.name.lower() in context._aggregation_function_set:
+                return True
+
+        # Recursively check children.
+        # Some expression types (e.g. CaseWhen) store sub-expressions in
+        # _child_expressions rather than children; fall back to that.
+        sub_exps = exp.children
+        if not sub_exps and hasattr(exp, "_child_expressions"):
+            sub_exps = exp._child_expressions
+        if _check_expressions_for_types(
+            sub_exps, check_data_gen, check_window, check_aggregation
         ):
-            # https://docs.snowflake.com/en/sql-reference/functions-data-generation
             return True
-        if exp is not None and has_data_generator_exp(exp.children):
-            return True
+
     return False
+
+
+def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
+    """Check if expressions contain data generator functions.
+
+    Note:
+        In non-connect mode, window expressions are also treated as data generators
+        for backward compatibility.
+    """
+    if not context._is_snowpark_connect_compatible_mode:
+        return _check_expressions_for_types(
+            expressions, check_data_gen=True, check_window=True
+        )
+    return _check_expressions_for_types(expressions, check_data_gen=True)
+
+
+def has_data_generator_or_window_function_exp(
+    expressions: Optional[List["Expression"]],
+) -> bool:
+    """Check if expressions contain data generators or window functions."""
+    return _check_expressions_for_types(
+        expressions, check_data_gen=True, check_window=True
+    )
+
+
+def has_aggregation_function_exp(expressions: Optional[List["Expression"]]) -> bool:
+    """Check if expressions contain aggregation functions."""
+    return _check_expressions_for_types(expressions, check_aggregation=True)
 
 
 def has_nondeterministic_data_generation_exp(

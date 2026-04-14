@@ -31,6 +31,118 @@ _use_structured_type_semantics_lock = threading.RLock()
 
 # This is an internal-only global flag, used to determine whether the api code which will be executed is compatible with snowflake.snowpark_connect
 _is_snowpark_connect_compatible_mode = False
+_aggregation_function_set = (
+    set()
+)  # lower cased names of aggregation functions, used in sql simplification
+_aggregation_function_set_lock = threading.RLock()
+
+# Hardcoded fallback for system built-in aggregation functions.
+# Used when the dynamic query fails to retrieve the list from the database.
+#
+# Generated via:
+#   show functions ->> select "name" from $1 where "is_aggregate" = 'Y'
+#
+# Entries with parentheses in the name (COUNT(*), COUNT_INTERNAL(*)) are excluded
+# because FunctionExpression.name stores only the function name without parens,
+# so they can never match at the lookup site.
+_KNOWN_AGGREGATION_FUNCTIONS = frozenset(
+    [
+        "accumulate",
+        "agg",
+        "ai_agg",
+        "ai_summarize_agg",
+        "any_value",
+        "approximate_count_distinct",
+        "approximate_jaccard_index",
+        "approximate_similarity",
+        "approx_count_distinct",
+        "approx_percentile",
+        "approx_percentile_accumulate",
+        "approx_percentile_combine",
+        "approx_top_k",
+        "approx_top_k_accumulate",
+        "approx_top_k_combine",
+        "arrayagg",
+        "array_agg",
+        "array_union_agg",
+        "array_unique_agg",
+        "avg",
+        "bitandagg",
+        "bitand_agg",
+        "bitmap_construct_agg",
+        "bitmap_or_agg",
+        "bitoragg",
+        "bitor_agg",
+        "bitxoragg",
+        "bitxor_agg",
+        "bit_andagg",
+        "bit_and_agg",
+        "bit_oragg",
+        "bit_or_agg",
+        "bit_xoragg",
+        "bit_xor_agg",
+        "booland_agg",
+        "boolor_agg",
+        "boolxor_agg",
+        "corr",
+        "count",
+        "count_if",
+        "count_internal",
+        "covar_pop",
+        "covar_samp",
+        "datasketches_hll",
+        "datasketches_hll_accumulate",
+        "datasketches_hll_combine",
+        "first_value",
+        "hash_agg",
+        "hll",
+        "hll_accumulate",
+        "hll_combine",
+        "kurtosis",
+        "last_value",
+        "listagg",
+        "max",
+        "max_by",
+        "median",
+        "min",
+        "minhash",
+        "minhash_combine",
+        "min_by",
+        "mode",
+        "objectagg",
+        "object_agg",
+        "percentile_cont",
+        "percentile_disc",
+        "regr_avgx",
+        "regr_avgy",
+        "regr_count",
+        "regr_intercept",
+        "regr_r2",
+        "regr_slope",
+        "regr_sxx",
+        "regr_sxy",
+        "regr_syy",
+        "skew",
+        "stddev",
+        "stddev_pop",
+        "stddev_samp",
+        "st_intersection_agg_geography_internal",
+        "st_union_agg_geography_internal",
+        "sum",
+        "sum_internal",
+        "sum_internal_real",
+        "sum_real",
+        "variance",
+        "variance_pop",
+        "variance_samp",
+        "var_pop",
+        "var_samp",
+        "vector_avg",
+        "vector_max",
+        "vector_min",
+        "vector_sum",
+    ]
+)
 
 _cte_error_threshold = 3  # 0 to disable auto-cte-disable, otherwise the number of times CTE optimization can fail before it is automatically disabled for the remainder of the session.
 
