@@ -149,7 +149,7 @@ def test_resolve_imports_and_packages_in_sandbox():
     assert handler is None
     assert inline_code is None
     assert all_imports == ""
-    assert all_packages == ",".join([f"'{package}'" for package in packages])
+    assert all(f"'{package}'" in all_packages for package in packages)
     assert upload_file_stage_location is None
     assert not custom_python_runtime_version_allowed
 
@@ -208,7 +208,7 @@ def test_resolve_imports_and_packages_imports_as_str(tmp_path_factory):
         assert handler is None
         assert inline_code is None
         assert all_imports == ""
-        assert all_packages == ",".join([f"'{package}'" for package in packages])
+        assert all(f"'{package}'" in all_packages for package in packages)
         assert upload_file_stage_location is None
         assert not custom_python_runtime_version_allowed
 

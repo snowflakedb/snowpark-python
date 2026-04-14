@@ -149,9 +149,10 @@ def test_do_register_sproc_sandbox(session_sandbox, cleanup_registration_patch):
             == f"{sys.version_info[0]}.{sys.version_info[1]}"
         )
         assert callableProperties.all_imports == ""
+        # TODO: for python 3.14, it will use PyPI so we should also check for cloudpickle
         assert (
-            callableProperties.all_packages
-            == f"'snowflake-snowpark-python=={'.'.join(map(str, VERSION))}'"
+            f"'snowflake-snowpark-python=={'.'.join(map(str, VERSION))}'"
+            in callableProperties.all_packages
         )
         assert callableProperties.external_access_integrations is None
         assert callableProperties.secrets is None

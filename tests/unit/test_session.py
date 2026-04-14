@@ -29,7 +29,10 @@ from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
 )
 from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING
-from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
+from snowflake.snowpark.context import (
+    _ANACONDA_SHARED_REPOSITORY,
+    _DEFAULT_ARTIFACT_REPOSITORY,
+)
 from snowflake.snowpark.types import StructField, StructType
 
 
@@ -351,10 +354,10 @@ def test_resolve_packages_non_conda_artifact_repository(mock_server_connection):
 def test_resolve_packages_optional_artifact_repository(mock_server_connection):
     session = Session(mock_server_connection)
     session._get_default_artifact_repository = MagicMock(
-        return_value="snowflake.snowpark.pypi_shared_repository"
+        return_value="test_artifact_repo"
     )
     session._artifact_repository_packages = {
-        "snowflake.snowpark.pypi_shared_repository": {
+        "test_artifact_repo": {
             "numpy": "numpy==1.0.0",
         }
     }
@@ -762,6 +765,7 @@ def test_get_default_artifact_repository():
 
         assert mocked_run_query.call_count == 1
 
+    # TODO: remove this test when the system function NULL behavior starts working again?
     with mock.patch.object(
         session, "_run_query", return_value=[[None]]
     ) as mocked_run_query, mock.patch.object(
@@ -770,7 +774,7 @@ def test_get_default_artifact_repository():
         session, "get_current_schema", return_value="SCHEMA2"
     ):
         result = session._get_default_artifact_repository()
-        assert result == _ANACONDA_SHARED_REPOSITORY
+        assert result == _DEFAULT_ARTIFACT_REPOSITORY
 
         assert mocked_run_query.call_count == 1
 
@@ -799,6 +803,6 @@ def test_infer_is_return_table_uses_internal_describe():
         session, "get_current_schema", return_value="SCHEMA1"
     ):
         result = session._get_default_artifact_repository()
-        assert result == _ANACONDA_SHARED_REPOSITORY
+        assert result == _DEFAULT_ARTIFACT_REPOSITORY
 
         assert mocked_run_query.call_count == 1

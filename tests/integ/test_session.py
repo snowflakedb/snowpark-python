@@ -42,7 +42,7 @@ from snowflake.snowpark.session import (
     _get_active_session,
     _get_active_sessions,
 )
-from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
+from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
@@ -1115,5 +1115,5 @@ def test_default_artifact_repository_with_no_db_schema(session, caplog):
         mock_session_parameters,
     ), caplog.at_level(logging.WARNING):
         result = session._get_default_artifact_repository()
-        assert result == _ANACONDA_SHARED_REPOSITORY
+        assert result == _DEFAULT_ARTIFACT_REPOSITORY
         assert caplog.text.count("Error getting default artifact repository") == 0

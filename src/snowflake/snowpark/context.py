@@ -53,12 +53,13 @@ _integral_type_default_precision = {}
 
 # The fully qualified name of the Anaconda shared repository (conda channel).
 _ANACONDA_SHARED_REPOSITORY = "snowflake.snowpark.anaconda_shared_repository"
-# In case of failures or the current default artifact repository is unset, we fallback to this
-# TODO: undo this when the system function NULL behavior starts working again
+# The fully qualified name of the PyPI shared repository (pypi channel).
+_PYPI_SHARED_REPOSITORY = "snowflake.snowpark.pypi_shared_repository"
+# In case of failures and for routing to the right session package store, we use this
 _DEFAULT_ARTIFACT_REPOSITORY = (
     _ANACONDA_SHARED_REPOSITORY
     if sys.version_info <= (3, 13)
-    else "snowflake.snowpark.pypi_shared_repository"
+    else _PYPI_SHARED_REPOSITORY
 )
 
 
