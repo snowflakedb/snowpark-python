@@ -1616,21 +1616,14 @@ class SelectStatement(Selectable):
     def sort(self, cols: List[Expression]) -> "SelectStatement":
         can_be_flattened = (
             (not self.flatten_disabled)
-            # limit order by and order by limit can cause big performance
-            # difference, because limit can stop table scanning whenever the
-            # number of record is satisfied.
-            # Therefore, disallow sql simplification when the
-            # current SelectStatement has a limit clause to avoid moving
-            # order by in front of limit.
+            # Disallow flattening when the current SelectStatement has a
+            # limit clause to avoid moving order by in front of limit.
             and (not self.limit_)
             and (not self.offset)
             and can_clause_dependent_columns_flatten(
                 derive_dependent_columns(*cols), self.column_states, "sort"
             )
-            and not has_data_generator_exp(self.projection)
-            # we do not check aggregation function here like filter
-            # in the case when aggregation function is in the projection
-            # order by is evaluated after aggregation, row info are not taken in the calculation
+            and not has_data_generator_or_window_function_exp(self.projection)
         )
         if can_be_flattened:
             new = copy(self)
@@ -2178,17 +2171,24 @@ def can_clause_dependent_columns_flatten(
             dc_state = subquery_column_states.get(dc)
             if dc_state:
                 if dc_state.change_state == ColumnChangeState.CHANGED_EXP:
-                    if (
-                        clause == "filter"
-                    ):  # where can not be flattened because 'where' is evaluated before projection, flattening leads to wrong result
-                        # df.select((col('a') + 1).alias('a')).filter(col('a') > 5) -- this should be applied to the new 'a', flattening will use the old 'a' to evaluated
+                    if clause == "filter":
                         return False
-                    else:  # clause == 'sort'
-                        # df.select((col('a') + 1).alias('a')).sort(col('a')) -- this is valid to flatten because 'order by' is evaluated after projection
-                        # however, if the order by is a data generator, it should not be flattened because generator is evaluated dynamically according to the order.
-                        return context._is_snowpark_connect_compatible_mode
+                    # sort + CHANGED_EXP: safe in SCOS mode since ORDER BY
+                    # is evaluated after projection. Keep checking remaining
+                    # columns though — another column may be unsafe.
+                    elif not context._is_snowpark_connect_compatible_mode:
+                        return False
                 elif dc_state.change_state == ColumnChangeState.NEW:
-                    return context._is_snowpark_connect_compatible_mode
+                    if clause == "sort" and dc_state.dependent_columns in (
+                        COLUMN_DEPENDENCY_DOLLAR,
+                        COLUMN_DEPENDENCY_ALL,
+                    ):
+                        # Scalar subqueries in sort can trigger Snowflake
+                        # internal errors when ORDER BY references them
+                        # at the same SELECT level.
+                        return False
+                    if not context._is_snowpark_connect_compatible_mode:
+                        return False
 
     return True
 
@@ -2454,9 +2454,14 @@ def _check_expressions_for_types(
             if exp.name.lower() in context._aggregation_function_set:
                 return True
 
-        # Recursively check children
+        # Recursively check children.
+        # Some expression types (e.g. CaseWhen) store sub-expressions in
+        # _child_expressions rather than children; fall back to that.
+        sub_exps = exp.children
+        if not sub_exps and hasattr(exp, "_child_expressions"):
+            sub_exps = exp._child_expressions
         if _check_expressions_for_types(
-            exp.children, check_data_gen, check_window, check_aggregation
+            sub_exps, check_data_gen, check_window, check_aggregation
         ):
             return True
 
