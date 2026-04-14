@@ -1215,22 +1215,17 @@ def test_group_by_sort_by_nonexistent(session):
     )
     with mock.patch(
         "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
-    ):
-        original_cte_optimization = session._cte_optimization_enabled
-        try:
-            session._cte_optimization_enabled = True
-            agg_df = df.group_by("id").count()
-            # When CTE optimization and SCOS compatible mode are both enabled, this raised the
-            # following error after the initial fix for SNOW-3266495:
-            # AttributeError: 'Sort' object has no attribute 'quoted_identifiers'
-            # This is specifically triggered by `show`, and not `collect`, since `show` adds an
-            # implicit call to `limit`.
-            with pytest.raises(
-                SnowparkSQLException, match="invalid identifier 'NONEXISTENT'"
-            ):
-                agg_df.sort('"NONEXISTENT"').show()
-        finally:
-            session._cte_optimization_enabled = original_cte_optimization
+    ), mock.patch.object(session, "_cte_optimization_enabled", True):
+        agg_df = df.group_by("id").count()
+        # When CTE optimization and SCOS compatible mode are both enabled, this raised the
+        # following error after the initial fix for SNOW-3266495:
+        # AttributeError: 'Sort' object has no attribute 'quoted_identifiers'
+        # This is specifically triggered by `show`, and not `collect`, since `show` adds an
+        # implicit call to `limit`.
+        with pytest.raises(
+            SnowparkSQLException, match="invalid identifier 'NONEXISTENT'"
+        ):
+            agg_df.sort('"NONEXISTENT"').show()
 
 
 @pytest.mark.skipif(
