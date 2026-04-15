@@ -10,6 +10,7 @@ import pytest
 
 import snowflake.connector
 from snowflake.snowpark import Session
+from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
@@ -285,6 +286,9 @@ def test_schema(connection, local_testing_mode) -> None:
             # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
             cursor.execute(
                 f"GRANT ALL PRIVILEGES ON SCHEMA {TEST_SCHEMA} TO ROLE PUBLIC"
+            )
+            cursor.execute(
+                f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
             )
             yield
             cursor.execute(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}")
