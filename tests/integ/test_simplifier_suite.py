@@ -797,11 +797,7 @@ def test_order_by(
     df5 = df.select("a", "b", rank().over(Window.order_by("b")).alias("c")).sort(
         "a", "b"
     )
-    compare_sql = (
-        f'SELECT "A", "B", rank() OVER (ORDER BY "B" ASC NULLS FIRST) AS "C" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
-        if is_snowpark_connect_compatible_mode
-        else f'SELECT * FROM ( SELECT "A", "B", rank() OVER (ORDER BY "B" ASC NULLS FIRST) AS "C" FROM {simplifier_table} ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
-    )
+    compare_sql = f'SELECT * FROM ( SELECT "A", "B", rank() OVER (ORDER BY "B" ASC NULLS FIRST) AS "C" FROM {simplifier_table} ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
     assert Utils.normalize_sql(df5.queries["queries"][-1]) == Utils.normalize_sql(
         compare_sql
     )
