@@ -9,6 +9,12 @@
 - Fixed a bug where CTE optimization incorrectly deduplicated subtrees containing non-deterministic data generation functions (e.g. `uuid_string()`). 
 - Fixed a bug where vectorized UDFs using non-anaconda package repositories did not specify the pandas package by default.
 
+### Snowpark pandas API Updates
+
+#### Dependency Updates
+
+- Updated the supported `pandas` versions to <=2.4 (was previously <=2.3.1).
+
 ## 1.49.0 (TBD)
 
 ### Snowpark Python API Updates
