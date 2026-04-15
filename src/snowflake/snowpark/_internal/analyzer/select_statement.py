@@ -4,6 +4,7 @@
 
 import sys
 import uuid
+import re
 from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
 from copy import copy, deepcopy
@@ -120,6 +121,11 @@ SEQUENCE_DEPENDENT_DATA_GENERATION = (
 NONDETERMINISTIC_DATA_GENERATION = (
     "uuid_string",
     "random",
+)
+# Matches zero-arg calls to nondeterministic functions in SQL text, e.g. "random()" or "UUID_STRING( )".
+NONDETERMINISTIC_ZERO_ARG_RE = re.compile(
+    r"\b(?:" + "|".join(NONDETERMINISTIC_DATA_GENERATION) + r")\s*\(\s*\)",
+    re.IGNORECASE,
 )
 
 
