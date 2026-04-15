@@ -1628,7 +1628,7 @@ class SelectStatement(Selectable):
             and can_clause_dependent_columns_flatten(
                 derive_dependent_columns(*cols), self.column_states, "sort"
             )
-            and not has_data_generator_or_window_function_exp(self.projection)
+            and not has_data_generator_exp(self.projection)
         )
         if can_be_flattened:
             new = copy(self)
