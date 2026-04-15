@@ -1538,7 +1538,12 @@ class SelectStatement(Selectable):
                         order_by_dependent_columns
                         - new_from.column_states.active_columns
                     )
-                    new_from.projection = new_from.projection + [
+                    base_projection = (
+                        new_from.projection
+                        if new_from.projection is not None
+                        else new_from.column_states.projection
+                    )
+                    new_from.projection = base_projection + [
                         Attribute(col, DataType()) for col in missing_columns
                     ]
                     new_col_states = derive_column_states_from_subquery(
@@ -2458,8 +2463,8 @@ def _check_expressions_for_types(
         # Some expression types (e.g. CaseWhen) store sub-expressions in
         # _child_expressions rather than children; fall back to that.
         sub_exps = exp.children
-        if not sub_exps and hasattr(exp, "_child_expressions"):
-            sub_exps = exp._child_expressions
+        if not sub_exps:
+            sub_exps = getattr(exp, "_child_expressions", None)
         if _check_expressions_for_types(
             sub_exps, check_data_gen, check_window, check_aggregation
         ):
