@@ -259,7 +259,7 @@ def test_binary(session, type, action):
 
 def test_join_with_alias_dataframe(session):
     expected_describe_count = (
-        3
+        1
         if (session.reduce_describe_query_enabled and session.sql_simplifier_enabled)
         else 4
     )

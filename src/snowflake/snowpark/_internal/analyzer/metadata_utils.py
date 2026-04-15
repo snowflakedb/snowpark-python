@@ -89,32 +89,27 @@ def _extract_inferable_attribute_names(
     from_attributes: Optional[List[Attribute]] = None,
 ) -> tuple[Optional[List[Attribute]], Optional[List[Attribute]]]:
     """
-    Returns a list of attribute names that can be infered from a list of Expressions.
-    Returns None if one or more attributes cannot be infered.
+    Returns a tuple of (expected_attributes, resolved_attributes) that can be
+    inferred from a list of Expressions.
+    - expected_attributes: Attributes that were already resolved (direct column refs)
+    - resolved_attributes: All attributes in projection order, with types resolved
+    Returns (None, None) if one or more attributes cannot be inferred.
     """
     if attributes is None:
         return None, None
 
     from_attr_map = {a.name: a for a in from_attributes} if from_attributes else None
 
-    new_attributes = []
-    old_attributes = []
+    expected_attributes = []
+    resolved_in_order = []
     for attr in attributes:
-        # Attributes are already resolved and don't require inferrence
         if isinstance(attr, Attribute):
-            old_attributes.append(attr)
+            expected_attributes.append(attr)
+            resolved_in_order.append(attr)
             continue
 
         if isinstance(attr, Alias):
-            # If the first non-aliased child of an Alias node is Literal or Attribute
-            # the column can be inferred.
             if (
-                isinstance(attr.child, (Literal, Attribute))
-                and attr.datatype
-                and type(attr.datatype) is not DataType
-            ):
-                attr = Attribute(attr.name, attr.datatype, attr.nullable)
-            elif (
                 isinstance(attr.child, Attribute)
                 and from_attr_map is not None
                 and attr.child.name in from_attr_map
@@ -124,17 +119,15 @@ def _extract_inferable_attribute_names(
             elif isinstance(attr.child, (Literal, Attribute)) and attr.datatype:
                 attr = Attribute(attr.name, attr.datatype, attr.nullable)
         elif isinstance(attr, Literal) and type(attr.datatype) != DataType:
-            # Names of literal values can be inferred
             attr = Attribute(
                 to_sql(attr.value, attr.datatype), attr.datatype, attr.nullable
             )
 
-        # If the attr has been coerced to attribute then it has been inferred
         if isinstance(attr, Attribute):
-            new_attributes.append(attr)
+            resolved_in_order.append(attr)
         else:
             return None, None
-    return old_attributes, new_attributes
+    return expected_attributes, resolved_in_order
 
 
 def _extract_selectable_attributes(
@@ -158,19 +151,18 @@ def _extract_selectable_attributes(
         else:
             # Get the attributes from the child plan
             from_attributes = _extract_selectable_attributes(current_plan.from_)
-            (expected_attributes, new_attributes,) = _extract_inferable_attribute_names(
+            (expected_attributes, resolved,) = _extract_inferable_attribute_names(
                 current_plan.projection, from_attributes
             )
             # Check that the expected attributes match the attributes from the child plan
             if (
                 from_attributes is not None
                 and expected_attributes is not None
-                and new_attributes is not None
+                and resolved is not None
             ):
                 missing_attrs = {attr.name for attr in expected_attributes} - {
                     attr.name for attr in from_attributes
                 }
-                resolved = expected_attributes + new_attributes
                 if not missing_attrs and all(
                     isinstance(attr, Attribute) and type(attr.datatype) is not DataType
                     for attr in resolved
