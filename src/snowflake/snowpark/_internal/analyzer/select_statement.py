@@ -1538,10 +1538,10 @@ class SelectStatement(Selectable):
                         order_by_dependent_columns
                         - new_from.column_states.active_columns
                     )
-                    base_projection = (
+                    base_projection: List[Expression] = (
                         new_from.projection
                         if new_from.projection is not None
-                        else new_from.column_states.projection
+                        else list(new_from.column_states.projection)
                     )
                     new_from.projection = base_projection + [
                         Attribute(col, DataType()) for col in missing_columns
