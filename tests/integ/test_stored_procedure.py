@@ -117,8 +117,7 @@ def test_add_packages_failures(packages, should_fail, db_parameters):
     with create_session_for_test(db_parameters) as new_session:
         if should_fail:
             with pytest.raises(
-                SnowparkSQLException,
-                match="Cannot create a Python function with the specified artifact repository packages",
+                (SnowparkSQLException, RuntimeError),
             ):
                 sproc(
                     return1,

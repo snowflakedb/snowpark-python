@@ -186,20 +186,20 @@ def test_patch_on_get_available_versions_for_packages(session):
     reason="numpy and pandas are required",
 )
 def test_add_packages(session, local_testing_mode):
-    # Use numpy 2.3.1 for Python 3.13+, numpy 1.26.3 doesn't support Python 3.13
-    numpy_version = "numpy==2.3.1" if sys.version_info >= (3, 13) else "numpy==1.26.3"
+    # Use numpy 2.3.5 for Python 3.13+, numpy 1.26.3 doesn't support Python 3.13
+    numpy_version = "numpy==2.3.5" if sys.version_info >= (3, 13) else "numpy==1.26.3"
 
     session.add_packages(
         [
             numpy_version,
-            "pandas==2.2.3",
+            "pandas==2.3.3",
             "matplotlib",
             "pyyaml",
         ]
     )
     assert session.get_packages() == {
         "numpy": numpy_version,
-        "pandas": "pandas==2.2.3",
+        "pandas": "pandas==2.3.3",
         "matplotlib": "matplotlib",
         "pyyaml": "pyyaml",
     }
@@ -214,9 +214,9 @@ def test_add_packages(session, local_testing_mode):
     df = session.create_dataframe([None]).to_df("a")
     res = df.select(call_udf(udf_name)).collect()[0][0]
     # don't need to check the version of dateutil, as it can be changed on the server side
-    expected_numpy_ver = "2.3.1" if sys.version_info >= (3, 13) else "1.26.3"
+    expected_numpy_ver = "2.3.5" if sys.version_info >= (3, 13) else "1.26.3"
     assert (
-        res.startswith(f"{expected_numpy_ver}/2.2.3")
+        res.startswith(f"{expected_numpy_ver}/2.3.3")
         if not local_testing_mode
         else res == get_numpy_pandas_dateutil_version()
     )
