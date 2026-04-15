@@ -19,6 +19,7 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udf
 from snowflake.snowpark.types import IntegerType
 from snowflake.snowpark.udf import UDFRegistration
+import cloudpickle
 
 
 @mock.patch("snowflake.snowpark.udf.cleanup_failed_permanent_registration")
@@ -93,7 +94,12 @@ def test_do_register_udf_sandbox(session_sandbox, cleanup_registration_patch):
         == f"{sys.version_info[0]}.{sys.version_info[1]}"
     )
     assert extension_function_properties.all_imports == ""
-    assert extension_function_properties.all_packages == ""
+    # for >= 3.14, we use pypi by default, which auto adds cloudpickle
+    assert extension_function_properties.all_packages == (
+        f"'cloudpickle=={cloudpickle.__version__}'"
+        if sys.version_info >= (3, 14)
+        else ""
+    )
     assert extension_function_properties.external_access_integrations is None
     assert extension_function_properties.secrets is None
     assert extension_function_properties.handler is None

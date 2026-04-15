@@ -105,7 +105,7 @@ STRUCTURED_TYPE_PARAMETERS = {
     "IGNORE_CLIENT_VESRION_IN_STRUCTURED_TYPES_RESPONSE",
 }
 
-IS_PY314 = (sys.version_info.major, sys.version_info.minor) == (3, 14)
+IS_PY314 = (sys.version_info.major, sys.version_info.minor) >= (3, 14)
 
 
 def current_account(session):
