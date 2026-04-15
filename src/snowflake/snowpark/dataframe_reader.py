@@ -1463,7 +1463,9 @@ class DataFrameReader:
             _suppress_local_package_warnings=True,
         )
 
-    def _infer_schema_for_xml(self, path: str) -> Optional[StructType]:
+    def _infer_schema_for_xml(
+        self, path: str, string_types_only: bool = False
+    ) -> Optional[StructType]:
         schema_udtf = self._register_xml_udtf(
             XML_SCHEMA_INFERENCE_FILE_PATH,
             "XMLSchemaInference",
@@ -1492,7 +1494,6 @@ class DataFrameReader:
         attribute_prefix = self._cur_options.get("ATTRIBUTEPREFIX", "_")
         exclude_attributes = self._cur_options.get("EXCLUDEATTRIBUTES", False)
         value_tag = self._cur_options.get("VALUETAG", "_VALUE")
-        null_value = self._cur_options.get("NULL_IF", "")
         charset = self._cur_options.get("CHARSET", "utf-8")
         ignore_surrounding_whitespace = self._cur_options.get(
             "IGNORESURROUNDINGWHITESPACE", False
@@ -1512,10 +1513,10 @@ class DataFrameReader:
                 lit(attribute_prefix),
                 lit(exclude_attributes),
                 lit(value_tag),
-                lit(null_value),
                 lit(charset),
                 lit(ignore_surrounding_whitespace),
                 lit(file_size),
+                lit(string_types_only),
             )
         )
 
@@ -1658,12 +1659,11 @@ class DataFrameReader:
 
         xml_inferred_schema = None
         if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
-            if (
-                context._is_snowpark_connect_compatible_mode
-                and not self._user_schema
-                and self._cur_options.get("INFER_SCHEMA", True)
-            ):
-                xml_inferred_schema = self._infer_schema_for_xml(path)
+            if context._is_snowpark_connect_compatible_mode and not self._user_schema:
+                string_types_only = not self._cur_options.get("INFER_SCHEMA", True)
+                xml_inferred_schema = self._infer_schema_for_xml(
+                    path, string_types_only
+                )
                 if xml_inferred_schema is not None:
                     self._xml_inferred_schema = xml_inferred_schema
                     schema = [

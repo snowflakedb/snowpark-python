@@ -22,7 +22,7 @@ from snowflake.snowpark._internal.packaging_utils import (
 from snowflake.snowpark.functions import call_udf, col, count_distinct, sproc, udf
 from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import DateType, StringType
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils, IS_PY314
 
 pytestmark = pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
@@ -347,21 +347,23 @@ def test_add_packages_negative(session, caplog):
     assert "InvalidRequirement" in str(ex_info)
 
     session.custom_package_usage_config = {"enabled": True}
-    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        with pytest.raises(RuntimeError, match="Pip failed with return code 1"):
-            session.add_packages("dateutil")
+    # These errors are not raised with Python 3.14 since it uses the pypi repository by default.
+    if not IS_PY314:
+        with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+            with pytest.raises(RuntimeError, match="Pip failed with return code 1"):
+                session.add_packages("dateutil")
 
-    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
-        with pytest.raises(RuntimeError, match="Cannot add package dateutil"):
-            session.add_packages("dateutil")
+        with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
+            with pytest.raises(RuntimeError, match="Cannot add package dateutil"):
+                session.add_packages("dateutil")
 
-    # Verify multiple errors can be raised at once
-    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
-        with pytest.raises(
-            RuntimeError,
-            match="Cannot add package dateutil.*Cannot add package functools",
-        ):
-            session.add_packages("dateutil", "functools")
+        # Verify multiple errors can be raised at once
+        with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
+            with pytest.raises(
+                RuntimeError,
+                match="Cannot add package dateutil.*Cannot add package functools",
+            ):
+                session.add_packages("dateutil", "functools")
 
     with pytest.raises(ValueError, match="is already added"):
         with caplog.at_level(logging.WARNING):
@@ -464,6 +466,10 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
 )
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Python 3.14 uses pypi repository",
+)
 def test_add_unsupported_requirements_should_fail_if_custom_packages_upload_enabled_not_switched_on(
     session, resources_path
 ):
@@ -518,6 +524,10 @@ def test_add_requirements_artifact_repository(
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
+)
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Python 3.14 uses pypi repository",
 )
 def test_add_unsupported_packages_should_fail_if_custom_packages_upload_enabled_not_switched_on(
     session,
@@ -990,6 +1000,10 @@ def test_add_requirements_unsupported_with_empty_stage_as_cache_path(
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
+)
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Python 3.14 uses pypi repository",
 )
 def test_add_requirements_unsupported_with_cache_path_negative(
     session, resources_path, temporary_stage

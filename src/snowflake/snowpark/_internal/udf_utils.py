@@ -1253,6 +1253,7 @@ def resolve_imports_and_packages(
                     [],
                     artifact_repository=artifact_repository,
                     existing_packages_dict=existing_packages_dict,
+                    include_pandas=is_pandas_udf,
                 )
             )
         elif packages:
