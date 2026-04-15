@@ -58,7 +58,7 @@ _PYPI_SHARED_REPOSITORY = "snowflake.snowpark.pypi_shared_repository"
 # In case of failures and for routing to the right session package store, we use this
 _DEFAULT_ARTIFACT_REPOSITORY = (
     _ANACONDA_SHARED_REPOSITORY
-    if sys.version_info <= (3, 13)
+    if sys.version_info < (3, 14)
     else _PYPI_SHARED_REPOSITORY
 )
 
