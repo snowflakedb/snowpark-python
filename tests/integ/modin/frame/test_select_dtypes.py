@@ -137,36 +137,47 @@ def test_select_dtypes_duplicate_col_names(include, exclude):
     )
 
 
+# Error message differs slightly across pandas patch versions
+STR_DTYPE_ERROR = r"string dtypes are not allowed, use ('str' or )?'object' instead"
+
+SELECT_DTYPES_INVALID_PARAMS = [
+    ([], [], ValueError, "at least one of include or exclude must be nonempty"),
+    (None, None, ValueError, "at least one of include or exclude must be nonempty"),
+    # python `int` is equivalent to any np.int dtype, but it is fine for an type in
+    # `include` to be a strict subtype of a type in `exclude` or vice versa
+    (int, int, ValueError, "include and exclude overlap"),
+    ([int], ["O", int], ValueError, "include and exclude overlap"),
+    (["O", int], [int], ValueError, "include and exclude overlap"),
+    (int, np.int32, ValueError, "include and exclude overlap"),
+    (int, np.int64, ValueError, "include and exclude overlap"),
+    ("datetime", np.datetime64, ValueError, "include and exclude overlap"),
+    ("O", object, ValueError, "include and exclude overlap"),
+    # string dtypes are prohibited by pandas
+    (str, None, TypeError, STR_DTYPE_ERROR),
+    (None, str, TypeError, STR_DTYPE_ERROR),
+    (
+        "timedelta64[s]",
+        None,
+        ValueError,
+        re.escape(
+            "'timedelta64[s]' is too specific of a frequency, try passing 'timedelta64'"
+        ),
+    ),
+    (
+        None,
+        "timedelta64[s]",
+        ValueError,
+        re.escape(
+            "'timedelta64[s]' is too specific of a frequency, try passing 'timedelta64'"
+        ),
+    ),
+]
+
+
 @pytest.mark.parametrize(
     "include, exclude, exc, exc_match",
-    [
-        ([], [], ValueError, "at least one of include or exclude must be nonempty"),
-        (None, None, ValueError, "at least one of include or exclude must be nonempty"),
-        # python `int` is equivalent to any np.int dtype, but it is fine for an type in
-        # `include` to be a strict subtype of a type in `exclude` or vice versa
-        (int, int, ValueError, "include and exclude overlap"),
-        ([int], ["O", int], ValueError, "include and exclude overlap"),
-        (["O", int], [int], ValueError, "include and exclude overlap"),
-        (int, np.int32, ValueError, "include and exclude overlap"),
-        (int, np.int64, ValueError, "include and exclude overlap"),
-        ("datetime", np.datetime64, ValueError, "include and exclude overlap"),
-        ("O", object, ValueError, "include and exclude overlap"),
-        # string dtypes are prohibited by pandas
-        (str, None, TypeError, "string dtypes are not allowed, use 'object' instead"),
-        (None, str, TypeError, "string dtypes are not allowed, use 'object' instead"),
-        (
-            "timedelta64[s]",
-            None,
-            ValueError,
-            "'timedelta64[s]' is too specific of a frequency, try passing 'timedelta64'",
-        ),
-        (
-            None,
-            "timedelta64[s]",
-            ValueError,
-            "'timedelta64[s]' is too specific of a frequency, try passing 'timedelta64'",
-        ),
-    ],
+    SELECT_DTYPES_INVALID_PARAMS,
+    ids=[f"include_{a[0]}-exclude_{a[1]}" for a in SELECT_DTYPES_INVALID_PARAMS],
 )
 @sql_count_checker(query_count=0)
 def test_select_dtypes_invalid_args(include, exclude, exc, exc_match):
@@ -178,6 +189,6 @@ def test_select_dtypes_invalid_args(include, exclude, exc, exc_match):
         lambda df: df.select_dtypes(include, exclude),
         expect_exception=True,
         expect_exception_type=exc,
-        expect_exception_match=re.escape(exc_match),
+        expect_exception_match=exc_match,
         assert_exception_equal=True,
     )
