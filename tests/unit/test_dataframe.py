@@ -409,6 +409,24 @@ def test_dataFrame_printSchema(capfd, mock_server_connection):
     )
 
 
+def test_dataFrame_pipe(mock_server_connection):
+    session = snowflake.snowpark.session.Session(mock_server_connection)
+    df = session.create_dataframe([[1, ""], [3, None]])
+    df._plan._metadata = PlanMetadata(
+        attributes=[
+            Attribute("A", IntegerType(), False),
+            Attribute("B", StringType()),
+        ],
+        quoted_identifiers=None,
+    )
+
+    def test_func(df):
+        return df
+
+    result_df, expected_result = df.pipe(test_func), test_func(df)
+    assert result_df == expected_result
+
+
 def test_session():
     fake_session = mock.create_autospec(Session, _session_id=123456)
     fake_session._analyzer = mock.Mock()
