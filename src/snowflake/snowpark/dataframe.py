@@ -7027,6 +7027,33 @@ Query List:
     # naturalJoin = natural_join
     # withColumns = with_columns
 
+    def pipe(self, f, *args, **kwargs):
+        """
+        Applies a function to the DataFrame and returns the result.
+
+        Args:
+            f: A function to apply to the DataFrame.
+            *args: Additional positional arguments to pass to the function.
+            **kwargs: Additional keyword arguments to pass to the function.
+
+        Returns:
+            The result of applying the function to the DataFrame.
+
+        Examples::
+            >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["col1", "col2"])
+            >>> def add_column(df):
+            ...     return df.with_column("col3", lit(3))
+            >>> new_df = df.pipe(add_column)
+            >>> new_df.show()
+            --------------------
+            |"COL1"  |"COL2"  |"COL3"  |
+            --------------------
+            |1        |a       |3       |
+            |2        |b       |3       |
+            --------------------
+        """
+        return f(self, *args, **kwargs)
+
 
 def map(
     dataframe: DataFrame,
