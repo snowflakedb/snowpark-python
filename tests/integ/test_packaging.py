@@ -22,7 +22,7 @@ from snowflake.snowpark._internal.packaging_utils import (
 from snowflake.snowpark.functions import call_udf, col, count_distinct, sproc, udf
 from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import DateType, StringType
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils, IS_PY314
 
 pytestmark = pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
@@ -928,6 +928,10 @@ def test_add_import_package(session):
     IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
+@pytest.mark.xfail(
+    IS_PY314,
+    reason="No anaconda snowpark python package in 3.14",
+)
 def test_add_requirements_with_empty_stage_as_cache_path(
     session, resources_path, temporary_stage
 ):
@@ -950,21 +954,21 @@ def test_add_requirements_with_empty_stage_as_cache_path(
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     # use a newer snowpark to create an old snowpark udf could lead to conflict cloudpickle.
-    # e.g. using snowpark 1.49 with cloudpickle 3.0 to create udf using snowpark 1.8, this will leads to
+    # e.g. using snowpark 1.39 with cloudpickle 3.0 to create udf using snowpark 1.8, this will leads to
     # error as cloudpickle 3.0 is specified in udf creation but unsupported in snowpark 1.8
     # the solution is to downgrade to cloudpickle 2.2.1 in the env
     # TODO: SNOW-1951792, improve error experience
-    # pin cloudpickle as 1.49.0 snowpark upper bounds it to <=3.0.0
+    # pin cloudpickle as 1.39.0 snowpark upper bounds it to <=3.0.0
     @udf(
         name=udf_name,
-        packages=["snowflake-snowpark-python==1.49.0", "cloudpickle==3.0.0"],
+        packages=["snowflake-snowpark-python==1.39.0", "cloudpickle==3.0.0"],
     )
     def get_numpy_pandas_version() -> str:
         import snowflake.snowpark as snowpark
 
         return f"{snowpark.__version__}"
 
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.49.0")])
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.39.0")])
 
 
 @pytest.mark.udf
