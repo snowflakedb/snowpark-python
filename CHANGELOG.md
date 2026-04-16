@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added support for `DataFrame.pipe`.
+
 #### Bug Fixes
 
 - Fixed a bug where CTE optimization incorrectly deduplicated subtrees containing non-deterministic data generation functions (e.g. `uuid_string()`). 
