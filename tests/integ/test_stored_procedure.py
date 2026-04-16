@@ -2000,9 +2000,10 @@ def test_describe_sp(session, source_code_display):
         "handler",
         "runtime_version",
         "packages",
+        "artifact_repository",
+        "artifact_repository_packages",
         "installed_packages",
-        # This seems like an unintended change from the server, we should remove it once it is removed from server
-        "is_aggregate",
+        "artifact_repository_installed_packages",
     ]
     # We use zip such that it is compatible regardless of UDAF is enabled or not on the merge gate accounts
     for actual_field, expected_field in zip(actual_fields, expected_fields):
@@ -2010,8 +2011,9 @@ def test_describe_sp(session, source_code_display):
             actual_field == expected_field
         ), f"Actual: {actual_fields}, Expected: {expected_fields}"
 
+    # raise Exception(describe_res)
     for row in describe_res:
-        if row[0] == "packages":
+        if row[0] == "artifact_repository_packages":
             assert "snowflake-snowpark-python" in row[1]
         elif row[0] == "body" and source_code_display:
             assert (
