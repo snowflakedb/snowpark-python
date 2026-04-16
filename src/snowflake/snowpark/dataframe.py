@@ -7032,8 +7032,7 @@ Query List:
     # withColumns = with_columns
 
     def pipe(self, function: Callable[..., T], *args, **kwargs) -> T:
-        """
-        Applies a function to the DataFrame and returns the result.
+        """Applies a function to the DataFrame and returns the result.
 
         Args:
             function: A user-defined function (UDF) to apply to the DataFrame.
@@ -7043,18 +7042,20 @@ Query List:
         Returns:
             The result of applying the function to the DataFrame.
 
-        Examples::
-            >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["col1", "col2"])
-            >>> def add_column(df):
-            ...     return df.with_column("col3", lit(3))
-            >>> new_df = df.pipe(add_column)
-            >>> new_df.show()
-            --------------------
-            |"COL1"  |"COL2"  |"COL3"  |
-            --------------------
-            |1        |a       |3       |
-            |2        |b       |3       |
-            --------------------
+        Example::
+
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> def test_function(df: DataFrame, col: str, threshold: float = 0):
+            ...     df = df.filter(df[col] > threshold)
+            ...     return df.collect()
+            >>> result = df.pipe(test_function, "a", threshold=1)
+            >>> result.show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |3    |4    |
+            -------------
+            <BLANKLINE>
         """
         return function(self, *args, **kwargs)
 

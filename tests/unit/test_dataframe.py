@@ -409,22 +409,22 @@ def test_dataFrame_printSchema(capfd, mock_server_connection):
     )
 
 
-def test_dataFrame_pipe(mock_server_connection):
-    session = snowflake.snowpark.session.Session(mock_server_connection)
-    df = session.create_dataframe([[1, ""], [3, None]])
-    df._plan._metadata = PlanMetadata(
-        attributes=[
-            Attribute("A", IntegerType(), False),
-            Attribute("B", StringType()),
-        ],
-        quoted_identifiers=None,
-    )
+def test_dataframe_pipe(session):
+    df: DataFrame = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-    def test_func(df):
-        return df
+    # test normal function
+    def test_function(df: DataFrame, col: str, threshold: float = 0.0):
+        df = df.filter(df[col] > threshold)
+        return df.collect(), df.count()
 
-    result_df, expected_result = df.pipe(test_func), test_func(df)
-    assert result_df == expected_result
+    result, expected_result = df.pipe(test_function, "a", threshold=1), test_function(df, "a", 1)
+
+    assert result == expected_result
+
+    # test lambda function
+    result, expected_result = df.pipe(lambda x: int(x.count())), (lambda x: int(x.count()))(df)
+
+    assert result == expected_result
 
 
 def test_session():
