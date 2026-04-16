@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     infer_schema_statement,
     quote_name_without_upper_casing,
     single_quote,
+    unquote_if_quoted,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import ReadFileNode
@@ -1421,7 +1422,7 @@ class DataFrameReader:
             # TODO: SNOW-3324409 Support relaxed schema when read csv in copy mode
             if try_cast:
                 identifier = f"TRY_CAST(${index} AS {sf_type})"
-                schema_to_cast.append((identifier, field.name))
+                schema_to_cast.append((identifier, unquote_if_quoted(field.name)))
                 transformations.append(sql_expr(identifier))
 
         read_file_transformations = [t._expression.sql for t in transformations]
