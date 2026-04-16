@@ -242,17 +242,20 @@ else:
     from collections.abc import Iterable
 
 if TYPE_CHECKING:
+    from typing import Concatenate, ParamSpec
+
     import modin.pandas  # pragma: no cover
     from table import Table  # pragma: no cover
+
+    T = TypeVar("T")
+    P = ParamSpec("P")
+
 
 _logger = getLogger(__name__)
 
 _ONE_MILLION = 1000000
 _NUM_PREFIX_DIGITS = 4
 _UNALIASED_REGEX = re.compile(f"""._[a-zA-Z0-9]{{{_NUM_PREFIX_DIGITS}}}_(.*)""")
-
-
-T = TypeVar("T")
 
 
 def _generate_prefix(prefix: str) -> str:
@@ -7031,7 +7034,7 @@ Query List:
     # naturalJoin = natural_join
     # withColumns = with_columns
 
-    def pipe(self, function: Callable[..., T], *args, **kwargs) -> T:
+    def pipe(self, function: Callable[Concatenate["DataFrame", P], T], *args: P.args, **kwargs: P.kwargs) -> T:
         """Applies a function to the DataFrame and returns the result.
 
         Args:
