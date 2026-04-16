@@ -24,6 +24,7 @@ from typing import (
     Optional,
     Set,
     Tuple,
+    TypeVar,
     Union,
     overload,
 )
@@ -249,6 +250,9 @@ _logger = getLogger(__name__)
 _ONE_MILLION = 1000000
 _NUM_PREFIX_DIGITS = 4
 _UNALIASED_REGEX = re.compile(f"""._[a-zA-Z0-9]{{{_NUM_PREFIX_DIGITS}}}_(.*)""")
+
+
+T = TypeVar("T")
 
 
 def _generate_prefix(prefix: str) -> str:
@@ -7027,14 +7031,14 @@ Query List:
     # naturalJoin = natural_join
     # withColumns = with_columns
 
-    def pipe(self, f, *args, **kwargs):
+    def pipe(self, function: Callable[..., T], *args, **kwargs) -> T:
         """
         Applies a function to the DataFrame and returns the result.
 
         Args:
-            f: A function to apply to the DataFrame.
-            *args: Additional positional arguments to pass to the function.
-            **kwargs: Additional keyword arguments to pass to the function.
+            function: A user-defined function (UDF) to apply to the DataFrame.
+            *args: Additional positional arguments to pass to the UDF.
+            **kwargs: Additional keyword arguments to pass to the UDF.
 
         Returns:
             The result of applying the function to the DataFrame.
@@ -7052,7 +7056,7 @@ Query List:
             |2        |b       |3       |
             --------------------
         """
-        return f(self, *args, **kwargs)
+        return function(self, *args, **kwargs)
 
 
 def map(
