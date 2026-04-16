@@ -1,0 +1,31 @@
+name: SCOS Daily Integration
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+  workflow_dispatch:
+
+jobs:
+  trigger-scos-daily:
+    name: Trigger SCOS Daily Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger SCOS repository_dispatch
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.SCOS_TRIGGER_PAT }}
+          repository: snowflake-eng/sas
+          event-type: snowpark-python-daily
+          client-payload: |
+            {
+              "caller_repo": "${{ github.repository }}",
+              "caller_sha": "${{ github.sha }}",
+              "snowpark_python_path": "git+https://github.com/${{ github.repository }}.git@main",
+              "snowpark_python_branch": "main",
+              "trigger_type": "daily"
+            }
+
+      - name: Log trigger
+        run: |
+          echo "Triggered SCOS daily tests against snowpark-python main"
+          echo "See results at: https://github.com/snowflake-eng/sas/actions"
