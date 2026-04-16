@@ -1460,11 +1460,6 @@ class SelectStatement(Selectable):
         if can_be_flattened:
             new = copy(self)
             final_projection = []
-            if (
-                self._session.reduce_describe_query_enabled
-                and self._session.cte_optimization_enabled
-            ):
-                new._attributes = None  # reset attributes since projection changed
             assert new_column_states is not None
             for col, state in new_column_states.items():
                 if state.change_state in (
@@ -1477,6 +1472,18 @@ class SelectStatement(Selectable):
                         copy(self.column_states[col].expression)
                     )  # add subquery's expression for this column name
 
+            if (
+                self._session.reduce_describe_query_enabled
+                and self._session.cte_optimization_enabled
+            ):
+                from snowflake.snowpark._internal.analyzer.metadata_utils import (
+                    try_infer_attributes_from_flattened_projection,
+                )
+
+                new._attributes = try_infer_attributes_from_flattened_projection(
+                    final_projection,
+                    self._attributes,
+                )
             new.projection = final_projection
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions

@@ -13,7 +13,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Star,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
-from snowflake.snowpark._internal.analyzer.unary_expression import Alias
+from snowflake.snowpark._internal.analyzer.unary_expression import Alias, Cast
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Limit,
     LogicalPlan,
@@ -116,6 +116,8 @@ def _extract_inferable_attribute_names(
             ):
                 parent = from_attr_map[attr.child.name]
                 attr = Attribute(attr.name, parent.datatype, parent.nullable)
+            elif isinstance(attr.child, Cast) and type(attr.child.to) is not DataType:
+                attr = Attribute(attr.name, attr.child.to, attr.nullable)
             elif isinstance(attr.child, (Literal, Attribute)) and attr.datatype:
                 attr = Attribute(attr.name, attr.datatype, attr.nullable)
         elif isinstance(attr, Literal) and type(attr.datatype) != DataType:
@@ -128,6 +130,37 @@ def _extract_inferable_attribute_names(
         else:
             return None, None
     return expected_attributes, resolved_in_order
+
+
+def try_infer_attributes_from_flattened_projection(
+    final_projection: Optional[List[Expression]],
+    parent_attributes: Optional[List[Attribute]],
+) -> Optional[List[Attribute]]:
+    """Re-derive attributes after a select() flattening, using parent types.
+
+    When CTE optimization is enabled the ``SelectStatement.select()`` flattening
+    path must invalidate cached ``_attributes`` because the projection changed.
+    Rather than unconditionally setting ``_attributes = None`` (which forces a
+    DESCRIBE query), this helper tries to resolve column types from the parent's
+    already-known attributes via ``_extract_inferable_attribute_names``.
+    Only succeeds when every column in the new projection can be fully resolved
+    to a concrete type (Alias with a resolved Attribute child, or Literal).
+    Returns ``None`` whenever any column cannot be resolved -- preserving the
+    existing describe-query behaviour as a safe default.
+    """
+    if final_projection is None or parent_attributes is None:
+        return None
+
+    _, resolved = _extract_inferable_attribute_names(
+        final_projection, parent_attributes
+    )
+
+    if resolved is not None and all(
+        isinstance(a, Attribute) and type(a.datatype) is not DataType for a in resolved
+    ):
+        return resolved
+
+    return None
 
 
 def _extract_selectable_attributes(
