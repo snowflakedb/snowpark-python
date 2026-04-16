@@ -2706,6 +2706,28 @@ def test_data_source_udtf_ingestion(db_parameters):
         df = new_session.call(
             sp_name,
         ).order_by("ID")
-        result = df.collect()
-        raise Exception(result[0], oracledb_real_data[0])
-        assert result == oracledb_real_data
+        actual = df.collect()
+        if actual != oracledb_real_data:
+            assert len(actual) == len(
+                oracledb_real_data
+            ), f"row count mismatch: actual={len(actual)} expected={len(oracledb_real_data)}"
+            for i, (a_row, e_row) in enumerate(zip(actual, oracledb_real_data)):
+                if a_row == e_row:
+                    continue
+                # Compare tuple-wise since Row is a tuple subclass.
+                assert len(a_row) == len(
+                    e_row
+                ), f"row {i} length mismatch: actual={len(a_row)} expected={len(e_row)}"
+                fields = a_row._fields or tuple(f"_{j}" for j in range(len(a_row)))
+                for field, av, ev in zip(fields, tuple(a_row), tuple(e_row)):
+                    if av == ev:
+                        continue
+                    raise AssertionError(
+                        f"row {i} field {field!r} mismatch:\n"
+                        f"  actual   = {av!r}  (type={type(av).__name__})\n"
+                        f"  expected = {ev!r}  (type={type(ev).__name__})\n"
+                        f"  repr eq  = {repr(av) == repr(ev)}"
+                    )
+            raise AssertionError(
+                "Row-level != but element-wise all equal; some hidden Row state differs."
+            )
