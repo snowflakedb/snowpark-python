@@ -5,6 +5,7 @@
 
 
 import json
+import time
 import uuid
 
 import pytest
@@ -49,6 +50,32 @@ def create_objects_for_test(session, db, schema) -> None:
     ).collect()
 
 
+def _trace_until(
+    session,
+    *trace_args,
+    expected_rows: int,
+    timeout_s: float = 300.0,
+    poll_interval_s: float = 10.0,
+    **trace_kwargs,
+):
+    """Call ``session.lineage.trace`` repeatedly until it returns the expected
+    row count, or the timeout elapses.
+
+    Lineage metadata is eventually consistent on the server side; freshly
+    created objects may take a while to show up in DGQL responses. Without
+    this retry the test is flaky (returns an empty dataframe).
+    """
+    deadline = time.monotonic() + timeout_s
+    last_df = None
+    while True:
+        last_df = session.lineage.trace(*trace_args, **trace_kwargs).to_pandas()
+        if len(last_df) >= expected_rows:
+            return last_df
+        if time.monotonic() >= deadline:
+            return last_df
+        time.sleep(poll_interval_s)
+
+
 def remove_created_on_field(df):
     def convert_and_clean(json_str):
         data = json.loads(json_str)
@@ -75,13 +102,15 @@ def test_lineage_trace(session):
     create_objects_for_test(session, db, schema)
 
     # CASE 1 : trace with the role that has VIEW LINEAGE privillege.
-    df = session.lineage.trace(
+    df = _trace_until(
+        session,
         f"{db}.{schema}.T1",
         "table",
         direction=LineageDirection.DOWNSTREAM,
         distance=4,
+        expected_rows=4,
     )
-    df = remove_created_on_field(df.to_pandas())
+    df = remove_created_on_field(df)
 
     expected_data = {
         "SOURCE_OBJECT": [
@@ -104,8 +133,8 @@ def test_lineage_trace(session):
     assert_frame_equal(df, expected_df, check_dtype=False)
 
     # CASE 2 : trace with default arguments
-    df = session.lineage.trace(f"{db}.{schema}.V1", "view")
-    df = remove_created_on_field(df.to_pandas())
+    df = _trace_until(session, f"{db}.{schema}.V1", "view", expected_rows=3)
+    df = remove_created_on_field(df)
 
     expected_data = {
         "SOURCE_OBJECT": [
@@ -165,14 +194,18 @@ def test_lineage_trace(session):
         f"CREATE OR REPLACE VIEW {db}.{schema}.V6 AS SELECT * FROM {db}.{schema}.V5"
     ).collect()
 
-    df = session.lineage.trace(
-        f"{db}.{schema}.V6", "view", direction=LineageDirection.UPSTREAM
+    df = _trace_until(
+        session,
+        f"{db}.{schema}.V6",
+        "view",
+        direction=LineageDirection.UPSTREAM,
+        expected_rows=2,
     )
     session.sql(f"USE ROLE {primary_role}").collect()
 
     session.sql(f"use warehouse {current_wh}").collect()
 
-    df = remove_created_on_field(df.to_pandas())
+    df = remove_created_on_field(df)
 
     expected_data = {
         "SOURCE_OBJECT": [
@@ -243,12 +276,16 @@ def test_lineage_trace(session):
     # assert_frame_equal(df, expected_df, check_dtype=False)
 
     # CASE 7 : Column lineage
-    df = session.lineage.trace(
-        f"{db}.{schema}.V2.C1", "COLUMN", direction=LineageDirection.UPSTREAM
+    df = _trace_until(
+        session,
+        f"{db}.{schema}.V2.C1",
+        "COLUMN",
+        direction=LineageDirection.UPSTREAM,
+        expected_rows=2,
     )
 
     # Removing 'creadtedOn' field since the value can not be predicted.
-    df = remove_created_on_field(df.to_pandas())
+    df = remove_created_on_field(df)
 
     expected_data = {
         "SOURCE_OBJECT": [
