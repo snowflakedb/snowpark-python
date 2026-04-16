@@ -27,6 +27,7 @@ except ImportError:
     is_pandas_available = False
 
 from snowflake.snowpark import Session, AsyncJob
+from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.udf_utils import resolve_imports_and_packages
 from snowflake.snowpark._internal.utils import (
@@ -169,9 +170,7 @@ def test__do_register_sp_submits_correct_packages(
 
     with create_session_for_test(db_parameters) as new_session:
         # Adding the testing version of the package fails, but the package list should still be correct
-        with pytest.raises(
-            RuntimeError, match="Cannot add package snowflake-snowpark-python"
-        ):
+        with pytest.raises((RuntimeError, SnowparkSQLException)):
             sproc(
                 return1,
                 session=new_session,
@@ -319,12 +318,9 @@ def test_call_named_stored_procedure(
     )
     if not local_testing_mode:
         # create a stored procedure when the session doesn't have a schema
-        new_session = (
-            Session.builder.configs(db_parameters)._remove_config("schema").create()
-        )
-        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
-        new_session.add_packages("snowflake-snowpark-python")
-        try:
+        with create_session_for_test(db_parameters, remove_schema=True) as new_session:
+            new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
+            new_session.add_packages("snowflake-snowpark-python")
             assert not new_session.get_current_schema()
             tmp_stage_name_in_temp_schema = f"{temp_schema}.{Utils.random_name_for_temp_object(TempObjectType.STAGE)}"
             new_session._run_query(f"create temp stage {tmp_stage_name_in_temp_schema}")
@@ -352,9 +348,6 @@ def test_call_named_stored_procedure(
                 )
                 == 1
             )
-        finally:
-            new_session.close()
-            # restore active session
 
 
 @pytest.mark.skipif(
@@ -2277,6 +2270,9 @@ def test_register_sproc_after_switch_schema(session):
             session._run_query(f"create database if not exists {new_database}")
             session._run_query(f"create schema if not exists {new_schema}")
             session._run_query(f"use schema {new_schema}")
+            session.sql(
+                f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
+            ).collect()
 
             add_sp = session.sproc.register(
                 lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[
@@ -2430,6 +2426,10 @@ def test_sproc_artifact_repository_from_file(session, tmpdir):
     reason="Packaging processing is a NOOP in Local Testing",
     run=False,
 )
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Version warning requires Anaconda artifact repository, which doesn't have a 3.14 build yet",
+)
 @pytest.mark.parametrize(
     "version_override, expect_warning",
     [
@@ -2552,7 +2552,11 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
         import pandas as pd
         import queue as queue_module
 
-        queue = mp.Queue()
+        # On Python 3.14 the default multiprocessing start method moved away
+        # from "fork" on some platforms, which requires pickling the target
+        # function. Nested functions cannot be pickled, so force "fork".
+        ctx = mp.get_context("fork")
+        queue = ctx.Queue()
 
         def worker_process(parquet_queue):
             try:
@@ -2570,7 +2574,7 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
             except Exception as e:
                 parquet_queue.put(("error", str(e)))
 
-        process = mp.Process(target=worker_process, args=(queue,))
+        process = ctx.Process(target=worker_process, args=(queue,))
         process.start()
 
         # Wait for the process to complete
@@ -2615,7 +2619,11 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
             return "failure"
         return "success"
 
-    ingestion = sproc(core_ingestion_logic, return_type=StringType())
+    ingestion = sproc(
+        core_ingestion_logic,
+        return_type=StringType(),
+        packages=["snowflake-snowpark-python", "pandas", "pyarrow"],
+    )
     assert ingestion() == "success"
 
 

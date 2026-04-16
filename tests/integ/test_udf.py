@@ -1916,8 +1916,11 @@ def test_udf_describe(session):
         "handler",
         "runtime_version",
         "packages",
+        "artifact_repository",
+        "artifact_repository_packages",
         "installed_packages",
         "is_aggregate",
+        "artifact_repository_installed_packages",
     ]
     # We use zip such that it is compatible regardless of UDAF is enabled or not on the merge gate accounts
     for actual_field, expected_field in zip(actual_fields, expected_fields):
@@ -1926,7 +1929,7 @@ def test_udf_describe(session):
         ), f"Actual: {actual_fields}, Expected: {expected_fields}"
 
     for row in describe_res:
-        if row[0] == "packages":
+        if row[0] == "artifact_repository_packages":
             assert "numpy" in row[1] and "pandas" in row[1]
             break
 

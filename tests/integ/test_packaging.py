@@ -736,7 +736,7 @@ def requirements_file_with_local_path():
 
     # Generate a requirements file
     requirements = f"""
-    pyyaml==6.0.2
+    pyyaml==6.0.3
     matplotlib
     {new_path}
     """
@@ -768,7 +768,7 @@ def test_add_requirements_with_local_filepath(
     session.add_requirements(requirements_file_with_local_path)
     assert session.get_packages() == {
         "matplotlib": "matplotlib",
-        "pyyaml": "pyyaml==6.0.2",
+        "pyyaml": "pyyaml==6.0.3",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)

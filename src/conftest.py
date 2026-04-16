@@ -13,6 +13,7 @@ from _pytest.doctest import DoctestItem
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import to_timestamp
+from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
@@ -71,6 +72,9 @@ def add_snowpark_session(doctest_namespace, pytestconfig):
             # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
             session.sql(
                 f"GRANT ALL PRIVILEGES ON SCHEMA {TEST_SCHEMA} TO ROLE PUBLIC"
+            ).collect()
+            session.sql(
+                f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
             ).collect()
             session.use_schema(TEST_SCHEMA)
         doctest_namespace["session"] = session

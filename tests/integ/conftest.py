@@ -410,6 +410,7 @@ def profiler_session(
             integration2,
             integration3,
         )
+    set_up_test_session_parameters(session, local_testing_mode)
     try:
         yield session
     finally:
@@ -431,6 +432,9 @@ def temp_schema(connection, session, local_testing_mode) -> None:
             # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
             cursor.execute(
                 f"GRANT ALL PRIVILEGES ON SCHEMA {temp_schema_name} TO ROLE PUBLIC"
+            )
+            cursor.execute(
+                f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
             )
             yield temp_schema_name
             cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")
