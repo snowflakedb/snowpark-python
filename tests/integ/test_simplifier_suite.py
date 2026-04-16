@@ -2130,6 +2130,56 @@ def test_order_by_outer_hoist_skipped_when_unsafe_compat_mode(session, monkeypat
     assert df_hoist._select_statement.order_by is not None
 
 
+def test_order_by_augmentation_fallback_when_derive_returns_none(session, monkeypatch):
+    """When derive_column_states_from_subquery returns None during the ORDER BY
+    augmentation step in select(), the code should fall back to new_from=self
+    and new_order_by=None (select_statement lines 1565-1566)."""
+    import snowflake.snowpark.context as ctx
+    import snowflake.snowpark._internal.analyzer.select_statement as ss
+
+    monkeypatch.setattr(ctx, "_is_snowpark_connect_compatible_mode", True)
+
+    df = session.create_dataframe([[1, 3], [2, 1]], schema=["A", "B"])
+    df2 = df.select((col("A") * 2).alias("A"), col("B")).order_by(col("A"))
+
+    monkeypatch.setattr(
+        ss, "derive_column_states_from_subquery", lambda cols, from_: None
+    )
+
+    df3 = df2.select(col("B"))
+    assert df3._select_statement.order_by is None
+    assert "ORDER BY" in df3.queries["queries"][-1]
+
+
+def test_sort_not_flattened_on_new_column_with_dollar_or_all_dependency(session):
+    """Sort on a NEW column whose own dependencies are DOLLAR or ALL must not
+    flatten, because scalar subqueries / positional references in ORDER BY at
+    the same SELECT level can trigger Snowflake internal errors.
+
+    Covers can_clause_dependent_columns_flatten returning False at line 2200."""
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
+
+    # ALL dependency: sql_expr creates an is_sql_text=True expression whose
+    # dependent_columns resolves to COLUMN_DEPENDENCY_ALL.
+    df_all = df.select(col("A"), sql_expr("A + B").alias("X"))
+    df_sorted_all = df_all.sort(col("X"))
+    # sort could not flatten → the query must nest: SELECT ... FROM (SELECT ... ) ORDER BY
+    query_all = df_sorted_all.queries["queries"][-1]
+    assert (
+        query_all.count("SELECT") >= 2
+    ), "Expected nested SELECT when sorting on NEW column with ALL dependency"
+    Utils.check_answer(df_sorted_all, [Row(1, 3), Row(3, 7)])
+
+    # DOLLAR dependency: col("$1") produces COLUMN_DEPENDENCY_DOLLAR.
+    df_dollar = df.select(col("A"), col("$1").alias("Y"))
+    df_sorted_dollar = df_dollar.sort(col("Y"))
+    query_dollar = df_sorted_dollar.queries["queries"][-1]
+    assert (
+        query_dollar.count("SELECT") >= 2
+    ), "Expected nested SELECT when sorting on NEW column with DOLLAR dependency"
+    Utils.check_answer(df_sorted_dollar, [Row(1, 1), Row(3, 3)])
+
+
 def test_window_with_filter(session):
     df = session.create_dataframe([[0], [1]], schema=["A"])
     df = (

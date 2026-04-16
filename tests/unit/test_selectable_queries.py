@@ -13,9 +13,18 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSnowflakePlan,
     SetOperand,
     SetStatement,
+    ColumnChangeState,
+    ColumnState,
+    ColumnStateDict,
+    _check_expressions_for_types,
+    can_clause_dependent_columns_flatten,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
-from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.expression import (
+    Attribute,
+    COLUMN_DEPENDENCY_ALL,
+    COLUMN_DEPENDENCY_DOLLAR,
+)
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan, Query
 from snowflake.snowpark.types import StringType
@@ -179,3 +188,42 @@ def test_select_snowflake_plan_commented_sql(mock_session, mock_analyzer):
     expected_sql = "SELECT A, B FROM test_table WHERE A > 10"
     assert select_snowflake_plan.sql_query == expected_sql
     assert select_snowflake_plan.commented_sql == expected_sql
+
+
+def test_check_expressions_for_types_skips_none_expressions():
+    """_check_expressions_for_types should skip None entries in the list."""
+    result = _check_expressions_for_types(
+        [None, None], check_window=True, check_data_gen=True, check_aggregation=True
+    )
+    assert result is False
+
+
+def test_check_expressions_for_types_skips_none_among_real_expressions():
+    """_check_expressions_for_types should skip None entries interspersed with real expressions."""
+    expr = Attribute('"A"', StringType())
+    result = _check_expressions_for_types([None, expr, None], check_window=True)
+    assert result is False
+
+
+@pytest.mark.parametrize(
+    "dep_columns",
+    [COLUMN_DEPENDENCY_DOLLAR, COLUMN_DEPENDENCY_ALL],
+)
+def test_can_clause_dependent_columns_flatten_sort_new_dollar_or_all(
+    dep_columns, monkeypatch
+):
+    """Sort on a NEW column with DOLLAR or ALL dependencies must not flatten."""
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+    col_states = ColumnStateDict()
+    state = ColumnState(
+        col_name='"X"',
+        change_state=ColumnChangeState.NEW,
+        state_dict=col_states,
+    )
+    state.dependent_columns = dep_columns
+    col_states['"X"'] = state
+
+    result = can_clause_dependent_columns_flatten(
+        frozenset({'"X"'}), col_states, "sort"
+    )
+    assert result is False
