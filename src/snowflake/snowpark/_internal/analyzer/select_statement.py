@@ -1589,6 +1589,40 @@ class SelectStatement(Selectable):
                 )
             )
 
+        if self._session.reduce_describe_query_enabled and self.attributes is not None:
+            attributes_by_name = {attr.name: attr for attr in self.attributes}
+            inferred_attributes: List[Attribute] = []
+            assert new.projection is not None
+            for expr in new.projection:
+                source_column_name = None
+                projected_column_name = None
+                if isinstance(expr, (Attribute, UnresolvedAttribute)):
+                    source_column_name = expr.name
+                    projected_column_name = expr.name
+                elif isinstance(expr, Alias) and isinstance(
+                    expr.child, (Attribute, UnresolvedAttribute)
+                ):
+                    source_column_name = expr.child.name
+                    projected_column_name = expr.name
+                else:
+                    inferred_attributes = []
+                    break
+
+                source_attr = attributes_by_name.get(source_column_name)
+                if source_attr is None or projected_column_name is None:
+                    inferred_attributes = []
+                    break
+
+                inferred_attributes.append(
+                    Attribute(
+                        projected_column_name,
+                        source_attr.datatype,
+                        source_attr.nullable,
+                    )
+                )
+            if len(inferred_attributes) == len(new.projection):
+                new.attributes = inferred_attributes
+
         new.flatten_disabled = disable_next_level_flatten
         assert new.projection is not None
         new._column_states = derive_column_states_from_subquery(

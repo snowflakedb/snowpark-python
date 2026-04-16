@@ -421,6 +421,26 @@ def test_cache_metadata_on_selectable_entity(session):
         _ = df.col("a")
 
 
+def test_project_alias_infers_attributes_from_parent_metadata(session):
+    df = session.create_dataframe(["v"], schema=["c"])
+    _ = df.schema
+
+    parent_attributes = df._plan._metadata.attributes
+    assert parent_attributes is not None
+    expected_attributes = [parent_attributes[0].with_name("a2")]
+
+    df2 = df.select(col("c").alias("a2"))
+    if session.reduce_describe_query_enabled:
+        check_attributes_equality(df2._plan._metadata.attributes, expected_attributes)
+        expected_describe_count = 0
+    else:
+        assert df2._plan._metadata.attributes is None
+        expected_describe_count = 1
+
+    with SqlCounter(query_count=0, describe_count=expected_describe_count):
+        check_attributes_equality(df2._plan.attributes, expected_attributes)
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
 def test_reduce_describe_query_enabled_on_session(db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
