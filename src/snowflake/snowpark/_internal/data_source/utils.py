@@ -106,7 +106,14 @@ UDTF_PACKAGE_MAP = {
         "msodbcsql",
         "snowflake-snowpark-python",
     ],
-    DBMS_TYPE.POSTGRES_DB: ["psycopg2>=2.0.0,<3.0.0", "snowflake-snowpark-python"],
+    # Use psycopg2-binary rather than psycopg2 so the server-side UDTF install
+    # does not need pg_config / a C toolchain. This is especially important on
+    # Python 3.14's default PyPI artifact repository, where the source build
+    # of psycopg2 fails with "Error: pg_config executable not found."
+    DBMS_TYPE.POSTGRES_DB: [
+        "psycopg2-binary>=2.0.0,<3.0.0",
+        "snowflake-snowpark-python",
+    ],
     DBMS_TYPE.DATABRICKS_DB: [
         "snowflake-snowpark-python",
         "databricks-sql-connector>=4.0.0,<5.0.0",

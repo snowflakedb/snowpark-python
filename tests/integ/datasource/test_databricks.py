@@ -42,7 +42,7 @@ from tests.resources.test_data_source_dir.test_databricks_data import (
     databricks_unicode_schema,
     databricks_double_quoted_schema,
 )
-from tests.utils import IS_IN_STORED_PROC, IS_MACOS, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_MACOS, Utils, IS_PY314
 
 DEPENDENCIES_PACKAGE_UNAVAILABLE = True
 try:
@@ -177,6 +177,10 @@ def test_double_quoted_column_databricks(session, custom_schema):
     [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
 )
 @pytest.mark.udf
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="databricks-sql-connector's thrift dependency has no Python 3.14 wheel on PyPI; server-side UDTF install fails on the default repo.",
+)
 def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
     # we define here to avoid test_databricks.py to be pickled and unpickled in UDTF
     def local_create_databricks_connection():
@@ -286,6 +290,10 @@ def test_session_init(session):
         )
 
 
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="databricks-sql-connector's thrift dependency has no Python 3.14 wheel on PyPI; server-side UDTF install fails on the default repo.",
+)
 def test_session_init_udtf(session):
     udtf_configs = {
         "external_access_integration": DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION
