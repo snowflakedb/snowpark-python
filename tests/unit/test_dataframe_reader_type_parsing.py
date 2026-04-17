@@ -312,6 +312,31 @@ class TestSfTypeToTypeObject:
         result = _sf_type_to_type_object("VARCHAR NOT NULL")
         assert result == StringType()
 
+    # --- simple types with parens that fall through to the keyword
+    #     lookup (DATA_TYPE_STRING_OBJECT_MAPPINGS / _SF_EXTRA_TYPE_MAPPINGS) ---
+
+    def test_timestamp_ntz_with_precision_paren(self):
+        # base is TIMESTAMP_NTZ → not in OBJECT/MAP/ARRAY, not matched by
+        # DECIMAL_RE / STRING_RE → falls through to the keyword lookup.
+        result = _sf_type_to_type_object("TIMESTAMP_NTZ(9)")
+        assert result == TimestampType(timezone=TimestampTimeZone.NTZ)
+
+    def test_real_with_paren_uses_extra_mapping(self):
+        # base is REAL → only in _SF_EXTRA_TYPE_MAPPINGS, not the main one.
+        result = _sf_type_to_type_object("REAL(53)")
+        assert result == DoubleType()
+
+    def test_fixed_with_paren_uses_extra_mapping(self):
+        # base is FIXED → only in _SF_EXTRA_TYPE_MAPPINGS.
+        result = _sf_type_to_type_object("FIXED(38)")
+        assert result == LongType()
+
+    def test_unsupported_type_with_paren_raises(self):
+        # base is FOOBAR → not in either mapping; trailing raise should fire
+        # with the original (unstripped) type_str in the message.
+        with pytest.raises(ValueError, match="'FOOBAR\\(1\\)' is not a supported type"):
+            _sf_type_to_type_object("FOOBAR(1)")
+
     # --- error cases ---
 
     def test_empty_string_raises(self):
@@ -434,6 +459,25 @@ class TestParseStructuredTypeStr:
     def test_bare_object_lowercase_returns_variant(self):
         result = _parse_structured_type_str("object", MAX_STRING_SIZE)
         assert result == VariantType()
+
+    # --- precision/scale parse fallback: non-structured type with
+    #     non-numeric parens content should fall through to
+    #     convert_sf_to_sp_type with precision=0, scale=0 instead of
+    #     bubbling the ValueError from int() ---
+
+    def test_non_numeric_paren_inner_falls_back_to_zero_precision(self):
+        # "TEXT(MAX)" — inner "MAX" is not parseable as int. The except
+        # branch should swallow the ValueError, produce precision=0/
+        # scale=0, and convert_sf_to_sp_type("TEXT", 0, 0, ...) returns
+        # a default-sized StringType.
+        result = _parse_structured_type_str("TEXT(MAX)", MAX_STRING_SIZE)
+        assert isinstance(result, StringType)
+
+    def test_empty_paren_inner_falls_back_to_zero_precision(self):
+        # "FIXED()" — inner is empty, int("") raises ValueError. With
+        # precision=0/scale=0, convert_sf_to_sp_type returns LongType.
+        result = _parse_structured_type_str("FIXED()", MAX_STRING_SIZE)
+        assert isinstance(result, LongType)
 
 
 # ---------------------------------------------------------------------------
