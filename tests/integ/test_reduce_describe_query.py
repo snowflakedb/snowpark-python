@@ -34,7 +34,7 @@ from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED,
     Session,
 )
-from snowflake.snowpark.types import LongType, StructField, StructType
+from snowflake.snowpark.types import LongType, StringType, StructField, StructType
 from tests.integ.utils.sql_counter import SqlCounter
 from tests.utils import IS_IN_STORED_PROC, TestData
 
@@ -493,3 +493,60 @@ def test_update_schema_query_when_attributes_available(session):
     )
     if should_simplify:
         assert df._plan.schema_query == simplified_schema_query2
+
+
+def test_infer_cast_type_reduces_describe(session):
+    """Verify that Alias(Cast) inference avoids extra describe queries,
+    and that results/schema are correct across various projection patterns."""
+    df = session.create_dataframe(
+        [[1, 2, "a"], [3, 4, "b"]],
+        schema=StructType(
+            [
+                StructField("A", LongType()),
+                StructField("B", LongType()),
+                StructField("NAME", StringType()),
+            ]
+        ),
+    )
+
+    # Resolve schema once (may need describe for typed StructType + Cast projections)
+    schema = df.schema
+    assert schema[0].datatype == LongType()
+    assert schema[2].datatype == StringType()
+
+    # 1. Self-join via alias -- both sides reference the same createDataFrame.
+    #    Cast inference should avoid extra describes for the second reference.
+    df_l = df.alias("L")
+    df_r = df.alias("R")
+    joined = df_l.join(df_r, col("L", "A") == col("R", "A")).select(
+        col("L", "A"), col("R", "B"), col("L", "NAME")
+    )
+    result = joined.collect()
+    assert len(result) > 0
+
+    # 2. Select with rename -- aliasing should not break inference
+    renamed = df.select(col("A").alias("X"), col("B"))
+    schema = renamed.schema
+    assert schema[0].name == "X"
+    assert schema[0].datatype == LongType()
+    assert schema[1].datatype == LongType()
+
+    # 3. Filter preserves schema without extra describe
+    filtered = df.filter(col("A") > 1)
+    if session.reduce_describe_query_enabled:
+        with SqlCounter(query_count=0, describe_count=0):
+            schema = filtered.schema
+        assert schema == df.schema
+    else:
+        schema = filtered.schema
+        assert schema == df.schema
+
+    # 4. Verify correctness of cast inference -- types must match server types
+    cast_df = df.select(
+        col("A").cast(StringType()).alias("A_STR"),
+        col("NAME"),
+    )
+    result = cast_df.collect()
+    assert result[0]["A_STR"] == "1"
+    assert cast_df.schema[0].datatype == StringType()
+    assert cast_df.schema[1].datatype == StringType()

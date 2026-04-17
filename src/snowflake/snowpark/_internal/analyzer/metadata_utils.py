@@ -98,7 +98,11 @@ def _extract_inferable_attribute_names(
     if attributes is None:
         return None, None
 
-    from_attr_map = {a.name: a for a in from_attributes} if from_attributes else None
+    from_attr_map = {a.name: a for a in from_attributes} if from_attributes else {}
+    assert not from_attributes or len(from_attr_map) == len(from_attributes), (
+        f"Unexpected duplicate column names in from_attributes: "
+        f"{[a.name for a in from_attributes]}"
+    )
 
     expected_attributes = []
     resolved_in_order = []
@@ -109,11 +113,11 @@ def _extract_inferable_attribute_names(
             continue
 
         if isinstance(attr, Alias):
-            if (
-                isinstance(attr.child, Attribute)
-                and from_attr_map is not None
-                and attr.child.name in from_attr_map
-            ):
+            # In the SQL simplifier model, a SelectStatement's projection can only
+            # reference columns from its FROM clause.  So attr.child (an Attribute)
+            # is always a reference to a column in from_attributes, and the name-based
+            # lookup is safe because from_attributes names are unique (asserted above).
+            if isinstance(attr.child, Attribute) and attr.child.name in from_attr_map:
                 parent = from_attr_map[attr.child.name]
                 attr = Attribute(attr.name, parent.datatype, parent.nullable)
             elif (
