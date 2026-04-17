@@ -4,7 +4,7 @@
 from enum import Enum
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import ArrayType, DataType, MapType, StructType
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
@@ -116,7 +116,11 @@ def _extract_inferable_attribute_names(
             ):
                 parent = from_attr_map[attr.child.name]
                 attr = Attribute(attr.name, parent.datatype, parent.nullable)
-            elif isinstance(attr.child, Cast) and type(attr.child.to) is not DataType:
+            elif (
+                isinstance(attr.child, Cast)
+                and type(attr.child.to) is not DataType
+                and not isinstance(attr.child.to, (ArrayType, MapType, StructType))
+            ):
                 attr = Attribute(attr.name, attr.child.to, attr.nullable)
             elif isinstance(attr.child, (Literal, Attribute)) and attr.datatype:
                 attr = Attribute(attr.name, attr.datatype, attr.nullable)
