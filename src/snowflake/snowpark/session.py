@@ -5057,7 +5057,7 @@ class Session:
                     ).collect()
                 }
             )
-        except BaseException as e:
+        except Exception as e:
             _logger.debug(
                 "Unable to get user-defined aggregation functions: %s",
                 e,
@@ -5073,7 +5073,7 @@ class Session:
                     ).collect()
                 }
             )
-        except BaseException as e:
+        except Exception as e:
             _logger.debug(
                 "Unable to get system aggregation functions, "
                 "falling back to hardcoded list: %s",
