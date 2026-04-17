@@ -7,7 +7,15 @@ import re
 from unittest.mock import Mock, patch
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
-from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
+from snowflake.snowpark._internal.data_source.utils import (
+    DBMS_TYPE,
+    resolve_udtf_packages,
+)
+from snowflake.snowpark.context import (
+    _ANACONDA_SHARED_REPOSITORY,
+    _PYPI_SHARED_REPOSITORY,
+)
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.types import StructType, StructField, StringType
 
 
@@ -115,3 +123,59 @@ def test_datasource_reader_close_error_handling(cursor_fails, conn_fails):
         mock_logger.debug.assert_called()
         args, kwargs = mock_logger.debug.call_args
         assert re.search(r"Failed to close", args[0])
+
+
+@pytest.mark.parametrize(
+    "dbms_type,expected_fragment",
+    [
+        (DBMS_TYPE.ORACLE_DB, "oracledb"),
+        (DBMS_TYPE.POSTGRES_DB, "psycopg2-binary"),
+        (DBMS_TYPE.MYSQL_DB, "pymysql"),
+        (DBMS_TYPE.SQLITE_DB, "snowflake-snowpark-python"),
+    ],
+)
+def test_resolve_udtf_packages_pypi_supported(dbms_type, expected_fragment):
+    """PyPI-supported DBMSes return a package list with the expected dependency."""
+    packages = resolve_udtf_packages(dbms_type, _PYPI_SHARED_REPOSITORY)
+    assert any(expected_fragment in p for p in packages), (
+        f"Expected to find a package matching '{expected_fragment}' in " f"{packages}"
+    )
+
+
+@pytest.mark.parametrize(
+    "dbms_type",
+    [DBMS_TYPE.SQL_SERVER_DB, DBMS_TYPE.DATABRICKS_DB],
+)
+def test_resolve_udtf_packages_pypi_unsupported_raises(dbms_type):
+    """SQL Server and Databricks have no PyPI-installable package set, so
+    ``resolve_udtf_packages`` raises a ``SnowparkClientException`` pointing
+    the user to the Anaconda artifact repository."""
+    with pytest.raises(SnowparkClientException) as exc_info:
+        resolve_udtf_packages(dbms_type, _PYPI_SHARED_REPOSITORY)
+
+    message = str(exc_info.value)
+    assert dbms_type.value in message
+
+
+@pytest.mark.parametrize(
+    "dbms_type,expected_fragment",
+    [
+        (DBMS_TYPE.ORACLE_DB, "oracledb"),
+        # On Anaconda we ship plain ``psycopg2`` (the conda build bundles
+        # libpq), in contrast to the PyPI variant which uses
+        # ``psycopg2-binary``.
+        (DBMS_TYPE.POSTGRES_DB, "psycopg2>="),
+        (DBMS_TYPE.MYSQL_DB, "pymysql"),
+        (DBMS_TYPE.SQLITE_DB, "snowflake-snowpark-python"),
+        (DBMS_TYPE.SQL_SERVER_DB, "msodbcsql"),
+        (DBMS_TYPE.DATABRICKS_DB, "databricks-sql-connector"),
+    ],
+)
+def test_resolve_udtf_packages_anaconda(dbms_type, expected_fragment):
+    """On the Anaconda repository every DBMS has a working package list,
+    including SQL Server and Databricks."""
+    packages = resolve_udtf_packages(dbms_type, _ANACONDA_SHARED_REPOSITORY)
+    assert packages is not None
+    assert any(expected_fragment in p for p in packages), (
+        f"Expected to find a package matching '{expected_fragment}' in " f"{packages}"
+    )
