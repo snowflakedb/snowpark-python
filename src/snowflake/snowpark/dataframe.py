@@ -241,14 +241,21 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
-if TYPE_CHECKING:
+# Python 3.9 needs to use typing_extensions.ParamSpec and typing_extensions.Concatenate
+# Python 3.10+ can use typing.ParamSpec and typing.Concatenate because they are available in the standard library
+if sys.version_info < (3, 10):
+    from typing_extensions import Concatenate, ParamSpec
+else:
     from typing import Concatenate, ParamSpec
 
+
+if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
     from table import Table  # pragma: no cover
 
-    T = TypeVar("T")
-    P = ParamSpec("P")
+
+T = TypeVar("T")
+P = ParamSpec("P")
 
 
 _logger = getLogger(__name__)
@@ -7034,7 +7041,12 @@ Query List:
     # naturalJoin = natural_join
     # withColumns = with_columns
 
-    def pipe(self, function: Callable[Concatenate["DataFrame", P], T], *args: P.args, **kwargs: P.kwargs) -> T:
+    def pipe(
+        self,
+        function: Callable[Concatenate["DataFrame", P], T],
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> T:
         """Applies a function to the DataFrame and returns the result.
 
         Args:

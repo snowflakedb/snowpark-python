@@ -417,12 +417,16 @@ def test_dataframe_pipe(session):
         df = df.filter(df[col] > threshold)
         return df.collect(), df.count()
 
-    result, expected_result = df.pipe(test_function, "a", threshold=1), test_function(df, "a", 1)
+    result, expected_result = df.pipe(test_function, "a", threshold=1), test_function(
+        df, "a", 1
+    )
 
     assert result == expected_result
 
     # test lambda function
-    result, expected_result = df.pipe(lambda x: int(x.count())), (lambda x: int(x.count()))(df)
+    result, expected_result = df.pipe(lambda x: int(x.count())), (
+        lambda x: int(x.count())
+    )(df)
 
     assert result == expected_result
 
