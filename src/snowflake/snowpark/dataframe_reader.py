@@ -1703,7 +1703,14 @@ class DataFrameReader:
 
         xml_inferred_schema = None
         if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
-            if context._is_snowpark_connect_compatible_mode and not self._user_schema:
+            # Internal flag set by SCOS to skip the inference pass when a user schema
+            # is already present, maintaining 1-pass reading when user schema is provided.
+            skip_inference = self._cur_options.get("_XML_SKIP_INFERENCE", False)
+            if (
+                context._is_snowpark_connect_compatible_mode
+                and not self._user_schema
+                and not skip_inference
+            ):
                 string_types_only = not self._cur_options.get("INFER_SCHEMA", True)
                 xml_inferred_schema = self._infer_schema_for_xml(
                     path, string_types_only

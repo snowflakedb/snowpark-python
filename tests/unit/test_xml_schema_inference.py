@@ -1937,3 +1937,30 @@ def test_udtf_process_string_types_only():
         )[0][0]
     assert "string" in schema_str
     assert "bigint" not in schema_str and "date" not in schema_str
+
+
+# ===========================================================================
+# _XML_SKIP_INFERENCE option
+# ===========================================================================
+
+
+def test_xml_skip_inference_option_prevents_inference_call():
+    s = mock.MagicMock()
+    reader = DataFrameReader(s, _emit_ast=False)
+
+    # _XML_SKIP_INFERENCE=False, should call _infer_schema_for_xml
+    reader._cur_options[_dr_mod.XML_ROW_TAG_STRING] = "row"
+    skip = reader._cur_options.get("_XML_SKIP_INFERENCE", False)
+    assert skip is False
+    assert not reader._user_schema
+    should_infer = (not reader._user_schema) and (not skip)
+    assert should_infer is True
+
+    # set _XML_SKIP_INFERENCE=True, should not call _infer_schema_for_xml
+    reader._cur_options["_XML_SKIP_INFERENCE"] = True
+    with mock.patch.object(reader, "_infer_schema_for_xml") as mock_infer:
+        skip = reader._cur_options.get("_XML_SKIP_INFERENCE", False)
+        should_infer = (not reader._user_schema) and (not skip)
+        assert skip is True
+        assert should_infer is False
+        mock_infer.assert_not_called()
