@@ -52,8 +52,13 @@ class TestExtractParenContent:
     def test_empty_string(self):
         assert _extract_paren_content("") is None
 
-    def test_unclosed_paren(self):
-        assert _extract_paren_content("NUMBER(38,0") is None
+    def test_unclosed_paren_raises(self):
+        with pytest.raises(ValueError, match="Unbalanced parentheses"):
+            _extract_paren_content("NUMBER(38,0")
+
+    def test_unclosed_paren_structured_raises(self):
+        with pytest.raises(ValueError, match="Unbalanced parentheses"):
+            _extract_paren_content("OBJECT(a INT, b VARCHAR")
 
     def test_base_with_whitespace(self):
         result = _extract_paren_content("  NUMBER  (38,0)")
@@ -233,6 +238,24 @@ class TestSfTypeToTypeObject:
     def test_object_field_parse_error_raises(self):
         with pytest.raises(ValueError, match="Cannot parse OBJECT field definition"):
             _sf_type_to_type_object("OBJECT(badfield)")
+
+    def test_object_empty_is_valid(self):
+        result = _sf_type_to_type_object("OBJECT()")
+        assert isinstance(result, StructType)
+        assert result.structured is True
+        assert result.fields == []
+
+    def test_object_trailing_comma_raises(self):
+        with pytest.raises(ValueError, match="Empty field in OBJECT type"):
+            _sf_type_to_type_object("OBJECT(a NUMBER(10,0),)")
+
+    def test_object_leading_comma_raises(self):
+        with pytest.raises(ValueError, match="Empty field in OBJECT type"):
+            _sf_type_to_type_object("OBJECT(,a NUMBER(10,0))")
+
+    def test_object_all_empty_fields_raises(self):
+        with pytest.raises(ValueError, match="Empty field in OBJECT type"):
+            _sf_type_to_type_object("OBJECT(,,,)")
 
     # --- deeply nested ---
 

@@ -133,7 +133,15 @@ _SF_EXTRA_TYPE_MAPPINGS = {
 def _extract_paren_content(type_str: str) -> Optional[Tuple[str, str]]:
     """Extract the base keyword and content inside matching parentheses.
 
-    Returns (base, inner_content) or None if no matching parens found.
+    Returns (base, inner_content) if matching parens are found.
+    Returns None if ``type_str`` contains no ``(`` at all (normal for simple
+    types like ``VARCHAR`` or ``BOOLEAN``).
+
+    Raises ``ValueError`` if ``type_str`` contains a ``(`` that is never
+    closed. Reaching this branch implies a malformed type string from the
+    backend (``INFER_SCHEMA``), so we fail loudly rather than silently
+    degrade to ``VariantType``.
+
     E.g. "OBJECT(city VARCHAR, zip NUMBER(38,0))" -> ("OBJECT", "city VARCHAR, zip NUMBER(38,0)")
     """
     paren_idx = type_str.find("(")
@@ -148,7 +156,7 @@ def _extract_paren_content(type_str: str) -> Optional[Tuple[str, str]]:
             depth -= 1
             if depth == 0:
                 return base, type_str[paren_idx + 1 : i]
-    return None
+    raise ValueError(f"Unbalanced parentheses in type string: '{type_str}'")
 
 
 def _sf_type_to_type_object(type_str: str) -> DataType:
@@ -170,9 +178,12 @@ def _sf_type_to_type_object(type_str: str) -> DataType:
     if not type_str:
         raise ValueError("Empty type string")
 
-    # Strip NOT NULL before parsing — the caller is responsible for using
-    # the nullable info. For top-level calls from ARRAY/MAP/OBJECT handlers
-    # below, NOT NULL is handled before recursing.
+    # Strip a trailing top-level NOT NULL if present and discard the bool:
+    # top-level column nullability is carried by INFER_SCHEMA row metadata
+    # (handled in _infer_schema_for_file_format), not by the type string.
+    # Nested NOT NULL (inside ARRAY/MAP/OBJECT) is already consumed by those
+    # branches below before they recurse into this function, so the bool is
+    # redundant here.
     type_str, _ = extract_nullable_keyword(type_str)
 
     result = _extract_paren_content(type_str)
@@ -204,12 +215,19 @@ def _sf_type_to_type_object(type_str: str) -> DataType:
         )
 
     if base_upper == "OBJECT":
+        # OBJECT() with no inner content is valid per the Snowflake grammar:
+        # "a structured OBJECT that contains no keys."
+        if not inner.strip():
+            return StructType([], structured=True)
         fields = split_top_level_comma_fields(inner)
         struct_fields = []
         for field_def in fields:
             field_def = field_def.strip()
             if not field_def:
-                continue
+                # A trailing comma or empty fragment is not valid Snowflake
+                # SQL grammar for OBJECT types; raise so backend bugs or
+                # malformed input surface loudly.
+                raise ValueError(f"Empty field in OBJECT type: '{type_str}'")
             parts = field_def.split(None, 1)
             if len(parts) != 2:
                 raise ValueError(f"Cannot parse OBJECT field definition: '{field_def}'")
