@@ -167,7 +167,13 @@ class BaseDriver:
         statement_params: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
-        from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
+        from snowflake.snowpark._internal.data_source.utils import (
+            resolve_udtf_packages,
+        )
+
+        resolved_packages = packages or resolve_udtf_packages(
+            self.dbms_type, session._get_default_artifact_repository()
+        )
 
         udtf_name = random_name_for_temp_object(TempObjectType.FUNCTION)
         with measure_time() as udtf_register_time:
@@ -186,7 +192,7 @@ class BaseDriver:
                     ]
                 ),
                 external_access_integrations=[external_access_integrations],
-                packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
+                packages=resolved_packages,
                 imports=imports,
                 artifact_repository=artifact_repository,
                 statement_params=statement_params,
