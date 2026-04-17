@@ -1,4 +1,4 @@
-numpy==1.23.5
+numpy
 pytest<8.0.0
 nbmake
 matplotlib

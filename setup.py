@@ -66,6 +66,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "snowflake.core>=1.0.0, <2",  # Catalog
     "psutil",  # testing for telemetry
     "lxml",  # used in XML reader unit tests
+    "pyarrow",  # used in dataframe reader tests
 ]
 MODIN_DEVELOPMENT_REQUIREMENTS = [
     # Snowpark pandas 3rd party library testing. Cap the scipy version because

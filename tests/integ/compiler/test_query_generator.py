@@ -9,7 +9,13 @@ import tempfile
 import os
 import re
 
-import pandas
+try:
+    import pandas
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 import pytest
 
 import snowflake.snowpark._internal.analyzer.snowflake_plan as snowflake_plan
@@ -568,6 +574,7 @@ def test_select_alias_identity(session):
     )
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_disambiguate_skips_quoted_alias(session):
     # SNOW-3176017: This tests a previous regression in a SnowML pipeline where alias optimization
     # incorrectly removed an alias from """col_0""" (triple-quoted in SQL) to "col_0" (single-quoted).
