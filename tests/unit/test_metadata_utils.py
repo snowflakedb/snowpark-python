@@ -53,14 +53,25 @@ def test_alias_attribute_resolved_from_parent():
 
 
 def test_alias_attribute_no_match_in_parent():
-    """Alias(Attribute) with no matching name in from_attributes falls through
-    to the Alias(Literal/Attribute)+datatype branch. With DataType() (dummy),
-    it resolves but with a non-concrete type that downstream code rejects."""
+    """Alias(Attribute) references a name not present in from_attributes — inference fails."""
     child = Attribute('"MISSING"', DataType())
     projection = [Alias(child, '"X"')]
     from_attributes = [Attribute('"A"', IntegerType())]
 
     expected, resolved = _extract_inferable_attribute_names(projection, from_attributes)
+    assert (expected, resolved) == (None, None)
+
+
+def test_alias_attribute_no_from_attributes_uses_own_datatype():
+    """Without from_attributes, Alias(Attribute) resolves via attr.datatype (main compat).
+
+    The resolved Attribute carries a placeholder DataType(); downstream callers
+    reject it via ``type(attr.datatype) is not DataType``, so no incorrect
+    metadata is cached — but the function itself does not return (None, None)."""
+    child = Attribute('"MISSING"', DataType())
+    projection = [Alias(child, '"X"')]
+
+    expected, resolved = _extract_inferable_attribute_names(projection)
     assert resolved is not None
     assert len(resolved) == 1
     assert resolved[0].name == '"X"'

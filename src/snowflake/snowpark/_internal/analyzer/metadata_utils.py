@@ -118,24 +118,28 @@ def _extract_inferable_attribute_names(
             continue
 
         if isinstance(attr, Alias):
-            # In the SQL simplifier model, a SelectStatement's projection can only
-            # reference columns from its FROM clause.  So attr.child (an Attribute)
-            # is usually a reference to a column in from_attributes; parent types are
-            # merged by name when that name is unique in FROM.
             if isinstance(attr.child, Attribute):
+                # Resolve type from from_attributes by matching child name.
                 if name_counts[attr.child.name] > 1:
                     return None, None
                 if attr.child.name in from_attr_map:
                     parent = from_attr_map[attr.child.name]
                     attr = Attribute(attr.name, parent.datatype, parent.nullable)
-            elif (
-                isinstance(attr.child, Cast)
-                and type(attr.child.to) is not DataType
-                and not isinstance(attr.child.to, (ArrayType, MapType, StructType))
-            ):
-                attr = Attribute(attr.name, attr.child.to, attr.nullable)
-            elif isinstance(attr.child, (Literal, Attribute)) and attr.datatype:
-                attr = Attribute(attr.name, attr.datatype, attr.nullable)
+                elif from_attributes is not None:
+                    # FROM schema is known but doesn't contain this column name.
+                    # This shouldn't happen in normal operation — bail out rather
+                    # than proceed with a potentially wrong placeholder type.
+                    return None, None
+                elif attr.datatype:
+                    attr = Attribute(attr.name, attr.datatype, attr.nullable)
+            elif isinstance(attr.child, Literal):
+                if attr.datatype:
+                    attr = Attribute(attr.name, attr.datatype, attr.nullable)
+            elif isinstance(attr.child, Cast):
+                if type(attr.child.to) is not DataType and not isinstance(
+                    attr.child.to, (ArrayType, MapType, StructType)
+                ):
+                    attr = Attribute(attr.name, attr.child.to, attr.nullable)
         elif isinstance(attr, Literal) and type(attr.datatype) != DataType:
             attr = Attribute(
                 to_sql(attr.value, attr.datatype), attr.datatype, attr.nullable
