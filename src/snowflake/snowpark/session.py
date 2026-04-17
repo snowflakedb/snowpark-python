@@ -5037,7 +5037,10 @@ class Session:
     def _retrieve_aggregation_function_list(self) -> None:
         """Retrieve the list of aggregation functions which will later be used in sql simplifier."""
         if (
-            not context._is_snowpark_connect_compatible_mode
+            not (
+                context._is_snowpark_connect_compatible_mode
+                and context._snowpark_connect_flatten_select_after_sort
+            )
             or context._aggregation_function_set
         ):
             return

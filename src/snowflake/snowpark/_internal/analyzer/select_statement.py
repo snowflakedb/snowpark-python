@@ -1437,7 +1437,10 @@ class SelectStatement(Selectable):
                 # unflattenable condition: dropped column is used in subquery WHERE clause and dropped column status is NEW or CHANGED in the subquery
                 # reason: we should not flatten because the dropped column is not available in the new query, leading to WHERE clause error
                 # sample query: 'select "b" from (select "a" as "c", "b" from table where "c" > 1)' can not be flatten to 'select "b" from table where "c" > 1'
-                context._is_snowpark_connect_compatible_mode
+                (
+                    context._is_snowpark_connect_compatible_mode
+                    and context._snowpark_connect_flatten_select_after_sort
+                )
                 and new_column_states.dropped_columns
                 and any(
                     self.column_states[_col].change_state
@@ -1463,7 +1466,10 @@ class SelectStatement(Selectable):
                 # unflattenable condition: dropped column is used in subquery ORDER BY clause and dropped column status is NEW or CHANGED in the subquery
                 # reason: we should not flatten because the dropped column is not available in the new query, leading to ORDER BY clause error
                 # sample query: 'select "b" from (select "a" as "c", "b" order by "c")' can not be flatten to 'select "b" from table order by "c"'
-                context._is_snowpark_connect_compatible_mode
+                (
+                    context._is_snowpark_connect_compatible_mode
+                    and context._snowpark_connect_flatten_select_after_sort
+                )
                 and new_column_states.dropped_columns
                 and any(
                     self.column_states[_col].change_state
@@ -1520,7 +1526,10 @@ class SelectStatement(Selectable):
         else:
             new_order_by = None
             new_from = self
-            if context._is_snowpark_connect_compatible_mode and self.order_by:
+            if (
+                context._is_snowpark_connect_compatible_mode
+                and context._snowpark_connect_flatten_select_after_sort
+            ) and self.order_by:
                 order_by_dependent_columns = derive_dependent_columns(*self.order_by)
                 if order_by_dependent_columns in (
                     COLUMN_DEPENDENCY_DOLLAR,
@@ -1599,7 +1608,10 @@ class SelectStatement(Selectable):
             )
             and not has_data_generator_or_window_function_exp(self.projection)
             and not (
-                context._is_snowpark_connect_compatible_mode
+                (
+                    context._is_snowpark_connect_compatible_mode
+                    and context._snowpark_connect_flatten_select_after_sort
+                )
                 and has_aggregation_function_exp(self.projection)
             )  # sum(col) as new_col, new_col can not be flattened in where clause
             and not (self.order_by and self.limit_ is not None)
@@ -2187,7 +2199,10 @@ def can_clause_dependent_columns_flatten(
                     # sort + CHANGED_EXP: safe in SCOS mode since ORDER BY
                     # is evaluated after projection. Keep checking remaining
                     # columns though — another column may be unsafe.
-                    elif not context._is_snowpark_connect_compatible_mode:
+                    elif not (
+                        context._is_snowpark_connect_compatible_mode
+                        and context._snowpark_connect_flatten_select_after_sort
+                    ):
                         return False
                 elif dc_state.change_state == ColumnChangeState.NEW:
                     if clause == "sort" and dc_state.dependent_columns in (
@@ -2198,7 +2213,10 @@ def can_clause_dependent_columns_flatten(
                         # internal errors when ORDER BY references them
                         # at the same SELECT level.
                         return False
-                    if not context._is_snowpark_connect_compatible_mode:
+                    if not (
+                        context._is_snowpark_connect_compatible_mode
+                        and context._snowpark_connect_flatten_select_after_sort
+                    ):
                         return False
 
     return True
@@ -2486,7 +2504,10 @@ def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
         In non-connect mode, window expressions are also treated as data generators
         for backward compatibility.
     """
-    if not context._is_snowpark_connect_compatible_mode:
+    if not (
+        context._is_snowpark_connect_compatible_mode
+        and context._snowpark_connect_flatten_select_after_sort
+    ):
         return _check_expressions_for_types(
             expressions, check_data_gen=True, check_window=True
         )
