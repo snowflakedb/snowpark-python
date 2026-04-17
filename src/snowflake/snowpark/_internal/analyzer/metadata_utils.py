@@ -118,6 +118,8 @@ def _extract_inferable_attribute_names(
             continue
 
         if isinstance(attr, Alias):
+            # If the first non-aliased child of an Alias node is Literal or Attribute
+            # the column can be inferred.
             if isinstance(attr.child, Attribute):
                 # Resolve type from from_attributes by matching child name.
                 if name_counts[attr.child.name] > 1:
@@ -141,14 +143,17 @@ def _extract_inferable_attribute_names(
                 ):
                     attr = Attribute(attr.name, attr.child.to, attr.nullable)
         elif isinstance(attr, Literal) and type(attr.datatype) != DataType:
+            # Names of literal values can be inferred
             attr = Attribute(
                 to_sql(attr.value, attr.datatype), attr.datatype, attr.nullable
             )
 
+        # If the attr has been coerced to attribute then it has been inferred.
         if isinstance(attr, Attribute):
             resolved_in_order.append(attr)
         else:
             return None, None
+    # Every item in attributes was resolved; len(resolved_in_order) == len(attributes).
     return expected_attributes, resolved_in_order
 
 
