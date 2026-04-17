@@ -163,13 +163,31 @@ def test_multiple_cast_types():
     assert resolved[2].datatype == DoubleType()
 
 
-def test_duplicate_from_attributes_raises_assertion():
-    """from_attributes with duplicate names should trigger AssertionError."""
+def test_duplicate_from_attributes_plain_projection_still_resolves():
+    """Duplicate FROM names do not block inference when projection only uses plain
+    Attributes (no ambiguous name-based parent lookup for Alias)."""
     projection = [Attribute('"A"', IntegerType())]
+    from_attributes = [
+        Attribute('"X"', IntegerType()),
+        Attribute('"X"', StringType()),
+        Attribute('"A"', StringType()),
+    ]
+
+    expected, resolved = _extract_inferable_attribute_names(projection, from_attributes)
+    assert resolved is not None
+    assert len(resolved) == 1
+    assert resolved[0].name == '"A"'
+
+
+def test_duplicate_from_attributes_alias_child_ambiguous_returns_none():
+    """Alias(Attribute) cannot inherit type by name when that name is duplicated in FROM."""
+    projection = [
+        Alias(Attribute('"X"', DataType()), '"Y"'),
+    ]
     from_attributes = [
         Attribute('"X"', IntegerType()),
         Attribute('"X"', StringType()),
     ]
 
-    with pytest.raises(AssertionError, match="Unexpected duplicate column names"):
-        _extract_inferable_attribute_names(projection, from_attributes)
+    expected, resolved = _extract_inferable_attribute_names(projection, from_attributes)
+    assert (expected, resolved) == (None, None)

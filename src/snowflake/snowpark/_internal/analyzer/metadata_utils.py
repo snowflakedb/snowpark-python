@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+from collections import Counter
 from enum import Enum
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
@@ -98,11 +99,15 @@ def _extract_inferable_attribute_names(
     if attributes is None:
         return None, None
 
-    from_attr_map = {a.name: a for a in from_attributes} if from_attributes else {}
-    assert not from_attributes or len(from_attr_map) == len(from_attributes), (
-        f"Unexpected duplicate column names in from_attributes: "
-        f"{[a.name for a in from_attributes]}"
-    )
+    # For Alias(Attribute(...), ...), we copy the parent's type from from_attributes by
+    # quoted name. That is only defined when that name appears once in FROM; if it appears
+    # more than once (e.g. table-function column overlap), name lookup is ambiguous — in
+    # that case we fail inference only when we actually need that lookup (see below).
+    name_counts: Counter[str] = Counter()
+    from_attr_map: Dict[str, Attribute] = {}
+    if from_attributes:
+        name_counts = Counter(a.name for a in from_attributes)
+        from_attr_map = {a.name: a for a in from_attributes if name_counts[a.name] == 1}
 
     expected_attributes = []
     resolved_in_order = []
@@ -115,11 +120,14 @@ def _extract_inferable_attribute_names(
         if isinstance(attr, Alias):
             # In the SQL simplifier model, a SelectStatement's projection can only
             # reference columns from its FROM clause.  So attr.child (an Attribute)
-            # is always a reference to a column in from_attributes, and the name-based
-            # lookup is safe because from_attributes names are unique (asserted above).
-            if isinstance(attr.child, Attribute) and attr.child.name in from_attr_map:
-                parent = from_attr_map[attr.child.name]
-                attr = Attribute(attr.name, parent.datatype, parent.nullable)
+            # is usually a reference to a column in from_attributes; parent types are
+            # merged by name when that name is unique in FROM.
+            if isinstance(attr.child, Attribute):
+                if name_counts[attr.child.name] > 1:
+                    return None, None
+                if attr.child.name in from_attr_map:
+                    parent = from_attr_map[attr.child.name]
+                    attr = Attribute(attr.name, parent.datatype, parent.nullable)
             elif (
                 isinstance(attr.child, Cast)
                 and type(attr.child.to) is not DataType
