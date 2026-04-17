@@ -314,12 +314,6 @@ _SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED = (
     "SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED"
 )
 _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED = "SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED"
-# When enabled, INFER_SCHEMA results for parquet files with structured types
-# (OBJECT, MAP, ARRAY with inner type details) are parsed into full structured
-# DataType objects and TRY_CAST is used in the SELECT expression.
-_PYTHON_SNOWPARK_USE_STRUCTURED_TYPE_INFER_SCHEMA = (
-    "PYTHON_SNOWPARK_USE_STRUCTURED_TYPE_INFER_SCHEMA"
-)
 
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
@@ -716,11 +710,14 @@ class Session:
             )
         )
 
-        self._use_structured_type_infer_schema: bool = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_USE_STRUCTURED_TYPE_INFER_SCHEMA, False
-            )
-        )
+        # When True, INFER_SCHEMA results for parquet/json files with
+        # structured types (OBJECT/MAP/ARRAY with inner type details) are
+        # parsed into full Snowpark DataType objects by DataFrameReader and
+        # TRY_CAST is used in the SELECT expression. Defaults to False;
+        # opt in by direct assignment, e.g.
+        #     session._use_structured_type_infer_schema = True
+        # (SAS / snowpark-connect enables this during session configuration.)
+        self._use_structured_type_infer_schema: bool = False
 
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
