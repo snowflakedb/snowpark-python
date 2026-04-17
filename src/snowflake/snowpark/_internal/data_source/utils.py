@@ -122,17 +122,21 @@ _ANACONDA_UDTF_PACKAGE_MAP = {
     DBMS_TYPE.MYSQL_DB: ["pymysql>=1.0.0,<2.0.0", "snowflake-snowpark-python"],
 }
 
-# UDTF package list when using the PyPI shared repository, which is the
-# default on Python 3.14+. Differences from the Anaconda map:
-#   - Postgres uses ``psycopg2-binary`` because PyPI's ``psycopg2`` is sdist
-#     only and requires ``pg_config`` to compile, which is not available in
-#     the server-side install sandbox.
+# UDTF package list when using the PyPI shared repository. The server-side
+# UDTF install sandbox refuses to compile source distributions (sdists), so
+# every package here must be wheel-installable from PyPI. Differences from
+# the Anaconda map:
+#   - Postgres uses ``psycopg2-binary`` because ``psycopg2`` on PyPI is
+#     sdist-only; ``psycopg2-binary`` is the wheel-packaged equivalent.
 #   - SQL Server has no PyPI-installable equivalent of ``msodbcsql`` (it is
 #     Microsoft's ODBC driver, distributed as a system package), so the
 #     UDTF path cannot work on PyPI today.
 #   - Databricks depends on ``databricks-sql-connector``, which transitively
-#     requires ``thrift<0.21``; no version of ``thrift`` publishes a Python
-#     3.14 wheel on PyPI, and the server refuses to compile sdists.
+#     requires ``thrift``; ``thrift`` on PyPI is sdist-only for every
+#     version, so the server cannot install it.
+# These PyPI gaps are independent of the Python version; they apply to any
+# session whose default artifact repository is PyPI (most commonly Python
+# 3.14+, where PyPI is the global default).
 _PYPI_UDTF_PACKAGE_MAP = {
     DBMS_TYPE.ORACLE_DB: ["oracledb>=2.0.0,<4.0.0", "snowflake-snowpark-python"],
     DBMS_TYPE.SQLITE_DB: ["snowflake-snowpark-python"],
@@ -156,8 +160,9 @@ def resolve_udtf_packages(
     """Return the default UDTF package list for ``dbms_type``.
 
     Picks the package list appropriate for ``artifact_repository``. When the
-    repository is the PyPI shared repository (the default on Python 3.14+),
-    some DBMSes have no working package set; this raises
+    repository is the PyPI shared repository, some DBMSes have no working
+    package set (their dependencies are not wheel-installable from PyPI, and
+    the server-side UDTF sandbox refuses to compile sdists); this raises
     :class:`SnowparkClientException` with guidance to switch repositories.
     """
     if artifact_repository == _PYPI_SHARED_REPOSITORY:
@@ -165,16 +170,15 @@ def resolve_udtf_packages(
         if packages is None:
             raise SnowparkClientException(
                 f"DataFrameReader.dbapi server-side UDTF ingestion for "
-                f"{dbms_type.value} is not supported on the PyPI artifact "
-                f"repository (the default on Python 3.14+). The required "
-                f"packages are not installable from PyPI in the server-side "
-                f"sandbox. To enable UDTF ingestion for this DBMS, run with "
-                f"the Anaconda artifact repository, e.g. by passing "
-                f"``udtf_configs={{'artifact_repository': "
-                f"'snowflake.snowpark.anaconda_shared_repository', ...}}`` "
-                f"to ``session.read.dbapi`` (note: the Anaconda repository "
-                f"requires a Python runtime version that the Snowflake "
-                f"Anaconda channel publishes builds for)."
+                f"{dbms_type.value} is not supported when the session's "
+                f"default artifact repository is PyPI: the required "
+                f"packages are not wheel-installable from PyPI, and the "
+                f"server-side UDTF install sandbox refuses to compile "
+                f"source distributions. Switch to the Anaconda artifact "
+                f"repository (on Python 3.14+, PyPI is the client-side "
+                f"default; on older Python versions, Anaconda is the "
+                f"default but may have been overridden at the account, "
+                f"database, or schema level)."
             )
         return packages
     return _ANACONDA_UDTF_PACKAGE_MAP.get(dbms_type)
