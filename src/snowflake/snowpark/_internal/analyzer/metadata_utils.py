@@ -138,6 +138,12 @@ def _extract_inferable_attribute_names(
                 if attr.datatype:
                     attr = Attribute(attr.name, attr.datatype, attr.nullable)
             elif isinstance(attr.child, Cast):
+                # Use the Cast's declared target type for scalar types.
+                # Structured types (ArrayType, MapType, StructType) are excluded
+                # because Snowflake may promote their element types at execution
+                # time (e.g., ArrayType(IntegerType()) -> ArrayType(LongType())),
+                # so Cast.to may not match the server-returned type.  For those,
+                # we fall through and let a describe query get the actual type.
                 if type(attr.child.to) is not DataType and not isinstance(
                     attr.child.to, (ArrayType, MapType, StructType)
                 ):
