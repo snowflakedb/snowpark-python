@@ -364,8 +364,10 @@ def _disambiguate(
     #  they do have columns in common, alias the common columns with randomly generated l_
     #  and r_ prefixes for the left and right sides respectively.
     #  We assume the column names from the schema are normalized and quoted.
-    lhs_names = [attr.name for attr in lhs._output]
-    rhs_names = [attr.name for attr in rhs._output]
+    lhs_output = lhs._output
+    rhs_output = rhs._output
+    lhs_names = [attr.name for attr in lhs_output]
+    rhs_names = [attr.name for attr in rhs_output]
     common_col_names = [
         n
         for n in lhs_names
@@ -420,7 +422,36 @@ def _disambiguate(
         _apply_aliases(rhs, rhs_names, rhs_aliases),
         _emit_ast=False,
     )
+
+    # Seed schema on the remapped plans so downstream consumers (including
+    # plans that survive a CTE compilation deep-copy) don't need to issue a
+    # DESCRIBE to re-derive attributes. The remapped plans are a pure rename
+    # of lhs/rhs — datatypes and nullability are preserved — so we already
+    # know the full schema locally. This is especially impactful for
+    # self-joins, where every column is renamed.
+    if lhs._session.reduce_describe_query_enabled:
+        _seed_remapped_attributes(lhs_remapped, lhs_output, lhs_aliases)
+        _seed_remapped_attributes(rhs_remapped, rhs_output, rhs_aliases)
+
     return lhs_remapped, rhs_remapped
+
+
+def _seed_remapped_attributes(
+    remapped_df: "DataFrame",
+    source_output: List[Attribute],
+    new_names: List[str],
+) -> None:
+    """Populate ``_attributes`` on a DataFrame produced by ``_disambiguate``'s
+    rename-only ``.select(...)`` so a subsequent DESCRIBE isn't required."""
+    select_statement = remapped_df._select_statement
+    if select_statement is None:
+        return
+    if len(source_output) != len(new_names):
+        return
+    select_statement.attributes = [
+        Attribute(new_name, attr.datatype, attr.nullable)
+        for attr, new_name in zip(source_output, new_names)
+    ]
 
 
 class DataFrame:
