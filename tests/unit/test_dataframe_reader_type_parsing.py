@@ -6,8 +6,8 @@ from unittest import mock
 
 import pytest
 
-from snowflake.snowpark.dataframe_reader import (
-    DataFrameReader,
+from snowflake.snowpark.dataframe_reader import DataFrameReader
+from snowflake.snowpark._internal.type_utils import (
     _extract_paren_content,
     _parse_structured_type_str,
     _sf_type_to_type_object,

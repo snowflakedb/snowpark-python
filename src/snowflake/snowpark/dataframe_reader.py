@@ -51,13 +51,9 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sf_to_sp_type,
     convert_sp_to_sf_type,
-    DATA_TYPE_STRING_OBJECT_MAPPINGS,
-    extract_nullable_keyword,
-    get_number_precision_scale,
-    get_string_length,
     most_permissive_type,
-    split_top_level_comma_fields,
     type_string_to_type_object,
+    _parse_structured_type_str,
 )
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
@@ -98,10 +94,6 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     ArrayType,
-    DataType,
-    DecimalType,
-    DoubleType,
-    LongType,
     MapType,
     StringType,
     StructType,
@@ -120,172 +112,7 @@ else:
 
 logger = getLogger(__name__)
 
-_STRUCTURED_TYPE_KEYWORDS = frozenset({"OBJECT", "MAP", "ARRAY"})
 _NOT_NULL_RE = re.compile(r"\s+NOT\s+NULL", re.IGNORECASE)
-
-_SF_EXTRA_TYPE_MAPPINGS = {
-    "text": StringType,
-    "real": DoubleType,
-    "fixed": LongType,
-}
-
-
-def _extract_paren_content(type_str: str) -> Optional[Tuple[str, str]]:
-    """Extract the base keyword and content inside matching parentheses.
-
-    Returns (base, inner_content) if matching parens are found.
-    Returns None if ``type_str`` contains no ``(`` at all (normal for simple
-    types like ``VARCHAR`` or ``BOOLEAN``).
-
-    Raises ``ValueError`` if ``type_str`` contains a ``(`` that is never
-    closed. Reaching this branch implies a malformed type string from the
-    backend (``INFER_SCHEMA``), so we fail loudly rather than silently
-    degrade to ``VariantType``.
-
-    E.g. "OBJECT(city VARCHAR, zip NUMBER(38,0))" -> ("OBJECT", "city VARCHAR, zip NUMBER(38,0)")
-    """
-    paren_idx = type_str.find("(")
-    if paren_idx == -1:
-        return None
-    base = type_str[:paren_idx].strip()
-    depth = 0
-    for i in range(paren_idx, len(type_str)):
-        if type_str[i] == "(":
-            depth += 1
-        elif type_str[i] == ")":
-            depth -= 1
-            if depth == 0:
-                return base, type_str[paren_idx + 1 : i]
-    raise ValueError(f"Unbalanced parentheses in type string: '{type_str}'")
-
-
-def _sf_type_to_type_object(type_str: str) -> DataType:
-    """Parse a Snowflake SQL type string directly into a Snowpark DataType.
-
-    Handles both simple types and structured types returned by INFER_SCHEMA:
-    - Simple: VARCHAR, NUMBER(38,0), BOOLEAN, TIMESTAMP_NTZ, etc.
-    - ARRAY(element_type [NOT NULL])
-    - MAP(key_type, value_type [NOT NULL])
-    - OBJECT(field1 type1, field2 type2 NOT NULL, ...)
-    - Nested combinations of the above
-
-    NOT NULL annotations are respected:
-    - On ARRAY elements: sets ArrayType.contains_null = False
-    - On MAP values: sets MapType.value_contains_null = False
-    - On OBJECT fields: sets StructField.nullable = False
-    """
-    type_str = type_str.strip()
-    if not type_str:
-        raise ValueError("Empty type string")
-
-    # Strip a trailing top-level NOT NULL if present and discard the bool:
-    # top-level column nullability is carried by INFER_SCHEMA row metadata
-    # (handled in _infer_schema_for_file_format), not by the type string.
-    # Nested NOT NULL (inside ARRAY/MAP/OBJECT) is already consumed by those
-    # branches below before they recurse into this function, so the bool is
-    # redundant here.
-    type_str, _ = extract_nullable_keyword(type_str)
-
-    result = _extract_paren_content(type_str)
-    if result is None:
-        normalized = type_str.replace(" ", "").lower()
-        if normalized in DATA_TYPE_STRING_OBJECT_MAPPINGS:
-            return DATA_TYPE_STRING_OBJECT_MAPPINGS[normalized]()
-        if normalized in _SF_EXTRA_TYPE_MAPPINGS:
-            return _SF_EXTRA_TYPE_MAPPINGS[normalized]()
-        raise ValueError(f"'{type_str}' is not a supported type")
-
-    base, inner = result
-    base_upper = base.upper()
-
-    if base_upper == "ARRAY":
-        element_str, element_nullable = extract_nullable_keyword(inner)
-        element_type = _sf_type_to_type_object(element_str)
-        return ArrayType(element_type, structured=True, contains_null=element_nullable)
-
-    if base_upper == "MAP":
-        parts = split_top_level_comma_fields(inner)
-        if len(parts) != 2:
-            raise ValueError(f"Invalid MAP type definition: '{type_str}'")
-        key_type = _sf_type_to_type_object(parts[0])
-        value_str, value_nullable = extract_nullable_keyword(parts[1])
-        value_type = _sf_type_to_type_object(value_str)
-        return MapType(
-            key_type, value_type, structured=True, value_contains_null=value_nullable
-        )
-
-    if base_upper == "OBJECT":
-        # OBJECT() with no inner content is valid per the Snowflake grammar:
-        # "a structured OBJECT that contains no keys."
-        if not inner.strip():
-            return StructType([], structured=True)
-        fields = split_top_level_comma_fields(inner)
-        struct_fields = []
-        for field_def in fields:
-            field_def = field_def.strip()
-            if not field_def:
-                # A trailing comma or empty fragment is not valid Snowflake
-                # SQL grammar for OBJECT types; raise so backend bugs or
-                # malformed input surface loudly.
-                raise ValueError(f"Empty field in OBJECT type: '{type_str}'")
-            parts = field_def.split(None, 1)
-            if len(parts) != 2:
-                raise ValueError(f"Cannot parse OBJECT field definition: '{field_def}'")
-            field_name = parts[0]
-            type_part, nullable = extract_nullable_keyword(parts[1])
-            field_type = _sf_type_to_type_object(type_part)
-            struct_fields.append(StructField(field_name, field_type, nullable=nullable))
-        return StructType(struct_fields, structured=True)
-
-    precision_scale = get_number_precision_scale(type_str)
-    if precision_scale:
-        return DecimalType(*precision_scale)
-    length = get_string_length(type_str)
-    if length:
-        return StringType(length)
-
-    normalized = base_upper.replace(" ", "").lower()
-    if normalized in DATA_TYPE_STRING_OBJECT_MAPPINGS:
-        return DATA_TYPE_STRING_OBJECT_MAPPINGS[normalized]()
-    if normalized in _SF_EXTRA_TYPE_MAPPINGS:
-        return _SF_EXTRA_TYPE_MAPPINGS[normalized]()
-    raise ValueError(f"'{type_str}' is not a supported type")
-
-
-def _parse_structured_type_str(type_str, max_string_size):
-    """Parse a Snowflake type string from INFER_SCHEMA into a Snowpark DataType.
-
-    For structured types (OBJECT, MAP, ARRAY), uses the recursive parser.
-    For simple types, delegates to convert_sf_to_sp_type for precision/scale.
-    """
-    type_str = type_str.strip()
-    if not type_str:
-        return VariantType()
-
-    result = _extract_paren_content(type_str)
-    base_upper = result[0].upper() if result else type_str.upper()
-
-    if base_upper in _STRUCTURED_TYPE_KEYWORDS:
-        if result is not None:
-            return _sf_type_to_type_object(type_str)
-        # Bare structured keyword (e.g. "OBJECT", "MAP", "ARRAY") without
-        # inner type details — older backends may return these.  Return
-        # VariantType so column names are preserved and callers (e.g. SAS)
-        # can apply their own structured-type discovery.
-        return VariantType()
-
-    if result is None:
-        return convert_sf_to_sp_type(base_upper, 0, 0, 0, max_string_size)
-
-    inner = result[1]
-    parts = inner.split(",")
-    try:
-        precision = int(parts[0].strip())
-        scale = int(parts[1].strip()) if len(parts) > 1 else 0
-    except (ValueError, IndexError):
-        precision = 0
-        scale = 0
-    return convert_sf_to_sp_type(base_upper, precision, scale, 0, max_string_size)
 
 
 LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
