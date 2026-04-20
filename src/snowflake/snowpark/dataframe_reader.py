@@ -2350,6 +2350,7 @@ class DataFrameReader:
                 fetch_size=fetch_size,
                 imports=udtf_configs.get("imports", None),
                 packages=udtf_configs.get("packages", None),
+                artifact_repository=udtf_configs.get("artifact_repository", None),
                 session_init_statement=session_init_statement,
                 query_timeout=query_timeout,
                 statement_params=statements_params_for_telemetry,

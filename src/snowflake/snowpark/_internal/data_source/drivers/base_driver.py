@@ -161,6 +161,7 @@ class BaseDriver:
         fetch_size: int = 1000,
         imports: Optional[List[str]] = None,
         packages: Optional[List[str]] = None,
+        artifact_repository: Optional[str] = None,
         session_init_statement: Optional[List[str]] = None,
         query_timeout: Optional[int] = 0,
         statement_params: Optional[Dict[str, str]] = None,
@@ -187,6 +188,7 @@ class BaseDriver:
                 external_access_integrations=[external_access_integrations],
                 packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
                 imports=imports,
+                artifact_repository=artifact_repository,
                 statement_params=statement_params,
                 _emit_ast=_emit_ast,  # internal function call, _emit_ast will be set to False by the caller
             )
