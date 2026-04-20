@@ -5,21 +5,8 @@ name: SFDQ E2E Caller
 # This is a throwaway workflow to validate the repository_dispatch +
 # status-callback plumbing without impacting real SCOS CI. Invoke manually.
 on:
-  workflow_dispatch:
-    inputs:
-      sleep_seconds:
-        description: 'How long the dummy "tests" should run on sfdq.'
-        type: string
-        required: false
-        default: '30'
-      force_result:
-        description: 'Force receiver outcome (for testing the fail path).'
-        type: choice
-        required: false
-        default: 'success'
-        options:
-          - success
-          - failure
+  pull_request:
+    branches: [main]
 
 jobs:
   trigger-and-wait:
