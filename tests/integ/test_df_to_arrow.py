@@ -25,6 +25,11 @@ from snowflake.snowpark.session import WRITE_ARROW_CHUNK_SIZE
 from tests.utils import TestData, Utils, TestFiles
 
 try:
+    import pandas  # noqa: F401
+except ImportError:
+    pytest.skip("pandas is not available", allow_module_level=True)
+
+try:
     import pyarrow as pa
 except ImportError:
     pytest.skip("pyarrow is not available", allow_module_level=True)
