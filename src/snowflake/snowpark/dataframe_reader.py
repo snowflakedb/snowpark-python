@@ -54,6 +54,7 @@ from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
     most_permissive_type,
     type_string_to_type_object,
+    _parse_structured_type_str,
 )
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
@@ -111,6 +112,9 @@ else:
     from collections.abc import Iterable
 
 logger = getLogger(__name__)
+
+_NOT_NULL_RE = re.compile(r"\s+NOT\s+NULL", re.IGNORECASE)
+
 
 LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
 
@@ -1341,25 +1345,39 @@ class DataFrameReader:
             schema_to_cast = []
             transformations: List["snowflake.snowpark.column.Column"] = []
             read_file_transformations = None
+            use_structured_type_infer_schema = (
+                self._session._use_structured_type_infer_schema
+            )
             for r in results:
                 # Columns for r [column_name, type, nullable, expression, filenames, order_id]
                 column_name, type, nullable, expression = r[0], r[1], r[2], r[3]
                 name = quote_name_without_upper_casing(column_name)
-                # Parse the type returned by infer_schema command to
-                # pass to determine datatype for schema
-                data_type_parts = type.split("(")
-                parts_length = len(data_type_parts)
-                if parts_length == 1:
-                    data_type = type
-                    precision = 0
-                    scale = 0
+                # Parse the type returned by infer_schema command.
+                if use_structured_type_infer_schema:
+                    # handles both simple types and structured
+                    # types (OBJECT, MAP, ARRAY with inner details).
+                    datatype = _parse_structured_type_str(
+                        type, self._session._conn.max_string_size
+                    )
                 else:
-                    data_type = data_type_parts[0]
-                    precision = int(data_type_parts[1].split(",")[0])
-                    scale = int(data_type_parts[1].split(",")[1][:-1])
-                datatype = convert_sf_to_sp_type(
-                    data_type, precision, scale, 0, self._session._conn.max_string_size
-                )
+                    data_type_parts = type.split("(")
+                    parts_length = len(data_type_parts)
+                    if parts_length == 1:
+                        data_type = type
+                        precision = 0
+                        scale = 0
+                    else:
+                        data_type = data_type_parts[0]
+                        precision = int(data_type_parts[1].split(",")[0])
+                        scale = int(data_type_parts[1].split(",")[1][:-1])
+                    datatype = convert_sf_to_sp_type(
+                        data_type,
+                        precision,
+                        scale,
+                        0,
+                        self._session._conn.max_string_size,
+                    )
+
                 if use_relaxed_types:
                     datatype = most_permissive_type(datatype)
                 new_schema.append(
@@ -1379,6 +1397,26 @@ class DataFrameReader:
                     "GET_IGNORE_CASE"
                 ):
                     identifier = expression
+                elif (
+                    format.lower() in ("parquet", "json")
+                    and use_structured_type_infer_schema
+                ):
+                    if isinstance(datatype, VariantType):
+                        # Bare structured keyword was returned by the backend
+                        # (no inner details).  Skip the cast — $1:{name}
+                        # extracts as variant and lets callers handle
+                        # structured-type discovery.
+                        identifier = f"$1:{name}"
+                    elif use_relaxed_types:
+                        identifier = f"$1:{name}::{convert_sp_to_sf_type(datatype)}"
+                    else:
+                        # INFER_SCHEMA may return NOT NULL annotations in
+                        # structured type strings (e.g.,
+                        # "ARRAY(NUMBER(10,0) NOT NULL)"). Strip them before
+                        # embedding in SQL — nullable info is already captured
+                        # in the parsed DataType objects.
+                        cast_type = _NOT_NULL_RE.sub("", type)
+                        identifier = f"$1:{name}::{cast_type}"
                 else:
                     identifier = f"$1:{name}::{convert_sp_to_sf_type(datatype) if use_relaxed_types else type}"
 
