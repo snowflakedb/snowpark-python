@@ -34,17 +34,26 @@ jobs:
           echo "SCOS tests triggered. Waiting for status..."
           SHA="${{ github.event.pull_request.head.sha }}"
 
-          # Give SCOS a moment to start and post an initial status
-          sleep 30
+          # Let SCOS's report-pending job post an initial status.
+          sleep 15
 
-          # Poll for status (timeout after 60 minutes: 120 iterations * 30s)
+          # Poll for status (timeout after 60 minutes: 120 iterations * 30s).
+          # If SCOS hasn't posted any status within the first ~5 minutes,
+          # assume the dispatch silently failed (bad PAT, wrong repo, etc.)
+          # and fail fast rather than waiting the full 60 minutes.
+          seen_status="false"
+          pending_ack_deadline=10  # iterations before we give up waiting for first status
+
           for i in $(seq 1 120); do
-            STATUS=$(gh api "repos/${{ github.repository }}/commits/${SHA}/status" \
+            RAW=$(gh api "repos/${{ github.repository }}/commits/${SHA}/status" \
               -q '.statuses[] | select(.context == "SCOS Integration Tests") | .state' \
-              2>/dev/null | head -n 1 || echo "pending")
+              2>/dev/null | head -n 1 || true)
 
-            if [ -z "$STATUS" ]; then
-              STATUS="pending"
+            if [ -n "$RAW" ]; then
+              seen_status="true"
+              STATUS="$RAW"
+            else
+              STATUS="missing"
             fi
 
             if [ "$STATUS" = "success" ]; then
@@ -52,6 +61,14 @@ jobs:
               exit 0
             elif [ "$STATUS" = "failure" ] || [ "$STATUS" = "error" ]; then
               echo "SCOS tests failed (state=$STATUS)"
+              exit 1
+            fi
+
+            if [ "$seen_status" = "false" ] && [ "$i" -ge "$pending_ack_deadline" ]; then
+              echo "No status received from SCOS after ${pending_ack_deadline} polls."
+              echo "This usually means the repository_dispatch did not reach SCOS."
+              echo "Check: SCOS_TRIGGER_PAT validity/scope, target repo, and that"
+              echo "SCOS's precommit.yml has repository_dispatch type 'snowpark-python-test'."
               exit 1
             fi
 
