@@ -451,12 +451,12 @@ def test_udtf_ingestion_oracledb_with_artifact_repository(session):
     assert df.schema == oracledb_real_schema
 
     # check that the UDTF creation DDL includes the artifact repository
-    found = False
-    for q in his.queries:
-        if (
+    found = any(
+        (
             "CREATE" in q.sql_text.upper()
             and "FUNCTION" in q.sql_text.upper()
             and "SNOWPARK_PYTHON_TEST_REPOSITORY" in q.sql_text
-        ):
-            found = True
+        )
+        for q in his.queries
+    )
     assert found, "artifact_repository not found in UDTF creation DDL"
