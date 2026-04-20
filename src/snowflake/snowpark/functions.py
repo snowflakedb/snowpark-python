@@ -11945,7 +11945,7 @@ def regr_sxy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
         >>> df = df.filter(df["v2"].is_not_null())
-        >>> df.group_by("v").agg(regr_sxy(df["v"], df["v2"]).alias("regr_sxy")).collect()
+        >>> df.group_by("v").agg(regr_sxy(df["v"], df["v2"]).alias("regr_sxy")).sort("v").collect()
         [Row(V=10, REGR_SXY=0.0), Row(V=20, REGR_SXY=0.0), Row(V=30, REGR_SXY=0.0)]
     """
     y_col = _to_col_if_str(y, "regr_sxy")
