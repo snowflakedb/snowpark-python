@@ -1944,23 +1944,24 @@ def test_udtf_process_string_types_only():
 # ===========================================================================
 
 
-def test_xml_skip_inference_option_prevents_inference_call():
-    s = mock.MagicMock()
-    reader = DataFrameReader(s, _emit_ast=False)
-
-    # _XML_SKIP_INFERENCE=False, should call _infer_schema_for_xml
+@pytest.mark.parametrize("skip_inference", [True, False])
+def test_xml_skip_inference_option(skip_inference):
+    reader = DataFrameReader(mock.MagicMock(), _emit_ast=False)
     reader._cur_options[_dr_mod.XML_ROW_TAG_STRING] = "row"
-    skip = reader._cur_options.get("_XML_SKIP_INFERENCE", False)
-    assert skip is False
-    assert not reader._user_schema
-    should_infer = (not reader._user_schema) and (not skip)
-    assert should_infer is True
+    if skip_inference:
+        reader._cur_options["_XML_SKIP_INFERENCE"] = True
 
-    # set _XML_SKIP_INFERENCE=True, should not call _infer_schema_for_xml
-    reader._cur_options["_XML_SKIP_INFERENCE"] = True
-    with mock.patch.object(reader, "_infer_schema_for_xml") as mock_infer:
-        skip = reader._cur_options.get("_XML_SKIP_INFERENCE", False)
-        should_infer = (not reader._user_schema) and (not skip)
-        assert skip is True
-        assert should_infer is False
-        mock_infer.assert_not_called()
+    with mock.patch.object(
+        reader, "_infer_schema_for_xml", return_value=None
+    ) as mock_infer, mock.patch.object(
+        _dr_mod.context, "_is_snowpark_connect_compatible_mode", True
+    ):
+        try:
+            reader._read_semi_structured_file("@s/f.xml", "XML")
+        except Exception:
+            pass
+
+        if skip_inference:
+            mock_infer.assert_not_called()
+        else:
+            mock_infer.assert_called_once()
