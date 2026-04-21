@@ -250,9 +250,12 @@ def test_ast(session, tables, test_case, resources_path):
             ClearTempTables(actual_message)
             ClearTempTables(expected_message)
 
-            # If this is not python 3.11+, then for the purposes of the expectation tests we will ignore the line_no
-            # information since it can be different based on various python bug fixes.
-            if sys.version_info.minor <= 10:
+            # Ignore src line/column positions when they are not stable across interpreters:
+            # - Python < 3.11 had inconsistent frame line numbers (see clear_line_no_in_request).
+            # - Python 3.14+ can disagree with the golden files (typically produced on 3.11/3.12) for the same
+            #   user code, e.g. due to changes in how frames map to the temp test wrapper (similar to df_copy
+            #   being skipped on 3.12 in load_test_cases).
+            if sys.version_info < (3, 11) or sys.version_info >= (3, 14):
                 clear_line_no_in_request(actual_message)
                 clear_line_no_in_request(expected_message)
 

@@ -962,6 +962,10 @@ def test_group_by_agg_sort_filter_sanity(session):
         GROUP BY "DEPT"
         """
 
+        integer_literal_postfix = (
+            "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
+        )
+
         def check_agg_sql(df, expected_sql):
             assert Utils.normalize_sql(df.queries["queries"][0]) == Utils.normalize_sql(
                 expected_sql
@@ -980,7 +984,7 @@ def test_group_by_agg_sort_filter_sanity(session):
             result1,
             f"""
             {agg_query_base}
-            HAVING ("HEADCOUNT" > 1)
+            HAVING ("HEADCOUNT" > 1{integer_literal_postfix})
             ORDER BY "AVG_SALARY" DESC NULLS LAST
             """,
         )
@@ -992,7 +996,7 @@ def test_group_by_agg_sort_filter_sanity(session):
             result2,
             f"""
             {agg_query_base}
-            HAVING ("HEADCOUNT" > 1)
+            HAVING ("HEADCOUNT" > 1{integer_literal_postfix})
             ORDER BY "AVG_SALARY" DESC NULLS LAST
             """,
         )
@@ -1014,7 +1018,7 @@ def test_group_by_agg_sort_filter_sanity(session):
             result3,
             f"""
             {agg_query_base}
-            HAVING ("HEADCOUNT" > 1)
+            HAVING ("HEADCOUNT" > 1{integer_literal_postfix})
             ORDER BY "AVG_SALARY" DESC NULLS LAST
             LIMIT 2 OFFSET 0
             """,
@@ -1038,7 +1042,7 @@ def test_group_by_agg_sort_filter_sanity(session):
                 {agg_query_base}
                 ORDER BY "AVG_SALARY" DESC NULLS LAST
             )
-            WHERE ("HEADCOUNT" > 1)
+            WHERE ("HEADCOUNT" > 1{integer_literal_postfix})
             """
                 if session.sql_simplifier_enabled
                 else f"""
@@ -1049,7 +1053,7 @@ def test_group_by_agg_sort_filter_sanity(session):
                     ORDER BY "AVG_SALARY" DESC NULLS LAST
                 )
             )
-            WHERE ("HEADCOUNT" > 1)
+            WHERE ("HEADCOUNT" > 1{integer_literal_postfix})
             """
             ),
         )
@@ -1074,7 +1078,7 @@ def test_group_by_agg_sort_filter_sanity(session):
             result5,
             f"""
             {agg_query_base}
-            HAVING ("HEADCOUNT" > 1)
+            HAVING ("HEADCOUNT" > 1{integer_literal_postfix})
             ORDER BY "HEADCOUNT" ASC NULLS FIRST,
                 "AVG_SALARY" DESC NULLS LAST,
                 "AVG_SALARY" ASC NULLS FIRST
@@ -1098,7 +1102,7 @@ def test_group_by_agg_sort_filter_sanity(session):
             result6,
             f"""
             {agg_query_base}
-            HAVING (("HEADCOUNT" > 1) AND ("AVG_SALARY" > 50000))
+            HAVING (("HEADCOUNT" > 1{integer_literal_postfix}) AND ("AVG_SALARY" > 50000{integer_literal_postfix}))
             ORDER BY "AVG_SALARY" DESC NULLS LAST
             """,
         )
