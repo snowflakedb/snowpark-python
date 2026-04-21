@@ -7062,7 +7062,7 @@ Query List:
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
             >>> def test_function(df: DataFrame, col: str, threshold: float = 0):
             ...     df = df.filter(df[col] > threshold)
-            ...     return df.collect()
+            ...     return df
             >>> result = df.pipe(test_function, "a", threshold=1)
             >>> result.show()
             -------------
