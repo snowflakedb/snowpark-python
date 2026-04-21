@@ -34,7 +34,7 @@ from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED,
     Session,
 )
-from snowflake.snowpark.types import LongType, StructField, StructType
+from snowflake.snowpark.types import LongType, StringType, StructField, StructType
 from tests.integ.utils.sql_counter import SqlCounter
 from tests.utils import IS_IN_STORED_PROC, TestData
 
@@ -493,3 +493,156 @@ def test_update_schema_query_when_attributes_available(session):
     )
     if should_simplify:
         assert df._plan.schema_query == simplified_schema_query2
+
+
+def test_infer_cast_type_reduces_describe_for_self_join(session):
+    """Verify that Alias(Cast) inference reduces describe queries for self-joins
+    with typed schemas, and that results are correct.
+
+    With reduce_describe_query_enabled=True, the Cast inference avoids redundant
+    describes for repeated references to the same table (self-join).  Without it,
+    each reference triggers its own describe.
+    """
+    # Without optimization: 5 describes for create + self-join + select + collect
+    # With optimization:    1 describe (only the initial schema resolution)
+    expected_describe_count = 1 if session.reduce_describe_query_enabled else 5
+    with SqlCounter(
+        query_count=1, describe_count=expected_describe_count, join_count=1
+    ):
+        df = session.create_dataframe(
+            [[1, 2], [3, 4]],
+            schema=StructType(
+                [StructField("A", LongType()), StructField("B", LongType())]
+            ),
+        )
+        joined = (
+            df.alias("L")
+            .join(df.alias("R"), col("L", "A") == col("R", "A"))
+            .select(col("L", "A"), col("R", "B"))
+        )
+        result = joined.collect()
+
+    assert len(result) > 0
+    f = joined.schema.fields
+    assert len(f) == 2
+    assert f[0] == StructField("AL", LongType(), nullable=True)
+    assert f[1] == StructField("BL", LongType(), nullable=True)
+
+
+def test_infer_cast_type_correctness_across_projections(session):
+    """Verify that Cast/Alias inference produces correct types across
+    various projection patterns with CTE enabled, exercising the
+    try_infer_attributes_from_flattened_projection code path.
+    Each sub-case checks both result correctness and schema types."""
+    with patch.object(session, "_cte_optimization_enabled", True):
+        df = session.create_dataframe(
+            [[1, "a"], [2, "b"]],
+            schema=StructType(
+                [StructField("A", LongType()), StructField("NAME", StringType())]
+            ),
+        )
+        df2 = session.create_dataframe(
+            [[3, "c"]],
+            schema=StructType(
+                [StructField("A", LongType()), StructField("NAME", StringType())]
+            ),
+        )
+
+        # 1. cast + union: cast changes type to StringType, union preserves it.
+        cu = df.select(col("A").cast(StringType()).alias("A"), col("NAME")).union_all(
+            df2.select(col("A").cast(StringType()).alias("A"), col("NAME"))
+        )
+        assert len(cu.collect()) == 3
+        assert cu.schema == StructType(
+            [
+                StructField("A", StringType(), nullable=True),
+                StructField("NAME", StringType(), nullable=True),
+            ]
+        )
+
+        # 2. cast + self-join: Cast inference preserves StringType through join.
+        casted = df.select(col("A").cast(StringType()).alias("A_STR"), col("NAME"))
+        cj = casted.alias("L").join(
+            casted.alias("R"), col("L", "A_STR") == col("R", "A_STR")
+        )
+        assert len(cj.collect()) > 0
+        f = cj.schema.fields
+        assert f[0] == StructField("A_STRL", StringType(), nullable=True)
+        assert f[1] == StructField("NAMEL", StringType(), nullable=True)
+        assert f[2] == StructField("A_STRR", StringType(), nullable=True)
+        assert f[3] == StructField("NAMER", StringType(), nullable=True)
+
+        # 3. alias col A (LongType) to "NAME" then join with original NAME (StringType).
+        #    The rename must carry A's type (LongType), not original NAME's type.
+        renamed = df.select(col("A").alias("NAME"))
+        rj = renamed.alias("L").join(
+            df.alias("R"), col("L", "NAME") == col("R", "NAME")
+        )
+        assert len(rj.collect()) > 0
+        f = rj.schema.fields
+        assert len(f) == 3
+        assert f[0] == StructField("NAMEL", LongType(), nullable=True)
+        assert f[1] == StructField("A", LongType(), nullable=True)
+        assert f[2] == StructField("NAMER", StringType(), nullable=True)
+
+
+def test_infer_cast_type_reduces_describe_sas_style_self_join(session):
+    """Mimic SAS (Snowpark Connect) internal mechanism for self-joins:
+
+    SAS translates SQL like "FROM users e JOIN users m ON ..." by:
+    1. session.create_dataframe(..., schema=StructType) -> temp table with Cast projections
+    2. session.table(temp_view_name) -> two independent SelectableEntity references
+    3. df.select(col(orig).cast(type).alias(plan_id_name)) -> renames with plan-specific IDs
+    4. left.join(right, condition).select(...) -> join + projection
+
+    This test reproduces that pattern in pure Snowpark to verify describe reduction.
+    """
+    with patch.object(session, "_cte_optimization_enabled", True):
+        # Step 1: create a temp table (simulates createDataFrame + createOrReplaceTempView)
+        base = session.create_dataframe(
+            [[1, "alice", None], [2, "bob", 1], [3, "charlie", 1]],
+            schema=StructType(
+                [
+                    StructField("USER_ID", LongType()),
+                    StructField("NAME", StringType()),
+                    StructField("MANAGER_ID", LongType()),
+                ]
+            ),
+        )
+        temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        base.write.save_as_table(temp_table_name, mode="overwrite", table_type="temp")
+
+        # Steps 2-4 wrapped in SqlCounter to measure describes during plan building.
+        # SAS-style: table() -> select(cast.alias) -> join -> select -> collect
+        # With optimization: 2 describes (vs 5 without) -- Cast inference avoids 3
+        expected_describe = 2 if session.reduce_describe_query_enabled else 5
+        with SqlCounter(query_count=1, describe_count=expected_describe, join_count=1):
+            left_ref = session.table(temp_table_name)
+            right_ref = session.table(temp_table_name)
+
+            left = left_ref.select(
+                col("USER_ID").cast(LongType()).alias("USER_ID_L"),
+                col("NAME").cast(StringType()).alias("NAME_L"),
+                col("MANAGER_ID").cast(LongType()).alias("MANAGER_ID_L"),
+            )
+            right = right_ref.select(
+                col("USER_ID").cast(LongType()).alias("USER_ID_R"),
+                col("NAME").cast(StringType()).alias("NAME_R"),
+                col("MANAGER_ID").cast(LongType()).alias("MANAGER_ID_R"),
+            )
+
+            joined = left.join(right, col("MANAGER_ID_L") == col("USER_ID_R")).select(
+                col("USER_ID_L"),
+                col("NAME_L"),
+                col("USER_ID_R"),
+                col("NAME_R"),
+            )
+            result = joined.collect()
+
+        assert len(result) == 2
+        f = joined.schema.fields
+        assert len(f) == 4
+        assert f[0] == StructField("USER_ID_L", LongType(), nullable=True)
+        assert f[1] == StructField("NAME_L", StringType(), nullable=True)
+        assert f[2] == StructField("USER_ID_R", LongType(), nullable=True)
+        assert f[3] == StructField("NAME_R", StringType(), nullable=True)

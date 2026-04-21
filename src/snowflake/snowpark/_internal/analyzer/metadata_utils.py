@@ -1,10 +1,11 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+from collections import Counter
 from enum import Enum
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import ArrayType, DataType, MapType, StructType
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
@@ -13,7 +14,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Star,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
-from snowflake.snowpark._internal.analyzer.unary_expression import Alias
+from snowflake.snowpark._internal.analyzer.unary_expression import Alias, Cast
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Limit,
     LogicalPlan,
@@ -86,39 +87,111 @@ def infer_quoted_identifiers_from_expressions(
 
 def _extract_inferable_attribute_names(
     attributes: Optional[List[Expression]],
+    from_attributes: Optional[List[Attribute]] = None,
 ) -> tuple[Optional[List[Attribute]], Optional[List[Attribute]]]:
     """
-    Returns a list of attribute names that can be infered from a list of Expressions.
-    Returns None if one or more attributes cannot be infered.
+    Returns a tuple of (expected_attributes, resolved_attributes) that can be
+    inferred from a list of Expressions.
+    - expected_attributes: Attributes that were already resolved (direct column refs)
+    - resolved_attributes: All attributes in projection order, with types resolved
+    Returns (None, None) if one or more attributes cannot be inferred.
     """
     if attributes is None:
         return None, None
 
-    new_attributes = []
-    old_attributes = []
+    # For Alias(Attribute(...), ...), we copy the parent's type from from_attributes by
+    # quoted name. That is only defined when that name appears once in FROM; if it appears
+    # more than once (e.g. table-function column overlap), name lookup is ambiguous — in
+    # that case we fail inference only when we actually need that lookup (see below).
+    name_counts: Counter[str] = Counter()
+    from_attr_map: Dict[str, Attribute] = {}
+    if from_attributes:
+        name_counts = Counter(a.name for a in from_attributes)
+        from_attr_map = {a.name: a for a in from_attributes if name_counts[a.name] == 1}
+
+    expected_attributes = []
+    resolved_in_order = []
     for attr in attributes:
-        # Attributes are already resolved and don't require inferrence
         if isinstance(attr, Attribute):
-            old_attributes.append(attr)
+            expected_attributes.append(attr)
+            resolved_in_order.append(attr)
             continue
 
         if isinstance(attr, Alias):
             # If the first non-aliased child of an Alias node is Literal or Attribute
             # the column can be inferred.
-            if isinstance(attr.child, (Literal, Attribute)) and attr.datatype:
-                attr = Attribute(attr.name, attr.datatype, attr.nullable)
+            if isinstance(attr.child, Attribute):
+                # Resolve type from from_attributes by matching child name.
+                if name_counts[attr.child.name] > 1:
+                    return None, None
+                if attr.child.name in from_attr_map:
+                    parent = from_attr_map[attr.child.name]
+                    attr = Attribute(attr.name, parent.datatype, parent.nullable)
+                elif from_attributes is not None:
+                    # FROM schema is known but doesn't contain this column name.
+                    # This shouldn't happen in normal operation — bail out rather
+                    # than proceed with a potentially wrong placeholder type.
+                    return None, None
+                elif attr.datatype:
+                    attr = Attribute(attr.name, attr.datatype, attr.nullable)
+            elif isinstance(attr.child, Literal):
+                if attr.datatype:
+                    attr = Attribute(attr.name, attr.datatype, attr.nullable)
+            elif isinstance(attr.child, Cast):
+                # Use the Cast's declared target type for scalar types.
+                # Structured types (ArrayType, MapType, StructType) are excluded
+                # because Snowflake may promote their element types at execution
+                # time (e.g., ArrayType(IntegerType()) -> ArrayType(LongType())),
+                # so Cast.to may not match the server-returned type.  For those,
+                # we fall through and let a describe query get the actual type.
+                if type(attr.child.to) is not DataType and not isinstance(
+                    attr.child.to, (ArrayType, MapType, StructType)
+                ):
+                    attr = Attribute(attr.name, attr.child.to, attr.nullable)
         elif isinstance(attr, Literal) and type(attr.datatype) != DataType:
             # Names of literal values can be inferred
             attr = Attribute(
                 to_sql(attr.value, attr.datatype), attr.datatype, attr.nullable
             )
 
-        # If the attr has been coerced to attribute then it has been inferred
+        # If the attr has been coerced to attribute then it has been inferred.
         if isinstance(attr, Attribute):
-            new_attributes.append(attr)
+            resolved_in_order.append(attr)
         else:
             return None, None
-    return old_attributes, new_attributes
+    # Every item in attributes was resolved; len(resolved_in_order) == len(attributes).
+    return expected_attributes, resolved_in_order
+
+
+def try_infer_attributes_from_flattened_projection(
+    final_projection: Optional[List[Expression]],
+    parent_attributes: Optional[List[Attribute]],
+) -> Optional[List[Attribute]]:
+    """Re-derive attributes after a select() flattening, using parent types.
+
+    When CTE optimization is enabled the ``SelectStatement.select()`` flattening
+    path must invalidate cached ``_attributes`` because the projection changed.
+    Rather than unconditionally setting ``_attributes = None`` (which forces a
+    DESCRIBE query), this helper tries to resolve column types from the parent's
+    already-known attributes via ``_extract_inferable_attribute_names``.
+    Only succeeds when every column in the new projection can be fully resolved
+    to a concrete type (Alias with a resolved Attribute child, or Literal).
+    Returns ``None`` whenever any column cannot be resolved -- preserving the
+    existing describe-query behaviour as a safe default.
+    """
+    if final_projection is None or parent_attributes is None:
+        return None
+
+    _, resolved = _extract_inferable_attribute_names(
+        final_projection, parent_attributes
+    )
+
+    if resolved is not None and all(
+        isinstance(a, Attribute) and type(a.datatype) is not DataType for a in resolved
+    ):
+        return resolved
+
+    return None
 
 
 def _extract_selectable_attributes(
@@ -142,28 +215,23 @@ def _extract_selectable_attributes(
         else:
             # Get the attributes from the child plan
             from_attributes = _extract_selectable_attributes(current_plan.from_)
-            (
-                expected_attributes,
-                new_attributes,
-                # Extract expected attributes and knowable new attributes
-                # from current plan
-            ) = _extract_inferable_attribute_names(current_plan.projection)
+            (expected_attributes, resolved,) = _extract_inferable_attribute_names(
+                current_plan.projection, from_attributes
+            )
             # Check that the expected attributes match the attributes from the child plan
             if (
                 from_attributes is not None
                 and expected_attributes is not None
-                and new_attributes is not None
+                and resolved is not None
             ):
                 missing_attrs = {attr.name for attr in expected_attributes} - {
                     attr.name for attr in from_attributes
                 }
                 if not missing_attrs and all(
-                    isinstance(attr, (Attribute, Alias))
-                    # If the attribute datatype is specifically DataType then it is not fully resolved
-                    and type(attr.datatype) is not DataType
-                    for attr in current_plan.projection or []
+                    isinstance(attr, Attribute) and type(attr.datatype) is not DataType
+                    for attr in resolved
                 ):
-                    attributes = current_plan.projection  # type: ignore
+                    attributes = resolved
     elif (
         isinstance(
             current_plan,

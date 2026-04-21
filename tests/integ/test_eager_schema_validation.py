@@ -18,41 +18,39 @@ from snowflake.snowpark.functions import col, lit, max
 )
 @pytest.mark.parametrize("debug_mode", [True, False])
 @pytest.mark.parametrize(
-    "transform",
+    "transform, infers_without_debug",
     [
-        pytest.param(lambda x: copy(x), id="copy"),
-        pytest.param(lambda x: x.to_df(["C", "D"]), id="to_df"),
-        pytest.param(lambda x: x.distinct(), id="distinct"),
-        pytest.param(lambda x: x.drop_duplicates(), id="drop_duplicates"),
-        pytest.param(lambda x: x.limit(1), id="limit"),
-        pytest.param(lambda x: x.union(x), id="union"),
-        pytest.param(lambda x: x.union_all(x), id="union_all"),
-        pytest.param(lambda x: x.union_by_name(x), id="union_by_name"),
-        pytest.param(lambda x: x.union_all_by_name(x), id="union_all_by_name"),
-        pytest.param(lambda x: x.intersect(x), id="intersect"),
-        pytest.param(lambda x: x.natural_join(x), id="natural_join"),
-        pytest.param(lambda x: x.cross_join(x), id="cross_join"),
-        pytest.param(lambda x: x.sample(n=1), id="sample"),
+        pytest.param(lambda x: copy(x), False, id="copy"),
+        pytest.param(lambda x: x.to_df(["C", "D"]), True, id="to_df"),
+        pytest.param(lambda x: x.distinct(), False, id="distinct"),
+        pytest.param(lambda x: x.drop_duplicates(), False, id="drop_duplicates"),
+        pytest.param(lambda x: x.limit(1), False, id="limit"),
+        pytest.param(lambda x: x.union(x), False, id="union"),
+        pytest.param(lambda x: x.union_all(x), False, id="union_all"),
+        pytest.param(lambda x: x.union_by_name(x), False, id="union_by_name"),
+        pytest.param(lambda x: x.union_all_by_name(x), False, id="union_all_by_name"),
+        pytest.param(lambda x: x.intersect(x), False, id="intersect"),
+        pytest.param(lambda x: x.natural_join(x), False, id="natural_join"),
+        pytest.param(lambda x: x.cross_join(x), False, id="cross_join"),
+        pytest.param(lambda x: x.sample(n=1), False, id="sample"),
         pytest.param(
-            lambda x: x.with_column_renamed(col("A"), "B"), id="with_column_renamed"
+            lambda x: x.with_column_renamed(col("A"), "B"),
+            False,
+            id="with_column_renamed",
         ),
-        # Unpivot already validates names
-        pytest.param(lambda x: x.unpivot("x", "y", ["A"]), id="unpivot"),
-        # The following functions do not error early because their schema_query do not contain
-        # information about the transformation being called.
-        pytest.param(lambda x: x.drop(col("A")), id="drop"),
-        pytest.param(lambda x: x.filter(col("A") == lit(1)), id="filter"),
-        pytest.param(lambda x: x.sort(col("A").desc()), id="sort"),
+        pytest.param(lambda x: x.unpivot("x", "y", ["A"]), False, id="unpivot"),
+        pytest.param(lambda x: x.drop(col("A")), False, id="drop"),
+        pytest.param(lambda x: x.filter(col("A") == lit(1)), False, id="filter"),
+        pytest.param(lambda x: x.sort(col("A").desc()), False, id="sort"),
     ],
 )
-def test_early_attributes(session, transform, debug_mode):
+def test_early_attributes(session, transform, infers_without_debug, debug_mode):
     with patch.object(context, "_debug_eager_schema_validation", debug_mode):
         df = session.create_dataframe([(1, "A"), (2, "B"), (3, "C")], ["A", "B"])
 
         transformed = transform(df)
 
-        # When debug mode is enabled the dataframe plan attributes are populated early
-        if debug_mode:
+        if debug_mode or infers_without_debug:
             assert transformed._plan._metadata.attributes is not None
         else:
             assert transformed._plan._metadata.attributes is None
