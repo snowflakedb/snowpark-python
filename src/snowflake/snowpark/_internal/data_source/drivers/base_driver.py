@@ -172,7 +172,8 @@ class BaseDriver:
         )
 
         resolved_packages = packages or resolve_udtf_packages(
-            self.dbms_type, session._get_default_artifact_repository()
+            self.dbms_type,
+            artifact_repository or session._get_default_artifact_repository(),
         )
 
         udtf_name = random_name_for_temp_object(TempObjectType.FUNCTION)
