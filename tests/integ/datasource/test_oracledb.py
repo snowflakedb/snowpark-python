@@ -416,3 +416,47 @@ def test_oracledb_with_connection_parameters(session, udtf_configs):
         udtf_configs=udtf_configs,
     )
     Utils.check_answer(df, oracledb_real_data)
+
+
+@pytest.mark.udf
+def test_udtf_ingestion_oracledb_with_artifact_repository(session):
+    """Verify artifact_repository in udtf_configs is forwarded to the UDTF creation DDL."""
+    from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
+
+    his = session.query_history()
+
+    def create_connection_oracledb():
+        import oracledb
+
+        host = ORACLEDB_CONNECTION_PARAMETERS["host"]
+        port = ORACLEDB_CONNECTION_PARAMETERS["port"]
+        service_name = ORACLEDB_CONNECTION_PARAMETERS["service_name"]
+        username = ORACLEDB_CONNECTION_PARAMETERS["username"]
+        password = ORACLEDB_CONNECTION_PARAMETERS["password"]
+        dsn = f"{host}:{port}/{service_name}"
+        connection = oracledb.connect(user=username, password=password, dsn=dsn)
+        return connection
+
+    df = session.read.dbapi(
+        create_connection_oracledb,
+        table="ALL_TYPE_TABLE",
+        udtf_configs={
+            "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
+            "artifact_repository": "SNOWPARK_PYTHON_TEST_REPOSITORY",
+            "packages": ["oracledb", "snowflake-snowpark-python", "cloudpickle"],
+        },
+    ).order_by("ID")
+
+    Utils.check_answer(df, oracledb_real_data)
+    assert df.schema == oracledb_real_schema
+
+    # check that the UDTF creation DDL includes the artifact repository
+    found = any(
+        (
+            "CREATE" in q.sql_text.upper()
+            and "FUNCTION" in q.sql_text.upper()
+            and "SNOWPARK_PYTHON_TEST_REPOSITORY" in q.sql_text
+        )
+        for q in his.queries
+    )
+    assert found, "artifact_repository not found in UDTF creation DDL"
