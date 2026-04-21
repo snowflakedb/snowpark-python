@@ -1,5 +1,13 @@
 # Release History
 
+## 1.51.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Catalog API now uses SQL commands instead of SnowAPI calls to improve stability.
+
 ## 1.50.0 (TBD)
 
 ### Snowpark Python API Updates
