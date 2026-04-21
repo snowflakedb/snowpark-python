@@ -1937,3 +1937,31 @@ def test_udtf_process_string_types_only():
         )[0][0]
     assert "string" in schema_str
     assert "bigint" not in schema_str and "date" not in schema_str
+
+
+# ===========================================================================
+# _XML_SKIP_INFERENCE option
+# ===========================================================================
+
+
+@pytest.mark.parametrize("skip_inference", [True, False])
+def test_xml_skip_inference_option(skip_inference):
+    reader = DataFrameReader(mock.MagicMock(), _emit_ast=False)
+    reader._cur_options[_dr_mod.XML_ROW_TAG_STRING] = "row"
+    if skip_inference:
+        reader._cur_options["_XML_SKIP_INFERENCE"] = True
+
+    with mock.patch.object(
+        reader, "_infer_schema_for_xml", return_value=None
+    ) as mock_infer, mock.patch.object(
+        _dr_mod.context, "_is_snowpark_connect_compatible_mode", True
+    ):
+        try:
+            reader._read_semi_structured_file("@s/f.xml", "XML")
+        except Exception:
+            pass
+
+        if skip_inference:
+            mock_infer.assert_not_called()
+        else:
+            mock_infer.assert_called_once()

@@ -877,8 +877,7 @@ def test_filter_sort_limit_snowpark_connect_compatible(session, sql_simplifier_e
         Utils.check_answer(result_df2, [Row(1, 2, 1), Row(3, 4, 2)])
         # Check that the second sort creates a new query level
         query2 = result_df2.queries["queries"][-1]
-        # Should have 4 SELECT statements for nested query
-        assert query2.upper().count("SELECT") == 4
+        assert query2.upper().count("SELECT") == 3
 
         # filter.sort().limit().sort() - last sort should be in next level
         result_df3 = (
@@ -912,6 +911,197 @@ def test_filter_sort_limit_snowpark_connect_compatible(session, sql_simplifier_e
         # Check query structure - should have multiple levels due to operations after limit
         query6 = result_df6.queries["queries"][-1]
         assert query6.upper().count("SELECT") == 4 if sql_simplifier_enabled else 5
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="HAVING, ORDER BY append, and limit append are not supported in local testing mode",
+)
+def test_group_by_agg_sort_filter_sanity(session):
+    """
+    Tests that post-aggregation clauses (HAVING, ORDER BY, LIMIT) are emitted in valid SQL order
+    regardless of the DataFrame call order (see SNOW-3266495).
+
+    After a GROUP BY, HAVING must appear before ORDER BY, which in turn must appear before LIMIT.
+    """
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
+        df = session.createDataFrame(
+            [
+                (1, "engineering", 80000),
+                (2, "engineering", 90000),
+                (3, "sales", 50000),
+                (4, "sales", 60000),
+                (5, "hr", 45000),
+                (6, "hr", 55000),
+                (7, "engineering", 85000),
+            ],
+            ["id", "dept", "salary"],
+        )
+        agg_df = df.groupBy("dept").agg(
+            count("*").alias("headcount"),
+            avg("salary").alias("avg_salary"),
+        )
+        # Checking against exact query text structure is less than ideal, but these tests need to
+        # verify the level of nesting of certain sub-queries, making it a necessary evil.
+        agg_query_base = """
+        SELECT "DEPT", count(1) AS "HEADCOUNT", avg("SALARY") AS "AVG_SALARY"
+        FROM (
+            SELECT "ID", "DEPT", "SALARY" FROM (
+                SELECT $1 AS "ID", $2 AS "DEPT", $3 AS "SALARY" FROM VALUES
+                (1 :: INT, 'engineering' :: STRING, 80000 :: INT),
+                (2 :: INT, 'engineering' :: STRING, 90000 :: INT),
+                (3 :: INT, 'sales' :: STRING, 50000 :: INT),
+                (4 :: INT, 'sales' :: STRING, 60000 :: INT),
+                (5 :: INT, 'hr' :: STRING, 45000 :: INT),
+                (6 :: INT, 'hr' :: STRING, 55000 :: INT),
+                (7 :: INT, 'engineering' :: STRING, 85000 :: INT)
+            )
+        )
+        GROUP BY "DEPT"
+        """
+
+        def check_agg_sql(df, expected_sql):
+            assert Utils.normalize_sql(df.queries["queries"][0]) == Utils.normalize_sql(
+                expected_sql
+            )
+
+        base_expected_result = [
+            Row("engineering", 3, 85000.0),
+            Row("sales", 2, 55000.0),
+            Row("hr", 2, 50000.0),
+        ]
+
+        # sort -> filter: ORDER BY before HAVING in user code, but SQL must be HAVING before ORDER BY.
+        result1 = agg_df.orderBy(col("avg_salary").desc()).filter(col("headcount") > 1)
+        Utils.check_answer(result1, base_expected_result)
+        check_agg_sql(
+            result1,
+            f"""
+            {agg_query_base}
+            HAVING ("HEADCOUNT" > 1)
+            ORDER BY "AVG_SALARY" DESC NULLS LAST
+            """,
+        )
+
+        # filter -> sort: already in correct SQL clause order.
+        result2 = agg_df.filter(col("headcount") > 1).orderBy(col("avg_salary").desc())
+        Utils.check_answer(result2, base_expected_result)
+        check_agg_sql(
+            result2,
+            f"""
+            {agg_query_base}
+            HAVING ("HEADCOUNT" > 1)
+            ORDER BY "AVG_SALARY" DESC NULLS LAST
+            """,
+        )
+
+        # sort -> filter -> limit (must swap filter with sort)
+        result3 = (
+            agg_df.orderBy(col("avg_salary").desc())
+            .filter(col("headcount") > 1)
+            .limit(2)
+        )
+        Utils.check_answer(
+            result3,
+            [
+                Row("engineering", 3, 85000.0),
+                Row("sales", 2, 55000.0),
+            ],
+        )
+        check_agg_sql(
+            result3,
+            f"""
+            {agg_query_base}
+            HAVING ("HEADCOUNT" > 1)
+            ORDER BY "AVG_SALARY" DESC NULLS LAST
+            LIMIT 2 OFFSET 0
+            """,
+        )
+
+        # A new select between sort and filter should break the
+        # _ops_after_agg chain, so the subsequent filter uses a regular
+        # WHERE via subquery rather than a flattened HAVING.
+        result4 = (
+            agg_df.orderBy(col("avg_salary").desc())
+            .select("dept", "headcount", "avg_salary")
+            .filter(col("headcount") > 1)
+        )
+        Utils.check_answer(result4, base_expected_result)
+        check_agg_sql(
+            result4,
+            (
+                f"""
+            SELECT "DEPT", "HEADCOUNT", "AVG_SALARY"
+            FROM (
+                {agg_query_base}
+                ORDER BY "AVG_SALARY" DESC NULLS LAST
+            )
+            WHERE ("HEADCOUNT" > 1)
+            """
+                if session.sql_simplifier_enabled
+                else f"""
+            SELECT * FROM (
+                SELECT "DEPT", "HEADCOUNT", "AVG_SALARY"
+                FROM (
+                    {agg_query_base}
+                    ORDER BY "AVG_SALARY" DESC NULLS LAST
+                )
+            )
+            WHERE ("HEADCOUNT" > 1)
+            """
+            ),
+        )
+
+        # Repeated sort: all clauses are placed in a single ORDER BY clause, in the reverse
+        # order of their declaration. Note that referencing the same column multiple times is valid.
+        result5 = (
+            agg_df.orderBy(col("avg_salary").asc())
+            .filter(col("headcount") > 1)
+            .orderBy(col("avg_salary").desc())
+            .orderBy(col("headcount").asc())
+        )
+        Utils.check_answer(
+            result5,
+            [
+                Row("sales", 2, 55000.0),
+                Row("hr", 2, 50000.0),
+                Row("engineering", 3, 85000.0),
+            ],
+        )
+        check_agg_sql(
+            result5,
+            f"""
+            {agg_query_base}
+            HAVING ("HEADCOUNT" > 1)
+            ORDER BY "HEADCOUNT" ASC NULLS FIRST,
+                "AVG_SALARY" DESC NULLS LAST,
+                "AVG_SALARY" ASC NULLS FIRST
+            """,
+        )
+
+        # Repeated filter: each clause is ANDed together.
+        result6 = (
+            agg_df.filter(col("headcount") > 1)
+            .orderBy(col("avg_salary").desc())
+            .filter(col("avg_salary") > 50000)
+        )
+        Utils.check_answer(
+            result6,
+            [
+                Row("engineering", 3, 85000.0),
+                Row("sales", 2, 55000.0),
+            ],
+        )
+        check_agg_sql(
+            result6,
+            f"""
+            {agg_query_base}
+            HAVING (("HEADCOUNT" > 1) AND ("AVG_SALARY" > 50000))
+            ORDER BY "AVG_SALARY" DESC NULLS LAST
+            """,
+        )
 
 
 @pytest.mark.skipif(
@@ -1012,6 +1202,30 @@ def test_group_by_agg_sort_filter_limit_ordering(session):
     Utils.check_answer(
         result5, [Row("AAA", 1, 130000.0), Row("engineering", 3, 85000.0)]
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="HAVING, ORDER BY append, and limit append are not supported in local testing mode",
+)
+def test_group_by_sort_by_nonexistent(session):
+    df = session.create_dataframe(
+        [(1, "a"), (1, "b"), (2, "c")],
+        schema=["id", "val"],
+    )
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ), mock.patch.object(session, "_cte_optimization_enabled", True):
+        agg_df = df.group_by("id").count()
+        # When CTE optimization and SCOS compatible mode are both enabled, this raised the
+        # following error after the initial fix for SNOW-3266495:
+        # AttributeError: 'Sort' object has no attribute 'quoted_identifiers'
+        # This is specifically triggered by `show`, and not `collect`, since `show` adds an
+        # implicit call to `limit`.
+        with pytest.raises(
+            SnowparkSQLException, match="invalid identifier 'NONEXISTENT'"
+        ):
+            agg_df.sort('"NONEXISTENT"').show()
 
 
 @pytest.mark.skipif(

@@ -43,7 +43,7 @@ PANDAS_REQUIREMENTS = [
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
     f"modin{MODIN_DEPENDENCY_VERSION}",
-    "pandas<=2.3.1",
+    "pandas<=2.4",
     "tqdm",  # For progress bars during backend switching
     "ipywidgets",  # For enhanced progress bars in Jupyter notebooks
 ]
@@ -66,6 +66,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "snowflake.core>=1.0.0, <2",  # Catalog
     "psutil",  # testing for telemetry
     "lxml",  # used in XML reader unit tests
+    "pyarrow",  # used in dataframe reader tests
 ]
 MODIN_DEVELOPMENT_REQUIREMENTS = [
     # Snowpark pandas 3rd party library testing. Cap the scipy version because

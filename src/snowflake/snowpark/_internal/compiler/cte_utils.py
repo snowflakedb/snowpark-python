@@ -112,6 +112,12 @@ def find_duplicate_subtrees(
         CTE deduplication must be skipped for such nodes because Snowflake
         materializes CTEs; re-using a single CTE would repeat the same
         generated values instead of producing fresh ones per branch.
+
+        When sql_simplifier is enabled the plan tree contains
+        SelectStatement nodes whose expression trees we can inspect
+        directly.  When it is disabled the plan tree uses generic
+        LogicalPlan nodes (Union, Project, …) that lack expression
+        metadata, so we fall back to a regex check on the resolved SQL.
         """
         if isinstance(node, SelectStatement) and node.contains_data_generation:
             return True
@@ -120,6 +126,18 @@ def find_duplicate_subtrees(
             node.source_plan, (SnowflakePlan, Selectable)
         ):
             return is_node_with_data_generation_exp(node.source_plan)
+        elif (
+            isinstance(node, SnowflakePlan)
+            and node.source_plan is not None
+            and not node.session.sql_simplifier_enabled
+        ):
+            # sql_simplifier disabled path — source_plan is a generic
+            # LogicalPlan (e.g. Union, Project) without expression trees
+            from snowflake.snowpark._internal.analyzer.select_statement import (
+                NONDETERMINISTIC_ZERO_ARG_RE,
+            )  # prevent circular import
+
+            return bool(NONDETERMINISTIC_ZERO_ARG_RE.search(node.queries[-1].sql))
 
         if isinstance(node, SelectSnowflakePlan):
             return is_node_with_data_generation_exp(node.snowflake_plan)

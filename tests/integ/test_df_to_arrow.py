@@ -26,8 +26,9 @@ from tests.utils import TestData, Utils, TestFiles
 
 try:
     import pyarrow as pa
+    import pandas  # noqa: F401
 except ImportError:
-    pytest.skip("pyarrow is not available", allow_module_level=True)
+    pytest.skip("pyarrow or pandas is not available", allow_module_level=True)
 
 
 @pytest.fixture(scope="module")

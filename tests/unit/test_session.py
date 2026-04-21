@@ -802,3 +802,91 @@ def test_infer_is_return_table_uses_internal_describe():
         assert result == _ANACONDA_SHARED_REPOSITORY
 
         assert mocked_run_query.call_count == 1
+
+
+def test_retrieve_aggregation_function_list_handles_user_defined_error():
+    """When querying user-defined aggregation functions fails, the error is
+    swallowed and the method continues to query system functions."""
+    import snowflake.snowpark.context as ctx
+
+    fake_server_connection = mock.create_autospec(ServerConnection)
+    fake_server_connection._thread_safe_session_enabled = True
+    session = Session(fake_server_connection)
+
+    original_compat = ctx._is_snowpark_connect_compatible_mode
+    original_agg_set = ctx._aggregation_function_set
+    try:
+        ctx._is_snowpark_connect_compatible_mode = True
+        ctx._aggregation_function_set = set()
+
+        mock_df = MagicMock()
+        call_count = [0]
+
+        def sql_side_effect(query, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise RuntimeError("user-defined query failed")
+            mock_df.collect.return_value = [["SUM"], ["AVG"]]
+            return mock_df
+
+        with mock.patch.object(session, "sql", side_effect=sql_side_effect):
+            session._retrieve_aggregation_function_list()
+
+        assert "sum" in ctx._aggregation_function_set
+        assert "avg" in ctx._aggregation_function_set
+    finally:
+        ctx._is_snowpark_connect_compatible_mode = original_compat
+        ctx._aggregation_function_set = original_agg_set
+
+
+def test_retrieve_aggregation_function_list_handles_system_error():
+    """When querying system aggregation functions fails, the method falls back
+    to the hardcoded _KNOWN_AGGREGATION_FUNCTIONS set."""
+    import snowflake.snowpark.context as ctx
+
+    fake_server_connection = mock.create_autospec(ServerConnection)
+    fake_server_connection._thread_safe_session_enabled = True
+    session = Session(fake_server_connection)
+
+    original_compat = ctx._is_snowpark_connect_compatible_mode
+    original_agg_set = ctx._aggregation_function_set
+    try:
+        ctx._is_snowpark_connect_compatible_mode = True
+        ctx._aggregation_function_set = set()
+
+        mock_df = MagicMock()
+        mock_df.collect.side_effect = RuntimeError("system query failed")
+
+        with mock.patch.object(session, "sql", return_value=mock_df):
+            session._retrieve_aggregation_function_list()
+
+        assert ctx._KNOWN_AGGREGATION_FUNCTIONS.issubset(ctx._aggregation_function_set)
+    finally:
+        ctx._is_snowpark_connect_compatible_mode = original_compat
+        ctx._aggregation_function_set = original_agg_set
+
+
+def test_retrieve_aggregation_function_list_handles_both_errors():
+    """When both aggregation function queries fail, the hardcoded fallback
+    set is still populated."""
+    import snowflake.snowpark.context as ctx
+
+    fake_server_connection = mock.create_autospec(ServerConnection)
+    fake_server_connection._thread_safe_session_enabled = True
+    session = Session(fake_server_connection)
+
+    original_compat = ctx._is_snowpark_connect_compatible_mode
+    original_agg_set = ctx._aggregation_function_set
+    try:
+        ctx._is_snowpark_connect_compatible_mode = True
+        ctx._aggregation_function_set = set()
+
+        with mock.patch.object(
+            session, "sql", side_effect=RuntimeError("query failed")
+        ):
+            session._retrieve_aggregation_function_list()
+
+        assert ctx._KNOWN_AGGREGATION_FUNCTIONS.issubset(ctx._aggregation_function_set)
+    finally:
+        ctx._is_snowpark_connect_compatible_mode = original_compat
+        ctx._aggregation_function_set = original_agg_set
