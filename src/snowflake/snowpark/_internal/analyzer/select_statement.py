@@ -1589,30 +1589,44 @@ class SelectStatement(Selectable):
                 )
             )
 
+        # When describe reduction is on and the inner select already has resolved
+        # attributes, infer new.attributes for this outer select by reusing datatype and
+        # nullable from the subquery: (1) index attributes by name, (2) walk
+        # new.projection, (3) only handle plain columns or Alias(column) — anything
+        # else aborts without setting partial attributes, (4) map each case to an
+        # Attribute named for the projected column, (5) assign only if every output
+        # column was inferred (length matches projection).
         if self._session.reduce_describe_query_enabled and self.attributes is not None:
+            # subquery lookup by name
             attributes_by_name = {attr.name: attr for attr in self.attributes}
             inferred_attributes: List[Attribute] = []
             assert new.projection is not None
+            # infer from each projected expression
             for expr in new.projection:
                 source_column_name = None
                 projected_column_name = None
                 if isinstance(expr, (Attribute, UnresolvedAttribute)):
+                    # identity projection: output name equals input column
                     source_column_name = expr.name
                     projected_column_name = expr.name
                 elif isinstance(expr, Alias) and isinstance(
                     expr.child, (Attribute, UnresolvedAttribute)
                 ):
+                    # rename: source column from child, output name from alias
                     source_column_name = expr.child.name
                     projected_column_name = expr.name
                 else:
+                    # non-simple expression: cannot infer types safely
                     inferred_attributes = []
                     break
 
                 source_attr = attributes_by_name.get(source_column_name)
                 if source_attr is None or projected_column_name is None:
+                    # missing subquery column for this projection — abort
                     inferred_attributes = []
                     break
 
+                # projected name with subquery type and nullability
                 inferred_attributes.append(
                     Attribute(
                         projected_column_name,
@@ -1621,6 +1635,7 @@ class SelectStatement(Selectable):
                     )
                 )
             if len(inferred_attributes) == len(new.projection):
+                # only commit when every column was inferred
                 new.attributes = inferred_attributes
 
         new.flatten_disabled = disable_next_level_flatten
