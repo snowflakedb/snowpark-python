@@ -43,7 +43,13 @@ from snowflake.snowpark.session import (
     _get_active_sessions,
 )
 from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
-from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC_LOCALFS,
+    TestFiles,
+    Utils,
+    IS_PY314,
+)
 
 
 @pytest.mark.skipif(
@@ -1095,6 +1101,10 @@ def test_get_active_sessions_empty():
         assert session_module._get_active_sessions(require_at_least_one=False) == set()
 
 
+@pytest.mark.xfail(
+    IS_PY314,
+    reason="SYSTEM$GET_DEFAULT_ARTIFACT_REPOSITORY inconsistently returns pypi or NULL on 3.14",
+)
 def test_default_artifact_repository_with_no_db_schema(session, caplog):
     # The reported customer issue covered by this test (SNOW-3230493) occurs when no schema/database
     # is set and an account locator is used, so we mock schema/db to be empty for this test.

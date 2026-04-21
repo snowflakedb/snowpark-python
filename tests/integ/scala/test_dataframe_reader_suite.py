@@ -415,6 +415,30 @@ def test_read_csv_with_user_schema_try_cast(session, mode):
     assert df_try_cast.schema == try_cast_schema
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1435112: csv infer schema option is not supported",
+)
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_csv_with_user_schema_try_cast_quoted_column_names(session, mode):
+    reader = get_reader(session, mode)
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    try_cast_schema = StructType(
+        [
+            StructField('"A"', LongType()),
+            StructField('"B"', LongType()),
+            StructField('"C"', DoubleType()),
+        ]
+    )
+    df_try_cast = (
+        reader.schema(try_cast_schema).option("TRY_CAST", True).csv(test_file_on_stage)
+    )
+    try_cast_res = [tuple(row) for row in df_try_cast.collect()]
+    try_cast_res.sort(key=lambda x: x[0])
+    assert try_cast_res == [(1, None, 1.2), (2, None, 2.2)]
+    assert df_try_cast.schema == try_cast_schema
+
+
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1435112: csv infer schema option is not supported",
