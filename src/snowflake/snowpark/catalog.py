@@ -38,6 +38,8 @@ from snowflake.snowpark.types import DataType
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session
 
+
+class Catalog:
     """The Catalog class provides methods to interact with and manage the Snowflake objects.
     It allows users to list, get, and drop various database objects such as databases, schemas, tables,
     views, functions, etc.
