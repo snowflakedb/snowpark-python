@@ -255,6 +255,9 @@ def test_ast(session, tables, test_case, resources_path):
             # - Python 3.14+ can disagree with the golden files (typically produced on 3.11/3.12) for the same
             #   user code, e.g. due to changes in how frames map to the temp test wrapper (similar to df_copy
             #   being skipped on 3.12 in load_test_cases).
+            # TODO SNOW-3414082: Golden-file improvements so we can assert src positions across interpreters without clearing
+            # them here—e.g. version-specific expected AST files, normalizing only wrapper-related offsets, or
+            # recording positions relative to trimmed user code.
             if sys.version_info < (3, 11) or sys.version_info >= (3, 14):
                 clear_line_no_in_request(actual_message)
                 clear_line_no_in_request(expected_message)
