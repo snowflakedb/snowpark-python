@@ -9,7 +9,7 @@ import os.path
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.utils import is_in_stored_procedure
+from snowflake.snowpark._internal.utils import TempObjectType, is_in_stored_procedure
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, lit, max, table_function
 from snowflake.snowpark.types import (
@@ -457,3 +457,83 @@ def test_explain(session):
         params=[1, "a", 2, "b"],
     )
     df.explain()
+
+
+@pytest.fixture(scope="module")
+def proc_name(session):
+    """Create a trivial stored procedure that echoes its inputs back."""
+    name = f"{session.get_fully_qualified_current_schema()}.{Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)}"
+    session.sql(
+        f"""
+        CREATE OR REPLACE TEMPORARY PROCEDURE {name}(template VARCHAR, args VARCHAR)
+        RETURNS VARCHAR
+        LANGUAGE SQL
+        AS
+        $$
+        BEGIN
+            RETURN template || ' | ' || args;
+        END;
+        $$
+        """
+    ).collect()
+    return name
+
+
+class TestCallIdentifierBinding:
+    """
+    SNOW-3061745: Bindings in CALL previously were not properly transferred through the expression tree.
+    These previously errored out when a chained operation after `session.sql` triggered a call to
+    `to_subqueryable`, which did not properly populate binding parameters.
+    """
+
+    def test_call_collect(self, session, proc_name):
+        result = session.sql(
+            "CALL identifier(?)(?, to_varchar(parse_json(?)))",
+            params=[proc_name, "tmpl", '{"a": 1}'],
+        ).collect()
+        assert result == [Row('tmpl | {"a":1}')]
+
+    def test_call_select(self, session, proc_name):
+        result = (
+            session.sql(
+                "CALL identifier(?)(?, ?)",
+                params=[proc_name, "tmpl", "args"],
+            )
+            .select("*")
+            .collect()
+        )
+        assert result == [Row("tmpl | args")]
+
+    def test_call_filter(self, session, proc_name):
+        result = (
+            session.sql(
+                "CALL identifier(?)(?, ?)",
+                params=[proc_name, "tmpl", "args"],
+            )
+            .filter("1=1")
+            .collect()
+        )
+        assert result == [Row("tmpl | args")]
+
+    def test_call_sort(self, session, proc_name):
+        result = (
+            session.sql(
+                "CALL identifier(?)(?, ?)",
+                params=[proc_name, "tmpl", "args"],
+            )
+            .sort("$1")
+            .collect()
+        )
+        assert result == [Row("tmpl | args")]
+
+    def test_call_union(self, session, proc_name):
+        df1 = session.sql(
+            "CALL identifier(?)(?, ?)",
+            params=[proc_name, "tmpl1", "args1"],
+        )
+        df2 = session.sql(
+            "CALL identifier(?)(?, ?)",
+            params=[proc_name, "tmpl2", "args2"],
+        )
+        result = df1.union_all(df2).collect()
+        assert result == [Row("tmpl1 | args1"), Row("tmpl2 | args2")]
