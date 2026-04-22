@@ -7,7 +7,14 @@ import pytest
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
 
 from tests.parameters import SQL_SERVER_CONNECTION_PARAMETERS
-from tests.utils import IS_IN_STORED_PROC, Utils, IS_WINDOWS, IS_MACOS, RUNNING_ON_GH
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    Utils,
+    IS_WINDOWS,
+    IS_MACOS,
+    RUNNING_ON_GH,
+    IS_PY314,
+)
 from tests.resources.test_data_source_dir.test_sql_server_data import (
     SQL_SERVER_TABLE_NAME,
     EXPECTED_TEST_DATA,
@@ -145,6 +152,10 @@ def test_sql_server_ingestion(
         ),
     ],
 )
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="msodbcsql is not available on PyPI, so the server-side UDTF install fails on Python 3.14's default PyPI artifact repository.",
+)
 def test_sql_server_udtf_ingestion(
     session, input_type, table_name, expected_data, expected_schema, apply_order
 ):
@@ -182,19 +193,23 @@ def test_sql_server_udtf_ingestion(
     [
         ("table", "NONEXISTTABLE", "Invalid object name", None),
         ("query", "SELEC ** FORM TABLE", "Incorrect syntax near", None),
-        (
+        pytest.param(
             "table",
             "NONEXISTTABLE",
             "Invalid object name",
             SQL_SERVER_TEST_EXTERNAL_ACCESS_INTEGRATION,
         ),
-        (
+        pytest.param(
             "query",
             "SELEC ** FORM TABLE",
             "Incorrect syntax near",
             SQL_SERVER_TEST_EXTERNAL_ACCESS_INTEGRATION,
         ),
     ],
+)
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="msodbcsql is not available on PyPI, so the server-side UDTF install fails on Python 3.14's default PyPI artifact repository.",
 )
 def test_error_case(session, input_type, input_value, error_message, udtf_configs):
     # Use local connection function when udtf_configs is provided
@@ -229,8 +244,14 @@ def test_error_case(session, input_type, input_value, error_message, udtf_config
     "udtf_configs",
     [
         None,
-        SQL_SERVER_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        pytest.param(
+            SQL_SERVER_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        ),
     ],
+)
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="msodbcsql is not available on PyPI, so the server-side UDTF install fails on Python 3.14's default PyPI artifact repository.",
 )
 def test_partitions_and_predicates(session, udtf_configs):
     # Use local connection function when udtf_configs is provided
@@ -298,8 +319,14 @@ def test_partitions_and_predicates(session, udtf_configs):
     "udtf_configs",
     [
         None,
-        SQL_SERVER_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        pytest.param(
+            SQL_SERVER_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        ),
     ],
+)
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="msodbcsql is not available on PyPI, so the server-side UDTF install fails on Python 3.14's default PyPI artifact repository.",
 )
 def test_session_init_statement(session, udtf_configs):
     # Use local connection function when udtf_configs is provided
@@ -360,8 +387,14 @@ def test_pyodbc_driver_class_builder():
     "udtf_configs",
     [
         None,
-        SQL_SERVER_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        pytest.param(
+            SQL_SERVER_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        ),
     ],
+)
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="msodbcsql is not available on PyPI, so the server-side UDTF install fails on Python 3.14's default PyPI artifact repository.",
 )
 def test_sql_server_with_connection_parameters(session, udtf_configs):
     """Test connection_parameters with local/default ingestion and UDTF ingestion."""
