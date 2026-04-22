@@ -1,6 +1,8 @@
 name: Run UD tests inline (manual)
 
 on:
+  # TODO: remove pull_request once all tests are passing — keep workflow_dispatch only
+  pull_request:
   workflow_dispatch:
     inputs:
       ud-branch:
