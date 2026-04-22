@@ -1247,7 +1247,7 @@ def resolve_imports_and_packages(
     if artifact_repository != _ANACONDA_SHARED_REPOSITORY:
         # Non-conda artifact repository - skip conda-based package resolution
         resolved_packages = []
-        if not packages and session:
+        if packages is None and session:
             resolved_packages = list(
                 session._resolve_packages(
                     [],
@@ -1256,7 +1256,7 @@ def resolve_imports_and_packages(
                     include_pandas=is_pandas_udf,
                 )
             )
-        elif packages:
+        elif packages is not None:
             if not all(isinstance(package, str) for package in packages):
                 raise TypeError(
                     "Non-conda artifact repository requires that all packages be passed as str."
