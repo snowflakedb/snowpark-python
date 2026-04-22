@@ -47,6 +47,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
+from snowflake.snowpark._internal.server_connection import MAX_STRING_SIZE
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_IN_STORED_PROC_LOCALFS,
@@ -387,7 +388,9 @@ def test_read_csv_with_user_schema_try_cast(session, mode):
     try_cast_schema = StructType(
         [
             StructField("A", LongType()),
-            StructField("B", StringType()),
+            StructField(
+                "B", StringType(length=MAX_STRING_SIZE)
+            ),  # Standardizing string size to 128MB for regression test env parity.
             StructField("C", DoubleType()),
         ]
     )
