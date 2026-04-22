@@ -404,27 +404,32 @@ class Catalog:
         *,
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
-    ) -> Table:
-        """Get the table by name in given database and schema. If database or schema are not
-        provided, get the table in the current database and schema.
+    ) -> Union[Table, View]:
+        """Get the table or permanent view by name in the given database and schema.
+
+        If database or schema are not provided, resolve the name in the current database
+        and schema. Matches :meth:`pyspark.sql.Catalog.getTable`, which returns metadata
+        for base tables and for views.
 
         Args:
-            table_name: name of the table.
+            table_name: name of the table or view.
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
-        try:
-            return self.listTables(
-                database=db_name,
-                schema=schema_name,
-                like=unquote_if_quoted(table_name),
-            )[0]
-        except IndexError:
-            raise NotFoundError(
-                f"Table with name {table_name} could not be found in schema '{db_name}.{schema_name}'"
-            )
+        like_arg = unquote_if_quoted(table_name)
+        tables = self.listTables(database=db_name, schema=schema_name, like=like_arg)
+        views: List[View] = []
+        if not tables:
+            views = self.list_views(database=db_name, schema=schema_name, like=like_arg)
+        if tables:
+            return tables[0]
+        if views:
+            return views[0]
+        raise NotFoundError(
+            f"Table with name {table_name} could not be found in schema '{db_name}.{schema_name}'"
+        )
 
     def get_view(
         self,
