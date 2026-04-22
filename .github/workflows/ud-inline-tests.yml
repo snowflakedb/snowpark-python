@@ -27,6 +27,11 @@ on:
           - 'aws'
           - 'azure'
           - 'gcp'
+      pytest-addopts:
+        description: 'Extra pytest args, e.g. "-k test_dataframe" or "--maxfail=5"'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -35,6 +40,7 @@ env:
   PYTHON_VERSION: ${{ inputs.python-version || '3.13' }}
   CLOUD_PROVIDER: ${{ inputs.cloud-provider || 'aws' }}
   UD_BRANCH: ${{ inputs.ud-branch || 'snowpark-compatibility' }}
+  EXTRA_PYTEST_ADDOPTS: ${{ inputs.pytest-addopts || '-v --tb=long' }}
 
 jobs:
   test:
@@ -86,23 +92,25 @@ jobs:
           cloud_provider: ${{ env.CLOUD_PROVIDER }}
           ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
           GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
+          PYTEST_ADDOPTS: --color=yes --tb=short ${{ env.EXTRA_PYTEST_ADDOPTS }}
           TOX_PARALLEL_NO_SPINNER: 1
 
       - name: Run doctest
+        if: ${{ env.EXTRA_PYTEST_ADDOPTS == '' }}
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
           cloud_provider: ${{ env.CLOUD_PROVIDER }}
           ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
           GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
+          PYTEST_ADDOPTS: --color=yes --tb=short ${{ env.EXTRA_PYTEST_ADDOPTS }}
           TOX_PARALLEL_NO_SPINNER: 1
 
       - name: Run datasource tests
+        if: ${{ env.EXTRA_PYTEST_ADDOPTS == '' }}
         run: python -m tox -e datasource
         env:
           cloud_provider: ${{ env.CLOUD_PROVIDER }}
           ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
           GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
+          PYTEST_ADDOPTS: --color=yes --tb=short ${{ env.EXTRA_PYTEST_ADDOPTS }}
           TOX_PARALLEL_NO_SPINNER: 1
