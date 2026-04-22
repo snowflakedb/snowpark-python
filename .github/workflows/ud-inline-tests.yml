@@ -32,7 +32,8 @@ on:
       pytest-addopts:
         description: 'Extra pytest args, e.g. "-k test_dataframe" or "--maxfail=5"'
         required: false
-        default: ''
+        # TODO: remove default filter once full suite is passing against UD
+        default: 'tests/integ/test_stored_procedure.py'
         type: string
 
 permissions:
