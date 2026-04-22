@@ -581,6 +581,60 @@ def test_non_simple_projection_skips_metadata_inference(session):
         _ = df3._plan.attributes
 
 
+def test_mixed_simple_column_and_literal_alias_still_requires_describe(session):
+    """Alias(Literal) is not a simple rename; inference aborts even when the first column is plain."""
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    _ = df.schema
+
+    df2 = df.select("a", lit(1).alias("c"))
+    assert df2._plan._metadata.attributes is None
+
+    with SqlCounter(query_count=0, describe_count=1):
+        _ = df2._plan.attributes
+
+
+def test_simple_column_then_complex_expression_no_partial_metadata(session):
+    """First column is inferable but second is not; all-or-nothing — no partial cached attributes."""
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    _ = df.schema
+
+    df2 = df.select("a", (col("b") + lit(1)).alias("b2"))
+    assert df2._plan._metadata.attributes is None
+
+    with SqlCounter(query_count=0, describe_count=1):
+        _ = df2._plan.attributes
+
+
+def test_cast_on_column_alias_still_requires_describe(session):
+    """Alias(Cast(...)) is not Alias(Attribute); types cannot be copied from the subquery without DESCRIBE."""
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    _ = df.schema
+
+    df2 = df.select(col("a").cast(LongType()).alias("a"))
+    assert df2._plan._metadata.attributes is None
+
+    with SqlCounter(query_count=0, describe_count=1):
+        _ = df2._plan.attributes
+
+
+def test_select_star_after_cached_parent(session):
+    """SELECT * after parent schema is cached: infer_metadata can copy child attributes when reduce_describe is on."""
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    _ = df.schema
+    parent_attrs = df._plan._metadata.attributes
+    assert parent_attrs is not None
+
+    df2 = df.select("*")
+    if session.reduce_describe_query_enabled:
+        assert df2._plan._metadata.attributes is not None
+        check_attributes_equality(df2._plan._metadata.attributes, parent_attrs)
+    else:
+        assert df2._plan._metadata.attributes is None
+
+    # Resolving attributes must match the logical schema (DESCRIBE may run when reduce is off).
+    check_attributes_equality(df2._plan.attributes, parent_attrs)
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
 def test_reduce_describe_query_enabled_on_session(db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
