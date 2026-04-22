@@ -32,8 +32,7 @@ on:
       pytest-addopts:
         description: 'Extra pytest args, e.g. "-k test_dataframe" or "--maxfail=5"'
         required: false
-        # TODO: remove default filter once full suite is passing against UD
-        default: 'tests/integ/test_stored_procedure.py'
+        default: ''
         type: string
 
 permissions:
@@ -43,7 +42,8 @@ env:
   PYTHON_VERSION: ${{ inputs.python-version || '3.13' }}
   CLOUD_PROVIDER: ${{ inputs.cloud-provider || 'aws' }}
   UD_BRANCH: ${{ inputs.ud-branch || 'snowpark-compatibility' }}
-  EXTRA_PYTEST_ADDOPTS: ${{ inputs.pytest-addopts || '' }}
+  # TODO: change fallback back to '' once full suite passes against UD
+  EXTRA_PYTEST_ADDOPTS: ${{ inputs.pytest-addopts || 'tests/integ/test_stored_procedure.py' }}
 
 jobs:
   test:
