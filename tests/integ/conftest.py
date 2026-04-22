@@ -362,6 +362,10 @@ def session(
         session.sql("alter session set ENABLE_ROW_ACCESS_POLICY=true").collect()
         if sys.version_info.major == 3 and sys.version_info.minor == 14:
             session.sql("alter session set ENABLE_PYTHON_3_14=true").collect()
+            # TODO: delete once pypi becomes default for 3.14
+            session.sql(
+                "alter session set DEFAULT_PYTHON_ARTIFACT_REPOSITORY=snowflake.snowpark.pypi_shared_repository"
+            ).collect()
 
     try:
         yield session
