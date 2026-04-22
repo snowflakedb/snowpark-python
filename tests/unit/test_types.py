@@ -53,6 +53,7 @@ from snowflake.snowpark._internal.type_utils import (
     split_top_level_comma_fields,
     type_string_to_type_object,
     find_top_level_colon,
+    _MAX_ICEBERG_STRING_SIZE,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -1042,6 +1043,19 @@ def test_convert_sf_to_sp_type_internal_size():
     snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 16777216, 16777216)
     assert isinstance(snowpark_type, StringType)
     assert snowpark_type.length == 16777216
+    assert snowpark_type._is_max_size
+
+    # Iceberg deployments report internal_size=134217728 for max-length strings,
+    # which differs from the regular max_string_size (16777216). This must still
+    # be recognized as a max-size string so that StringType(134217728) == StringType().
+    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, _MAX_ICEBERG_STRING_SIZE, 16777216)
+    assert isinstance(snowpark_type, StringType)
+    assert snowpark_type.length == _MAX_ICEBERG_STRING_SIZE
+    assert snowpark_type._is_max_size
+
+    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, _MAX_ICEBERG_STRING_SIZE, _MAX_ICEBERG_STRING_SIZE)
+    assert isinstance(snowpark_type, StringType)
+    assert snowpark_type.length == _MAX_ICEBERG_STRING_SIZE
     assert snowpark_type._is_max_size
 
     with pytest.raises(
