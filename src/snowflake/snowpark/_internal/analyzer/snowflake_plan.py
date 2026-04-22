@@ -1832,7 +1832,7 @@ class SnowflakePlanBuilder:
         """
         Creates a DataFrame from a UserDefinedTableFunction that reads XML files.
         """
-        from snowflake.snowpark.functions import lit, col, seq8, flatten
+        from snowflake.snowpark.functions import lit, col, seq8, flatten, iff
         from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
 
         schema_string = (
@@ -1870,8 +1870,20 @@ class SnowflakePlanBuilder:
             raise ValueError(f"{file_path} does not exist")
         num_workers = min(16, file_size // DEFAULT_CHUNK_SIZE + 1)
 
-        # Create a range from 0 to N-1
-        df = self.session.range(num_workers).to_df(worker_column_name)
+        # Create a range from 0 to N-1.
+        # iff() wrapping forces the column to be nullable, which is required
+        # because the XP UDTF runner (colsetExplode) unconditionally writes null
+        # indicators on correlated output columns. A non-nullable input column
+        # would trigger an assertion in Colset::getNullIndicatorsWriteOnly().
+        df = (
+            self.session.range(num_workers)
+            .to_df(worker_column_name)
+            .select(
+                iff(lit(True), col(worker_column_name), None).alias(
+                    worker_column_name
+                )
+            )
+        )
 
         # Apply UDTF to the XML file and get each XML record as a Variant data,
         # and append a unique row number to each record.
