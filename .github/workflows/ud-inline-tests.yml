@@ -43,7 +43,7 @@ env:
   CLOUD_PROVIDER: ${{ inputs.cloud-provider || 'aws' }}
   UD_BRANCH: ${{ inputs.ud-branch || 'snowpark-compatibility' }}
   # TODO: change fallback back to '' once full suite passes against UD
-  EXTRA_PYTEST_ADDOPTS: ${{ inputs.pytest-addopts || '-k test_stored_procedure -v --tb=long -x' }}
+  EXTRA_PYTEST_ADDOPTS: ${{ inputs.pytest-addopts || '-v --tb=long' }}
 
 jobs:
   test:
