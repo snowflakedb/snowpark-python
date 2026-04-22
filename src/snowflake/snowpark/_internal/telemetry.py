@@ -63,6 +63,8 @@ class TelemetryField(Enum):
     TYPE_CURSOR_CREATED = "snowpark_cursor_created"
     TYPE_SQL_SIMPLIFIER_ENABLED = "snowpark_sql_simplifier_enabled"
     TYPE_CTE_OPTIMIZATION_ENABLED = "snowpark_cte_optimization_enabled"
+    TYPE_CTE_EXECUTION_RETRY = "snowpark_cte_execution_retry"
+    TYPE_CTE_OPTIMIZATION_AUTO_DISABLED = "snowpark_cte_optimization_auto_disabled"
     # telemetry for optimization that eliminates the extra cast expression generated for expressions
     TYPE_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
         "snowpark_eliminate_numeric_sql_value_cast_enabled"
@@ -656,6 +658,46 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.CTE_OPTIMIZATION_ENABLED.value: True,
+            },
+        }
+        self.send(message)
+
+    def send_cte_execution_retry_telemetry(
+        self,
+        session_id: str,
+        plan_uuid: str,
+        error_message: str,
+        api_calls: Optional[List[Dict[str, Any]]],
+        cte_query_id: Optional[str],
+        retry_query_id: Optional[str],
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_CTE_EXECUTION_RETRY.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
+                CompilationStageTelemetryField.ERROR_MESSAGE.value: error_message,
+                TelemetryField.KEY_API_CALLS.value: api_calls,
+                CompilationStageTelemetryField.CTE_QUERY_ID.value: cte_query_id,
+                CompilationStageTelemetryField.RETRY_QUERY_ID.value: retry_query_id,
+            },
+        }
+        self.send(message)
+
+    def send_cte_optimization_auto_disabled_telemetry(
+        self,
+        session_id: str,
+        cte_error_count: int,
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_CTE_OPTIMIZATION_AUTO_DISABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                CompilationStageTelemetryField.CTE_ERROR_COUNT.value: cte_error_count,
             },
         }
         self.send(message)

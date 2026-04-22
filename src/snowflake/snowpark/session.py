@@ -668,6 +668,7 @@ class Session:
         self._cte_optimization_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION
         )
+        self._cte_error_count: int = 0
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
@@ -708,6 +709,15 @@ class Session:
                 _PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED, False
             )
         )
+
+        # When True, INFER_SCHEMA results for parquet/json files with
+        # structured types (OBJECT/MAP/ARRAY with inner type details) are
+        # parsed into full Snowpark DataType objects by DataFrameReader and
+        # TRY_CAST is used in the SELECT expression. Defaults to False;
+        # opt in by direct assignment, e.g.
+        #     session._use_structured_type_infer_schema = True
+        # (SAS / snowpark-connect enables this during session configuration.)
+        self._use_structured_type_infer_schema: bool = False
 
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
@@ -823,6 +833,10 @@ class Session:
         self._xpath_udf_cache_lock = create_rlock(
             self._conn._thread_safe_session_enabled
         )
+
+        # this lock is used to protect CTE error counting and auto-disable logic
+        # to avoid contention with the general session _lock
+        self._cte_error_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
         self._custom_package_usage_config: Dict = {}
 
@@ -4981,7 +4995,7 @@ class Session:
                     handler_name,
                     return_type=return_type_map[return_type],
                     input_types=[StringType(), StringType()],
-                    packages=["snowflake-snowpark-python", "lxml<6"],
+                    packages=["snowflake-snowpark-python", "lxml<7"],
                     replace=True,
                     _emit_ast=False,
                     _suppress_local_package_warnings=True,
@@ -5028,6 +5042,56 @@ class Session:
             set_api_call_source(df, "Session.call")
             # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
             return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]
+
+    def _retrieve_aggregation_function_list(self) -> None:
+        """Retrieve the list of aggregation functions which will later be used in sql simplifier."""
+        if (
+            not (
+                context._is_snowpark_connect_compatible_mode
+                and context._snowpark_connect_flatten_select_after_sort
+            )
+            or context._aggregation_function_set
+        ):
+            return
+
+        retrieved_set = set()
+
+        # User-defined aggregation functions
+        try:
+            retrieved_set.update(
+                {
+                    r[0].lower()
+                    for r in self.sql(
+                        """select function_name from information_schema.functions where is_aggregate = 'YES'"""
+                    ).collect()
+                }
+            )
+        except Exception as e:
+            _logger.debug(
+                "Unable to get user-defined aggregation functions: %s",
+                e,
+            )
+
+        # System built-in aggregation functions
+        try:
+            retrieved_set.update(
+                {
+                    r[0].lower()
+                    for r in self.sql(
+                        """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'"""
+                    ).collect()
+                }
+            )
+        except Exception as e:
+            _logger.debug(
+                "Unable to get system aggregation functions, "
+                "falling back to hardcoded list: %s",
+                e,
+            )
+            retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
+
+        with context._aggregation_function_set_lock:
+            context._aggregation_function_set.update(retrieved_set)
 
     def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
         """

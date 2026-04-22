@@ -3712,6 +3712,22 @@ def collation(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     return _call_function("collation", c, _emit_ast=_emit_ast)
 
 
+def _rewrite_concat_arg_if_double_quote_string_literal(
+    c: Column, *, _emit_ast: bool
+) -> Column:
+    # SNOW-3259059: Some Snowflake releases (10.7.1–10.9.2 per JIRA) dropped CONCAT's leading
+    # lit('"') through EXCEPT / chained set-op plans. CHR(34) is the same VARCHAR character in SQL
+    # without that specific single-character literal form.
+    expr = c._expression
+    if (
+        isinstance(expr, Literal)
+        and isinstance(expr.datatype, StringType)
+        and expr.value == '"'
+    ):
+        return _call_function("chr", lit(34, _emit_ast=_emit_ast), _emit_ast=_emit_ast)
+    return c
+
+
 @publicapi
 def concat(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Concatenates one or more strings, or concatenates one or more binary values. If any of the values is null, the result is also null.
@@ -3726,7 +3742,12 @@ def concat(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
         --------------------------
         <BLANKLINE>
     """
-    columns = [_to_col_if_str(c, "concat") for c in cols]
+    columns = [
+        _rewrite_concat_arg_if_double_quote_string_literal(
+            _to_col_if_str(c, "concat"), _emit_ast=_emit_ast
+        )
+        for c in cols
+    ]
     return _call_function("concat", *columns, _emit_ast=_emit_ast)
 
 
@@ -11924,7 +11945,7 @@ def regr_sxy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
         >>> df = df.filter(df["v2"].is_not_null())
-        >>> df.group_by("v").agg(regr_sxy(df["v"], df["v2"]).alias("regr_sxy")).collect()
+        >>> df.group_by("v").agg(regr_sxy(df["v"], df["v2"]).alias("regr_sxy")).sort("v").collect()
         [Row(V=10, REGR_SXY=0.0), Row(V=20, REGR_SXY=0.0), Row(V=30, REGR_SXY=0.0)]
     """
     y_col = _to_col_if_str(y, "regr_sxy")

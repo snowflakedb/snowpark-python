@@ -16,6 +16,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.utils import assert_frame_equal
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
@@ -294,9 +295,6 @@ def test_read_json_staged_folder():
 
 
 @sql_count_checker(query_count=4)
-@pytest.mark.xfail(
-    reason="SNOW-1336174: Remove xfail by handling empty JSON files", strict=True
-)
 def test_read_json_empty_file():
     with open("test_read_json_empty_file.json", "w"):
         pass
@@ -307,13 +305,13 @@ def test_read_json_empty_file():
         os.remove("test_read_json_empty_file.json")
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=5)
 def test_read_json_malformed_file_negative():
 
     with open("test_read_json_malformed_file.json", "w") as f:
         f.write("{a: 3, key_no_value}")
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(SnowparkSQLException):
         pd.read_json("test_read_json_malformed_file.json")
 
     os.remove("test_read_json_malformed_file.json")

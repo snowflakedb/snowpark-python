@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 import re
 from unittest import mock
 
@@ -141,6 +142,97 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
         and f"TYPE  = {format_type.upper()}" in q
         for q in df.queries["queries"]
     )
+
+
+def _create_fake_session(sql_simplifier_enabled=True):
+    """Build a minimal fake session suitable for DataFrameReader unit tests."""
+
+    def nop(name):
+        return name
+
+    fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
+    fake_session.sql_simplifier_enabled = sql_simplifier_enabled
+    fake_session._cte_optimization_enabled = False
+    fake_session._query_compilation_stage_enabled = False
+    fake_session._join_alias_fix = False
+    fake_session._conn = mock.create_autospec(ServerConnection)
+    fake_session._conn._thread_safe_session_enabled = True
+    fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
+    fake_session._analyzer = Analyzer(fake_session)
+    fake_session._use_scoped_temp_objects = True
+    fake_session._ast_batch = mock.create_autospec(AstBatch)
+    fake_session.get_fully_qualified_name_if_possible = nop
+    return fake_session
+
+
+@pytest.mark.parametrize("format_type", ["json", "avro", "orc", "parquet"])
+def test_read_semi_structured_infer_schema_generic_error(format_type, caplog):
+    """When _infer_schema_for_file_format returns a non-FileNotFoundError,
+    the reader should log a warning, set INFER_SCHEMA=False, and still
+    return a DataFrame with the $1 VARIANT fallback schema."""
+    error = RuntimeError("Cannot infer schema: error 100069")
+
+    def mock_infer(*args, **kwargs):
+        return None, None, None, error
+
+    fake_session = _create_fake_session()
+    reader = DataFrameReader(fake_session).option("INFER_SCHEMA", True)
+
+    with mock.patch(
+        "snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format",
+        mock_infer,
+    ):
+        with caplog.at_level(logging.WARNING):
+            df = getattr(reader, format_type)("@stage/file")
+
+    assert df is not None
+    assert f"Could not infer schema for {format_type.upper()} file" in caplog.text
+    assert "100069" in caplog.text
+    assert "Falling back to $1 VARIANT schema" in caplog.text
+
+
+@pytest.mark.parametrize("format_type", ["json", "avro", "orc", "parquet"])
+def test_read_semi_structured_infer_schema_file_not_found(format_type):
+    """When _infer_schema_for_file_format returns a FileNotFoundError,
+    the reader should re-raise it directly."""
+    error = FileNotFoundError("Stage path does not exist or not authorized")
+
+    def mock_infer(*args, **kwargs):
+        return None, None, None, error
+
+    fake_session = _create_fake_session()
+    reader = DataFrameReader(fake_session).option("INFER_SCHEMA", True)
+
+    with mock.patch(
+        "snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format",
+        mock_infer,
+    ):
+        with pytest.raises(FileNotFoundError, match="not authorized"):
+            getattr(reader, format_type)("@stage/file")
+
+
+@pytest.mark.parametrize("format_type", ["json", "avro", "orc", "parquet"])
+def test_read_semi_structured_infer_schema_success_no_warning(format_type, caplog):
+    """When _infer_schema_for_file_format succeeds, no warning should be logged
+    and INFER_SCHEMA should remain True."""
+    schema = [Attribute('"col1"', StringType())]
+    schema_to_cast = [("$1:col1::VARCHAR", "col1")]
+
+    def mock_infer(*args, **kwargs):
+        return schema, schema_to_cast, None, None
+
+    fake_session = _create_fake_session()
+    reader = DataFrameReader(fake_session).option("INFER_SCHEMA", True)
+
+    with mock.patch(
+        "snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format",
+        mock_infer,
+    ):
+        with caplog.at_level(logging.WARNING):
+            df = getattr(reader, format_type)("@stage/file")
+
+    assert df is not None
+    assert "Could not infer schema" not in caplog.text
 
 
 def test_select_negative():

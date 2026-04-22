@@ -588,9 +588,9 @@ def handle_function_expression(
         to_pass_kwargs = {}
         for param_name in parameters_except_ast:
             if param_name in exp.named_arguments:
-                type_hint = str(type_hints.get(param_name, ""))
-                keep_literal = "Column" not in type_hint
-                if type_hint == "typing.Optional[dict]":
+                type_hint = type_hints.get(param_name)
+                keep_literal = "Column" not in str(type_hint)
+                if type_hint == typing.Optional[dict]:
                     to_pass_kwargs[param_name] = json.loads(
                         exp.named_arguments[param_name].sql.replace("'", '"')
                     )
@@ -1495,8 +1495,8 @@ def execute_mock_plan(
     if isinstance(source_plan, Project):
         return TableEmulator(ColumnEmulator(col) for col in source_plan.project_list)
     if isinstance(source_plan, Join):
-        L_expr_to_alias = {}
-        R_expr_to_alias = {}
+        L_expr_to_alias = dict(getattr(source_plan.left, "expr_to_alias", None) or {})
+        R_expr_to_alias = dict(getattr(source_plan.right, "expr_to_alias", None) or {})
         left = execute_mock_plan(source_plan.left, L_expr_to_alias).reset_index(
             drop=True
         )
@@ -2626,6 +2626,7 @@ def calculate_expression(
                 keys,
                 sort=False,
                 as_index=False,
+                dropna=False,
             )
             res_index = []
             for r in res:
