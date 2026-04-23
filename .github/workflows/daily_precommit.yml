@@ -614,7 +614,7 @@ jobs:
       - name: Install tox
         run: uv pip install tox --system
       # TODO: enable doctest for 3.14
-      - if: ${{ contains('macos', matrix.os.download_name) && matrix.python-version != '3.14' }}
+      - if: ${{ contains('macos', matrix.os.download_name) }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -623,22 +623,8 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      # TODO: enable for 3.14
-      - if: ${{ matrix.python-version != '3.14' }}
-        name: Run tests (excluding doctests)
+      - name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
-          TOX_PARALLEL_NO_SPINNER: 1
-          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
-          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
-        shell: bash
-      # TODO: remove the test below and run udf tests for 3.14
-      - if: ${{ matrix.python-version == '3.14' }}
-        name: Run tests (excluding udf, doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}

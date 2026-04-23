@@ -34,7 +34,11 @@ from snowflake.snowpark._internal.data_source.drivers import (
 from snowflake.snowpark._internal.data_source import DataSourceReader
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import get_temp_type_for_object
-from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+from snowflake.snowpark.context import _PYPI_SHARED_REPOSITORY
+from snowflake.snowpark.exceptions import (
+    SnowparkClientException,
+    SnowparkDataframeReaderException,
+)
 from snowflake.snowpark.types import StructType
 
 from typing import TYPE_CHECKING
@@ -98,7 +102,11 @@ DRIVER_MAP = {
     DRIVER_TYPE.PYMYSQL: PymysqlDriver,
 }
 
-UDTF_PACKAGE_MAP = {
+# Default UDTF package list, suitable for Snowflake's Anaconda shared
+# repository. The Snowflake Anaconda channel ships conda builds of these
+# packages with the necessary native libraries (e.g., libpq for psycopg2,
+# msodbcsql for pyodbc) bundled, so the source distribution names work.
+_ANACONDA_UDTF_PACKAGE_MAP = {
     DBMS_TYPE.ORACLE_DB: ["oracledb>=2.0.0,<4.0.0", "snowflake-snowpark-python"],
     DBMS_TYPE.SQLITE_DB: ["snowflake-snowpark-python"],
     DBMS_TYPE.SQL_SERVER_DB: [
@@ -113,6 +121,67 @@ UDTF_PACKAGE_MAP = {
     ],
     DBMS_TYPE.MYSQL_DB: ["pymysql>=1.0.0,<2.0.0", "snowflake-snowpark-python"],
 }
+
+# UDTF package list when using the PyPI shared repository. The server-side
+# UDTF install sandbox refuses to compile source distributions (sdists), so
+# every package here must be wheel-installable from PyPI. Differences from
+# the Anaconda map:
+#   - Postgres uses ``psycopg2-binary`` because ``psycopg2`` on PyPI is
+#     sdist-only; ``psycopg2-binary`` is the wheel-packaged equivalent.
+#   - SQL Server has no PyPI-installable equivalent of ``msodbcsql`` (it is
+#     Microsoft's ODBC driver, distributed as a system package), so the
+#     UDTF path cannot work on PyPI today.
+#   - Databricks depends on ``databricks-sql-connector``, which transitively
+#     requires ``thrift``; ``thrift`` on PyPI is sdist-only for every
+#     version, so the server cannot install it.
+# These PyPI gaps are independent of the Python version; they apply to any
+# session whose default artifact repository is PyPI (most commonly Python
+# 3.14+, where PyPI is the global default).
+_PYPI_UDTF_PACKAGE_MAP = {
+    DBMS_TYPE.ORACLE_DB: ["oracledb>=2.0.0,<4.0.0", "snowflake-snowpark-python"],
+    DBMS_TYPE.SQLITE_DB: ["snowflake-snowpark-python"],
+    DBMS_TYPE.POSTGRES_DB: [
+        "psycopg2-binary>=2.0.0,<3.0.0",
+        "snowflake-snowpark-python",
+    ],
+    DBMS_TYPE.MYSQL_DB: ["pymysql>=1.0.0,<2.0.0", "snowflake-snowpark-python"],
+    # SQL_SERVER_DB and DATABRICKS_DB intentionally omitted - see
+    # resolve_udtf_packages for the user-facing error.
+}
+
+# Backwards-compatible alias for callers (and external code) that imported
+# the old map. New code should use :func:`resolve_udtf_packages`.
+UDTF_PACKAGE_MAP = _ANACONDA_UDTF_PACKAGE_MAP
+
+
+def resolve_udtf_packages(
+    dbms_type: "DBMS_TYPE", artifact_repository: Optional[str]
+) -> List[str]:
+    """Return the default UDTF package list for ``dbms_type``.
+
+    Picks the package list appropriate for ``artifact_repository``. When the
+    repository is the PyPI shared repository, some DBMSes have no working
+    package set (their dependencies are not wheel-installable from PyPI, and
+    the server-side UDTF sandbox refuses to compile sdists); this raises
+    :class:`SnowparkClientException` with guidance to switch repositories.
+    """
+    if artifact_repository == _PYPI_SHARED_REPOSITORY:
+        packages = _PYPI_UDTF_PACKAGE_MAP.get(dbms_type)
+        if packages is None:
+            raise SnowparkClientException(
+                f"DataFrameReader.dbapi server-side UDTF ingestion for "
+                f"{dbms_type.value} is not supported when the session's "
+                f"default artifact repository is PyPI: the required "
+                f"packages are not wheel-installable from PyPI, and the "
+                f"server-side UDTF install sandbox refuses to compile "
+                f"source distributions. Switch to the Anaconda artifact "
+                f"repository (on Python 3.14+, PyPI is the client-side "
+                f"default; on older Python versions, Anaconda is the "
+                f"default but may have been overridden at the account, "
+                f"database, or schema level)."
+            )
+        return packages
+    return _ANACONDA_UDTF_PACKAGE_MAP.get(dbms_type)
 
 
 def get_jdbc_dbms(jdbc_url: str) -> str:

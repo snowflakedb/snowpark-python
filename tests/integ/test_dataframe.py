@@ -103,6 +103,7 @@ from tests.utils import (
     IS_IN_STORED_PROC,
     IS_IN_STORED_PROC_LOCALFS,
     IS_NOT_ON_GITHUB,
+    IS_PY314,
     TestData,
     TestFiles,
     Utils,
@@ -5416,6 +5417,10 @@ def test_append_existing_table(session, local_testing_mode):
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
 )
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Python 3.14 UDxFs not supported in dynamic tables yet",
+)
 @pytest.mark.udf
 def test_dynamic_table_join_table_function(session):
     if not session.sql_simplifier_enabled:
@@ -5501,6 +5506,10 @@ def test_dynamic_table_join_table_function(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
+)
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Python 3.14 UDxFs not supported in dynamic tables yet",
 )
 @pytest.mark.udf
 def test_dynamic_table_join_table_function_with_more_layers(session):
@@ -5589,6 +5598,10 @@ def test_dynamic_table_join_table_function_with_more_layers(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
+)
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Python 3.14 UDxFs not supported in dynamic tables yet",
 )
 @pytest.mark.udf
 def test_dynamic_table_join_table_function_nested(session):

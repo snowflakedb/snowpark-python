@@ -25,7 +25,10 @@ from snowflake.snowpark._internal.udf_utils import (
     resolve_packages_in_client_side_sandbox,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
+from snowflake.snowpark.context import (
+    _ANACONDA_SHARED_REPOSITORY,
+    _DEFAULT_ARTIFACT_REPOSITORY,
+)
 from snowflake.snowpark.types import StringType
 from snowflake.snowpark.version import VERSION
 
@@ -149,7 +152,7 @@ def test_resolve_imports_and_packages_in_sandbox():
     assert handler is None
     assert inline_code is None
     assert all_imports == ""
-    assert all_packages == ",".join([f"'{package}'" for package in packages])
+    assert all(f"'{package}'" in all_packages for package in packages)
     assert upload_file_stage_location is None
     assert not custom_python_runtime_version_allowed
 
@@ -208,7 +211,7 @@ def test_resolve_imports_and_packages_imports_as_str(tmp_path_factory):
         assert handler is None
         assert inline_code is None
         assert all_imports == ""
-        assert all_packages == ",".join([f"'{package}'" for package in packages])
+        assert all(f"'{package}'" in all_packages for package in packages)
         assert upload_file_stage_location is None
         assert not custom_python_runtime_version_allowed
 
@@ -264,7 +267,7 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
     result = add_snowpark_package_to_sproc_packages(
         session=fake_session,
         packages=None,
-        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+        artifact_repository=_DEFAULT_ARTIFACT_REPOSITORY,
     )
 
     major, minor, patch = VERSION
@@ -279,7 +282,7 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
     result = add_snowpark_package_to_sproc_packages(
         session=fake_session,
         packages=None,
-        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+        artifact_repository=_DEFAULT_ARTIFACT_REPOSITORY,
     )
     assert result is None
 

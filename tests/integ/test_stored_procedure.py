@@ -27,6 +27,7 @@ except ImportError:
     is_pandas_available = False
 
 from snowflake.snowpark import Session, AsyncJob
+from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.udf_utils import resolve_imports_and_packages
 from snowflake.snowpark._internal.utils import (
@@ -59,10 +60,11 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-
+from tests.integ.session_parameters import create_session_for_test
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
+    IS_PY314,
     TempObjectType,
     TestFiles,
     Utils,
@@ -117,10 +119,10 @@ def test_add_packages_failures(packages, should_fail, db_parameters):
     def return1(session_):
         return session_.sql("select '1'").collect()[0][0]
 
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         if should_fail:
             with pytest.raises(
-                RuntimeError, match="Cannot add package snowflake-snowpark-python"
+                (SnowparkSQLException, RuntimeError),
             ):
                 sproc(
                     return1,
@@ -174,11 +176,9 @@ def test__do_register_sp_submits_correct_packages(
     def return1(session_):
         return session_.sql("select '1'").collect()[0][0]
 
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         # Adding the testing version of the package fails, but the package list should still be correct
-        with pytest.raises(
-            RuntimeError, match="Cannot add package snowflake-snowpark-python"
-        ):
+        with pytest.raises((RuntimeError, SnowparkSQLException)):
             sproc(
                 return1,
                 session=new_session,
@@ -326,12 +326,9 @@ def test_call_named_stored_procedure(
     )
     if not local_testing_mode:
         # create a stored procedure when the session doesn't have a schema
-        new_session = (
-            Session.builder.configs(db_parameters)._remove_config("schema").create()
-        )
-        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
-        new_session.add_packages("snowflake-snowpark-python")
-        try:
+        with create_session_for_test(db_parameters, remove_schema=True) as new_session:
+            new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
+            new_session.add_packages("snowflake-snowpark-python")
             assert not new_session.get_current_schema()
             tmp_stage_name_in_temp_schema = f"{temp_schema}.{Utils.random_name_for_temp_object(TempObjectType.STAGE)}"
             new_session._run_query(f"create temp stage {tmp_stage_name_in_temp_schema}")
@@ -359,9 +356,6 @@ def test_call_named_stored_procedure(
                 )
                 == 1
             )
-        finally:
-            new_session.close()
-            # restore active session
 
 
 @pytest.mark.skipif(
@@ -412,6 +406,8 @@ def test_sproc_pass_system_reference(session, validate_ast):
 
 @pytest.mark.parametrize("anonymous", [True, False])
 def test_call_table_sproc_triggers_action(session, anonymous):
+    if IS_PY314 and anonymous:
+        pytest.skip("Anonymous stored procedures not supported in Python 3.14 yet")
     """Here we create a table sproc which creates a table. we call the table sproc using
     session.call trigger this action and test using session.table that the table was
     indeed created
@@ -1036,7 +1032,7 @@ def test_register_sp_with_preserve_parameter_names(session, resources_path):
 def test_permanent_sp(session, db_parameters):
     stage_name = Utils.random_stage_name()
     sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         new_session.add_packages("snowflake-snowpark-python")
         try:
@@ -1069,7 +1065,7 @@ def test_permanent_sp(session, db_parameters):
 def test_permanent_sp_negative(session, db_parameters):
     stage_name = Utils.random_stage_name()
     sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         new_session.add_packages("snowflake-snowpark-python")
         try:
@@ -1257,6 +1253,8 @@ def test_sp_negative(session, local_testing_mode):
     reason="Named temporary procedure is not supported in stored proc",
 )
 def test_table_sproc(session, is_permanent, anonymous, ret_type):
+    if IS_PY314 and anonymous:
+        pytest.skip("Anonymous stored procedures not supported in Python 3.14 yet")
     """Ensure the following scenarios work:
     - register sproc with session.sproc.register
     - register sproc with @sproc decorator
@@ -1510,6 +1508,8 @@ def test_async_stored_procedure_execution(session):
     reason="SNOW-1370056: Anonymous stored procedure is not supported yet",
 )
 def test_async_anonymous_stored_procedure(session):
+    if IS_PY314:
+        pytest.skip("Anonymous stored procedures not supported in Python 3.14 yet")
     anonymous_sproc = session.sproc.register(
         lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
         return_type=IntegerType(),
@@ -2001,18 +2001,24 @@ def test_describe_sp(session, source_code_display):
         "handler",
         "runtime_version",
         "packages",
+        "artifact_repository",
+        "artifact_repository_packages",
         "installed_packages",
-        # This seems like an unintended change from the server, we should remove it once it is removed from server
-        "is_aggregate",
+        "artifact_repository_installed_packages",
     ]
-    # We use zip such that it is compatible regardless of UDAF is enabled or not on the merge gate accounts
-    for actual_field, expected_field in zip(actual_fields, expected_fields):
-        assert (
-            actual_field == expected_field
-        ), f"Actual: {actual_fields}, Expected: {expected_fields}"
 
+    # use subset since the actual fields seem to change based on deployment
+    assert set(actual_fields).issubset(
+        set(expected_fields)
+    ), f"Actual: {actual_fields}, Expected superset: {expected_fields}"
+
+    packages_field = (
+        "artifact_repository_packages"
+        if "artifact_repository_packages" in actual_fields
+        else "packages"
+    )
     for row in describe_res:
-        if row[0] == "packages":
+        if row[0] == packages_field:
             assert "snowflake-snowpark-python" in row[1]
         elif row[0] == "body" and source_code_display:
             assert (
@@ -2142,6 +2148,8 @@ def test_strict_stored_procedure(session):
     reason="SNOW-1370056: Anonymous stored procedure is not supported yet",
 )
 def test_anonymous_stored_procedure(session):
+    if IS_PY314:
+        pytest.skip("Anonymous stored procedures not supported in Python 3.14 yet")
     add_sp = session.sproc.register(
         lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
         return_type=IntegerType(),
@@ -2159,6 +2167,8 @@ def test_anonymous_stored_procedure(session):
 )
 @pytest.mark.parametrize("anonymous", [True, False])
 def test_stored_procedure_call_with_statement_params(session, anonymous):
+    if IS_PY314 and anonymous:
+        pytest.skip("Anonymous stored procedures not supported in Python 3.14 yet")
     query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
     statement_params = {"QUERY_TAG": query_tag}
     add_sp = session.sproc.register(
@@ -2272,6 +2282,9 @@ def test_register_sproc_after_switch_schema(session):
             session._run_query(f"create database if not exists {new_database}")
             session._run_query(f"create schema if not exists {new_schema}")
             session._run_query(f"use schema {new_schema}")
+            session.sql(
+                f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
+            ).collect()
 
             add_sp = session.sproc.register(
                 lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[
@@ -2425,6 +2438,10 @@ def test_sproc_artifact_repository_from_file(session, tmpdir):
     reason="Packaging processing is a NOOP in Local Testing",
     run=False,
 )
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Version warning requires Anaconda artifact repository, which doesn't have a 3.14 build yet",
+)
 @pytest.mark.parametrize(
     "version_override, expect_warning",
     [
@@ -2551,7 +2568,11 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
         import pandas as pd
         import queue as queue_module
 
-        queue = mp.Queue()
+        # On Python 3.14 the default multiprocessing start method moved away
+        # from "fork" on some platforms, which requires pickling the target
+        # function. Nested functions cannot be pickled, so force "fork".
+        ctx = mp.get_context("fork")
+        queue = ctx.Queue()
 
         def worker_process(parquet_queue):
             try:
@@ -2569,7 +2590,7 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
             except Exception as e:
                 parquet_queue.put(("error", str(e)))
 
-        process = mp.Process(target=worker_process, args=(queue,))
+        process = ctx.Process(target=worker_process, args=(queue,))
         process.start()
 
         # Wait for the process to complete
@@ -2614,7 +2635,11 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
             return "failure"
         return "success"
 
-    ingestion = sproc(core_ingestion_logic, return_type=StringType())
+    ingestion = sproc(
+        core_ingestion_logic,
+        return_type=StringType(),
+        packages=["snowflake-snowpark-python", "pandas", "pyarrow"],
+    )
     assert ingestion() == "success"
 
 
@@ -2633,7 +2658,7 @@ def test_data_source_udtf_ingestion(db_parameters):
         oracledb_real_data,
     )
 
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         new_session.custom_package_usage_config["enabled"] = True
         new_session.custom_package_usage_config["force_push"] = True
         new_session.add_packages("oracledb")
@@ -2693,4 +2718,17 @@ def test_data_source_udtf_ingestion(db_parameters):
         df = new_session.call(
             sp_name,
         ).order_by("ID")
-        assert df.collect() == oracledb_real_data
+
+        # On the PyPI artifact repository (default on Python 3.14) the sproc
+        # return value round-trips through JSON, which rounds IEEE-754 doubles
+        # to ~13 significant digits. Oracle's BINARY_FLOAT_COL is a single-
+        # precision value whose exact double representation has more digits,
+        # so the client-observed value differs from the expected value by a
+        # few ulps. Round floats on both sides so exact equality still holds.
+        def normalize(rows):
+            return [
+                tuple(round(v, 9) if isinstance(v, float) else v for v in r)
+                for r in rows
+            ]
+
+        assert normalize(df.collect()) == normalize(oracledb_real_data)

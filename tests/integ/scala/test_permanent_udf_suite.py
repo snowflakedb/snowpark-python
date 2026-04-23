@@ -17,6 +17,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import call_udf, col
+from tests.integ.session_parameters import set_up_test_session_parameters
 from tests.utils import TempObjectType, TestFiles, Utils
 
 pytestmark = [
@@ -33,6 +34,7 @@ pytestmark = [
 def new_session(session, db_parameters) -> Session:
     new_session = Session.builder.configs(db_parameters).create()
     new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
+    set_up_test_session_parameters(new_session, False)
     yield new_session
     new_session.close()
 

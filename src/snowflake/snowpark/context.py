@@ -5,6 +5,7 @@
 
 """Context module for Snowpark."""
 import logging
+import sys
 from typing import Callable, Optional
 
 import snowflake.snowpark
@@ -168,8 +169,14 @@ _integral_type_default_precision = {}
 
 # The fully qualified name of the Anaconda shared repository (conda channel).
 _ANACONDA_SHARED_REPOSITORY = "snowflake.snowpark.anaconda_shared_repository"
-# In case of failures or the current default artifact repository is unset, we fallback to this
-_DEFAULT_ARTIFACT_REPOSITORY = _ANACONDA_SHARED_REPOSITORY
+# The fully qualified name of the PyPI shared repository (pypi channel).
+_PYPI_SHARED_REPOSITORY = "snowflake.snowpark.pypi_shared_repository"
+# In case of failures and for routing to the right session package store, we use this
+_DEFAULT_ARTIFACT_REPOSITORY = (
+    _ANACONDA_SHARED_REPOSITORY
+    if sys.version_info < (3, 14)
+    else _PYPI_SHARED_REPOSITORY
+)
 
 
 def configure_development_features(

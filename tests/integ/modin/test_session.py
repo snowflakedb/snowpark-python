@@ -22,6 +22,7 @@ from tests.integ.modin.utils import (
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.session_parameters import set_up_test_session_parameters
 from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import IS_IN_STORED_PROC, running_on_jenkins, running_on_public_ci
 
@@ -101,6 +102,9 @@ def clear_pandas_session():
 @pytest.fixture
 def new_session(db_parameters):
     new_session = Session.builder.configs(db_parameters).create()
+    set_up_test_session_parameters(
+        new_session, bool(db_parameters.get("local_testing", False))
+    )
     yield new_session
     new_session.close()
 
