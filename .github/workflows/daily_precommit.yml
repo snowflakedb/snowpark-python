@@ -198,6 +198,8 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       - name: Install MS ODBC Driver (Ubuntu only)
         if: ${{ matrix.os.download_name == 'linux' }}
@@ -611,6 +613,7 @@ jobs:
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
         run: uv pip install tox --system
+      # TODO: enable doctest for 3.14
       - if: ${{ contains('macos', matrix.os.download_name) }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
