@@ -286,6 +286,14 @@ def test_schema(connection, local_testing_mode) -> None:
             cursor.execute(
                 f"GRANT ALL PRIVILEGES ON SCHEMA {TEST_SCHEMA} TO ROLE PUBLIC"
             )
+            # TODO: delete once pypi becomes default for 3.14
+            if sys.version_info.major == 3 and sys.version_info.minor == 14:
+                cursor.execute(
+                    "alter session set ENABLE_DEFAULT_PYTHON_ARTIFACT_REPOSITORY=true"
+                )
+                cursor.execute(
+                    "alter schema set DEFAULT_PYTHON_ARTIFACT_REPOSITORY=snowflake.snowpark.pypi_shared_repository"
+                )
             yield
             cursor.execute(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}")
 
@@ -362,10 +370,6 @@ def session(
         session.sql("alter session set ENABLE_ROW_ACCESS_POLICY=true").collect()
         if sys.version_info.major == 3 and sys.version_info.minor == 14:
             session.sql("alter session set ENABLE_PYTHON_3_14=true").collect()
-            # TODO: delete once pypi becomes default for 3.14
-            session.sql(
-                "alter session set DEFAULT_PYTHON_ARTIFACT_REPOSITORY=snowflake.snowpark.pypi_shared_repository"
-            ).collect()
 
     try:
         yield session
