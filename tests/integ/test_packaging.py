@@ -185,6 +185,10 @@ def test_patch_on_get_available_versions_for_packages(session):
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
+@pytest.mark.skipif(
+    "FIPS_TEST" in os.environ,
+    reason="SNOW-3425553: need FIPS mode investigation",
+)
 def test_add_packages(session, local_testing_mode):
     # Use numpy 2.3.1 for Python 3.13+, numpy 1.26.3 doesn't support Python 3.13
     numpy_version = "numpy==2.3.1" if sys.version_info >= (3, 13) else "numpy==1.26.3"
@@ -341,6 +345,10 @@ def test_add_packages_with_underscore_and_versions(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Need certain version of datautil/pandas/numpy"
 )
+@pytest.mark.skipif(
+    "FIPS_TEST" in os.environ,
+    reason="SNOW-3425553: need FIPS mode investigation",
+)
 def test_add_packages_negative(session, caplog):
     with pytest.raises(ValueError) as ex_info:
         session.add_packages("python-dateutil****")
@@ -470,6 +478,10 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     IS_PY314,
     reason="Python 3.14 uses pypi repository",
 )
+@pytest.mark.skipif(
+    "FIPS_TEST" in os.environ,
+    reason="SNOW-3425553: need FIPS mode investigation",
+)
 def test_add_unsupported_requirements_should_fail_if_custom_packages_upload_enabled_not_switched_on(
     session, resources_path
 ):
@@ -528,6 +540,10 @@ def test_add_requirements_artifact_repository(
 @pytest.mark.skipif(
     IS_PY314,
     reason="Python 3.14 uses pypi repository",
+)
+@pytest.mark.skipif(
+    "FIPS_TEST" in os.environ,
+    reason="SNOW-3425553: need FIPS mode investigation",
 )
 def test_add_unsupported_packages_should_fail_if_custom_packages_upload_enabled_not_switched_on(
     session,
@@ -701,6 +717,10 @@ def test_add_requirements_with_native_dependency_force_push(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
+)
+@pytest.mark.skipif(
+    "FIPS_TEST" in os.environ,
+    reason="SNOW-3425553: need FIPS mode investigation",
 )
 def test_add_packages_with_native_dependency_without_force_push(session):
     session.custom_package_usage_config = {"enabled": True}
@@ -1004,6 +1024,10 @@ def test_add_requirements_unsupported_with_empty_stage_as_cache_path(
 @pytest.mark.skipif(
     IS_PY314,
     reason="Python 3.14 uses pypi repository",
+)
+@pytest.mark.skipif(
+    "FIPS_TEST" in os.environ,
+    reason="SNOW-3425553: need FIPS mode investigation",
 )
 def test_add_requirements_unsupported_with_cache_path_negative(
     session, resources_path, temporary_stage
