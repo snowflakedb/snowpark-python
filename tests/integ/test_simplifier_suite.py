@@ -2180,6 +2180,67 @@ def test_sort_not_flattened_on_new_column_with_dollar_or_all_dependency(session)
     Utils.check_answer(df_sorted_dollar, [Row(1, 1), Row(3, 3)])
 
 
+@pytest.mark.parametrize("is_snowpark_connect_compatible_mode", [True, False])
+def test_filter_after_limit_not_flattened_on_new_column(
+    session, monkeypatch, is_snowpark_connect_compatible_mode
+):
+    """Filter on a NEW (aliased) column after LIMIT must not be flattened in
+    front of LIMIT, in either legacy or Snowpark Connect compatible mode.
+    Flattening WHERE across LIMIT changes the result set
+    (``LIMIT n ... WHERE c`` != ``WHERE c LIMIT n``).
+
+    Regression test for the bug introduced by the
+    ``_snowpark_connect_flatten_select_after_sort`` loosening, which allowed
+    filter-through-LIMIT flattening on NEW columns in compatible mode."""
+    if is_snowpark_connect_compatible_mode:
+        import snowflake.snowpark.context as context
+
+        monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+
+    df = session.create_dataframe([(i,) for i in range(10)], schema=["ID"])
+    df1 = (
+        df.select(col("ID").alias("id_a"))
+        .select(col("id_a").alias("id_b"))
+        .limit(5)
+        .filter(col("id_b") > 3)
+    )
+
+    # WHERE must remain OUTSIDE the LIMIT subquery. The SQL must nest so that
+    # LIMIT is applied before WHERE.
+    query = df1.queries["queries"][-1]
+    assert query.upper().rfind("WHERE") > query.upper().rfind(
+        "LIMIT"
+    ), f"WHERE flattened across LIMIT on NEW column: {query}"
+    assert (
+        query.count("SELECT") >= 2
+    ), f"Expected nested SELECT when filtering on NEW column after LIMIT: {query}"
+
+
+def test_filter_on_new_column_without_limit_still_flattens_compat_mode(
+    session, monkeypatch
+):
+    """Sanity check: the Snowpark Connect compatible-mode loosening of
+    filter flattening on NEW columns is still active when there is no
+    LIMIT/OFFSET on the subquery. Only the narrow LIMIT/OFFSET case is
+    blocked by the fix."""
+    import snowflake.snowpark.context as context
+
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+
+    df = session.create_dataframe([(i,) for i in range(10)], schema=["ID"])
+    df1 = (
+        df.select(col("ID").alias("id_a"))
+        .select(col("id_a").alias("id_b"))
+        .filter(col("id_b") > 3)
+    )
+
+    # filter flattened into a single level of projection (no nested SELECT
+    # around a standalone subquery for the filter step).
+    query = df1.queries["queries"][-1]
+    assert "LIMIT" not in query.upper()
+    assert "WHERE" in query.upper(), f"Expected filter to be emitted as WHERE: {query}"
+
+
 def test_window_with_filter(session):
     df = session.create_dataframe([[0], [1]], schema=["A"])
     df = (
