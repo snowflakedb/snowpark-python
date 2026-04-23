@@ -1603,6 +1603,11 @@ class SelectStatement(Selectable):
         self._session._retrieve_aggregation_function_list()
         can_be_flattened = (
             (not self.flatten_disabled)
+            # Disallow flattening when the current SelectStatement has a
+            # limit or offset clause: WHERE cannot be moved across
+            # LIMIT/OFFSET without changing semantics.
+            and (not self.limit_)
+            and (not self.offset)
             and can_clause_dependent_columns_flatten(
                 derive_dependent_columns(col), self.column_states, "filter"
             )
@@ -1614,7 +1619,6 @@ class SelectStatement(Selectable):
                 )
                 and has_aggregation_function_exp(self.projection)
             )  # sum(col) as new_col, new_col can not be flattened in where clause
-            and not (self.order_by and self.limit_ is not None)
         )
         if can_be_flattened:
             new = copy(self)
