@@ -1,0 +1,119 @@
+name: Run UD tests inline (manual)
+
+on:
+  # TODO: remove pull_request once all tests are passing — keep workflow_dispatch only
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      ud-branch:
+        description: 'Branch of universal-driver repo to use'
+        required: false
+        default: 'snowpark-compatibility'
+        type: string
+      python-version:
+        description: 'Python version'
+        required: false
+        default: '3.13'
+        type: choice
+        options:
+          - '3.10'
+          - '3.11'
+          - '3.12'
+          - '3.13'
+      cloud-provider:
+        description: 'Cloud provider'
+        required: false
+        default: 'aws'
+        type: choice
+        options:
+          - 'aws'
+          - 'azure'
+          - 'gcp'
+      pytest-addopts:
+        description: 'Extra pytest args, e.g. "-k test_dataframe" or "--maxfail=5"'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: ${{ inputs.python-version || '3.13' }}
+  CLOUD_PROVIDER: ${{ inputs.cloud-provider || 'aws' }}
+  UD_BRANCH: ${{ inputs.ud-branch || 'snowpark-compatibility' }}
+  # TODO: change fallback back to '' once full suite passes against UD
+  EXTRA_PYTEST_ADDOPTS: ${{ inputs.pytest-addopts || '-v --tb=long' }}
+
+jobs:
+  test:
+    name: UD Test py${{ inputs.python-version || '3.13' }}-${{ inputs.cloud-provider || 'aws' }} (${{ inputs.ud-branch || 'snowpark-compatibility' }})
+    runs-on: ubuntu-latest-64-cores
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - run: python -c "import sys; print(sys.version)"
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Decrypt parameters.py
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: ${{ env.CLOUD_PROVIDER }}
+
+      - name: Install protoc
+        run: .github/scripts/install_protoc.sh
+
+      - name: Configure git credentials for universal-driver
+        run: |
+          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+        env:
+          GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
+
+      - name: Install tox
+        run: uv pip install tox --system
+
+      - name: Install MS ODBC Driver
+        run: |
+          curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+          curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list \
+            | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+
+      - name: Run integration tests
+        run: python -m tox -e "py${PYTHON_VERSION//.}-notdoctest-ci"
+        env:
+          cloud_provider: ${{ env.CLOUD_PROVIDER }}
+          ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
+          GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
+          PYTEST_ADDOPTS: --color=yes --tb=short ${{ env.EXTRA_PYTEST_ADDOPTS }}
+          TOX_PARALLEL_NO_SPINNER: 1
+
+      - name: Run doctest
+        if: ${{ env.EXTRA_PYTEST_ADDOPTS == '' }}
+        run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
+        env:
+          cloud_provider: ${{ env.CLOUD_PROVIDER }}
+          ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
+          GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
+          PYTEST_ADDOPTS: --color=yes --tb=short ${{ env.EXTRA_PYTEST_ADDOPTS }}
+          TOX_PARALLEL_NO_SPINNER: 1
+
+      - name: Run datasource tests
+        if: ${{ env.EXTRA_PYTEST_ADDOPTS == '' }}
+        run: python -m tox -e datasource
+        env:
+          cloud_provider: ${{ env.CLOUD_PROVIDER }}
+          ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
+          GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
+          PYTEST_ADDOPTS: --color=yes --tb=short ${{ env.EXTRA_PYTEST_ADDOPTS }}
+          TOX_PARALLEL_NO_SPINNER: 1
