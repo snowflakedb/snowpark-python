@@ -278,7 +278,11 @@ def convert_sf_to_sp_type(
             )
     if column_type_name == "TEXT":
         if internal_size > 0:
-            return StringType(internal_size, internal_size == max_string_size)
+            return StringType(
+                internal_size,
+                internal_size == max_string_size
+                or internal_size == _MAX_ICEBERG_STRING_SIZE,
+            )
         elif internal_size == 0:
             return StringType()
         raise ValueError("Negative value is not a valid input for StringType")

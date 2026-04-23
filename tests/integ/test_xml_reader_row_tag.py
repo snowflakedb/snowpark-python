@@ -232,9 +232,11 @@ def test_read_xml_row_tag(
     session, file, row_tag, expected_row_count, expected_column_count
 ):
     df = session.read.option("rowTag", row_tag).xml(f"@{tmp_stage_name}/{file}")
-    result = df.collect()
-    assert len(result) == expected_row_count
-    assert len(result[0]) == expected_column_count
+    # Use count() + len(df.columns) instead of collect() to avoid materializing
+    # large result sets (e.g. 740 rows) that trigger paginated download URLs
+    # unsupported by StoredProcRestfulSession inside a stored procedure.
+    assert df.count() == expected_row_count
+    assert len(df.columns) == expected_column_count
 
 
 def test_read_xml_no_xxe(session):
