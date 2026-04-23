@@ -2191,7 +2191,14 @@ def test_filter_after_limit_not_flattened_on_new_column(
 
     Regression test for the bug introduced by the
     ``_snowpark_connect_flatten_select_after_sort`` loosening, which allowed
-    filter-through-LIMIT flattening on NEW columns in compatible mode."""
+    filter-through-LIMIT flattening on NEW columns in compatible mode.
+
+    A small inline ``VALUES`` input preserves insertion order in practice for
+    Snowflake's planner, so with the correct (non-flattened) SQL the LIMIT
+    picks IDs 0..4 and only id=4 survives the filter. With the buggy
+    flattened SQL the filter runs first against IDs 0..9, LIMIT then picks 5
+    of the 6 matching rows, and the result is 5 rows. Asserting an exact
+    single row ``[Row(4)]`` therefore catches the regression."""
     if is_snowpark_connect_compatible_mode:
         import snowflake.snowpark.context as context
 
@@ -2205,8 +2212,7 @@ def test_filter_after_limit_not_flattened_on_new_column(
         .filter(col("id_b") > 3)
     )
 
-    # WHERE must remain OUTSIDE the LIMIT subquery. The SQL must nest so that
-    # LIMIT is applied before WHERE.
+    # (a) WHERE must remain OUTSIDE the LIMIT subquery.
     query = df1.queries["queries"][-1]
     assert query.upper().rfind("WHERE") > query.upper().rfind(
         "LIMIT"
@@ -2214,6 +2220,65 @@ def test_filter_after_limit_not_flattened_on_new_column(
     assert (
         query.count("SELECT") >= 2
     ), f"Expected nested SELECT when filtering on NEW column after LIMIT: {query}"
+
+    # (b) Exact row match -- only id=4 is in the first 5 rows AND > 3.
+    Utils.check_answer(df1, [Row(4)])
+
+
+@pytest.mark.parametrize("is_snowpark_connect_compatible_mode", [True, False])
+def test_filter_after_limit_on_range_matches_spark_semantics(
+    session, monkeypatch, is_snowpark_connect_compatible_mode
+):
+    """Mirror of the original Spark SQL regression workload
+    ``SELECT * FROM (SELECT * FROM range(10) LIMIT 5) WHERE id > 3``.
+
+    ``session.range()`` uses Snowflake's ``GENERATOR``, which makes no
+    ordering guarantees without an ``ORDER BY``. So unlike the VALUES-based
+    variant above we cannot assert an exact row set. We can still assert the
+    invariants that distinguish correct from regressed SQL:
+
+    * correct semantics: ``LIMIT 5`` picks 5 of 0..9 then filter keeps those
+      > 3 -> **row count is 0..5**
+    * regressed (flattened) semantics: filter keeps 4..9 (6 rows), ``LIMIT
+      5`` picks 5 of them -> **row count is always exactly 5**
+
+    So ``count < 5`` (with any ordering of generator output) is a positive
+    signal the fix is working; ``count == 5`` plus ``rows == {4..8}`` would
+    indicate the regression. We also assert every row satisfies the filter
+    predicate and LIMIT is respected as additional invariants."""
+    if is_snowpark_connect_compatible_mode:
+        import snowflake.snowpark.context as context
+
+        monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+
+    df = (
+        session.range(10)
+        .select(col("ID").alias("id_a"))
+        .select(col("id_a").alias("id_b"))
+        .limit(5)
+        .select("*")
+        .filter(col("id_b") > 3)
+        .select(col("id_b").alias("id_c"))
+    )
+
+    query = df.queries["queries"][-1]
+    assert query.upper().rfind("WHERE") > query.upper().rfind(
+        "LIMIT"
+    ), f"WHERE flattened across LIMIT on NEW column: {query}"
+
+    rows = df.collect()
+    # Invariants that hold for correct semantics regardless of GENERATOR order.
+    assert len(rows) <= 5, f"LIMIT not respected: got {len(rows)} rows -> {rows}"
+    assert all(r[0] > 3 for r in rows), f"Row failing predicate id > 3 returned: {rows}"
+    # The buggy flattened SQL always returns exactly 5 rows from {4..8}
+    # regardless of generator ordering, which would violate both of the
+    # assertions below.
+    returned = {r[0] for r in rows}
+    assert returned <= set(range(10)), f"Unexpected value: {rows}"
+    assert not (len(rows) == 5 and returned == {4, 5, 6, 7, 8}), (
+        f"Result matches the buggy flattened semantics (filter-before-LIMIT):"
+        f" {rows}"
+    )
 
 
 def test_filter_on_new_column_without_limit_still_flattens_compat_mode(
@@ -2239,6 +2304,9 @@ def test_filter_on_new_column_without_limit_still_flattens_compat_mode(
     query = df1.queries["queries"][-1]
     assert "LIMIT" not in query.upper()
     assert "WHERE" in query.upper(), f"Expected filter to be emitted as WHERE: {query}"
+
+    # Without LIMIT the result is fully deterministic -> exact check.
+    Utils.check_answer(df1, [Row(4), Row(5), Row(6), Row(7), Row(8), Row(9)], sort=True)
 
 
 def test_window_with_filter(session):
