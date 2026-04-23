@@ -6,6 +6,7 @@
 
 #### New Features
 
+- Added support for `DataFrame.pipe`.
 - Added `artifact_repository` support to `udtf_configs` in `session.read.dbapi()`, enabling users to specify a custom artifact repository (e.g. PyPI) for packages used by the internal UDTF during distributed ingestion.
 
 #### Bug Fixes

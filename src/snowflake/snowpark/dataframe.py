@@ -24,6 +24,7 @@ from typing import (
     Optional,
     Set,
     Tuple,
+    TypeVar,
     Union,
     overload,
 )
@@ -243,9 +244,22 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+# Python 3.9 needs to use typing_extensions.ParamSpec and typing_extensions.Concatenate
+# Python 3.10+ can use typing.ParamSpec and typing.Concatenate because they are available in the standard library
+if sys.version_info < (3, 10):
+    from typing_extensions import Concatenate, ParamSpec
+else:
+    from typing import Concatenate, ParamSpec
+
+
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
     from table import Table  # pragma: no cover
+
+
+T = TypeVar("T")
+P = ParamSpec("P")
+
 
 _logger = getLogger(__name__)
 
@@ -7098,6 +7112,39 @@ Query List:
     # joinTableFunction = join_table_function
     # naturalJoin = natural_join
     # withColumns = with_columns
+
+    def pipe(
+        self,
+        function: Callable[Concatenate["DataFrame", P], T],
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> T:
+        """Applies a function to the DataFrame and returns the result.
+
+        Args:
+            function: A user-defined function (UDF) to apply to the DataFrame.
+            *args: Additional positional arguments to pass to the UDF.
+            **kwargs: Additional keyword arguments to pass to the UDF.
+
+        Returns:
+            The result of applying the function to the DataFrame.
+
+        Example::
+
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> def test_function(df: DataFrame, col: str, threshold: float = 0):
+            ...     df = df.filter(df[col] > threshold)
+            ...     return df.collect()
+            >>> result = df.pipe(test_function, "a", threshold=1)
+            >>> result.show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |3    |4    |
+            -------------
+            <BLANKLINE>
+        """
+        return function(self, *args, **kwargs)
 
 
 def map(
