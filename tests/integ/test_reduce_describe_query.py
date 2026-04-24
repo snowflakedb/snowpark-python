@@ -563,6 +563,26 @@ def test_chained_simple_renames_infer_from_previous_metadata(session):
             _ = df2._plan.attributes
 
 
+def test_quoted_case_sensitive_sql_column_metadata_inference(session):
+    """Delimited identifier from session.sql: chained select infers metadata without DESCRIBE."""
+    df = session.sql('SELECT 1 AS "MixedCase"')
+    with SqlCounter(query_count=0, describe_count=1, strict=False):
+        _ = df.schema
+
+    df2 = df.select(col('"MixedCase"'))
+    if session.reduce_describe_query_enabled:
+        assert df2._plan._metadata.attributes is not None
+        assert len(df2._plan._metadata.attributes) == 1
+        assert df2._plan._metadata.attributes[0].name == '"MixedCase"'
+
+    expected_describe = 0 if session.reduce_describe_query_enabled else 1
+    with SqlCounter(query_count=0, describe_count=expected_describe):
+        attrs = df2._plan.attributes
+    assert attrs is not None
+    assert len(attrs) == 1
+    assert attrs[0].name == '"MixedCase"'
+
+
 def test_non_simple_projection_skips_metadata_inference(session):
     """Expressions other than plain column or simple alias(column) do not infer attributes."""
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
