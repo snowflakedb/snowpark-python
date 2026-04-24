@@ -1606,59 +1606,55 @@ class SelectStatement(Selectable):
             # Skip: no projection to walk (do not assert; leave new.attributes unchanged).
             if projection is not None:
                 # Skip: duplicate output names on the parent — dict/lookup would be ambiguous.
-                if len(parent_attributes) == len({a.name for a in parent_attributes}):
-                    attributes_by_normalized: Dict[str, Attribute] = {}
-                    collision = False
-                    for attr in parent_attributes:
-                        key = _normalized_snowflake_identifier_key(attr.name)
-                        existing = attributes_by_normalized.get(key)
-                        # Skip: two parent columns normalize to the same key.
-                        if existing is not None and existing is not attr:
-                            collision = True
+                attributes_by_normalized: Dict[str, Attribute] = {}
+                collision = False
+                for attr in parent_attributes:
+                    key = _normalized_snowflake_identifier_key(attr.name)
+                    existing = attributes_by_normalized.get(key)
+                    # Skip: two parent columns normalize to the same key.
+                    if existing is not None and existing is not attr:
+                        collision = True
+                        break
+                    attributes_by_normalized[key] = attr
+                if not collision:
+                    inferred_attributes = []
+                    for expr in projection:
+                        source_column_name: Optional[str] = None
+                        projected_column_name: Optional[str] = None
+                        if isinstance(expr, (Attribute, UnresolvedAttribute)):
+                            source_column_name = expr.name
+                            projected_column_name = expr.name
+                        elif isinstance(expr, Alias) and isinstance(
+                            expr.child, (Attribute, UnresolvedAttribute)
+                        ):
+                            source_column_name = expr.child.name
+                            projected_column_name = expr.name
+                        else:
+                            # Skip: not a plain column or Alias(Attribute|UnresolvedAttribute).
+                            inferred_attributes = []
                             break
-                        attributes_by_normalized[key] = attr
-                    if not collision:
-                        inferred_attributes = []
-                        for expr in projection:
-                            source_column_name: Optional[str] = None
-                            projected_column_name: Optional[str] = None
-                            if isinstance(expr, (Attribute, UnresolvedAttribute)):
-                                source_column_name = expr.name
-                                projected_column_name = expr.name
-                            elif isinstance(expr, Alias) and isinstance(
-                                expr.child, (Attribute, UnresolvedAttribute)
-                            ):
-                                source_column_name = expr.child.name
-                                projected_column_name = expr.name
-                            else:
-                                # Skip: not a plain column or Alias(Attribute|UnresolvedAttribute).
-                                inferred_attributes = []
-                                break
 
-                            if (
-                                source_column_name is None
-                                or projected_column_name is None
-                            ):
-                                # Skip: missing projected output name.
-                                inferred_attributes = []
-                                break
-                            source_attr = attributes_by_normalized.get(
-                                _normalized_snowflake_identifier_key(source_column_name)
+                        if source_column_name is None or projected_column_name is None:
+                            # Skip: missing projected output name.
+                            inferred_attributes = []
+                            break
+                        source_attr = attributes_by_normalized.get(
+                            _normalized_snowflake_identifier_key(source_column_name)
+                        )
+                        # Skip: no parent column for this source name.
+                        if source_attr is None:
+                            inferred_attributes = []
+                            break
+                        inferred_attributes.append(
+                            Attribute(
+                                projected_column_name,
+                                source_attr.datatype,
+                                source_attr.nullable,
                             )
-                            # Skip: no parent column for this source name.
-                            if source_attr is None:
-                                inferred_attributes = []
-                                break
-                            inferred_attributes.append(
-                                Attribute(
-                                    projected_column_name,
-                                    source_attr.datatype,
-                                    source_attr.nullable,
-                                )
-                            )
-                        if len(inferred_attributes) != len(projection):
-                            # Skip: incomplete inference (includes defensive mismatch).
-                            inferred_attributes = None
+                        )
+                    if len(inferred_attributes) != len(projection):
+                        # Skip: incomplete inference (includes defensive mismatch).
+                        inferred_attributes = None
             if inferred_attributes is not None:
                 new.attributes = inferred_attributes
 
