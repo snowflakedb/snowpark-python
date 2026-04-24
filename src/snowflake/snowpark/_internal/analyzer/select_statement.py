@@ -51,8 +51,10 @@ if TYPE_CHECKING:
 
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    quote_name_without_upper_casing,
     result_scan_statement,
     schema_value_statement,
+    unquote_if_quoted,
 )
 from snowflake.snowpark._internal.analyzer.binary_expression import And
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -85,8 +87,10 @@ from snowflake.snowpark._internal.select_projection_complexity_utils import (
     has_invalid_projection_merge_functions,
 )
 from snowflake.snowpark._internal.utils import (
-    is_sql_select_statement,
+    ALREADY_QUOTED,
     ExprAliasUpdateDict,
+    is_sql_select_statement,
+    quote_name,
 )
 import snowflake.snowpark.context as context
 
@@ -1589,6 +1593,71 @@ class SelectStatement(Selectable):
                 )
             )
 
+        # When describe reduction is on and the inner select already has resolved
+        # attributes, infer new.attributes for this outer select by reusing datatype and
+        # nullable from the subquery: (0) skip if parent column names collide, (1) index
+        # attributes by normalized name, (2) walk new.projection, (3) only handle plain
+        # columns or Alias(column), (4) resolve source via quoted-identifier-aware lookup,
+        # (5) assign only if every output column was inferred (length matches projection).
+        if self._session.reduce_describe_query_enabled and self.attributes is not None:
+            parent_attributes = self.attributes
+            projection = new.projection
+            inferred_attributes: Optional[List[Attribute]] = None
+            # Skip: no projection to walk (do not assert; leave new.attributes unchanged).
+            if projection is not None:
+                # Skip: duplicate output names on the parent — dict/lookup would be ambiguous.
+                attributes_by_normalized: Dict[str, Attribute] = {}
+                collision = False
+                for attr in parent_attributes:
+                    key = _normalized_snowflake_identifier_key(attr.name)
+                    existing = attributes_by_normalized.get(key)
+                    # Skip: two parent columns normalize to the same key.
+                    if existing is not None and existing is not attr:
+                        collision = True
+                        break
+                    attributes_by_normalized[key] = attr
+                if not collision:
+                    inferred_attributes = []
+                    for expr in projection:
+                        source_column_name: Optional[str] = None
+                        projected_column_name: Optional[str] = None
+                        if isinstance(expr, (Attribute, UnresolvedAttribute)):
+                            source_column_name = expr.name
+                            projected_column_name = expr.name
+                        elif isinstance(expr, Alias) and isinstance(
+                            expr.child, (Attribute, UnresolvedAttribute)
+                        ):
+                            source_column_name = expr.child.name
+                            projected_column_name = expr.name
+                        else:
+                            # Skip: not a plain column or Alias(Attribute|UnresolvedAttribute).
+                            inferred_attributes = []
+                            break
+
+                        if source_column_name is None or projected_column_name is None:
+                            # Skip: missing projected output name.
+                            inferred_attributes = []
+                            break
+                        source_attr = attributes_by_normalized.get(
+                            _normalized_snowflake_identifier_key(source_column_name)
+                        )
+                        # Skip: no parent column for this source name.
+                        if source_attr is None:
+                            inferred_attributes = []
+                            break
+                        inferred_attributes.append(
+                            Attribute(
+                                projected_column_name,
+                                source_attr.datatype,
+                                source_attr.nullable,
+                            )
+                        )
+                    if len(inferred_attributes) != len(projection):
+                        # Skip: incomplete inference (includes defensive mismatch).
+                        inferred_attributes = None
+            if inferred_attributes is not None:
+                new.attributes = inferred_attributes
+
         new.flatten_disabled = disable_next_level_flatten
         assert new.projection is not None
         new._column_states = derive_column_states_from_subquery(
@@ -2085,6 +2154,13 @@ class SetStatement(Selectable):
 
 class DeriveColumnDependencyError(Exception):
     """When deriving column dependencies from the subquery."""
+
+
+def _normalized_snowflake_identifier_key(name: str) -> str:
+    """Canonical quoted key: delimited identifiers preserve case; unquoted follow Snowflake uppercasing."""
+    if ALREADY_QUOTED.match(name):
+        return quote_name_without_upper_casing(unquote_if_quoted(name))
+    return quote_name(name)
 
 
 def parse_column_name(
