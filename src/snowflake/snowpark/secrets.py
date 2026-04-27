@@ -20,6 +20,7 @@ __all__ = [
     "get_secret_type",
     "get_username_password",
     "get_cloud_provider_token",
+    "get_wif_token",
     "UsernamePassword",
     "CloudProviderToken",
 ]
@@ -61,6 +62,10 @@ class _SnowflakeSecrets(ABC):
     def get_cloud_provider_token(self, secret_name: str) -> CloudProviderToken:
         pass
 
+    @abstractmethod
+    def get_wif_token(self, secret_name: str, audience: str) -> str:
+        pass
+
 
 class _SnowflakeSecretsServer(_SnowflakeSecrets):
     """Secret instance for Snowflake server environment (using _snowflake module)."""
@@ -88,6 +93,9 @@ class _SnowflakeSecretsServer(_SnowflakeSecrets):
             secret_object.secret_access_key,
             secret_object.token,
         )
+
+    def get_wif_token(self, secret_name: str, audience: str) -> str:
+        return self._snowflake.get_wif_token(secret_name, audience)
 
 
 class _SnowflakeSecretsSPCS(_SnowflakeSecrets):
@@ -171,6 +179,11 @@ class _SnowflakeSecretsSPCS(_SnowflakeSecrets):
         # SPCS container currently does not support cloud provider token secrets
         raise NotImplementedError(
             "Cloud provider token secrets are not supported in SPCS container environments."
+        )
+
+    def get_wif_token(self, secret_name: str, audience: str) -> str:
+        raise NotImplementedError(
+            "WIF token secrets are not supported in SPCS container environments."
         )
 
 
@@ -259,3 +272,29 @@ def get_cloud_provider_token(secret_name: str) -> CloudProviderToken:
         NotImplementedError: If running outside Snowflake server environment.
     """
     return _get_secrets_instance().get_cloud_provider_token(secret_name)
+
+
+def get_wif_token(secret_name: str, audience: str) -> str:
+    """Get a workload identity federation (WIF) token from Snowflake.
+
+    Note:
+        Requires a Snowflake environment with a WIF secret configured and an
+        external access integration that allows the UDF or stored procedure to
+        use that secret. The ``audience`` must match the token audience expected
+        by the external system (for example, an OAuth token endpoint URL).
+
+    Args:
+        secret_name: The secret reference name bound to the WIF secret.
+        audience: The intended audience (``aud``) for the issued token.
+
+    Returns:
+        The issued token as a string (typically a JWT).
+
+    Raises:
+        NotImplementedError: If running outside the Snowflake server environment
+            (including SPCS file-based secret environments, where WIF tokens cannot
+            be minted).
+        ValueError: If the secret does not exist or is not authorized (when
+            applicable in supported environments).
+    """
+    return _get_secrets_instance().get_wif_token(secret_name, audience)
