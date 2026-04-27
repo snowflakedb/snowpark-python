@@ -637,6 +637,32 @@ def test_cast_on_column_alias_still_requires_describe(session):
         _ = df2._plan.attributes
 
 
+def test_select_inference_skips_on_duplicate_parent_keys_and_missing_alias_name(
+    session,
+):
+    """SelectStatement.select: (1) duplicate parent output aliases — collision skips inference
+    on a follow-up select; DESCRIBE is not skipped when resolving schema for the duplicate-alias
+    frame. (2) Alias with missing output name — defensive inference abort."""
+    df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
+    _ = df.schema
+    dup = df.select((col("a") + 1).as_("b"), (col("c") + 1).as_("b"))
+    with SqlCounter(query_count=0, describe_count=1):
+        _ = dup.schema
+
+    dup_outer = dup.select(lit(1).alias("x"))
+    _ = dup_outer._plan.attributes
+
+    # Scenario B: hit missing-projected-name guard without DataFrame.resolve (which would
+    # quote_name(None) on the Alias). Call SelectStatement.select directly.
+    df2 = session.create_dataframe([[1]], schema=["a"])
+    _ = df2.schema
+    bad = col("a").alias("out")
+    object.__setattr__(bad._expression, "name", None)
+    inner = df2._select_statement
+    new_ss = inner.select([bad._named()])
+    assert new_ss.attributes is None
+
+
 def test_select_star_after_cached_parent(session):
     """SELECT * after parent schema is cached: infer_metadata can copy child attributes when reduce_describe is on."""
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
