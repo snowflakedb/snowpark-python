@@ -1338,8 +1338,31 @@ class DataFrameReader:
                     raise e
 
             if len(results) == 0:
+                # Zero rows from INFER_SCHEMA can mean the path is empty/missing,
+                # or that file format options silently filtered every row/header
+                # (e.g. PARSE_HEADER on a file with a leading blank line,
+                # SKIP_HEADER exceeding row count, or ON_ERROR=CONTINUE dropping
+                # bad rows). Surface both possibilities so callers don't chase a
+                # phantom path-not-found issue when the real cause is a format
+                # option.
+                option_hints = []
+                for key in ("PARSE_HEADER", "SKIP_HEADER", "ON_ERROR"):
+                    if key in format_type_options:
+                        option_hints.append(f"{key}={format_type_options[key]}")
+                    elif key in infer_schema_options:
+                        option_hints.append(f"{key}={infer_schema_options[key]}")
+                hint_suffix = (
+                    f" Applied file format options: {', '.join(option_hints)}."
+                    if option_hints
+                    else ""
+                )
                 raise FileNotFoundError(
-                    f"Given path: '{path}' could not be found or is empty."
+                    f"Given path: '{path}' returned no results from INFER_SCHEMA. "
+                    "The path may be empty or missing, or file format options may "
+                    "have filtered every row/header (e.g. PARSE_HEADER on a file "
+                    "with a leading blank line, SKIP_HEADER exceeding row count, "
+                    "or ON_ERROR=CONTINUE silently dropping bad rows). Check the "
+                    "file contents and file format options." + hint_suffix
                 )
             new_schema = []
             schema_to_cast = []
