@@ -51,10 +51,8 @@ if TYPE_CHECKING:
 
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    quote_name_without_upper_casing,
     result_scan_statement,
     schema_value_statement,
-    unquote_if_quoted,
 )
 from snowflake.snowpark._internal.analyzer.binary_expression import And
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -87,7 +85,6 @@ from snowflake.snowpark._internal.select_projection_complexity_utils import (
     has_invalid_projection_merge_functions,
 )
 from snowflake.snowpark._internal.utils import (
-    ALREADY_QUOTED,
     ExprAliasUpdateDict,
     is_sql_select_statement,
     quote_name,
@@ -1596,9 +1593,10 @@ class SelectStatement(Selectable):
         # When describe reduction is on and the inner select already has resolved
         # attributes, infer new.attributes for this outer select by reusing datatype and
         # nullable from the subquery: (0) skip if parent column names collide, (1) index
-        # attributes by normalized name, (2) walk new.projection, (3) only handle plain
-        # columns or Alias(column), (4) resolve source via quoted-identifier-aware lookup,
-        # (5) assign only if every output column was inferred (length matches projection).
+        # attributes by quote_name (Snowflake identifier rules; invalid delimited forms
+        # raise), (2) walk new.projection, (3) only handle plain columns or Alias(column),
+        # (4) resolve source via the same quote_name key lookup, (5) assign only if every
+        # output column was inferred (length matches projection).
         if self._session.reduce_describe_query_enabled and self.attributes is not None:
             parent_attributes = self.attributes
             projection = new.projection
@@ -1609,9 +1607,9 @@ class SelectStatement(Selectable):
                 attributes_by_normalized: Dict[str, Attribute] = {}
                 collision = False
                 for attr in parent_attributes:
-                    key = _normalized_snowflake_identifier_key(attr.name)
+                    key = quote_name(attr.name)
                     existing = attributes_by_normalized.get(key)
-                    # Skip: two parent columns normalize to the same key.
+                    # Skip: two parent columns map to the same quote_name key.
                     if existing is not None and existing is not attr:
                         collision = True
                         break
@@ -1639,7 +1637,7 @@ class SelectStatement(Selectable):
                             inferred_attributes = []
                             break
                         source_attr = attributes_by_normalized.get(
-                            _normalized_snowflake_identifier_key(source_column_name)
+                            quote_name(source_column_name)
                         )
                         # Skip: no parent column for this source name.
                         if source_attr is None:
@@ -2154,13 +2152,6 @@ class SetStatement(Selectable):
 
 class DeriveColumnDependencyError(Exception):
     """When deriving column dependencies from the subquery."""
-
-
-def _normalized_snowflake_identifier_key(name: str) -> str:
-    """Canonical quoted key: delimited identifiers preserve case; unquoted follow Snowflake uppercasing."""
-    if ALREADY_QUOTED.match(name):
-        return quote_name_without_upper_casing(unquote_if_quoted(name))
-    return quote_name(name)
 
 
 def parse_column_name(

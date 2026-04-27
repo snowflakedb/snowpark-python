@@ -17,8 +17,10 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
+    quote_name,
     random_name_for_temp_object,
 )
+from snowflake.snowpark.exceptions import SnowparkPlanException
 from snowflake.snowpark.functions import (
     avg,
     col,
@@ -661,6 +663,21 @@ def test_select_inference_skips_on_duplicate_parent_keys_and_missing_alias_name(
     inner = df2._select_statement
     new_ss = inner.select([bad._named()])
     assert new_ss.attributes is None
+
+
+def test_quote_name_malformed_delimited_identifier_not_accepted():
+    """Keys for reduce-describe attribute inference use quote_name; malformed delimited names raise (SNOW-3384967)."""
+    for bad in ('"ab"c"', '""col"', '"col""'):
+        with pytest.raises(SnowparkPlanException) as ex_info:
+            quote_name(bad)
+        assert ex_info.value.error_code == "1200"
+        assert "Invalid identifier" in str(ex_info.value)
+
+
+def test_quote_name_valid_keys_for_reduce_describe_inference():
+    """quote_name keys used for inference: case-sensitive quoted id; unquoted uppercased."""
+    assert quote_name('"MixedCase"') == '"MixedCase"'
+    assert quote_name("a") == '"A"'
 
 
 def test_select_star_after_cached_parent(session):
