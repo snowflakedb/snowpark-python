@@ -466,13 +466,7 @@ class _SqlCatalogBackend(_CatalogBackend):
 class _RestCatalogBackend(_CatalogBackend):
     def __init__(self, catalog: "Catalog") -> None:
         super().__init__(catalog)
-        self._root_obj: Optional[Root] = None
-
-    @property
-    def _root(self) -> Root:
-        if self._root_obj is None:
-            self._root_obj = Root(self._catalog._session)
-        return self._root_obj
+        self._root = Root(catalog._session)
 
     def list_databases(
         self,
@@ -708,15 +702,10 @@ class Catalog:
     def __init__(self, session: "Session") -> None:
         self._session = session
         self._python_regex_udf = None
-        self._sql_backend = _SqlCatalogBackend(self)
-        self._rest_backend: Optional[_RestCatalogBackend] = None
-
-    def _backend(self) -> _CatalogBackend:
         if context._is_snowpark_connect_compatible_mode:
-            return self._sql_backend
-        if self._rest_backend is None:
-            self._rest_backend = _RestCatalogBackend(self)
-        return self._rest_backend
+            self._backend: _CatalogBackend = _SqlCatalogBackend(self)
+        else:
+            self._backend = _RestCatalogBackend(self)
 
     def _parse_database(
         self,
@@ -842,7 +831,7 @@ class Catalog:
             pattern: the python regex pattern of name to match. Defaults to None.
             like: the sql style pattern for name to match. Default to None.
         """
-        return self._backend().list_databases(pattern=pattern, like=like)
+        return self._backend.list_databases(pattern=pattern, like=like)
 
     def list_schemas(
         self,
@@ -859,9 +848,7 @@ class Catalog:
             pattern: the python regex pattern of name to match. Defaults to None.
             like: the sql style pattern for name to match. Default to None.
         """
-        return self._backend().list_schemas(
-            database=database, pattern=pattern, like=like
-        )
+        return self._backend.list_schemas(database=database, pattern=pattern, like=like)
 
     def list_tables(
         self,
@@ -998,13 +985,13 @@ class Catalog:
 
     def get_database(self, database: str) -> Database:
         """Name of the database to get"""
-        return self._backend().get_database(database)
+        return self._backend.get_database(database)
 
     def get_schema(
         self, schema: str, *, database: Optional[Union[str, Database]] = None
     ) -> Schema:
         """Name of the schema to get."""
-        return self._backend().get_schema(schema, database=database)
+        return self._backend.get_schema(schema, database=database)
 
     def get_table(
         self,
@@ -1027,7 +1014,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        return self._backend().get_table(table_name, database=database, schema=schema)
+        return self._backend.get_table(table_name, database=database, schema=schema)
 
     def get_view(
         self,
@@ -1044,7 +1031,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        return self._backend().get_view(view_name, database=database, schema=schema)
+        return self._backend.get_view(view_name, database=database, schema=schema)
 
     def get_procedure(
         self,
@@ -1063,7 +1050,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        return self._backend().get_procedure(
+        return self._backend.get_procedure(
             procedure_name, arg_types, database=database, schema=schema
         )
 
@@ -1085,7 +1072,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        return self._backend().get_user_defined_function(
+        return self._backend.get_user_defined_function(
             udf_name, arg_types, database=database, schema=schema
         )
 
@@ -1113,7 +1100,7 @@ class Catalog:
         Args:
             database: database name or ``Database`` object.
         """
-        return self._backend().database_exists(database)
+        return self._backend.database_exists(database)
 
     def schema_exists(
         self,
@@ -1128,7 +1115,7 @@ class Catalog:
             schema: schema name or ``Schema`` object.
             database: database name or ``Database`` object. Defaults to None.
         """
-        return self._backend().schema_exists(schema, database=database)
+        return self._backend.schema_exists(schema, database=database)
 
     def table_exists(
         self,
@@ -1145,7 +1132,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        return self._backend().table_exists(table, database=database, schema=schema)
+        return self._backend.table_exists(table, database=database, schema=schema)
 
     def view_exists(
         self,
@@ -1162,7 +1149,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        return self._backend().view_exists(view, database=database, schema=schema)
+        return self._backend.view_exists(view, database=database, schema=schema)
 
     def procedure_exists(
         self,
@@ -1181,7 +1168,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        return self._backend().procedure_exists(
+        return self._backend.procedure_exists(
             procedure, arg_types, database=database, schema=schema
         )
 
@@ -1204,7 +1191,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        return self._backend().user_defined_function_exists(
+        return self._backend.user_defined_function_exists(
             udf, arg_types, database=database, schema=schema
         )
 

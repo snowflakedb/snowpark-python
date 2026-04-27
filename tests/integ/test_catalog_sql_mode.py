@@ -32,9 +32,16 @@ pytestmark = [
 ]
 
 
-@pytest.fixture(autouse=True)
-def _catalog_sql_backend_mode(monkeypatch):
-    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+@pytest.fixture(autouse=True, scope="module")
+def _catalog_sql_backend_mode(session):
+    mp = pytest.MonkeyPatch()
+    mp.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+    mp.setattr(session, "_catalog", None)
+    try:
+        yield
+    finally:
+        mp.undo()
+        session._catalog = None
 
 
 def test_list_db_sql_mode(session, temp_db1, temp_db2):
