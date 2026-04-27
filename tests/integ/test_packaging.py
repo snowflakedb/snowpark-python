@@ -190,20 +190,20 @@ def test_patch_on_get_available_versions_for_packages(session):
     reason="SNOW-3425553: need FIPS mode investigation",
 )
 def test_add_packages(session, local_testing_mode):
-    # Use numpy 2.3.1 for Python 3.13+, numpy 1.26.3 doesn't support Python 3.13
-    numpy_version = "numpy==2.3.1" if sys.version_info >= (3, 13) else "numpy==1.26.3"
+    # Use numpy 2.3.5 for Python 3.13+, numpy 1.26.3 doesn't support Python 3.13
+    numpy_version = "numpy==2.3.5" if sys.version_info >= (3, 13) else "numpy==1.26.3"
 
     session.add_packages(
         [
             numpy_version,
-            "pandas==2.2.3",
+            "pandas==2.3.3",
             "matplotlib",
             "pyyaml",
         ]
     )
     assert session.get_packages() == {
         "numpy": numpy_version,
-        "pandas": "pandas==2.2.3",
+        "pandas": "pandas==2.3.3",
         "matplotlib": "matplotlib",
         "pyyaml": "pyyaml",
     }
@@ -218,9 +218,9 @@ def test_add_packages(session, local_testing_mode):
     df = session.create_dataframe([None]).to_df("a")
     res = df.select(call_udf(udf_name)).collect()[0][0]
     # don't need to check the version of dateutil, as it can be changed on the server side
-    expected_numpy_ver = "2.3.1" if sys.version_info >= (3, 13) else "1.26.3"
+    expected_numpy_ver = "2.3.5" if sys.version_info >= (3, 13) else "1.26.3"
     assert (
-        res.startswith(f"{expected_numpy_ver}/2.2.3")
+        res.startswith(f"{expected_numpy_ver}/2.3.3")
         if not local_testing_mode
         else res == get_numpy_pandas_dateutil_version()
     )
@@ -351,27 +351,33 @@ def test_add_packages_with_underscore_and_versions(session):
 )
 def test_add_packages_negative(session, caplog):
     with pytest.raises(ValueError) as ex_info:
-        session.add_packages("python-dateutil****")
+        session.add_packages(
+            "python-dateutil****", artifact_repository=_ANACONDA_SHARED_REPOSITORY
+        )
     assert "InvalidRequirement" in str(ex_info)
 
     session.custom_package_usage_config = {"enabled": True}
-    # These errors are not raised with Python 3.14 since it uses the pypi repository by default.
-    if not IS_PY314:
-        with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-            with pytest.raises(RuntimeError, match="Pip failed with return code 1"):
-                session.add_packages("dateutil")
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError, match="Pip failed with return code 1"):
+            session.add_packages(
+                "dateutil", artifact_repository=_ANACONDA_SHARED_REPOSITORY
+            )
 
-        with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
-            with pytest.raises(RuntimeError, match="Cannot add package dateutil"):
-                session.add_packages("dateutil")
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
+        with pytest.raises(RuntimeError, match="Cannot add package dateutil"):
+            session.add_packages(
+                "dateutil", artifact_repository=_ANACONDA_SHARED_REPOSITORY
+            )
 
-        # Verify multiple errors can be raised at once
-        with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
-            with pytest.raises(
-                RuntimeError,
-                match="Cannot add package dateutil.*Cannot add package functools",
-            ):
-                session.add_packages("dateutil", "functools")
+    # Verify multiple errors can be raised at once
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
+        with pytest.raises(
+            RuntimeError,
+            match="Cannot add package dateutil.*Cannot add package functools",
+        ):
+            session.add_packages(
+                "dateutil", "functools", artifact_repository=_ANACONDA_SHARED_REPOSITORY
+            )
 
     with pytest.raises(ValueError, match="is already added"):
         with caplog.at_level(logging.WARNING):
@@ -384,10 +390,16 @@ def test_add_packages_negative(session, caplog):
             #     from information_schema.packages
             #     where language='python' and package_name like 'numpy'
             #     group by package_name;
-            session.add_packages("numpy", "numpy==1.16.6")
+            session.add_packages(
+                "numpy",
+                "numpy==1.16.6",
+                artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+            )
 
     with pytest.raises(ValueError, match="is not in the package list"):
-        session.remove_package("python-dateutil")
+        session.remove_package(
+            "python-dateutil", artifact_repository=_ANACONDA_SHARED_REPOSITORY
+        )
 
 
 @pytest.mark.udf
@@ -434,8 +446,8 @@ def test_add_requirements(session, resources_path, local_testing_mode):
 
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
-        "numpy": "numpy==2.3.1" if sys.version_info >= (3, 13) else "numpy==1.26.3",
-        "pandas": "pandas==2.2.3",
+        "numpy": "numpy==2.3.5" if sys.version_info >= (3, 13) else "numpy==1.26.3",
+        "pandas": "pandas==2.3.3",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -446,10 +458,10 @@ def test_add_requirements(session, resources_path, local_testing_mode):
 
     df = session.create_dataframe([None]).to_df("a")
     res = df.select(call_udf(udf_name))
-    expected_numpy_ver = "2.3.1" if sys.version_info >= (3, 13) else "1.26.3"
+    expected_numpy_ver = "2.3.5" if sys.version_info >= (3, 13) else "1.26.3"
     Utils.check_answer(
         res,
-        [Row(f"{expected_numpy_ver}/2.2.3")]
+        [Row(f"{expected_numpy_ver}/2.3.3")]
         if not local_testing_mode
         else [Row(f"{numpy.__version__}/{pandas.__version__}")],
     )
@@ -459,11 +471,11 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     session, resources_path
 ):
     test_files = TestFiles(resources_path)
-    expected_numpy_ver = "2.3.1" if sys.version_info >= (3, 13) else "1.26.3"
+    expected_numpy_ver = "2.3.5" if sys.version_info >= (3, 13) else "1.26.3"
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
         "numpy": f"numpy=={expected_numpy_ver}",
-        "pandas": "pandas==2.2.3",
+        "pandas": "pandas==2.3.3",
     }
 
     with pytest.raises(ValueError, match="Cannot add package"):
@@ -473,10 +485,6 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
-)
-@pytest.mark.skipif(
-    IS_PY314,
-    reason="Python 3.14 uses pypi repository",
 )
 @pytest.mark.skipif(
     "FIPS_TEST" in os.environ,
@@ -491,7 +499,10 @@ def test_add_unsupported_requirements_should_fail_if_custom_packages_upload_enab
             RuntimeError,
             match=r"Session.custom_package_usage_config\['enabled'\] is not set to True",
         ):
-            session.add_requirements(test_files.test_unsupported_requirements_file)
+            session.add_requirements(
+                test_files.test_unsupported_requirements_file,
+                artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+            )
 
 
 @pytest.mark.udf
@@ -538,10 +549,6 @@ def test_add_requirements_artifact_repository(
     reason="Subprocess calls are not allowed within stored procedures.",
 )
 @pytest.mark.skipif(
-    IS_PY314,
-    reason="Python 3.14 uses pypi repository",
-)
-@pytest.mark.skipif(
     "FIPS_TEST" in os.environ,
     reason="SNOW-3425553: need FIPS mode investigation",
 )
@@ -553,7 +560,9 @@ def test_add_unsupported_packages_should_fail_if_custom_packages_upload_enabled_
             RuntimeError,
             match=r"Session.custom_package_usage_config\['enabled'\] is not set to True*",
         ):
-            session.add_packages("sktime==0.20.0")
+            session.add_packages(
+                "sktime==0.20.0", artifact_repository=_ANACONDA_SHARED_REPOSITORY
+            )
 
 
 @pytest.mark.skip(
@@ -729,7 +738,9 @@ def test_add_packages_with_native_dependency_without_force_push(session):
             RuntimeError,
             match="Your code depends on packages that contain native code|Pip failed with return code 1",
         ):
-            session.add_packages(["pymupdf==1.24.10"])
+            session.add_packages(
+                ["pymupdf==1.24.10"], artifact_repository=_ANACONDA_SHARED_REPOSITORY
+            )
 
 
 @pytest.fixture(scope="function")
@@ -745,7 +756,7 @@ def requirements_file_with_local_path():
 
     # Generate a requirements file
     requirements = f"""
-    pyyaml==6.0.2
+    pyyaml<=6.0.3
     matplotlib
     {new_path}
     """
@@ -777,7 +788,7 @@ def test_add_requirements_with_local_filepath(
     session.add_requirements(requirements_file_with_local_path)
     assert session.get_packages() == {
         "matplotlib": "matplotlib",
-        "pyyaml": "pyyaml==6.0.2",
+        "pyyaml": "pyyaml<=6.0.3",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -937,6 +948,10 @@ def test_add_import_package(session):
     IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
+@pytest.mark.xfail(
+    IS_PY314,
+    reason="No anaconda snowpark python package in 3.14",
+)
 def test_add_requirements_with_empty_stage_as_cache_path(
     session, resources_path, temporary_stage
 ):
@@ -950,10 +965,10 @@ def test_add_requirements_with_empty_stage_as_cache_path(
     }
 
     session.add_requirements(test_files.test_requirements_file)
-    expected_numpy_ver = "2.3.1" if sys.version_info >= (3, 13) else "1.26.3"
+    expected_numpy_ver = "2.3.5" if sys.version_info >= (3, 13) else "1.26.3"
     assert session.get_packages() == {
         "numpy": f"numpy=={expected_numpy_ver}",
-        "pandas": "pandas==2.2.3",
+        "pandas": "pandas==2.3.3",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -1022,10 +1037,6 @@ def test_add_requirements_unsupported_with_empty_stage_as_cache_path(
     reason="Subprocess calls are not allowed within stored procedures.",
 )
 @pytest.mark.skipif(
-    IS_PY314,
-    reason="Python 3.14 uses pypi repository",
-)
-@pytest.mark.skipif(
     "FIPS_TEST" in os.environ,
     reason="SNOW-3425553: need FIPS mode investigation",
 )
@@ -1042,7 +1053,10 @@ def test_add_requirements_unsupported_with_cache_path_negative(
     }
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError, match="Unable to auto-upload packages"):
-            session.add_requirements(test_files.test_unsupported_requirements_file)
+            session.add_requirements(
+                test_files.test_unsupported_requirements_file,
+                artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+            )
 
 
 @pytest.mark.udf
