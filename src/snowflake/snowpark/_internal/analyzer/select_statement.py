@@ -673,8 +673,8 @@ class SelectableEntity(Selectable):
 @SnowflakePlan.Decorator.wrap_exception
 def _analyze_attributes(
     sql: str,
-    session: "snowflake.snowpark.session.Session",
-    dataframe_uuid: Optional[str] = None,  # type: ignore
+    session: "snowflake.snowpark.session.Session",  # type: ignore
+    dataframe_uuid: Optional[str] = None,
     query_params: Optional[Sequence[Any]] = None,
 ) -> List[Attribute]:
     return analyze_attributes(sql, session, dataframe_uuid, query_params)
