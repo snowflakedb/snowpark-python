@@ -13762,7 +13762,7 @@ def ai_complete(
         >>> # Using prompt object from prompt() function
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='llama3.1-8b',
+        ...         model='claude-4-sonnet',
         ...         prompt=prompt("Extract the kitchen appliances identified in this image. Respond in JSON only with the identified appliances? {0}", to_file('@mystage/kitchen.png')),
         ...     )
         ... )
