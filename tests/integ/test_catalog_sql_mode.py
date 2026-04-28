@@ -15,7 +15,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quot
 from snowflake.snowpark.catalog import Catalog
 from snowflake.snowpark.exceptions import NotFoundError
 from snowflake.snowpark.types import IntegerType
-from tests.integ.catalog_integ_common import (
+from tests.integ.test_catalog import (
     CATALOG_TEMP_OBJECT_PREFIX,
     create_temp_db,
     create_temp_schema,

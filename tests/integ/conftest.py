@@ -31,7 +31,7 @@ from tests.utils import (
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
 
-pytest_plugins = ("tests.integ.catalog_integ_common",)
+pytest_plugins = ("tests.integ.test_catalog",)
 
 test_dir = os.path.dirname(__file__)
 test_data_dir = os.path.join(test_dir, "cassettes")
