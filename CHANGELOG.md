@@ -8,7 +8,7 @@
 
 - Catalog API now uses SQL commands instead of SnowAPI calls to improve stability.
 
-## 1.50.0 (TBD)
+## 1.50.0 (2026-04-23)
 
 ### Snowpark Python API Updates
 
