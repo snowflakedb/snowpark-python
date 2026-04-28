@@ -13690,7 +13690,7 @@ def ai_complete(
 
         >>> # Basic completion with string prompt
         >>> df = session.range(1).select(
-        ...     ai_complete('snowflake-arctic', 'What are large language models?').alias("response")
+        ...     ai_complete('llama3.1-8b', 'What are large language models?').alias("response")
         ... )
         >>> len(df.collect()[0][0]) > 10
         True
