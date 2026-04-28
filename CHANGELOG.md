@@ -1,5 +1,15 @@
 # Release History
 
+## 1.51.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+- Fixed a bug where using parameter bindings for `CALL` queries issued through `session.sql` would raise an error.
+
 ## 1.50.0 (2026-04-23)
 
 ### Snowpark Python API Updates
