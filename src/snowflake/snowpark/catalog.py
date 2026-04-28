@@ -56,7 +56,9 @@ class _CatalogBackend(ABC):
         pattern: Optional[str] = None,
         like: Optional[str] = None,
     ) -> List[Database]:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.list_databases must be implemented by a concrete subclass."
+        )
 
     @abstractmethod
     def list_schemas(
@@ -66,17 +68,23 @@ class _CatalogBackend(ABC):
         pattern: Optional[str] = None,
         like: Optional[str] = None,
     ) -> List[Schema]:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.list_schemas must be implemented by a concrete subclass."
+        )
 
     @abstractmethod
     def get_database(self, database: str) -> Database:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.get_database must be implemented by a concrete subclass."
+        )
 
     @abstractmethod
     def get_schema(
         self, schema: str, *, database: Optional[Union[str, Database]] = None
     ) -> Schema:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.get_schema must be implemented by a concrete subclass."
+        )
 
     @abstractmethod
     def get_table(
@@ -86,7 +94,9 @@ class _CatalogBackend(ABC):
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
     ) -> Union[Table, View]:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.get_table must be implemented by a concrete subclass."
+        )
 
     @abstractmethod
     def get_view(
@@ -96,7 +106,9 @@ class _CatalogBackend(ABC):
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
     ) -> View:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.get_view must be implemented by a concrete subclass."
+        )
 
     @abstractmethod
     def get_procedure(
@@ -107,7 +119,9 @@ class _CatalogBackend(ABC):
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
     ) -> Procedure:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.get_procedure must be implemented by a concrete subclass."
+        )
 
     @abstractmethod
     def get_user_defined_function(
@@ -118,11 +132,15 @@ class _CatalogBackend(ABC):
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
     ) -> UserDefinedFunction:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.get_user_defined_function must be implemented by a concrete subclass."
+        )
 
     @abstractmethod
     def database_exists(self, database: Union[str, Database]) -> bool:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.database_exists must be implemented by a concrete subclass."
+        )
 
     @abstractmethod
     def schema_exists(
@@ -131,7 +149,9 @@ class _CatalogBackend(ABC):
         *,
         database: Optional[Union[str, Database]] = None,
     ) -> bool:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.schema_exists must be implemented by a concrete subclass."
+        )
 
     @abstractmethod
     def table_exists(
@@ -141,7 +161,9 @@ class _CatalogBackend(ABC):
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
     ) -> bool:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.table_exists must be implemented by a concrete subclass."
+        )
 
     @abstractmethod
     def view_exists(
@@ -151,7 +173,9 @@ class _CatalogBackend(ABC):
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
     ) -> bool:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.view_exists must be implemented by a concrete subclass."
+        )
 
     @abstractmethod
     def procedure_exists(
@@ -162,7 +186,9 @@ class _CatalogBackend(ABC):
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
     ) -> bool:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.procedure_exists must be implemented by a concrete subclass."
+        )
 
     @abstractmethod
     def user_defined_function_exists(
@@ -173,7 +199,10 @@ class _CatalogBackend(ABC):
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
     ) -> bool:
-        pass
+        raise NotImplementedError(
+            "_CatalogBackend.user_defined_function_exists must be implemented by a "
+            "concrete subclass."
+        )
 
 
 class _SqlCatalogBackend(_CatalogBackend):
