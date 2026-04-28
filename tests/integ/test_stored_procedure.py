@@ -2255,6 +2255,10 @@ def test_stored_proc_register_with_module(session):
 
 
 @pytest.mark.skipif(
+    "FIPS_TEST" in os.environ,
+    reason="SNOW-3425553: need FIPS mode investigation",
+)
+@pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="use schema is not allowed in stored proc (owner mode)"
 )
 @pytest.mark.skipif(

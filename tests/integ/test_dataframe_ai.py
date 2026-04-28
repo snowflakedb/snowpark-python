@@ -39,7 +39,7 @@ def test_dataframe_ai_complete_with_named_placeholders(session):
             "category": col("category"),
         },
         output_column="sentiment_analysis",
-        model="snowflake-arctic",
+        model="llama3.1-8b",
     )
 
     # Check schema
@@ -96,7 +96,7 @@ def test_dataframe_ai_complete_default_output_column(session):
     result_df = df.ai.complete(
         prompt="Answer the question",
         input_columns=[col("question")],
-        model="snowflake-arctic",
+        model="llama3.1-8b",
         model_parameters={
             "temperature": 0.8,
             "top_p": 0.95,
@@ -135,7 +135,7 @@ def test_dataframe_ai_complete_error_handling(session):
         df.ai.complete(
             prompt="Test",
             input_columns="invalid",  # Should be list or dict
-            model="snowflake-arctic",
+            model="llama3.1-8b",
         )
 
 
