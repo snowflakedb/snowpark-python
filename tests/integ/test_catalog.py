@@ -16,9 +16,6 @@ from tests.integ.catalog_integ_common import (
     CATALOG_TEMP_OBJECT_PREFIX,
     DOES_NOT_EXIST_PATTERN,
 )
-from snowflake.snowpark.session import Session
-from snowflake.snowpark.types import IntegerType
-from snowflake.core.exceptions import APIError
 from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
 
 
