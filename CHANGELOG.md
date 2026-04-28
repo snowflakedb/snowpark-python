@@ -1,5 +1,13 @@
 # Release History
 
+## 1.51.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `DataFrame.pipe`.
+
 ## 1.50.0 (2026-04-23)
 
 ### Snowpark Python API Updates
