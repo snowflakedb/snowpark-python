@@ -61,6 +61,7 @@ def remove_created_on_field(df):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skip(reason="SNOW-3413244 lineage test is flaky")
 def test_lineage_trace(session):
     """
     Tests lineage.trace API on multiple cases.

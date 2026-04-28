@@ -1604,7 +1604,17 @@ class SelectStatement(Selectable):
         can_be_flattened = (
             (not self.flatten_disabled)
             and can_clause_dependent_columns_flatten(
-                derive_dependent_columns(col), self.column_states, "filter"
+                derive_dependent_columns(col),
+                self.column_states,
+                "filter",
+                # In Snowpark Connect compatible mode, the NEW-column branch
+                # below allows flattening through any subquery. Pass
+                # subquery_has_limit so that branch can still reject
+                # flattening across LIMIT/OFFSET, since WHERE cannot cross
+                # LIMIT/OFFSET without changing semantics.
+                subquery_has_limit_or_offset=(
+                    self.limit_ is not None or self.offset is not None
+                ),
             )
             and not has_data_generator_or_window_function_exp(self.projection)
             and not (
@@ -2175,6 +2185,7 @@ def can_clause_dependent_columns_flatten(
     dependent_columns: Optional[AbstractSet[str]],
     subquery_column_states: ColumnStateDict,
     clause: Literal["filter", "sort"],
+    subquery_has_limit_or_offset: bool = False,
 ) -> bool:
     assert clause in (
         "filter",
@@ -2217,6 +2228,14 @@ def can_clause_dependent_columns_flatten(
                         context._is_snowpark_connect_compatible_mode
                         and context._snowpark_connect_flatten_select_after_sort
                     ):
+                        return False
+                    # Compatible-mode safety: even though we loosened the
+                    # NEW-column flatten rule above, we must not flatten a
+                    # WHERE across LIMIT/OFFSET on a NEW column — that
+                    # would push the filter in front of the limit and
+                    # change the result set. (Sort has its own
+                    # `not self.limit_` guard at the call site.)
+                    if clause == "filter" and subquery_has_limit_or_offset:
                         return False
 
     return True

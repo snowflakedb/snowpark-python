@@ -227,3 +227,44 @@ def test_can_clause_dependent_columns_flatten_sort_new_dollar_or_all(
         frozenset({'"X"'}), col_states, "sort"
     )
     assert result is False
+
+
+@pytest.mark.parametrize(
+    "compat_mode, flatten_flag, subquery_has_limit_or_offset, expected",
+    [
+        # Legacy mode: NEW column + filter is never flattened, regardless of limit.
+        (False, True, True, False),
+        (False, True, False, False),
+        # Compat mode with kill-switch OFF: falls back to legacy behavior.
+        (True, False, True, False),
+        (True, False, False, False),
+        # Compat mode ON: the loosening from SNOW-2203826 applies, except we
+        # must still block flattening across LIMIT/OFFSET (otherwise WHERE
+        # would move in front of LIMIT and change the result set).
+        (True, True, True, False),
+        (True, True, False, True),
+    ],
+)
+def test_can_clause_dependent_columns_flatten_filter_new_limit(
+    compat_mode, flatten_flag, subquery_has_limit_or_offset, expected, monkeypatch
+):
+    """Filter on a NEW column must not flatten across LIMIT/OFFSET, even when
+    the Snowpark Connect compatible-mode loosening is active."""
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compat_mode)
+    monkeypatch.setattr(
+        context, "_snowpark_connect_flatten_select_after_sort", flatten_flag
+    )
+    col_states = ColumnStateDict()
+    col_states['"X"'] = ColumnState(
+        col_name='"X"',
+        change_state=ColumnChangeState.NEW,
+        state_dict=col_states,
+    )
+
+    result = can_clause_dependent_columns_flatten(
+        frozenset({'"X"'}),
+        col_states,
+        "filter",
+        subquery_has_limit_or_offset=subquery_has_limit_or_offset,
+    )
+    assert result is expected

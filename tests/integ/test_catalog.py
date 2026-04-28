@@ -11,6 +11,7 @@ from snowflake.snowpark.catalog import Catalog
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
 from snowflake.core.exceptions import APIError
+from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
 
 
 pytestmark = [
@@ -59,6 +60,9 @@ def create_temp_schema(session, db: str) -> str:
     original_schema = session.get_current_schema()
     temp_schema = get_temp_name("SCHEMA")
     session._run_query(f"create or replace schema {db}.{temp_schema}")
+    session.sql(
+        f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
+    ).collect()
 
     session.use_database(original_db)
     session.use_schema(original_schema)
@@ -285,7 +289,9 @@ def test_list_procedures(
     session, temp_db1, temp_schema1, temp_procedure1, temp_procedure2
 ):
     catalog: Catalog = session.catalog
-
+    session.sql(
+        f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
+    ).collect()
     assert len(catalog.list_procedures(pattern=DOES_NOT_EXIST_PATTERN)) == 0
     assert (
         len(

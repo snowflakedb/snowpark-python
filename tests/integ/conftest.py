@@ -4,13 +4,13 @@
 #
 import os
 from logging import getLogger
-import sys
 from typing import Dict
 
 import pytest
 
 import snowflake.connector
 from snowflake.snowpark import Session
+from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
@@ -18,6 +18,7 @@ from tests.ast.ast_test_utils import (
     close_full_ast_validation_mode,
     setup_full_ast_validation_mode,
 )
+from tests.integ.session_parameters import set_up_test_session_parameters
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import (
     TEST_SCHEMA,
@@ -286,6 +287,9 @@ def test_schema(connection, local_testing_mode) -> None:
             cursor.execute(
                 f"GRANT ALL PRIVILEGES ON SCHEMA {TEST_SCHEMA} TO ROLE PUBLIC"
             )
+            cursor.execute(
+                f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
+            )
             yield
             cursor.execute(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}")
 
@@ -355,13 +359,7 @@ def session(
         )
 
     # TODO: SNOW-2346239: Set parameter on user level instead of in config file
-    if not local_testing_mode:
-        session.sql(
-            "alter session set ENABLE_EXTRACTION_PUSHDOWN_EXTERNAL_PARQUET_FOR_COPY_PHASE_I='Track';"
-        ).collect()
-        session.sql("alter session set ENABLE_ROW_ACCESS_POLICY=true").collect()
-        if sys.version_info.major == 3 and sys.version_info.minor == 14:
-            session.sql("alter session set ENABLE_PYTHON_3_14=true").collect()
+    set_up_test_session_parameters(session, local_testing_mode)
 
     try:
         yield session
@@ -412,6 +410,7 @@ def profiler_session(
             integration2,
             integration3,
         )
+    set_up_test_session_parameters(session, local_testing_mode)
     try:
         yield session
     finally:
@@ -433,6 +432,9 @@ def temp_schema(connection, session, local_testing_mode) -> None:
             # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
             cursor.execute(
                 f"GRANT ALL PRIVILEGES ON SCHEMA {temp_schema_name} TO ROLE PUBLIC"
+            )
+            cursor.execute(
+                f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
             )
             yield temp_schema_name
             cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")

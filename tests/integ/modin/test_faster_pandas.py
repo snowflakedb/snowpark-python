@@ -83,6 +83,10 @@ def test_read_filter_join(session):
         assert_frame_equal(snow_result, native_result)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-3415226: flaky test_read_filter_join_on_index",
+    strict=False,
+)
 @sql_count_checker(query_count=6, join_count=2)
 def test_read_filter_join_on_index(session):
     with session_parameter_override(

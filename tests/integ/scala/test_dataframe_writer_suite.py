@@ -247,15 +247,17 @@ def test_iceberg(session, local_testing_mode):
     )
     try:
         ddl = session._run_query(f"select get_ddl('table', '{table_name}')")
-        assert (
-            ddl[0][0] == f"create or replace ICEBERG TABLE {table_name} (\n\t"
-            f"A STRING,\n\tB LONG,\n\tTS TIMESTAMP_NTZ(9)\n)\n "
+        # TODO: AWS default may emit TIMESTAMP_NTZ(6) instead of (9).
+        assert ddl[0][0] in {
+            f"create or replace ICEBERG TABLE {table_name} (\n\t"
+            f"A STRING,\n\tB LONG,\n\tTS TIMESTAMP_NTZ({prec})\n)\n "
             f"PARTITION BY (A, BUCKET(5, B), TRUNCATE(3, A), DAY(TS))\n "
             f"EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n "
             f"ICEBERG_VERSION = 3\n "
             f"CATALOG = 'SNOWFLAKE'\n "
             f"BASE_LOCATION = 'snowpark_python_tests/';"
-        )
+            for prec in (9, 6)
+        }
 
         params = session.sql(f"show parameters for table {table_name}").collect()
         target_file_size_params = [

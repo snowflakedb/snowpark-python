@@ -8,7 +8,7 @@
 
 - Added support for `DataFrame.pipe`.
 
-## 1.50.0 (TBD)
+## 1.50.0 (2026-04-23)
 
 ### Snowpark Python API Updates
 
