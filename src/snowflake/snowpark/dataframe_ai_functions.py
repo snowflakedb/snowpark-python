@@ -88,7 +88,7 @@ class DataFrameAIFunctions:
             ...     prompt="Answer this question briefly: {q}",
             ...     input_columns={"q": col("question")},
             ...     output_column="answer",
-            ...     model="snowflake-arctic"
+            ...     model="llama3.1-8b"
             ... )
             >>> result_df.columns
             ['QUESTION', 'ANSWER']
