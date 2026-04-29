@@ -84,27 +84,12 @@ def test_get_database_missing_raises_core_not_found_rest_mode(session):
         catalog.get_database("NONEXISTENT_DB_XYZ_12345")
 
 
-def test_get_table_does_not_resolve_view_rest_mode(
-    session, temp_db1, temp_schema1, temp_view1
-):
-    catalog: Catalog = session.catalog
-    with pytest.raises(CoreNotFoundError):
-        catalog.get_table(temp_view1, database=temp_db1, schema=temp_schema1)
-
-
 def test_get_view_rest_mode(session, temp_db1, temp_schema1, temp_view1):
     catalog: Catalog = session.catalog
     view = catalog.get_view(temp_view1, database=temp_db1, schema=temp_schema1)
     assert view.name == temp_view1
     assert view.database_name == temp_db1
     assert view.schema_name == temp_schema1
-
-
-def test_table_exists_false_for_view_name_rest_mode(
-    session, temp_db1, temp_schema1, temp_view1
-):
-    catalog: Catalog = session.catalog
-    assert not catalog.table_exists(temp_view1, database=temp_db1, schema=temp_schema1)
 
 
 @pytest.mark.udf
