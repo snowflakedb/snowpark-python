@@ -536,4 +536,7 @@ class TestCallIdentifierBinding:
             params=[proc_name, "tmpl2", "args2"],
         )
         result = df1.union_all(df2).collect()
-        assert result == [Row("tmpl1 | args1"), Row("tmpl2 | args2")]
+        assert sorted(result, key=lambda r: r[0]) == [
+            Row("tmpl1 | args1"),
+            Row("tmpl2 | args2"),
+        ]
