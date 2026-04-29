@@ -42,6 +42,10 @@ from snowflake.snowpark.types import DataType
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session
 
+# Cap for SHOW AS RESOURCE DATABASES / SCHEMAS in the SQL backend (SCOS; avoids
+# oversized result sets when accounts have very many databases or schemas).
+_SHOW_AS_RESOURCE_LIMIT = 10000
+
 
 class _CatalogBackend(ABC):
     """Internal catalog implementation selected by ``context._is_snowpark_connect_compatible_mode``."""
@@ -214,7 +218,9 @@ class _SqlCatalogBackend(_CatalogBackend):
     ) -> List[Database]:
         c = self._catalog
         like_str = f"LIKE '{like}'" if like else ""
-        df = c._session.sql(f"SHOW AS RESOURCE DATABASES {like_str}")
+        df = c._session.sql(
+            f"SHOW AS RESOURCE DATABASES {like_str} LIMIT {_SHOW_AS_RESOURCE_LIMIT}"
+        )
         if pattern:
             c._initialize_regex_udf()
             assert c._python_regex_udf is not None  # pyright
@@ -239,7 +245,9 @@ class _SqlCatalogBackend(_CatalogBackend):
         c = self._catalog
         db_name = c._parse_database(database)
         like_str = f"LIKE '{like}'" if like else ""
-        df = c._session.sql(f"SHOW AS RESOURCE SCHEMAS {like_str} IN {db_name}")
+        df = c._session.sql(
+            f"SHOW AS RESOURCE SCHEMAS {like_str} IN {db_name} LIMIT {_SHOW_AS_RESOURCE_LIMIT}"
+        )
         if pattern:
             c._initialize_regex_udf()
             assert c._python_regex_udf is not None  # pyright
