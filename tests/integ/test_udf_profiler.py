@@ -11,6 +11,7 @@ import pytest
 from snowflake.snowpark.functions import udf
 from snowflake.snowpark.types import StringType, IntegerType
 from snowflake.snowpark.udf_profiler import UDFProfiler
+from tests.utils import IS_PY314
 
 
 def multi_thread_helper_function(pro: UDFProfiler):
@@ -38,6 +39,7 @@ def setup(profiler_session, resources_path, local_testing_mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.skipif(IS_PY314, reason="UDF profiler not supported in Python 3.14")
 @pytest.mark.udf
 def test_udf_profiler_basic(profiler_session):
     @udf(
@@ -66,6 +68,7 @@ def test_udf_profiler_basic(profiler_session):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.skipif(IS_PY314, reason="UDF profiler not supported in Python 3.14")
 @pytest.mark.udf
 def test_anonymous_udf(profiler_session):
     add_one = udf(
