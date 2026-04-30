@@ -144,6 +144,14 @@ class TestSplitObjectField:
         with pytest.raises(ValueError, match="Cannot parse OBJECT field definition"):
             _split_object_field("foo")
 
+    def test_empty_string_raises(self):
+        with pytest.raises(ValueError, match="Empty OBJECT field definition"):
+            _split_object_field("")
+
+    def test_whitespace_only_raises(self):
+        with pytest.raises(ValueError, match="Empty OBJECT field definition"):
+            _split_object_field("   \t  ")
+
 
 class TestSplitTopLevelCommaFieldsQuoteAware:
     def test_comma_inside_quoted_name_not_a_split(self):
