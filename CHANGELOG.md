@@ -18,10 +18,6 @@
 
 - Added `artifact_repository` support to `udtf_configs` in `session.read.dbapi()`, enabling users to specify a custom artifact repository (e.g. PyPI) for packages used by the internal UDTF during distributed ingestion.
 
-#### Improvements
-
-- When `Session.reduce_describe_query_enabled` is enabled, fewer DESCRIBE queries are issued when the outer query only projects or renames columns from an inner subquery whose column types are already known.
-
 #### Bug Fixes
 
 - Fixed a bug where `TRY_CAST` reader option is ignored when calling `DataFrameReader.schema().csv()`.
