@@ -1,5 +1,13 @@
 # Release History
 
+## 1.51.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- When `Session.reduce_describe_query_enabled` is enabled, fewer DESCRIBE queries are issued when the outer query only projects or renames columns from an inner subquery whose column types are already known.
+
 ## 1.50.0 (2026-04-23)
 
 ### Snowpark Python API Updates
@@ -7,10 +15,6 @@
 #### New Features
 
 - Added `artifact_repository` support to `udtf_configs` in `session.read.dbapi()`, enabling users to specify a custom artifact repository (e.g. PyPI) for packages used by the internal UDTF during distributed ingestion.
-
-#### Improvements
-
-- When `Session.reduce_describe_query_enabled` is enabled, fewer DESCRIBE queries are issued when the outer query only projects or renames columns from an inner subquery whose column types are already known.
 
 #### Bug Fixes
 
