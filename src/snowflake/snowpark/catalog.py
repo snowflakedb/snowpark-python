@@ -1414,6 +1414,7 @@ class Catalog:
         """
         return self._backend.drop_view(view, database=database, schema=schema)
 
+    # aliases
     listDatabases = list_databases
     listSchemas = list_schemas
     listTables = list_tables
