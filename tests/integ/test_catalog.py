@@ -54,6 +54,9 @@ def create_temp_schema(session, db: str) -> str:
     original_schema = session.get_current_schema()
     temp_schema = get_temp_name("SCHEMA")
     session._run_query(f"create or replace schema {db}.{temp_schema}")
+    session.sql(
+        f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
+    ).collect()
 
     session.use_database(original_db)
     session.use_schema(original_schema)

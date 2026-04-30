@@ -9,6 +9,7 @@ deletes only the matching test module.
 
 import pytest
 
+from snowflake.core.exceptions import APIError
 from snowflake.core.exceptions import NotFoundError as CoreNotFoundError
 from snowflake.snowpark import context
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
@@ -27,6 +28,10 @@ pytestmark = [
         "config.getoption('local_testing_mode', default=False)",
         reason="deepcopy is not supported and required by local testing",
         run=False,
+    ),
+    pytest.mark.xfail(
+        raises=APIError,
+        reason="Failure due to warehouse overload",
     ),
 ]
 

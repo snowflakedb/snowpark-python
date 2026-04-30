@@ -208,6 +208,47 @@ class _CatalogBackend(ABC):
             "concrete subclass."
         )
 
+    @abstractmethod
+    def drop_database(self, database: Union[str, Database]) -> None:
+        raise NotImplementedError(
+            "_CatalogBackend.drop_database must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def drop_schema(
+        self,
+        schema: Union[str, Schema],
+        *,
+        database: Optional[Union[str, Database]] = None,
+    ) -> None:
+        raise NotImplementedError(
+            "_CatalogBackend.drop_schema must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def drop_table(
+        self,
+        table: Union[str, Table],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> None:
+        raise NotImplementedError(
+            "_CatalogBackend.drop_table must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def drop_view(
+        self,
+        view: Union[str, View],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> None:
+        raise NotImplementedError(
+            "_CatalogBackend.drop_view must be implemented by a concrete subclass."
+        )
+
 
 class _SqlCatalogBackend(_CatalogBackend):
     def list_databases(
@@ -499,6 +540,48 @@ class _SqlCatalogBackend(_CatalogBackend):
         except NotFoundError:
             return False
 
+    def drop_database(self, database: Union[str, Database]) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        c._session.sql(f"DROP DATABASE {db_name}").collect()
+
+    def drop_schema(
+        self,
+        schema: Union[str, Schema],
+        *,
+        database: Optional[Union[str, Database]] = None,
+    ) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database, schema)
+        schema_name = c._parse_schema(schema)
+        c._session.sql(f"DROP SCHEMA {db_name}.{schema_name}").collect()
+
+    def drop_table(
+        self,
+        table: Union[str, Table],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database, table)
+        schema_name = c._parse_schema(schema, table)
+        table_name = table if isinstance(table, str) else table.name
+        c._session.sql(f"DROP TABLE {db_name}.{schema_name}.{table_name}").collect()
+
+    def drop_view(
+        self,
+        view: Union[str, View],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database, view)
+        schema_name = c._parse_schema(schema, view)
+        view_name = view if isinstance(view, str) else view.name
+        c._session.sql(f"DROP VIEW {db_name}.{schema_name}.{view_name}").collect()
+
 
 class _RestCatalogBackend(_CatalogBackend):
     def __init__(self, catalog: "Catalog") -> None:
@@ -728,6 +811,48 @@ class _RestCatalogBackend(_CatalogBackend):
             return True
         except CoreNotFoundError:
             return False
+
+    def drop_database(self, database: Union[str, Database]) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        self._root.databases[db_name].drop()
+
+    def drop_schema(
+        self,
+        schema: Union[str, Schema],
+        *,
+        database: Optional[Union[str, Database]] = None,
+    ) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database, schema)
+        schema_name = c._parse_schema(schema)
+        self._root.databases[db_name].schemas[schema_name].drop()
+
+    def drop_table(
+        self,
+        table: Union[str, Table],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database, table)
+        schema_name = c._parse_schema(schema, table)
+        table_name = table if isinstance(table, str) else table.name
+        self._root.databases[db_name].schemas[schema_name].tables[table_name].drop()
+
+    def drop_view(
+        self,
+        view: Union[str, View],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database, view)
+        schema_name = c._parse_schema(schema, view)
+        view_name = view if isinstance(view, str) else view.name
+        self._root.databases[db_name].schemas[schema_name].views[view_name].drop()
 
 
 class Catalog:
@@ -1238,8 +1363,7 @@ class Catalog:
         Args:
             database: database name or ``Database`` object.
         """
-        db_name = self._parse_database(database)
-        self._session.sql(f"DROP DATABASE {db_name}").collect()
+        return self._backend.drop_database(database)
 
     def drop_schema(
         self,
@@ -1254,9 +1378,7 @@ class Catalog:
             schema: schema name or ``Schema`` object.
             database: database name or ``Database`` object. Defaults to None.
         """
-        db_name = self._parse_database(database, schema)
-        schema_name = self._parse_schema(schema)
-        self._session.sql(f"DROP SCHEMA {db_name}.{schema_name}").collect()
+        return self._backend.drop_schema(schema, database=database)
 
     def drop_table(
         self,
@@ -1273,11 +1395,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database, table)
-        schema_name = self._parse_schema(schema, table)
-        table_name = table if isinstance(table, str) else table.name
-
-        self._session.sql(f"DROP TABLE {db_name}.{schema_name}.{table_name}").collect()
+        return self._backend.drop_table(table, database=database, schema=schema)
 
     def drop_view(
         self,
@@ -1294,11 +1412,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database, view)
-        schema_name = self._parse_schema(schema, view)
-        view_name = view if isinstance(view, str) else view.name
-
-        self._session.sql(f"DROP VIEW {db_name}.{schema_name}.{view_name}").collect()
+        return self._backend.drop_view(view, database=database, schema=schema)
 
     listDatabases = list_databases
     listSchemas = list_schemas
