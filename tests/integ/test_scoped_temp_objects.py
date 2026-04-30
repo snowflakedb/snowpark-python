@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from contextlib import contextmanager
 import pytest
 
 from snowflake.connector.errors import ProgrammingError
@@ -9,6 +10,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
+from tests.utils import IS_IN_STORED_PROC
 
 
 @pytest.mark.xfail(
@@ -43,30 +45,37 @@ def test_create_scoped_temp_objects_syntax(session):
         )
     assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
 
+    # CREATE SCOPED TEMPORARY TABLE previously only worked if the name of the object began with
+    # SNOWPARK_TEMP_. This was changed to only enforce the naming convention if the query is issued
+    # from within a stored procedure.
+
+    @contextmanager
+    def cm():
+        if IS_IN_STORED_PROC:
+            with pytest.raises(ProgrammingError) as exc:
+                yield
+            assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
+        else:
+            yield
+
     temp_table_name = "temp_table"
-    with pytest.raises(ProgrammingError) as exc:
+    with cm():
         session._run_query(f"create scoped temporary table {temp_table_name} (col int)")
-    assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
-    with pytest.raises(ProgrammingError) as exc:
+    with cm():
         session._run_query(
             f"create scoped temporary view temp_view as select * from {temp_table_name}"
         )
-    assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
-    with pytest.raises(ProgrammingError) as exc:
+    with cm():
         session._run_query("create scoped temporary stage temp_stage")
-    assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
-    with pytest.raises(ProgrammingError) as exc:
+    with cm():
         session._run_query(
             "create scoped temporary function temp_function (arg int) returns int"
         )
-    assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
-    with pytest.raises(ProgrammingError) as exc:
+    with cm():
         session._run_query(
-            "create scoped temporary function temp_talbe_function (arg int) returns table(col int) as $$ select * from {temp_table_name} $$"
+            f"create scoped temporary function temp_table_function (arg int) returns table(col int) as $$ select col from {temp_table_name} $$"
         )
-    assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
-    with pytest.raises(ProgrammingError) as exc:
+    with cm():
         session._run_query(
             "create scoped temporary file format temp_file_format type = csv"
         )
-    assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)

@@ -672,9 +672,12 @@ class SelectableEntity(Selectable):
 
 @SnowflakePlan.Decorator.wrap_exception
 def _analyze_attributes(
-    sql: str, session: "snowflake.snowpark.session.Session", dataframe_uuid: Optional[str] = None  # type: ignore
+    sql: str,
+    session: "snowflake.snowpark.session.Session",  # type: ignore
+    dataframe_uuid: Optional[str] = None,
+    query_params: Optional[Sequence[Any]] = None,
 ) -> List[Attribute]:
-    return analyze_attributes(sql, session, dataframe_uuid)
+    return analyze_attributes(sql, session, dataframe_uuid, query_params)
 
 
 class SelectSQL(Selectable):
@@ -707,7 +710,7 @@ class SelectSQL(Selectable):
                 self.pre_actions[0].query_id_place_holder
             )
             self._schema_query = analyzer_utils.schema_value_statement(
-                _analyze_attributes(sql, self._session, self._uuid)
+                _analyze_attributes(sql, self._session, self._uuid, query_params=params)
             )  # Change to subqueryable schema query so downstream query plan can describe the SQL
             self._query_param = None
         else:

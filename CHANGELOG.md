@@ -4,6 +4,13 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+#### Bug Fixes
+
+- Fixed a bug where using parameter bindings for `CALL` queries issued through `session.sql` would raise an error.
+- Fixed a bug where `StringType` columns from Iceberg tables were not recognized as max-size strings.
+
 #### Improvements
 
 - When `Session.reduce_describe_query_enabled` is enabled, fewer DESCRIBE queries are issued when the outer query only projects or renames columns from an inner subquery whose column types are already known.
