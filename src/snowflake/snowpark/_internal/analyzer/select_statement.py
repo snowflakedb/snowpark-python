@@ -87,7 +87,6 @@ from snowflake.snowpark._internal.select_projection_complexity_utils import (
 from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
     is_sql_select_statement,
-    quote_name,
 )
 import snowflake.snowpark.context as context
 
@@ -1593,10 +1592,10 @@ class SelectStatement(Selectable):
         # When describe reduction is on and the inner select already has resolved
         # attributes, infer new.attributes for this outer select by reusing datatype and
         # nullable from the subquery: (0) skip if parent column names collide, (1) index
-        # attributes by quote_name (Snowflake identifier rules; invalid delimited forms
-        # raise), (2) walk new.projection, (3) only handle plain columns or Alias(column),
-        # (4) resolve source via the same quote_name key lookup, (5) assign only if every
-        # output column was inferred (length matches projection).
+        # attributes by exact parent Attribute.name, (2) walk new.projection, (3) only
+        # handle plain columns or Alias(column), (4) resolve source by exact string match
+        # of the projection source name to that name (no quote_name / normalization),
+        # (5) assign only if every output column was inferred (length matches projection).
         if self._session.reduce_describe_query_enabled and self.attributes is not None:
             parent_attributes = self.attributes
             projection = new.projection
@@ -1604,16 +1603,16 @@ class SelectStatement(Selectable):
             # Skip: no projection to walk (do not assert; leave new.attributes unchanged).
             if projection is not None:
                 # Skip: duplicate output names on the parent — dict/lookup would be ambiguous.
-                attributes_by_normalized: Dict[str, Attribute] = {}
+                attributes_by_column_name: Dict[str, Attribute] = {}
                 collision = False
                 for attr in parent_attributes:
-                    key = quote_name(attr.name)
-                    existing = attributes_by_normalized.get(key)
-                    # Skip: two parent columns map to the same quote_name key.
+                    key = attr.name
+                    existing = attributes_by_column_name.get(key)
+                    # Skip: two parent columns share the same name string.
                     if existing is not None and existing is not attr:
                         collision = True
                         break
-                    attributes_by_normalized[key] = attr
+                    attributes_by_column_name[key] = attr
                 if not collision:
                     inferred_attributes = []
                     for expr in projection:
@@ -1636,9 +1635,7 @@ class SelectStatement(Selectable):
                             # Skip: missing projected output name.
                             inferred_attributes = []
                             break
-                        source_attr = attributes_by_normalized.get(
-                            quote_name(source_column_name)
-                        )
+                        source_attr = attributes_by_column_name.get(source_column_name)
                         # Skip: no parent column for this source name.
                         if source_attr is None:
                             inferred_attributes = []
