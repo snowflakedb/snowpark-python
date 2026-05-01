@@ -9,6 +9,7 @@
 #### Bug Fixes
 
 - Fixed a bug where using parameter bindings for `CALL` queries issued through `session.sql` would raise an error.
+- Fixed a bug where `StringType` columns from Iceberg tables were not recognized as max-size strings.
 
 ## 1.50.0 (2026-04-23)
 
