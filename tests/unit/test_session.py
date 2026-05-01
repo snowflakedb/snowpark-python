@@ -119,7 +119,7 @@ def test_used_scoped_temp_object():
 
 @pytest.mark.parametrize(
     "option_value, expected",
-    [(True, True), (False, False)],
+    [(None, True), (True, True), (False, False)],
 )
 def test_session_use_sql_base_from_options(option_value, expected):
     fake_connection = mock.create_autospec(ServerConnection)
@@ -132,9 +132,39 @@ def test_session_use_sql_base_from_options(option_value, expected):
     )
     fake_connection._conn._session_parameters = {}
 
-    session = Session(fake_connection, {"_use_sql_base": option_value})
+    options = {} if option_value is None else {"_use_sql_base": option_value}
+    session = Session(fake_connection, options)
     assert session._use_sql_base is expected
     assert session.conf.get("_use_sql_base") is None
+
+
+@pytest.mark.parametrize(
+    "option_value, expected_backend_name",
+    [(True, "_SqlCatalogBackend"), (False, "_RestCatalogBackend")],
+)
+def test_catalog_backend_selection_from_use_sql_base_option(
+    option_value, expected_backend_name
+):
+    import snowflake.snowpark.context as ctx
+
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection._thread_safe_session_enabled = True
+    fake_connection._get_client_side_session_parameter = (
+        lambda x, y: ServerConnection._get_client_side_session_parameter(
+            fake_connection, x, y
+        )
+    )
+    fake_connection._conn._session_parameters = {}
+    fake_connection.get_session_id.return_value = "fake_session_id"
+
+    original_compat = ctx._is_snowpark_connect_compatible_mode
+    try:
+        ctx._is_snowpark_connect_compatible_mode = True
+        session = Session(fake_connection, {"_use_sql_base": option_value})
+        assert type(session.catalog._backend).__name__ == expected_backend_name
+    finally:
+        ctx._is_snowpark_connect_compatible_mode = original_compat
 
 
 def test_close_exception():

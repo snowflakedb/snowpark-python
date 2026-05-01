@@ -92,8 +92,21 @@ def test_compat_mode_with_sql_base_disabled_uses_rest_backend(session):
         session._use_sql_base = False
         session._catalog = None
         catalog: Catalog = session.catalog
+        assert type(catalog._backend).__name__ == "_RestCatalogBackend"
         with pytest.raises(CoreNotFoundError):
             catalog.get_database("NONEXISTENT_DB_XYZ_12345")
+    finally:
+        session._use_sql_base = original_use_sql_base
+        session._catalog = None
+
+
+def test_compat_mode_with_sql_base_enabled_uses_sql_backend(session):
+    original_use_sql_base = session._use_sql_base
+    try:
+        session._use_sql_base = True
+        session._catalog = None
+        catalog: Catalog = session.catalog
+        assert type(catalog._backend).__name__ == "_SqlCatalogBackend"
     finally:
         session._use_sql_base = original_use_sql_base
         session._catalog = None
