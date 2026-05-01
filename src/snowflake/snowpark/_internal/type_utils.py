@@ -1430,8 +1430,11 @@ def _scan_quoted_identifier(s: str, start: int) -> int:
     and nothing else.
 
     Raises ``ValueError`` if the closing quote is missing.
+
+    Precondition: ``s[start] == '"'``. All current callers guard on this; we
+    do not re-check here because asserts are stripped under ``python -O`` and
+    promoting to ``raise`` would be overkill for a private helper.
     """
-    assert s[start] == '"'
     i = start + 1
     while i < len(s):
         if s[i] == '"':

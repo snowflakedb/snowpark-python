@@ -106,7 +106,7 @@ class TestScanQuotedIdentifier:
         assert _scan_quoted_identifier(s, 0) == 5  # index just past closing "
 
     def test_escaped_quote_inside(self):
-        # "a""b" is the 7-char span 0..6 inclusive; index past it is 7
+        # "a""b" is a 6-char span (positions 0-5); index just past it is 6
         s = '"a""b" rest'
         assert _scan_quoted_identifier(s, 0) == 6
 
@@ -340,6 +340,28 @@ class TestSfTypeToTypeObjectQuotedNames:
         arr = result.fields[0].datatype
         assert isinstance(arr, ArrayType)
         assert arr.contains_null is False
+
+    # --- malformed inputs surface as ValueError, not silent corruption ---
+    #
+    # Pin the error-surfacing contract for the two adversarial shapes that can
+    # actually reach `_split_object_field` after `split_top_level_comma_fields`
+    # (which is greedy on `"..."` spans). The parser does *not* validate
+    # OBJECT inputs upstream; it relies on INFER_SCHEMA emitting
+    # grammar-compliant strings. These tests pin that any deviation raises a
+    # clear `ValueError` from the appropriate parse step.
+
+    def test_quoted_name_with_garbage_type_raises_unsupported_type(self):
+        # `OBJECT("a NUM"BER)` — `_scan_quoted_identifier` greedily matches
+        # `"a NUM"`, leaves `BER` as the type token, and `_sf_type_to_type_object`
+        # rejects the unknown type rather than silently producing a struct.
+        with pytest.raises(ValueError, match="not a supported type"):
+            _sf_type_to_type_object('OBJECT("a NUM"BER)')
+
+    def test_unterminated_quoted_name_raises(self):
+        # `OBJECT("a NUMBER)` — no closing `"`. `_scan_quoted_identifier`
+        # raises rather than silently consuming the trailing `)`.
+        with pytest.raises(ValueError, match="Unterminated quoted identifier"):
+            _sf_type_to_type_object('OBJECT("a NUMBER)')
 
 
 # ---------------------------------------------------------------------------
