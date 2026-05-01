@@ -118,22 +118,23 @@ def test_used_scoped_temp_object():
 
 
 @pytest.mark.parametrize(
-    "parameter_value",
-    [True, False],
+    "option_value, expected",
+    [(True, True), (False, False)],
 )
-def test_session_use_sql_base_from_session_parameter(parameter_value):
+def test_session_use_sql_base_from_options(option_value, expected):
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
     fake_connection._thread_safe_session_enabled = True
-    fake_connection._get_client_side_session_parameter = mock.Mock(
-        side_effect=lambda name, default: parameter_value
-        if name == "SNOWPARK_CONNECT_CATALOG_USE_SQL_BASE"
-        else default
+    fake_connection._get_client_side_session_parameter = (
+        lambda x, y: ServerConnection._get_client_side_session_parameter(
+            fake_connection, x, y
+        )
     )
     fake_connection._conn._session_parameters = {}
 
-    session = Session(fake_connection)
-    assert session._use_sql_base is parameter_value
+    session = Session(fake_connection, {"_use_sql_base": option_value})
+    assert session._use_sql_base is expected
+    assert session.conf.get("_use_sql_base") is None
 
 
 def test_close_exception():
