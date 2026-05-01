@@ -9,6 +9,7 @@ deletes only the matching test module.
 
 import pytest
 
+from snowflake.core.exceptions import NotFoundError as CoreNotFoundError
 from snowflake.core.view import View
 from snowflake.snowpark import context
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
@@ -83,6 +84,19 @@ def test_get_database_missing_raises_snowpark_not_found_sql_mode(session):
     catalog: Catalog = session.catalog
     with pytest.raises(NotFoundError, match="could not be found"):
         catalog.get_database("NONEXISTENT_DB_XYZ_12345")
+
+
+def test_compat_mode_with_sql_base_disabled_uses_rest_backend(session):
+    original_use_sql_base = session._use_sql_base
+    try:
+        session._use_sql_base = False
+        session._catalog = None
+        catalog: Catalog = session.catalog
+        with pytest.raises(CoreNotFoundError):
+            catalog.get_database("NONEXISTENT_DB_XYZ_12345")
+    finally:
+        session._use_sql_base = original_use_sql_base
+        session._catalog = None
 
 
 def test_get_table_resolves_view_sql_mode(session, temp_db1, temp_schema1, temp_view1):

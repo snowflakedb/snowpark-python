@@ -48,7 +48,7 @@ _SHOW_AS_RESOURCE_LIMIT = 10000
 
 
 class _CatalogBackend(ABC):
-    """Internal catalog implementation selected by ``context._is_snowpark_connect_compatible_mode``."""
+    """Internal catalog implementation selected by compatibility mode and SQL base flag."""
 
     def __init__(self, catalog: "Catalog") -> None:
         self._catalog = catalog
@@ -861,10 +861,10 @@ class Catalog:
     views, functions, etc.
     """
 
-    def __init__(self, session: "Session") -> None:
+    def __init__(self, session: "Session", *, _use_sql_base: bool = True) -> None:
         self._session = session
         self._python_regex_udf = None
-        if context._is_snowpark_connect_compatible_mode:
+        if context._is_snowpark_connect_compatible_mode and _use_sql_base:
             self._backend: _CatalogBackend = _SqlCatalogBackend(self)
         else:
             self._backend = _RestCatalogBackend(self)

@@ -628,6 +628,9 @@ class Session:
 """
         self.version = get_version()
         self._session_stage = None
+        self._use_sql_base = self._conn._get_client_side_session_parameter(
+            "SNOWPARK_CONNECT_CATALOG_USE_SQL_BASE", True
+        )
 
         if isinstance(conn, MockServerConnection):
             self._udf_registration = MockUDFRegistration(self)
@@ -961,7 +964,7 @@ class Session:
                     external_feature_name="Session.catalog",
                     raise_error=NotImplementedError,
                 )
-            self._catalog = Catalog(self)
+            self._catalog = Catalog(self, _use_sql_base=self._use_sql_base)
         return self._catalog
 
     def close(self) -> None:
