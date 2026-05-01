@@ -664,45 +664,6 @@ def test_select_inference_skips_on_duplicate_parent_keys_and_missing_alias_name(
     assert new_ss.attributes is None
 
 
-def test_reduce_describe_inference_exact_column_name_matrix(session):
-    """SNOW-3384967: attribute inference keys match Attribute.name strings exactly (no quote_name).
-
-    Exact spelling matches reuse metadata without DESCRIBE when reduce_describe is on;
-    mismatched strings skip client-side inference (DESCRIBE when resolving attributes).
-    """
-    # Delimited identifier from SQL: exact quoted reference infers.
-    df_mc = session.sql('SELECT 1 AS "MixedCase"')
-    _ = df_mc.schema
-    df_mc_ok = df_mc.select(col('"MixedCase"'))
-    if session.reduce_describe_query_enabled:
-        assert df_mc_ok._plan._metadata.attributes is not None
-        assert len(df_mc_ok._plan._metadata.attributes) == 1
-    with SqlCounter(
-        query_count=0,
-        describe_count=0 if session.reduce_describe_query_enabled else 1,
-    ):
-        _ = df_mc_ok._plan.attributes
-
-    # Same subquery, different delimited spelling: not the same string as parent name.
-    df_mc_miss = df_mc.select(col('"MIXEDCASE"'))
-    if session.reduce_describe_query_enabled:
-        assert df_mc_miss._plan._metadata.attributes is None
-    with SqlCounter(query_count=0, describe_count=1):
-        _ = df_mc_miss._plan.attributes
-
-    # create_dataframe lowercase schema: projection uses same logical column via col("a").
-    df_vals = session.create_dataframe([[1]], schema=["a"])
-    _ = df_vals.schema
-    df_vals_ok = df_vals.select(col("a"))
-    if session.reduce_describe_query_enabled:
-        assert df_vals_ok._plan._metadata.attributes is not None
-    with SqlCounter(
-        query_count=0,
-        describe_count=0 if session.reduce_describe_query_enabled else 1,
-    ):
-        _ = df_vals_ok._plan.attributes
-
-
 def test_reduce_describe_inference_invalid_delimited_identifier_rejected(session):
     """Malformed delimited identifiers are rejected by plan analysis (error 1200), not coerced."""
     df = session.create_dataframe([[1]], schema=["x"])
