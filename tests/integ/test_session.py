@@ -101,19 +101,19 @@ def test_runtime_config(db_parameters):
     reason="Requires real Snowflake connection",
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_session_use_sql_base_default_and_override(db_parameters):
+def test_session_use_sql_base_catalog_default_and_override(db_parameters):
     session = Session.builder.configs(db_parameters).create()
     try:
-        assert session._use_sql_base is True
-        assert session.conf.get("_use_sql_base") is None
-        session._use_sql_base = False
-        assert session._use_sql_base is False
+        assert session._use_sql_base_catalog is True
+        assert session.conf.get("_use_sql_base_catalog") is None
+        session._use_sql_base_catalog = False
+        assert session._use_sql_base_catalog is False
     finally:
         session.close()
 
 
 @pytest.mark.parametrize(
-    "use_sql_base, expected_backend_name",
+    "use_sql_base_catalog, expected_backend_name",
     [(True, "_SqlCatalogBackend"), (False, "_RestCatalogBackend")],
 )
 @pytest.mark.skipif(
@@ -121,8 +121,8 @@ def test_session_use_sql_base_default_and_override(db_parameters):
     reason="Requires real Snowflake connection for Catalog REST backend",
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_catalog_backend_selection_from_use_sql_base_option(
-    db_parameters, use_sql_base, expected_backend_name
+def test_catalog_backend_selection_from_use_sql_base_catalog_option(
+    db_parameters, use_sql_base_catalog, expected_backend_name
 ):
     import snowflake.snowpark.context as ctx
 
@@ -130,7 +130,7 @@ def test_catalog_backend_selection_from_use_sql_base_option(
     session = Session.builder.configs(db_parameters).create()
     try:
         ctx._is_snowpark_connect_compatible_mode = True
-        session._use_sql_base = use_sql_base
+        session._use_sql_base_catalog = use_sql_base_catalog
         session._catalog = None
         assert type(session.catalog._backend).__name__ == expected_backend_name
     finally:

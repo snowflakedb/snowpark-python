@@ -861,10 +861,12 @@ class Catalog:
     views, functions, etc.
     """
 
-    def __init__(self, session: "Session", *, _use_sql_base: bool = True) -> None:
+    def __init__(
+        self, session: "Session", *, _use_sql_base_catalog: bool = True
+    ) -> None:
         self._session = session
         self._python_regex_udf = None
-        if context._is_snowpark_connect_compatible_mode and _use_sql_base:
+        if context._is_snowpark_connect_compatible_mode and _use_sql_base_catalog:
             self._backend: _CatalogBackend = _SqlCatalogBackend(self)
         else:
             self._backend = _RestCatalogBackend(self)
