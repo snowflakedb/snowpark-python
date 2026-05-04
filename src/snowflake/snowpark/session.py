@@ -628,7 +628,6 @@ class Session:
 """
         self.version = get_version()
         self._session_stage = None
-        options = options or {}
         self._use_sql_base = True
 
         if isinstance(conn, MockServerConnection):
@@ -850,7 +849,7 @@ class Session:
                 _PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION
             )
         )
-        self._conf = self.RuntimeConfig(self, options)
+        self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
