@@ -479,6 +479,10 @@ def proc_name(session):
     return name
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-3454682: connector issue in stored procedures breaks this test",
+)
 class TestCallIdentifierBinding:
     """
     SNOW-3061745: Bindings in CALL previously were not properly transferred through the expression tree.
