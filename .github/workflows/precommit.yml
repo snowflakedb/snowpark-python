@@ -136,9 +136,6 @@ jobs:
           - python-version: "3.14"
             cloud-provider: gcp
             os: windows-latest-64-cores
-          - python-version: "3.14"
-            cloud-provider: azure
-            os: macos-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
