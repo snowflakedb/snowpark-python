@@ -96,29 +96,24 @@ def test_runtime_config(db_parameters):
     session.close()
 
 
-@pytest.mark.parametrize(
-    "option_value, expected",
-    [(None, True), (True, True), (False, False)],
-)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="Requires real Snowflake connection",
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_session_use_sql_base_from_options(db_parameters, option_value, expected):
-    configs = dict(db_parameters)
-    if option_value is not None:
-        configs["_use_sql_base"] = option_value
-    session = Session.builder.configs(configs).create()
+def test_session_use_sql_base_default_and_override(db_parameters):
+    session = Session.builder.configs(db_parameters).create()
     try:
-        assert session._use_sql_base is expected
+        assert session._use_sql_base is True
         assert session.conf.get("_use_sql_base") is None
+        session._use_sql_base = False
+        assert session._use_sql_base is False
     finally:
         session.close()
 
 
 @pytest.mark.parametrize(
-    "option_value, expected_backend_name",
+    "use_sql_base, expected_backend_name",
     [(True, "_SqlCatalogBackend"), (False, "_RestCatalogBackend")],
 )
 @pytest.mark.skipif(
@@ -127,22 +122,20 @@ def test_session_use_sql_base_from_options(db_parameters, option_value, expected
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_catalog_backend_selection_from_use_sql_base_option(
-    db_parameters, option_value, expected_backend_name
+    db_parameters, use_sql_base, expected_backend_name
 ):
     import snowflake.snowpark.context as ctx
 
     original_compat = ctx._is_snowpark_connect_compatible_mode
-    session = None
+    session = Session.builder.configs(db_parameters).create()
     try:
         ctx._is_snowpark_connect_compatible_mode = True
-        session = Session.builder.configs(
-            {**db_parameters, "_use_sql_base": option_value}
-        ).create()
+        session._use_sql_base = use_sql_base
+        session._catalog = None
         assert type(session.catalog._backend).__name__ == expected_backend_name
     finally:
-        if session is not None:
-            session.close()
         ctx._is_snowpark_connect_compatible_mode = original_compat
+        session.close()
 
 
 @pytest.mark.xfail(

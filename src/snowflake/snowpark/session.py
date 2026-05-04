@@ -254,7 +254,6 @@ _logger = getLogger(__name__)
 
 _session_management_lock = RLock()
 _active_sessions: Set["Session"] = set()
-_USE_SQL_BASE_OPTION_KEY = "_use_sql_base"
 _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
     "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
 )
@@ -464,13 +463,6 @@ class Session:
             self._app_name = None
             self._format_json = None
 
-        @staticmethod
-        def _connection_options(
-            options: Dict[str, Union[int, str]]
-        ) -> Dict[str, Union[int, str]]:
-            # Internal Session-only options must not be forwarded to connector connect(**kwargs).
-            return {k: v for k, v in options.items() if k != _USE_SQL_BASE_OPTION_KEY}
-
         def _remove_config(self, key: str) -> "Session.SessionBuilder":
             """Only used in test."""
             self._options.pop(key, None)
@@ -577,11 +569,8 @@ class Session:
             # Set paramstyle to qmark by default to be consistent with previous behavior
             if "paramstyle" not in self._options:
                 self._options["paramstyle"] = "qmark"
-            connection_options = self._connection_options(self._options)
             new_session = Session(
-                ServerConnection({}, conn)
-                if conn
-                else ServerConnection(connection_options),
+                ServerConnection({}, conn) if conn else ServerConnection(self._options),
                 self._options,
             )
 
@@ -640,7 +629,7 @@ class Session:
         self.version = get_version()
         self._session_stage = None
         options = options or {}
-        self._use_sql_base = options.pop(_USE_SQL_BASE_OPTION_KEY, True)
+        self._use_sql_base = True
 
         if isinstance(conn, MockServerConnection):
             self._udf_registration = MockUDFRegistration(self)
