@@ -339,10 +339,10 @@ class _SqlCatalogBackend(_CatalogBackend):
         like_arg = unquote_if_quoted(table_name)
         tables = c.list_tables(database=db_name, schema=schema_name, like=like_arg)
         views: List[View] = []
-        if not tables:
-            views = c.list_views(database=db_name, schema=schema_name, like=like_arg)
         if tables:
             return tables[0]
+        if not tables:
+            views = c.list_views(database=db_name, schema=schema_name, like=like_arg)
         if views:
             return views[0]
         raise NotFoundError(
@@ -867,7 +867,7 @@ class Catalog:
         self._session = session
         self._python_regex_udf = None
         if context._is_snowpark_connect_compatible_mode and _use_sql_base_catalog:
-            self._backend: _CatalogBackend = _SqlCatalogBackend(self)
+            self._backend = _SqlCatalogBackend(self)
         else:
             self._backend = _RestCatalogBackend(self)
 
