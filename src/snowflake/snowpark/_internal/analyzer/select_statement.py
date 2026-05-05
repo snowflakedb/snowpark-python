@@ -85,8 +85,8 @@ from snowflake.snowpark._internal.select_projection_complexity_utils import (
     has_invalid_projection_merge_functions,
 )
 from snowflake.snowpark._internal.utils import (
-    is_sql_select_statement,
     ExprAliasUpdateDict,
+    is_sql_select_statement,
 )
 import snowflake.snowpark.context as context
 
@@ -1591,6 +1591,70 @@ class SelectStatement(Selectable):
                     self,
                 )
             )
+
+        # When describe reduction is on and the inner select already has resolved
+        # attributes, infer new.attributes for this outer select by reusing datatype and
+        # nullable from the subquery: (0) skip if parent column names collide, (1) index
+        # attributes by exact parent Attribute.name, (2) walk new.projection, (3) only
+        # handle plain columns or Alias(column), (4) resolve source by exact string match
+        # of the projection source name to that name (no quote_name / normalization),
+        # (5) assign only if every output column was inferred (length matches projection).
+        if self._session.reduce_describe_query_enabled and self.attributes is not None:
+            parent_attributes = self.attributes
+            projection = new.projection
+            inferred_attributes: Optional[List[Attribute]] = None
+            # Skip: no projection to walk (do not assert; leave new.attributes unchanged).
+            if projection is not None:
+                # Skip: duplicate output names on the parent — dict/lookup would be ambiguous.
+                attributes_by_column_name: Dict[str, Attribute] = {}
+                collision = False
+                for attr in parent_attributes:
+                    key = attr.name
+                    existing = attributes_by_column_name.get(key)
+                    # Skip: two parent columns share the same name string.
+                    if existing is not None and existing is not attr:
+                        collision = True
+                        break
+                    attributes_by_column_name[key] = attr
+                if not collision:
+                    inferred_attributes = []
+                    for expr in projection:
+                        source_column_name: Optional[str] = None
+                        projected_column_name: Optional[str] = None
+                        if isinstance(expr, (Attribute, UnresolvedAttribute)):
+                            source_column_name = expr.name
+                            projected_column_name = expr.name
+                        elif isinstance(expr, Alias) and isinstance(
+                            expr.child, (Attribute, UnresolvedAttribute)
+                        ):
+                            source_column_name = expr.child.name
+                            projected_column_name = expr.name
+                        else:
+                            # Skip: not a plain column or Alias(Attribute|UnresolvedAttribute).
+                            inferred_attributes = []
+                            break
+
+                        if source_column_name is None or projected_column_name is None:
+                            # Skip: missing projected output name.
+                            inferred_attributes = []
+                            break
+                        source_attr = attributes_by_column_name.get(source_column_name)
+                        # Skip: no parent column for this source name.
+                        if source_attr is None:
+                            inferred_attributes = []
+                            break
+                        inferred_attributes.append(
+                            Attribute(
+                                projected_column_name,
+                                source_attr.datatype,
+                                source_attr.nullable,
+                            )
+                        )
+                    if len(inferred_attributes) != len(projection):
+                        # Skip: incomplete inference (includes defensive mismatch).
+                        inferred_attributes = None
+            if inferred_attributes is not None:
+                new.attributes = inferred_attributes
 
         new.flatten_disabled = disable_next_level_flatten
         assert new.projection is not None

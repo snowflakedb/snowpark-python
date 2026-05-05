@@ -12,6 +12,10 @@
 - Fixed a bug where `StringType` columns from Iceberg tables were not recognized as max-size strings.
 - Improved the `FileNotFoundError` message raised when `INFER_SCHEMA` returns zero rows so it also points to file format options (`PARSE_HEADER`, `SKIP_HEADER`, `ON_ERROR=CONTINUE`) that can silently filter everything out, instead of only suggesting a missing path.
 
+#### Improvements
+
+- When `Session.reduce_describe_query_enabled` is enabled, fewer DESCRIBE queries are issued when the outer query only projects or renames columns from an inner subquery whose column types are already known.
+
 ## 1.50.0 (2026-04-23)
 
 ### Snowpark Python API Updates
