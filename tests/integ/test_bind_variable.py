@@ -483,11 +483,23 @@ def proc_name(session):
     IS_IN_STORED_PROC,
     reason="SNOW-3454682: connector issue in stored procedures breaks this test",
 )
+@pytest.mark.skipif(
+    "config.getoption('disable_sql_simplifier', default=False)",
+    reason="Parameters are not properly propagated when the simplifier is disabled (see comment)",
+)
 class TestCallIdentifierBinding:
     """
     SNOW-3061745: Bindings in CALL previously were not properly transferred through the expression tree.
     These previously errored out when a chained operation after `session.sql` triggered a call to
     `to_subqueryable`, which did not properly populate binding parameters.
+
+    This test fails in stored procedures due to a connector bug (SNOW-3454682).
+
+    This test also fails when the SQL simplifier is disabled. When it is enabled, query parameters are
+    propagated in `SnowflakePlan._analyze_attributes` through the parent `source_plan` field, but this
+    field is `None` for plans constructed from raw SQL when the simplifier is disabled. It is possible
+    to retrieve paramters by checking `self.queries[-1]`, but this approach is too brittle to be reliable,
+    as the final query in the list does not necessarily correspond to the query this plan represents.
     """
 
     def test_call_collect(self, session, proc_name):
