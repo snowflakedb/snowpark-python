@@ -154,6 +154,56 @@ def test_get_nonexistent_secret(session, db_parameters):
 
 
 @pytest.mark.skipif(
+    IS_NOT_ON_GITHUB or not RUNNING_ON_JENKINS,
+    reason="Secret API is only supported on Snowflake server environment",
+)
+def test_get_wif_token_udf(session, db_parameters):
+    def get_wif():
+        token = get_wif_token("cred", db_parameters["wif_audience"])
+        return len(token) > 0
+
+    try:
+        get_wif_udf = session.udf.register(
+            get_wif,
+            return_type=BooleanType(),
+            packages=["snowflake-snowpark-python"],
+            external_access_integrations=[
+                db_parameters["external_access_integration4"]
+            ],
+            secrets={"cred": f"{db_parameters['external_access_key4']}"},
+        )
+        df = session.create_dataframe([[1], [2]]).to_df("x")
+        Utils.check_answer(df.select(get_wif_udf()), [Row(True), Row(True)])
+    except KeyError:
+        pytest.skip("External Access Integration is not supported on the deployment.")
+
+
+@pytest.mark.skipif(
+    IS_NOT_ON_GITHUB or not RUNNING_ON_JENKINS,
+    reason="Secret API is only supported on Snowflake server environment",
+)
+def test_get_wif_token_sproc(session, db_parameters):
+    def get_wif_in_sproc(session_):
+        token = get_wif_token("cred", db_parameters["wif_audience"])
+        return len(token) > 0
+
+    try:
+        get_wif_sp = session.sproc.register(
+            get_wif_in_sproc,
+            return_type=BooleanType(),
+            packages=["snowflake-snowpark-python"],
+            external_access_integrations=[
+                db_parameters["external_access_integration4"]
+            ],
+            secrets={"cred": f"{db_parameters['external_access_key4']}"},
+            anonymous=True,
+        )
+        assert get_wif_sp()
+    except KeyError:
+        pytest.skip("External Access Integration is not supported on the deployment.")
+
+
+@pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Run only outside Snowflake server to validate NotImplementedError",
 )
