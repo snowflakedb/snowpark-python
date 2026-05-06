@@ -809,3 +809,104 @@ def test_schema_expression():
         schema_expression(DayTimeIntervalType(), False)
         == "INTERVAL '1 01:01:01.0001' DAY TO SECOND"
     )
+
+
+class TestFormatYearMonthIntervalForDisplay:
+    """Tests for format_year_month_interval_for_display.
+
+    Validates correct behavior with both old connector format ('+Y-M' compound)
+    and new connector >=4.3.0 format ('+N' when months=0 or years=0).
+    """
+
+    @pytest.mark.parametrize(
+        "cell, start_field, end_field, expected",
+        [
+            # Compound format (both old and new connector use this when months != 0)
+            (
+                "+1-6",
+                YearMonthIntervalType.YEAR,
+                YearMonthIntervalType.MONTH,
+                "INTERVAL '1-6' YEAR TO MONTH",
+            ),
+            (
+                "-2-3",
+                YearMonthIntervalType.YEAR,
+                YearMonthIntervalType.MONTH,
+                "INTERVAL '-2-3' YEAR TO MONTH",
+            ),
+            (
+                "+0-5",
+                YearMonthIntervalType.YEAR,
+                YearMonthIntervalType.MONTH,
+                "INTERVAL '0-5' YEAR TO MONTH",
+            ),
+            # New connector format: '+N' with no dash when months=0 for YEAR TO MONTH type
+            (
+                "+4",
+                YearMonthIntervalType.YEAR,
+                YearMonthIntervalType.MONTH,
+                "INTERVAL '4-0' YEAR TO MONTH",
+            ),
+            (
+                "-7",
+                YearMonthIntervalType.YEAR,
+                YearMonthIntervalType.MONTH,
+                "INTERVAL '-7-0' YEAR TO MONTH",
+            ),
+            (
+                "+12",
+                YearMonthIntervalType.YEAR,
+                YearMonthIntervalType.MONTH,
+                "INTERVAL '12-0' YEAR TO MONTH",
+            ),
+            # YEAR-only type (both connector versions use '+N' format)
+            (
+                "+4",
+                YearMonthIntervalType.YEAR,
+                YearMonthIntervalType.YEAR,
+                "INTERVAL '4' YEAR",
+            ),
+            (
+                "-1",
+                YearMonthIntervalType.YEAR,
+                YearMonthIntervalType.YEAR,
+                "INTERVAL '-1' YEAR",
+            ),
+            # MONTH-only type (both connector versions use '+N' format)
+            (
+                "+5",
+                YearMonthIntervalType.MONTH,
+                YearMonthIntervalType.MONTH,
+                "INTERVAL '5' MONTH",
+            ),
+            (
+                "-12",
+                YearMonthIntervalType.MONTH,
+                YearMonthIntervalType.MONTH,
+                "INTERVAL '-12' MONTH",
+            ),
+            # Compound format with YEAR-only output (connector returns '+5-0')
+            (
+                "+5-0",
+                YearMonthIntervalType.YEAR,
+                YearMonthIntervalType.YEAR,
+                "INTERVAL '5' YEAR",
+            ),
+            # Compound format with MONTH-only output (connector returns '+0-3')
+            (
+                "+0-3",
+                YearMonthIntervalType.MONTH,
+                YearMonthIntervalType.MONTH,
+                "INTERVAL '3' MONTH",
+            ),
+        ],
+    )
+    def test_format_year_month_interval(self, cell, start_field, end_field, expected):
+        from snowflake.snowpark._internal.type_utils import (
+            format_year_month_interval_for_display,
+        )
+
+        assert (
+            format_year_month_interval_for_display(cell, start_field, end_field)
+            == expected
+        )
