@@ -759,21 +759,10 @@ class _RestCatalogBackend(_CatalogBackend):
         schema: Optional[Union[str, Schema]] = None,
     ) -> bool:
         c = self._catalog
+        db_name = c._parse_database(database, procedure)
+        schema_name = c._parse_schema(schema, procedure)
+        procedure_id = c._parse_function_or_procedure(procedure, arg_types)
         try:
-            if isinstance(procedure, Procedure):
-                if arg_types is not None or database is not None or schema is not None:
-                    raise ArgumentError(
-                        "When provided procedure is a Procedure class no other arguments can be provided"
-                    )
-                database = procedure.database_name
-                schema = procedure.schema_name
-                arg_types = [
-                    type_string_to_type_object(a.datatype) for a in procedure.arguments
-                ]
-                procedure = procedure.name
-            db_name = c._parse_database(database, procedure)
-            schema_name = c._parse_schema(schema, procedure)
-            procedure_id = c._parse_function_or_procedure(procedure, arg_types)
             self._root.databases[db_name].schemas[schema_name].procedures[
                 procedure_id
             ].fetch()
@@ -790,21 +779,10 @@ class _RestCatalogBackend(_CatalogBackend):
         schema: Optional[Union[str, Schema]] = None,
     ) -> bool:
         c = self._catalog
+        db_name = c._parse_database(database, udf)
+        schema_name = c._parse_schema(schema, udf)
+        function_id = c._parse_function_or_procedure(udf, arg_types)
         try:
-            if isinstance(udf, UserDefinedFunction):
-                if arg_types is not None or database is not None or schema is not None:
-                    raise ArgumentError(
-                        "When provided udf is a UserDefinedFunction class no other arguments can be provided"
-                    )
-                database = udf.database_name
-                schema = udf.schema_name
-                arg_types = [
-                    type_string_to_type_object(a.datatype) for a in udf.arguments
-                ]
-                udf = udf.name
-            db_name = c._parse_database(database, udf)
-            schema_name = c._parse_schema(schema, udf)
-            function_id = c._parse_function_or_procedure(udf, arg_types)
             self._root.databases[db_name].schemas[schema_name].user_defined_functions[
                 function_id
             ].fetch()
