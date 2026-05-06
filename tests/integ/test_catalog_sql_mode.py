@@ -14,7 +14,7 @@ from snowflake.core.view import View
 from snowflake.snowpark import context
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark.catalog import Catalog
-from snowflake.snowpark.exceptions import NotFoundError
+from snowflake.snowpark.exceptions import _NotFoundError
 from snowflake.snowpark.types import IntegerType
 from tests.integ.test_catalog import (
     CATALOG_TEMP_OBJECT_PREFIX,
@@ -82,7 +82,7 @@ def test_get_db_schema_sql_mode(session):
 
 def test_get_database_missing_raises_snowpark_not_found_sql_mode(session):
     catalog: Catalog = session.catalog
-    with pytest.raises(NotFoundError, match="could not be found"):
+    with pytest.raises(_NotFoundError, match="could not be found"):
         catalog.get_database("NONEXISTENT_DB_XYZ_12345")
 
 

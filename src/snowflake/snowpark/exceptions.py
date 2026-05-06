@@ -285,7 +285,7 @@ class SnowparkInvalidObjectNameException(SnowparkGeneralException):
     pass
 
 
-class NotFoundError(SnowparkClientException):
-    """Raised when we encounter an object is not found."""
+class _NotFoundError(SnowparkClientException):
+    """Internal exception raised when a Snowpark catalog object is not found."""
 
     pass

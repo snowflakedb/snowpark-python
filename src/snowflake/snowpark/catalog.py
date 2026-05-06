@@ -14,7 +14,7 @@ from typing import (
 
 from snowflake.snowpark import context
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
-from snowflake.snowpark.exceptions import SnowparkSQLException, NotFoundError
+from snowflake.snowpark.exceptions import SnowparkSQLException, _NotFoundError
 
 try:
     from snowflake.core import Root  # type: ignore
@@ -307,7 +307,7 @@ class _SqlCatalogBackend(_CatalogBackend):
         try:
             return self.list_databases(like=unquote_if_quoted(database))[0]
         except IndexError:
-            raise NotFoundError(f"Database with name {database} could not be found")
+            raise _NotFoundError(f"Database with name {database} could not be found")
 
     def get_schema(
         self, schema: str, *, database: Optional[Union[str, Database]] = None
@@ -322,7 +322,7 @@ class _SqlCatalogBackend(_CatalogBackend):
             IndexError,
             SnowparkSQLException,
         ):
-            raise NotFoundError(
+            raise _NotFoundError(
                 f"Schema with name {schema} could not be found in database '{db_name}'"
             )
 
@@ -345,7 +345,7 @@ class _SqlCatalogBackend(_CatalogBackend):
             views = c.list_views(database=db_name, schema=schema_name, like=like_arg)
         if views:
             return views[0]
-        raise NotFoundError(
+        raise _NotFoundError(
             f"Table with name {table_name} could not be found in schema '{db_name}.{schema_name}'"
         )
 
@@ -366,7 +366,7 @@ class _SqlCatalogBackend(_CatalogBackend):
                 like=unquote_if_quoted(view_name),
             )[0]
         except IndexError:
-            raise NotFoundError(
+            raise _NotFoundError(
                 f"View with name {view_name} could not be found in schema '{db_name}.{schema_name}'"
             )
 
@@ -392,7 +392,7 @@ class _SqlCatalogBackend(_CatalogBackend):
             IndexError,
             SnowparkSQLException,
         ):
-            raise NotFoundError(
+            raise _NotFoundError(
                 f"Procedure with name {procedure_name} and arguments {arg_types} could not be found in schema '{db_name}.{schema_name}'"
             )
 
@@ -418,7 +418,7 @@ class _SqlCatalogBackend(_CatalogBackend):
             IndexError,
             SnowparkSQLException,
         ):
-            raise NotFoundError(
+            raise _NotFoundError(
                 f"Function with name {udf_name} and arguments {arg_types} could not be found in schema '{db_name}.{schema_name}'"
             )
 
@@ -428,7 +428,7 @@ class _SqlCatalogBackend(_CatalogBackend):
         try:
             self.get_database(db_name)
             return True
-        except NotFoundError:
+        except _NotFoundError:
             return False
 
     def schema_exists(
@@ -443,7 +443,7 @@ class _SqlCatalogBackend(_CatalogBackend):
         try:
             self.get_schema(schema=schema_name, database=db_name)
             return True
-        except NotFoundError:
+        except _NotFoundError:
             return False
 
     def table_exists(
@@ -460,7 +460,7 @@ class _SqlCatalogBackend(_CatalogBackend):
         try:
             self.get_table(table_name=table_name, database=db_name, schema=schema_name)
             return True
-        except NotFoundError:
+        except _NotFoundError:
             return False
 
     def view_exists(
@@ -477,7 +477,7 @@ class _SqlCatalogBackend(_CatalogBackend):
         try:
             self.get_view(view_name=view_name, database=db_name, schema=schema_name)
             return True
-        except NotFoundError:
+        except _NotFoundError:
             return False
 
     def procedure_exists(
@@ -507,7 +507,7 @@ class _SqlCatalogBackend(_CatalogBackend):
                 schema=schema,
             )
             return True
-        except NotFoundError:
+        except _NotFoundError:
             return False
 
     def user_defined_function_exists(
@@ -537,7 +537,7 @@ class _SqlCatalogBackend(_CatalogBackend):
                 schema=schema,
             )
             return True
-        except NotFoundError:
+        except _NotFoundError:
             return False
 
     def drop_database(self, database: Union[str, Database]) -> None:
