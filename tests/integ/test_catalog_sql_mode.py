@@ -86,29 +86,25 @@ def test_get_database_missing_raises_snowpark_not_found_sql_mode(session):
         catalog.get_database("NONEXISTENT_DB_XYZ_12345")
 
 
-def test_compat_mode_with_sql_base_disabled_uses_rest_backend(session):
-    original_use_sql_base_catalog = session._use_sql_base_catalog
+def test_compat_mode_with_sql_base_disabled_uses_rest_backend(session, monkeypatch):
     try:
-        session._use_sql_base_catalog = False
+        monkeypatch.setattr(context, "_use_sql_base_catalog", False)
         session._catalog = None
         catalog: Catalog = session.catalog
         assert type(catalog._backend).__name__ == "_RestCatalogBackend"
         with pytest.raises(CoreNotFoundError):
             catalog.get_database("NONEXISTENT_DB_XYZ_12345")
     finally:
-        session._use_sql_base_catalog = original_use_sql_base_catalog
         session._catalog = None
 
 
-def test_compat_mode_with_sql_base_enabled_uses_sql_backend(session):
-    original_use_sql_base_catalog = session._use_sql_base_catalog
+def test_catalog_with_sql_base_enabled_uses_sql_backend(session, monkeypatch):
     try:
-        session._use_sql_base_catalog = True
+        monkeypatch.setattr(context, "_use_sql_base_catalog", True)
         session._catalog = None
         catalog: Catalog = session.catalog
         assert type(catalog._backend).__name__ == "_SqlCatalogBackend"
     finally:
-        session._use_sql_base_catalog = original_use_sql_base_catalog
         session._catalog = None
 
 

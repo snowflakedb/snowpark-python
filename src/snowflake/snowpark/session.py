@@ -628,7 +628,6 @@ class Session:
 """
         self.version = get_version()
         self._session_stage = None
-        self._use_sql_base_catalog = True
 
         if isinstance(conn, MockServerConnection):
             self._udf_registration = MockUDFRegistration(self)
@@ -962,9 +961,7 @@ class Session:
                     external_feature_name="Session.catalog",
                     raise_error=NotImplementedError,
                 )
-            self._catalog = Catalog(
-                self, _use_sql_base_catalog=self._use_sql_base_catalog
-            )
+            self._catalog = Catalog(self)
         return self._catalog
 
     def close(self) -> None:
