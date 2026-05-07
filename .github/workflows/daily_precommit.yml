@@ -49,7 +49,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -76,7 +76,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: '3.10'
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -105,7 +105,6 @@ jobs:
       matrix:
         include:
           # Ubuntu + rotating cloud providers
-          - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.9", cloud-provider: aws }
           - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.10", cloud-provider: azure }
           - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.11", cloud-provider: gcp }
           - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.12", cloud-provider: aws }
@@ -113,7 +112,6 @@ jobs:
           - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.14", cloud-provider: gcp }
 
           # macOS + rotating cloud providers
-          - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.9", cloud-provider: gcp }
           - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.10", cloud-provider: aws }
           - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.11", cloud-provider: azure }
           - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.12", cloud-provider: gcp }
@@ -121,7 +119,6 @@ jobs:
           - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.14", cloud-provider: azure }
 
           # Windows + rotating cloud providers
-          - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.9", cloud-provider: azure }
           - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.10", cloud-provider: gcp }
           - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.11", cloud-provider: aws }
           - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.12", cloud-provider: azure }
@@ -210,9 +207,8 @@ jobs:
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
         shell: bash
       - name: Run data source tests
-        # psycopg2 is not supported on macos 3.9
         # TODO: enable datasource tests for 3.14
-        if: ${{ !(contains('macos', matrix.os.download_name) && matrix.python-version == '3.9') && !(matrix.python-version == '3.14') }}
+        if: ${{ !(matrix.python-version == '3.14') }}
         run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -234,7 +230,7 @@ jobs:
             .tox/coverage.xml
 
   test-fips:
-    name: Test FIPS py-linux-3.9-${{ matrix.cloud-provider }}
+    name: Test FIPS py-linux-3.10-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ubuntu-latest-64-cores
     strategy:
@@ -261,7 +257,7 @@ jobs:
       - name: Run tests
         run: ./ci/test_fips_docker.sh
         env:
-          PYTHON_VERSION: 3.9
+          PYTHON_VERSION: '3.10'
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
@@ -269,7 +265,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           include-hidden-files: true
-          name: coverage_linux-fips-3.9-${{ matrix.cloud-provider }}
+          name: coverage_linux-fips-3.10-${{ matrix.cloud-provider }}
           path: |
             .coverage
             coverage.xml
@@ -284,7 +280,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos  # it includes doctest
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
@@ -362,7 +358,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos
-        python-version: ["3.9"]
+        python-version: ["3.10"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
@@ -437,7 +433,7 @@ jobs:
             image_name: windows-latest
           - download_name: ubuntu
             image_name: ubuntu-latest
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         cloud-provider: [azure]
     steps:
       - name: Checkout Code
@@ -507,7 +503,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.14"]  # SNOW-2230787 test failing on Python 3.13
+        python-version: ["3.10", "3.11", "3.12", "3.14"]  # SNOW-2230787 test failing on Python 3.13
         cloud-provider: [gcp]
         protobuf-version: ["3.20.1", "4.25.3", "5.28.3"]
     steps:
@@ -577,7 +573,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos  # it includes doctest
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         cloud-provider: [azure]
     steps:
       - name: Checkout Code
@@ -655,7 +651,7 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            python-version: "3.9"
+            python-version: "3.10"
             cloud-provider: azure
           - os: ubuntu-latest
             python-version: "3.12"
@@ -747,7 +743,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -802,7 +798,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:

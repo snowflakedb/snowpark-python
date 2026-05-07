@@ -327,7 +327,7 @@ _READ_SNOWFLAKE_DOC = """
           >>> pd.read_snowflake('''WITH filter_rows AS PROCEDURE (table_name VARCHAR, column_to_filter VARCHAR, value NUMBER)
           ... RETURNS TABLE(A NUMBER, B NUMBER, C NUMBER)
           ... LANGUAGE PYTHON
-          ... RUNTIME_VERSION = '3.9'
+          ... RUNTIME_VERSION = '3.10'
           ... PACKAGES = ('snowflake-snowpark-python')
           ... HANDLER = 'filter_rows'
           ... AS $$from snowflake.snowpark.functions import col
