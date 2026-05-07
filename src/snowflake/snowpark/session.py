@@ -5073,22 +5073,7 @@ class Session:
             )
 
         # System built-in aggregation functions
-        try:
-            retrieved_set.update(
-                {
-                    r[0].lower()
-                    for r in self.sql(
-                        """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'"""
-                    ).collect()
-                }
-            )
-        except Exception as e:
-            _logger.debug(
-                "Unable to get system aggregation functions, "
-                "falling back to hardcoded list: %s",
-                e,
-            )
-            retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
+        retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
 
         with context._aggregation_function_set_lock:
             context._aggregation_function_set.update(retrieved_set)
