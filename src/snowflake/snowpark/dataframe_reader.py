@@ -1338,8 +1338,20 @@ class DataFrameReader:
                     raise e
 
             if len(results) == 0:
+                # Zero rows can mean the path is empty/missing, or that file
+                # format options (PARSE_HEADER, SKIP_HEADER, ON_ERROR=CONTINUE)
+                # silently filtered everything out.
+                hints = [
+                    f"{k}={format_type_options.get(k, infer_schema_options.get(k))}"
+                    for k in ("PARSE_HEADER", "SKIP_HEADER", "ON_ERROR")
+                    if k in format_type_options or k in infer_schema_options
+                ]
+                suffix = f" Applied options: {', '.join(hints)}." if hints else ""
                 raise FileNotFoundError(
-                    f"Given path: '{path}' could not be found or is empty."
+                    f"Given path: '{path}' returned no results from INFER_SCHEMA. "
+                    "The path may be empty/missing, or file format options may "
+                    "have filtered every row/header. Check the file contents and "
+                    "file format options." + suffix
                 )
             new_schema = []
             schema_to_cast = []

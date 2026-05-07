@@ -22,6 +22,8 @@ TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
 LOCAL_TESTING_MODE = False
 
 sys.path.append("tests/")
+from integ.session_parameters import set_up_test_session_parameters  # noqa: E402
+
 # get the absolute path of rsa private key files
 params_file = os.path.abspath("tests/parameters.py")
 with open("tests/parameters.py", encoding="utf-8") as f:
@@ -67,6 +69,7 @@ def add_snowpark_session(doctest_namespace, pytestconfig):
         session.sql_simplifier_enabled = (
             os.environ.get("USE_SQL_SIMPLIFIER") == "1" or LOCAL_TESTING_MODE
         )
+        set_up_test_session_parameters(session, LOCAL_TESTING_MODE)
         if RUNNING_ON_GH:
             session.sql(f"CREATE SCHEMA IF NOT EXISTS {TEST_SCHEMA}").collect()
             # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
