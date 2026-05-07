@@ -8,13 +8,19 @@
 
 #### Bug Fixes
 
-- Fixed a bug where using parameter bindings for `CALL` queries issued through `session.sql` would raise an error.
-- Fixed a bug where `StringType` columns from Iceberg tables were not recognized as max-size strings.
-- Improved the `FileNotFoundError` message raised when `INFER_SCHEMA` returns zero rows so it also points to file format options (`PARSE_HEADER`, `SKIP_HEADER`, `ON_ERROR=CONTINUE`) that can silently filter everything out, instead of only suggesting a missing path.
-
 #### Improvements
 
 - When `Session.reduce_describe_query_enabled` is enabled, fewer DESCRIBE queries are issued when the outer query only projects or renames columns from an inner subquery whose column types are already known.
+
+## 1.50.1 (2026-05-06)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where using parameter bindings for `CALL` queries issued through `session.sql` would raise an error.
+- Fixed a bug where `StringType` columns from Iceberg tables were not recognized as max-size strings.
+- Improved the `FileNotFoundError` message raised when `INFER_SCHEMA` returns zero rows so it also points to file format options (`PARSE_HEADER`, `SKIP_HEADER`, `ON_ERROR=CONTINUE`) that can silently filter everything out, instead of only suggesting a missing path.
 
 ## 1.50.0 (2026-04-23)
 
