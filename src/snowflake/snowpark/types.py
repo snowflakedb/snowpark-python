@@ -1214,8 +1214,8 @@ DayTimeInterval = TypeVar("DayTimeInterval")
 
 # TODO(SNOW-969479): Add a type hint that can be used to annotate Vector data. Python does not
 # currently support integer type parameters (which are needed to represent a vector's dimension).
-# typing.Annotate can be used as a temporary bypass once the minimum supported Python version is
-# bumped to 3.9
+# typing.Annotated can be used as a temporary bypass now that the minimum supported Python version
+# is 3.10
 
 #: The type hint for annotating TIMESTAMP_NTZ (e.g., ``Timestamp[NTZ]``) data when registering UDFs.
 NTZ = TypeVar("NTZ")

@@ -10,7 +10,6 @@ import logging
 import math
 import os
 import re
-import sys
 from textwrap import dedent
 from typing import Callable
 
@@ -2946,9 +2945,6 @@ def test_access_snowflake_import_directory(session, resources_path):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_register_artifact_repository(session):
     def test_urllib() -> str:
         import urllib3
@@ -3018,9 +3014,6 @@ def test_register_artifact_repository_with_packages_includes_cloudpickle(session
     IS_IN_STORED_PROC,
     reason="Stored proc env does not have permissions to look up warehouse details",
 )
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_register_artifact_repository_negative(session):
     def test_nop() -> str:
         pass
@@ -3078,9 +3071,6 @@ def test_register_artifact_repository_negative(session):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_udf_artifact_repository_from_file(session, tmpdir):
     source = dedent(
         """
@@ -3111,9 +3101,6 @@ def test_udf_artifact_repository_from_file(session, tmpdir):
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_use_default_artifact_repository(db_parameters):
     with create_session_for_test(db_parameters) as session:
         temp_database = Utils.random_temp_database()

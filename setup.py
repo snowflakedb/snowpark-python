@@ -32,10 +32,10 @@ INSTALL_REQ_LIST = [
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
-REQUIRED_PYTHON_VERSION = ">=3.9, <3.15"
+REQUIRED_PYTHON_VERSION = ">=3.10, <3.15"
 
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
-    REQUIRED_PYTHON_VERSION = ">=3.9"
+    REQUIRED_PYTHON_VERSION = ">=3.10"
 
 PANDAS_REQUIREMENTS = [
     f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
@@ -246,7 +246,6 @@ setup(
         "Operating System :: OS Independent",
         "Programming Language :: SQL",
         "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
