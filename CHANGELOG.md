@@ -8,6 +8,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug where `AsyncJob.result("no_result")` sometimes silently returned without raising error for failed queries.
+
 #### Improvements
 
 - When `Session.reduce_describe_query_enabled` is enabled, fewer DESCRIBE queries are issued when the outer query only projects or renames columns from an inner subquery whose column types are already known.
