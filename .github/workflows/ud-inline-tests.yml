@@ -47,7 +47,11 @@ env:
 
 jobs:
   test:
-    name: UD Test py${{ inputs.python-version || '3.13' }}-${{ inputs.cloud-provider || 'aws' }} (${{ inputs.ud-branch || 'snowpark-compatibility' }})
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [integration, scala, doctest]
+    name: "${{ matrix.group }} py${{ inputs.python-version || '3.13' }}-${{ inputs.cloud-provider || 'aws' }}"
     runs-on: ubuntu-latest-64-cores
 
     steps:
@@ -82,6 +86,7 @@ jobs:
         run: uv pip install tox --system
 
       - name: Install MS ODBC Driver
+        if: matrix.group == 'doctest'
         run: |
           curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
           curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list \
@@ -89,8 +94,22 @@ jobs:
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
 
-      - name: Run integration tests
-        run: python -m tox -e "py${PYTHON_VERSION//.}-notdoctest-ci"
+      - name: Run tests
+        id: tests
+        run: |
+          set +e
+          if [ "${{ matrix.group }}" = "integration" ]; then
+            python -m tox -e "py${PYTHON_VERSION//.}-notdoctest-ci" \
+              -- --ignore=tests/integ/scala 2>&1 | tee test-output.log
+          elif [ "${{ matrix.group }}" = "scala" ]; then
+            python -m tox -e "py${PYTHON_VERSION//.}-notdoctest-ci" \
+              -- -k scala 2>&1 | tee test-output.log
+          elif [ "${{ matrix.group }}" = "doctest" ]; then
+            python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci" 2>&1 | tee test-output.log
+            python -m tox -e datasource 2>&1 | tee -a test-output.log
+          fi
+          grep -oP '[\d]+ (failed|passed|skipped|warnings?|errors?)' test-output.log > results.txt || true
+          cat results.txt
         env:
           cloud_provider: ${{ env.CLOUD_PROVIDER }}
           ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
@@ -98,22 +117,47 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short ${{ env.EXTRA_PYTEST_ADDOPTS }}
           TOX_PARALLEL_NO_SPINNER: 1
 
-      - name: Run doctest
-        if: ${{ env.EXTRA_PYTEST_ADDOPTS == '' }}
-        run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
-        env:
-          cloud_provider: ${{ env.CLOUD_PROVIDER }}
-          ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
-          GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
-          PYTEST_ADDOPTS: --color=yes --tb=short ${{ env.EXTRA_PYTEST_ADDOPTS }}
-          TOX_PARALLEL_NO_SPINNER: 1
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.group }}
+          path: results.txt
 
-      - name: Run datasource tests
-        if: ${{ env.EXTRA_PYTEST_ADDOPTS == '' }}
-        run: python -m tox -e datasource
-        env:
-          cloud_provider: ${{ env.CLOUD_PROVIDER }}
-          ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
-          GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
-          PYTEST_ADDOPTS: --color=yes --tb=short ${{ env.EXTRA_PYTEST_ADDOPTS }}
-          TOX_PARALLEL_NO_SPINNER: 1
+  summary:
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: results-*
+
+      - name: Generate summary
+        run: |
+          python3 - <<'SCRIPT'
+          import glob, re, collections, os
+
+          totals = collections.Counter()
+          for path in sorted(glob.glob("results-*/results.txt")):
+              with open(path) as f:
+                  for line in f:
+                      line = line.strip()
+                      m = re.match(r"(\d+)\s+(\w+)", line)
+                      if m:
+                          totals[m.group(2)] += int(m.group(1))
+
+          parts = []
+          for key in ["failed", "passed", "skipped", "warnings", "errors"]:
+              if totals.get(key, 0) > 0:
+                  parts.append(f"{totals[key]} {key}")
+
+          line = ", ".join(parts)
+          print(f"Total: {line}")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(f"## Test Results\n\n`{line}`\n")
+
+          if totals.get("failed", 0) > 0 or totals.get("errors", 0) > 0:
+              exit(1)
+          SCRIPT
