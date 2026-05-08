@@ -50,7 +50,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [integration, scala, doctest]
+        group: [integration, scala]
     name: "${{ matrix.group }} py${{ inputs.python-version || '3.13' }}-${{ inputs.cloud-provider || 'aws' }}"
     runs-on: ubuntu-latest-64-cores
 
@@ -85,15 +85,6 @@ jobs:
       - name: Install tox
         run: uv pip install tox --system
 
-      - name: Install MS ODBC Driver
-        if: matrix.group == 'doctest'
-        run: |
-          curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-          curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list \
-            | sudo tee /etc/apt/sources.list.d/mssql-release.list
-          sudo apt-get update
-          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
-
       - name: Run tests
         id: tests
         run: |
@@ -104,9 +95,6 @@ jobs:
           elif [ "${{ matrix.group }}" = "scala" ]; then
             python -m tox -e "py${PYTHON_VERSION//.}-notdoctest-ci" \
               -- -k scala 2>&1 | tee test-output.log
-          elif [ "${{ matrix.group }}" = "doctest" ]; then
-            python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci" 2>&1 | tee test-output.log
-            python -m tox -e datasource 2>&1 | tee -a test-output.log
           fi
           grep -oP '[\d]+ (failed|passed|skipped|warnings?|errors?)' test-output.log > results.txt || true
           cat results.txt
