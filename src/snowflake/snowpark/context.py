@@ -153,6 +153,7 @@ _KNOWN_AGGREGATION_FUNCTIONS = frozenset(
     ]
 )
 
+
 _cte_error_threshold = 3  # 0 to disable auto-cte-disable, otherwise the number of times CTE optimization can fail before it is automatically disabled for the remainder of the session.
 
 # Following are internal-only global flags, used to enable development features.

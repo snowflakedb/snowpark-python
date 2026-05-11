@@ -856,8 +856,11 @@ class Session:
         self._dataframe_profiler = DataframeProfiler(session=self)
         self._catalog = None
         self._client_telemetry = EventTableTelemetry(session=self)
+        self._system_agg_function_prefetch_job: Optional[AsyncJob] = None
+        self._user_agg_function_prefetch_job: Optional[AsyncJob] = None
 
         self._ast_batch = AstBatch(self)
+        self._start_async_aggregation_prefetch()
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -5056,27 +5059,107 @@ class Session:
 
         retrieved_set = set()
 
-        # User-defined aggregation functions
-        try:
-            retrieved_set.update(
-                {
-                    r[0].lower()
-                    for r in self.sql(
-                        """select function_name from information_schema.functions where is_aggregate = 'YES'"""
-                    ).collect()
-                }
-            )
-        except Exception as e:
-            _logger.debug(
-                "Unable to get user-defined aggregation functions: %s",
-                e,
-            )
+        # User-defined aggregation functions.
+        # If init has already issued the async query, wait and use it.
+        # Otherwise, execute synchronously now for select-statement correctness.
+        if self._user_agg_function_prefetch_job is not None:
+            try:
+                retrieved_set.update(
+                    {
+                        r[0].lower()
+                        for r in self._user_agg_function_prefetch_job.result()
+                    }
+                )
+            except Exception as e:
+                _logger.debug(
+                    "Unable to use async user-defined aggregation function prefetch: %s",
+                    e,
+                )
+            finally:
+                self._user_agg_function_prefetch_job = None
+        else:
+            try:
+                retrieved_set.update(
+                    {
+                        r[0].lower()
+                        for r in self.sql(
+                            """select function_name from information_schema.functions where is_aggregate = 'YES'"""
+                        ).collect()
+                    }
+                )
+            except Exception as e:
+                _logger.debug(
+                    "Unable to get user-defined aggregation functions: %s",
+                    e,
+                )
 
-        # System built-in aggregation functions
+        # System aggregation functions from metadata query.
+        if self._system_agg_function_prefetch_job is not None:
+            try:
+                retrieved_set.update(
+                    {
+                        r[0].lower()
+                        for r in self._system_agg_function_prefetch_job.result()
+                    }
+                )
+            except Exception as e:
+                _logger.debug(
+                    "Unable to use async system aggregation function prefetch: %s",
+                    e,
+                )
+            finally:
+                self._system_agg_function_prefetch_job = None
+        else:
+            try:
+                retrieved_set.update(
+                    {
+                        r[0].lower()
+                        for r in self.sql(
+                            """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'"""
+                        ).collect()
+                    }
+                )
+            except Exception as e:
+                _logger.debug(
+                    "Unable to get system aggregation functions: %s",
+                    e,
+                )
+
+        # Keep hardcoded fallback behavior.
         retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
 
         with context._aggregation_function_set_lock:
             context._aggregation_function_set.update(retrieved_set)
+
+    def _start_async_aggregation_prefetch(self) -> None:
+        """Issue async prefetch query for aggregation metadata once."""
+        if not (
+            context._is_snowpark_connect_compatible_mode
+            and context._snowpark_connect_flatten_select_after_sort
+        ):
+            return
+
+        try:
+            self._user_agg_function_prefetch_job = self.sql(
+                """select function_name from information_schema.functions where is_aggregate = 'YES'"""
+            ).collect_nowait()
+        except Exception as e:  # pragma: no cover
+            _logger.debug(
+                "Unable to start async user-defined aggregation metadata prefetch: %s",
+                e,
+            )
+            self._user_agg_function_prefetch_job = None
+
+        try:
+            self._system_agg_function_prefetch_job = self.sql(
+                """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'"""
+            ).collect_nowait()
+        except Exception as e:  # pragma: no cover
+            _logger.debug(
+                "Unable to start async system aggregation metadata prefetch: %s",
+                e,
+            )
+            self._system_agg_function_prefetch_job = None
 
     def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
         """
