@@ -457,6 +457,36 @@ def test_create_async_job_negative(session):
         async_job.result()
 
 
+def test_async_job_no_result_raises_on_failed_query(session):
+    # Warm the warehouse so that subsequent iterations are dominated by the race condition
+    session.sql("select 1").collect()
+    iterations = 30
+    silent_none = 0
+    raised = 0
+    sample_exception_text = ""
+
+    for _ in range(iterations):
+        async_job = session.sql("select 1/0").collect_nowait()
+        try:
+            async_job.result("no_result")
+            silent_none += 1
+        except (DatabaseError, SnowparkSQLException) as exc:
+            raised += 1
+            if not sample_exception_text:
+                sample_exception_text = str(exc)
+
+    assert silent_none == 0, (
+        f"AsyncJob.result('no_result') silently returned None for "
+        f"{silent_none}/{iterations} failed division by zero queries. "
+        "All failures must surface as exceptions"
+    )
+    assert raised == iterations
+    assert (
+        "Division by zero" in sample_exception_text
+        or "FAILED_WITH_ERROR" in sample_exception_text
+    ), f"Unexpected exception text: {sample_exception_text!r}"
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="caplog is not supported")
 @pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
 def test_get_query_from_async_job(session, create_async_job_from_query_id, caplog):
