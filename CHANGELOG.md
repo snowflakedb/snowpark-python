@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### Dependency Updates
+
+- Tightened the upper bound of the `snowflake-connector-python` dependency from `<5.0.0` to `<5.0.0a0` so that pre-release versions (e.g. `5.0.0b1`) are excluded under both pip and conda resolvers. Without the explicit `a0` suffix, conda orders `5.0.0b1` as less than `5.0.0` and treats it as satisfying `<5.0.0`, which allowed beta connector releases to be selected from the Anaconda channel.
+
 #### New Features
 
 #### Bug Fixes
