@@ -2527,27 +2527,29 @@ def test_internal_async_aggregation_prefetch_submission(session, monkeypatch):
     monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
     monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
     monkeypatch.setattr(context, "_aggregation_function_set", set())
-    session._user_agg_function_prefetch_job = None
-    session._system_agg_function_prefetch_job = None
+    session._agg_function_prefetch_job = None
 
-    call_kwargs = []
+    calls = []
 
     def _fake_execute_async(query, **kwargs):
-        call_kwargs.append(kwargs)
-        return {"queryId": f"qid_{len(call_kwargs)}"}
+        calls.append((query, kwargs))
+        return {"queryId": "qid_combined"}
 
     monkeypatch.setattr(
         session._conn, "execute_async_and_notify_query_listener", _fake_execute_async
     )
     session._start_async_aggregation_prefetch_if_needed()
 
-    assert len(call_kwargs) == 2
-    assert all(kwargs.get("_is_internal") is True for kwargs in call_kwargs)
-    assert session._user_agg_function_prefetch_job.query_id == "qid_1"
-    assert session._system_agg_function_prefetch_job.query_id == "qid_2"
+    assert len(calls) == 1
+    assert calls[0][1].get("_is_internal") is True
+    assert "show functions" in calls[0][0]
+    assert "information_schema.functions" in calls[0][0]
+    assert session._agg_function_prefetch_job.query_id == "qid_combined"
 
 
-def test_aggregation_fallback_used_when_system_source_fails(session, monkeypatch):
+def test_aggregation_fallback_not_used_when_combined_async_succeeds(
+    session, monkeypatch
+):
     import snowflake.snowpark.context as context
 
     class _FakeAsyncJob:
@@ -2563,15 +2565,12 @@ def test_aggregation_fallback_used_when_system_source_fails(session, monkeypatch
     monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
     monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
     monkeypatch.setattr(context, "_aggregation_function_set", set())
-    session._user_agg_function_prefetch_job = _FakeAsyncJob(rows=[("SUM",)])
-    session._system_agg_function_prefetch_job = _FakeAsyncJob(
-        error=RuntimeError("system fetch failed")
-    )
+    session._agg_function_prefetch_job = _FakeAsyncJob(rows=[("SUM",)])
 
     session._retrieve_aggregation_function_list()
 
     assert "sum" in context._aggregation_function_set
-    assert "sum_internal" in context._aggregation_function_set
+    assert "sum_internal" not in context._aggregation_function_set
 
 
 def test_internal_sync_aggregation_fallback_submission(session, monkeypatch):
@@ -2580,21 +2579,19 @@ def test_internal_sync_aggregation_fallback_submission(session, monkeypatch):
     monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
     monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
     monkeypatch.setattr(context, "_aggregation_function_set", set())
-    session._user_agg_function_prefetch_job = None
-    session._system_agg_function_prefetch_job = None
+    session._agg_function_prefetch_job = None
 
-    call_kwargs = []
+    calls = []
 
     def _fake_run_query(query, **kwargs):
-        call_kwargs.append(kwargs)
-        if "information_schema.functions" in query:
-            return {"data": [("SUM",)]}
+        calls.append((query, kwargs))
         return {"data": [("AVG",)]}
 
     monkeypatch.setattr(session._conn, "run_query", _fake_run_query)
     session._retrieve_aggregation_function_list()
 
-    assert len(call_kwargs) == 2
-    assert all(kwargs.get("_is_internal") is True for kwargs in call_kwargs)
-    assert "sum" in context._aggregation_function_set
+    assert len(calls) == 1
+    assert calls[0][1].get("_is_internal") is True
+    assert "show functions" in calls[0][0]
+    assert "information_schema.functions" not in calls[0][0]
     assert "avg" in context._aggregation_function_set

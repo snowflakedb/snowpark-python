@@ -808,9 +808,8 @@ def test_infer_is_return_table_uses_internal_describe():
         assert mocked_run_query.call_count == 1
 
 
-def test_retrieve_aggregation_function_list_handles_user_defined_error():
-    """When querying user-defined aggregation functions fails, the error is
-    swallowed and the method continues to query system functions."""
+def test_retrieve_aggregation_function_list_handles_async_error():
+    """When async metadata prefetch fails, sync internal fallback is used."""
     import snowflake.snowpark.context as ctx
 
     fake_server_connection = mock.create_autospec(ServerConnection)
@@ -825,10 +824,13 @@ def test_retrieve_aggregation_function_list_handles_user_defined_error():
         ctx._snowpark_connect_flatten_select_after_sort = True
         ctx._aggregation_function_set = set()
 
+        fake_async_job = MagicMock()
+        fake_async_job.result.side_effect = RuntimeError("async query failed")
+        session._agg_function_prefetch_job = fake_async_job
+
         def run_query_side_effect(query, **kwargs):
             assert kwargs.get("_is_internal") is True
-            if "information_schema.functions" in query:
-                raise RuntimeError("user-defined query failed")
+            assert "show functions" in query
             return {"data": [["SUM"], ["AVG"]]}
 
         with mock.patch.object(
@@ -844,8 +846,8 @@ def test_retrieve_aggregation_function_list_handles_user_defined_error():
         ctx._aggregation_function_set = original_agg_set
 
 
-def test_retrieve_aggregation_function_list_handles_system_error():
-    """When system aggregation metadata retrieval fails, hardcoded fallback applies."""
+def test_retrieve_aggregation_function_list_handles_sync_error():
+    """When sync metadata query fails, hardcoded fallback applies."""
     import snowflake.snowpark.context as ctx
 
     fake_server_connection = mock.create_autospec(ServerConnection)
@@ -862,16 +864,14 @@ def test_retrieve_aggregation_function_list_handles_system_error():
 
         def run_query_side_effect(query, **kwargs):
             assert kwargs.get("_is_internal") is True
-            if "show functions" in query:
-                raise RuntimeError("system query failed")
-            return {"data": [["SUM"]]}
+            assert "show functions" in query
+            raise RuntimeError("sync query failed")
 
         with mock.patch.object(
             fake_server_connection, "run_query", side_effect=run_query_side_effect
         ):
             session._retrieve_aggregation_function_list()
 
-        assert "sum" in ctx._aggregation_function_set
         assert ctx._KNOWN_AGGREGATION_FUNCTIONS.issubset(ctx._aggregation_function_set)
     finally:
         ctx._is_snowpark_connect_compatible_mode = original_compat
@@ -879,9 +879,8 @@ def test_retrieve_aggregation_function_list_handles_system_error():
         ctx._aggregation_function_set = original_agg_set
 
 
-def test_retrieve_aggregation_function_list_handles_both_errors():
-    """When both aggregation function queries fail, the hardcoded fallback
-    set is still populated."""
+def test_retrieve_aggregation_function_list_uses_single_internal_sync_query():
+    """Sync fallback executes exactly one internal metadata query."""
     import snowflake.snowpark.context as ctx
 
     fake_server_connection = mock.create_autospec(ServerConnection)
@@ -896,9 +895,12 @@ def test_retrieve_aggregation_function_list_handles_both_errors():
         ctx._snowpark_connect_flatten_select_after_sort = True
         ctx._aggregation_function_set = set()
 
+        called_queries = []
+
         def run_query_side_effect(query, **kwargs):
+            called_queries.append(query)
             assert kwargs.get("_is_internal") is True
-            raise RuntimeError("query failed")
+            return {"data": [["SUM"]]}
 
         with mock.patch.object(
             fake_server_connection,
@@ -907,7 +909,10 @@ def test_retrieve_aggregation_function_list_handles_both_errors():
         ):
             session._retrieve_aggregation_function_list()
 
-        assert ctx._KNOWN_AGGREGATION_FUNCTIONS.issubset(ctx._aggregation_function_set)
+        assert len(called_queries) == 1
+        assert "show functions" in called_queries[0]
+        assert "information_schema.functions" not in called_queries[0]
+        assert "sum" in ctx._aggregation_function_set
     finally:
         ctx._is_snowpark_connect_compatible_mode = original_compat
         ctx._snowpark_connect_flatten_select_after_sort = original_flatten

@@ -856,8 +856,7 @@ class Session:
         self._dataframe_profiler = DataframeProfiler(session=self)
         self._catalog = None
         self._client_telemetry = EventTableTelemetry(session=self)
-        self._system_agg_function_prefetch_job: Optional[AsyncJob] = None
-        self._user_agg_function_prefetch_job: Optional[AsyncJob] = None
+        self._agg_function_prefetch_job: Optional[AsyncJob] = None
 
         self._ast_batch = AstBatch(self)
         self._start_async_aggregation_prefetch_if_needed()
@@ -5060,59 +5059,27 @@ class Session:
         retrieved_set = set()
         system_fetch_succeeded = False
 
-        # User-defined aggregation functions.
-        # If init has already issued the async query, wait and use it.
-        # Otherwise, execute synchronously now for select-statement correctness.
-        if self._user_agg_function_prefetch_job is not None:
+        # Try async result first if prefetch was already started.
+        if self._agg_function_prefetch_job is not None:
             try:
                 retrieved_set.update(
-                    {
-                        r[0].lower()
-                        for r in self._user_agg_function_prefetch_job.result()
-                    }
-                )
-            except Exception as e:
-                _logger.debug(
-                    "Unable to use async user-defined aggregation function prefetch: %s",
-                    e,
-                )
-            finally:
-                self._user_agg_function_prefetch_job = None
-        else:
-            try:
-                retrieved_set.update(
-                    {
-                        r[0].lower()
-                        for r in self._conn.run_query(
-                            """select function_name from information_schema.functions where is_aggregate = 'YES'""",
-                            _is_internal=True,
-                        )["data"]
-                    }
-                )
-            except Exception as e:
-                _logger.debug(
-                    "Unable to get user-defined aggregation functions: %s",
-                    e,
-                )
-
-        # System aggregation functions from metadata query.
-        if self._system_agg_function_prefetch_job is not None:
-            try:
-                retrieved_set.update(
-                    {
-                        r[0].lower()
-                        for r in self._system_agg_function_prefetch_job.result()
-                    }
+                    {r[0].lower() for r in self._agg_function_prefetch_job.result()}
                 )
                 system_fetch_succeeded = True
             except Exception as e:
                 _logger.debug(
-                    "Unable to use async system aggregation function prefetch: %s",
+                    "Unable to use async aggregation function prefetch: %s",
                     e,
                 )
             finally:
-                self._system_agg_function_prefetch_job = None
+                self._agg_function_prefetch_job = None
         else:
+            _logger.debug(
+                "Async aggregation function prefetch job is unavailable; using sync fallback."
+            )
+
+        # Sync fallback query.
+        if not system_fetch_succeeded:
             try:
                 retrieved_set.update(
                     {
@@ -5126,11 +5093,11 @@ class Session:
                 system_fetch_succeeded = True
             except Exception as e:
                 _logger.debug(
-                    "Unable to get system aggregation functions: %s",
+                    "Unable to get aggregation functions via sync fallback query: %s",
                     e,
                 )
 
-        # Fallback to the local hardcoded list only when both metadata fetches fail.
+        # Fallback to the local hardcoded list only when metadata retrieval fails.
         if not system_fetch_succeeded:
             retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
 
@@ -5146,35 +5113,21 @@ class Session:
             return
         if context._aggregation_function_set:
             return
-        if (
-            self._user_agg_function_prefetch_job is not None
-            and self._system_agg_function_prefetch_job is not None
-        ):
+        if self._agg_function_prefetch_job is not None:
             return
 
-        if self._user_agg_function_prefetch_job is None:
-            try:
-                self._user_agg_function_prefetch_job = self._submit_internal_async_prefetch_query(
-                    """select function_name from information_schema.functions where is_aggregate = 'YES'"""
-                )
-            except Exception as e:  # pragma: no cover
-                _logger.debug(
-                    "Unable to start async user-defined aggregation metadata prefetch: %s",
-                    e,
-                )
-                self._user_agg_function_prefetch_job = None
-
-        if self._system_agg_function_prefetch_job is None:
-            try:
-                self._system_agg_function_prefetch_job = self._submit_internal_async_prefetch_query(
-                    """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'"""
-                )
-            except Exception as e:  # pragma: no cover
-                _logger.debug(
-                    "Unable to start async system aggregation metadata prefetch: %s",
-                    e,
-                )
-                self._system_agg_function_prefetch_job = None
+        try:
+            self._agg_function_prefetch_job = self._submit_internal_async_prefetch_query(
+                """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'
+union
+select function_name from information_schema.functions where is_aggregate = 'YES'"""
+            )
+        except Exception as e:  # pragma: no cover
+            _logger.debug(
+                "Unable to start async aggregation metadata prefetch: %s",
+                e,
+            )
+            self._agg_function_prefetch_job = None
 
     def _submit_internal_async_prefetch_query(self, query: str) -> Optional[AsyncJob]:
         """Submit a prefetch query as internal async and return an AsyncJob handle."""
