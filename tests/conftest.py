@@ -14,6 +14,8 @@ import pytest
 from snowflake.snowpark._internal.utils import warning_dict
 from .ast.conftest import default_unparser_path
 
+pytest_plugins = ("tests.integ.test_catalog",)
+
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 excluded_frontend_files = [

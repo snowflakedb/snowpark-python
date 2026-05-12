@@ -32,6 +32,11 @@ _use_structured_type_semantics_lock = threading.RLock()
 
 # This is an internal-only global flag, used to determine whether the api code which will be executed is compatible with snowflake.snowpark_connect
 _is_snowpark_connect_compatible_mode = False
+
+# Default backend selector for the Snowpark Catalog when running in
+# Snowpark-Connect / SCOS compatible mode. True -> SQL-based backend,
+# False -> legacy snowflake.core REST backend. Read live by Catalog.__init__.
+_use_sql_base_catalog = True
 # Internal-only global flag that enables improved SQL simplifier query flattening
 # for filter, sort, select, and distinct. When True (default), the branch
 # improvements are active regardless of _is_snowpark_connect_compatible_mode.
