@@ -818,34 +818,34 @@ def test_retrieve_aggregation_function_list_handles_user_defined_error():
     session = Session(fake_server_connection)
 
     original_compat = ctx._is_snowpark_connect_compatible_mode
+    original_flatten = ctx._snowpark_connect_flatten_select_after_sort
     original_agg_set = ctx._aggregation_function_set
     try:
         ctx._is_snowpark_connect_compatible_mode = True
+        ctx._snowpark_connect_flatten_select_after_sort = True
         ctx._aggregation_function_set = set()
 
-        mock_df = MagicMock()
-        call_count = [0]
-
-        def sql_side_effect(query, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
+        def run_query_side_effect(query, **kwargs):
+            assert kwargs.get("_is_internal") is True
+            if "information_schema.functions" in query:
                 raise RuntimeError("user-defined query failed")
-            mock_df.collect.return_value = [["SUM"], ["AVG"]]
-            return mock_df
+            return {"data": [["SUM"], ["AVG"]]}
 
-        with mock.patch.object(session, "sql", side_effect=sql_side_effect):
+        with mock.patch.object(
+            fake_server_connection, "run_query", side_effect=run_query_side_effect
+        ):
             session._retrieve_aggregation_function_list()
 
         assert "sum" in ctx._aggregation_function_set
         assert "avg" in ctx._aggregation_function_set
     finally:
         ctx._is_snowpark_connect_compatible_mode = original_compat
+        ctx._snowpark_connect_flatten_select_after_sort = original_flatten
         ctx._aggregation_function_set = original_agg_set
 
 
 def test_retrieve_aggregation_function_list_handles_system_error():
-    """When querying system aggregation functions fails, the method falls back
-    to the hardcoded _KNOWN_AGGREGATION_FUNCTIONS set."""
+    """When system aggregation metadata retrieval fails, hardcoded fallback applies."""
     import snowflake.snowpark.context as ctx
 
     fake_server_connection = mock.create_autospec(ServerConnection)
@@ -853,20 +853,29 @@ def test_retrieve_aggregation_function_list_handles_system_error():
     session = Session(fake_server_connection)
 
     original_compat = ctx._is_snowpark_connect_compatible_mode
+    original_flatten = ctx._snowpark_connect_flatten_select_after_sort
     original_agg_set = ctx._aggregation_function_set
     try:
         ctx._is_snowpark_connect_compatible_mode = True
+        ctx._snowpark_connect_flatten_select_after_sort = True
         ctx._aggregation_function_set = set()
 
-        mock_df = MagicMock()
-        mock_df.collect.side_effect = RuntimeError("system query failed")
+        def run_query_side_effect(query, **kwargs):
+            assert kwargs.get("_is_internal") is True
+            if "show functions" in query:
+                raise RuntimeError("system query failed")
+            return {"data": [["SUM"]]}
 
-        with mock.patch.object(session, "sql", return_value=mock_df):
+        with mock.patch.object(
+            fake_server_connection, "run_query", side_effect=run_query_side_effect
+        ):
             session._retrieve_aggregation_function_list()
 
+        assert "sum" in ctx._aggregation_function_set
         assert ctx._KNOWN_AGGREGATION_FUNCTIONS.issubset(ctx._aggregation_function_set)
     finally:
         ctx._is_snowpark_connect_compatible_mode = original_compat
+        ctx._snowpark_connect_flatten_select_after_sort = original_flatten
         ctx._aggregation_function_set = original_agg_set
 
 
@@ -880,17 +889,26 @@ def test_retrieve_aggregation_function_list_handles_both_errors():
     session = Session(fake_server_connection)
 
     original_compat = ctx._is_snowpark_connect_compatible_mode
+    original_flatten = ctx._snowpark_connect_flatten_select_after_sort
     original_agg_set = ctx._aggregation_function_set
     try:
         ctx._is_snowpark_connect_compatible_mode = True
+        ctx._snowpark_connect_flatten_select_after_sort = True
         ctx._aggregation_function_set = set()
 
+        def run_query_side_effect(query, **kwargs):
+            assert kwargs.get("_is_internal") is True
+            raise RuntimeError("query failed")
+
         with mock.patch.object(
-            session, "sql", side_effect=RuntimeError("query failed")
+            fake_server_connection,
+            "run_query",
+            side_effect=run_query_side_effect,
         ):
             session._retrieve_aggregation_function_list()
 
         assert ctx._KNOWN_AGGREGATION_FUNCTIONS.issubset(ctx._aggregation_function_set)
     finally:
         ctx._is_snowpark_connect_compatible_mode = original_compat
+        ctx._snowpark_connect_flatten_select_after_sort = original_flatten
         ctx._aggregation_function_set = original_agg_set

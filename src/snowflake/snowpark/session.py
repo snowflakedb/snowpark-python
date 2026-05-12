@@ -5083,9 +5083,10 @@ class Session:
                 retrieved_set.update(
                     {
                         r[0].lower()
-                        for r in self.sql(
-                            """select function_name from information_schema.functions where is_aggregate = 'YES'"""
-                        ).collect()
+                        for r in self._conn.run_query(
+                            """select function_name from information_schema.functions where is_aggregate = 'YES'""",
+                            _is_internal=True,
+                        )["data"]
                     }
                 )
             except Exception as e:
@@ -5116,9 +5117,10 @@ class Session:
                 retrieved_set.update(
                     {
                         r[0].lower()
-                        for r in self.sql(
-                            """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'"""
-                        ).collect()
+                        for r in self._conn.run_query(
+                            """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'""",
+                            _is_internal=True,
+                        )["data"]
                     }
                 )
                 system_fetch_succeeded = True
@@ -5152,9 +5154,9 @@ class Session:
 
         if self._user_agg_function_prefetch_job is None:
             try:
-                self._user_agg_function_prefetch_job = self.sql(
+                self._user_agg_function_prefetch_job = self._submit_internal_async_prefetch_query(
                     """select function_name from information_schema.functions where is_aggregate = 'YES'"""
-                ).collect_nowait()
+                )
             except Exception as e:  # pragma: no cover
                 _logger.debug(
                     "Unable to start async user-defined aggregation metadata prefetch: %s",
@@ -5164,15 +5166,27 @@ class Session:
 
         if self._system_agg_function_prefetch_job is None:
             try:
-                self._system_agg_function_prefetch_job = self.sql(
+                self._system_agg_function_prefetch_job = self._submit_internal_async_prefetch_query(
                     """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'"""
-                ).collect_nowait()
+                )
             except Exception as e:  # pragma: no cover
                 _logger.debug(
                     "Unable to start async system aggregation metadata prefetch: %s",
                     e,
                 )
                 self._system_agg_function_prefetch_job = None
+
+    def _submit_internal_async_prefetch_query(self, query: str) -> Optional[AsyncJob]:
+        """Submit a prefetch query as internal async and return an AsyncJob handle."""
+        try:
+            result = self._conn.execute_async_and_notify_query_listener(
+                query,
+                _is_internal=True,
+            )
+            return self.create_async_job(result["queryId"])
+        except Exception as e:  # pragma: no cover
+            _logger.debug("Unable to submit internal async prefetch query: %s", e)
+            return None
 
     def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
         """
