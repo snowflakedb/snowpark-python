@@ -860,7 +860,7 @@ class Session:
         self._user_agg_function_prefetch_job: Optional[AsyncJob] = None
 
         self._ast_batch = AstBatch(self)
-        self._start_async_aggregation_prefetch()
+        self._start_async_aggregation_prefetch_if_needed()
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -5058,6 +5058,7 @@ class Session:
             return
 
         retrieved_set = set()
+        system_fetch_succeeded = False
 
         # User-defined aggregation functions.
         # If init has already issued the async query, wait and use it.
@@ -5102,6 +5103,7 @@ class Session:
                         for r in self._system_agg_function_prefetch_job.result()
                     }
                 )
+                system_fetch_succeeded = True
             except Exception as e:
                 _logger.debug(
                     "Unable to use async system aggregation function prefetch: %s",
@@ -5119,47 +5121,58 @@ class Session:
                         ).collect()
                     }
                 )
+                system_fetch_succeeded = True
             except Exception as e:
                 _logger.debug(
                     "Unable to get system aggregation functions: %s",
                     e,
                 )
 
-        # Keep hardcoded fallback behavior.
-        retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
+        # Fallback to the local hardcoded list only when both metadata fetches fail.
+        if not system_fetch_succeeded:
+            retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
 
         with context._aggregation_function_set_lock:
             context._aggregation_function_set.update(retrieved_set)
 
-    def _start_async_aggregation_prefetch(self) -> None:
-        """Issue async prefetch query for aggregation metadata once."""
+    def _start_async_aggregation_prefetch_if_needed(self) -> None:
+        """Start aggregation metadata prefetch only when not already in progress."""
         if not (
             context._is_snowpark_connect_compatible_mode
             and context._snowpark_connect_flatten_select_after_sort
         ):
             return
+        if context._aggregation_function_set:
+            return
+        if (
+            self._user_agg_function_prefetch_job is not None
+            and self._system_agg_function_prefetch_job is not None
+        ):
+            return
 
-        try:
-            self._user_agg_function_prefetch_job = self.sql(
-                """select function_name from information_schema.functions where is_aggregate = 'YES'"""
-            ).collect_nowait()
-        except Exception as e:  # pragma: no cover
-            _logger.debug(
-                "Unable to start async user-defined aggregation metadata prefetch: %s",
-                e,
-            )
-            self._user_agg_function_prefetch_job = None
+        if self._user_agg_function_prefetch_job is None:
+            try:
+                self._user_agg_function_prefetch_job = self.sql(
+                    """select function_name from information_schema.functions where is_aggregate = 'YES'"""
+                ).collect_nowait()
+            except Exception as e:  # pragma: no cover
+                _logger.debug(
+                    "Unable to start async user-defined aggregation metadata prefetch: %s",
+                    e,
+                )
+                self._user_agg_function_prefetch_job = None
 
-        try:
-            self._system_agg_function_prefetch_job = self.sql(
-                """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'"""
-            ).collect_nowait()
-        except Exception as e:  # pragma: no cover
-            _logger.debug(
-                "Unable to start async system aggregation metadata prefetch: %s",
-                e,
-            )
-            self._system_agg_function_prefetch_job = None
+        if self._system_agg_function_prefetch_job is None:
+            try:
+                self._system_agg_function_prefetch_job = self.sql(
+                    """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'"""
+                ).collect_nowait()
+            except Exception as e:  # pragma: no cover
+                _logger.debug(
+                    "Unable to start async system aggregation metadata prefetch: %s",
+                    e,
+                )
+                self._system_agg_function_prefetch_job = None
 
     def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
         """
