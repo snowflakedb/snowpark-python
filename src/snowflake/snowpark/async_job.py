@@ -427,6 +427,11 @@ class AsyncJob:
                 # If we can advance in ASYNC_RETRY_PATTERN then do so
                 if retry_pattern_pos < (len(ASYNC_RETRY_PATTERN) - 1):
                     retry_pattern_pos += 1
+            # Without this post-loop check, a failed query would silently return None.
+            # The upstream `get_results_from_sfqid` only catches failures already visible
+            # at that single synchronous status check, and no fetch happens in NO_RESULT mode
+            # to trigger the prefetch hook.
+            self._session.connection.get_query_status_throw_if_error(self.query_id)
             result = None
         elif async_result_type == _AsyncResultType.PANDAS:
             result = self._session._conn._to_data_or_iter(
