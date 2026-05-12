@@ -34,6 +34,8 @@ import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
 
+from snowflake.snowpark._internal.options import installed_polars, polars
+
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
@@ -1363,6 +1365,119 @@ class DataFrame:
             ),
             **kwargs,
         )
+
+    @df_collect_api_telemetry
+    @experimental(version="1.51.0")
+    @publicapi
+    def to_polars(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> "polars.DataFrame":
+        """
+        Executes the query representing this DataFrame and returns the result as a
+        `polars DataFrame <https://docs.pola.rs/api/python/stable/reference/dataframe/index.html>`_.
+
+        Internally this materializes a ``pyarrow.Table`` via :meth:`to_arrow` and
+        wraps it with ``polars.from_arrow``, which is zero-copy for primitive
+        Arrow types. When the data is too large to fit into memory, use
+        :meth:`to_polars_batches`.
+
+        This function requires the optional dependency
+        ``snowflake-snowpark-python[polars]`` to be installed.
+
+        Example::
+
+            >>> df = session.create_dataframe([[1, "a"], [2, "b"]], schema=["id", "name"])
+            >>> pl_df = df.to_polars()  # doctest: +SKIP
+            >>> isinstance(pl_df, polars.DataFrame)  # doctest: +SKIP
+            True
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        Note:
+            Async execution (the ``block=False`` mode supported by
+            :meth:`to_arrow` and :meth:`to_pandas`) is not yet wired through
+            for the polars surface (TODO SNOW-3472759). Use
+            ``to_arrow(block=False)`` and convert with ``polars.from_arrow``
+            in the meantime.
+        """
+        if not installed_polars:
+            raise ModuleNotFoundError(
+                "polars is not installed. Install it with "
+                "`pip install snowflake-snowpark-python[polars]`."
+            )
+        # block is intentionally not exposed in v1 (see method docstring) — but
+        # `**kwargs` would otherwise let it slip through to `to_arrow`, which
+        # would return an AsyncJob and crash in `pl.from_arrow`. Catch it
+        # explicitly so the failure mode is a clear TypeError, not a downstream
+        # PyArrow error.
+        if "block" in kwargs:
+            raise TypeError(
+                "to_polars() does not currently support the `block` parameter. "
+                "Async execution for polars is not yet wired (TODO SNOW-3472759); "
+                "use `to_arrow(block=False)` and `polars.from_arrow(...)` in the meantime."
+            )
+        pa_table = self.to_arrow(
+            statement_params=statement_params,
+            _emit_ast=_emit_ast,
+            **kwargs,
+        )
+        return polars.from_arrow(pa_table)
+
+    @df_collect_api_telemetry
+    @experimental(version="1.51.0")
+    @publicapi
+    def to_polars_batches(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> Iterator["polars.DataFrame"]:
+        """
+        Executes the query representing this DataFrame and returns an iterator of
+        polars DataFrames (each containing a subset of rows) that you can use to
+        retrieve the results without loading everything into memory.
+
+        Each batch is built by wrapping the underlying ``pyarrow.Table`` with
+        ``polars.from_arrow``. Wrap the iterator in ``polars.concat`` if you
+        want a single in-memory frame, or feed the iterator into
+        ``polars.LazyFrame`` for streamed downstream processing.
+
+        This function requires the optional dependency
+        ``snowflake-snowpark-python[polars]`` to be installed.
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        Note:
+            Async execution (the ``block=False`` mode supported by
+            :meth:`to_arrow_batches`) is not yet wired through for the polars
+            surface (TODO SNOW-3472759). Use ``to_arrow_batches(block=False)``
+            and convert each batch with ``polars.from_arrow`` in the meantime.
+        """
+        if not installed_polars:
+            raise ModuleNotFoundError(
+                "polars is not installed. Install it with "
+                "`pip install snowflake-snowpark-python[polars]`."
+            )
+        if "block" in kwargs:
+            raise TypeError(
+                "to_polars_batches() does not currently support the `block` parameter. "
+                "Async execution for polars is not yet wired (TODO SNOW-3472759); "
+                "use `to_arrow_batches(block=False)` and `polars.from_arrow(...)` per batch."
+            )
+        arrow_iter = self.to_arrow_batches(
+            statement_params=statement_params,
+            _emit_ast=_emit_ast,
+            **kwargs,
+        )
+        for pa_table in arrow_iter:
+            yield polars.from_arrow(pa_table)
 
     @df_api_usage
     @publicapi

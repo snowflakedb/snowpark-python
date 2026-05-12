@@ -6,6 +6,13 @@
 
 #### New Features
 
+- Added first-party `polars` interop (preview, `@experimental`):
+  - `DataFrame.to_polars()` and `DataFrame.to_polars_batches()` materialize a Snowpark DataFrame as a `polars.DataFrame` (or an iterator of them) by way of the existing `to_arrow` plumbing.
+  - `Session.write_polars(df, table_name, ...)` writes a `polars.DataFrame` to a Snowflake table via the existing `write_arrow` plumbing.
+  - `Session.create_dataframe()` now accepts a `polars.DataFrame` as input alongside `list` / `tuple` / `pandas.DataFrame` / `pyarrow.Table`.
+  - New install extra: `pip install snowflake-snowpark-python[polars]`.
+  - Async (`block=False`) and AST emission for the polars surface are not yet wired (tracked in SNOW-3472759).
+
 #### Bug Fixes
 
 - Fixed a bug where `AsyncJob.result("no_result")` sometimes silently returned without raising error for failed queries.

@@ -43,6 +43,12 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
+
+from snowflake.snowpark._internal.options import (
+    installed_polars,
+    installed_pyarrow,
+    polars,
+)
 from snowflake.connector.pandas_tools import write_pandas
 
 from snowflake.snowpark import UDFProfiler
@@ -3304,6 +3310,91 @@ class Session:
                 f"Failed to write arrow table to Snowflake. COPY INTO output {ci_output}"
             )
 
+    @experimental(version="1.51.0")
+    @publicapi
+    def write_polars(
+        self,
+        df: "polars.DataFrame",
+        table_name: str,
+        *,
+        database: Optional[str] = None,
+        schema: Optional[str] = None,
+        chunk_size: Optional[int] = WRITE_ARROW_CHUNK_SIZE,
+        compression: str = "gzip",
+        on_error: str = "abort_statement",
+        use_vectorized_scanner: bool = False,
+        parallel: int = 4,
+        quote_identifiers: bool = True,
+        auto_create_table: bool = False,
+        overwrite: bool = False,
+        table_type: Literal["", "temp", "temporary", "transient"] = "",
+        use_logical_type: Optional[bool] = None,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> Table:
+        """Writes a ``polars.DataFrame`` to a Snowflake table.
+
+        Internally this converts the polars frame to a ``pyarrow.Table`` (zero-copy
+        for primitive Arrow types) and delegates to :meth:`write_arrow`. Returns
+        a Snowpark :class:`Table` that references the table referenced by
+        ``table_name``.
+
+        This function requires the optional dependency
+        ``snowflake-snowpark-python[polars]`` to be installed.
+
+        Args:
+            df: The ``polars.DataFrame`` that is written.
+            table_name: Table name where we want to insert into.
+            database: Database the schema and table are in. Defaults to the session default.
+            schema: Schema the table is in. Defaults to the session default.
+            chunk_size: Number of rows to be inserted per upload chunk. See
+                :meth:`write_arrow` for caveats around schema inference.
+            compression: Parquet file compression: ``gzip`` (default) or ``snappy``.
+            on_error: Action taken when a ``COPY INTO`` statement fails. See
+                Snowflake docs for ``copy options``.
+            use_vectorized_scanner: Whether to use the vectorized Parquet scanner.
+            parallel: Number of upload threads.
+            quote_identifiers: Quote database/schema/table/column identifiers (default True).
+            auto_create_table: Auto-create the destination table if it does not exist.
+            overwrite: Overwrite (replace or truncate) the destination table.
+            table_type: ``""`` (permanent), ``"temp"`` / ``"temporary"``, or ``"transient"``.
+            use_logical_type: Whether to use Parquet logical types during loading.
+
+        Example::
+
+            >>> import polars as pl  # doctest: +SKIP
+            >>> pl_df = pl.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})  # doctest: +SKIP
+            >>> table = session.write_polars(  # doctest: +SKIP
+            ...     pl_df, "MY_TABLE", auto_create_table=True, table_type="temporary"
+            ... )
+        """
+        if not installed_polars:
+            raise ModuleNotFoundError(
+                "polars is not installed. Install it with "
+                "`pip install snowflake-snowpark-python[polars]`."
+            )
+        pa_table = df.to_arrow()
+        result_table = self.write_arrow(
+            pa_table,
+            table_name,
+            database=database,
+            schema=schema,
+            chunk_size=chunk_size,
+            compression=compression,
+            on_error=on_error,
+            use_vectorized_scanner=use_vectorized_scanner,
+            parallel=parallel,
+            quote_identifiers=quote_identifiers,
+            auto_create_table=auto_create_table,
+            overwrite=overwrite,
+            table_type=table_type,
+            use_logical_type=use_logical_type,
+            _emit_ast=_emit_ast,
+            **kwargs,
+        )
+        set_api_call_source(result_table, "Session.write_polars")
+        return result_table
+
     def _write_modin_pandas_helper(
         self,
         df: Union[
@@ -3657,26 +3748,39 @@ class Session:
     @publicapi
     def create_dataframe(
         self,
-        data: Union[List, Tuple, "pandas.DataFrame", "pyarrow.Table"],
+        data: Union[
+            List,
+            Tuple,
+            "pandas.DataFrame",
+            "pyarrow.Table",
+            "polars.DataFrame",
+        ],
         schema: Optional[Union[StructType, Iterable[str], str]] = None,
         _emit_ast: bool = True,
         **kwargs: Dict[str, Any],
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
-        If creating a new DataFrame from a pandas Dataframe or a PyArrow Table, we will store
-        the data in a temporary table and return a DataFrame pointing to that temporary
-        table for you to then do further transformations on. This temporary table will be
-        dropped at the end of your session. If you would like to save the pandas DataFrame or PyArrow Table,
-        use the :meth:`write_pandas` or :meth:`write_arrow` method instead.
-        Note: When ``data`` is a pandas DataFrame or pyarrow Table, schema inference may be affected by chunk size.
-        You can control it by passing the ``chunk_size`` keyword argument. For details, see :meth:`write_pandas`
-        or :meth:`write_arrow`, which are used internally by this function.
+        If creating a new DataFrame from a pandas DataFrame, pyarrow Table, or polars
+        DataFrame, we store the data in a temporary table and return a DataFrame pointing
+        to that temporary table; the temporary table is dropped at the end of your
+        session. To persist the data instead, use :meth:`write_pandas`, :meth:`write_arrow`,
+        or :meth:`write_polars` directly.
+
+        Note: For pandas DataFrames, pyarrow Tables, and polars DataFrames, schema
+        inference may be affected by chunk size. Control it via the ``chunk_size``
+        keyword argument; see :meth:`write_pandas` / :meth:`write_arrow` (used internally)
+        for details. Polars DataFrames are converted to a ``pyarrow.Table`` up front and
+        then routed through the Arrow upload path.
+
+        Polars input requires the optional dependency
+        ``snowflake-snowpark-python[polars]`` to be installed.
 
         Args:
-            data: The local data for building a :class:`DataFrame`. ``data`` can only
-                be a :class:`list`, :class:`tuple` or pandas DataFrame. Every element in
-                ``data`` will constitute a row in the DataFrame.
+            data: The local data for building a :class:`DataFrame`. ``data`` can be a
+                :class:`list`, :class:`tuple`, ``pandas.DataFrame``, ``pyarrow.Table``,
+                or ``polars.DataFrame``. Every element in ``data`` will constitute a
+                row in the DataFrame.
             schema: A :class:`~snowflake.snowpark.types.StructType` containing names and
                 data types of columns, or a list of column names, or ``None``.
 
@@ -3689,9 +3793,10 @@ class Session:
 
                 To improve performance, provide a schema. This avoids the need to infer data types
                 with large data sets.
-            **kwargs: Additional keyword arguments passed to :meth:`write_pandas` or :meth:`write_arrow`
-                when ``data`` is a pandas DataFrame or pyarrow Table, respectively. These can include
-                options such as chunk_size or compression.
+            **kwargs: Additional keyword arguments forwarded to :meth:`write_pandas` or
+                :meth:`write_arrow` when ``data`` is a pandas DataFrame, pyarrow Table,
+                or polars DataFrame. Common options include ``chunk_size`` and
+                ``compression``.
 
         Examples::
 
@@ -3736,34 +3841,50 @@ class Session:
         if isinstance(data, Row):
             raise TypeError("create_dataframe() function does not accept a Row object.")
 
-        if not isinstance(data, (list, tuple)) and (
-            not installed_pandas
-            or (
-                installed_pandas
-                and not isinstance(data, (pandas.DataFrame, pyarrow.Table))
-            )
-        ):
+        # Polars frames are converted to pyarrow.Table up front so the existing
+        # arrow upload path handles them. This keeps the polars dependency at
+        # the edge and avoids duplicating the temp-table / write_arrow plumbing.
+        # Track the original input format for the schema-ignored warning below.
+        was_polars_input = installed_polars and isinstance(data, polars.DataFrame)
+        if was_polars_input:
+            if not installed_pyarrow:
+                raise ModuleNotFoundError(
+                    "polars input to create_dataframe() requires pyarrow. Install "
+                    "the polars extra: `pip install snowflake-snowpark-python[polars]`."
+                )
+            data = data.to_arrow()
+
+        # Gate pandas / pyarrow checks on their respective install flags so
+        # polars-only environments (no pandas) can still use create_dataframe(pl_df).
+        is_pandas_df = installed_pandas and isinstance(data, pandas.DataFrame)
+        is_arrow_table = installed_pyarrow and isinstance(data, pyarrow.Table)
+
+        if not isinstance(data, (list, tuple)) and not (is_pandas_df or is_arrow_table):
             raise TypeError(
-                "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
+                "create_dataframe() function only accepts data as a list, tuple, "
+                "pandas DataFrame, pyarrow Table, or polars DataFrame."
             )
 
-        # If data is a pandas dataframe, the schema will be detected from the dataframe itself and schema ignored.
-        # Warn user to acknowledge this.
-        if (
-            installed_pandas
-            and isinstance(data, (pandas.DataFrame, pyarrow.Table))
-            and schema is not None
-        ):
+        # When data is a tabular frame, schema inference is driven by the frame
+        # itself and any caller-supplied schema is ignored — warn the user.
+        if (is_pandas_df or is_arrow_table) and schema is not None:
+            if was_polars_input:
+                source_label = "polars DataFrame"
+            elif is_pandas_df:
+                source_label = "pandas DataFrame"
+            else:
+                source_label = "pyarrow Table"
             warnings.warn(
-                "data is a pandas DataFrame, parameter schema is ignored. To silence this warning pass schema=None.",
+                f"data is a {source_label}, parameter schema is ignored. "
+                "To silence this warning pass schema=None.",
                 UserWarning,
                 stacklevel=2,
             )
 
-        # check to see if it is a pandas DataFrame and if so, write that to a temp
-        # table and return as a DataFrame
+        # check to see if it is a pandas DataFrame / pyarrow Table and if so,
+        # write that to a temp table and return as a DataFrame
         origin_data = data
-        if installed_pandas and isinstance(data, (pandas.DataFrame, pyarrow.Table)):
+        if is_pandas_df or is_arrow_table:
             temp_table_name = escape_quotes(
                 random_name_for_temp_object(TempObjectType.TABLE)
             )

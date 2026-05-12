@@ -40,6 +40,12 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
 PANDAS_REQUIREMENTS = [
     f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
 ]
+# Polars interop reuses the connector's pyarrow plumbing (via the [pandas] extra)
+# and adds the polars wheel itself. 1.x is the first stable major series.
+POLARS_REQUIREMENTS = [
+    f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
+    "polars>=1.0.0, <2.0.0",
+]
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
     f"modin{MODIN_DEPENDENCY_VERSION}",
@@ -214,6 +220,7 @@ setup(
     },
     extras_require={
         "pandas": PANDAS_REQUIREMENTS,
+        "polars": POLARS_REQUIREMENTS,
         "modin": MODIN_REQUIREMENTS,
         "secure-local-storage": [
             f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
