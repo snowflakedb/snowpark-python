@@ -9,6 +9,7 @@
 #### Bug Fixes
 
 - Fixed a bug where `AsyncJob.result("no_result")` sometimes silently returned without raising error for failed queries.
+- Fixed a bug where `INTERVAL YEAR TO MONTH` values with zero months were displayed incorrectly (e.g. `INTERVAL '0-4' YEAR TO MONTH` instead of `INTERVAL '4-0' YEAR TO MONTH`) when using `snowflake-connector-python>=4.3.0`.
 
 #### Improvements
 

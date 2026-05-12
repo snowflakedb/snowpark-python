@@ -1764,11 +1764,11 @@ def format_year_month_interval_for_display(
             years = str(int(parts[0]))
             months = str(int(parts[1]))
     else:
-        # Format like "+2" or "-3"
-        if (
-            start_field == YearMonthIntervalType.YEAR
-            and end_field == YearMonthIntervalType.YEAR
-        ):
+        # Format like "+2" or "-3" — a single number without a year-month dash.
+        # When start_field is YEAR the value represents years (connector >=4.3.0
+        # omits the "-0" suffix when months=0). Only treat as months when the
+        # interval type starts at MONTH.
+        if start_field == YearMonthIntervalType.YEAR:
             years = str(int(remaining))
         else:
             months = str(int(remaining))
