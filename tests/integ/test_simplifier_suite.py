@@ -2593,5 +2593,5 @@ def test_internal_sync_aggregation_fallback_submission(session, monkeypatch):
     assert len(calls) == 1
     assert calls[0][1].get("_is_internal") is True
     assert "show functions" in calls[0][0]
-    assert "information_schema.functions" not in calls[0][0]
+    assert "information_schema.functions" in calls[0][0]
     assert "avg" in context._aggregation_function_set

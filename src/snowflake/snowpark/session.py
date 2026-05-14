@@ -5077,6 +5077,24 @@ class Session:
             _logger.debug(
                 "Async aggregation function prefetch job is unavailable; using sync fallback."
             )
+            try:
+                retrieved_set.update(
+                    {
+                        r[0].lower()
+                        for r in self._conn.run_query(
+                            """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'
+union
+select function_name from information_schema.functions where is_aggregate = 'YES'""",
+                            _is_internal=True,
+                        )["data"]
+                    }
+                )
+                system_fetch_succeeded = True
+            except Exception as e:
+                _logger.debug(
+                    "Unable to get aggregation functions via sync union query: %s",
+                    e,
+                )
 
         # Sync fallback query.
         if not system_fetch_succeeded:

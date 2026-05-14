@@ -911,7 +911,7 @@ def test_retrieve_aggregation_function_list_uses_single_internal_sync_query():
 
         assert len(called_queries) == 1
         assert "show functions" in called_queries[0]
-        assert "information_schema.functions" not in called_queries[0]
+        assert "information_schema.functions" in called_queries[0]
         assert "sum" in ctx._aggregation_function_set
     finally:
         ctx._is_snowpark_connect_compatible_mode = original_compat
