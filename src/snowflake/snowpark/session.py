@@ -17,7 +17,7 @@ from array import array
 from collections import defaultdict
 from functools import reduce
 from logging import getLogger
-from threading import Lock, RLock
+from threading import Event, Lock, RLock
 from types import ModuleType
 from typing import (
     TYPE_CHECKING,
@@ -859,6 +859,9 @@ class Session:
         self._agg_function_prefetch_job: Optional[AsyncJob] = None
         # Guards the one-time atomic claim of _agg_function_prefetch_job.
         self._agg_function_prefetch_lock = Lock()
+        # Set by the thread that claimed the async job once it finishes (success or failure),
+        # so other threads can wait instead of issuing redundant sync queries.
+        self._agg_function_fetch_event: Optional[Event] = None
 
         self._ast_batch = AstBatch(self)
         self._start_async_aggregation_prefetch_if_needed()
@@ -5061,15 +5064,34 @@ class Session:
         retrieved_set = set()
         system_fetch_succeeded = False
 
-        # Try async result first if prefetch was already started. Atomically claim the job so
-        # that only one thread ever calls job.result(). AsyncJob.result() is not thread-safe —
-        # the underlying connector cursor mutates shared state (e.g. _result, _rownumber,
-        # _prefetch_hook) during result fetching, so concurrent calls would cause torn reads.
-        # The lock is held only for the pointer swap (nanoseconds), not the network call itself.
-        # In the worst case a second thread finds the job already claimed and falls back to the
-        # sync query path, matching pre-optimization performance.
+        # Atomically claim the async job. The claiming thread creates an Event so concurrent
+        # threads can wait on it rather than issuing redundant sync queries.
+        # AsyncJob.result() is not thread-safe — the underlying connector cursor mutates
+        # shared state (_result, _rownumber, _prefetch_hook) during result fetching, so only
+        # one thread may call it. The lock is held only for the pointer swap and event setup
+        # (nanoseconds), not the network call itself.
         with self._agg_function_prefetch_lock:
             job, self._agg_function_prefetch_job = self._agg_function_prefetch_job, None
+            if job is not None:
+                fetch_event = Event()
+                self._agg_function_fetch_event = fetch_event
+                wait_event = None
+            elif self._agg_function_fetch_event is not None:
+                fetch_event = None
+                wait_event = self._agg_function_fetch_event
+            else:
+                fetch_event = None
+                wait_event = None
+
+        if wait_event is not None:
+            # The query typically finishes in ~5s; 20s gives ample headroom while
+            # bounding the hang in the rare case the winner thread dies before its
+            # finally block runs (e.g. os._exit, interpreter shutdown).
+            wait_event.wait(timeout=20)
+            if context._aggregation_function_set:
+                return
+            # Winner failed or timed out; fall through to sync query.
+
         if job is not None:
             try:
                 retrieved_set.update(
@@ -5081,6 +5103,10 @@ class Session:
                     "Unable to use async aggregation function prefetch: %s",
                     e,
                 )
+            finally:
+                # Always unblock waiting threads regardless of success, failure, or
+                # BaseException (e.g. KeyboardInterrupt).
+                fetch_event.set()
         else:
             _logger.debug(
                 "Async aggregation function prefetch job is unavailable; using sync fallback."
