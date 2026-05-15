@@ -919,262 +919,145 @@ def test_retrieve_aggregation_function_list_uses_single_internal_sync_query():
         ctx._aggregation_function_set = original_agg_set
 
 
-def _make_agg_session():
-    """Create a minimal Session backed by a mock ServerConnection."""
+
+def test_retrieve_agg_event_set_after_context_published(monkeypatch):
+    """fetch_event.set() must be called only after _aggregation_function_set is
+    populated — the original bug was setting the event before publishing."""
+    import snowflake.snowpark.context as ctx
+    from threading import Event as _Event
+
+    fake_conn = mock.create_autospec(ServerConnection)
+    fake_conn._thread_safe_session_enabled = True
+    session = Session(fake_conn)
+    session._agg_function_fetch_event = None
+
+    monkeypatch.setattr(ctx, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(ctx, "_snowpark_connect_flatten_select_after_sort", True)
+    monkeypatch.setattr(ctx, "_aggregation_function_set", set())
+
+    class TrackingAsyncJob:
+        def result(self):
+            return [("SUM",)]
+
+    session._agg_function_prefetch_job = TrackingAsyncJob()
+
+    publish_order = []
+    original_set = _Event.set
+
+    def patched_set(self_event):
+        publish_order.append(("event_set", frozenset(ctx._aggregation_function_set)))
+        original_set(self_event)
+
+    with mock.patch.object(_Event, "set", patched_set):
+        session._retrieve_aggregation_function_list()
+
+    assert publish_order, "fetch_event.set() was never called"
+    # At the moment event fires the set must already contain the result.
+    _, snapshot = publish_order[0]
+    assert "sum" in snapshot, (
+        f"fetch_event fired before context was populated; snapshot={snapshot}"
+    )
+
+
+def test_retrieve_agg_waiters_fall_through_on_winner_failure(monkeypatch):
+    """When the winner's async job fails, waiters fall through to sync query
+    rather than hanging or returning an empty set."""
+    import threading
+    import time
     import snowflake.snowpark.context as ctx
 
     fake_conn = mock.create_autospec(ServerConnection)
     fake_conn._thread_safe_session_enabled = True
     session = Session(fake_conn)
-    session._agg_function_prefetch_job = None
     session._agg_function_fetch_event = None
-    return session, fake_conn, ctx
 
+    monkeypatch.setattr(ctx, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(ctx, "_snowpark_connect_flatten_select_after_sort", True)
+    monkeypatch.setattr(ctx, "_aggregation_function_set", set())
 
-def _ctx_setup(ctx):
-    ctx._is_snowpark_connect_compatible_mode = True
-    ctx._snowpark_connect_flatten_select_after_sort = True
-    ctx._aggregation_function_set = set()
+    job_may_proceed = threading.Event()
+    waiter_registered = threading.Event()
 
+    class FailingAsyncJob:
+        def result(self):
+            job_may_proceed.wait()
+            raise RuntimeError("async job failed")
 
-def _ctx_restore(ctx, orig):
-    ctx._is_snowpark_connect_compatible_mode = orig[0]
-    ctx._snowpark_connect_flatten_select_after_sort = orig[1]
-    ctx._aggregation_function_set = orig[2]
+    session._agg_function_prefetch_job = FailingAsyncJob()
 
+    sync_query_calls = []
 
-def test_retrieve_agg_concurrent_waiters_see_result_not_sync_query():
-    """Waiting threads read from the populated set after the winner finishes —
-    they must NOT issue a sync query of their own."""
-    import threading
+    def run_query_side_effect(query, **kwargs):
+        sync_query_calls.append(query)
+        return {"data": [("COUNT",)]}
 
-    session, fake_conn, ctx = _make_agg_session()
-    orig = (
-        ctx._is_snowpark_connect_compatible_mode,
-        ctx._snowpark_connect_flatten_select_after_sort,
-        ctx._aggregation_function_set,
-    )
-    try:
-        _ctx_setup(ctx)
+    fake_conn.run_query.side_effect = run_query_side_effect
 
-        # The winner's job blocks until we signal it, giving waiters time to
-        # enter the lock, grab wait_event, and call wait_event.wait().
-        job_may_proceed = threading.Event()
-        waiters_are_waiting = threading.Event()
-        waiter_count = [0]
-        waiter_count_lock = threading.Lock()
+    errors = []
 
-        class SlowAsyncJob:
-            def result(self):
-                # Signal that the winner is inside result() so the main thread
-                # can start the waiter threads now.
-                job_may_proceed.wait()
-                return [("SUM",), ("AVG",)]
-
-        session._agg_function_prefetch_job = SlowAsyncJob()
-
-        sync_query_calls = []
-
-        def run_query_side_effect(query, **kwargs):
-            sync_query_calls.append(query)
-            return {"data": []}
-
-        fake_conn.run_query.side_effect = run_query_side_effect
-
-        errors = []
-
-        def run_winner():
-            try:
-                session._retrieve_aggregation_function_list()
-            except Exception as e:
-                errors.append(e)
-
-        def run_waiter():
-            try:
-                with waiter_count_lock:
-                    waiter_count[0] += 1
-                    if waiter_count[0] == 2:
-                        # Both waiters have registered — let the winner proceed.
-                        job_may_proceed.set()
-                session._retrieve_aggregation_function_list()
-            except Exception as e:
-                errors.append(e)
-
-        winner = threading.Thread(target=run_winner)
-        waiters = [threading.Thread(target=run_waiter) for _ in range(2)]
-
-        winner.start()
-        # Give the winner time to claim the job and create the fetch_event.
-        import time; time.sleep(0.05)
-        for w in waiters:
-            w.start()
-        # Waiters increment count and release winner once both are registered.
-        winner.join(timeout=10)
-        for w in waiters:
-            w.join(timeout=10)
-
-        assert not errors
-        assert "sum" in ctx._aggregation_function_set
-        assert "avg" in ctx._aggregation_function_set
-        # Waiters must NOT have issued sync queries — they should have returned
-        # after seeing the populated set.
-        assert len(sync_query_calls) == 0, (
-            f"Expected 0 sync queries, got {len(sync_query_calls)}: {sync_query_calls}"
-        )
-    finally:
-        _ctx_restore(ctx, orig)
-
-
-def test_retrieve_agg_event_set_after_context_published():
-    """fetch_event.set() must be called only after _aggregation_function_set is
-    populated — the original bug was setting the event before publishing."""
-    import threading
-
-    session, fake_conn, ctx = _make_agg_session()
-    orig = (
-        ctx._is_snowpark_connect_compatible_mode,
-        ctx._snowpark_connect_flatten_select_after_sort,
-        ctx._aggregation_function_set,
-    )
-    try:
-        _ctx_setup(ctx)
-
-        publish_order = []
-
-        original_update = ctx._aggregation_function_set_lock.__class__  # noqa: unused
-
-        class TrackingAsyncJob:
-            def result(self):
-                return [("SUM",)]
-
-        session._agg_function_prefetch_job = TrackingAsyncJob()
-
-        # Patch Event.set to record what's in the context set at the moment it fires.
-        from threading import Event as _Event
-
-        original_set = _Event.set
-
-        def patched_set(self_event):
-            publish_order.append(("event_set", frozenset(ctx._aggregation_function_set)))
-            original_set(self_event)
-
-        with mock.patch.object(_Event, "set", patched_set):
+    def run_winner():
+        try:
             session._retrieve_aggregation_function_list()
+        except Exception as e:
+            errors.append(e)
 
-        assert publish_order, "fetch_event.set() was never called"
-        # At the moment event fires the set must already contain the result.
-        _, snapshot = publish_order[0]
-        assert "sum" in snapshot, (
-            f"fetch_event fired before context was populated; snapshot={snapshot}"
-        )
-    finally:
-        _ctx_restore(ctx, orig)
+    def run_waiter():
+        try:
+            waiter_registered.set()
+            session._retrieve_aggregation_function_list()
+        except Exception as e:
+            errors.append(e)
 
+    winner = threading.Thread(target=run_winner)
+    waiter = threading.Thread(target=run_waiter)
 
-def test_retrieve_agg_waiters_fall_through_on_winner_failure():
-    """When the winner's async job fails, waiters fall through to sync query
-    rather than hanging or returning an empty set."""
-    import threading
-    import time
+    winner.start()
+    time.sleep(0.05)  # give winner time to claim the job and set fetch_event
+    waiter.start()
+    waiter_registered.wait(timeout=5)
+    time.sleep(0.05)  # give waiter time to reach wait_event.wait()
+    job_may_proceed.set()  # let the winner fail
 
-    session, fake_conn, ctx = _make_agg_session()
-    orig = (
-        ctx._is_snowpark_connect_compatible_mode,
-        ctx._snowpark_connect_flatten_select_after_sort,
-        ctx._aggregation_function_set,
-    )
-    try:
-        _ctx_setup(ctx)
+    winner.join(timeout=10)
+    waiter.join(timeout=10)
 
-        job_may_proceed = threading.Event()
-        waiter_registered = threading.Event()
-
-        class FailingAsyncJob:
-            def result(self):
-                job_may_proceed.wait()
-                raise RuntimeError("async job failed")
-
-        session._agg_function_prefetch_job = FailingAsyncJob()
-
-        sync_query_calls = []
-
-        def run_query_side_effect(query, **kwargs):
-            sync_query_calls.append(query)
-            return {"data": [("COUNT",)]}
-
-        fake_conn.run_query.side_effect = run_query_side_effect
-
-        errors = []
-
-        def run_winner():
-            try:
-                session._retrieve_aggregation_function_list()
-            except Exception as e:
-                errors.append(e)
-
-        def run_waiter():
-            try:
-                waiter_registered.set()
-                session._retrieve_aggregation_function_list()
-            except Exception as e:
-                errors.append(e)
-
-        winner = threading.Thread(target=run_winner)
-        waiter = threading.Thread(target=run_waiter)
-
-        winner.start()
-        time.sleep(0.05)  # give winner time to claim the job and set fetch_event
-        waiter.start()
-        waiter_registered.wait(timeout=5)
-        time.sleep(0.05)  # give waiter time to reach wait_event.wait()
-        job_may_proceed.set()  # let the winner fail
-
-        winner.join(timeout=10)
-        waiter.join(timeout=10)
-
-        assert not errors
-        # Winner failed → waiter fell through to sync query → count in set.
-        assert "count" in ctx._aggregation_function_set
-    finally:
-        _ctx_restore(ctx, orig)
+    assert not errors
+    # Winner failed → waiter fell through to sync query → count in set.
+    assert "count" in ctx._aggregation_function_set
 
 
-def test_retrieve_agg_event_always_set_on_base_exception():
+def test_retrieve_agg_event_always_set_on_base_exception(monkeypatch):
     """fetch_event.set() fires even when a BaseException escapes the async job,
     so waiters are never left blocking until timeout."""
-    import threading
+    import snowflake.snowpark.context as ctx
+    from threading import Event as _Event
 
-    session, fake_conn, ctx = _make_agg_session()
-    orig = (
-        ctx._is_snowpark_connect_compatible_mode,
-        ctx._snowpark_connect_flatten_select_after_sort,
-        ctx._aggregation_function_set,
-    )
-    try:
-        _ctx_setup(ctx)
+    fake_conn = mock.create_autospec(ServerConnection)
+    fake_conn._thread_safe_session_enabled = True
+    session = Session(fake_conn)
+    session._agg_function_fetch_event = None
 
-        class KeyboardInterruptJob:
-            def result(self):
-                raise KeyboardInterrupt()
+    monkeypatch.setattr(ctx, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(ctx, "_snowpark_connect_flatten_select_after_sort", True)
+    monkeypatch.setattr(ctx, "_aggregation_function_set", set())
 
-        session._agg_function_prefetch_job = KeyboardInterruptJob()
+    class KeyboardInterruptJob:
+        def result(self):
+            raise KeyboardInterrupt()
 
-        event_was_set = []
+    session._agg_function_prefetch_job = KeyboardInterruptJob()
 
-        from threading import Event as _Event
+    event_was_set = []
+    original_set = _Event.set
 
-        original_set = _Event.set
+    def patched_set(self_event):
+        event_was_set.append(True)
+        original_set(self_event)
 
-        def patched_set(self_event):
-            event_was_set.append(True)
-            original_set(self_event)
+    with mock.patch.object(_Event, "set", patched_set):
+        try:
+            session._retrieve_aggregation_function_list()
+        except KeyboardInterrupt:
+            pass
 
-        with mock.patch.object(_Event, "set", patched_set):
-            try:
-                session._retrieve_aggregation_function_list()
-            except KeyboardInterrupt:
-                pass
-
-        assert event_was_set, "fetch_event.set() was not called despite BaseException"
-    finally:
-        _ctx_restore(ctx, orig)
+    assert event_was_set, "fetch_event.set() was not called despite BaseException"

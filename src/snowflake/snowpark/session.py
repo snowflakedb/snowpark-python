@@ -17,7 +17,7 @@ from array import array
 from collections import defaultdict
 from functools import reduce
 from logging import getLogger
-from threading import Event, Lock, RLock
+from threading import Event, RLock
 from types import ModuleType
 from typing import (
     TYPE_CHECKING,
@@ -858,7 +858,7 @@ class Session:
         self._client_telemetry = EventTableTelemetry(session=self)
         self._agg_function_prefetch_job: Optional[AsyncJob] = None
         # Guards the one-time atomic claim of _agg_function_prefetch_job.
-        self._agg_function_prefetch_lock = Lock()
+        self._agg_function_prefetch_lock = RLock()
         # Set by the thread that claimed the async job once it finishes (success or failure),
         # so other threads can wait instead of issuing redundant sync queries.
         self._agg_function_fetch_event: Optional[Event] = None
@@ -5172,29 +5172,19 @@ select function_name from information_schema.functions where is_aggregate = 'YES
             return
 
         try:
-            self._agg_function_prefetch_job = self._submit_internal_async_prefetch_query(
+            result = self._conn.execute_async_and_notify_query_listener(
                 """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'
 union
-select function_name from information_schema.functions where is_aggregate = 'YES'"""
+select function_name from information_schema.functions where is_aggregate = 'YES'""",
+                _is_internal=True,
             )
+            self._agg_function_prefetch_job = self.create_async_job(result["queryId"])
         except Exception as e:  # pragma: no cover
             _logger.debug(
                 "Unable to start async aggregation metadata prefetch: %s",
                 e,
             )
             self._agg_function_prefetch_job = None
-
-    def _submit_internal_async_prefetch_query(self, query: str) -> Optional[AsyncJob]:
-        """Submit a prefetch query as internal async and return an AsyncJob handle."""
-        try:
-            result = self._conn.execute_async_and_notify_query_listener(
-                query,
-                _is_internal=True,
-            )
-            return self.create_async_job(result["queryId"])
-        except Exception as e:  # pragma: no cover
-            _logger.debug("Unable to submit internal async prefetch query: %s", e)
-            return None
 
     def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
         """
