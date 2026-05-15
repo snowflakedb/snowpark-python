@@ -683,7 +683,7 @@ def test_select_star_after_cached_parent(session):
     assert parent_attrs is not None
 
     df2 = df.select("*")
-    if session.reduce_describe_query_enabled:
+    if session.reduce_describe_query_enabled and session.cte_optimization_enabled:
         assert df2._plan._metadata.attributes is not None
         check_attributes_equality(df2._plan._metadata.attributes, parent_attrs)
     else:
