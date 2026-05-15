@@ -17,7 +17,7 @@ from array import array
 from collections import defaultdict
 from functools import reduce
 from logging import getLogger
-from threading import RLock
+from threading import Lock, RLock
 from types import ModuleType
 from typing import (
     TYPE_CHECKING,
@@ -857,6 +857,8 @@ class Session:
         self._catalog = None
         self._client_telemetry = EventTableTelemetry(session=self)
         self._agg_function_prefetch_job: Optional[AsyncJob] = None
+        # Guards the one-time atomic claim of _agg_function_prefetch_job.
+        self._agg_function_prefetch_lock = Lock()
 
         self._ast_batch = AstBatch(self)
         self._start_async_aggregation_prefetch_if_needed()
@@ -5059,11 +5061,19 @@ class Session:
         retrieved_set = set()
         system_fetch_succeeded = False
 
-        # Try async result first if prefetch was already started.
-        if self._agg_function_prefetch_job is not None:
+        # Try async result first if prefetch was already started. Atomically claim the job so
+        # that only one thread ever calls job.result(). AsyncJob.result() is not thread-safe —
+        # the underlying connector cursor mutates shared state (e.g. _result, _rownumber,
+        # _prefetch_hook) during result fetching, so concurrent calls would cause torn reads.
+        # The lock is held only for the pointer swap (nanoseconds), not the network call itself.
+        # In the worst case a second thread finds the job already claimed and falls back to the
+        # sync query path, matching pre-optimization performance.
+        with self._agg_function_prefetch_lock:
+            job, self._agg_function_prefetch_job = self._agg_function_prefetch_job, None
+        if job is not None:
             try:
                 retrieved_set.update(
-                    {r[0].lower() for r in self._agg_function_prefetch_job.result()}
+                    {r[0].lower() for r in job.result()}
                 )
                 system_fetch_succeeded = True
             except Exception as e:
@@ -5071,8 +5081,6 @@ class Session:
                     "Unable to use async aggregation function prefetch: %s",
                     e,
                 )
-            finally:
-                self._agg_function_prefetch_job = None
         else:
             _logger.debug(
                 "Async aggregation function prefetch job is unavailable; using sync fallback."
