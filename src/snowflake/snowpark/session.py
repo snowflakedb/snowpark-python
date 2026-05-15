@@ -5092,69 +5092,72 @@ class Session:
                 return
             # Winner failed or timed out; fall through to sync query.
 
-        if job is not None:
-            try:
-                retrieved_set.update(
-                    {r[0].lower() for r in job.result()}
-                )
-                system_fetch_succeeded = True
-            except Exception as e:
+        try:
+            if job is not None:
+                try:
+                    retrieved_set.update(
+                        {r[0].lower() for r in job.result()}
+                    )
+                    system_fetch_succeeded = True
+                except Exception as e:
+                    _logger.debug(
+                        "Unable to use async aggregation function prefetch: %s",
+                        e,
+                    )
+            else:
                 _logger.debug(
-                    "Unable to use async aggregation function prefetch: %s",
-                    e,
+                    "Async aggregation function prefetch job is unavailable; using sync fallback."
                 )
-            finally:
-                # Always unblock waiting threads regardless of success, failure, or
-                # BaseException (e.g. KeyboardInterrupt).
-                fetch_event.set()
-        else:
-            _logger.debug(
-                "Async aggregation function prefetch job is unavailable; using sync fallback."
-            )
-            try:
-                retrieved_set.update(
-                    {
-                        r[0].lower()
-                        for r in self._conn.run_query(
-                            """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'
+                try:
+                    retrieved_set.update(
+                        {
+                            r[0].lower()
+                            for r in self._conn.run_query(
+                                """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'
 union
 select function_name from information_schema.functions where is_aggregate = 'YES'""",
-                            _is_internal=True,
-                        )["data"]
-                    }
-                )
-                system_fetch_succeeded = True
-            except Exception as e:
-                _logger.debug(
-                    "Unable to get aggregation functions via sync union query: %s",
-                    e,
-                )
+                                _is_internal=True,
+                            )["data"]
+                        }
+                    )
+                    system_fetch_succeeded = True
+                except Exception as e:
+                    _logger.debug(
+                        "Unable to get aggregation functions via sync union query: %s",
+                        e,
+                    )
 
-        # Sync fallback query.
-        if not system_fetch_succeeded:
-            try:
-                retrieved_set.update(
-                    {
-                        r[0].lower()
-                        for r in self._conn.run_query(
-                            """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'""",
-                            _is_internal=True,
-                        )["data"]
-                    }
-                )
-                system_fetch_succeeded = True
-            except Exception as e:
-                _logger.debug(
-                    "Unable to get aggregation functions via sync fallback query: %s",
-                    e,
-                )
+            # Sync fallback query.
+            if not system_fetch_succeeded:
+                try:
+                    retrieved_set.update(
+                        {
+                            r[0].lower()
+                            for r in self._conn.run_query(
+                                """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'""",
+                                _is_internal=True,
+                            )["data"]
+                        }
+                    )
+                    system_fetch_succeeded = True
+                except Exception as e:
+                    _logger.debug(
+                        "Unable to get aggregation functions via sync fallback query: %s",
+                        e,
+                    )
 
-        # Fallback to the local hardcoded list only when metadata retrieval fails.
-        if not system_fetch_succeeded:
-            retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
+            # Fallback to the local hardcoded list only when metadata retrieval fails.
+            if not system_fetch_succeeded:
+                retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
 
-        with context._aggregation_function_set_lock:
-            context._aggregation_function_set.update(retrieved_set)
+            with context._aggregation_function_set_lock:
+                context._aggregation_function_set.update(retrieved_set)
+        finally:
+            # Signal after _aggregation_function_set is published so waiters see
+            # the populated set immediately upon waking. Also fires on BaseException
+            # (e.g. KeyboardInterrupt) so waiters are never left blocking until timeout.
+            if fetch_event is not None:
+                fetch_event.set()
 
     def _start_async_aggregation_prefetch_if_needed(self) -> None:
         """Start aggregation metadata prefetch only when not already in progress."""

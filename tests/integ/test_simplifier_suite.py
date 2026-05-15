@@ -2595,3 +2595,107 @@ def test_internal_sync_aggregation_fallback_submission(session, monkeypatch):
     assert "show functions" in calls[0][0]
     assert "information_schema.functions" in calls[0][0]
     assert "avg" in context._aggregation_function_set
+
+
+def test_concurrent_retrieve_agg_waiters_no_sync_query(session, monkeypatch):
+    """Concurrent calls to _retrieve_aggregation_function_list must result in zero
+    sync queries from waiters — they reuse the winner's async result via the Event."""
+    import threading
+    import time
+    import snowflake.snowpark.context as context
+
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
+    monkeypatch.setattr(context, "_aggregation_function_set", set())
+    session._agg_function_fetch_event = None
+
+    job_may_proceed = threading.Event()
+    waiter_count = [0]
+    waiter_count_lock = threading.Lock()
+
+    class SlowFakeAsyncJob:
+        def result(self):
+            job_may_proceed.wait()
+            return [("SUM",), ("AVG",)]
+
+    session._agg_function_prefetch_job = SlowFakeAsyncJob()
+
+    sync_query_calls = []
+    original_run_query = session._conn.run_query
+
+    def counting_run_query(query, **kwargs):
+        if kwargs.get("_is_internal") and "show functions" in query:
+            sync_query_calls.append(query)
+        return original_run_query(query, **kwargs)
+
+    monkeypatch.setattr(session._conn, "run_query", counting_run_query)
+
+    errors = []
+
+    def run_winner():
+        try:
+            session._retrieve_aggregation_function_list()
+        except Exception as e:
+            errors.append(e)
+
+    def run_waiter():
+        try:
+            with waiter_count_lock:
+                waiter_count[0] += 1
+                if waiter_count[0] == 2:
+                    job_may_proceed.set()
+            session._retrieve_aggregation_function_list()
+        except Exception as e:
+            errors.append(e)
+
+    winner = threading.Thread(target=run_winner)
+    waiters = [threading.Thread(target=run_waiter) for _ in range(2)]
+
+    winner.start()
+    time.sleep(0.05)  # give winner time to claim job and set fetch_event
+    for w in waiters:
+        w.start()
+    winner.join(timeout=15)
+    for w in waiters:
+        w.join(timeout=15)
+
+    assert not errors
+    assert "sum" in context._aggregation_function_set
+    assert "avg" in context._aggregation_function_set
+    assert len(sync_query_calls) == 0, (
+        f"Expected 0 sync queries from waiters, got {len(sync_query_calls)}"
+    )
+
+
+def test_concurrent_retrieve_agg_event_set_after_context_published(session, monkeypatch):
+    """The fetch_event must be set only after _aggregation_function_set is published —
+    waiters must see a non-empty set the moment they wake up."""
+    import snowflake.snowpark.context as context
+    from threading import Event as _Event
+
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
+    monkeypatch.setattr(context, "_aggregation_function_set", set())
+    session._agg_function_fetch_event = None
+
+    class _FakeAsyncJob:
+        def result(self):
+            return [("SUM",)]
+
+    session._agg_function_prefetch_job = _FakeAsyncJob()
+
+    snapshot_at_set = []
+    original_event_set = _Event.set
+
+    def patched_set(self_event):
+        snapshot_at_set.append(frozenset(context._aggregation_function_set))
+        original_event_set(self_event)
+
+    monkeypatch.setattr(_Event, "set", patched_set)
+
+    session._retrieve_aggregation_function_list()
+
+    assert snapshot_at_set, "fetch_event.set() was never called"
+    assert snapshot_at_set[0], (
+        "fetch_event fired before _aggregation_function_set was published"
+    )
