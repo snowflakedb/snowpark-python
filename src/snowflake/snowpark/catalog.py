@@ -2,15 +2,28 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from abc import ABC, abstractmethod
+from ctypes import ArgumentError
 import re
-from typing import List, Optional, Union
+from typing import (
+    List,
+    Optional,
+    Union,
+    TYPE_CHECKING,
+)
+
+from snowflake.snowpark import context
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
+from snowflake.snowpark.exceptions import SnowparkSQLException, _NotFoundError
 
 try:
     from snowflake.core import Root  # type: ignore
     from snowflake.core.database import Database  # type: ignore
-    from snowflake.core.exceptions import NotFoundError
+    from snowflake.core.database._generated.models import Database as ModelDatabase  # type: ignore
+    from snowflake.core.exceptions import NotFoundError as CoreNotFoundError  # type: ignore
     from snowflake.core.procedure import Procedure
     from snowflake.core.schema import Schema  # type: ignore
+    from snowflake.core.schema._generated.models import Schema as ModelSchema  # type: ignore
     from snowflake.core.table import Table, TableColumn
     from snowflake.core.user_defined_function import UserDefinedFunction
     from snowflake.core.view import View
@@ -19,11 +32,805 @@ except ImportError as e:
         "Missing optional dependency: 'snowflake.core'."
     ) from e  # pragma: no cover
 
-
-import snowflake.snowpark
-from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
+from snowflake.snowpark._internal.type_utils import (
+    convert_sp_to_sf_type,
+    type_string_to_type_object,
+)
 from snowflake.snowpark.functions import lit, parse_json
 from snowflake.snowpark.types import DataType
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.session import Session
+
+# Cap for SHOW AS RESOURCE DATABASES / SCHEMAS in the SQL backend (SCOS; avoids
+# oversized result sets when accounts have very many databases or schemas).
+_SHOW_AS_RESOURCE_LIMIT = 10000
+
+
+class _CatalogBackend(ABC):
+    """Internal catalog implementation selected by compatibility mode and SQL base flag."""
+
+    def __init__(self, catalog: "Catalog") -> None:
+        self._catalog = catalog
+
+    @abstractmethod
+    def list_databases(
+        self,
+        *,
+        pattern: Optional[str] = None,
+        like: Optional[str] = None,
+    ) -> List[Database]:
+        raise NotImplementedError(
+            "_CatalogBackend.list_databases must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def list_schemas(
+        self,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        pattern: Optional[str] = None,
+        like: Optional[str] = None,
+    ) -> List[Schema]:
+        raise NotImplementedError(
+            "_CatalogBackend.list_schemas must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def get_database(self, database: str) -> Database:
+        raise NotImplementedError(
+            "_CatalogBackend.get_database must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def get_schema(
+        self, schema: str, *, database: Optional[Union[str, Database]] = None
+    ) -> Schema:
+        raise NotImplementedError(
+            "_CatalogBackend.get_schema must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def get_table(
+        self,
+        table_name: str,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> Union[Table, View]:
+        raise NotImplementedError(
+            "_CatalogBackend.get_table must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def get_view(
+        self,
+        view_name: str,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> View:
+        raise NotImplementedError(
+            "_CatalogBackend.get_view must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def get_procedure(
+        self,
+        procedure_name: str,
+        arg_types: List[DataType],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> Procedure:
+        raise NotImplementedError(
+            "_CatalogBackend.get_procedure must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def get_user_defined_function(
+        self,
+        udf_name: str,
+        arg_types: List[DataType],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> UserDefinedFunction:
+        raise NotImplementedError(
+            "_CatalogBackend.get_user_defined_function must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def database_exists(self, database: Union[str, Database]) -> bool:
+        raise NotImplementedError(
+            "_CatalogBackend.database_exists must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def schema_exists(
+        self,
+        schema: Union[str, Schema],
+        *,
+        database: Optional[Union[str, Database]] = None,
+    ) -> bool:
+        raise NotImplementedError(
+            "_CatalogBackend.schema_exists must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def table_exists(
+        self,
+        table: Union[str, Table],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> bool:
+        raise NotImplementedError(
+            "_CatalogBackend.table_exists must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def view_exists(
+        self,
+        view: Union[str, View],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> bool:
+        raise NotImplementedError(
+            "_CatalogBackend.view_exists must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def procedure_exists(
+        self,
+        procedure: Union[str, Procedure],
+        arg_types: Optional[List[DataType]] = None,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> bool:
+        raise NotImplementedError(
+            "_CatalogBackend.procedure_exists must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def user_defined_function_exists(
+        self,
+        udf: Union[str, UserDefinedFunction],
+        arg_types: Optional[List[DataType]] = None,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> bool:
+        raise NotImplementedError(
+            "_CatalogBackend.user_defined_function_exists must be implemented by a "
+            "concrete subclass."
+        )
+
+    @abstractmethod
+    def drop_database(self, database: Union[str, Database]) -> None:
+        raise NotImplementedError(
+            "_CatalogBackend.drop_database must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def drop_schema(
+        self,
+        schema: Union[str, Schema],
+        *,
+        database: Optional[Union[str, Database]] = None,
+    ) -> None:
+        raise NotImplementedError(
+            "_CatalogBackend.drop_schema must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def drop_table(
+        self,
+        table: Union[str, Table],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> None:
+        raise NotImplementedError(
+            "_CatalogBackend.drop_table must be implemented by a concrete subclass."
+        )
+
+    @abstractmethod
+    def drop_view(
+        self,
+        view: Union[str, View],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> None:
+        raise NotImplementedError(
+            "_CatalogBackend.drop_view must be implemented by a concrete subclass."
+        )
+
+
+class _SqlCatalogBackend(_CatalogBackend):
+    def list_databases(
+        self,
+        *,
+        pattern: Optional[str] = None,
+        like: Optional[str] = None,
+    ) -> List[Database]:
+        c = self._catalog
+        like_str = f"LIKE '{like}'" if like else ""
+        df = c._session.sql(
+            f"SHOW AS RESOURCE DATABASES {like_str} LIMIT {_SHOW_AS_RESOURCE_LIMIT}"
+        )
+        if pattern:
+            c._initialize_regex_udf()
+            assert c._python_regex_udf is not None  # pyright
+            df = df.filter(
+                c._python_regex_udf(lit(pattern), parse_json('"As Resource"')["name"])
+            )
+
+        return list(
+            map(
+                lambda row: Database._from_model(ModelDatabase.from_json(str(row[0]))),
+                df.collect(),
+            )
+        )
+
+    def list_schemas(
+        self,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        pattern: Optional[str] = None,
+        like: Optional[str] = None,
+    ) -> List[Schema]:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        like_str = f"LIKE '{like}'" if like else ""
+        df = c._session.sql(
+            f"SHOW AS RESOURCE SCHEMAS {like_str} IN {db_name} LIMIT {_SHOW_AS_RESOURCE_LIMIT}"
+        )
+        if pattern:
+            c._initialize_regex_udf()
+            assert c._python_regex_udf is not None  # pyright
+            df = df.filter(
+                c._python_regex_udf(lit(pattern), parse_json('"As Resource"')["name"])
+            )
+
+        return list(
+            map(
+                lambda row: Schema._from_model(ModelSchema.from_json(str(row[0]))),
+                df.collect(),
+            )
+        )
+
+    def get_database(self, database: str) -> Database:
+        try:
+            return self.list_databases(like=unquote_if_quoted(database))[0]
+        except IndexError:
+            raise _NotFoundError(f"Database with name {database} could not be found")
+
+    def get_schema(
+        self, schema: str, *, database: Optional[Union[str, Database]] = None
+    ) -> Schema:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        try:
+            return self.list_schemas(database=db_name, like=unquote_if_quoted(schema))[
+                0
+            ]
+        except (
+            IndexError,
+            SnowparkSQLException,
+        ):
+            raise _NotFoundError(
+                f"Schema with name {schema} could not be found in database '{db_name}'"
+            )
+
+    def get_table(
+        self,
+        table_name: str,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> Union[Table, View]:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        schema_name = c._parse_schema(schema)
+        like_arg = unquote_if_quoted(table_name)
+        tables = c.list_tables(database=db_name, schema=schema_name, like=like_arg)
+        views: List[View] = []
+        if tables:
+            return tables[0]
+        if not tables:
+            views = c.list_views(database=db_name, schema=schema_name, like=like_arg)
+        if views:
+            return views[0]
+        raise _NotFoundError(
+            f"Table with name {table_name} could not be found in schema '{db_name}.{schema_name}'"
+        )
+
+    def get_view(
+        self,
+        view_name: str,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> View:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        schema_name = c._parse_schema(schema)
+        try:
+            return c.list_views(
+                database=db_name,
+                schema=schema_name,
+                like=unquote_if_quoted(view_name),
+            )[0]
+        except IndexError:
+            raise _NotFoundError(
+                f"View with name {view_name} could not be found in schema '{db_name}.{schema_name}'"
+            )
+
+    def get_procedure(
+        self,
+        procedure_name: str,
+        arg_types: List[DataType],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> Procedure:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        schema_name = c._parse_schema(schema)
+        procedure_id = c._parse_function_or_procedure(procedure_name, arg_types)
+
+        try:
+            procedures = c._session.sql(
+                f"DESCRIBE AS RESOURCE PROCEDURE {db_name}.{schema_name}.{procedure_id}"
+            ).collect()
+            return Procedure.from_json(str(procedures[0][0]))
+        except (
+            IndexError,
+            SnowparkSQLException,
+        ):
+            raise _NotFoundError(
+                f"Procedure with name {procedure_name} and arguments {arg_types} could not be found in schema '{db_name}.{schema_name}'"
+            )
+
+    def get_user_defined_function(
+        self,
+        udf_name: str,
+        arg_types: List[DataType],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> UserDefinedFunction:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        schema_name = c._parse_schema(schema)
+        function_id = c._parse_function_or_procedure(udf_name, arg_types)
+
+        try:
+            rows = c._session.sql(
+                f"DESCRIBE AS RESOURCE FUNCTION {db_name}.{schema_name}.{function_id}"
+            ).collect()
+            return UserDefinedFunction.from_json(str(rows[0][0]))
+        except (
+            IndexError,
+            SnowparkSQLException,
+        ):
+            raise _NotFoundError(
+                f"Function with name {udf_name} and arguments {arg_types} could not be found in schema '{db_name}.{schema_name}'"
+            )
+
+    def database_exists(self, database: Union[str, Database]) -> bool:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        try:
+            self.get_database(db_name)
+            return True
+        except _NotFoundError:
+            return False
+
+    def schema_exists(
+        self,
+        schema: Union[str, Schema],
+        *,
+        database: Optional[Union[str, Database]] = None,
+    ) -> bool:
+        c = self._catalog
+        db_name = c._parse_database(database, schema)
+        schema_name = c._parse_schema(schema)
+        try:
+            self.get_schema(schema=schema_name, database=db_name)
+            return True
+        except _NotFoundError:
+            return False
+
+    def table_exists(
+        self,
+        table: Union[str, Table],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> bool:
+        c = self._catalog
+        db_name = c._parse_database(database, table)
+        schema_name = c._parse_schema(schema, table)
+        table_name = table if isinstance(table, str) else table.name
+        try:
+            self.get_table(table_name=table_name, database=db_name, schema=schema_name)
+            return True
+        except _NotFoundError:
+            return False
+
+    def view_exists(
+        self,
+        view: Union[str, View],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> bool:
+        c = self._catalog
+        db_name = c._parse_database(database, view)
+        schema_name = c._parse_schema(schema, view)
+        view_name = view if isinstance(view, str) else view.name
+        try:
+            self.get_view(view_name=view_name, database=db_name, schema=schema_name)
+            return True
+        except _NotFoundError:
+            return False
+
+    def procedure_exists(
+        self,
+        procedure: Union[str, Procedure],
+        arg_types: Optional[List[DataType]] = None,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> bool:
+        try:
+            if isinstance(procedure, Procedure):
+                if arg_types is not None or database is not None or schema is not None:
+                    raise ArgumentError(
+                        "When provided procedure is a Procedure class no other arguments can be provided"
+                    )
+                database = procedure.database_name
+                schema = procedure.schema_name
+                arg_types = [
+                    type_string_to_type_object(a.datatype) for a in procedure.arguments
+                ]
+                procedure = procedure.name
+            self.get_procedure(
+                procedure_name=procedure,
+                arg_types=arg_types,
+                database=database,
+                schema=schema,
+            )
+            return True
+        except _NotFoundError:
+            return False
+
+    def user_defined_function_exists(
+        self,
+        udf: Union[str, UserDefinedFunction],
+        arg_types: Optional[List[DataType]] = None,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> bool:
+        try:
+            if isinstance(udf, UserDefinedFunction):
+                if arg_types is not None or database is not None or schema is not None:
+                    raise ArgumentError(
+                        "When provided udf is a UserDefinedFunction class no other arguments can be provided"
+                    )
+                database = udf.database_name
+                schema = udf.schema_name
+                arg_types = [
+                    type_string_to_type_object(a.datatype) for a in udf.arguments
+                ]
+                udf = udf.name
+            self.get_user_defined_function(
+                udf_name=udf,
+                arg_types=arg_types,
+                database=database,
+                schema=schema,
+            )
+            return True
+        except _NotFoundError:
+            return False
+
+    def drop_database(self, database: Union[str, Database]) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        c._session.sql(f"DROP DATABASE {db_name}").collect()
+
+    def drop_schema(
+        self,
+        schema: Union[str, Schema],
+        *,
+        database: Optional[Union[str, Database]] = None,
+    ) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database, schema)
+        schema_name = c._parse_schema(schema)
+        c._session.sql(f"DROP SCHEMA {db_name}.{schema_name}").collect()
+
+    def drop_table(
+        self,
+        table: Union[str, Table],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database, table)
+        schema_name = c._parse_schema(schema, table)
+        table_name = table if isinstance(table, str) else table.name
+        c._session.sql(f"DROP TABLE {db_name}.{schema_name}.{table_name}").collect()
+
+    def drop_view(
+        self,
+        view: Union[str, View],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database, view)
+        schema_name = c._parse_schema(schema, view)
+        view_name = view if isinstance(view, str) else view.name
+        c._session.sql(f"DROP VIEW {db_name}.{schema_name}.{view_name}").collect()
+
+
+class _RestCatalogBackend(_CatalogBackend):
+    def __init__(self, catalog: "Catalog") -> None:
+        super().__init__(catalog)
+        self._root = Root(catalog._session)
+
+    def list_databases(
+        self,
+        *,
+        pattern: Optional[str] = None,
+        like: Optional[str] = None,
+    ) -> List[Database]:
+        it = self._root.databases.iter(like=like)
+        if pattern:
+            it = filter(lambda x: re.match(pattern, x.name), it)
+        return list(it)
+
+    def list_schemas(
+        self,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        pattern: Optional[str] = None,
+        like: Optional[str] = None,
+    ) -> List[Schema]:
+        db_name = self._catalog._parse_database(database)
+        it = self._root.databases[db_name].schemas.iter(like=like)
+        if pattern:
+            it = filter(lambda x: re.match(pattern, x.name), it)
+        return list(it)
+
+    def get_database(self, database: str) -> Database:
+        return self._root.databases[database].fetch()
+
+    def get_schema(
+        self, schema: str, *, database: Optional[Union[str, Database]] = None
+    ) -> Schema:
+        db_name = self._catalog._parse_database(database)
+        return self._root.databases[db_name].schemas[schema].fetch()
+
+    def get_table(
+        self,
+        table_name: str,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> Union[Table, View]:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        schema_name = c._parse_schema(schema)
+        return (
+            self._root.databases[db_name]
+            .schemas[schema_name]
+            .tables[table_name]
+            .fetch()
+        )
+
+    def get_view(
+        self,
+        view_name: str,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> View:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        schema_name = c._parse_schema(schema)
+        return (
+            self._root.databases[db_name].schemas[schema_name].views[view_name].fetch()
+        )
+
+    def get_procedure(
+        self,
+        procedure_name: str,
+        arg_types: List[DataType],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> Procedure:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        schema_name = c._parse_schema(schema)
+        procedure_id = c._parse_function_or_procedure(procedure_name, arg_types)
+        return (
+            self._root.databases[db_name]
+            .schemas[schema_name]
+            .procedures[procedure_id]
+            .fetch()
+        )
+
+    def get_user_defined_function(
+        self,
+        udf_name: str,
+        arg_types: List[DataType],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> UserDefinedFunction:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        schema_name = c._parse_schema(schema)
+        function_id = c._parse_function_or_procedure(udf_name, arg_types)
+        return (
+            self._root.databases[db_name]
+            .schemas[schema_name]
+            .user_defined_functions[function_id]
+            .fetch()
+        )
+
+    def database_exists(self, database: Union[str, Database]) -> bool:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        try:
+            self._root.databases[db_name].fetch()
+            return True
+        except CoreNotFoundError:
+            return False
+
+    def schema_exists(
+        self,
+        schema: Union[str, Schema],
+        *,
+        database: Optional[Union[str, Database]] = None,
+    ) -> bool:
+        c = self._catalog
+        db_name = c._parse_database(database, schema)
+        schema_name = c._parse_schema(schema)
+        try:
+            self._root.databases[db_name].schemas[schema_name].fetch()
+            return True
+        except CoreNotFoundError:
+            return False
+
+    def table_exists(
+        self,
+        table: Union[str, Table],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> bool:
+        c = self._catalog
+        db_name = c._parse_database(database, table)
+        schema_name = c._parse_schema(schema, table)
+        table_name = table if isinstance(table, str) else table.name
+        try:
+            self._root.databases[db_name].schemas[schema_name].tables[
+                table_name
+            ].fetch()
+            return True
+        except CoreNotFoundError:
+            return False
+
+    def view_exists(
+        self,
+        view: Union[str, View],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> bool:
+        c = self._catalog
+        db_name = c._parse_database(database, view)
+        schema_name = c._parse_schema(schema, view)
+        view_name = view if isinstance(view, str) else view.name
+        try:
+            self._root.databases[db_name].schemas[schema_name].views[view_name].fetch()
+            return True
+        except CoreNotFoundError:
+            return False
+
+    def procedure_exists(
+        self,
+        procedure: Union[str, Procedure],
+        arg_types: Optional[List[DataType]] = None,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> bool:
+        c = self._catalog
+        db_name = c._parse_database(database, procedure)
+        schema_name = c._parse_schema(schema, procedure)
+        procedure_id = c._parse_function_or_procedure(procedure, arg_types)
+        try:
+            self._root.databases[db_name].schemas[schema_name].procedures[
+                procedure_id
+            ].fetch()
+            return True
+        except CoreNotFoundError:
+            return False
+
+    def user_defined_function_exists(
+        self,
+        udf: Union[str, UserDefinedFunction],
+        arg_types: Optional[List[DataType]] = None,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> bool:
+        c = self._catalog
+        db_name = c._parse_database(database, udf)
+        schema_name = c._parse_schema(schema, udf)
+        function_id = c._parse_function_or_procedure(udf, arg_types)
+        try:
+            self._root.databases[db_name].schemas[schema_name].user_defined_functions[
+                function_id
+            ].fetch()
+            return True
+        except CoreNotFoundError:
+            return False
+
+    def drop_database(self, database: Union[str, Database]) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database)
+        self._root.databases[db_name].drop()
+
+    def drop_schema(
+        self,
+        schema: Union[str, Schema],
+        *,
+        database: Optional[Union[str, Database]] = None,
+    ) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database, schema)
+        schema_name = c._parse_schema(schema)
+        self._root.databases[db_name].schemas[schema_name].drop()
+
+    def drop_table(
+        self,
+        table: Union[str, Table],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database, table)
+        schema_name = c._parse_schema(schema, table)
+        table_name = table if isinstance(table, str) else table.name
+        self._root.databases[db_name].schemas[schema_name].tables[table_name].drop()
+
+    def drop_view(
+        self,
+        view: Union[str, View],
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+    ) -> None:
+        c = self._catalog
+        db_name = c._parse_database(database, view)
+        schema_name = c._parse_schema(schema, view)
+        view_name = view if isinstance(view, str) else view.name
+        self._root.databases[db_name].schemas[schema_name].views[view_name].drop()
 
 
 class Catalog:
@@ -32,14 +839,20 @@ class Catalog:
     views, functions, etc.
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:  # type: ignore
+    def __init__(self, session: "Session") -> None:
         self._session = session
-        self._root = Root(session)
         self._python_regex_udf = None
+        if (
+            context._is_snowpark_connect_compatible_mode
+            and context._use_sql_base_catalog
+        ):
+            self._backend = _SqlCatalogBackend(self)
+        else:
+            self._backend = _RestCatalogBackend(self)
 
     def _parse_database(
         self,
-        database: Optional[Union[str, Database]],
+        database: object,
         model_obj: Optional[
             Union[str, Schema, Table, View, Procedure, UserDefinedFunction]
         ] = None,
@@ -66,7 +879,7 @@ class Catalog:
 
     def _parse_schema(
         self,
-        schema: Optional[Union[str, Schema]],
+        schema: object,
         model_obj: Optional[
             Union[str, Table, View, Procedure, UserDefinedFunction]
         ] = None,
@@ -138,13 +951,9 @@ class Catalog:
             f"SHOW AS RESOURCE {object_name} {like_str} IN {db_name}.{schema_name} -- catalog api"
         )
         if pattern:
-            # initialize udf
             self._initialize_regex_udf()
             assert self._python_regex_udf is not None  # pyright
 
-            # The result of SHOW AS RESOURCE query is a json string which contains
-            # key 'name' to store the name of the object. We parse json for the returned
-            # result and apply the filter on name.
             df = df.filter(
                 self._python_regex_udf(
                     lit(pattern), parse_json('"As Resource"')["name"]
@@ -153,7 +962,6 @@ class Catalog:
 
         return list(map(lambda row: object_class.from_json(row[0]), df.collect()))
 
-    # List methods
     def list_databases(
         self,
         *,
@@ -166,11 +974,7 @@ class Catalog:
             pattern: the python regex pattern of name to match. Defaults to None.
             like: the sql style pattern for name to match. Default to None.
         """
-        iter = self._root.databases.iter(like=like)
-        if pattern:
-            iter = filter(lambda x: re.match(pattern, x.name), iter)
-
-        return list(iter)
+        return self._backend.list_databases(pattern=pattern, like=like)
 
     def list_schemas(
         self,
@@ -187,11 +991,7 @@ class Catalog:
             pattern: the python regex pattern of name to match. Defaults to None.
             like: the sql style pattern for name to match. Default to None.
         """
-        db_name = self._parse_database(database)
-        iter = self._root.databases[db_name].schemas.iter(like=like)
-        if pattern:
-            iter = filter(lambda x: re.match(pattern, x.name), iter)
-        return list(iter)
+        return self._backend.list_schemas(database=database, pattern=pattern, like=like)
 
     def list_tables(
         self,
@@ -318,7 +1118,6 @@ class Catalog:
             like=like,
         )
 
-    # get methods
     def get_current_database(self) -> Optional[str]:
         """Get the current database."""
         return self._session.get_current_database()
@@ -329,14 +1128,13 @@ class Catalog:
 
     def get_database(self, database: str) -> Database:
         """Name of the database to get"""
-        return self._root.databases[database].fetch()
+        return self._backend.get_database(database)
 
     def get_schema(
         self, schema: str, *, database: Optional[Union[str, Database]] = None
     ) -> Schema:
         """Name of the schema to get."""
-        db_name = self._parse_database(database)
-        return self._root.databases[db_name].schemas[schema].fetch()
+        return self._backend.get_schema(schema, database=database)
 
     def get_table(
         self,
@@ -344,23 +1142,22 @@ class Catalog:
         *,
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
-    ) -> Table:
-        """Get the table by name in given database and schema. If database or schema are not
-        provided, get the table in the current database and schema.
+    ) -> Union[Table, View]:
+        """Get the table or permanent view by name in the given database and schema.
+
+        If database or schema are not provided, resolve the name in the current database
+        and schema. Matches :meth:`pyspark.sql.Catalog.getTable`, which returns metadata
+        for base tables and for views.
+
+        When ``context._is_snowpark_connect_compatible_mode`` is False (legacy REST path),
+        only base tables are returned; use :meth:`get_view` for views.
 
         Args:
-            table_name: name of the table.
+            table_name: name of the table or view.
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database)
-        schema_name = self._parse_schema(schema)
-        return (
-            self._root.databases[db_name]
-            .schemas[schema_name]
-            .tables[table_name]
-            .fetch()
-        )
+        return self._backend.get_table(table_name, database=database, schema=schema)
 
     def get_view(
         self,
@@ -377,11 +1174,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database)
-        schema_name = self._parse_schema(schema)
-        return (
-            self._root.databases[db_name].schemas[schema_name].views[view_name].fetch()
-        )
+        return self._backend.get_view(view_name, database=database, schema=schema)
 
     def get_procedure(
         self,
@@ -400,14 +1193,8 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database)
-        schema_name = self._parse_schema(schema)
-        procedure_id = self._parse_function_or_procedure(procedure_name, arg_types)
-        return (
-            self._root.databases[db_name]
-            .schemas[schema_name]
-            .procedures[procedure_id]
-            .fetch()
+        return self._backend.get_procedure(
+            procedure_name, arg_types, database=database, schema=schema
         )
 
     def get_user_defined_function(
@@ -428,17 +1215,10 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database)
-        schema_name = self._parse_schema(schema)
-        function_id = self._parse_function_or_procedure(udf_name, arg_types)
-        return (
-            self._root.databases[db_name]
-            .schemas[schema_name]
-            .user_defined_functions[function_id]
-            .fetch()
+        return self._backend.get_user_defined_function(
+            udf_name, arg_types, database=database, schema=schema
         )
 
-    # set methods
     def set_current_database(self, database: Union[str, Database]) -> None:
         """Set the current default database for the session.
 
@@ -457,19 +1237,13 @@ class Catalog:
         schema_name = self._parse_schema(schema)
         self._session.use_schema(schema_name)
 
-    # exists methods
     def database_exists(self, database: Union[str, Database]) -> bool:
         """Check if the given database exists.
 
         Args:
             database: database name or ``Database`` object.
         """
-        db_name = self._parse_database(database)
-        try:
-            self._root.databases[db_name].fetch()
-            return True
-        except NotFoundError:
-            return False
+        return self._backend.database_exists(database)
 
     def schema_exists(
         self,
@@ -484,13 +1258,7 @@ class Catalog:
             schema: schema name or ``Schema`` object.
             database: database name or ``Database`` object. Defaults to None.
         """
-        db_name = self._parse_database(database, schema)
-        schema_name = self._parse_schema(schema)
-        try:
-            self._root.databases[db_name].schemas[schema_name].fetch()
-            return True
-        except NotFoundError:
-            return False
+        return self._backend.schema_exists(schema, database=database)
 
     def table_exists(
         self,
@@ -507,16 +1275,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database, table)
-        schema_name = self._parse_schema(schema, table)
-        table_name = table if isinstance(table, str) else table.name
-        try:
-            self._root.databases[db_name].schemas[schema_name].tables[
-                table_name
-            ].fetch()
-            return True
-        except NotFoundError:
-            return False
+        return self._backend.table_exists(table, database=database, schema=schema)
 
     def view_exists(
         self,
@@ -533,14 +1292,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database, view)
-        schema_name = self._parse_schema(schema, view)
-        view_name = view if isinstance(view, str) else view.name
-        try:
-            self._root.databases[db_name].schemas[schema_name].views[view_name].fetch()
-            return True
-        except NotFoundError:
-            return False
+        return self._backend.view_exists(view, database=database, schema=schema)
 
     def procedure_exists(
         self,
@@ -559,17 +1311,9 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database, procedure)
-        schema_name = self._parse_schema(schema, procedure)
-        procedure_id = self._parse_function_or_procedure(procedure, arg_types)
-
-        try:
-            self._root.databases[db_name].schemas[schema_name].procedures[
-                procedure_id
-            ].fetch()
-            return True
-        except NotFoundError:
-            return False
+        return self._backend.procedure_exists(
+            procedure, arg_types, database=database, schema=schema
+        )
 
     def user_defined_function_exists(
         self,
@@ -590,27 +1334,17 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database, udf)
-        schema_name = self._parse_schema(schema, udf)
-        function_id = self._parse_function_or_procedure(udf, arg_types)
+        return self._backend.user_defined_function_exists(
+            udf, arg_types, database=database, schema=schema
+        )
 
-        try:
-            self._root.databases[db_name].schemas[schema_name].user_defined_functions[
-                function_id
-            ].fetch()
-            return True
-        except NotFoundError:
-            return False
-
-    # drop methods
     def drop_database(self, database: Union[str, Database]) -> None:
         """Drop the given database.
 
         Args:
             database: database name or ``Database`` object.
         """
-        db_name = self._parse_database(database)
-        self._root.databases[db_name].drop()
+        return self._backend.drop_database(database)
 
     def drop_schema(
         self,
@@ -625,9 +1359,7 @@ class Catalog:
             schema: schema name or ``Schema`` object.
             database: database name or ``Database`` object. Defaults to None.
         """
-        db_name = self._parse_database(database, schema)
-        schema_name = self._parse_schema(schema)
-        self._root.databases[db_name].schemas[schema_name].drop()
+        return self._backend.drop_schema(schema, database=database)
 
     def drop_table(
         self,
@@ -644,11 +1376,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database, table)
-        schema_name = self._parse_schema(schema, table)
-        table_name = table if isinstance(table, str) else table.name
-
-        self._root.databases[db_name].schemas[schema_name].tables[table_name].drop()
+        return self._backend.drop_table(table, database=database, schema=schema)
 
     def drop_view(
         self,
@@ -665,11 +1393,7 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database, view)
-        schema_name = self._parse_schema(schema, view)
-        view_name = view if isinstance(view, str) else view.name
-
-        self._root.databases[db_name].schemas[schema_name].views[view_name].drop()
+        return self._backend.drop_view(view, database=database, schema=schema)
 
     # aliases
     listDatabases = list_databases

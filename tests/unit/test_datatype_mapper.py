@@ -16,6 +16,9 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     to_sql,
     to_sql_no_cast,
 )
+from snowflake.snowpark._internal.type_utils import (
+    format_year_month_interval_for_display,
+)
 from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark.types import (
     ArrayType,
@@ -808,4 +811,87 @@ def test_schema_expression():
     assert (
         schema_expression(DayTimeIntervalType(), False)
         == "INTERVAL '1 01:01:01.0001' DAY TO SECOND"
+    )
+
+
+@pytest.mark.parametrize(
+    "cell, start_field, end_field, expected",
+    [
+        (
+            "+1-6",
+            YearMonthIntervalType.YEAR,
+            YearMonthIntervalType.MONTH,
+            "INTERVAL '1-6' YEAR TO MONTH",
+        ),
+        (
+            "-2-3",
+            YearMonthIntervalType.YEAR,
+            YearMonthIntervalType.MONTH,
+            "INTERVAL '-2-3' YEAR TO MONTH",
+        ),
+        (
+            "+0-5",
+            YearMonthIntervalType.YEAR,
+            YearMonthIntervalType.MONTH,
+            "INTERVAL '0-5' YEAR TO MONTH",
+        ),
+        (
+            "+4",
+            YearMonthIntervalType.YEAR,
+            YearMonthIntervalType.MONTH,
+            "INTERVAL '4-0' YEAR TO MONTH",
+        ),
+        (
+            "-7",
+            YearMonthIntervalType.YEAR,
+            YearMonthIntervalType.MONTH,
+            "INTERVAL '-7-0' YEAR TO MONTH",
+        ),
+        (
+            "+12",
+            YearMonthIntervalType.YEAR,
+            YearMonthIntervalType.MONTH,
+            "INTERVAL '12-0' YEAR TO MONTH",
+        ),
+        (
+            "+4",
+            YearMonthIntervalType.YEAR,
+            YearMonthIntervalType.YEAR,
+            "INTERVAL '4' YEAR",
+        ),
+        (
+            "-1",
+            YearMonthIntervalType.YEAR,
+            YearMonthIntervalType.YEAR,
+            "INTERVAL '-1' YEAR",
+        ),
+        (
+            "+5",
+            YearMonthIntervalType.MONTH,
+            YearMonthIntervalType.MONTH,
+            "INTERVAL '5' MONTH",
+        ),
+        (
+            "-12",
+            YearMonthIntervalType.MONTH,
+            YearMonthIntervalType.MONTH,
+            "INTERVAL '-12' MONTH",
+        ),
+        (
+            "+5-0",
+            YearMonthIntervalType.YEAR,
+            YearMonthIntervalType.YEAR,
+            "INTERVAL '5' YEAR",
+        ),
+        (
+            "+0-3",
+            YearMonthIntervalType.MONTH,
+            YearMonthIntervalType.MONTH,
+            "INTERVAL '3' MONTH",
+        ),
+    ],
+)
+def test_format_year_month_interval_for_display(cell, start_field, end_field, expected):
+    assert (
+        format_year_month_interval_for_display(cell, start_field, end_field) == expected
     )
