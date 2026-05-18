@@ -5095,9 +5095,7 @@ class Session:
         try:
             if job is not None:
                 try:
-                    retrieved_set.update(
-                        {r[0].lower() for r in job.result()}
-                    )
+                    retrieved_set.update({r[0].lower() for r in job.result()})
                     system_fetch_succeeded = True
                 except Exception as e:
                     _logger.debug(
@@ -5170,7 +5168,6 @@ select function_name from information_schema.functions where is_aggregate = 'YES
             return
         if self._agg_function_prefetch_job is not None:
             return
-
         try:
             result = self._conn.execute_async_and_notify_query_listener(
                 """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'

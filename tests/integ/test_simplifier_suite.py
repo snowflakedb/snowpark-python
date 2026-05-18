@@ -2662,14 +2662,16 @@ def test_concurrent_retrieve_agg_waiters_no_sync_query(session, monkeypatch):
     assert not errors
     assert "sum" in context._aggregation_function_set
     assert "avg" in context._aggregation_function_set
-    assert len(sync_query_calls) == 0, (
-        f"Expected 0 sync queries from waiters, got {len(sync_query_calls)}"
-    )
+    assert (
+        len(sync_query_calls) == 0
+    ), f"Expected 0 sync queries from waiters, got {len(sync_query_calls)}"
 
 
-def test_concurrent_retrieve_agg_event_set_after_context_published(session, monkeypatch):
+def test_concurrent_retrieve_agg_event_set_after_context_published(
+    session, monkeypatch
+):
     """The fetch_event must be set only after _aggregation_function_set is published —
-    waiters must see a non-empty set the moment they wake up."""
+    waiters must see a non-empty set the moment they wake up"""
     import snowflake.snowpark.context as context
     from threading import Event as _Event
 
@@ -2696,6 +2698,6 @@ def test_concurrent_retrieve_agg_event_set_after_context_published(session, monk
     session._retrieve_aggregation_function_list()
 
     assert snapshot_at_set, "fetch_event.set() was never called"
-    assert snapshot_at_set[0], (
-        "fetch_event fired before _aggregation_function_set was published"
-    )
+    assert snapshot_at_set[
+        0
+    ], "fetch_event fired before _aggregation_function_set was published"

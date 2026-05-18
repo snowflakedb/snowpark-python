@@ -919,7 +919,6 @@ def test_retrieve_aggregation_function_list_uses_single_internal_sync_query():
         ctx._aggregation_function_set = original_agg_set
 
 
-
 def test_retrieve_agg_event_set_after_context_published(monkeypatch):
     """fetch_event.set() must be called only after _aggregation_function_set is
     populated — the original bug was setting the event before publishing."""
@@ -954,9 +953,9 @@ def test_retrieve_agg_event_set_after_context_published(monkeypatch):
     assert publish_order, "fetch_event.set() was never called"
     # At the moment event fires the set must already contain the result.
     _, snapshot = publish_order[0]
-    assert "sum" in snapshot, (
-        f"fetch_event fired before context was populated; snapshot={snapshot}"
-    )
+    assert (
+        "sum" in snapshot
+    ), f"fetch_event fired before context was populated; snapshot={snapshot}"
 
 
 def test_retrieve_agg_waiters_fall_through_on_winner_failure(monkeypatch):
@@ -1028,7 +1027,7 @@ def test_retrieve_agg_waiters_fall_through_on_winner_failure(monkeypatch):
 
 def test_retrieve_agg_event_always_set_on_base_exception(monkeypatch):
     """fetch_event.set() fires even when a BaseException escapes the async job,
-    so waiters are never left blocking until timeout."""
+    so waiters are never left blocking until timeout"""
     import snowflake.snowpark.context as ctx
     from threading import Event as _Event
 
