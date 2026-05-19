@@ -9,7 +9,7 @@ import threading
 from enum import Enum, unique
 from logging import getLogger
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, TypeVar
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.telemetry import (
@@ -47,6 +47,8 @@ except ImportError:
     PS_UTIL_AVAILABLE = False
 
 _logger = getLogger(__name__)
+
+_FuncT = TypeVar("_FuncT", bound=Callable[..., Any])
 
 
 @unique
@@ -369,7 +371,7 @@ def dfw_collect_api_telemetry(func):
     return wrap
 
 
-def df_api_usage(func):
+def df_api_usage(func: _FuncT) -> _FuncT:
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         with ResourceUsageCollector() as resource_usage_collector:
@@ -404,7 +406,7 @@ def df_api_usage(func):
     return wrap
 
 
-def df_to_relational_group_df_api_usage(func):
+def df_to_relational_group_df_api_usage(func: _FuncT) -> _FuncT:
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         with ResourceUsageCollector() as resource_usage_collector:
@@ -419,7 +421,7 @@ def df_to_relational_group_df_api_usage(func):
 
 
 # For relational-grouped dataframe
-def relational_group_df_api_usage(func):
+def relational_group_df_api_usage(func: _FuncT) -> _FuncT:
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         with ResourceUsageCollector() as resource_usage_collector:
