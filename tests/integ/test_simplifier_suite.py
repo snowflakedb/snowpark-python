@@ -2522,12 +2522,15 @@ def test_retrieving_aggregation_funcs(session, monkeypatch):
 
 
 def test_internal_async_aggregation_prefetch_submission(session, monkeypatch):
+    from threading import Event
+
     import snowflake.snowpark.context as context
 
     monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
     monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
     monkeypatch.setattr(context, "_aggregation_function_set", set())
-    session._agg_function_prefetch_job = None
+    context._aggregation_function_prefetch_state["job"] = None
+    context._aggregation_function_prefetch_state["event"] = None
 
     calls = []
 
@@ -2543,8 +2546,16 @@ def test_internal_async_aggregation_prefetch_submission(session, monkeypatch):
     assert len(calls) == 1
     assert calls[0][1].get("_is_internal") is True
     assert "show functions" in calls[0][0]
-    assert "information_schema.functions" in calls[0][0]
-    assert session._agg_function_prefetch_job.query_id == "qid_combined"
+    assert "information_schema.functions" not in calls[0][0]
+    assert (
+        context._aggregation_function_prefetch_state["job"].query_id == "qid_combined"
+    )
+
+    # Another session start during in-flight fetch should not submit another async query.
+    context._aggregation_function_prefetch_state["job"] = None
+    context._aggregation_function_prefetch_state["event"] = Event()
+    session._start_async_aggregation_prefetch_if_needed()
+    assert len(calls) == 1
 
 
 def test_aggregation_fallback_not_used_when_combined_async_succeeds(
@@ -2565,7 +2576,7 @@ def test_aggregation_fallback_not_used_when_combined_async_succeeds(
     monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
     monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
     monkeypatch.setattr(context, "_aggregation_function_set", set())
-    session._agg_function_prefetch_job = _FakeAsyncJob(rows=[("SUM",)])
+    context._aggregation_function_prefetch_state["job"] = _FakeAsyncJob(rows=[("SUM",)])
 
     session._retrieve_aggregation_function_list()
 
@@ -2579,7 +2590,8 @@ def test_internal_sync_aggregation_fallback_submission(session, monkeypatch):
     monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
     monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
     monkeypatch.setattr(context, "_aggregation_function_set", set())
-    session._agg_function_prefetch_job = None
+    context._aggregation_function_prefetch_state["job"] = None
+    context._aggregation_function_prefetch_state["event"] = None
 
     calls = []
 
@@ -2593,7 +2605,7 @@ def test_internal_sync_aggregation_fallback_submission(session, monkeypatch):
     assert len(calls) == 1
     assert calls[0][1].get("_is_internal") is True
     assert "show functions" in calls[0][0]
-    assert "information_schema.functions" in calls[0][0]
+    assert "information_schema.functions" not in calls[0][0]
     assert "avg" in context._aggregation_function_set
 
 
@@ -2607,7 +2619,7 @@ def test_concurrent_retrieve_agg_waiters_no_sync_query(session, monkeypatch):
     monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
     monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
     monkeypatch.setattr(context, "_aggregation_function_set", set())
-    session._agg_function_fetch_event = None
+    context._aggregation_function_prefetch_state["event"] = None
 
     job_may_proceed = threading.Event()
     waiter_count = [0]
@@ -2618,7 +2630,7 @@ def test_concurrent_retrieve_agg_waiters_no_sync_query(session, monkeypatch):
             job_may_proceed.wait()
             return [("SUM",), ("AVG",)]
 
-    session._agg_function_prefetch_job = SlowFakeAsyncJob()
+    context._aggregation_function_prefetch_state["job"] = SlowFakeAsyncJob()
 
     sync_query_calls = []
     original_run_query = session._conn.run_query
@@ -2678,13 +2690,13 @@ def test_concurrent_retrieve_agg_event_set_after_context_published(
     monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
     monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
     monkeypatch.setattr(context, "_aggregation_function_set", set())
-    session._agg_function_fetch_event = None
+    context._aggregation_function_prefetch_state["event"] = None
 
     class _FakeAsyncJob:
         def result(self):
             return [("SUM",)]
 
-    session._agg_function_prefetch_job = _FakeAsyncJob()
+    context._aggregation_function_prefetch_state["job"] = _FakeAsyncJob()
 
     snapshot_at_set = []
     original_event_set = _Event.set

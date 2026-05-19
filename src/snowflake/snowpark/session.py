@@ -856,12 +856,6 @@ class Session:
         self._dataframe_profiler = DataframeProfiler(session=self)
         self._catalog = None
         self._client_telemetry = EventTableTelemetry(session=self)
-        self._agg_function_prefetch_job: Optional[AsyncJob] = None
-        # Guards the one-time atomic claim of _agg_function_prefetch_job.
-        self._agg_function_prefetch_lock = RLock()
-        # Set by the thread that claimed the async job once it finishes (success or failure),
-        # so other threads can wait instead of issuing redundant sync queries.
-        self._agg_function_fetch_event: Optional[Event] = None
 
         self._ast_batch = AstBatch(self)
         self._start_async_aggregation_prefetch_if_needed()
@@ -5063,6 +5057,7 @@ class Session:
 
         retrieved_set = set()
         system_fetch_succeeded = False
+        prefetch_state = context._aggregation_function_prefetch_state
 
         # Atomically claim the async job. The claiming thread creates an Event so concurrent
         # threads can wait on it rather than issuing redundant sync queries.
@@ -5070,15 +5065,15 @@ class Session:
         # shared state (_result, _rownumber, _prefetch_hook) during result fetching, so only
         # one thread may call it. The lock is held only for the pointer swap and event setup
         # (nanoseconds), not the network call itself.
-        with self._agg_function_prefetch_lock:
-            job, self._agg_function_prefetch_job = self._agg_function_prefetch_job, None
+        with prefetch_state["lock"]:
+            job, prefetch_state["job"] = prefetch_state["job"], None
             if job is not None:
                 fetch_event = Event()
-                self._agg_function_fetch_event = fetch_event
+                prefetch_state["event"] = fetch_event
                 wait_event = None
-            elif self._agg_function_fetch_event is not None:
+            elif prefetch_state["event"] is not None:
                 fetch_event = None
-                wait_event = self._agg_function_fetch_event
+                wait_event = prefetch_state["event"]
             else:
                 fetch_event = None
                 wait_event = None
@@ -5106,24 +5101,6 @@ class Session:
                 _logger.debug(
                     "Async aggregation function prefetch job is unavailable; using sync fallback."
                 )
-                try:
-                    retrieved_set.update(
-                        {
-                            r[0].lower()
-                            for r in self._conn.run_query(
-                                """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'
-union
-select function_name from information_schema.functions where is_aggregate = 'YES'""",
-                                _is_internal=True,
-                            )["data"]
-                        }
-                    )
-                    system_fetch_succeeded = True
-                except Exception as e:
-                    _logger.debug(
-                        "Unable to get aggregation functions via sync union query: %s",
-                        e,
-                    )
 
             # Sync fallback query.
             if not system_fetch_succeeded:
@@ -5164,24 +5141,31 @@ select function_name from information_schema.functions where is_aggregate = 'YES
             and context._snowpark_connect_flatten_select_after_sort
         ):
             return
-        if context._aggregation_function_set:
-            return
-        if self._agg_function_prefetch_job is not None:
-            return
-        try:
-            result = self._conn.execute_async_and_notify_query_listener(
-                """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'
-union
-select function_name from information_schema.functions where is_aggregate = 'YES'""",
-                _is_internal=True,
-            )
-            self._agg_function_prefetch_job = self.create_async_job(result["queryId"])
-        except Exception as e:  # pragma: no cover
-            _logger.debug(
-                "Unable to start async aggregation metadata prefetch: %s",
-                e,
-            )
-            self._agg_function_prefetch_job = None
+        prefetch_state = context._aggregation_function_prefetch_state
+        with prefetch_state["lock"]:
+            if context._aggregation_function_set:
+                return
+            if prefetch_state["job"] is not None:
+                return
+            # A winner thread has already claimed the async job and is still publishing results.
+            # Do not start a new async query while that in-flight fetch is unfinished.
+            if (
+                prefetch_state["event"] is not None
+                and not prefetch_state["event"].is_set()
+            ):
+                return
+            try:
+                result = self._conn.execute_async_and_notify_query_listener(
+                    """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'""",
+                    _is_internal=True,
+                )
+                prefetch_state["job"] = self.create_async_job(result["queryId"])
+            except Exception as e:  # pragma: no cover
+                _logger.debug(
+                    "Unable to start async aggregation metadata prefetch: %s",
+                    e,
+                )
+                prefetch_state["job"] = None
 
     def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
         """

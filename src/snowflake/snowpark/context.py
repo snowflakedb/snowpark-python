@@ -6,7 +6,7 @@
 """Context module for Snowpark."""
 import logging
 import sys
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import snowflake.snowpark
 import threading
@@ -45,6 +45,11 @@ _aggregation_function_set = (
     set()
 )  # lower cased names of aggregation functions, used in sql simplification
 _aggregation_function_set_lock = threading.RLock()
+_aggregation_function_prefetch_state: dict[str, Any] = {
+    "lock": threading.RLock(),
+    "event": None,
+    "job": None,
+}
 
 # Hardcoded fallback for system built-in aggregation functions.
 # Used when the dynamic query fails to retrieve the list from the database.

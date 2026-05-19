@@ -823,10 +823,11 @@ def test_retrieve_aggregation_function_list_handles_async_error():
         ctx._is_snowpark_connect_compatible_mode = True
         ctx._snowpark_connect_flatten_select_after_sort = True
         ctx._aggregation_function_set = set()
+        ctx._aggregation_function_prefetch_state["event"] = None
 
         fake_async_job = MagicMock()
         fake_async_job.result.side_effect = RuntimeError("async query failed")
-        session._agg_function_prefetch_job = fake_async_job
+        ctx._aggregation_function_prefetch_state["job"] = fake_async_job
 
         def run_query_side_effect(query, **kwargs):
             assert kwargs.get("_is_internal") is True
@@ -894,6 +895,8 @@ def test_retrieve_aggregation_function_list_uses_single_internal_sync_query():
         ctx._is_snowpark_connect_compatible_mode = True
         ctx._snowpark_connect_flatten_select_after_sort = True
         ctx._aggregation_function_set = set()
+        ctx._aggregation_function_prefetch_state["event"] = None
+        ctx._aggregation_function_prefetch_state["job"] = None
 
         called_queries = []
 
@@ -911,7 +914,7 @@ def test_retrieve_aggregation_function_list_uses_single_internal_sync_query():
 
         assert len(called_queries) == 1
         assert "show functions" in called_queries[0]
-        assert "information_schema.functions" in called_queries[0]
+        assert "information_schema.functions" not in called_queries[0]
         assert "sum" in ctx._aggregation_function_set
     finally:
         ctx._is_snowpark_connect_compatible_mode = original_compat
@@ -928,7 +931,7 @@ def test_retrieve_agg_event_set_after_context_published(monkeypatch):
     fake_conn = mock.create_autospec(ServerConnection)
     fake_conn._thread_safe_session_enabled = True
     session = Session(fake_conn)
-    session._agg_function_fetch_event = None
+    ctx._aggregation_function_prefetch_state["event"] = None
 
     monkeypatch.setattr(ctx, "_is_snowpark_connect_compatible_mode", True)
     monkeypatch.setattr(ctx, "_snowpark_connect_flatten_select_after_sort", True)
@@ -938,7 +941,7 @@ def test_retrieve_agg_event_set_after_context_published(monkeypatch):
         def result(self):
             return [("SUM",)]
 
-    session._agg_function_prefetch_job = TrackingAsyncJob()
+    ctx._aggregation_function_prefetch_state["job"] = TrackingAsyncJob()
 
     publish_order = []
     original_set = _Event.set
@@ -968,7 +971,7 @@ def test_retrieve_agg_waiters_fall_through_on_winner_failure(monkeypatch):
     fake_conn = mock.create_autospec(ServerConnection)
     fake_conn._thread_safe_session_enabled = True
     session = Session(fake_conn)
-    session._agg_function_fetch_event = None
+    ctx._aggregation_function_prefetch_state["event"] = None
 
     monkeypatch.setattr(ctx, "_is_snowpark_connect_compatible_mode", True)
     monkeypatch.setattr(ctx, "_snowpark_connect_flatten_select_after_sort", True)
@@ -982,7 +985,7 @@ def test_retrieve_agg_waiters_fall_through_on_winner_failure(monkeypatch):
             job_may_proceed.wait()
             raise RuntimeError("async job failed")
 
-    session._agg_function_prefetch_job = FailingAsyncJob()
+    ctx._aggregation_function_prefetch_state["job"] = FailingAsyncJob()
 
     sync_query_calls = []
 
@@ -1034,7 +1037,7 @@ def test_retrieve_agg_event_always_set_on_base_exception(monkeypatch):
     fake_conn = mock.create_autospec(ServerConnection)
     fake_conn._thread_safe_session_enabled = True
     session = Session(fake_conn)
-    session._agg_function_fetch_event = None
+    ctx._aggregation_function_prefetch_state["event"] = None
 
     monkeypatch.setattr(ctx, "_is_snowpark_connect_compatible_mode", True)
     monkeypatch.setattr(ctx, "_snowpark_connect_flatten_select_after_sort", True)
@@ -1044,7 +1047,7 @@ def test_retrieve_agg_event_always_set_on_base_exception(monkeypatch):
         def result(self):
             raise KeyboardInterrupt()
 
-    session._agg_function_prefetch_job = KeyboardInterruptJob()
+    ctx._aggregation_function_prefetch_state["job"] = KeyboardInterruptJob()
 
     event_was_set = []
     original_set = _Event.set
