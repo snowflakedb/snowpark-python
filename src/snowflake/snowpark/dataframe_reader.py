@@ -125,6 +125,7 @@ _TIME_TRAVEL_OPTIONS_PARAMS_MAP = {
     "TIMESTAMP": "timestamp",
     "TIMESTAMP_TYPE": "timestamp_type",
     "STREAM": "stream",
+    "VERSION": "version",
 }
 
 READER_OPTIONS_ALIAS_MAP = {
@@ -162,6 +163,13 @@ def _extract_time_travel_from_options(options: dict) -> dict:
     - Automatically sets time_travel_mode to 'at'
     - Cannot be used with time_travel_mode='before' (raises error)
     - Cannot be mixed with regular 'timestamp' option (raises error)
+
+    Special handling for 'SNAPSHOT-ID' / 'SNAPSHOT_ID' (Spark Iceberg
+    compatibility) — both aliases of the Snowpark ``version`` kwarg:
+    - Automatically sets time_travel_mode to 'at'
+      (Iceberg snapshot ids only support ``AT(VERSION => N)``, not ``BEFORE``)
+    - Cannot be used with time_travel_mode='before' (raises error)
+    - Cannot be mixed with explicit ``version`` option (raises error)
     """
     result = {}
     excluded_keys = set()
@@ -182,6 +190,33 @@ def _extract_time_travel_from_options(options: dict) -> dict:
         result["time_travel_mode"] = "at"
         result["timestamp"] = options["AS-OF-TIMESTAMP"]
         excluded_keys.add("TIMESTAMP")
+
+    # Handle Spark Iceberg snapshot-id option (aliased to ``version``)
+    snapshot_id_value = options.get("SNAPSHOT-ID")
+    if snapshot_id_value is None:
+        snapshot_id_value = options.get("SNAPSHOT_ID")
+    if snapshot_id_value is not None:
+        if (
+            "TIME_TRAVEL_MODE" in options
+            and options["TIME_TRAVEL_MODE"].lower() == "before"
+        ):
+            raise ValueError(
+                "Cannot use 'snapshot-id' option with time_travel_mode='before'. "
+                "Iceberg snapshot id time travel only supports time_travel_mode='at'."
+            )
+        if "VERSION" in options:
+            raise ValueError("Cannot use both 'snapshot-id' and 'version' options.")
+        # Coerce string snapshot ids (Spark accepts both string and long literals
+        # via .option(); we normalize to int so the SQL emits an unquoted long).
+        try:
+            result["version"] = int(snapshot_id_value)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"'snapshot-id' must be a 64-bit integer Iceberg snapshot id, "
+                f"got {snapshot_id_value!r}."
+            )
+        result["time_travel_mode"] = "at"
+        excluded_keys.add("VERSION")
 
     for option_key, param_name in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items():
         if option_key in options and option_key not in excluded_keys:
@@ -549,6 +584,7 @@ class DataFrameReader:
         timestamp: Optional[Union[str, datetime]] = None,
         timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
+        version: Optional[int] = None,
     ) -> Table:
         """Returns a Table that points to the specified table.
 
@@ -568,6 +604,11 @@ class DataFrameReader:
             timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
                 Can also be set via ``option("timestamp_type", "LTZ")``.
             stream: Stream name for time travel. Can also be set via ``option("stream", "stream_name")``.
+            version: Iceberg snapshot id (64-bit integer) for snapshot-based time
+                travel on Iceberg tables. Can also be set via
+                ``option("snapshot-id", 5129038471029384756)`` (Spark Iceberg
+                naming) or ``option("version", 5129038471029384756)``.
+                Automatically sets time_travel_mode='at'.
 
         Note:
             Time travel options can be set either as direct parameters or via the
@@ -576,6 +617,9 @@ class DataFrameReader:
 
             PySpark Compatibility: The ``as-of-timestamp`` option automatically sets
             ``time_travel_mode="at"`` and cannot be used with ``time_travel_mode="before"``.
+
+            Spark Iceberg Compatibility: The ``snapshot-id`` option automatically sets
+            ``time_travel_mode="at"`` for snapshot-id-based time travel.
 
         Examples::
 
@@ -590,6 +634,9 @@ class DataFrameReader:
 
             # PySpark-style as-of-timestamp (automatically sets mode to "at")
             >>> table = session.read.option("as-of-timestamp", "2023-01-01 12:00:00").table("my_table")  # doctest: +SKIP
+
+            # Spark Iceberg snapshot-id time travel (automatically sets mode to "at")
+            >>> table = session.read.option("snapshot-id", 5129038471029384756).table("my_iceberg_table")  # doctest: +SKIP
 
             # timestamp_type automatically set to "TZ" due to timezone info
             >>> import datetime, pytz  # doctest: +SKIP
@@ -625,15 +672,25 @@ class DataFrameReader:
                 ast.timestamp_type.value = str(timestamp_type)
             if stream is not None:
                 ast.stream.value = stream
+            if version is not None and hasattr(ast, "version"):
+                ast.version.value = version
 
-        if time_travel_mode is not None:
+        if time_travel_mode is not None or version is not None:
+            # If version is provided without mode, default to 'at' (snapshot ids
+            # only make sense with AT — symmetric with iceberg_tag handling).
+            effective_mode = (
+                time_travel_mode
+                if time_travel_mode
+                else ("at" if version is not None else None)
+            )
             time_travel_params = {
-                "time_travel_mode": time_travel_mode,
+                "time_travel_mode": effective_mode,
                 "statement": statement,
                 "offset": offset,
                 "timestamp": timestamp,
                 "timestamp_type": timestamp_type,
                 "stream": stream,
+                "version": version,
             }
         else:
             # if time_travel_mode is not provided, extract time travel config from options
@@ -1163,10 +1220,16 @@ class DataFrameReader:
             - ``timestamp``: Specific timestamp for time travel
             - ``timestamp_type``: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
             - ``stream``: Stream name for time travel.
+            - ``version``: Iceberg snapshot id (64-bit integer) for snapshot-based time travel.
 
         Special PySpark compatibility option:
             - ``as-of-timestamp``: Automatically sets ``time_travel_mode`` to "at" and uses the
               provided timestamp. Cannot be used with ``time_travel_mode="before"``.
+
+        Special Spark Iceberg compatibility option:
+            - ``snapshot-id`` (or ``snapshot_id``): Aliased to ``version``. Automatically sets
+              ``time_travel_mode`` to "at" and reads the table at the specified Iceberg snapshot
+              id. Cannot be used with ``time_travel_mode="before"``.
 
         Args:
             key: Name of the option (e.g. ``compression``, ``skip_header``, ``time_travel_mode``, etc.).

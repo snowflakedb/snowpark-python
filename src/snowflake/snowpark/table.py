@@ -301,6 +301,7 @@ class Table(DataFrame):
         timestamp: Optional[Union[str, datetime.datetime]] = None,
         timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
+        version: Optional[int] = None,
     ) -> None:
         if _ast_stmt is None and session is not None and _emit_ast:
             _ast_stmt = session._ast_batch.bind()
@@ -320,6 +321,11 @@ class Table(DataFrame):
                 ast.timestamp_type.value = str(timestamp_type)
             if stream is not None:
                 ast.stream.value = stream
+            # Guard with hasattr — the AST proto field is added in a separate
+            # proto change. Without it we still produce correct SQL; only AST
+            # replay/telemetry would lack the version value.
+            if version is not None and hasattr(ast, "version"):
+                ast.version.value = version
 
         time_travel_config = TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode=time_travel_mode,
@@ -328,6 +334,7 @@ class Table(DataFrame):
             timestamp=timestamp,
             timestamp_type=timestamp_type,
             stream=stream,
+            version=version,
         )
 
         snowflake_table_plan = SnowflakeTable(

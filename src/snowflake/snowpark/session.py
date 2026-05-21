@@ -2728,6 +2728,7 @@ class Session:
         timestamp: Optional[Union[str, datetime.datetime]] = None,
         timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
+        version: Optional[int] = None,
     ) -> Table:
         """
         Returns a Table that points the specified table.
@@ -2739,12 +2740,16 @@ class Session:
             _emit_ast: Whether to emit AST statements.
 
             time_travel_mode: Time travel mode, either 'at' or 'before'.
-                Exactly one of statement, offset, timestamp, or stream must be provided when time_travel_mode is set.
+                Exactly one of statement, offset, timestamp, stream, or version must be provided when time_travel_mode is set.
             statement: Query ID for time travel.
             offset: Negative integer representing seconds in the past for time travel.
             timestamp: Timestamp string or datetime object.
             timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
             stream: Stream name for time travel.
+            version: Iceberg snapshot id (64-bit integer) for snapshot-based time
+                travel on Iceberg tables. Can only be used with
+                ``time_travel_mode='at'``. Generates SQL clause like
+                ``AT(VERSION => 5129038471029384756)``.
 
             Note:
                 If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.
@@ -2766,6 +2771,7 @@ class Session:
             >>> df_before = session.table("my_table", time_travel_mode="before", statement="01234567-abcd-1234-5678-123456789012") # doctest: +SKIP
             >>> df_offset = session.table("my_table", time_travel_mode="at", offset=-3600) # doctest: +SKIP
             >>> df_stream = session.table("my_table", time_travel_mode="at", stream="my_stream") # doctest: +SKIP
+            >>> df_iceberg_version = session.table("my_iceberg_table", time_travel_mode="at", version=5129038471029384756) # doctest: +SKIP
 
             # timestamp_type automatically set to "TZ" due to timezone info
             >>> import datetime, pytz  # doctest: +SKIP
@@ -2793,6 +2799,8 @@ class Session:
                 ast.timestamp_type.value = str(timestamp_type)
             if stream is not None:
                 ast.stream.value = stream
+            if version is not None and hasattr(ast, "version"):
+                ast.version.value = version
         else:
             stmt = None
 
@@ -2811,6 +2819,7 @@ class Session:
             timestamp=timestamp,
             timestamp_type=timestamp_type,
             stream=stream,
+            version=version,
         )
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")

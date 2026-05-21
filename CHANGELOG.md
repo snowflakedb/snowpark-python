@@ -4,6 +4,13 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added support for Iceberg snapshot id time travel via the `version` parameter
+  (or `option("snapshot-id", N)` / `option("snapshot_id", N)` for Spark Iceberg
+  compatibility) on `Session.table` and `DataFrameReader.table`. Generates
+  `AT(VERSION => <snapshot_id>)` SQL. Only works with `time_travel_mode="at"`.
+
 #### Documentation
 
 - Clarified that the JDBC driver JAR referenced via `udtf_configs.imports` in `DataFrameReader.jdbc()` must be downloaded from the database vendor and uploaded to a Snowflake stage.
