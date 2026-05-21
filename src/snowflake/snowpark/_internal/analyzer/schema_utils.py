@@ -1,7 +1,9 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import re
 import traceback
+from collections.abc import Hashable
 from typing import TYPE_CHECKING, List, Union, Optional, Sequence, Any
 
 import snowflake.snowpark
@@ -23,6 +25,41 @@ if TYPE_CHECKING:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
         ResultMetadataV2 = ResultMetadata
+
+_GENERATED_COLUMN_SUFFIX_PATTERN = re.compile(
+    r"-[0-9a-f]{8}-(\d+)(?=\")", re.IGNORECASE
+)
+
+
+def _normalize_generated_identifiers_in_sql(sql: str) -> str:
+    """Normalize generated Snowpark/SCOS column suffixes in SQL text."""
+    return _GENERATED_COLUMN_SUFFIX_PATTERN.sub(r"-_generated_-\1", sql)
+
+
+def _freeze_for_cache_key(value: Any) -> Any:
+    """Convert potentially unhashable values into hashable cache-key components."""
+    if isinstance(value, dict):
+        return tuple(sorted((k, _freeze_for_cache_key(v)) for k, v in value.items()))
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_for_cache_key(v) for v in value)
+    if isinstance(value, set):
+        return tuple(sorted(_freeze_for_cache_key(v) for v in value))
+    if isinstance(value, Hashable):
+        return value
+    return repr(value)
+
+
+def get_analyze_attributes_cache_key(
+    sql: str,
+    session: "snowflake.snowpark.session.Session",
+    query_params: Optional[Sequence[Any]] = None,
+) -> tuple[Any, Any, Any]:
+    """Build a stable cache key for schema analysis across equivalent plan instances."""
+    return (
+        getattr(session, "_session_id", None),
+        _normalize_generated_identifiers_in_sql(sql),
+        _freeze_for_cache_key(query_params),
+    )
 
 
 def command_attributes() -> List[Attribute]:
@@ -119,8 +156,13 @@ def analyze_attributes(
 
 @ttl_cache(ttl_seconds=15)
 def cached_analyze_attributes(
-    sql: str, session: "snowflake.snowpark.session.Session", dataframe_uuid: Optional[str] = None, query_params: Optional[Sequence[Any]] = None  # type: ignore
+    cache_key: tuple[Any, Any, Any],
+    sql: str,
+    session: "snowflake.snowpark.session.Session",
+    dataframe_uuid: Optional[str] = None,
+    query_params: Optional[Sequence[Any]] = None,  # type: ignore
 ) -> List[Attribute]:
+    _ = cache_key
     return analyze_attributes(sql, session, dataframe_uuid, query_params)
 
 
