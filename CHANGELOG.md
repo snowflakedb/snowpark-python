@@ -1,5 +1,13 @@
 # Release History
 
+## Unreleased
+
+### Snowpark Python API Updates
+
+#### Documentation
+
+- Clarified that the JDBC driver JAR referenced via `udtf_configs.imports` in `DataFrameReader.jdbc()` must be downloaded from the database vendor and uploaded to a Snowflake stage.
+
 ## 1.51.0 (2026-05-18)
 
 ### Snowpark Python API Updates
