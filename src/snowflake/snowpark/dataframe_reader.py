@@ -1894,6 +1894,8 @@ class DataFrameReader:
 
                 - imports (List[str], required): A list of stage file names to import into the UDTF.
                     Please include Jar file of jdbc driver to establish connection to external data source.
+                    Download the driver JAR from the database vendor and upload it to a Snowflake stage
+                    before referencing it here.
 
                 - java_version (int, optional): A integer that indicate the java runtime version of udtf.
                     By default, we use java 17.
