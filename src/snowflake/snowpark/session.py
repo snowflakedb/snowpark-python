@@ -5046,14 +5046,15 @@ class Session:
 
     def _retrieve_aggregation_function_list(self) -> None:
         """Retrieve the list of aggregation functions which will later be used in sql simplifier."""
-        if (
-            not (
-                context._is_snowpark_connect_compatible_mode
-                and context._snowpark_connect_flatten_select_after_sort
-            )
-            or context._aggregation_function_set
+        if not (
+            context._is_snowpark_connect_compatible_mode
+            and context._snowpark_connect_flatten_select_after_sort
         ):
             return
+
+        with context._aggregation_function_set_lock:
+            if context._aggregation_function_set:
+                return
 
         retrieved_set = set()
         system_fetch_succeeded = False
@@ -5083,8 +5084,9 @@ class Session:
             # bounding the hang in the rare case the winner thread dies before its
             # finally block runs (e.g. os._exit, interpreter shutdown).
             wait_event.wait(timeout=20)
-            if context._aggregation_function_set:
-                return
+            with context._aggregation_function_set_lock:
+                if context._aggregation_function_set:
+                    return
             # Winner failed or timed out; fall through to sync query.
 
         try:
@@ -5143,8 +5145,9 @@ class Session:
             return
         prefetch_state = context._aggregation_function_prefetch_state
         with prefetch_state["lock"]:
-            if context._aggregation_function_set:
-                return
+            with context._aggregation_function_set_lock:
+                if context._aggregation_function_set:
+                    return
             if prefetch_state["job"] is not None:
                 return
             # A winner thread has already claimed the async job and is still publishing results.
