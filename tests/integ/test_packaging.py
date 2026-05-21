@@ -11,6 +11,7 @@ import tempfile
 from unittest.mock import patch
 
 import pytest
+from packaging.version import Version
 
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.packaging_utils import (
@@ -49,6 +50,14 @@ try:
     is_pandas_and_numpy_available = True
 except ImportError:
     is_pandas_and_numpy_available = False
+
+
+def assert_numpy_and_pandas_version_pair(
+    version_pair: str, expected_numpy_ver: str
+) -> None:
+    numpy_ver, pandas_ver = version_pair.split("/", 1)
+    assert numpy_ver == expected_numpy_ver
+    assert Version(pandas_ver) < Version("4")
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -196,14 +205,14 @@ def test_add_packages(session, local_testing_mode):
     session.add_packages(
         [
             numpy_version,
-            "pandas==2.3.3",
+            "pandas<4",
             "matplotlib",
             "pyyaml",
         ]
     )
     assert session.get_packages() == {
         "numpy": numpy_version,
-        "pandas": "pandas==2.3.3",
+        "pandas": "pandas<4",
         "matplotlib": "matplotlib",
         "pyyaml": "pyyaml",
     }
@@ -219,11 +228,12 @@ def test_add_packages(session, local_testing_mode):
     res = df.select(call_udf(udf_name)).collect()[0][0]
     # don't need to check the version of dateutil, as it can be changed on the server side
     expected_numpy_ver = "2.3.5" if sys.version_info >= (3, 13) else "1.26.3"
-    assert (
-        res.startswith(f"{expected_numpy_ver}/2.3.3")
-        if not local_testing_mode
-        else res == get_numpy_pandas_dateutil_version()
-    )
+    if local_testing_mode:
+        assert res == get_numpy_pandas_dateutil_version()
+    else:
+        numpy_ver, pandas_ver, _ = res.split("/", 2)
+        assert numpy_ver == expected_numpy_ver
+        assert Version(pandas_ver) < Version("4")
 
     # only add pyyaml, which will overwrite the previously added packages
     # so matplotlib will not be available on the server side
@@ -447,7 +457,7 @@ def test_add_requirements(session, resources_path, local_testing_mode):
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
         "numpy": "numpy==2.3.5" if sys.version_info >= (3, 13) else "numpy==1.26.3",
-        "pandas": "pandas==2.3.3",
+        "pandas": "pandas<4",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -459,12 +469,11 @@ def test_add_requirements(session, resources_path, local_testing_mode):
     df = session.create_dataframe([None]).to_df("a")
     res = df.select(call_udf(udf_name))
     expected_numpy_ver = "2.3.5" if sys.version_info >= (3, 13) else "1.26.3"
-    Utils.check_answer(
-        res,
-        [Row(f"{expected_numpy_ver}/2.3.3")]
-        if not local_testing_mode
-        else [Row(f"{numpy.__version__}/{pandas.__version__}")],
-    )
+    if local_testing_mode:
+        Utils.check_answer(res, [Row(f"{numpy.__version__}/{pandas.__version__}")])
+    else:
+        version_pair = res.collect()[0][0]
+        assert_numpy_and_pandas_version_pair(version_pair, expected_numpy_ver)
 
 
 def test_add_requirements_twice_should_fail_if_packages_are_different(
@@ -475,7 +484,7 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
         "numpy": f"numpy=={expected_numpy_ver}",
-        "pandas": "pandas==2.3.3",
+        "pandas": "pandas<4",
     }
 
     with pytest.raises(ValueError, match="Cannot add package"):
@@ -968,7 +977,7 @@ def test_add_requirements_with_empty_stage_as_cache_path(
     expected_numpy_ver = "2.3.5" if sys.version_info >= (3, 13) else "1.26.3"
     assert session.get_packages() == {
         "numpy": f"numpy=={expected_numpy_ver}",
-        "pandas": "pandas==2.3.3",
+        "pandas": "pandas<4",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
