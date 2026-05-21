@@ -1,2 +1,2 @@
 numpy==1.26.3
-pandas<4
+pandas<3.1

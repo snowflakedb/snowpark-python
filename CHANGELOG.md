@@ -12,7 +12,7 @@
 
 #### Dependency Updates
 
-- Relaxed the `pandas` dependency ceiling for Snowpark pandas extras to `<4`.
+- Relaxed the `pandas` dependency ceiling for Snowpark pandas extras to `<3.1`.
 
 ## 1.51.0 (2026-05-18)
 

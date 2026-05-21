@@ -57,7 +57,7 @@ def assert_numpy_and_pandas_version_pair(
 ) -> None:
     numpy_ver, pandas_ver = version_pair.split("/", 1)
     assert numpy_ver == expected_numpy_ver
-    assert Version(pandas_ver) < Version("4")
+    assert Version(pandas_ver) < Version("3.1")
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -205,14 +205,14 @@ def test_add_packages(session, local_testing_mode):
     session.add_packages(
         [
             numpy_version,
-            "pandas<4",
+            "pandas<3.1",
             "matplotlib",
             "pyyaml",
         ]
     )
     assert session.get_packages() == {
         "numpy": numpy_version,
-        "pandas": "pandas<4",
+        "pandas": "pandas<3.1",
         "matplotlib": "matplotlib",
         "pyyaml": "pyyaml",
     }
@@ -233,7 +233,7 @@ def test_add_packages(session, local_testing_mode):
     else:
         numpy_ver, pandas_ver, _ = res.split("/", 2)
         assert numpy_ver == expected_numpy_ver
-        assert Version(pandas_ver) < Version("4")
+        assert Version(pandas_ver) < Version("3.1")
 
     # only add pyyaml, which will overwrite the previously added packages
     # so matplotlib will not be available on the server side
@@ -457,7 +457,7 @@ def test_add_requirements(session, resources_path, local_testing_mode):
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
         "numpy": "numpy==2.3.5" if sys.version_info >= (3, 13) else "numpy==1.26.3",
-        "pandas": "pandas<4",
+        "pandas": "pandas<3.1",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -484,7 +484,7 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
         "numpy": f"numpy=={expected_numpy_ver}",
-        "pandas": "pandas<4",
+        "pandas": "pandas<3.1",
     }
 
     with pytest.raises(ValueError, match="Cannot add package"):
@@ -977,7 +977,7 @@ def test_add_requirements_with_empty_stage_as_cache_path(
     expected_numpy_ver = "2.3.5" if sys.version_info >= (3, 13) else "1.26.3"
     assert session.get_packages() == {
         "numpy": f"numpy=={expected_numpy_ver}",
-        "pandas": "pandas<4",
+        "pandas": "pandas<3.1",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
