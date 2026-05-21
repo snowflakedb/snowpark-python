@@ -64,7 +64,7 @@ class _SnowflakeSecrets(ABC):
 
     @abstractmethod
     def get_wif_token(self, secret_name: str, audience: str) -> str:
-        pass
+        pass  # pragma: no cover
 
 
 class _SnowflakeSecretsServer(_SnowflakeSecrets):
