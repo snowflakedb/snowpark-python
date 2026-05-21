@@ -1,5 +1,13 @@
 # Release History
 
+## 1.52.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where `cloudpickle` could not be resolved when registering a Python stored procedure or UDF with `runtime_version='3.13'`.
+
 ## 1.51.0 (2026-05-18)
 
 ### Snowpark Python API Updates

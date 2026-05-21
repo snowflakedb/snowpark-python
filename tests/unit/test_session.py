@@ -870,6 +870,17 @@ def test_retrieve_aggregation_function_list_handles_system_error():
         ctx._aggregation_function_set = original_agg_set
 
 
+def test_get_req_identifiers_list_uses_ge_for_modules(mock_server_connection):
+    """Modules (cloudpickle) are injected with >= not == to allow the server to
+    resolve a compatible version for the target runtime (SNOW-3081273)."""
+    import cloudpickle as cp
+
+    session = Session(mock_server_connection)
+    result = session._get_req_identifiers_list([cp], {})
+    assert result == [f"cloudpickle>={cp.__version__}"]
+    assert f"cloudpickle=={cp.__version__}" not in result
+
+
 def test_retrieve_aggregation_function_list_handles_both_errors():
     """When both aggregation function queries fail, the hardcoded fallback
     set is still populated."""

@@ -2736,3 +2736,27 @@ def test_data_source_udtf_ingestion(db_parameters):
             ]
 
         assert normalize(df.collect()) == normalize(oracledb_real_data)
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="not supported in stored proc")
+def test_sproc_runtime_313_cloudpickle_ge_spec_compiles_and_executes(session):
+    """Regression test for SNOW-3081273.
+
+    Verifies that a sproc targeting Python 3.13 deploys and executes correctly
+    even when the local cloudpickle version differs from the server-resolved one.
+    The auto-injected cloudpickle>=X spec must satisfy the 3.13 channel.
+    """
+    multiplier = 7
+
+    def multiply(session_: Session, x: int) -> int:
+        return x * multiplier
+
+    sp = session.sproc.register(
+        multiply,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        packages=["snowflake-snowpark-python"],
+        runtime_version="3.13",
+        is_permanent=False,
+    )
+    assert sp(6) == 42
