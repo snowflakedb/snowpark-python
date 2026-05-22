@@ -158,14 +158,15 @@ def test_get_nonexistent_secret(session, db_parameters):
     reason="Secret API is only supported on Snowflake server environment",
 )
 def test_get_wif_token_udf(session, db_parameters):
-    def get_wif():
-        token = get_wif_token("cred", db_parameters["wif_audience"])
-        return len(token) > 0
-
     try:
+        wif_audience = db_parameters["wif_audience"]
+
+        def get_wif():
+            return get_wif_token("cred", wif_audience)
+
         get_wif_udf = session.udf.register(
             get_wif,
-            return_type=BooleanType(),
+            return_type=StringType(),
             packages=["snowflake-snowpark-python"],
             external_access_integrations=[
                 db_parameters["external_access_integration4"]
@@ -173,7 +174,12 @@ def test_get_wif_token_udf(session, db_parameters):
             secrets={"cred": f"{db_parameters['external_access_key4']}"},
         )
         df = session.create_dataframe([[1], [2]]).to_df("x")
-        Utils.check_answer(df.select(get_wif_udf()), [Row(True), Row(True)])
+        rows = df.select(get_wif_udf()).collect()
+        for row in rows:
+            token = row[0]
+            assert (
+                isinstance(token, str) and len(token.split(".")) == 3
+            ), f"expected JWT-shaped token (header.payload.signature), got {token!r}"
     except KeyError:
         pytest.skip("External Access Integration is not supported on the deployment.")
 
@@ -183,14 +189,15 @@ def test_get_wif_token_udf(session, db_parameters):
     reason="Secret API is only supported on Snowflake server environment",
 )
 def test_get_wif_token_sproc(session, db_parameters):
-    def get_wif_in_sproc(session_):
-        token = get_wif_token("cred", db_parameters["wif_audience"])
-        return len(token) > 0
-
     try:
+        wif_audience = db_parameters["wif_audience"]
+
+        def get_wif_in_sproc(session_):
+            return get_wif_token("cred", wif_audience)
+
         get_wif_sp = session.sproc.register(
             get_wif_in_sproc,
-            return_type=BooleanType(),
+            return_type=StringType(),
             packages=["snowflake-snowpark-python"],
             external_access_integrations=[
                 db_parameters["external_access_integration4"]
@@ -198,7 +205,10 @@ def test_get_wif_token_sproc(session, db_parameters):
             secrets={"cred": f"{db_parameters['external_access_key4']}"},
             anonymous=True,
         )
-        assert get_wif_sp()
+        token = get_wif_sp()
+        assert (
+            isinstance(token, str) and len(token.split(".")) == 3
+        ), f"expected JWT-shaped token (header.payload.signature), got {token!r}"
     except KeyError:
         pytest.skip("External Access Integration is not supported on the deployment.")
 

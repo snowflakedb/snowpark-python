@@ -161,7 +161,8 @@ def set_up_external_access_integration_resources(
         ).collect()
         session.sql(
             f"""
-    CREATE IF NOT EXISTS EXTERNAL ACCESS INTEGRATION {integration4}
+    CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS {integration4}
+      ALLOWED_NETWORK_RULES = ({rule1})
       ALLOWED_AUTHENTICATION_SECRETS = ({key4})
       ENABLED = true;
     """
