@@ -155,7 +155,7 @@ def analyze_attributes(
 
 
 @ttl_cache(ttl_seconds=15)
-def cached_analyze_attributes(
+def _cached_analyze_attributes_with_key(
     cache_key: tuple[Any, Any, Any],
     sql: str,
     session: "snowflake.snowpark.session.Session",
@@ -164,6 +164,32 @@ def cached_analyze_attributes(
 ) -> List[Attribute]:
     _ = cache_key
     return analyze_attributes(sql, session, dataframe_uuid, query_params)
+
+
+def cached_analyze_attributes(
+    sql: str,
+    session: "snowflake.snowpark.session.Session",
+    dataframe_uuid: Optional[str] = None,
+    query_params: Optional[Sequence[Any]] = None,  # type: ignore
+) -> List[Attribute]:
+    """
+    Cached variant of analyze_attributes.
+
+    The public signature intentionally matches analyze_attributes so existing call
+    sites/tests that monkeypatch cached_analyze_attributes continue to work.
+    """
+    return _cached_analyze_attributes_with_key(
+        get_analyze_attributes_cache_key(sql, session, query_params),
+        sql,
+        session,
+        dataframe_uuid,
+        query_params,
+    )
+
+
+# expose cache helpers for tests/introspection parity with @ttl_cache wrappers
+cached_analyze_attributes._cache = _cached_analyze_attributes_with_key._cache  # type: ignore[attr-defined]
+cached_analyze_attributes.clear_cache = _cached_analyze_attributes_with_key.clear_cache  # type: ignore[attr-defined]
 
 
 def convert_result_meta_to_attribute(

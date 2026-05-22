@@ -105,7 +105,6 @@ from snowflake.snowpark._internal.analyzer.metadata_utils import (
 from snowflake.snowpark._internal.analyzer.schema_utils import (
     analyze_attributes,
     cached_analyze_attributes,
-    get_analyze_attributes_cache_key,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     DynamicTableCreateMode,
@@ -603,9 +602,6 @@ class SnowflakePlan(LogicalPlan):
         query_params = getattr(self.source_plan, "query_params", None)
         if self.session.reduce_describe_query_enabled:
             return cached_analyze_attributes(
-                get_analyze_attributes_cache_key(
-                    self.schema_query, self.session, query_params
-                ),
                 self.schema_query,
                 self.session,
                 self.uuid,
