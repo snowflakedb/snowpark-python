@@ -446,6 +446,17 @@ class TestListNameParquetPath:
             written, native_df.rename(str, axis=1)
         )
 
+    def test_too_many_parts_raises(self, test_table_name):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        with SqlCounter(query_count=0):
+            with pytest.raises(ValueError, match="at most 3 parts"):
+                df.to_snowflake(
+                    ["extra", "db", "schema", test_table_name],
+                    if_exists="replace",
+                    index=False,
+                )
+
     def test_str_name_parquet_path(self, test_table_name):
         native_df = native_pd.DataFrame({"a": [1]})
         df = pd.DataFrame(native_df)

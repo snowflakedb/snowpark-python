@@ -824,6 +824,10 @@ def pandas_to_snowflake(
         )
 
     name_parts = [name] if isinstance(name, str) else list(name)
+    if len(name_parts) > 3:
+        raise ValueError(
+            f"name must have at most 3 parts (database, schema, table), got {len(name_parts)}: {name_parts}"
+        )
     table_name_converted = _convert_to_snowflake_table_name_to_write_pandas_table_name(
         name_parts[-1]
     )
