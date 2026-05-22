@@ -719,6 +719,14 @@ class Session:
         # (SAS / snowpark-connect enables this during session configuration.)
         self._use_structured_type_infer_schema: bool = False
 
+        # Umbrella flag for Iceberg-specific Snowpark features that are not
+        # yet exposed by default to all Snowpark users. Currently gates the
+        # ``version=`` / ``snapshot-id`` time-travel kwargs on
+        # ``Session.table`` / ``DataFrameReader.table`` / ``Table``.
+        # Defaults to ``False``; SAS / snowpark-connect enables it per
+        # session when the corresponding SCOS config is set.
+        self._iceberg_features_enabled: bool = False
+
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
@@ -1049,6 +1057,44 @@ class Session:
         The generated SQLs from ``DataFrame`` transformations would have duplicate subquery as CTEs if the CTE optimization is enabled.
         """
         return self._cte_optimization_enabled
+
+    @property
+    def iceberg_features_enabled(self) -> bool:
+        """Set to ``True`` to enable Iceberg-specific Snowpark features
+        (defaults to ``False``).
+
+        Currently this gates the ``version=`` kwarg on :meth:`Session.table`,
+        :meth:`DataFrameReader.table`, and :class:`Table`, and the Spark
+        Iceberg ``snapshot-id`` / ``snapshot_id`` reader options. With the
+        flag off, supplying any of these raises ``SnowparkClientException``.
+
+        Snowpark Connect (SAS) enables this flag per-session via the
+        ``snowpark.connect.iceberg.timeTravel.enabled`` SCOS config.
+        Direct Snowpark users must opt in explicitly because the underlying
+        Snowflake feature (``AT(VERSION => N)`` on unmanaged Iceberg tables)
+        is currently gated behind the ``FEATURE_ICEBERG_TIME_TRAVEL`` server
+        parameter.
+        """
+        return self._iceberg_features_enabled
+
+    @iceberg_features_enabled.setter
+    def iceberg_features_enabled(self, value: bool) -> None:
+        warn_session_config_update_in_multithreaded_mode("iceberg_features_enabled")
+        with self._lock:
+            self._iceberg_features_enabled = bool(value)
+
+    def _require_iceberg_features_enabled(self, *, feature: str) -> None:
+        """Raise if Iceberg features are gated off on this session.
+
+        ``feature`` is a short human-readable label of the API surface
+        being gated, used in the error message.
+        """
+        if not self._iceberg_features_enabled:
+            raise SnowparkClientException(
+                f"{feature} is an Iceberg-only feature and is disabled by "
+                "default. Enable it by setting "
+                "`session.iceberg_features_enabled = True`."
+            )
 
     @property
     def eliminate_numeric_sql_value_cast_enabled(self) -> bool:
@@ -2781,6 +2827,11 @@ class Session:
             # timestamp_type remains "NTZ" (user's explicit choice respected)
             >>> table2 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware, timestamp_type="NTZ")  # doctest: +SKIP
         """
+        if version is not None:
+            self._require_iceberg_features_enabled(
+                feature="`version=` snapshot-id time travel"
+            )
+
         if _emit_ast:
             stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.table, stmt)

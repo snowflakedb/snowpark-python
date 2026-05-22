@@ -303,6 +303,11 @@ class Table(DataFrame):
         stream: Optional[str] = None,
         version: Optional[int] = None,
     ) -> None:
+        if version is not None and session is not None:
+            session._require_iceberg_features_enabled(
+                feature="`version=` snapshot-id time travel"
+            )
+
         if _ast_stmt is None and session is not None and _emit_ast:
             _ast_stmt = session._ast_batch.bind()
             ast = with_src_position(_ast_stmt.expr.table, _ast_stmt)

@@ -652,6 +652,12 @@ class DataFrameReader:
             ...     .option("offset", -60)                 # This will be IGNORED
             ...     .table("my_table", time_travel_mode="at", offset=-3600))  # Only this is used
         """
+        if version is not None or any(
+            self._cur_options.get(k) is not None for k in ("SNAPSHOT-ID", "SNAPSHOT_ID")
+        ):
+            self._session._require_iceberg_features_enabled(
+                feature="`version=` / `snapshot-id` time travel"
+            )
 
         # AST.
         stmt = None
