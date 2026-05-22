@@ -8,6 +8,7 @@ import re
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
+from modin.config import context as config_context
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import (
@@ -383,6 +384,75 @@ class TestTableName:
                 valid_unquoted_identifier_table_name, if_exists=if_exists, index=False
             )
         written = pd.read_snowflake(valid_unquoted_identifier_table_name)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            written, native_df.rename(str, axis=1)
+        )
+
+
+class TestListNameParquetPath:
+    @pytest.fixture(autouse=True)
+    def use_starting_backend_and_parquet_threshold(self):
+        with config_context(Backend="Pandas", PandasToSnowflakeParquetThresholdBytes=0):
+            yield
+
+    def test_one_part_list(self, test_table_name):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        if_exists = "replace"
+        with to_snowflake_counter(dataset=df, if_exists=if_exists):
+            df.to_snowflake([test_table_name], if_exists=if_exists, index=False)
+        written = pd.read_snowflake(test_table_name)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            written, native_df.rename(str, axis=1)
+        )
+
+    def test_two_part_list(self, session, test_table_name):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        if_exists = "replace"
+        schema = session.get_current_schema().strip('"')
+        with to_snowflake_counter(dataset=df, if_exists=if_exists):
+            df.to_snowflake([schema, test_table_name], if_exists=if_exists, index=False)
+        written = pd.read_snowflake(test_table_name)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            written, native_df.rename(str, axis=1)
+        )
+
+    def test_three_part_list(self, session, test_table_name):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        if_exists = "replace"
+        database = session.get_current_database().strip('"')
+        schema = session.get_current_schema().strip('"')
+        with to_snowflake_counter(dataset=df, if_exists=if_exists):
+            df.to_snowflake(
+                [database, schema, test_table_name], if_exists=if_exists, index=False
+            )
+        written = pd.read_snowflake(test_table_name)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            written, native_df.rename(str, axis=1)
+        )
+
+    def test_quoted_identifier_list(self, test_table_name):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        if_exists = "replace"
+        with to_snowflake_counter(dataset=df, if_exists=if_exists):
+            df.to_snowflake(
+                [f'"{test_table_name}"'], if_exists=if_exists, index=False
+            )
+        written = pd.read_snowflake(test_table_name)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            written, native_df.rename(str, axis=1)
+        )
+
+    def test_str_name_parquet_path(self, test_table_name):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        if_exists = "replace"
+        with to_snowflake_counter(dataset=df, if_exists=if_exists):
+            df.to_snowflake(test_table_name, if_exists=if_exists, index=False)
+        written = pd.read_snowflake(test_table_name)
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
             written, native_df.rename(str, axis=1)
         )

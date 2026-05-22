@@ -823,6 +823,21 @@ def pandas_to_snowflake(
             "to_snowflake", ", ".join(type(t).__name__ for t in unsupported_types)
         )
 
+    name_parts = [name] if isinstance(name, str) else list(name)
+    table_name_converted = _convert_to_snowflake_table_name_to_write_pandas_table_name(
+        name_parts[-1]
+    )
+    schema_converted = (
+        _convert_to_snowflake_table_name_to_write_pandas_table_name(name_parts[-2])
+        if len(name_parts) >= 2
+        else None
+    )
+    database_converted = (
+        _convert_to_snowflake_table_name_to_write_pandas_table_name(name_parts[0])
+        if len(name_parts) >= 3
+        else None
+    )
+
     pd.session.write_pandas(
         # use set_axis() this way so that we can also flatten the tuple column
         # labels of a column multi-index, e.g. if `pandas_frame` has columns
@@ -836,7 +851,9 @@ def pandas_to_snowflake(
         # column identifiers ourselves, we get the correct column names and we
         # don't have to modify the table name, but the snowflake connector seems
         # to incorrectly insert null data.
-        table_name=_convert_to_snowflake_table_name_to_write_pandas_table_name(name),
+        table_name=table_name_converted,
+        database=database_converted,
+        schema=schema_converted,
         auto_create_table=True,
         overwrite=if_exists != "append",
         table_type=table_type,
