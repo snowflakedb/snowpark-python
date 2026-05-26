@@ -17,7 +17,7 @@ from array import array
 from collections import defaultdict
 from functools import reduce
 from logging import getLogger
-from threading import RLock
+from threading import Event, RLock
 from types import ModuleType
 from typing import (
     TYPE_CHECKING,
@@ -858,6 +858,7 @@ class Session:
         self._client_telemetry = EventTableTelemetry(session=self)
 
         self._ast_batch = AstBatch(self)
+        self._start_async_aggregation_prefetch_if_needed()
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -5045,53 +5046,129 @@ class Session:
 
     def _retrieve_aggregation_function_list(self) -> None:
         """Retrieve the list of aggregation functions which will later be used in sql simplifier."""
-        if (
-            not (
-                context._is_snowpark_connect_compatible_mode
-                and context._snowpark_connect_flatten_select_after_sort
-            )
-            or context._aggregation_function_set
+        if not (
+            context._is_snowpark_connect_compatible_mode
+            and context._snowpark_connect_flatten_select_after_sort
         ):
             return
 
-        retrieved_set = set()
-
-        # User-defined aggregation functions
-        try:
-            retrieved_set.update(
-                {
-                    r[0].lower()
-                    for r in self.sql(
-                        """select function_name from information_schema.functions where is_aggregate = 'YES'"""
-                    ).collect()
-                }
-            )
-        except Exception as e:
-            _logger.debug(
-                "Unable to get user-defined aggregation functions: %s",
-                e,
-            )
-
-        # System built-in aggregation functions
-        try:
-            retrieved_set.update(
-                {
-                    r[0].lower()
-                    for r in self.sql(
-                        """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'"""
-                    ).collect()
-                }
-            )
-        except Exception as e:
-            _logger.debug(
-                "Unable to get system aggregation functions, "
-                "falling back to hardcoded list: %s",
-                e,
-            )
-            retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
-
         with context._aggregation_function_set_lock:
-            context._aggregation_function_set.update(retrieved_set)
+            if context._aggregation_function_set:
+                return
+
+        retrieved_set = set()
+        system_fetch_succeeded = False
+        prefetch_state = context._aggregation_function_prefetch_state
+
+        # Atomically claim the async job. The claiming thread creates an Event so concurrent
+        # threads can wait on it rather than issuing redundant sync queries.
+        # AsyncJob.result() is not thread-safe — the underlying connector cursor mutates
+        # shared state (_result, _rownumber, _prefetch_hook) during result fetching, so only
+        # one thread may call it. The lock is held only for the pointer swap and event setup
+        # (nanoseconds), not the network call itself.
+        with prefetch_state["lock"]:
+            job, prefetch_state["job"] = prefetch_state["job"], None
+            if job is not None:
+                fetch_event = Event()
+                prefetch_state["event"] = fetch_event
+                wait_event = None
+            elif prefetch_state["event"] is not None:
+                fetch_event = None
+                wait_event = prefetch_state["event"]
+            else:
+                fetch_event = None
+                wait_event = None
+
+        if wait_event is not None:
+            # The query typically finishes in ~5s; 20s gives ample headroom while
+            # bounding the hang in the rare case the winner thread dies before its
+            # finally block runs (e.g. os._exit, interpreter shutdown).
+            wait_event.wait(timeout=20)
+            with context._aggregation_function_set_lock:
+                if context._aggregation_function_set:
+                    return
+            # Winner failed or timed out; fall through to sync query.
+
+        try:
+            if job is not None:
+                try:
+                    retrieved_set.update({r[0].lower() for r in job.result()})
+                    system_fetch_succeeded = True
+                except Exception as e:
+                    _logger.debug(
+                        "Unable to use async aggregation function prefetch: %s",
+                        e,
+                    )
+            else:
+                _logger.debug(
+                    "Async aggregation function prefetch job is unavailable; using sync fallback."
+                )
+
+            # Sync fallback query.
+            if not system_fetch_succeeded:
+                try:
+                    retrieved_set.update(
+                        {
+                            r[0].lower()
+                            for r in self._conn.run_query(
+                                """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'""",
+                                _is_internal=True,
+                            )["data"]
+                        }
+                    )
+                    system_fetch_succeeded = True
+                except Exception as e:
+                    _logger.debug(
+                        "Unable to get aggregation functions via sync fallback query: %s",
+                        e,
+                    )
+
+            # Fallback to the local hardcoded list only when metadata retrieval fails.
+            if not system_fetch_succeeded:
+                retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
+
+            with context._aggregation_function_set_lock:
+                context._aggregation_function_set.update(retrieved_set)
+        finally:
+            # Signal after _aggregation_function_set is published so waiters see
+            # the populated set immediately upon waking. Also fires on BaseException
+            # (e.g. KeyboardInterrupt) so waiters are never left blocking until timeout.
+            if fetch_event is not None:
+                fetch_event.set()
+
+    def _start_async_aggregation_prefetch_if_needed(self) -> None:
+        """Start aggregation metadata prefetch only when not already in progress."""
+        if not (
+            context._is_snowpark_connect_compatible_mode
+            and context._snowpark_connect_flatten_select_after_sort
+        ):
+            return
+        prefetch_state = context._aggregation_function_prefetch_state
+        with prefetch_state["lock"]:
+            with context._aggregation_function_set_lock:
+                if context._aggregation_function_set:
+                    return
+            if prefetch_state["job"] is not None:
+                return
+            # A winner thread has already claimed the async job and is still publishing results.
+            # Do not start a new async query while that in-flight fetch is unfinished.
+            if (
+                prefetch_state["event"] is not None
+                and not prefetch_state["event"].is_set()
+            ):
+                return
+            try:
+                result = self._conn.execute_async_and_notify_query_listener(
+                    """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'""",
+                    _is_internal=True,
+                )
+                prefetch_state["job"] = self.create_async_job(result["queryId"])
+            except Exception as e:  # pragma: no cover
+                _logger.debug(
+                    "Unable to start async aggregation metadata prefetch: %s",
+                    e,
+                )
+                prefetch_state["job"] = None
 
     def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
         """
