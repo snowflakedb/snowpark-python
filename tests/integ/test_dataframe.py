@@ -8331,7 +8331,7 @@ def test_time_travel_comprehensive_coverage(session):
 # ----------------------------------------------------------------------
 # Iceberg snapshot id (``version=``) time travel.
 #
-# TODO(SNOW-NNNNNNN): Wire these up to a CI test account that has:
+# TODO(SNOW-3525585): Wire these up to a CI test account that has:
 #   * a Catalog-Linked Database (CLD) such as cldUnity / cldglue, AND
 #   * an unmanaged Iceberg table inside it with at least two snapshots
 #     readable through ``INFORMATION_SCHEMA.GET_TABLE_VERSIONS(...)``.
@@ -8404,17 +8404,27 @@ def test_iceberg_snapshot_id_time_travel_dataframe_reader_option(session):
     assert via_kwarg == via_option
 
 
-@pytest.mark.skip(
-    reason=(
-        "Requires a regular Snowflake account; doesn't need a CLD. "
-        "Tested manually until we wire up an Iceberg-capable integ account."
-    )
-)
 def test_iceberg_snapshot_id_flag_gates_version_kwarg(session):
-    """End-to-end: with the umbrella flag OFF the ``version=`` kwarg must
-    raise ``SnowparkClientException`` and not reach the server."""
+    """The umbrella flag-off path raises client-side, before any SQL is
+    emitted — so this test needs neither a CLD nor an Iceberg table; any
+    session will do.
+    """
     from snowflake.snowpark.exceptions import SnowparkClientException
 
-    session.iceberg_features_enabled = False
-    with pytest.raises(SnowparkClientException, match="iceberg_features_enabled"):
-        session.table("ANY_TABLE", time_travel_mode="at", version=1)
+    original = session.iceberg_features_enabled
+    try:
+        session.iceberg_features_enabled = False
+        # Session.table path
+        with pytest.raises(SnowparkClientException, match="iceberg_features_enabled"):
+            session.table("ANY_TABLE", time_travel_mode="at", version=1)
+        # DataFrameReader.table path via the ``version=`` kwarg
+        with pytest.raises(SnowparkClientException, match="iceberg_features_enabled"):
+            session.read.table("ANY_TABLE", time_travel_mode="at", version=1)
+        # DataFrameReader.table path via the ``option("snapshot-id", ...)`` alias
+        with pytest.raises(SnowparkClientException, match="iceberg_features_enabled"):
+            session.read.option("snapshot-id", 1).table("ANY_TABLE")
+        # DataFrameReader.table path via the ``option("version", ...)`` alias
+        with pytest.raises(SnowparkClientException, match="iceberg_features_enabled"):
+            session.read.option("version", 1).table("ANY_TABLE")
+    finally:
+        session.iceberg_features_enabled = original

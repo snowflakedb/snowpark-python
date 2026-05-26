@@ -949,7 +949,12 @@ def test_time_travel_version_snapshot_id():
 
 
 def test_extract_time_travel_snapshot_id_option():
-    """Test Spark Iceberg 'snapshot-id' option extraction for the reader API."""
+    """Test Iceberg snapshot id option extraction for the reader API.
+
+    All three aliases (``snapshot-id`` / ``snapshot_id`` / ``version``)
+    share the same auto-mode semantics so the docstring claim
+    ``Automatically sets time_travel_mode='at'`` holds for every path.
+    """
     from snowflake.snowpark.dataframe_reader import _extract_time_travel_from_options
 
     # Long int via SNAPSHOT-ID (Spark canonical key)
@@ -967,6 +972,16 @@ def test_extract_time_travel_snapshot_id_option():
     result = _extract_time_travel_from_options({"SNAPSHOT-ID": "10963874102873"})
     assert result == {"time_travel_mode": "at", "version": 10963874102873}
 
+    # ``option("version", N)`` (Snowpark-native key) also auto-sets mode='at'
+    result = _extract_time_travel_from_options({"VERSION": 99})
+    assert result == {"time_travel_mode": "at", "version": 99}
+
+    # ``option("version", N)`` explicit ``at`` is a no-op overlap
+    result = _extract_time_travel_from_options(
+        {"VERSION": 99, "TIME_TRAVEL_MODE": "at"}
+    )
+    assert result == {"time_travel_mode": "at", "version": 99}
+
     # snapshot-id + time_travel_mode='before' is rejected
     with pytest.raises(
         ValueError,
@@ -975,6 +990,14 @@ def test_extract_time_travel_snapshot_id_option():
         _extract_time_travel_from_options(
             {"SNAPSHOT-ID": 1, "TIME_TRAVEL_MODE": "before"}
         )
+
+    # ``version`` + ``before`` is rejected too — Iceberg snapshot ids only
+    # support AT(VERSION => N), not BEFORE.
+    with pytest.raises(
+        ValueError,
+        match=r"Cannot use 'version' option with time_travel_mode='before'",
+    ):
+        _extract_time_travel_from_options({"VERSION": 1, "TIME_TRAVEL_MODE": "before"})
 
     # snapshot-id + explicit version conflict
     with pytest.raises(
@@ -988,10 +1011,8 @@ def test_extract_time_travel_snapshot_id_option():
     ):
         _extract_time_travel_from_options({"SNAPSHOT-ID": "not-a-number"})
 
-    # VERSION option flows through directly without auto-setting mode (user
-    # must opt in to 'at' explicitly to use VERSION on its own — keeps the
-    # ``snapshot-id`` Spark-compat alias the only auto-mode path).
-    result = _extract_time_travel_from_options(
-        {"VERSION": 99, "TIME_TRAVEL_MODE": "at"}
-    )
-    assert result == {"time_travel_mode": "at", "version": 99}
+    # Non-numeric ``version`` is rejected through the same code path
+    with pytest.raises(
+        ValueError, match="'version' must be a 64-bit integer Iceberg snapshot id"
+    ):
+        _extract_time_travel_from_options({"VERSION": "not-a-number"})

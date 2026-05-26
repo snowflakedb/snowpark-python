@@ -326,11 +326,11 @@ class Table(DataFrame):
                 ast.timestamp_type.value = str(timestamp_type)
             if stream is not None:
                 ast.stream.value = stream
-            # Guard with hasattr — the AST proto field is added in a separate
-            # proto change. Without it we still produce correct SQL; only AST
-            # replay/telemetry would lack the version value.
-            if version is not None and hasattr(ast, "version"):
-                ast.version.value = version
+            # NOTE: ``version`` is intentionally NOT emitted to the AST. The
+            # Table proto has no ``version`` field and the feature is
+            # parameter-protected (gated behind `iceberg_features_enabled`,
+            # consumed by Snowpark Connect only). When the proto is extended,
+            # restore a single ``ast.version.value = version`` line here.
 
         time_travel_config = TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode=time_travel_mode,

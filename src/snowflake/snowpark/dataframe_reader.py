@@ -165,11 +165,12 @@ def _extract_time_travel_from_options(options: dict) -> dict:
     - Cannot be mixed with regular 'timestamp' option (raises error)
 
     Special handling for 'SNAPSHOT-ID' / 'SNAPSHOT_ID' (Spark Iceberg
-    compatibility) — both aliases of the Snowpark ``version`` kwarg:
-    - Automatically sets time_travel_mode to 'at'
+    compatibility) — both aliases of the Snowpark ``version`` kwarg.
+    All three (``SNAPSHOT-ID``, ``SNAPSHOT_ID``, ``VERSION``):
+    - Automatically set time_travel_mode to 'at'
       (Iceberg snapshot ids only support ``AT(VERSION => N)``, not ``BEFORE``)
     - Cannot be used with time_travel_mode='before' (raises error)
-    - Cannot be mixed with explicit ``version`` option (raises error)
+    - Cannot be mixed with each other (raises error)
     """
     result = {}
     excluded_keys = set()
@@ -191,29 +192,38 @@ def _extract_time_travel_from_options(options: dict) -> dict:
         result["timestamp"] = options["AS-OF-TIMESTAMP"]
         excluded_keys.add("TIMESTAMP")
 
-    # Handle Spark Iceberg snapshot-id option (aliased to ``version``)
+    # Handle Iceberg snapshot id (Spark `snapshot-id` / `snapshot_id` plus the
+    # Snowpark-native `version` option). All three aliases auto-set mode='at'
+    # since `AT(VERSION => N)` is the only valid Snowflake form.
     snapshot_id_value = options.get("SNAPSHOT-ID")
+    snapshot_id_source = "snapshot-id"
     if snapshot_id_value is None:
         snapshot_id_value = options.get("SNAPSHOT_ID")
+        snapshot_id_source = "snapshot_id"
+    if snapshot_id_value is not None and "VERSION" in options:
+        raise ValueError("Cannot use both 'snapshot-id' and 'version' options.")
+    if snapshot_id_value is None and "VERSION" in options:
+        snapshot_id_value = options["VERSION"]
+        snapshot_id_source = "version"
     if snapshot_id_value is not None:
         if (
             "TIME_TRAVEL_MODE" in options
             and options["TIME_TRAVEL_MODE"].lower() == "before"
         ):
             raise ValueError(
-                "Cannot use 'snapshot-id' option with time_travel_mode='before'. "
-                "Iceberg snapshot id time travel only supports time_travel_mode='at'."
+                f"Cannot use '{snapshot_id_source}' option with "
+                "time_travel_mode='before'. Iceberg snapshot id time travel "
+                "only supports time_travel_mode='at'."
             )
-        if "VERSION" in options:
-            raise ValueError("Cannot use both 'snapshot-id' and 'version' options.")
-        # Coerce string snapshot ids (Spark accepts both string and long literals
-        # via .option(); we normalize to int so the SQL emits an unquoted long).
+        # Coerce string snapshot ids (Spark accepts both string and long
+        # literals via .option(); we normalize to int so the SQL emits an
+        # unquoted long).
         try:
             result["version"] = int(snapshot_id_value)
         except (TypeError, ValueError):
             raise ValueError(
-                f"'snapshot-id' must be a 64-bit integer Iceberg snapshot id, "
-                f"got {snapshot_id_value!r}."
+                f"'{snapshot_id_source}' must be a 64-bit integer Iceberg "
+                f"snapshot id, got {snapshot_id_value!r}."
             )
         result["time_travel_mode"] = "at"
         excluded_keys.add("VERSION")
@@ -653,7 +663,8 @@ class DataFrameReader:
             ...     .table("my_table", time_travel_mode="at", offset=-3600))  # Only this is used
         """
         if version is not None or any(
-            self._cur_options.get(k) is not None for k in ("SNAPSHOT-ID", "SNAPSHOT_ID")
+            self._cur_options.get(k) is not None
+            for k in ("VERSION", "SNAPSHOT-ID", "SNAPSHOT_ID")
         ):
             self._session._require_iceberg_features_enabled(
                 feature="`version=` / `snapshot-id` time travel"
@@ -678,8 +689,11 @@ class DataFrameReader:
                 ast.timestamp_type.value = str(timestamp_type)
             if stream is not None:
                 ast.stream.value = stream
-            if version is not None and hasattr(ast, "version"):
-                ast.version.value = version
+            # NOTE: ``version`` is intentionally NOT emitted to the AST. The
+            # ReadTable proto has no ``version`` field and the feature is
+            # parameter-protected (gated behind `iceberg_features_enabled`,
+            # consumed by Snowpark Connect only). When the proto is extended,
+            # restore a single ``ast.version.value = version`` line here.
 
         if time_travel_mode is not None or version is not None:
             # If version is provided without mode, default to 'at' (snapshot ids

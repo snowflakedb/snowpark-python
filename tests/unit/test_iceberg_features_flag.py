@@ -15,7 +15,6 @@ account. End-to-end validation against an unmanaged Iceberg table lives in
 (skipped by default — see TODO there).
 """
 
-from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -113,10 +112,12 @@ def test_dataframe_reader_table_rejects_version_kwarg_when_flag_off():
         session.read.table("MY_TABLE", time_travel_mode="at", version=1)
 
 
-@pytest.mark.parametrize("opt_key", ["snapshot-id", "snapshot_id"])
+@pytest.mark.parametrize("opt_key", ["snapshot-id", "snapshot_id", "version"])
 def test_dataframe_reader_table_rejects_snapshot_id_option_when_flag_off(opt_key):
-    """The Spark-compat ``snapshot-id`` / ``snapshot_id`` option must also be
-    gated — otherwise a user could bypass the flag through `.option(...)`."""
+    """Every reader option that resolves to ``version=`` must be gated —
+    ``snapshot-id`` / ``snapshot_id`` (Spark Iceberg compat) AND the
+    Snowpark-native ``version`` key. Otherwise a user could bypass the
+    flag through ``.option(...)``."""
     session = _build_session(iceberg_features_enabled=False)
     with pytest.raises(SnowparkClientException, match="iceberg_features_enabled"):
         session.read.option(opt_key, 12345).table("MY_TABLE")
@@ -131,75 +132,9 @@ def test_table_init_rejects_version_when_flag_off():
         Table("MY_TABLE", session=session, time_travel_mode="at", version=1)
 
 
-# ---------------------------------------------------------------------------
-# AST `version` emission coverage. The Snowpark AST proto's Table /
-# ReadTable messages don't yet carry a `version` field; the source guards
-# the assignment with ``hasattr(ast, "version")``. To exercise the
-# assignment (and credit coverage to the line) we patch ``with_src_position``
-# to return a stand-in object that *does* have a `version` attribute, so the
-# hasattr check is True.
-# ---------------------------------------------------------------------------
-def _make_ast_sentinel():
-    """Return a SimpleNamespace masquerading as an AST proto with a
-    `version` field that has a writable `.value`.
-
-    All other fields fall through to a MagicMock so unrelated assignments
-    (e.g. `ast.time_travel_mode.value = ...`) succeed without raising.
-    """
-    base = mock.MagicMock()
-    base.version = SimpleNamespace(value=None)
-    return base
-
-
-def test_session_table_emits_version_into_ast_when_proto_supports_it():
-    """Covers `session.py` ``ast.version.value = version`` branch.
-
-    ``_emit_ast=True`` is passed explicitly because the ``@publicapi``
-    decorator otherwise overrides it to ``is_ast_enabled()`` (False on a
-    plain mock-connected session).
-    """
-    session = _build_session(iceberg_features_enabled=True)
-    sentinel = _make_ast_sentinel()
-    with mock.patch(
-        "snowflake.snowpark.session.with_src_position", return_value=sentinel
-    ):
-        session.table("MY_TABLE", _emit_ast=True, time_travel_mode="at", version=98765)
-    assert sentinel.version.value == 98765
-
-
-def test_dataframe_reader_table_emits_version_into_ast_when_proto_supports_it():
-    """Covers `dataframe_reader.py` ``ast.version.value = version`` branch.
-
-    The reader's AST block additionally requires ``self._ast is not None``;
-    AST is globally disabled on a plain mock-connected session, so we both
-    pass ``_emit_ast=True`` and assign a non-None ``_ast`` placeholder on the
-    reader.
-    """
-    session = _build_session(iceberg_features_enabled=True)
-    reader = session.read
-    reader._ast = mock.MagicMock()  # satisfy `self._ast is not None` guard
-
-    sentinel = _make_ast_sentinel()
-    with mock.patch(
-        "snowflake.snowpark.dataframe_reader.with_src_position",
-        return_value=sentinel,
-    ):
-        reader.table("MY_TABLE", _emit_ast=True, time_travel_mode="at", version=42)
-    assert sentinel.version.value == 42
-
-
-def test_table_init_emits_version_into_ast_when_proto_supports_it():
-    """Covers `table.py` ``ast.version.value = version`` branch."""
-    session = _build_session(iceberg_features_enabled=True)
-    sentinel = _make_ast_sentinel()
-    with mock.patch(
-        "snowflake.snowpark.table.with_src_position", return_value=sentinel
-    ):
-        Table(
-            "MY_TABLE",
-            session=session,
-            _emit_ast=True,
-            time_travel_mode="at",
-            version=7,
-        )
-    assert sentinel.version.value == 7
+# NOTE: AST coverage for ``version`` was intentionally removed. The Snowpark
+# AST proto's Table / ReadTable messages don't carry a ``version`` field and
+# this feature is parameter-protected (gated behind ``iceberg_features_enabled``
+# and consumed only by Snowpark Connect), so the AST emission is left out by
+# design. When the proto is extended, restore one assignment line per call
+# site and add coverage tests then.

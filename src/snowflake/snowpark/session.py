@@ -2850,8 +2850,11 @@ class Session:
                 ast.timestamp_type.value = str(timestamp_type)
             if stream is not None:
                 ast.stream.value = stream
-            if version is not None and hasattr(ast, "version"):
-                ast.version.value = version
+            # NOTE: ``version`` is intentionally NOT emitted to the AST. The
+            # Table proto has no ``version`` field and the feature is
+            # parameter-protected (gated behind `iceberg_features_enabled`,
+            # consumed by Snowpark Connect only). When the proto is extended,
+            # restore a single ``ast.version.value = version`` line here.
         else:
             stmt = None
 
