@@ -108,7 +108,7 @@ def pytest_collection_modifyitems(config, items):
             strict=False,
         )
         for item in items:
-            if isinstance(item, DoctestItem) and "dataframe_ai_functions" in item.name:
+            if isinstance(item, DoctestItem) and "dataframe_ai" in item.name:
                 item.add_marker(xfail_ai)
 
     host = (
