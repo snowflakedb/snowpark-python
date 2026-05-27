@@ -518,8 +518,6 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             return "PARSE_JSON('NULL') :: VARIANT"
         return "NULL :: " + convert_sp_to_sf_type(data_type)
 
-    if isinstance(data_type, DecFloatType):
-        return "0 :: " + convert_sp_to_sf_type(data_type)
     if isinstance(data_type, _NumericType):
         return "0 :: " + convert_sp_to_sf_type(data_type)
     if isinstance(data_type, StringType):
