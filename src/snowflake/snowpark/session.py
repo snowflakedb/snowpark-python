@@ -719,14 +719,6 @@ class Session:
         # (SAS / snowpark-connect enables this during session configuration.)
         self._use_structured_type_infer_schema: bool = False
 
-        # Umbrella flag for Iceberg-specific Snowpark features that are not
-        # yet exposed by default to all Snowpark users. Currently gates the
-        # ``version=`` / ``snapshot-id`` time-travel kwargs on
-        # ``Session.table`` / ``DataFrameReader.table`` / ``Table``.
-        # Defaults to ``False``; SAS / snowpark-connect enables it per
-        # session when the corresponding SCOS config is set.
-        self._iceberg_features_enabled: bool = False
-
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
@@ -1057,44 +1049,6 @@ class Session:
         The generated SQLs from ``DataFrame`` transformations would have duplicate subquery as CTEs if the CTE optimization is enabled.
         """
         return self._cte_optimization_enabled
-
-    @property
-    def iceberg_features_enabled(self) -> bool:
-        """Set to ``True`` to enable Iceberg-specific Snowpark features
-        (defaults to ``False``).
-
-        Currently this gates the ``version=`` kwarg on :meth:`Session.table`,
-        :meth:`DataFrameReader.table`, and :class:`Table`, and the Spark
-        Iceberg ``snapshot-id`` / ``snapshot_id`` reader options. With the
-        flag off, supplying any of these raises ``SnowparkClientException``.
-
-        Snowpark Connect (SAS) enables this flag per-session via the
-        ``snowpark.connect.iceberg.timeTravel.enabled`` SCOS config.
-        Direct Snowpark users must opt in explicitly because the underlying
-        Snowflake feature (``AT(VERSION => N)`` on unmanaged Iceberg tables)
-        is currently gated behind the ``FEATURE_ICEBERG_TIME_TRAVEL`` server
-        parameter.
-        """
-        return self._iceberg_features_enabled
-
-    @iceberg_features_enabled.setter
-    def iceberg_features_enabled(self, value: bool) -> None:
-        warn_session_config_update_in_multithreaded_mode("iceberg_features_enabled")
-        with self._lock:
-            self._iceberg_features_enabled = bool(value)
-
-    def _require_iceberg_features_enabled(self, *, feature: str) -> None:
-        """Raise if Iceberg features are gated off on this session.
-
-        ``feature`` is a short human-readable label of the API surface
-        being gated, used in the error message.
-        """
-        if not self._iceberg_features_enabled:
-            raise SnowparkClientException(
-                f"{feature} is an Iceberg-only feature and is disabled by "
-                "default. Enable it by setting "
-                "`session.iceberg_features_enabled = True`."
-            )
 
     @property
     def eliminate_numeric_sql_value_cast_enabled(self) -> bool:
@@ -2774,7 +2728,7 @@ class Session:
         timestamp: Optional[Union[str, datetime.datetime]] = None,
         timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
-        version: Optional[int] = None,
+        **kwargs,
     ) -> Table:
         """
         Returns a Table that points the specified table.
@@ -2786,16 +2740,12 @@ class Session:
             _emit_ast: Whether to emit AST statements.
 
             time_travel_mode: Time travel mode, either 'at' or 'before'.
-                Exactly one of statement, offset, timestamp, stream, or version must be provided when time_travel_mode is set.
+                Exactly one of statement, offset, timestamp, or stream must be provided when time_travel_mode is set.
             statement: Query ID for time travel.
             offset: Negative integer representing seconds in the past for time travel.
             timestamp: Timestamp string or datetime object.
             timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
             stream: Stream name for time travel.
-            version: Iceberg snapshot id (64-bit integer) for snapshot-based time
-                travel on Iceberg tables. Can only be used with
-                ``time_travel_mode='at'``. Generates SQL clause like
-                ``AT(VERSION => 5129038471029384756)``.
 
             Note:
                 If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.
@@ -2817,7 +2767,6 @@ class Session:
             >>> df_before = session.table("my_table", time_travel_mode="before", statement="01234567-abcd-1234-5678-123456789012") # doctest: +SKIP
             >>> df_offset = session.table("my_table", time_travel_mode="at", offset=-3600) # doctest: +SKIP
             >>> df_stream = session.table("my_table", time_travel_mode="at", stream="my_stream") # doctest: +SKIP
-            >>> df_iceberg_version = session.table("my_iceberg_table", time_travel_mode="at", version=5129038471029384756) # doctest: +SKIP
 
             # timestamp_type automatically set to "TZ" due to timezone info
             >>> import datetime, pytz  # doctest: +SKIP
@@ -2827,9 +2776,14 @@ class Session:
             # timestamp_type remains "NTZ" (user's explicit choice respected)
             >>> table2 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware, timestamp_type="NTZ")  # doctest: +SKIP
         """
-        if version is not None:
-            self._require_iceberg_features_enabled(
-                feature="`version=` snapshot-id time travel"
+        # ``version`` (Iceberg snapshot id) is intentionally not in the public
+        # signature — it's consumed by Snowpark Connect and may be removed
+        # once a first-class API lands. Accept it through **kwargs so direct
+        # callers can still pass it without us advertising it.
+        version = kwargs.pop("version", None)
+        if kwargs:
+            raise TypeError(
+                f"table() got unexpected keyword arguments: {sorted(kwargs)}"
             )
 
         if _emit_ast:
@@ -2850,11 +2804,6 @@ class Session:
                 ast.timestamp_type.value = str(timestamp_type)
             if stream is not None:
                 ast.stream.value = stream
-            # NOTE: ``version`` is intentionally NOT emitted to the AST. The
-            # Table proto has no ``version`` field and the feature is
-            # parameter-protected (gated behind `iceberg_features_enabled`,
-            # consumed by Snowpark Connect only). When the proto is extended,
-            # restore a single ``ast.version.value = version`` line here.
         else:
             stmt = None
 

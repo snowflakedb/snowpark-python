@@ -301,11 +301,16 @@ class Table(DataFrame):
         timestamp: Optional[Union[str, datetime.datetime]] = None,
         timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
-        version: Optional[int] = None,
+        **kwargs,
     ) -> None:
-        if version is not None and session is not None:
-            session._require_iceberg_features_enabled(
-                feature="`version=` snapshot-id time travel"
+        # ``version`` (Iceberg snapshot id) is intentionally not in the public
+        # signature — it's consumed by Snowpark Connect and may be removed
+        # once a first-class API lands. Accept it through **kwargs so direct
+        # callers can still pass it without us advertising it.
+        version = kwargs.pop("version", None)
+        if kwargs:
+            raise TypeError(
+                f"Table() got unexpected keyword arguments: {sorted(kwargs)}"
             )
 
         if _ast_stmt is None and session is not None and _emit_ast:
@@ -326,11 +331,6 @@ class Table(DataFrame):
                 ast.timestamp_type.value = str(timestamp_type)
             if stream is not None:
                 ast.stream.value = stream
-            # NOTE: ``version`` is intentionally NOT emitted to the AST. The
-            # Table proto has no ``version`` field and the feature is
-            # parameter-protected (gated behind `iceberg_features_enabled`,
-            # consumed by Snowpark Connect only). When the proto is extended,
-            # restore a single ``ast.version.value = version`` line here.
 
         time_travel_config = TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode=time_travel_mode,
