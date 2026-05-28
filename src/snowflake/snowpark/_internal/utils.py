@@ -1955,6 +1955,7 @@ class TimeTravelConfig(NamedTuple):
     timestamp: Optional[str] = None
     timestamp_type: Optional[str] = None
     stream: Optional[str] = None
+    version: Optional[int] = None
 
     @staticmethod
     def validate_and_normalize_params(
@@ -1964,6 +1965,7 @@ class TimeTravelConfig(NamedTuple):
         timestamp: Optional[Union[str, datetime.datetime]] = None,
         timestamp_type: Optional[Union[str, "TimestampTimeZone"]] = None,
         stream: Optional[str] = None,
+        version: Optional[int] = None,
     ) -> Optional["TimeTravelConfig"]:
         """
         Validates and normalizes time travel parameters.
@@ -1986,7 +1988,7 @@ class TimeTravelConfig(NamedTuple):
             ValueError: If parameters are invalid.
         """
         time_travel_arg_count = sum(
-            arg is not None for arg in (statement, offset, timestamp, stream)
+            arg is not None for arg in (statement, offset, timestamp, stream, version)
         )
 
         # Validate mode
@@ -2003,10 +2005,28 @@ class TimeTravelConfig(NamedTuple):
                 f"Invalid time travel mode: {time_travel_mode}. Must be 'at' or 'before'."
             )
 
+        # version (Iceberg snapshot id) only works with 'at' mode — matches
+        # Snowflake's ``AT(VERSION => <id>)`` grammar and Spark Iceberg's
+        # ``snapshot-id`` option semantics ("read snapshot N", not "before N").
+        if version is not None and time_travel_mode.lower() != "at":
+            raise ValueError(
+                "Iceberg snapshot version time travel can only be used with "
+                "time_travel_mode='at', not 'before'."
+            )
+
+        # Validate version type — snapshot IDs are 64-bit integers in Iceberg.
+        # Reject bool explicitly because ``isinstance(True, int)`` is True in Python.
+        if version is not None and (
+            not isinstance(version, int) or isinstance(version, bool)
+        ):
+            raise ValueError(
+                f"'version' must be an int Iceberg snapshot id, got {type(version).__name__}."
+            )
+
         # Validate exactly one parameter is provided
         if time_travel_arg_count != 1:
             raise ValueError(
-                "Exactly one of 'statement', 'offset', 'timestamp', or 'stream' must be provided."
+                "Exactly one of 'statement', 'offset', 'timestamp', 'stream', or 'version' must be provided."
             )
 
         # Normalize timestamp
@@ -2040,6 +2060,7 @@ class TimeTravelConfig(NamedTuple):
             timestamp=normalized_timestamp,
             timestamp_type=timestamp_type,
             stream=stream,
+            version=version,
         )
 
     def generate_sql_clause(self) -> str:
@@ -2048,7 +2069,8 @@ class TimeTravelConfig(NamedTuple):
         Args:
             config: Time travel configuration.
         Returns:
-            SQL clause like " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('...'))"
+            SQL clause like " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('...'))" or
+            " AT (VERSION => 1234567890)" for Iceberg snapshot id time travel.
         """
         clause = f" {self.time_travel_mode.upper()} "
 
@@ -2058,6 +2080,8 @@ class TimeTravelConfig(NamedTuple):
             clause += f"(OFFSET => {self.offset})"
         elif self.stream is not None:
             clause += f"(STREAM => '{self.stream}')"
+        elif self.version is not None:
+            clause += f"(VERSION => {self.version})"
         elif self.timestamp is not None:
             if self.timestamp_type is not None:
                 timestamp_type = self.timestamp_type.upper()
