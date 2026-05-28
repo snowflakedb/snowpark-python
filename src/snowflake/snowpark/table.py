@@ -301,7 +301,18 @@ class Table(DataFrame):
         timestamp: Optional[Union[str, datetime.datetime]] = None,
         timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
+        **kwargs,
     ) -> None:
+        # ``version`` (Iceberg snapshot id) is intentionally not in the public
+        # signature — it's consumed by Snowpark Connect and may be removed
+        # once a first-class API lands. Accept it through **kwargs so direct
+        # callers can still pass it without us advertising it.
+        version = kwargs.pop("version", None)
+        if kwargs:
+            raise TypeError(
+                f"Table() got unexpected keyword arguments: {sorted(kwargs)}"
+            )
+
         if _ast_stmt is None and session is not None and _emit_ast:
             _ast_stmt = session._ast_batch.bind()
             ast = with_src_position(_ast_stmt.expr.table, _ast_stmt)
@@ -328,6 +339,7 @@ class Table(DataFrame):
             timestamp=timestamp,
             timestamp_type=timestamp_type,
             stream=stream,
+            version=version,
         )
 
         snowflake_table_plan = SnowflakeTable(
