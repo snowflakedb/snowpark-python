@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
 import json
 import pytest
 from snowflake.snowpark.functions import ai_complete, col, lit, to_file
@@ -14,6 +15,11 @@ pytestmark = [
     pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
         reason="AI functions are not yet supported in local testing mode.",
+    ),
+    pytest.mark.xfail(
+        datetime.date.today() <= datetime.date(2026, 6, 4),
+        reason="AI tests flaky due to infrastructure issues",
+        strict=False,
     ),
 ]
 
