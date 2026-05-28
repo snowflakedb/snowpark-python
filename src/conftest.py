@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import datetime
 import doctest
 import logging
 import os
@@ -100,6 +101,16 @@ def pytest_collection_modifyitems(config, items):
     This function is used to skip some doctests on certain conditions.
     For example, some functions in PrPr might not be available on Azure and GCP.
     """
+    # Mark flaky tests as xfail for a time
+    if datetime.date.today() <= datetime.date(2026, 6, 4):
+        xfail_ai = pytest.mark.xfail(
+            reason="dataframe_ai_functions doctests flaky due to infrastructure issues",
+            strict=False,
+        )
+        for item in items:
+            if isinstance(item, DoctestItem) and "dataframe_ai" in item.name:
+                item.add_marker(xfail_ai)
+
     host = (
         conn_params.get("host") or conn_params.get("HOST") or conn_params.get("account")
     )
@@ -113,6 +124,6 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             # identify doctest items
             if isinstance(item, DoctestItem):
-                # match by the test’s “name” (module.name)
+                # match by the test's "name" (module.name)
                 if any(test_name in item.name for test_name in disabled_doctests):
                     item.add_marker(skip)
