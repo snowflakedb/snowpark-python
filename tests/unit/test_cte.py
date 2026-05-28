@@ -113,33 +113,40 @@ def test_encode_node_id_with_query_select_sql(mock_session, mock_analyzer):
     select_statement_node._sql_query = sql_text
     assert (
         encode_node_id_with_query(select_statement_node)
-        == f"{expected_hash}_SelectStatement"
+        == f"{expected_hash}_SnowflakePlan"
     )
 
 
-def test_encode_node_id_with_query_includes_aliases():
+def test_encode_node_id_with_query_excludes_bookkeeping_fields():
+    # Both expr_to_alias and df_aliased_col_name_to_real_col_name are intentionally
+    # excluded from the hash: they are Python-side bookkeeping that do not change the
+    # SQL content.  Two nodes with the same SQL but different bookkeeping maps must
+    # produce the same encoded id so the CTE optimizer can deduplicate them.
     node = SimpleNamespace(
         sql_query="select col1 from t",
         query_params=(("p1", 1), ("p2", "x")),
         expr_to_alias={"uuid1": "ALIAS1"},
         df_aliased_col_name_to_real_col_name={"ALIAS1": "col1"},
     )
+    node_different_alias = SimpleNamespace(
+        sql_query="select col1 from t",
+        query_params=(("p1", 1), ("p2", "x")),
+        expr_to_alias={"uuid2": "ALIAS2"},
+        df_aliased_col_name_to_real_col_name={"ALIAS2": "col1"},
+    )
 
-    def stringify_dict(d: dict) -> str:
-        key_value_pairs = list(d.items())
-        key_value_pairs.sort(key=lambda x: x[0])
-        return str(key_value_pairs)
-
+    # Hash is based on SQL + query_params only; expr_to_alias and
+    # df_aliased_col_name_to_real_col_name are NOT included.
     expected_string = node.sql_query
     if node.query_params:
         expected_string = f"{expected_string}#{node.query_params}"
-    if node.expr_to_alias:
-        expected_string = f"{expected_string}#{stringify_dict(node.expr_to_alias)}"
-    if node.df_aliased_col_name_to_real_col_name:
-        expected_string = f"{expected_string}#{stringify_dict(node.df_aliased_col_name_to_real_col_name)}"
 
     expected_hash = hashlib.sha256(expected_string.encode()).hexdigest()[:10]
     assert encode_node_id_with_query(node) == f"{expected_hash}_SimpleNamespace"
+    # Both nodes produce the same id despite different expr_to_alias and df alias maps
+    assert encode_node_id_with_query(node) == encode_node_id_with_query(
+        node_different_alias
+    )
 
 
 def test_select_statement_contains_data_generation(mock_session, mock_analyzer):

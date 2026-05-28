@@ -267,8 +267,7 @@ def get_duplicated_node_complexity_distribution(
 
 def encode_query_id(node: "TreeNode") -> Optional[str]:
     """
-    Encode the query, its query parameter, expr_to_alias and df_aliased_col_name_to_real_col_name
-    into an id using sha256.
+    Encode the query and its query parameters into an id using sha256.
 
     Returns:
         If encode succeed, return the first 10 encoded value.
@@ -295,24 +294,17 @@ def encode_query_id(node: "TreeNode") -> Optional[str]:
         # to avoid being detected as a common subquery.
         return None
 
-    def stringify(d):
-        if isinstance(d, dict):
-            key_value_pairs = list(d.items())
-            key_value_pairs.sort(key=lambda x: x[0])
-            return str(key_value_pairs)
-        else:
-            return str(d)
-
     string = query
     if query_params:
         string = f"{string}#{query_params}"
-    if hasattr(node, "expr_to_alias") and node.expr_to_alias:
-        string = f"{string}#{stringify(node.expr_to_alias)}"
-    if (
-        hasattr(node, "df_aliased_col_name_to_real_col_name")
-        and node.df_aliased_col_name_to_real_col_name
-    ):
-        string = f"{string}#{stringify(node.df_aliased_col_name_to_real_col_name)}"
+    # expr_to_alias is intentionally excluded from the hash.
+    # The SQL text already incorporates all column aliasing, so expr_to_alias is
+    # redundant for hash purposes.  Including it causes missed deduplication in
+    # self-joins: the SnowflakePlan compiled for the left branch accumulates a
+    # different number of expr_to_alias entries (via incremental plan construction)
+    # than the SelectStatement for the right branch, even though both nodes produce
+    # identical SQL.  This mirrors the reasoning for excluding
+    # df_aliased_col_name_to_real_col_name.
 
     try:
         return hashlib.sha256(string.encode()).hexdigest()[:HASH_LENGTH]
@@ -331,7 +323,25 @@ def encode_node_id_with_query(node: "TreeNode") -> str:
     """
     query_id = encode_query_id(node)
     if query_id is not None:
-        node_type_name = type(node).__name__
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            SelectSnowflakePlan,
+            SelectStatement,
+        )
+        from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+
+        # Use a canonical type name for all plan node types that compile to SQL.
+        # SnowflakePlan, SelectSnowflakePlan, and SelectStatement all represent
+        # a compiled SQL query — they differ only in how they are constructed and
+        # how column state is tracked, not in what SQL they produce.  In a
+        # self-join the left branch is represented as a SnowflakePlan while the
+        # right branch (after _disambiguate_snowpark_columns) ends up as a
+        # SelectStatement or SelectSnowflakePlan.  Using the same type suffix for
+        # all three ensures that nodes producing identical SQL are deduplicated
+        # into a single CTE entry.
+        if isinstance(node, (SnowflakePlan, SelectSnowflakePlan, SelectStatement)):
+            node_type_name = "SnowflakePlan"
+        else:
+            node_type_name = type(node).__name__
         return f"{query_id}_{node_type_name}"
     else:
         return str(id(node))
