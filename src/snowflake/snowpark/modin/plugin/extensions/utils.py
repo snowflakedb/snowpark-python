@@ -838,7 +838,7 @@ def pandas_to_snowflake(
     )
     database_converted = (
         _convert_to_snowflake_table_name_to_write_pandas_table_name(name_parts[0])
-        if len(name_parts) >= 3
+        if len(name_parts) == 3
         else None
     )
 
