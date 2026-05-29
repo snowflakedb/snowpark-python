@@ -699,9 +699,10 @@ def test_cte_preserves_join_suffix_aliases(session, use_different_df):
     # the second one is incorrect join condition as we have rsuffix for join alias
     assert 'ON ("AD_GROUP_ID_WITH_AD_GROUP" = "AD_GROUP_ID")' in union_sql
     assert 'ON ("AD_GROUP_ID" = "AD_GROUP_ID")' not in union_sql
-    # when using different df_ad_group with disambiguation, because rsuffix in join,
-    # they have different alias map (expr_to_alias), so they are considered different and we can't convert them to a CTE
-    # However there is still a CTE for create_dataframe call
+    # Both cases produce 1 CTE: the disambiguated rhs_remapped wrapper nodes hash
+    # identically (same SQL + same alias values, different UUID keys), so they're
+    # merged into a single CTE via the expr_to_alias merge fix.  The raw VALUES
+    # table is absorbed inline into that CTE body rather than becoming its own CTE.
     assert count_number_of_ctes(Utils.normalize_sql(union_sql)) == 1
 
 
@@ -874,12 +875,15 @@ def test_sql_simplifier(session):
         join_count=2,
     )
     with SqlCounter(query_count=0, describe_count=0):
-        # When adding a lsuffix, expr alias map will be updated, so df2 and df3 are considered
-        # different and have different ids. So only df1 and df will be converted to a CTE
+        # With value-sort hashing, df1/df2/df3 now hash identically (same SQL +
+        # same alias values, different UUID keys). df2 and df3 are replaced with a
+        # shared CTE, but df1's left-join position remains inline. That gives 2
+        # CTEs (base VALUES + filtered df1) and the filter appears twice (once in
+        # the CTE body, once inline for the left-join position).
         assert (
-            count_number_of_ctes(Utils.normalize_sql(df6.queries["queries"][-1])) == 1
+            count_number_of_ctes(Utils.normalize_sql(df6.queries["queries"][-1])) == 2
         )
-        assert Utils.normalize_sql(df6.queries["queries"][-1]).count(filter_clause) == 3
+        assert Utils.normalize_sql(df6.queries["queries"][-1]).count(filter_clause) == 2
 
     df7 = df1.with_column("c", lit(1))
     df8 = df1.with_column("c", lit(1)).with_column("d", lit(1))

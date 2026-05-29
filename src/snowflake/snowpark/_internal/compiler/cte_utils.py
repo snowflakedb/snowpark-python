@@ -307,7 +307,14 @@ def encode_query_id(node: "TreeNode") -> Optional[str]:
     if query_params:
         string = f"{string}#{query_params}"
     if hasattr(node, "expr_to_alias") and node.expr_to_alias:
-        string = f"{string}#{stringify(node.expr_to_alias)}"
+        # Sort by alias values (not UUID keys) so that two nodes representing
+        # the same computation hash identically even when the expression UUID
+        # keys differ (e.g. two deep-copied SelectStatement nodes for inv1/inv2
+        # in a self-join accumulate different UUID keys via add_aliases but carry
+        # the same set of alias values).  Different alias values (e.g. when
+        # _disambiguate adds a join suffix such as "_WITH_AD_GROUP") still
+        # produce different hashes, preserving the SNOW-2261400 fix.
+        string = f"{string}#{sorted(set(node.expr_to_alias.values()))}"
     if (
         hasattr(node, "df_aliased_col_name_to_real_col_name")
         and node.df_aliased_col_name_to_real_col_name

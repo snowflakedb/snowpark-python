@@ -168,6 +168,15 @@ class RepeatedSubqueryElimination:
                     resolved_with_block = resolved_with_block_map[
                         node.encoded_node_id_with_query
                     ]
+                    # The CTE was built from an earlier duplicate node that may have
+                    # different expression UUID keys (though the same alias values).
+                    # Merge this node's UUID→alias entries into the shared CTE plan so
+                    # that parent nodes referencing this node's UUIDs can still resolve
+                    # column aliases correctly after substitution.
+                    if hasattr(node, "expr_to_alias") and node.expr_to_alias:
+                        for k, v in node.expr_to_alias.items():
+                            if k not in resolved_with_block.expr_to_alias:
+                                resolved_with_block.expr_to_alias[k] = v
                 else:
                     if (
                         self._query_generator.session.reduce_describe_query_enabled
