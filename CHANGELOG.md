@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added `get_wif_token` to `snowflake.snowpark.secrets` for workload identity federation tokens on the Snowflake server (not available in SPCS file-based secret environments).
+
 #### Documentation
 
 - Clarified that the JDBC driver JAR referenced via `udtf_configs.imports` in `DataFrameReader.jdbc()` must be downloaded from the database vendor and uploaded to a Snowflake stage.
