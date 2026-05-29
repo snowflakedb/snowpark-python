@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import copy
 import re
 import tracemalloc
 from contextlib import contextmanager
@@ -30,6 +31,8 @@ from snowflake.snowpark.functions import (
     uuid_string,
     when_matched,
     to_timestamp,
+    stddev_samp,
+    when,
 )
 from snowflake.snowpark.types import (
     StructType,
@@ -1953,3 +1956,113 @@ def test_uniform_cte_optimization_depends_on_gen(session, use_bare_random, expec
 
     vals = [row["VAL"] for row in result_df.collect()]
     assert (vals[:5] == vals[5:]) == expect_cte
+
+
+def test_cte_tpcds_q39_style_self_join_deduplication(session):
+    """TPCDS_Q39-style self-join: filtered aggregation df aliased twice and self-joined.
+
+    Verifies that the shared `inv` computation (group-by + agg + cov filter) is
+    pushed into a single CTE rather than being inlined once per alias branch.
+    The CTE body should contain stddev_samp/avg exactly once; the outer query
+    references it twice (once for inv1, once for inv2).
+    """
+    if not session._sql_simplifier_enabled:
+        pytest.skip("SQL simplifier is not enabled")
+
+    # Synthetic data shaped like the Q39 inventory result after the inner join:
+    # (item_sk, warehouse_sk, month, quantity).  High-variance values so that
+    # BOTH months pass cov > 1 for each item/warehouse pair, making an incorrect
+    # cross-join (4 rows) detectable vs. the correct equi-join (2 rows).
+    raw = session.create_dataframe(
+        [
+            (10, 1, 1, 10),
+            (
+                10,
+                1,
+                1,
+                390,
+            ),  # item 10, wh 1, month 1: mean=200, stdev≈268.7, cov≈1.34 > 1
+            (10, 1, 2, 20),
+            (
+                10,
+                1,
+                2,
+                380,
+            ),  # item 10, wh 1, month 2: mean=200, stdev≈254.6, cov≈1.27 > 1
+            (20, 2, 1, 5),
+            (
+                20,
+                2,
+                1,
+                395,
+            ),  # item 20, wh 2, month 1: mean=200, stdev≈275.8, cov≈1.38 > 1
+            (20, 2, 2, 30),
+            (
+                20,
+                2,
+                2,
+                370,
+            ),  # item 20, wh 2, month 2: mean=200, stdev≈240.4, cov≈1.20 > 1
+        ],
+        schema=["i_item_sk", "w_warehouse_sk", "d_moy", "qty"],
+    )
+
+    # Mirrors Q39's inner "foo" aggregation subquery.
+    agg = raw.group_by("i_item_sk", "w_warehouse_sk", "d_moy").agg(
+        stddev_samp("qty").alias("stdev"),
+        avg("qty").cast("double").alias("mean"),
+    )
+
+    # Mirrors Q39's outer "inv" CTE: compute cov and filter on cov > 1.
+    # All four (item, warehouse, month) combinations pass cov > 1.
+    inv = agg.with_column(
+        "cov",
+        when(col("mean") == 0, lit(None)).otherwise(col("stdev") / col("mean")),
+    ).filter(when(col("mean") == 0, lit(0)).otherwise(col("stdev") / col("mean")) > 1)
+
+    inv_r = copy.copy(inv)
+    result = (
+        inv.join(inv_r, on=["i_item_sk", "w_warehouse_sk"], rsuffix="_r")
+        .filter(col("d_moy") == 1)
+        .filter(col("d_moy_r") == 2)
+    )
+
+    sql = result.queries["queries"][-1]
+    normalized = Utils.normalize_sql(sql)
+
+    with SqlCounter(query_count=0, describe_count=0):
+        # The shared `inv` computation should be deduplicated into exactly one CTE.
+        assert count_number_of_ctes(normalized) == 1
+
+        # The CTE should appear at least 3 times: once in the WITH definition
+        # and at least twice in the body (one per alias branch).
+        cte_name_match = re.search(r"WITH\s+(\w+)\s+AS", normalized)
+        assert cte_name_match is not None, "expected a WITH CTE in the generated SQL"
+        cte_name = cte_name_match.group(1)
+        assert (
+            normalized.count(cte_name) >= 3
+        ), f"CTE '{cte_name}' should appear in the definition and both join branches"
+
+        # The aggregation (stddev_samp / GROUP BY) must appear exactly once —
+        # inside the CTE body.  Two occurrences would mean `inv` is inlined
+        # separately for each alias branch instead of being shared.
+        assert (
+            normalized.lower().count("stddev_samp") == 1
+        ), "stddev_samp should appear once (in the CTE), not once per alias branch"
+        assert (
+            normalized.upper().count("GROUP BY") == 1
+        ), "GROUP BY should appear once (in the CTE), not once per alias branch"
+
+    # Correctness: the CTE-optimized result must match the non-optimized result.
+    # Correct equi-join on (i_item_sk, w_warehouse_sk) produces 2 rows (item 10
+    # and item 20, each pairing their month-1 and month-2 stats).  A wrong
+    # cross-join would produce 4 rows, so this check_result is meaningful.
+    check_result(
+        session,
+        result,
+        expect_cte_optimized=True,
+        query_count=1,
+        describe_count=0,
+        union_count=0,
+        join_count=1,
+    )
