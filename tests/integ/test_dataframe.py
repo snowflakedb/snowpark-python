@@ -6838,6 +6838,36 @@ def test_dataframe_alias(session):
         .select(df1["*"], df3["*"], df2["col1"]),
     )
 
+    # Regression: aliasing the same DataFrame twice must produce independent
+    # df_aliased_col_name_to_real_col_name dicts so that col("R","col") resolves
+    # to the right-side column, not the left-side column.
+    # Before the fix, SelectStatement.__copy__ assigned the dict by reference,
+    # causing alias("L") and alias("R") on the same df to share the same dict.
+    df_self = session.create_dataframe(
+        [[1, 10], [2, 20], [3, 30]], schema=["id", "val"]
+    )
+
+    # Self-join ON condition using col() alias references: each row should match
+    # only itself (equi-join on unique key).  With the shared-dict bug the ON
+    # condition degenerates to "id" = "id" (always true), producing a cross-join.
+    Utils.check_answer(
+        df_self.alias("L")
+        .join(df_self.alias("R"), col("L", "id") == col("R", "id"))
+        .select(col("L", "id"), col("L", "val"), col("R", "val")),
+        [(1, 10, 10), (2, 20, 20), (3, 30, 30)],
+    )
+
+    # Post-join filter using col() alias references: col("R","val") must resolve
+    # to the right-side column.  With the shared-dict bug it resolved to the
+    # left-side column, making the filter semantically wrong.
+    Utils.check_answer(
+        df_self.alias("L")
+        .join(df_self.alias("R"), col("L", "id") == col("R", "id"))
+        .filter(col("R", "val") == 20)
+        .select(col("L", "id")),
+        [(2,)],
+    )
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
