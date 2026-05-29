@@ -6,6 +6,10 @@
 
 #### Bug Fixes
 
+#### New Features
+
+- Added `get_wif_token` to `snowflake.snowpark.secrets` for workload identity federation tokens on the Snowflake server (not available in SPCS file-based secret environments).
+
 ## 1.51.1 (2026-05-28)
 
 #### Documentation

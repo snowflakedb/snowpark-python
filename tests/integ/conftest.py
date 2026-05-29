@@ -74,6 +74,9 @@ def set_up_external_access_integration_resources(
     integration1,
     integration2,
     integration3,
+    key4,
+    integration4,
+    wif_audience,
 ):
     try:
         # IMPORTANT SETUP NOTES: the test role needs to be granted the creation privilege
@@ -128,6 +131,12 @@ def set_up_external_access_integration_resources(
         ).collect()
         session.sql(
             f"""
+    CREATE SECRET IF NOT EXISTS {key4}
+      TYPE = WORKLOAD_IDENTITY_FEDERATION;
+    """
+        ).collect()
+        session.sql(
+            f"""
     CREATE IF NOT EXISTS EXTERNAL ACCESS INTEGRATION {integration1}
       ALLOWED_NETWORK_RULES = ({rule1})
       ALLOWED_AUTHENTICATION_SECRETS = ({key1})
@@ -150,15 +159,26 @@ def set_up_external_access_integration_resources(
       ENABLED = true;
     """
         ).collect()
+        session.sql(
+            f"""
+    CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS {integration4}
+      ALLOWED_NETWORK_RULES = ({rule1})
+      ALLOWED_AUTHENTICATION_SECRETS = ({key4})
+      ENABLED = true;
+    """
+        ).collect()
         CONNECTION_PARAMETERS["external_access_rule1"] = rule1
         CONNECTION_PARAMETERS["external_access_rule2"] = rule2
         CONNECTION_PARAMETERS["external_access_rule3"] = rule3
         CONNECTION_PARAMETERS["external_access_key1"] = key1
         CONNECTION_PARAMETERS["external_access_key2"] = key2
         CONNECTION_PARAMETERS["external_access_key3"] = key3
+        CONNECTION_PARAMETERS["external_access_key4"] = key4
         CONNECTION_PARAMETERS["external_access_integration1"] = integration1
         CONNECTION_PARAMETERS["external_access_integration2"] = integration2
         CONNECTION_PARAMETERS["external_access_integration3"] = integration3
+        CONNECTION_PARAMETERS["external_access_integration4"] = integration4
+        CONNECTION_PARAMETERS["wif_audience"] = wif_audience
     except SnowparkSQLException:
         # GCP currently does not support external access integration
         # we can remove the exception once the integration is available on GCP
@@ -184,9 +204,12 @@ def clean_up_external_access_integration_resources():
     CONNECTION_PARAMETERS.pop("external_access_key1", None)
     CONNECTION_PARAMETERS.pop("external_access_key2", None)
     CONNECTION_PARAMETERS.pop("external_access_key3", None)
+    CONNECTION_PARAMETERS.pop("external_access_key4", None)
     CONNECTION_PARAMETERS.pop("external_access_integration1", None)
     CONNECTION_PARAMETERS.pop("external_access_integration2", None)
     CONNECTION_PARAMETERS.pop("external_access_integration3", None)
+    CONNECTION_PARAMETERS.pop("external_access_integration4", None)
+    CONNECTION_PARAMETERS.pop("wif_audience", None)
 
 
 def set_up_dataframe_processor_parameters(
@@ -315,9 +338,12 @@ def session(
     key1 = "snowpark_python_test_key1"
     key2 = "snowpark_python_test_key2"
     key3 = "snowpark_python_test_key3"
+    key4 = "snowpark_python_test_key4"
     integration1 = "snowpark_python_test_integration1"
     integration2 = "snowpark_python_test_integration2"
     integration3 = "snowpark_python_test_integration3"
+    integration4 = "snowpark_python_test_integration4"
+    wif_audience = "https://replace-with-your-wif-audience"
 
     session = (
         Session.builder.configs(db_parameters)
@@ -351,6 +377,9 @@ def session(
             integration1,
             integration2,
             integration3,
+            key4,
+            integration4,
+            wif_audience,
         )
 
     if validate_ast:
@@ -387,9 +416,12 @@ def profiler_session(
     key1 = "snowpark_python_profiler_test_key1"
     key2 = "snowpark_python_profiler_test_key2"
     key3 = "snowpark_python_profiler_test_key3"
+    key4 = "snowpark_python_profiler_test_key4"
     integration1 = "snowpark_python_profiler_test_integration1"
     integration2 = "snowpark_python_profiler_test_integration2"
     integration3 = "snowpark_python_profiler_test_integration3"
+    integration4 = "snowpark_python_profiler_test_integration4"
+    wif_audience = "https://replace-with-your-wif-audience"
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
@@ -409,6 +441,9 @@ def profiler_session(
             integration1,
             integration2,
             integration3,
+            key4,
+            integration4,
+            wif_audience,
         )
     set_up_test_session_parameters(session, local_testing_mode)
     try:
