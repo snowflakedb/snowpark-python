@@ -301,6 +301,36 @@ def _create_select_statement(mock_session, mock_analyzer):
     return SelectStatement(from_=from_, analyzer=mock_analyzer)
 
 
+def test_select_statement_copy_aliases_isolated(mock_session, mock_analyzer):
+    """copy.copy(SelectStatement) must produce an independent df_aliased_col_name_to_real_col_name.
+
+    Before the fix, __copy__ assigned the dict by reference.  Calling alias("L") then
+    alias("R") on the same DataFrame both wrote to the *same* dict, causing col("R","col")
+    to resolve to the left-side column after a self-join.
+    """
+    from_ = SelectableEntity(
+        SnowflakeTable("TEST_TABLE", session=mock_session), analyzer=mock_analyzer
+    )
+    original = SelectStatement(from_=from_, analyzer=mock_analyzer)
+    original.df_aliased_col_name_to_real_col_name["A"] = {"col": "col"}
+
+    copied = copy.copy(original)
+
+    # The copy must be a distinct object.
+    assert (
+        copied.df_aliased_col_name_to_real_col_name
+        is not original.df_aliased_col_name_to_real_col_name
+    )
+
+    # Mutations to the copy must not affect the original.
+    copied.df_aliased_col_name_to_real_col_name["B"] = {"col": "col"}
+    assert "B" not in original.df_aliased_col_name_to_real_col_name
+
+    # Mutations to the original must not affect the copy.
+    original.df_aliased_col_name_to_real_col_name["C"] = {"col": "col"}
+    assert "C" not in copied.df_aliased_col_name_to_real_col_name
+
+
 @pytest.mark.parametrize(
     "selectable_factory,copy_func,reduce_describe_enabled,cte_enabled",
     [
