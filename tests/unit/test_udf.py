@@ -96,7 +96,7 @@ def test_do_register_udf_sandbox(session_sandbox, cleanup_registration_patch):
     assert extension_function_properties.all_imports == ""
     # for >= 3.14, we use pypi by default, which auto adds cloudpickle
     assert extension_function_properties.all_packages == (
-        f"'cloudpickle>={cloudpickle.__version__}'"
+        f"'cloudpickle=={cloudpickle.__version__}'"
         if sys.version_info >= (3, 14)
         else ""
     )
@@ -134,7 +134,7 @@ def test_artifact_repository_adds_cloudpickle():
     assert all_packages is not None
     package_list = all_packages.split(",") if all_packages else []
     assert any(
-        pkg.strip().strip("'").startswith("cloudpickle>=") for pkg in package_list
+        pkg.strip().strip("'").startswith("cloudpickle==") for pkg in package_list
     ), f"cloudpickle not found in packages: {all_packages}"
 
     # Test case 2: packages already contains cloudpickle
