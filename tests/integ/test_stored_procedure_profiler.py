@@ -12,7 +12,7 @@ from snowflake.snowpark import DataFrame
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
-from tests.utils import Utils
+from tests.utils import IS_PY314, Utils
 
 
 def multi_thread_helper_function(pro: StoredProcedureProfiler):
@@ -118,6 +118,9 @@ def test_single_return_value_of_sp(
 def test_anonymous_procedure(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
+    if IS_PY314:
+        pytest.skip("Anonymous stored procedures not supported in Python 3.14 yet")
+
     def single_value_sp(session: snowflake.snowpark.Session) -> str:
         return "success"
 

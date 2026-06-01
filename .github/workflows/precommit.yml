@@ -26,7 +26,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -136,6 +136,10 @@ jobs:
           - python-version: "3.14"
             cloud-provider: gcp
             os: windows-latest-64-cores
+            # Cap pytest-xdist parallelism — Python 3.14 + Windows 64-core runners
+            # exhaust threads/memory at -n logical (MemoryError in pytest_timeout
+            # Timer.start, plus stack overflows in connector ThreadPoolExecutors).
+            tox-extra-factors: "-lowparallel"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -175,8 +179,7 @@ jobs:
       - name: Install tox
         run: uv pip install tox --system
       # we only run doctest on macos
-      # TODO: enable doctest for 3.14
-      - if: ${{ matrix.os == 'macos-latest' && matrix.python-version != '3.14' }}
+      - if: ${{ matrix.os == 'macos-latest' }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -188,27 +191,15 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version != '3.14' }}
+      - if: ${{ matrix.os != 'macos-latest' }}
         name: Run tests (excluding doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest${EXTRA_TOX_FACTORS}-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
-          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
-          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
-        shell: bash
-      # TODO: Remove the test below and run udf tests for 3.14
-      # for 3.14, skip udf, doctest
-      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version == '3.14' }}
-        name: Run tests (excluding udf, doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
-          TOX_PARALLEL_NO_SPINNER: 1
+          EXTRA_TOX_FACTORS: ${{ matrix.tox-extra-factors }}
           SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
@@ -222,8 +213,7 @@ jobs:
         shell: bash
       - name: Run data source tests
         # psycopg2 is not supported on macos 3.9
-        # TODO: enable datasource tests for 3.14
-        if: ${{ !(matrix.os == 'macos-latest' && matrix.python-version == '3.9') && !(matrix.python-version == '3.14') }}
+        if: ${{ !(matrix.os == 'macos-latest' && matrix.python-version == '3.9') }}
         run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}

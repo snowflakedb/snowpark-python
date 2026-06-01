@@ -877,3 +877,113 @@ def test_generate_time_travel_sql_clause():
     )
     sql_clause = config.generate_sql_clause()
     assert sql_clause == " AT (STATEMENT => 'abc123')"
+
+
+def test_time_travel_version_snapshot_id():
+    """Test Iceberg snapshot id time travel via ``version`` parameter.
+
+    Covers SQL generation, validation, and the ``mode='at'``-only restriction.
+    Verifies the SQL matches the Snowflake AT(VERSION => N) grammar for
+    Iceberg snapshot id time travel — unquoted long literal, no casting.
+    """
+    # Valid: large int64 snapshot id emits unquoted long literal.
+    snapshot_id = 5129038471029384756
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version=snapshot_id
+    )
+    assert config.version == snapshot_id
+    assert config.time_travel_mode == "at"
+    assert config.generate_sql_clause() == f" AT (VERSION => {snapshot_id})"
+
+    # Negative snapshot ids are allowed (Iceberg occasionally uses negative
+    # hash-derived ids); validation is on type, not sign.
+    config_neg = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version=-1
+    )
+    assert config_neg.generate_sql_clause() == " AT (VERSION => -1)"
+
+    # Direct construction also generates the right SQL.
+    direct = TimeTravelConfig(time_travel_mode="AT", version=42)
+    assert direct.generate_sql_clause() == " AT (VERSION => 42)"
+
+    # version + 'before' is invalid (Snowflake only supports AT(VERSION => ...)).
+    with pytest.raises(
+        ValueError,
+        match=r"Iceberg snapshot version time travel can only be used with time_travel_mode='at'",
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="before", version=snapshot_id
+        )
+
+    # version + another time-travel param is invalid (must pick one).
+    with pytest.raises(ValueError, match="Exactly one of"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version=snapshot_id, offset=-3600
+        )
+    with pytest.raises(ValueError, match="Exactly one of"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            version=snapshot_id,
+            timestamp="2023-01-01 12:00:00",
+        )
+
+    # Non-int version is rejected.
+    with pytest.raises(
+        ValueError, match="'version' must be an int Iceberg snapshot id"
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version="abc"
+        )
+
+    # bool is explicitly rejected (isinstance(True, int) is True in Python).
+    with pytest.raises(
+        ValueError, match="'version' must be an int Iceberg snapshot id"
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version=True
+        )
+
+    # version alone (no mode) requires mode.
+    with pytest.raises(ValueError, match="Must specify time travel mode"):
+        TimeTravelConfig.validate_and_normalize_params(version=snapshot_id)
+
+
+def test_extract_time_travel_snapshot_id_option():
+    """Test Iceberg snapshot id option extraction for the reader API.
+
+    The Spark-compat aliases ``snapshot-id`` / ``snapshot_id`` map to the
+    internal ``version`` time-travel parameter and auto-set
+    ``time_travel_mode='at'`` (``AT(VERSION => N)`` is the only valid form
+    for Iceberg snapshot id time travel).
+    """
+    from snowflake.snowpark.dataframe_reader import _extract_time_travel_from_options
+
+    # Long int via SNAPSHOT-ID (Spark canonical key)
+    result = _extract_time_travel_from_options({"SNAPSHOT-ID": 5129038471029384756})
+    assert result == {
+        "time_travel_mode": "at",
+        "version": 5129038471029384756,
+    }
+
+    # Underscore variant
+    result = _extract_time_travel_from_options({"SNAPSHOT_ID": 42})
+    assert result == {"time_travel_mode": "at", "version": 42}
+
+    # String snapshot ids coerced to int (Spark accepts both via .option())
+    result = _extract_time_travel_from_options({"SNAPSHOT-ID": "10963874102873"})
+    assert result == {"time_travel_mode": "at", "version": 10963874102873}
+
+    # snapshot-id + time_travel_mode='before' is rejected
+    with pytest.raises(
+        ValueError,
+        match=r"Cannot use 'snapshot-id' option with time_travel_mode='before'",
+    ):
+        _extract_time_travel_from_options(
+            {"SNAPSHOT-ID": 1, "TIME_TRAVEL_MODE": "before"}
+        )
+
+    # Non-numeric snapshot-id is rejected
+    with pytest.raises(
+        ValueError, match="'snapshot-id' must be a 64-bit integer Iceberg snapshot id"
+    ):
+        _extract_time_travel_from_options({"SNAPSHOT-ID": "not-a-number"})

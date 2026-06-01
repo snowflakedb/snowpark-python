@@ -13690,7 +13690,7 @@ def ai_complete(
 
         >>> # Basic completion with string prompt
         >>> df = session.range(1).select(
-        ...     ai_complete('snowflake-arctic', 'What are large language models?').alias("response")
+        ...     ai_complete('llama3.1-8b', 'What are large language models?').alias("response")
         ... )
         >>> len(df.collect()[0][0]) > 10
         True
@@ -13762,7 +13762,7 @@ def ai_complete(
         >>> # Using prompt object from prompt() function
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='claude-3-7-sonnet',
+        ...         model='claude-4-sonnet',
         ...         prompt=prompt("Extract the kitchen appliances identified in this image. Respond in JSON only with the identified appliances? {0}", to_file('@mystage/kitchen.png')),
         ...     )
         ... )

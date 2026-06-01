@@ -5,7 +5,8 @@
 
 """Context module for Snowpark."""
 import logging
-from typing import Callable, Optional
+import sys
+from typing import Any, Callable, Optional
 
 import snowflake.snowpark
 import threading
@@ -31,6 +32,11 @@ _use_structured_type_semantics_lock = threading.RLock()
 
 # This is an internal-only global flag, used to determine whether the api code which will be executed is compatible with snowflake.snowpark_connect
 _is_snowpark_connect_compatible_mode = False
+
+# Default backend selector for the Snowpark Catalog when running in
+# Snowpark-Connect / SCOS compatible mode. True -> SQL-based backend,
+# False -> legacy snowflake.core REST backend. Read live by Catalog.__init__.
+_use_sql_base_catalog = True
 # Internal-only global flag that enables improved SQL simplifier query flattening
 # for filter, sort, select, and distinct. When True (default), the branch
 # improvements are active regardless of _is_snowpark_connect_compatible_mode.
@@ -39,6 +45,11 @@ _aggregation_function_set = (
     set()
 )  # lower cased names of aggregation functions, used in sql simplification
 _aggregation_function_set_lock = threading.RLock()
+_aggregation_function_prefetch_state: dict[str, Any] = {
+    "lock": threading.RLock(),
+    "event": None,
+    "job": None,
+}
 
 # Hardcoded fallback for system built-in aggregation functions.
 # Used when the dynamic query fails to retrieve the list from the database.
@@ -56,9 +67,6 @@ _KNOWN_AGGREGATION_FUNCTIONS = frozenset(
         "ai_agg",
         "ai_summarize_agg",
         "any_value",
-        "approximate_count_distinct",
-        "approximate_jaccard_index",
-        "approximate_similarity",
         "approx_count_distinct",
         "approx_percentile",
         "approx_percentile_accumulate",
@@ -66,25 +74,29 @@ _KNOWN_AGGREGATION_FUNCTIONS = frozenset(
         "approx_top_k",
         "approx_top_k_accumulate",
         "approx_top_k_combine",
-        "arrayagg",
+        "approximate_count_distinct",
+        "approximate_jaccard_index",
+        "approximate_similarity",
         "array_agg",
         "array_union_agg",
         "array_unique_agg",
+        "arrayagg",
         "avg",
-        "bitandagg",
+        "bit_and_agg",
+        "bit_andagg",
+        "bit_or_agg",
+        "bit_oragg",
+        "bit_xor_agg",
+        "bit_xoragg",
         "bitand_agg",
+        "bitandagg",
+        "bitmap_and_agg",
         "bitmap_construct_agg",
         "bitmap_or_agg",
-        "bitoragg",
         "bitor_agg",
-        "bitxoragg",
+        "bitoragg",
         "bitxor_agg",
-        "bit_andagg",
-        "bit_and_agg",
-        "bit_oragg",
-        "bit_or_agg",
-        "bit_xoragg",
-        "bit_xor_agg",
+        "bitxoragg",
         "booland_agg",
         "boolor_agg",
         "boolxor_agg",
@@ -109,12 +121,12 @@ _KNOWN_AGGREGATION_FUNCTIONS = frozenset(
         "max_by",
         "median",
         "min",
+        "min_by",
         "minhash",
         "minhash_combine",
-        "min_by",
         "mode",
-        "objectagg",
         "object_agg",
+        "objectagg",
         "percentile_cont",
         "percentile_disc",
         "regr_avgx",
@@ -127,26 +139,28 @@ _KNOWN_AGGREGATION_FUNCTIONS = frozenset(
         "regr_sxy",
         "regr_syy",
         "skew",
+        "st_intersection_agg_geography_internal",
+        "st_union_agg_geography_internal",
         "stddev",
         "stddev_pop",
         "stddev_samp",
-        "st_intersection_agg_geography_internal",
-        "st_union_agg_geography_internal",
         "sum",
         "sum_internal",
         "sum_internal_real",
         "sum_real",
+        "summarize_agg",
+        "var_pop",
+        "var_samp",
         "variance",
         "variance_pop",
         "variance_samp",
-        "var_pop",
-        "var_samp",
         "vector_avg",
         "vector_max",
         "vector_min",
         "vector_sum",
     ]
 )
+
 
 _cte_error_threshold = 3  # 0 to disable auto-cte-disable, otherwise the number of times CTE optimization can fail before it is automatically disabled for the remainder of the session.
 
@@ -168,8 +182,14 @@ _integral_type_default_precision = {}
 
 # The fully qualified name of the Anaconda shared repository (conda channel).
 _ANACONDA_SHARED_REPOSITORY = "snowflake.snowpark.anaconda_shared_repository"
-# In case of failures or the current default artifact repository is unset, we fallback to this
-_DEFAULT_ARTIFACT_REPOSITORY = _ANACONDA_SHARED_REPOSITORY
+# The fully qualified name of the PyPI shared repository (pypi channel).
+_PYPI_SHARED_REPOSITORY = "snowflake.snowpark.pypi_shared_repository"
+# In case of failures and for routing to the right session package store, we use this
+_DEFAULT_ARTIFACT_REPOSITORY = (
+    _ANACONDA_SHARED_REPOSITORY
+    if sys.version_info < (3, 14)
+    else _PYPI_SHARED_REPOSITORY
+)
 
 
 def configure_development_features(

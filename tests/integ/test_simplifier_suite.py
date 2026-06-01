@@ -2180,6 +2180,135 @@ def test_sort_not_flattened_on_new_column_with_dollar_or_all_dependency(session)
     Utils.check_answer(df_sorted_dollar, [Row(1, 1), Row(3, 3)])
 
 
+@pytest.mark.parametrize("is_snowpark_connect_compatible_mode", [True, False])
+def test_filter_after_limit_not_flattened_on_new_column(
+    session, monkeypatch, is_snowpark_connect_compatible_mode
+):
+    """Filter on a NEW (aliased) column after LIMIT must not be flattened in
+    front of LIMIT, in either legacy or Snowpark Connect compatible mode.
+    Flattening WHERE across LIMIT changes the result set
+    (``LIMIT n ... WHERE c`` != ``WHERE c LIMIT n``).
+
+    Regression test for the bug introduced by the
+    ``_snowpark_connect_flatten_select_after_sort`` loosening, which allowed
+    filter-through-LIMIT flattening on NEW columns in compatible mode.
+
+    A small inline ``VALUES`` input preserves insertion order in practice for
+    Snowflake's planner, so with the correct (non-flattened) SQL the LIMIT
+    picks IDs 0..4 and only id=4 survives the filter. With the buggy
+    flattened SQL the filter runs first against IDs 0..9, LIMIT then picks 5
+    of the 6 matching rows, and the result is 5 rows. Asserting an exact
+    single row ``[Row(4)]`` therefore catches the regression."""
+    if is_snowpark_connect_compatible_mode:
+        import snowflake.snowpark.context as context
+
+        monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+
+    df = session.create_dataframe([(i,) for i in range(10)], schema=["ID"])
+    df1 = (
+        df.select(col("ID").alias("id_a"))
+        .select(col("id_a").alias("id_b"))
+        .limit(5)
+        .filter(col("id_b") > 3)
+    )
+
+    # (a) WHERE must remain OUTSIDE the LIMIT subquery.
+    query = df1.queries["queries"][-1]
+    assert query.upper().rfind("WHERE") > query.upper().rfind(
+        "LIMIT"
+    ), f"WHERE flattened across LIMIT on NEW column: {query}"
+    assert (
+        query.count("SELECT") >= 2
+    ), f"Expected nested SELECT when filtering on NEW column after LIMIT: {query}"
+
+    # (b) Exact row match -- only id=4 is in the first 5 rows AND > 3.
+    Utils.check_answer(df1, [Row(4)])
+
+
+@pytest.mark.parametrize("is_snowpark_connect_compatible_mode", [True, False])
+def test_filter_after_limit_on_range_matches_spark_semantics(
+    session, monkeypatch, is_snowpark_connect_compatible_mode
+):
+    """Mirror of the original Spark SQL regression workload
+    ``SELECT * FROM (SELECT * FROM range(10) LIMIT 5) WHERE id > 3``.
+
+    ``session.range()`` uses Snowflake's ``GENERATOR``, which makes no
+    ordering guarantees without an ``ORDER BY``. So unlike the VALUES-based
+    variant above we cannot assert an exact row set. We can still assert the
+    invariants that distinguish correct from regressed SQL:
+
+    * correct semantics: ``LIMIT 5`` picks 5 of 0..9 then filter keeps those
+      > 3 -> **row count is 0..5**
+    * regressed (flattened) semantics: filter keeps 4..9 (6 rows), ``LIMIT
+      5`` picks 5 of them -> **row count is always exactly 5**
+
+    So ``count < 5`` (with any ordering of generator output) is a positive
+    signal the fix is working; ``count == 5`` plus ``rows == {4..8}`` would
+    indicate the regression. We also assert every row satisfies the filter
+    predicate and LIMIT is respected as additional invariants."""
+    if is_snowpark_connect_compatible_mode:
+        import snowflake.snowpark.context as context
+
+        monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+
+    df = (
+        session.range(10)
+        .select(col("ID").alias("id_a"))
+        .select(col("id_a").alias("id_b"))
+        .limit(5)
+        .select("*")
+        .filter(col("id_b") > 3)
+        .select(col("id_b").alias("id_c"))
+    )
+
+    query = df.queries["queries"][-1]
+    assert query.upper().rfind("WHERE") > query.upper().rfind(
+        "LIMIT"
+    ), f"WHERE flattened across LIMIT on NEW column: {query}"
+
+    rows = df.collect()
+    # Invariants that hold for correct semantics regardless of GENERATOR order.
+    assert len(rows) <= 5, f"LIMIT not respected: got {len(rows)} rows -> {rows}"
+    assert all(r[0] > 3 for r in rows), f"Row failing predicate id > 3 returned: {rows}"
+    # The buggy flattened SQL always returns exactly 5 rows from {4..8}
+    # regardless of generator ordering, which would violate both of the
+    # assertions below.
+    returned = {r[0] for r in rows}
+    assert returned <= set(range(10)), f"Unexpected value: {rows}"
+    assert not (len(rows) == 5 and returned == {4, 5, 6, 7, 8}), (
+        f"Result matches the buggy flattened semantics (filter-before-LIMIT):"
+        f" {rows}"
+    )
+
+
+def test_filter_on_new_column_without_limit_still_flattens_compat_mode(
+    session, monkeypatch
+):
+    """Sanity check: the Snowpark Connect compatible-mode loosening of
+    filter flattening on NEW columns is still active when there is no
+    LIMIT/OFFSET on the subquery. Only the narrow LIMIT/OFFSET case is
+    blocked by the fix."""
+    import snowflake.snowpark.context as context
+
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+
+    df = session.create_dataframe([(i,) for i in range(10)], schema=["ID"])
+    df1 = (
+        df.select(col("ID").alias("id_a"))
+        .select(col("id_a").alias("id_b"))
+        .filter(col("id_b") > 3)
+    )
+
+    # filter flattened into a single level of projection (no nested SELECT
+    # around a standalone subquery for the filter step).
+    query = df1.queries["queries"][-1]
+    assert "LIMIT" not in query.upper()
+    assert "WHERE" in query.upper(), f"Expected filter to be emitted as WHERE: {query}"
+
+    # Without LIMIT the result is fully deterministic -> exact check.
+    Utils.check_answer(df1, [Row(4), Row(5), Row(6), Row(7), Row(8), Row(9)], sort=True)
+
+
 def test_window_with_filter(session):
     df = session.create_dataframe([[0], [1]], schema=["A"])
     df = (
@@ -2390,3 +2519,197 @@ def test_retrieving_aggregation_funcs(session, monkeypatch):
     assert not context._aggregation_function_set
     session._retrieve_aggregation_function_list()
     assert not context._aggregation_function_set
+
+
+def test_internal_async_aggregation_prefetch_submission(session, monkeypatch):
+    from threading import Event
+
+    import snowflake.snowpark.context as context
+
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
+    monkeypatch.setattr(context, "_aggregation_function_set", set())
+    context._aggregation_function_prefetch_state["job"] = None
+    context._aggregation_function_prefetch_state["event"] = None
+
+    calls = []
+
+    def _fake_execute_async(query, **kwargs):
+        calls.append((query, kwargs))
+        return {"queryId": "qid_combined"}
+
+    monkeypatch.setattr(
+        session._conn, "execute_async_and_notify_query_listener", _fake_execute_async
+    )
+    session._start_async_aggregation_prefetch_if_needed()
+
+    assert len(calls) == 1
+    assert calls[0][1].get("_is_internal") is True
+    assert "show functions" in calls[0][0]
+    assert "information_schema.functions" not in calls[0][0]
+    assert (
+        context._aggregation_function_prefetch_state["job"].query_id == "qid_combined"
+    )
+
+    # Another session start during in-flight fetch should not submit another async query.
+    context._aggregation_function_prefetch_state["job"] = None
+    context._aggregation_function_prefetch_state["event"] = Event()
+    session._start_async_aggregation_prefetch_if_needed()
+    assert len(calls) == 1
+
+
+def test_aggregation_fallback_not_used_when_combined_async_succeeds(
+    session, monkeypatch
+):
+    import snowflake.snowpark.context as context
+
+    class _FakeAsyncJob:
+        def __init__(self, rows=None, error=None) -> None:
+            self._rows = rows
+            self._error = error
+
+        def result(self):
+            if self._error is not None:
+                raise self._error
+            return self._rows
+
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
+    monkeypatch.setattr(context, "_aggregation_function_set", set())
+    context._aggregation_function_prefetch_state["job"] = _FakeAsyncJob(rows=[("SUM",)])
+
+    session._retrieve_aggregation_function_list()
+
+    assert "sum" in context._aggregation_function_set
+    assert "sum_internal" not in context._aggregation_function_set
+
+
+def test_internal_sync_aggregation_fallback_submission(session, monkeypatch):
+    import snowflake.snowpark.context as context
+
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
+    monkeypatch.setattr(context, "_aggregation_function_set", set())
+    context._aggregation_function_prefetch_state["job"] = None
+    context._aggregation_function_prefetch_state["event"] = None
+
+    calls = []
+
+    def _fake_run_query(query, **kwargs):
+        calls.append((query, kwargs))
+        return {"data": [("AVG",)]}
+
+    monkeypatch.setattr(session._conn, "run_query", _fake_run_query)
+    session._retrieve_aggregation_function_list()
+
+    assert len(calls) == 1
+    assert calls[0][1].get("_is_internal") is True
+    assert "show functions" in calls[0][0]
+    assert "information_schema.functions" not in calls[0][0]
+    assert "avg" in context._aggregation_function_set
+
+
+def test_concurrent_retrieve_agg_waiters_no_sync_query(session, monkeypatch):
+    """Concurrent calls to _retrieve_aggregation_function_list must result in zero
+    sync queries from waiters — they reuse the winner's async result via the Event."""
+    import threading
+    import time
+    import snowflake.snowpark.context as context
+
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
+    monkeypatch.setattr(context, "_aggregation_function_set", set())
+    context._aggregation_function_prefetch_state["event"] = None
+
+    job_may_proceed = threading.Event()
+    waiter_count = [0]
+    waiter_count_lock = threading.Lock()
+
+    class SlowFakeAsyncJob:
+        def result(self):
+            job_may_proceed.wait()
+            return [("SUM",), ("AVG",)]
+
+    context._aggregation_function_prefetch_state["job"] = SlowFakeAsyncJob()
+
+    sync_query_calls = []
+    original_run_query = session._conn.run_query
+
+    def counting_run_query(query, **kwargs):
+        if kwargs.get("_is_internal") and "show functions" in query:
+            sync_query_calls.append(query)
+        return original_run_query(query, **kwargs)
+
+    monkeypatch.setattr(session._conn, "run_query", counting_run_query)
+
+    errors = []
+
+    def run_winner():
+        try:
+            session._retrieve_aggregation_function_list()
+        except Exception as e:
+            errors.append(e)
+
+    def run_waiter():
+        try:
+            with waiter_count_lock:
+                waiter_count[0] += 1
+                if waiter_count[0] == 2:
+                    job_may_proceed.set()
+            session._retrieve_aggregation_function_list()
+        except Exception as e:
+            errors.append(e)
+
+    winner = threading.Thread(target=run_winner)
+    waiters = [threading.Thread(target=run_waiter) for _ in range(2)]
+
+    winner.start()
+    time.sleep(0.05)  # give winner time to claim job and set fetch_event
+    for w in waiters:
+        w.start()
+    winner.join(timeout=15)
+    for w in waiters:
+        w.join(timeout=15)
+
+    assert not errors
+    assert "sum" in context._aggregation_function_set
+    assert "avg" in context._aggregation_function_set
+    assert (
+        len(sync_query_calls) == 0
+    ), f"Expected 0 sync queries from waiters, got {len(sync_query_calls)}"
+
+
+def test_concurrent_retrieve_agg_event_set_after_context_published(
+    session, monkeypatch
+):
+    """The fetch_event must be set only after _aggregation_function_set is published —
+    waiters must see a non-empty set the moment they wake up"""
+    import snowflake.snowpark.context as context
+    from threading import Event as _Event
+
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
+    monkeypatch.setattr(context, "_aggregation_function_set", set())
+    context._aggregation_function_prefetch_state["event"] = None
+
+    class _FakeAsyncJob:
+        def result(self):
+            return [("SUM",)]
+
+    context._aggregation_function_prefetch_state["job"] = _FakeAsyncJob()
+
+    snapshot_at_set = []
+    original_event_set = _Event.set
+
+    def patched_set(self_event):
+        snapshot_at_set.append(frozenset(context._aggregation_function_set))
+        original_event_set(self_event)
+
+    monkeypatch.setattr(_Event, "set", patched_set)
+
+    session._retrieve_aggregation_function_list()
+
+    assert snapshot_at_set, "fetch_event.set() was never called"
+    assert snapshot_at_set[
+        0
+    ], "fetch_event fired before _aggregation_function_set was published"

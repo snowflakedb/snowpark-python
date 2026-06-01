@@ -2119,18 +2119,23 @@ def test_filepath_not_exist_or_empty(session):
         session.read.option("PARSE_HEADER", True).option("INFER_SCHEMA", True).csv(
             empty_file_path
         )
-    assert f"Given path: '{empty_file_path}' could not be found or is empty." in str(
-        ex_info
+    assert (
+        f"Given path: '{empty_file_path}' returned no results from INFER_SCHEMA."
+        in str(ex_info.value)
     )
+    # Message should mention file format options so users don't chase a phantom
+    # path-not-found when the real cause is PARSE_HEADER/SKIP_HEADER/ON_ERROR.
+    assert "file format options" in str(ex_info.value)
 
     with pytest.raises(FileNotFoundError) as ex_info:
         session.read.option("PARSE_HEADER", True).option("INFER_SCHEMA", True).csv(
             not_exist_file_path
         )
     assert (
-        f"Given path: '{not_exist_file_path}' could not be found or is empty."
-        in str(ex_info)
+        f"Given path: '{not_exist_file_path}' returned no results from INFER_SCHEMA."
+        in str(ex_info.value)
     )
+    assert "file format options" in str(ex_info.value)
 
 
 @pytest.mark.skipif(

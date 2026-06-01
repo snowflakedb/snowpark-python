@@ -103,6 +103,7 @@ from tests.utils import (
     IS_IN_STORED_PROC,
     IS_IN_STORED_PROC_LOCALFS,
     IS_NOT_ON_GITHUB,
+    IS_PY314,
     TestData,
     TestFiles,
     Utils,
@@ -5416,6 +5417,10 @@ def test_append_existing_table(session, local_testing_mode):
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
 )
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Python 3.14 UDxFs not supported in dynamic tables yet",
+)
 @pytest.mark.udf
 def test_dynamic_table_join_table_function(session):
     if not session.sql_simplifier_enabled:
@@ -5501,6 +5506,10 @@ def test_dynamic_table_join_table_function(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
+)
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Python 3.14 UDxFs not supported in dynamic tables yet",
 )
 @pytest.mark.udf
 def test_dynamic_table_join_table_function_with_more_layers(session):
@@ -5589,6 +5598,10 @@ def test_dynamic_table_join_table_function_with_more_layers(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
+)
+@pytest.mark.skipif(
+    IS_PY314,
+    reason="Python 3.14 UDxFs not supported in dynamic tables yet",
 )
 @pytest.mark.udf
 def test_dynamic_table_join_table_function_nested(session):
@@ -8313,3 +8326,77 @@ def test_time_travel_comprehensive_coverage(session):
     finally:
         Utils.drop_table(session, table1_name)
         Utils.drop_table(session, table2_name)
+
+
+# ----------------------------------------------------------------------
+# Iceberg snapshot id (``version=``) time travel.
+#
+# TODO(SNOW-3525585): Wire these up to a CI test account that has:
+#   * a Catalog-Linked Database (CLD) such as cldUnity / cldglue, AND
+#   * an unmanaged Iceberg table inside it with at least two snapshots
+#     readable through ``INFORMATION_SCHEMA.GET_TABLE_VERSIONS(...)``.
+#
+# Snowflake's ``AT(VERSION => N)`` syntax requires the
+# ``FEATURE_ICEBERG_TIME_TRAVEL`` server parameter to be enabled on the
+# account and is currently scoped to **unmanaged** Iceberg tables in CLDs.
+# Because the existing snowpark-python integ accounts don't have a CLD with
+# a multi-snapshot Iceberg table provisioned, these tests are skipped by
+# default and run manually against ``sfctest0`` (see
+# ``tests/sas_tests/test_iceberg_snapshot_id_sample.py`` in the
+# snowflake-eng/sas repo for the manual reproducer).
+# ----------------------------------------------------------------------
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with multiple "
+        "snapshots and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_snapshot_id_time_travel_session_table(session):
+    """End-to-end: ``Session.table(..., version=<snapshot_id>)`` returns the
+    table state at the requested Iceberg snapshot."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+
+    snapshot_ids = [
+        row["SNAPSHOT_ID"]
+        for row in session.sql(
+            f"SELECT SNAPSHOT_ID FROM "
+            f"TABLE(INFORMATION_SCHEMA.GET_TABLE_VERSIONS('{table_fqn}')) "
+            "ORDER BY SNAPSHOT_TIMESTAMP"
+        ).collect()
+    ]
+    assert len(snapshot_ids) >= 2, "Demo table needs at least 2 snapshots"
+
+    first_snapshot = session.table(
+        table_fqn, time_travel_mode="at", version=snapshot_ids[0]
+    ).collect()
+    latest = session.table(table_fqn).collect()
+    assert len(first_snapshot) <= len(latest)
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with multiple "
+        "snapshots and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_snapshot_id_time_travel_dataframe_reader_option(session):
+    """End-to-end: ``session.read.option('snapshot-id', N).table(...)``
+    routes through the Spark Iceberg-compat alias and produces the same
+    result as the explicit ``version=`` kwarg."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+
+    snapshot_id = session.sql(
+        f"SELECT SNAPSHOT_ID FROM "
+        f"TABLE(INFORMATION_SCHEMA.GET_TABLE_VERSIONS('{table_fqn}')) "
+        "ORDER BY SNAPSHOT_TIMESTAMP LIMIT 1"
+    ).collect()[0]["SNAPSHOT_ID"]
+
+    via_kwarg = session.read.table(
+        table_fqn, time_travel_mode="at", version=snapshot_id
+    ).collect()
+    via_option = (
+        session.read.option("snapshot-id", snapshot_id).table(table_fqn).collect()
+    )
+    assert via_kwarg == via_option

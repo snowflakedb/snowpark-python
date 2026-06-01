@@ -42,7 +42,7 @@ from snowflake.snowpark.session import (
     _get_active_session,
     _get_active_sessions,
 )
-from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
+from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_IN_STORED_PROC_LOCALFS,
@@ -94,6 +94,30 @@ def test_runtime_config(db_parameters):
     )
 
     session.close()
+
+
+@pytest.mark.parametrize(
+    "use_sql_base_catalog, expected_backend_name",
+    [(True, "_SqlCatalogBackend"), (False, "_RestCatalogBackend")],
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Requires real Snowflake connection for Catalog REST backend",
+)
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_catalog_backend_selection_from_context_use_sql_base_catalog(
+    db_parameters, monkeypatch, use_sql_base_catalog, expected_backend_name
+):
+    import snowflake.snowpark.context as ctx
+
+    session = Session.builder.configs(db_parameters).create()
+    try:
+        monkeypatch.setattr(ctx, "_is_snowpark_connect_compatible_mode", True)
+        monkeypatch.setattr(ctx, "_use_sql_base_catalog", use_sql_base_catalog)
+        session._catalog = None
+        assert type(session.catalog._backend).__name__ == expected_backend_name
+    finally:
+        session.close()
 
 
 @pytest.mark.xfail(
@@ -1125,5 +1149,5 @@ def test_default_artifact_repository_with_no_db_schema(session, caplog):
         mock_session_parameters,
     ), caplog.at_level(logging.WARNING):
         result = session._get_default_artifact_repository()
-        assert result == _ANACONDA_SHARED_REPOSITORY
+        assert result == _DEFAULT_ARTIFACT_REPOSITORY
         assert caplog.text.count("Error getting default artifact repository") == 0
