@@ -963,7 +963,7 @@ class SelectStatement(Selectable):
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
         new._api_calls = self._api_calls.copy() if self._api_calls is not None else None
-        new.df_aliased_col_name_to_real_col_name = (
+        new.df_aliased_col_name_to_real_col_name = deepcopy(
             self.df_aliased_col_name_to_real_col_name
         )
         new._merge_projection_complexity_with_subquery = (
