@@ -4,6 +4,7 @@
 import json
 import logging
 import os
+import types
 from typing import Optional
 from unittest import mock
 from unittest.mock import MagicMock
@@ -880,14 +881,16 @@ def test_retrieve_aggregation_function_list_handles_sync_error():
         ctx._aggregation_function_set = original_agg_set
 
 
-def test_get_req_identifiers_list_uses_ge_for_modules(mock_server_connection):
-    """Modules (cloudpickle) are injected with >= not == to allow the server to
-    resolve a compatible version for the target runtime (SNOW-3081273)."""
+def test_get_req_identifiers_list_cloudpickle_only_uses_ge(mock_server_connection):
+    """Only cloudpickle is injected with >= to allow runtime-compatible resolution."""
     import cloudpickle as cp
 
     session = Session(mock_server_connection)
-    result = session._get_req_identifiers_list([cp], {})
-    assert result == [f"cloudpickle>={cp.__version__}"]
+    dummy_module = types.ModuleType("dummy_module")
+    dummy_module.__version__ = "1.2.3"
+
+    result = session._get_req_identifiers_list([cp, dummy_module], {})
+    assert result == [f"cloudpickle>={cp.__version__}", "dummy_module==1.2.3"]
     assert f"cloudpickle=={cp.__version__}" not in result
 
 
