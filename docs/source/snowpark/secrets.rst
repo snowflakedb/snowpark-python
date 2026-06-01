@@ -22,3 +22,4 @@ Snowpark Secrets
     get_secret_type
     get_username_password
     get_cloud_provider_token
+    get_wif_token
