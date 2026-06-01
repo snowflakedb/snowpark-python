@@ -1,8 +1,10 @@
 # Release History
 
-## Unreleased
+## 1.52.0 (TBD)
 
 ### Snowpark Python API Updates
+
+#### Bug Fixes
 
 #### New Features
 
@@ -11,6 +13,8 @@
 #### Improvements
 
 - Improved CTE optimization to deduplicate identical subtrees in self-joins, which were previously emitted as repeated subqueries.
+
+## 1.51.1 (2026-05-28)
 
 #### Documentation
 
