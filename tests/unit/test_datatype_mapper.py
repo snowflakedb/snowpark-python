@@ -770,6 +770,7 @@ def test_schema_expression():
     assert schema_expression(LongType(), False) == "0 :: BIGINT"
     assert schema_expression(FloatType(), False) == "0 :: FLOAT"
     assert schema_expression(DoubleType(), False) == "0 :: DOUBLE"
+    assert schema_expression(DecFloatType(), False) == "0 :: DECFLOAT"
     assert schema_expression(StringType(), False) == "'a' :: STRING"
     assert schema_expression(StringType(19), False) == "'a' ::  STRING (19)"
     assert schema_expression(BooleanType(), False) == "true"

@@ -427,6 +427,8 @@ def test_cache_metadata_on_selectable_entity(session):
 
 
 def test_project_alias_infers_attributes_from_parent_metadata(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
     df = session.create_dataframe(["v"], schema=["c"])
     _ = df.schema
 
@@ -448,6 +450,8 @@ def test_project_alias_infers_attributes_from_parent_metadata(session):
 
 def test_swap_column_aliases_infers_types_from_source_names(session):
     """n-1: columns a, b; n: b AS a, a AS b — metadata follows source column types."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     _ = df.schema
 
@@ -475,6 +479,8 @@ def test_swap_column_aliases_infers_types_from_source_names(session):
 
 def test_swap_mixed_column_types_inference_follows_source(session):
     """Swapped output names must take datatypes from the referenced source column."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
     schema = StructType(
         [
             StructField("a", LongType(), nullable=True),
@@ -508,6 +514,8 @@ def test_swap_mixed_column_types_inference_follows_source(session):
 
 def test_column_permutation_inference_name_keyed_lookup(session):
     """Non-swap rename: c->a, a->x, b->y — each output type matches its source column."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
     df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
     _ = df.schema
 
@@ -536,6 +544,8 @@ def test_column_permutation_inference_name_keyed_lookup(session):
 
 def test_chained_simple_renames_infer_from_previous_metadata(session):
     """Second select's parent already has inferred attributes from the first rename."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
     df = session.create_dataframe([[10, 20]], schema=["a", "b"])
     _ = df.schema
 
@@ -566,6 +576,8 @@ def test_chained_simple_renames_infer_from_previous_metadata(session):
 
 def test_quoted_case_sensitive_sql_column_metadata_inference(session):
     """Delimited identifier from session.sql: chained select infers metadata without DESCRIBE."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
     df = session.sql('SELECT 1 AS "MixedCase"')
     with SqlCounter(query_count=0, describe_count=1, strict=False):
         _ = df.schema
@@ -644,6 +656,8 @@ def test_select_inference_skips_on_duplicate_parent_keys_and_missing_alias_name(
     """SelectStatement.select: (1) duplicate parent output aliases — collision skips inference
     on a follow-up select; DESCRIBE is not skipped when resolving schema for the duplicate-alias
     frame. (2) Alias with missing output name — defensive inference abort."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
     df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
     _ = df.schema
     dup = df.select((col("a") + 1).as_("b"), (col("c") + 1).as_("b"))
@@ -677,6 +691,8 @@ def test_reduce_describe_inference_invalid_delimited_identifier_rejected(session
 
 def test_select_star_after_cached_parent(session):
     """SELECT * after parent schema is cached: infer_metadata can copy child attributes when reduce_describe is on."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     _ = df.schema
     parent_attrs = df._plan._metadata.attributes
