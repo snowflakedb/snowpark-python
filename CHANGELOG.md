@@ -16,6 +16,10 @@
 
 - Fixed a bug where calling `DataFrame.alias()` twice on the same DataFrame (e.g. for a self-join) caused both aliases to share the same internal column-mapping dictionary. This made `col("R", "col")` resolve to the same column as `col("L", "col")`, producing incorrect join conditions and filter expressions.
 
+#### Deprecations
+
+- Removed support for Python 3.9.
+
 ## 1.51.1 (2026-05-28)
 
 #### Documentation
