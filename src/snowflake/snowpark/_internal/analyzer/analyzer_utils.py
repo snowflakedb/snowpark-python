@@ -961,6 +961,24 @@ def lateral_join_statement(
     )
 
 
+_SELECT_STAR_FROM_PREFIX = SELECT + STAR + NEW_LINE + FROM + LEFT_PARENTHESIS + NEW_LINE
+_SELECT_STAR_FROM_SUFFIX = NEW_LINE + RIGHT_PARENTHESIS
+
+
+def _unwrap_select_star_from(sql: str) -> Optional[str]:
+    """If sql is a join-produced `SELECT * FROM (\n<join_source>\n)` (the
+    output of project_statement([], join_source)), return <join_source>.
+    Only unwraps when the inner content starts with '(' which indicates
+    a parenthesized join operand rather than a wrapped SELECT statement."""
+    if sql.startswith(_SELECT_STAR_FROM_PREFIX) and sql.endswith(
+        _SELECT_STAR_FROM_SUFFIX
+    ):
+        inner = sql[len(_SELECT_STAR_FROM_PREFIX) : -len(_SELECT_STAR_FROM_SUFFIX)]
+        if inner.startswith(LEFT_PARENTHESIS):
+            return inner
+    return None
+
+
 def snowflake_supported_join_statement(
     left: str,
     right: str,
@@ -1017,35 +1035,68 @@ def snowflake_supported_join_statement(
 
     maybe_directed_sql = DIRECTED_JOIN if directed else JOIN
 
-    source = (
-        LEFT_PARENTHESIS
-        + NEW_LINE
-        + LEFT_UUID
-        + left
-        + NEW_LINE
-        + LEFT_UUID
-        + RIGHT_PARENTHESIS
-        + AS
-        + left_alias
-        + SPACE
-        + NEW_LINE
-        + join_sql
-        + maybe_directed_sql
-        + NEW_LINE
-        + LEFT_PARENTHESIS
-        + NEW_LINE
-        + RIGHT_UUID
-        + right
-        + NEW_LINE
-        + RIGHT_UUID
-        + RIGHT_PARENTHESIS
-        + AS
-        + right_alias
-        + NEW_LINE
-        + f"{match_condition if match_condition else EMPTY_STRING}"
-        + f"{using_condition if using_condition else EMPTY_STRING}"
-        + f"{join_condition if join_condition else EMPTY_STRING}"
-    )
+    # If left is a simple SELECT * FROM (\n<join_source>\n) wrapper from a
+    # previous join, flatten into a multi-way join by appending the new right
+    # operand directly to the existing join source. This avoids nested
+    # SELECT * layers that inflate query text without changing semantics.
+    unwrapped_left = _unwrap_select_star_from(left)
+
+    if unwrapped_left is not None:
+        # Multi-way join: right alias must be unique to avoid collisions
+        # with aliases already present in the flattened join source.
+        multiway_right_alias = random_name_for_temp_object(TempObjectType.TABLE)
+        source = (
+            LEFT_UUID
+            + unwrapped_left
+            + NEW_LINE
+            + LEFT_UUID
+            + join_sql
+            + maybe_directed_sql
+            + NEW_LINE
+            + LEFT_PARENTHESIS
+            + NEW_LINE
+            + RIGHT_UUID
+            + right
+            + NEW_LINE
+            + RIGHT_UUID
+            + RIGHT_PARENTHESIS
+            + AS
+            + multiway_right_alias
+            + NEW_LINE
+            + f"{match_condition if match_condition else EMPTY_STRING}"
+            + f"{using_condition if using_condition else EMPTY_STRING}"
+            + f"{join_condition if join_condition else EMPTY_STRING}"
+        )
+    else:
+        source = (
+            LEFT_PARENTHESIS
+            + NEW_LINE
+            + LEFT_UUID
+            + left
+            + NEW_LINE
+            + LEFT_UUID
+            + RIGHT_PARENTHESIS
+            + AS
+            + left_alias
+            + SPACE
+            + NEW_LINE
+            + join_sql
+            + maybe_directed_sql
+            + NEW_LINE
+            + LEFT_PARENTHESIS
+            + NEW_LINE
+            + RIGHT_UUID
+            + right
+            + NEW_LINE
+            + RIGHT_UUID
+            + RIGHT_PARENTHESIS
+            + AS
+            + right_alias
+            + NEW_LINE
+            + f"{match_condition if match_condition else EMPTY_STRING}"
+            + f"{using_condition if using_condition else EMPTY_STRING}"
+            + f"{join_condition if join_condition else EMPTY_STRING}"
+        )
 
     return project_statement([], source)
 
