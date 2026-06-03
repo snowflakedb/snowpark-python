@@ -71,17 +71,6 @@ SQL_COUNTER_CALLED = "sql_counter_called"
 HIGH_QUERY_COUNT_THRESHOLD = 9
 
 
-def _pytest_assume_or_assert(condition: bool, message: str) -> None:
-    """
-    Use pytest-assume when available, otherwise raise AssertionError directly.
-    """
-    assume = getattr(pytest, "assume", None)
-    if callable(assume):
-        assume(condition, message)
-    else:
-        assert condition, message
-
-
 # The following queries aren't related to unit test queries and result in inconsistency in counts across environments.
 # 1. create scoped stage generally occurs once in the session so not consistent when it executes
 # 2. snowpark.zip already exists it won't upload again
@@ -299,7 +288,7 @@ class SqlCounter(QueryListener):
                 else ""
             )
             for key, (expected_count, actual_count) in invalid_counts.items():
-                _pytest_assume_or_assert(
+                pytest.assume(
                     False,
                     f"Sql count check '{key}' failed.  expected_{key}={expected_count}, actual_{key}={actual_count}{stack_trace}",
                 )
@@ -316,7 +305,7 @@ class SqlCounter(QueryListener):
                 self._expect_high_count and self._high_count_reason is not None
             )
 
-            _pytest_assume_or_assert(
+            pytest.assume(
                 high_query_count_check or suppress_high_query_count,
                 f"""
     Sql count check '{QUERY_COUNT_PARAMETER}' failed on high query count, query_count={query_count}>{HIGH_QUERY_COUNT_THRESHOLD}

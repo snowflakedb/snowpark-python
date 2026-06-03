@@ -602,10 +602,7 @@ class SnowflakePlan(LogicalPlan):
         query_params = getattr(self.source_plan, "query_params", None)
         if self.session.reduce_describe_query_enabled:
             return cached_analyze_attributes(
-                self.schema_query,
-                self.session,
-                self.uuid,
-                query_params,
+                self.schema_query, self.session, self.uuid, query_params
             )
         else:
             return analyze_attributes(

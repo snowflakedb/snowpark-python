@@ -7,6 +7,7 @@ from collections.abc import Hashable
 from typing import TYPE_CHECKING, List, Union, Optional, Sequence, Any
 
 import snowflake.snowpark
+from snowflake.snowpark import context
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
@@ -31,11 +32,6 @@ _GENERATED_COLUMN_SUFFIX_PATTERN = re.compile(
 )
 
 
-def _normalize_generated_identifiers_in_sql(sql: str) -> str:
-    """Normalize generated Snowpark/SCOS column suffixes in SQL text."""
-    return _GENERATED_COLUMN_SUFFIX_PATTERN.sub(r"-_generated_-\1", sql)
-
-
 def _freeze_for_cache_key(value: Any) -> Any:
     """Convert potentially unhashable values into hashable cache-key components."""
     if isinstance(value, dict):
@@ -57,7 +53,7 @@ def get_analyze_attributes_cache_key(
     """Build a stable cache key for schema analysis across equivalent plan instances."""
     return (
         getattr(session, "_session_id", None),
-        _normalize_generated_identifiers_in_sql(sql),
+        _GENERATED_COLUMN_SUFFIX_PATTERN.sub(r"-_generated_-\1", sql),
         _freeze_for_cache_key(query_params),
     )
 
@@ -162,10 +158,21 @@ def _cached_analyze_attributes_with_key(
     dataframe_uuid: Optional[str] = None,
     query_params: Optional[Sequence[Any]] = None,  # type: ignore
 ) -> List[Attribute]:
-    _ = cache_key
     return analyze_attributes(sql, session, dataframe_uuid, query_params)
 
 
+@ttl_cache(ttl_seconds=15)
+def _cached_analyze_attributes(
+    sql: str,
+    session: "snowflake.snowpark.session.Session",
+    dataframe_uuid: Optional[str] = None,
+    query_params: Optional[Sequence[Any]] = None,  # type: ignore
+) -> List[Attribute]:
+    return analyze_attributes(sql, session, dataframe_uuid, query_params)
+
+
+# ttl cache is only cache the sql, so it has to be used inside to be able to
+# cache normalized sql under compatible mode
 def cached_analyze_attributes(
     sql: str,
     session: "snowflake.snowpark.session.Session",
@@ -178,18 +185,24 @@ def cached_analyze_attributes(
     The public signature intentionally matches analyze_attributes so existing call
     sites/tests that monkeypatch cached_analyze_attributes continue to work.
     """
-    return _cached_analyze_attributes_with_key(
-        get_analyze_attributes_cache_key(sql, session, query_params),
-        sql,
-        session,
-        dataframe_uuid,
-        query_params,
-    )
+    if context._is_snowpark_connect_compatible_mode:
+        return _cached_analyze_attributes_with_key(
+            get_analyze_attributes_cache_key(sql, session, query_params),
+            sql,
+            session,
+            dataframe_uuid,
+            query_params,
+        )
+    return _cached_analyze_attributes(sql, session, dataframe_uuid, query_params)
 
 
-# expose cache helpers for tests/introspection parity with @ttl_cache wrappers
-cached_analyze_attributes._cache = _cached_analyze_attributes_with_key._cache  # type: ignore[attr-defined]
-cached_analyze_attributes.clear_cache = _cached_analyze_attributes_with_key.clear_cache  # type: ignore[attr-defined]
+def _clear_cached_analyze_attributes() -> None:
+    _cached_analyze_attributes_with_key.clear_cache()
+    _cached_analyze_attributes.clear_cache()
+
+
+# cached_analyze_attributes does not have a ttl_cache, need to re-assign clear_cache function here.
+cached_analyze_attributes.clear_cache = _clear_cached_analyze_attributes  # type: ignore[attr-defined]
 
 
 def convert_result_meta_to_attribute(
