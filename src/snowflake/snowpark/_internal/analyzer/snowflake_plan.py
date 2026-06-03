@@ -157,22 +157,7 @@ else:
 _logger = getLogger(__name__)
 
 _SCOS_LIMIT_ELISION_ALLOWLIST = frozenset(
-    {
-        "count",
-        "sum",
-        "avg",
-        "mean",
-        "min",
-        "max",
-        "std",
-        "stddev",
-        "stddev_pop",
-        "stddev_samp",
-        "variance",
-        "var_pop",
-        "var_samp",
-        "approx_count_distinct",
-    }
+    {"count", "sum", "avg", "mean", "min", "max", "std"}
 )
 
 
@@ -1144,12 +1129,6 @@ class SnowflakePlanBuilder:
             for child in children
         )
 
-    def _has_allowlisted_aggregate(self, aggregate_expressions: Sequence[Any]) -> bool:
-        return any(
-            self._expression_contains_allowlisted_aggregate(expression)
-            for expression in aggregate_expressions
-        )
-
     def _should_append_global_aggregate_limit(
         self,
         grouping_exprs: List[str],
@@ -1157,12 +1136,15 @@ class SnowflakePlanBuilder:
     ) -> bool:
         if grouping_exprs:
             return True
+        # only try to remove limit when in compatible mode
         if not context._is_snowpark_connect_compatible_mode:
             return True
         if source_plan is None or not hasattr(source_plan, "aggregate_expressions"):
             return True
-        return not self._has_allowlisted_aggregate(
-            source_plan.aggregate_expressions  # type: ignore[attr-defined]
+        # remove limit 1 if contain agg functions in the allowlist
+        return not any(
+            self._expression_contains_allowlisted_aggregate(expression)
+            for expression in source_plan.aggregate_expressions  # type: ignore[attr-defined]
         )
 
     def aggregate(
