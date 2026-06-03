@@ -2134,7 +2134,10 @@ class Session:
             if isinstance(m, str) and m not in result_dict:
                 res.append(m)
             elif isinstance(m, ModuleType) and m.__name__ not in result_dict:
-                res.append(f"{m.__name__}=={m.__version__}")
+                if m.__name__ == "cloudpickle":
+                    res.append(f"{m.__name__}>={m.__version__}")
+                else:
+                    res.append(f"{m.__name__}=={m.__version__}")
 
         return res
 
