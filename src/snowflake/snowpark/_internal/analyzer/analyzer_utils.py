@@ -992,14 +992,21 @@ def snowflake_supported_join_statement(
 ) -> str:
     LEFT_UUID = format_uuid(left_uuid)
     RIGHT_UUID = format_uuid(right_uuid)
-    left_alias = (
-        "SNOWPARK_LEFT"
-        if use_constant_subquery_alias
-        else random_name_for_temp_object(TempObjectType.TABLE)
-    )
+
+    # If left is a simple SELECT * FROM (\n<join_source>\n) wrapper from a
+    # previous join, flatten into a multi-way join by appending the new right
+    # operand directly to the existing join source. This avoids nested
+    # SELECT * layers that inflate query text without changing semantics.
+    #
+    # Though it is technically less efficient than constructing the join sub-queries
+    # without the SELECT in the first place, the structure of our SQL processing code
+    # top-level projections to be wrapped by a select.
+    unwrapped_left = _unwrap_select_star_from(left)
     right_alias = (
         "SNOWPARK_RIGHT"
-        if use_constant_subquery_alias
+        # Multi-way join: right alias must be unique to avoid collisions
+        # with aliases already present in the flattened join source.
+        if use_constant_subquery_alias and unwrapped_left is None
         else random_name_for_temp_object(TempObjectType.TABLE)
     )
 
@@ -1035,40 +1042,17 @@ def snowflake_supported_join_statement(
 
     maybe_directed_sql = DIRECTED_JOIN if directed else JOIN
 
-    # If left is a simple SELECT * FROM (\n<join_source>\n) wrapper from a
-    # previous join, flatten into a multi-way join by appending the new right
-    # operand directly to the existing join source. This avoids nested
-    # SELECT * layers that inflate query text without changing semantics.
-    unwrapped_left = _unwrap_select_star_from(left)
-
     if unwrapped_left is not None:
-        # Multi-way join: right alias must be unique to avoid collisions
-        # with aliases already present in the flattened join source.
-        multiway_right_alias = random_name_for_temp_object(TempObjectType.TABLE)
-        source = (
-            LEFT_UUID
-            + unwrapped_left
-            + NEW_LINE
-            + LEFT_UUID
-            + join_sql
-            + maybe_directed_sql
-            + NEW_LINE
-            + LEFT_PARENTHESIS
-            + NEW_LINE
-            + RIGHT_UUID
-            + right
-            + NEW_LINE
-            + RIGHT_UUID
-            + RIGHT_PARENTHESIS
-            + AS
-            + multiway_right_alias
-            + NEW_LINE
-            + f"{match_condition if match_condition else EMPTY_STRING}"
-            + f"{using_condition if using_condition else EMPTY_STRING}"
-            + f"{join_condition if join_condition else EMPTY_STRING}"
-        )
+        # No need for additional parentheses around the left expression here, since it
+        # should already be parenthesized
+        left_expr = LEFT_UUID + unwrapped_left + NEW_LINE + LEFT_UUID
     else:
-        source = (
+        left_alias = (
+            "SNOWPARK_LEFT"
+            if use_constant_subquery_alias
+            else random_name_for_temp_object(TempObjectType.TABLE)
+        )
+        left_expr = (
             LEFT_PARENTHESIS
             + NEW_LINE
             + LEFT_UUID
@@ -1080,23 +1064,26 @@ def snowflake_supported_join_statement(
             + left_alias
             + SPACE
             + NEW_LINE
-            + join_sql
-            + maybe_directed_sql
-            + NEW_LINE
-            + LEFT_PARENTHESIS
-            + NEW_LINE
-            + RIGHT_UUID
-            + right
-            + NEW_LINE
-            + RIGHT_UUID
-            + RIGHT_PARENTHESIS
-            + AS
-            + right_alias
-            + NEW_LINE
-            + f"{match_condition if match_condition else EMPTY_STRING}"
-            + f"{using_condition if using_condition else EMPTY_STRING}"
-            + f"{join_condition if join_condition else EMPTY_STRING}"
         )
+    source = (
+        left_expr
+        + join_sql
+        + maybe_directed_sql
+        + NEW_LINE
+        + LEFT_PARENTHESIS
+        + NEW_LINE
+        + RIGHT_UUID
+        + right
+        + NEW_LINE
+        + RIGHT_UUID
+        + RIGHT_PARENTHESIS
+        + AS
+        + right_alias
+        + NEW_LINE
+        + f"{match_condition if match_condition else EMPTY_STRING}"
+        + f"{using_condition if using_condition else EMPTY_STRING}"
+        + f"{join_condition if join_condition else EMPTY_STRING}"
+    )
 
     return project_statement([], source)
 

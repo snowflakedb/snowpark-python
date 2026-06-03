@@ -451,6 +451,40 @@ def test_join_statement_negative():
         join_statement("", "", join_type, "cond2", "", False)
 
 
+def test_join_statement_flattens_chained_joins():
+    """Chained joins should produce a flat multi-way join, not nested SELECT * wrappers."""
+    join_type = UsingJoin(Inner(), ["key"])
+
+    # First join: produces SELECT * FROM ((left) AS L JOIN (right) AS R USING (key))
+    first_join = join_statement(
+        "SELECT * FROM table_a",
+        "SELECT * FROM table_b",
+        join_type,
+        "",
+        "",
+        True,
+    )
+
+    # Second join uses first join's output as left operand
+    second_join = join_statement(
+        first_join,
+        "SELECT * FROM table_c",
+        join_type,
+        "",
+        "",
+        True,
+    )
+
+    # Should NOT have nested SELECT * FROM (SELECT * FROM (...))
+    # Count occurrences of "SELECT" — expect exactly one top-level SELECT *
+    assert second_join.count(" SELECT ") == 1
+
+    # The SQL should contain all three table references at the same nesting level
+    assert "table_a" in second_join
+    assert "table_b" in second_join
+    assert "table_c" in second_join
+
+
 def test_create_iceberg_table_statement():
     assert create_table_statement(
         table_name="test_table",
