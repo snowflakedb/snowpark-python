@@ -20,6 +20,13 @@ class _DummySession:
         self._session_id = session_id
 
 
+class _UnhashableParam:
+    __hash__ = None
+
+    def __repr__(self) -> str:
+        return "UNHASHABLE_PARAM"
+
+
 def test_get_analyze_attributes_cache_key_normalizes_generated_plan_suffixes():
     session = _DummySession(session_id=101)
     sql_plan_a = 'SELECT "A-0000000a-0" FROM T'
@@ -45,6 +52,34 @@ def test_get_analyze_attributes_cache_key_isolated_by_session_and_params():
 
     assert key_1 != key_2
     assert key_1 != key_3
+
+
+def test_get_analyze_attributes_cache_key_handles_nested_query_params():
+    session = _DummySession(session_id=101)
+    sql = 'SELECT "A-0000000a-0" FROM T WHERE C = ?'
+    query_params = [{"p": [1, {"k": {"b", "a"}}]}]
+
+    key = get_analyze_attributes_cache_key(sql, session, query_params=query_params)
+
+    assert key == (
+        101,
+        'SELECT "A-_generated_-0" FROM T WHERE C = ?',
+        ((("p", (1, (("k", ("a", "b")),))),),),
+    )
+
+
+def test_get_analyze_attributes_cache_key_uses_repr_for_unhashable_leaf():
+    session = _DummySession(session_id=101)
+    sql = 'SELECT "A-0000000a-0" FROM T WHERE C = ?'
+    query_params = [{"p": _UnhashableParam()}]
+
+    key = get_analyze_attributes_cache_key(sql, session, query_params=query_params)
+
+    assert key == (
+        101,
+        'SELECT "A-_generated_-0" FROM T WHERE C = ?',
+        ((("p", "UNHASHABLE_PARAM"),),),
+    )
 
 
 def test_cached_analyze_attributes_reuses_equivalent_generated_suffix_sql():
