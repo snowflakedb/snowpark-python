@@ -684,6 +684,16 @@ def test_aggregate_statement_formatting():
     assert aggregate_statement([], ["COUNT(*) as cnt"], "my_table") == (
         " SELECT \n" "    COUNT(*) as cnt\n" " FROM (\n" "my_table\n" ") LIMIT 1"
     )
+    assert (
+        aggregate_statement(
+            [], ["COUNT(*) as cnt"], "my_table", append_global_limit_one=False
+        )
+        == " SELECT \n"
+        "    COUNT(*) as cnt\n"
+        " FROM (\n"
+        "my_table\n"
+        ")"
+    )
 
     assert aggregate_statement(["dept", "title"], ["COUNT(*) as cnt"], "my_table") == (
         " SELECT \n"

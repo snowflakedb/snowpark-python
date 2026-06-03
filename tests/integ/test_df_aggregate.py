@@ -29,6 +29,7 @@ from snowflake.snowpark.functions import (
     upper,
     grouping,
     grouping_id,
+    lit,
 )
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 from snowflake.snowpark.types import DoubleType, IntegerType, StructType, StructField
@@ -724,6 +725,27 @@ def test_agg_no_grouping_exprs_limit_snowpark_connect_compatible(session):
         Utils.check_answer(result, [Row(5)])
         result = df.group_by().agg(sum_(col("b"))).limit(2)
         Utils.check_answer(result, [Row(10)])
+
+
+def test_global_aggregate_limit_allowlist_snowpark_connect_compatible(session):
+    df = session.create_dataframe([[1, 2], [3, 4], [1, 4]], schema=["A", "B"])
+
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", False
+    ):
+        non_compat_query = df.agg(sum_(col("a"))).queries["queries"][-1].upper()
+        assert "LIMIT 1" in non_compat_query
+
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
+        allowlisted_sum_query = df.agg(sum_(col("a"))).queries["queries"][-1].upper()
+        allowlisted_count_query = df.agg(count(col("a"))).queries["queries"][-1].upper()
+        non_agg_expr_query = df.agg(lit(1)).queries["queries"][-1].upper()
+
+        assert "LIMIT 1" not in allowlisted_sum_query
+        assert "LIMIT 1" not in allowlisted_count_query
+        assert "LIMIT 1" in non_agg_expr_query
 
 
 @pytest.mark.skipif(

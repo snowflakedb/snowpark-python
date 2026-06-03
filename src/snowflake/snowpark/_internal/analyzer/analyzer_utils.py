@@ -686,19 +686,20 @@ def aggregate_statement(
     aggregate_exprs: List[str],
     child: str,
     child_uuid: Optional[str] = None,
+    append_global_limit_one: bool = True,
 ) -> str:
     # add limit 1 because aggregate may be on non-aggregate function in a scalar aggregation
     # for example, df.agg(lit(1))
-    return project_statement(aggregate_exprs, child, child_uuid=child_uuid) + (
-        limit_expression(1)
-        if not grouping_exprs
-        else (
-            NEW_LINE
-            + GROUP_BY
-            + NEW_LINE
-            + TAB
-            + (COMMA + NEW_LINE + TAB).join(grouping_exprs)
+    if not grouping_exprs:
+        return project_statement(aggregate_exprs, child, child_uuid=child_uuid) + (
+            limit_expression(1) if append_global_limit_one else EMPTY_STRING
         )
+    return project_statement(aggregate_exprs, child, child_uuid=child_uuid) + (
+        NEW_LINE
+        + GROUP_BY
+        + NEW_LINE
+        + TAB
+        + (COMMA + NEW_LINE + TAB).join(grouping_exprs)
     )
 
 
