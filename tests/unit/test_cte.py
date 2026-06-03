@@ -118,9 +118,6 @@ def test_encode_node_id_with_query_select_sql(mock_session, mock_analyzer):
 
 
 def test_encode_node_id_with_query_includes_aliases():
-    # expr_to_alias is hashed by sorted(set(values())) so two nodes with the
-    # same alias values but different UUID keys (e.g. deep-copied self-join
-    # branches) produce the same hash.
     node = SimpleNamespace(
         sql_query="select col1 from t",
         query_params=(("p1", 1), ("p2", "x")),
@@ -137,39 +134,12 @@ def test_encode_node_id_with_query_includes_aliases():
     if node.query_params:
         expected_string = f"{expected_string}#{node.query_params}"
     if node.expr_to_alias:
-        # Values-only sort (no UUID keys) normalizes away UUID differences
-        expected_string = (
-            f"{expected_string}#{sorted(set(node.expr_to_alias.values()))}"
-        )
+        expected_string = f"{expected_string}#{stringify_dict(node.expr_to_alias)}"
     if node.df_aliased_col_name_to_real_col_name:
         expected_string = f"{expected_string}#{stringify_dict(node.df_aliased_col_name_to_real_col_name)}"
 
     expected_hash = hashlib.sha256(expected_string.encode()).hexdigest()[:10]
     assert encode_node_id_with_query(node) == f"{expected_hash}_SimpleNamespace"
-
-    # Two nodes with the same SQL and same alias values but different UUID keys
-    # must hash identically — this is the Q39 self-join case.
-    node_same_values_diff_keys = SimpleNamespace(
-        sql_query="select col1 from t",
-        query_params=(("p1", 1), ("p2", "x")),
-        expr_to_alias={"uuid_different": "ALIAS1"},
-        df_aliased_col_name_to_real_col_name={"ALIAS1": "col1"},
-    )
-    assert encode_node_id_with_query(node) == encode_node_id_with_query(
-        node_same_values_diff_keys
-    )
-
-    # Two nodes with the same SQL but different alias values must hash
-    # differently — this preserves the SNOW-2261400 join-suffix fix.
-    node_different_values = SimpleNamespace(
-        sql_query="select col1 from t",
-        query_params=(("p1", 1), ("p2", "x")),
-        expr_to_alias={"uuid1": "ALIAS1_WITH_SUFFIX"},
-        df_aliased_col_name_to_real_col_name={"ALIAS1": "col1"},
-    )
-    assert encode_node_id_with_query(node) != encode_node_id_with_query(
-        node_different_values
-    )
 
 
 def test_select_statement_contains_data_generation(mock_session, mock_analyzer):

@@ -168,12 +168,6 @@ class RepeatedSubqueryElimination:
                     resolved_with_block = resolved_with_block_map[
                         node.encoded_node_id_with_query
                     ]
-                    # encode_query_id hashes expr_to_alias by alias values only, so nodes sharing a hash may carry different UUID→alias
-                    # entries. The parent re-resolves column aliases by this node's UUID keys, which differ from those of the node the CTE
-                    # was built from. Merge this node's entries so every UUID variant resolves; otherwise resolution falls back to the raw
-                    # column name and produces a wrong JOIN condition.
-                    if getattr(node, "expr_to_alias", None):
-                        resolved_with_block.expr_to_alias.update(node.expr_to_alias)
                 else:
                     if (
                         self._query_generator.session.reduce_describe_query_enabled

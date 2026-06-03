@@ -306,13 +306,6 @@ def encode_query_id(node: "TreeNode") -> Optional[str]:
     string = query
     if query_params:
         string = f"{string}#{query_params}"
-    if hasattr(node, "expr_to_alias") and node.expr_to_alias:
-        # Hash by alias values only, not the UUID keys, since UUID keys are regenerated on every deep-copy/re-resolve (e.g. the two
-        # branches of a self-join). This lets nodes representing the same computation hash identically, enabling CTE dedup for self-joins.
-        # NOTE: since nodes with different UUID keys can now share a CTE, _replace_duplicate_node_with_cte must merge each duplicate's
-        # UUID→alias entries into the shared CTE so parent re-resolution can resolve any UUID variant (see companion comment there).
-        # Different alias values (e.g. a "_WITH_AD_GROUP" join suffix from _disambiguate) still hash differently, preserving SNOW-2261400.
-        string = f"{string}#{sorted(set(node.expr_to_alias.values()))}"
     if (
         hasattr(node, "df_aliased_col_name_to_real_col_name")
         and node.df_aliased_col_name_to_real_col_name
