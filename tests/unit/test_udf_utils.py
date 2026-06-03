@@ -437,3 +437,24 @@ def test_get_func_arg_names():
     # wrong class type should fallback to default arg names
     arg_names = get_func_arg_names(SumUDAF, TempObjectType.TABLE_FUNCTION, 2, True)
     assert arg_names == ["arg1", "arg2"]
+
+
+def test_resolve_imports_and_packages_non_conda_injects_cloudpickle_ge():
+    """Auto-injected cloudpickle uses >= not == so the server can resolve a
+    compatible version for the target runtime (SNOW-3081273)."""
+    import cloudpickle
+
+    _, _, _, all_packages, _, _ = resolve_imports_and_packages(
+        session=None,
+        object_type=TempObjectType.PROCEDURE,
+        func=lambda: None,
+        arg_names=[],
+        udf_name="test_sp",
+        stage_location=None,
+        imports=None,
+        packages=["snowflake-snowpark-python"],
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+    )
+    assert all_packages is not None
+    assert f"cloudpickle>={cloudpickle.__version__}" in all_packages
+    assert f"cloudpickle=={cloudpickle.__version__}" not in all_packages

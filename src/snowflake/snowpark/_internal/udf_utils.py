@@ -1276,7 +1276,7 @@ def resolve_imports_and_packages(
                     any(pkg.startswith("cloudpickle") for pkg in packages)
                 )
             resolved_packages = packages + (
-                [f"cloudpickle=={cloudpickle.__version__}"]
+                [f"cloudpickle>={cloudpickle.__version__}"]
                 if not has_cloudpickle
                 else []
             )
