@@ -151,13 +151,15 @@ class _VscHistoryExporter(QueryListener):
 
     def _notify(self, query_record: QueryRecord, **kwargs) -> None:
         now = time.time()
-        self._records.append({
-            "query_id": query_record.query_id,
-            "sql_text": query_record.sql_text,
-            "is_describe": query_record.is_describe,
-            "start": self._last_end or now,
-            "end": now,
-        })
+        self._records.append(
+            {
+                "query_id": query_record.query_id,
+                "sql_text": query_record.sql_text,
+                "is_describe": query_record.is_describe,
+                "start": self._last_end or now,
+                "end": now,
+            }
+        )
         self._last_end = now
 
     def flush(self, path: str) -> None:
