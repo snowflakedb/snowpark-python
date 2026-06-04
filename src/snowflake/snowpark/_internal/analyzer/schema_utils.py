@@ -45,19 +45,6 @@ def _freeze_for_cache_key(value: Any) -> Any:
     return repr(value)
 
 
-def get_analyze_attributes_cache_key(
-    sql: str,
-    session: "snowflake.snowpark.session.Session",
-    query_params: Optional[Sequence[Any]] = None,
-) -> tuple[Any, Any, Any]:
-    """Build a stable cache key for schema analysis across equivalent plan instances."""
-    return (
-        getattr(session, "_session_id", None),
-        _GENERATED_COLUMN_SUFFIX_PATTERN.sub(r"-_generated_-\1", sql),
-        _freeze_for_cache_key(query_params),
-    )
-
-
 def command_attributes() -> List[Attribute]:
     return [Attribute('"status"', StringType())]
 
@@ -156,8 +143,13 @@ def _cached_analyze_attributes_cache_key(
     dataframe_uuid: Optional[str] = None,
     query_params: Optional[Sequence[Any]] = None,  # type: ignore
 ) -> Any:
+    _ = dataframe_uuid
     if context._is_snowpark_connect_compatible_mode:
-        return get_analyze_attributes_cache_key(sql, session, query_params)
+        return (
+            getattr(session, "_session_id", None),
+            _GENERATED_COLUMN_SUFFIX_PATTERN.sub(r"-_generated_-\1", sql),
+            _freeze_for_cache_key(query_params),
+        )
     return sql
 
 

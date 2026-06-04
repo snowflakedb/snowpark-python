@@ -7,9 +7,9 @@ from unittest.mock import patch
 import snowflake.snowpark._internal.analyzer.snowflake_plan as snowflake_plan
 from snowflake.snowpark import context
 from snowflake.snowpark._internal.analyzer.schema_utils import (
+    _cached_analyze_attributes_cache_key,
     analyze_attributes,
     cached_analyze_attributes,
-    get_analyze_attributes_cache_key,
 )
 
 
@@ -25,39 +25,50 @@ class _UnhashableParam:
         return "UNHASHABLE_PARAM"
 
 
-def test_get_analyze_attributes_cache_key_normalizes_generated_plan_suffixes():
+def test_cached_analyze_attributes_cache_key_normalizes_generated_plan_suffixes():
     session = _DummySession(session_id=101)
     sql_plan_a = 'SELECT "A-0000000a-0" FROM T'
     sql_plan_b = 'SELECT "A-0f0f0f0f-0" FROM T'
     sql_different_projection = 'SELECT "A-0f0f0f0f-1" FROM T'
 
-    assert get_analyze_attributes_cache_key(sql_plan_a, session) == (
-        get_analyze_attributes_cache_key(sql_plan_b, session)
-    )
-    assert get_analyze_attributes_cache_key(sql_plan_a, session) != (
-        get_analyze_attributes_cache_key(sql_different_projection, session)
-    )
+    with patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+        assert _cached_analyze_attributes_cache_key(sql_plan_a, session) == (
+            _cached_analyze_attributes_cache_key(sql_plan_b, session)
+        )
+        assert _cached_analyze_attributes_cache_key(sql_plan_a, session) != (
+            _cached_analyze_attributes_cache_key(sql_different_projection, session)
+        )
 
 
-def test_get_analyze_attributes_cache_key_isolated_by_session_and_params():
+def test_cached_analyze_attributes_cache_key_isolated_by_session_and_params():
     sql = 'SELECT "A-0000000a-0" FROM T'
     session_1 = _DummySession(session_id=101)
     session_2 = _DummySession(session_id=202)
 
-    key_1 = get_analyze_attributes_cache_key(sql, session_1, query_params=[1, "x"])
-    key_2 = get_analyze_attributes_cache_key(sql, session_2, query_params=[1, "x"])
-    key_3 = get_analyze_attributes_cache_key(sql, session_1, query_params=[2, "x"])
+    with patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+        key_1 = _cached_analyze_attributes_cache_key(
+            sql, session_1, query_params=[1, "x"]
+        )
+        key_2 = _cached_analyze_attributes_cache_key(
+            sql, session_2, query_params=[1, "x"]
+        )
+        key_3 = _cached_analyze_attributes_cache_key(
+            sql, session_1, query_params=[2, "x"]
+        )
 
     assert key_1 != key_2
     assert key_1 != key_3
 
 
-def test_get_analyze_attributes_cache_key_handles_nested_query_params():
+def test_cached_analyze_attributes_cache_key_handles_nested_query_params():
     session = _DummySession(session_id=101)
     sql = 'SELECT "A-0000000a-0" FROM T WHERE C = ?'
     query_params = [{"p": [1, {"k": {"b", "a"}}]}]
 
-    key = get_analyze_attributes_cache_key(sql, session, query_params=query_params)
+    with patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+        key = _cached_analyze_attributes_cache_key(
+            sql, session, query_params=query_params
+        )
 
     assert key == (
         101,
@@ -66,12 +77,15 @@ def test_get_analyze_attributes_cache_key_handles_nested_query_params():
     )
 
 
-def test_get_analyze_attributes_cache_key_uses_repr_for_unhashable_leaf():
+def test_cached_analyze_attributes_cache_key_uses_repr_for_unhashable_leaf():
     session = _DummySession(session_id=101)
     sql = 'SELECT "A-0000000a-0" FROM T WHERE C = ?'
     query_params = [{"p": _UnhashableParam()}]
 
-    key = get_analyze_attributes_cache_key(sql, session, query_params=query_params)
+    with patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+        key = _cached_analyze_attributes_cache_key(
+            sql, session, query_params=query_params
+        )
 
     assert key == (
         101,
