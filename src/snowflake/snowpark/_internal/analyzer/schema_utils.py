@@ -168,12 +168,6 @@ def cached_analyze_attributes(
     dataframe_uuid: Optional[str] = None,
     query_params: Optional[Sequence[Any]] = None,  # type: ignore
 ) -> List[Attribute]:
-    """
-    Cached variant of analyze_attributes.
-
-    The public signature intentionally matches analyze_attributes so existing call
-    sites/tests that monkeypatch cached_analyze_attributes continue to work.
-    """
     return analyze_attributes(sql, session, dataframe_uuid, query_params)
 
 
