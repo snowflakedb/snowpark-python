@@ -1,10 +1,14 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import os
 from abc import abstractmethod
+from logging import getLogger
 from typing import Dict, List, NamedTuple, Tuple
 
 import snowflake.snowpark
+
+_logger = getLogger(__name__)
 
 
 class QueryRecord(NamedTuple):
@@ -141,3 +145,51 @@ class AstListener(QueryListener):
     @property
     def base64_batches(self) -> List[str]:
         return self._ast_batches
+
+
+class _VscHistoryExporter(QueryListener):
+    """Exports executed query IDs to a directory watched by the Snowflake VS Code extension.
+
+    For each query, an empty file named after the query ID is created in the
+    target directory.
+
+    Note that this exporter is active only when the
+    ``SNOWFLAKE_SNOWPARK_VSC_QUERY_HISTORY_DIR`` environment variable is set.
+    """
+
+    def __init__(self, query_history_dir: str) -> None:
+        """
+        Initializes the _VscHistoryExporter.
+
+        Args:
+            query_history_dir: Directory into which an empty file named after each
+                executed query ID is written. Created if it does not already exist.
+        """
+        self._query_history_dir = query_history_dir
+        try:
+            os.makedirs(query_history_dir, exist_ok=True)
+        except OSError:
+            # Exporting query history is a best-effort feature for the VS Code
+            # extension; a failure here must not break the user's session.
+            _logger.debug(
+                "Failed to create query history directory %s",
+                query_history_dir,
+                exc_info=True,
+            )
+
+    def _notify(self, query_record: QueryRecord, **kwargs) -> None:
+        if query_record.is_describe or not query_record.query_id:
+            return
+        try:
+            open(
+                os.path.join(self._query_history_dir, query_record.query_id), "w"
+            ).close()
+        except OSError:
+            # Exporting query history is a best-effort feature for the VS Code
+            # extension; a failure here must not break the user's session.
+            _logger.debug(
+                "Failed to write query history file for query id %s in %s",
+                query_record.query_id,
+                self._query_history_dir,
+                exc_info=True,
+            )

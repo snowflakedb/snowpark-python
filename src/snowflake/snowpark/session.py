@@ -856,6 +856,20 @@ class Session:
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
+        self._vsc_history_exporter = None
+        self._vsc_history_dir = os.environ.get(
+            "SNOWFLAKE_SNOWPARK_VSC_QUERY_HISTORY_DIR"
+        )
+        if self._vsc_history_dir:
+            from snowflake.snowpark.query_history import _VscHistoryExporter
+
+            _logger.debug(
+                "Setting up VS Code query history exporter with directory %s",
+                self._vsc_history_dir,
+            )
+            self._vsc_history_exporter = _VscHistoryExporter(self._vsc_history_dir)
+            self._conn.add_query_listener(self._vsc_history_exporter)
+
         # Register self._close_at_exit so it will be called at interpreter shutdown
         atexit.register(self._close_at_exit)
 
