@@ -727,6 +727,10 @@ def test_agg_no_grouping_exprs_limit_snowpark_connect_compatible(session):
         Utils.check_answer(result, [Row(10)])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing query does not have limit 1",
+)
 def test_global_aggregate_limit_allowlist_snowpark_connect_compatible(session):
     df = session.create_dataframe([[1, 2], [3, 4], [1, 4]], schema=["A", "B"])
 
