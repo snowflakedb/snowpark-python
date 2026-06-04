@@ -444,6 +444,13 @@ class Selectable(LogicalPlan, ABC):
                 # Add the last df ast id to the snowflake plan as the most recent
                 # dataframe operation to create this plan.
                 self._snowflake_plan.df_ast_ids = self.df_ast_ids
+            # Propagate join output flag through passthrough SelectStatements
+            # so chained joins can flatten into multi-way joins.
+            if not self.has_clause and not self.has_projection:
+                if isinstance(self.from_, SelectSnowflakePlan):
+                    self._snowflake_plan._is_join_output = (
+                        self.from_._snowflake_plan._is_join_output
+                    )
         return self._snowflake_plan
 
     @property

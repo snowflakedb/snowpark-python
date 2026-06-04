@@ -465,7 +465,8 @@ def test_join_statement_flattens_chained_joins():
         True,
     )
 
-    # Second join uses first join's output as left operand
+    # Second join uses first join's output as left operand.
+    # left_is_join=True signals that the left operand is a join result.
     second_join = join_statement(
         first_join,
         "SELECT * FROM table_c",
@@ -473,6 +474,7 @@ def test_join_statement_flattens_chained_joins():
         "",
         "",
         True,
+        left_is_join=True,
     )
 
     # Should NOT have nested SELECT * FROM (SELECT * FROM (...))
@@ -483,6 +485,45 @@ def test_join_statement_flattens_chained_joins():
     assert "table_a" in second_join
     assert "table_b" in second_join
     assert "table_c" in second_join
+
+
+def test_join_statement_does_not_flatten_user_generated_select_star():
+    """A user-generated SELECT * that coincidentally matches the internal
+    pattern must NOT be flattened when left_is_join is False (the default)."""
+    join_type = UsingJoin(Inner(), ["key"])
+
+    # Craft a SQL string that matches the internal _SELECT_STAR_FROM_PREFIX/SUFFIX
+    # pattern exactly — this simulates what session.sql("SELECT * FROM (...)") or
+    # a similar user-provided query might produce.
+    user_sql = (
+        " SELECT  * \n FROM (\n"
+        "(SELECT id, key FROM user_table) AS t1"
+        " INNER  JOIN \n(SELECT id, key FROM other_table) AS t2\n"
+        " USING (key)"
+        "\n)"
+    )
+
+    # join_statement with left_is_join=False (default) — should NOT unwrap because
+    # left_is_join is only True when a plan object is constructed from a dataframe
+    # join operation
+    result = join_statement(
+        user_sql,
+        "SELECT * FROM table_c",
+        join_type,
+        "",
+        "",
+        True,
+        left_is_join=False,
+    )
+
+    # The user SQL should be preserved as a nested subquery, producing
+    # two SELECT levels (the outer wrapper + the user's original SELECT *)
+    assert result.count(" SELECT ") >= 2
+
+    # The user's original SQL should appear within the output intact
+    assert "user_table" in result
+    assert "other_table" in result
+    assert "table_c" in result
 
 
 def test_create_iceberg_table_statement():

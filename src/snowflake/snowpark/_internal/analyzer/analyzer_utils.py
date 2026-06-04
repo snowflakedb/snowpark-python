@@ -989,24 +989,30 @@ def snowflake_supported_join_statement(
     left_uuid: Optional[str] = None,
     right_uuid: Optional[str] = None,
     directed: bool = False,
+    left_is_join: bool = False,
 ) -> str:
     LEFT_UUID = format_uuid(left_uuid)
     RIGHT_UUID = format_uuid(right_uuid)
 
-    # If left is a simple SELECT * FROM (\n<join_source>\n) wrapper from a
-    # previous join, flatten into a multi-way join by appending the new right
-    # operand directly to the existing join source. This avoids nested
+    # If left is the output of a previous join, flatten into a multi-way join
+    # by unwrapping the SELECT * FROM (...) envelope and appending the new
+    # right operand directly to the existing join source. This avoids nested
     # SELECT * layers that inflate query text without changing semantics.
     #
     # Though it is technically less efficient than constructing the join sub-queries
     # without the SELECT in the first place, the structure of our SQL processing code
-    # top-level projections to be wrapped by a select.
-    unwrapped_left = _unwrap_select_star_from(left)
+    # needs top-level projections to be wrapped by a select to be well-formed, so we
+    # must strip it here instead.
+    #
+    # We only unwrap the left side because it is simpler to deal with than unwrapping
+    # both left and right, and left-deep chains are more common, as they're produced
+    # by calls like df1.join(df2).join(df3) etc.
+    unwrapped_left = _unwrap_select_star_from(left) if left_is_join else None
     right_alias = (
         "SNOWPARK_RIGHT"
+        if use_constant_subquery_alias and unwrapped_left is None
         # Multi-way join: right alias must be unique to avoid collisions
         # with aliases already present in the flattened join source.
-        if use_constant_subquery_alias and unwrapped_left is None
         else random_name_for_temp_object(TempObjectType.TABLE)
     )
 
@@ -1098,6 +1104,7 @@ def join_statement(
     left_uuid: Optional[str] = None,
     right_uuid: Optional[str] = None,
     directed: bool = False,
+    left_is_join: bool = False,
 ) -> str:
     if isinstance(join_type, (LeftSemi, LeftAnti)):
         return left_semi_or_anti_join_statement(
@@ -1125,6 +1132,7 @@ def join_statement(
         left_uuid=left_uuid,
         right_uuid=right_uuid,
         directed=directed,
+        left_is_join=left_is_join,
     )
 
 
