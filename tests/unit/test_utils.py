@@ -139,7 +139,7 @@ def test_get_sorted_key_for_version():
 
 
 def test_ttl_cache():
-    calls = {"long": 0, "no": 0}
+    calls = {"long": 0, "no": 0, "custom": 0}
 
     @ttl_cache(ttl_seconds=60 * 60 * 24)  # 24 hours
     def sum_two_long(a, b):
@@ -151,11 +151,20 @@ def test_ttl_cache():
         calls["no"] += 1
         return a + b
 
+    @ttl_cache(ttl_seconds=60 * 60 * 24, key_fn=lambda a, b: b)
+    def sum_two_custom_key(a, b):
+        calls["custom"] += 1
+        return a + b
+
     # After one call each should have executed once
     sum_two_long(1, 1)
     sum_two_short(1, 1)
+    assert sum_two_custom_key(1, 1) == 2
+    # key_fn derives key from b only, so this reuses the cached result.
+    assert sum_two_custom_key(2, 1) == 2
     assert calls["long"] == 1
     assert calls["no"] == 1
+    assert calls["custom"] == 1
 
     # Windows has a 16ms time resolution so wait at least a second to make sure
     # the short cache ages out.
@@ -171,6 +180,7 @@ def test_ttl_cache():
     # Each of the caches should have one item
     assert len(sum_two_long._cache) == 1
     assert len(sum_two_short._cache) == 1
+    assert len(sum_two_custom_key._cache) == 1
 
     time.sleep(1)
 
@@ -178,8 +188,13 @@ def test_ttl_cache():
     # The no-cache should have aged out the previous call when adding the new one
     sum_two_long(2, 2)
     sum_two_short(2, 2)
+    sum_two_custom_key(4, 2)
     assert len(sum_two_long._cache) == 2
     assert len(sum_two_short._cache) == 1
+    assert len(sum_two_custom_key._cache) == 2
+
+    sum_two_custom_key.clear_cache()
+    assert len(sum_two_custom_key._cache) == 0
 
 
 def test_remove_comments():

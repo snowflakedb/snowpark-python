@@ -1874,13 +1874,15 @@ def get_sorted_key_for_version(version_str):
     )
 
 
-def ttl_cache(ttl_seconds: float):
+def ttl_cache(ttl_seconds: float, key_fn: Optional[Callable[..., Any]] = None):
     """
     A decorator that caches function results with a time-to-live (TTL) expiration.
-    The decorator expects the first argument to be the ttl_key which should be hashable.
+    By default the first positional argument is used as the cache key. A custom
+    cache key can be supplied with ``key_fn``.
 
     Args:
         ttl_seconds (float): Time-to-live in seconds for cached items
+        key_fn (Optional[Callable[..., Any]]): function used to derive cache key
     """
 
     def decorator(func):
@@ -1905,7 +1907,16 @@ def ttl_cache(ttl_seconds: float):
                 expiry_heap.clear()
 
         @wraps(func)
-        def wrapper(hashable_ttl_key, *args, **kwargs):
+        def wrapper(*args, **kwargs):
+            if key_fn is None:
+                if not args:
+                    raise TypeError(
+                        "ttl_cache wrapped function requires at least one positional argument "
+                        "when key_fn is not provided."
+                    )
+                hashable_ttl_key = args[0]
+            else:
+                hashable_ttl_key = key_fn(*args, **kwargs)
             cache_key = hash(hashable_ttl_key)
             current_time = time.time()
 
@@ -1915,7 +1926,7 @@ def ttl_cache(ttl_seconds: float):
                 if cache_key in cache:
                     return cache[cache_key]
 
-                result = func(hashable_ttl_key, *args, **kwargs)
+                result = func(*args, **kwargs)
 
                 cache[cache_key] = result
                 expiry_time = current_time + ttl_seconds

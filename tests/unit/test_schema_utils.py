@@ -7,8 +7,6 @@ from unittest.mock import patch
 import snowflake.snowpark._internal.analyzer.snowflake_plan as snowflake_plan
 from snowflake.snowpark import context
 from snowflake.snowpark._internal.analyzer.schema_utils import (
-    _cached_analyze_attributes,
-    _cached_analyze_attributes_with_key,
     analyze_attributes,
     cached_analyze_attributes,
     get_analyze_attributes_cache_key,
@@ -160,13 +158,11 @@ def test_cached_analyze_attributes_clear_cache_clears_both_internal_caches():
                 sql, session, dataframe_uuid="uuid-b", query_params=[1]
             )
 
-    assert len(_cached_analyze_attributes._cache) > 0  # type: ignore[attr-defined]
-    assert len(_cached_analyze_attributes_with_key._cache) > 0  # type: ignore[attr-defined]
+    assert len(cached_analyze_attributes._cache) == 2  # type: ignore[attr-defined]
 
     cached_analyze_attributes.clear_cache()
 
-    assert len(_cached_analyze_attributes._cache) == 0  # type: ignore[attr-defined]
-    assert len(_cached_analyze_attributes_with_key._cache) == 0  # type: ignore[attr-defined]
+    assert len(cached_analyze_attributes._cache) == 0  # type: ignore[attr-defined]
 
 
 def test_cached_analyze_attributes_signature_compatible_with_analyze_attributes_wraps():

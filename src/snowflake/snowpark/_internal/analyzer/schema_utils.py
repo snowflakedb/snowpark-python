@@ -150,29 +150,18 @@ def analyze_attributes(
     return attributes
 
 
-@ttl_cache(ttl_seconds=15)
-def _cached_analyze_attributes_with_key(
-    cache_key: tuple[Any, Any, Any],
+def _cached_analyze_attributes_cache_key(
     sql: str,
     session: "snowflake.snowpark.session.Session",
     dataframe_uuid: Optional[str] = None,
     query_params: Optional[Sequence[Any]] = None,  # type: ignore
-) -> List[Attribute]:
-    return analyze_attributes(sql, session, dataframe_uuid, query_params)
+) -> Any:
+    if context._is_snowpark_connect_compatible_mode:
+        return get_analyze_attributes_cache_key(sql, session, query_params)
+    return sql
 
 
-@ttl_cache(ttl_seconds=15)
-def _cached_analyze_attributes(
-    sql: str,
-    session: "snowflake.snowpark.session.Session",
-    dataframe_uuid: Optional[str] = None,
-    query_params: Optional[Sequence[Any]] = None,  # type: ignore
-) -> List[Attribute]:
-    return analyze_attributes(sql, session, dataframe_uuid, query_params)
-
-
-# ttl cache is only cache the sql, so it has to be used inside to be able to
-# cache normalized sql under compatible mode
+@ttl_cache(ttl_seconds=15, key_fn=_cached_analyze_attributes_cache_key)
 def cached_analyze_attributes(
     sql: str,
     session: "snowflake.snowpark.session.Session",
@@ -185,24 +174,7 @@ def cached_analyze_attributes(
     The public signature intentionally matches analyze_attributes so existing call
     sites/tests that monkeypatch cached_analyze_attributes continue to work.
     """
-    if context._is_snowpark_connect_compatible_mode:
-        return _cached_analyze_attributes_with_key(
-            get_analyze_attributes_cache_key(sql, session, query_params),
-            sql,
-            session,
-            dataframe_uuid,
-            query_params,
-        )
-    return _cached_analyze_attributes(sql, session, dataframe_uuid, query_params)
-
-
-def _clear_cached_analyze_attributes() -> None:
-    _cached_analyze_attributes_with_key.clear_cache()
-    _cached_analyze_attributes.clear_cache()
-
-
-# cached_analyze_attributes does not have a ttl_cache, need to re-assign clear_cache function here.
-cached_analyze_attributes.clear_cache = _clear_cached_analyze_attributes  # type: ignore[attr-defined]
+    return analyze_attributes(sql, session, dataframe_uuid, query_params)
 
 
 def convert_result_meta_to_attribute(
