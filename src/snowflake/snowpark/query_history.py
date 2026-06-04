@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import time
 from abc import abstractmethod
 from typing import Dict, List, NamedTuple, Tuple
 
@@ -141,3 +142,27 @@ class AstListener(QueryListener):
     @property
     def base64_batches(self) -> List[str]:
         return self._ast_batches
+
+
+class _VscHistoryExporter(QueryListener):
+    def __init__(self):
+        self._records = []
+        self._last_end = None
+
+    def _notify(self, query_record: QueryRecord, **kwargs) -> None:
+        now = time.time()
+        self._records.append({
+            "query_id": query_record.query_id,
+            "sql_text": query_record.sql_text,
+            "is_describe": query_record.is_describe,
+            "start": self._last_end or now,
+            "end": now,
+        })
+        self._last_end = now
+
+    def flush(self, path: str) -> None:
+        if self._records:
+            import json
+
+            with open(path, "w") as f:
+                json.dump(self._records, f)

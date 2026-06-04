@@ -862,6 +862,14 @@ class Session:
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
+        self._vsc_history_exporter = None
+        self._vsc_history_file = os.environ.get("SNOWFLAKE_QUERY_HISTORY_FILE")
+        if self._vsc_history_file:
+            from snowflake.snowpark.query_history import _VscHistoryExporter
+
+            self._vsc_history_exporter = _VscHistoryExporter()
+            self._conn.add_query_listener(self._vsc_history_exporter)
+
         # Register self._close_at_exit so it will be called at interpreter shutdown
         atexit.register(self._close_at_exit)
 
@@ -983,6 +991,8 @@ class Session:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(str(ex))
         finally:
             try:
+                if self._vsc_history_exporter:
+                    self._vsc_history_exporter.flush(self._vsc_history_file)
                 self._temp_table_auto_cleaner.stop()
                 self._ast_batch.clear()
                 self._conn.close()
