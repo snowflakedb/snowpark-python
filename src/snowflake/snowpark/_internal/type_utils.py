@@ -83,13 +83,7 @@ from snowflake.snowpark.types import (
     File,
 )
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
-    from typing import Iterable  # noqa: F401
-except ImportError:
-    from collections.abc import Iterable  # noqa: F401
+from collections.abc import Iterable  # noqa: F401
 
 if installed_pandas:
     from snowflake.snowpark.types import (

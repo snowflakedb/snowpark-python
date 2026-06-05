@@ -2,7 +2,7 @@
 
 # Docker-based Snowflake Snowpark Python conda package verification
 # Supports both x86_64 and aarch64 architectures using continuumio/miniconda3
-# Tests all Python versions (3.9-3.13) automatically
+# Tests all Python versions (3.10-3.13) automatically
 #
 # Usage: ./conda_build_verification.sh [architecture...]
 #
@@ -27,7 +27,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-echo "Testing Python versions: 3.9, 3.10, 3.11, 3.12, 3.13"
+echo "Testing Python versions: 3.10, 3.11, 3.12, 3.13"
 echo "Testing architectures: ${PACKAGE_DIRS[*]}"
 echo "Script directory: $SCRIPT_DIR"
 echo "Project root: $PROJECT_ROOT"
@@ -81,7 +81,7 @@ run_docker_verification() {
         return 0
     fi
 
-    echo "Found packages in $arch_dir, will test all Python versions (3.9-3.13)"
+    echo "Found packages in $arch_dir, will test all Python versions (3.10-3.13)"
 
     # Create container name
     local container_name="snowpark-verify-${arch_dir}-$(date +%s)"

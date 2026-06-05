@@ -9,9 +9,9 @@ import warnings
 
 from packaging import version
 
-if sys.version_info.major == 3 and sys.version_info.minor == 8:
+if sys.version_info.major == 3 and sys.version_info.minor <= 9:
     raise RuntimeError(
-        "Snowpark pandas does not support Python 3.8. Please update to Python 3.9 or later."
+        "Snowpark pandas does not support Python 3.9 or earlier. Please update to Python 3.10 or later."
     )  # pragma: no cover
 
 # pandas import needs to come before Python version + modin checks,

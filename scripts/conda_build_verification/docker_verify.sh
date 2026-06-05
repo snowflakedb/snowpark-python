@@ -6,7 +6,7 @@
 set -e
 
 # List of Python versions to test
-PYTHON_VERSIONS=("3.9" "3.10" "3.11" "3.12" "3.13")
+PYTHON_VERSIONS=("3.10" "3.11" "3.12" "3.13")
 
 echo "=== Docker Container Verification Script ==="
 echo "Python versions to test: ${PYTHON_VERSIONS[*]}"

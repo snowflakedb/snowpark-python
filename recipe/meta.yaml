@@ -19,7 +19,6 @@ build:
     - SNOWFLAKE_IS_PYTHON_RUNTIME_TEST=1
 {% if noarch_build %}
   noarch: python
-  string: "py39_{{ build_number }}"  # [py==39]
   string: "py310_{{ build_number }}"  # [py==310]
   string: "py311_{{ build_number }}"  # [py==311]
   string: "py312_{{ build_number }}"  # [py==312]
@@ -27,8 +26,8 @@ build:
   string: "py314_{{ build_number }}"  # [py==314]
 {% endif %}
 
-{% if noarch_build and py not in [39, 310, 311, 312, 313, 314] %}
-error: "Noarch build for Python version {{ py }} is not supported. Supported versions: 3.9, 3.10, 3.11, 3.12, 3.13, or 3.14."
+{% if noarch_build and py not in [310, 311, 312, 313, 314] %}
+error: "Noarch build for Python version {{ py }} is not supported. Supported versions: 3.10, 3.11, 3.12, 3.13, or 3.14."
 {% else %}
 requirements:
   host:
@@ -44,9 +43,7 @@ requirements:
     # mypy-protobuf 3.7.0 requires protobuf >= 5.26
     - mypy-protobuf <=3.6.0
   run:
-    {% if noarch_build and py == 39 %}
-    - python >=3.9,<3.10.0a0
-    {% elif noarch_build and py == 310 %}
+    {% if noarch_build and py == 310 %}
     - python >=3.10,<3.11.0a0
     {% elif noarch_build and py == 311 %}
     - python >=3.11,<3.12.0a0

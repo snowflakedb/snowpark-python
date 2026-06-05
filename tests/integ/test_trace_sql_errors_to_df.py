@@ -24,7 +24,7 @@ pytestmark = [
     ),
     pytest.mark.skipif(
         sys.version_info < (3, 11),
-        reason="Line numbers are flaky in Python 3.9",
+        reason="Line numbers are flaky before Python 3.11",
         run=False,
     ),
 ]

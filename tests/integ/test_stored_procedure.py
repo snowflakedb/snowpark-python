@@ -8,7 +8,6 @@ import importlib.metadata
 import logging
 import os
 import re
-import sys
 import time
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
@@ -2314,9 +2313,6 @@ def test_register_sproc_after_switch_schema(session):
     IS_IN_STORED_PROC,
     reason="Stored proc env does not have permissions to look up warehouse details",
 )
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_sproc_artifact_repository(session):
     def artifact_repo_test(_):
         import urllib3
@@ -2406,9 +2402,6 @@ def test_sproc_artifact_repository_with_packages_includes_cloudpickle(session):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 @pytest.mark.skip("SNOW-2362946: Skip until root cause is found.")
 def test_sproc_artifact_repository_from_file(session, tmpdir):
     source = dedent(

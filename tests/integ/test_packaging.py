@@ -142,7 +142,7 @@ def ranged_yaml_file():
       - conda-forge
       - defaults
     dependencies:  # List of packages and versions to include in the environment
-      - python=3.9  # Python version
+      - python=3.10  # Python version
       - numpy<=1.24.3
     """
 
@@ -815,7 +815,7 @@ def test_add_requirements_yaml(session, resources_path):
         "seaborn",
         "scipy",
     }
-    assert session._runtime_version_from_requirement == "3.9"
+    assert session._runtime_version_from_requirement == "3.10"
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     system_version = f"{sys.version_info[0]}.{sys.version_info[1]}"

@@ -417,8 +417,8 @@ def validate_and_try_convert_agg_func_arg_func_to_str(
         allow_duplication: bool
             Whether allow duplicated function with the same name. Note that numpy functions has different function
             name compare with the equivalent builtin function, for example, np.min and min have different
-            names ('amin' and 'min'). However, this behavior is changing with python 3.9,
-            where np.min will have the same name 'min'.
+            names ('amin' and 'min'). However, this behavior changed starting with python 3.9,
+            where np.min has the same name 'min'.
         axis: int
             The axis across which the aggregation is applied.
 

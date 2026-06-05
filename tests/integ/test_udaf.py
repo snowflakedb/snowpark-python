@@ -5,7 +5,6 @@
 import datetime
 import decimal
 import os
-import sys
 from textwrap import dedent
 from typing import Any, Dict, List
 
@@ -636,9 +635,6 @@ def test_udaf_external_access_integration(session, db_parameters):
     IS_IN_STORED_PROC,
     reason="Stored proc env does not have permissions to look up warehouse details",
 )
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_udaf_artifact_repository(session):
     class ArtifactRepositoryHandler:
         def __init__(self) -> None:
@@ -702,9 +698,6 @@ def test_udaf_artifact_repository(session):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_udaf_artifact_repository_from_file(session, tmpdir):
     source = dedent(
         """

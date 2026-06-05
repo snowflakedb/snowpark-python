@@ -17,6 +17,10 @@
 
 - Improved CTE optimization to deduplicate identical subtrees in self-joins, which were previously emitted as repeated subqueries.
 
+#### Deprecations
+
+- Removed support for Python 3.9.
+
 ## 1.51.1 (2026-05-28)
 
 #### Documentation
