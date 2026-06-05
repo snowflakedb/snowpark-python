@@ -27,8 +27,8 @@ if TYPE_CHECKING:
     except ImportError:
         ResultMetadataV2 = ResultMetadata
 
-_GENERATED_COLUMN_SUFFIX_PATTERN = re.compile(
-    r"-[0-9a-f]{8}-(\d+)(?=\")", re.IGNORECASE
+_SOURCE_PLAN_ID_ALIAS_PATTERN = re.compile(
+    r'"([^"]*?)-[0-9a-fA-F]{8}-(\d+)"(\s+AS\s+)', re.IGNORECASE
 )
 
 
@@ -145,9 +145,10 @@ def _cached_analyze_attributes_cache_key(
 ) -> Any:
     _ = dataframe_uuid
     if context._is_snowpark_connect_compatible_mode:
+        normalized_sql = _SOURCE_PLAN_ID_ALIAS_PATTERN.sub(r'"\1-PLANID-\2"\3', sql)
         return (
             getattr(session, "_session_id", None),
-            _GENERATED_COLUMN_SUFFIX_PATTERN.sub(r"-_generated_-\1", sql),
+            normalized_sql,
             _freeze_for_cache_key(query_params),
         )
     return sql

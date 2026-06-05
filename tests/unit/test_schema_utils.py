@@ -25,11 +25,11 @@ class _UnhashableParam:
         return "UNHASHABLE_PARAM"
 
 
-def test_cached_analyze_attributes_cache_key_normalizes_generated_plan_suffixes():
+def test_cached_analyze_attributes_cache_key_normalizes_only_source_plan_id():
     session = _DummySession(session_id=101)
-    sql_plan_a = 'SELECT "A-0000000a-0" FROM T'
-    sql_plan_b = 'SELECT "A-0f0f0f0f-0" FROM T'
-    sql_different_projection = 'SELECT "A-0f0f0f0f-1" FROM T'
+    sql_plan_a = 'SELECT "A-0000000a-0" AS "A-1a" FROM T'
+    sql_plan_b = 'SELECT "A-0f0f0f0f-0" AS "A-1a" FROM T'
+    sql_different_projection = 'SELECT "A-0f0f0f0f-1" AS "A-1a" FROM T'
 
     with patch.object(context, "_is_snowpark_connect_compatible_mode", True):
         assert _cached_analyze_attributes_cache_key(sql_plan_a, session) == (
@@ -40,8 +40,19 @@ def test_cached_analyze_attributes_cache_key_normalizes_generated_plan_suffixes(
         )
 
 
+def test_cached_analyze_attributes_cache_key_keeps_alias_unique_suffix_distinct():
+    session = _DummySession(session_id=101)
+    sql_alias_a = 'SELECT "A-0000000a-0" AS "A-1a" FROM T'
+    sql_alias_b = 'SELECT "A-0f0f0f0f-0" AS "A-2b" FROM T'
+
+    with patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+        assert _cached_analyze_attributes_cache_key(sql_alias_a, session) != (
+            _cached_analyze_attributes_cache_key(sql_alias_b, session)
+        )
+
+
 def test_cached_analyze_attributes_cache_key_isolated_by_session_and_params():
-    sql = 'SELECT "A-0000000a-0" FROM T'
+    sql = 'SELECT "A-0000000a-0" AS "A-1a" FROM T'
     session_1 = _DummySession(session_id=101)
     session_2 = _DummySession(session_id=202)
 
@@ -62,7 +73,7 @@ def test_cached_analyze_attributes_cache_key_isolated_by_session_and_params():
 
 def test_cached_analyze_attributes_cache_key_handles_nested_query_params():
     session = _DummySession(session_id=101)
-    sql = 'SELECT "A-0000000a-0" FROM T WHERE C = ?'
+    sql = 'SELECT "A-0000000a-0" AS "A-1a" FROM T WHERE C = ?'
     query_params = [{"p": [1, {"k": {"b", "a"}}]}]
 
     with patch.object(context, "_is_snowpark_connect_compatible_mode", True):
@@ -72,14 +83,14 @@ def test_cached_analyze_attributes_cache_key_handles_nested_query_params():
 
     assert key == (
         101,
-        'SELECT "A-_generated_-0" FROM T WHERE C = ?',
+        'SELECT "A-PLANID-0" AS "A-1a" FROM T WHERE C = ?',
         ((("p", (1, (("k", ("a", "b")),))),),),
     )
 
 
 def test_cached_analyze_attributes_cache_key_uses_repr_for_unhashable_leaf():
     session = _DummySession(session_id=101)
-    sql = 'SELECT "A-0000000a-0" FROM T WHERE C = ?'
+    sql = 'SELECT "A-0000000a-0" AS "A-1a" FROM T WHERE C = ?'
     query_params = [{"p": _UnhashableParam()}]
 
     with patch.object(context, "_is_snowpark_connect_compatible_mode", True):
@@ -89,7 +100,7 @@ def test_cached_analyze_attributes_cache_key_uses_repr_for_unhashable_leaf():
 
     assert key == (
         101,
-        'SELECT "A-_generated_-0" FROM T WHERE C = ?',
+        'SELECT "A-PLANID-0" AS "A-1a" FROM T WHERE C = ?',
         ((("p", "UNHASHABLE_PARAM"),),),
     )
 
@@ -97,8 +108,8 @@ def test_cached_analyze_attributes_cache_key_uses_repr_for_unhashable_leaf():
 def test_cached_analyze_attributes_reuses_equivalent_generated_suffix_sql():
     cached_analyze_attributes.clear_cache()
     session = _DummySession(session_id=303)
-    sql_plan_a = 'SELECT "A-0000000a-0" FROM T'
-    sql_plan_b = 'SELECT "A-0f0f0f0f-0" FROM T'
+    sql_plan_a = 'SELECT "A-0000000a-0" AS "A-1a" FROM T'
+    sql_plan_b = 'SELECT "A-0f0f0f0f-0" AS "A-1a" FROM T'
 
     with patch.object(context, "_is_snowpark_connect_compatible_mode", True):
         with patch(
