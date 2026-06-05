@@ -173,3 +173,4 @@ class _VscHistoryExporter(QueryListener):
 
             with open(path, "w") as f:
                 json.dump(self._records, f)
+            self._records = []
