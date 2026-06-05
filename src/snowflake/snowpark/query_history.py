@@ -165,6 +165,11 @@ class _VscHistoryExporter(QueryListener):
     def flush(self, path: str) -> None:
         if self._records:
             import json
+            import os
+
+            if os.path.isdir(path):
+                filename = f"snowpark-{os.getpid()}-{int(time.time() * 1000)}.json"
+                path = os.path.join(path, filename)
 
             with open(path, "w") as f:
                 json.dump(self._records, f)
