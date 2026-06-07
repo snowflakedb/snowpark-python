@@ -1655,6 +1655,9 @@ def test_snowflake_plan_telemetry_sent_at_critical_path(session, enabled):
             key.value: value
             for key, value in df._plan.cumulative_node_complexity.items()
         }
+        from snowflake.snowpark._internal.telemetry import get_plan_telemetry_metrics
+
+        plan_metrics = get_plan_telemetry_metrics(df._plan)
         expected_data = {
             "session_id": session.session_id,
             "data": {
@@ -1669,6 +1672,20 @@ def test_snowflake_plan_telemetry_sent_at_critical_path(session, enabled):
                 ],
                 "query_plan_complexity": query_plan_complexity,
                 "complexity_score_before_compilation": 25,
+                **{
+                    key: value
+                    for key, value in plan_metrics.items()
+                    if key
+                    not in {
+                        "plan_uuid",
+                        "query_plan_height",
+                        "query_plan_num_selects_with_complexity_merged",
+                        "query_plan_num_duplicate_nodes",
+                        "query_plan_duplicated_node_complexity_distribution",
+                        "query_plan_complexity",
+                        "complexity_score_before_compilation",
+                    }
+                },
             },
         }
         session._collect_snowflake_plan_telemetry_at_critical_path = enabled

@@ -23,6 +23,9 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.compiler.plan_fingerprint import (
+    extract_plan_fingerprint,
+)
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
     CompilationStageTelemetryField,
 )
@@ -464,6 +467,23 @@ def get_plan_telemetry_metrics(plan: SnowflakePlan) -> Dict[str, Any]:
         data[
             CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value
         ] = get_complexity_score(plan)
+
+        fingerprint = extract_plan_fingerprint(plan)
+        data[
+            CompilationStageTelemetryField.PLAN_OPERATORS.value
+        ] = fingerprint.plan_operators
+        data[
+            CompilationStageTelemetryField.PLAN_FUNCTIONS_ORDERED.value
+        ] = fingerprint.plan_functions_ordered
+        data[
+            CompilationStageTelemetryField.PLAN_CAST_TYPES_ORDERED.value
+        ] = fingerprint.plan_cast_types_ordered
+        data[
+            CompilationStageTelemetryField.PLAN_IS_REDACTED.value
+        ] = fingerprint.plan_is_redacted
+        data[
+            CompilationStageTelemetryField.PLAN_FINGERPRINT_VERSION.value
+        ] = fingerprint.plan_fingerprint_version
     except Exception as e:
         data[CompilationStageTelemetryField.ERROR_MESSAGE.value] = str(e)
 

@@ -17,6 +17,11 @@ class CompilationStageTelemetryField(Enum):
         "query_plan_duplicated_node_complexity_distribution"
     )
     QUERY_PLAN_COMPLEXITY = "query_plan_complexity"
+    PLAN_OPERATORS = "plan_operators"
+    PLAN_FUNCTIONS_ORDERED = "plan_functions_ordered"
+    PLAN_CAST_TYPES_ORDERED = "plan_cast_types_ordered"
+    PLAN_IS_REDACTED = "plan_is_redacted"
+    PLAN_FINGERPRINT_VERSION = "plan_fingerprint_version"
 
     # types
     TYPE_COMPILATION_STAGE_STATISTICS = "snowpark_compilation_stage_statistics"
