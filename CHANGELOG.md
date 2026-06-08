@@ -10,6 +10,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug where copying a `DataFrame` via `copy.copy()` lost post-aggregate state, causing subsequent `.limit()` or `.sort()` to generate incorrect SQL.
 - Fixed a bug where calling `DataFrame.alias()` twice on the same DataFrame (e.g. for a self-join) caused both aliases to share the same internal column-mapping dictionary. This made `col("R", "col")` resolve to the same column as `col("L", "col")`, producing incorrect join conditions and filter expressions.
 - Fixed a bug where `cloudpickle` could not be resolved when registering a Python stored procedure or UDF with `runtime_version='3.13'`.
 
