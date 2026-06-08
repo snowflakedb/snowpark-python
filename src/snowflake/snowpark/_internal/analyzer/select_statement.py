@@ -446,11 +446,17 @@ class Selectable(LogicalPlan, ABC):
                 self._snowflake_plan.df_ast_ids = self.df_ast_ids
             # Propagate join output flag through passthrough SelectStatements
             # so chained joins can flatten into multi-way joins.
-            if not self.has_clause and not self.has_projection:
-                if isinstance(self.from_, SelectSnowflakePlan):
-                    self._snowflake_plan._is_join_output = (
-                        self.from_._snowflake_plan._is_join_output
-                    )
+            # Only SelectStatement has has_clause/has_projection; other
+            # Selectable subclasses (SelectSQL, SetStatement, etc.) skip this.
+            if (
+                hasattr(self, "has_clause")
+                and not self.has_clause
+                and not self.has_projection
+                and isinstance(self.from_, SelectSnowflakePlan)
+            ):
+                self._snowflake_plan._is_join_output = (
+                    self.from_._snowflake_plan._is_join_output
+                )
         return self._snowflake_plan
 
     @property
