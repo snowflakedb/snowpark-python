@@ -108,6 +108,14 @@ jobs:
         # matrix is empty for pre-commit, tests are only added
         # through the include directive
         include:
+          # run py 3.10 tests on aws/ubuntu
+          - python-version: "3.10"
+            cloud-provider: aws
+            os: ubuntu-latest-64-cores
+          # run py 3.11 tests on azure/windows
+          - python-version: "3.11"
+            cloud-provider: azure
+            os: windows-latest-64-cores
           # only run azure tests with latest python and ubuntu
           - cloud-provider: azure
             python-version: "3.12"
