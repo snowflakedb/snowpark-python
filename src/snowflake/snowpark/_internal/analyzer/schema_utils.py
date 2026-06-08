@@ -3,7 +3,6 @@
 #
 import re
 import traceback
-from collections.abc import Hashable
 from typing import TYPE_CHECKING, List, Union, Optional, Sequence, Any
 
 import snowflake.snowpark
@@ -30,19 +29,6 @@ if TYPE_CHECKING:
 _SOURCE_PLAN_ID_ALIAS_PATTERN = re.compile(
     r'"([^"]*?)-[0-9a-fA-F]{8}-(\d+)"(\s+AS\s+)', re.IGNORECASE
 )
-
-
-def _freeze_for_cache_key(value: Any) -> Any:
-    """Convert potentially unhashable values into hashable cache-key components."""
-    if isinstance(value, dict):
-        return tuple(sorted((k, _freeze_for_cache_key(v)) for k, v in value.items()))
-    if isinstance(value, (list, tuple)):
-        return tuple(_freeze_for_cache_key(v) for v in value)
-    if isinstance(value, set):
-        return tuple(sorted(_freeze_for_cache_key(v) for v in value))
-    if isinstance(value, Hashable):
-        return value
-    return repr(value)
 
 
 def command_attributes() -> List[Attribute]:
@@ -146,11 +132,7 @@ def _cached_analyze_attributes_cache_key(
     _ = dataframe_uuid
     if context._is_snowpark_connect_compatible_mode:
         normalized_sql = _SOURCE_PLAN_ID_ALIAS_PATTERN.sub(r'"\1-PLANID-\2"\3', sql)
-        return (
-            getattr(session, "_session_id", None),
-            normalized_sql,
-            _freeze_for_cache_key(query_params),
-        )
+        return normalized_sql
     return sql
 
 
