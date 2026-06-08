@@ -1396,19 +1396,35 @@ def test_copy_preserves_agg_state(session):
             ["k", "v"],
         )
         agg_sorted = (
-            df.group_by("k").agg(sum_("v").alias("total")).sort(col("total").desc())
+            df.group_by("k")
+            .agg(sum_("v").alias("total"))
+            .filter(col("total") > 1)
+            .sort(col("total").desc())
         )
 
         for copied in (copy.copy(agg_sorted), agg_sorted._copy_without_ast()):
             # Internal state must be carried over so _build_post_agg_df fires correctly
-            assert copied._ops_after_agg == agg_sorted._ops_after_agg
-            assert copied._agg_base_plan is agg_sorted._agg_base_plan
+            assert (
+                copied._ops_after_agg
+                and copied._ops_after_agg == agg_sorted._ops_after_agg
+            )
+            assert (
+                copied._agg_base_plan
+                and copied._agg_base_plan == agg_sorted._agg_base_plan
+            )
             assert (
                 copied._agg_base_select_statement
+                and copied._agg_base_select_statement
                 is agg_sorted._agg_base_select_statement
             )
-            assert copied._pending_order_bys == agg_sorted._pending_order_bys
-            assert copied._pending_havings == agg_sorted._pending_havings
+            assert (
+                copied._pending_order_bys
+                and copied._pending_order_bys == agg_sorted._pending_order_bys
+            )
+            assert (
+                copied._pending_havings
+                and copied._pending_havings == agg_sorted._pending_havings
+            )
 
             # Observable result: ORDER BY must be respected under LIMIT
             Utils.check_answer(copied.limit(2), [Row("c", 10), Row("a", 4)])
