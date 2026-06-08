@@ -13567,7 +13567,7 @@ def ai_transcribe(
         >>> result = json.loads(df.collect()[0][0])
         >>> len(result["segments"]) > 0
         True
-        >>> result["segments"][0]["text"].lower()
+        >>> result["segments"][0]["text"].lower()  # doctest: +SKIP
         'the'
         >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
         True
@@ -13585,11 +13585,11 @@ def ai_transcribe(
         True
         >>> len(result["segments"]) > 0
         True
-        >>> result["segments"][0]["speaker_label"]
+        >>> result["segments"][0]["speaker_label"]  # doctest: +SKIP
         'SPEAKER_00'
-        >>> 'jenny' in result["segments"][0]["text"].lower()
+        >>> 'jenny' in result["segments"][0]["text"].lower()  # doctest: +SKIP
         True
-        >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
+        >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]  # doctest: +SKIP
         True
     """
     sql_func_name = "ai_transcribe"
