@@ -683,7 +683,7 @@ def aggregate_statement(
     # add limit 1 because aggregate may be on non-aggregate function in a scalar aggregation
     # for example, df.agg(lit(1))
     return project_statement(aggregate_exprs, child, child_uuid=child_uuid) + (
-        limit_expression(1)
+        ""
         if not grouping_exprs
         else (
             NEW_LINE
