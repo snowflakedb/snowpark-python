@@ -770,6 +770,7 @@ class SnowflakePlan(LogicalPlan):
                 referenced_ctes=self.referenced_ctes,
             )
         plan.df_ast_ids = self.df_ast_ids
+        plan._is_join_output = self._is_join_output
         return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -809,6 +810,7 @@ class SnowflakePlan(LogicalPlan):
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
         copied_plan.df_ast_ids = self.df_ast_ids
+        copied_plan._is_join_output = self._is_join_output
 
         return copied_plan
 
