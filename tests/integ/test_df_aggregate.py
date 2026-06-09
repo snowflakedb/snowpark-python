@@ -1421,11 +1421,14 @@ def test_copy_preserves_agg_state(session):
                 copied._agg_base_plan
                 and copied._agg_base_plan == agg_sorted._agg_base_plan
             )
-            assert (
-                copied._agg_base_select_statement
-                and copied._agg_base_select_statement
-                is agg_sorted._agg_base_select_statement
-            )
+            # _agg_base_select_statement is only populated when the SQL simplifier
+            # is enabled; it is None (and legitimately so) when disabled.
+            if session.sql_simplifier_enabled:
+                assert (
+                    copied._agg_base_select_statement
+                    and copied._agg_base_select_statement
+                    is agg_sorted._agg_base_select_statement
+                )
             assert (
                 copied._pending_order_bys
                 and copied._pending_order_bys == agg_sorted._pending_order_bys
