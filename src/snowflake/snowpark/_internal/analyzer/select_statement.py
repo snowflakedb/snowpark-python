@@ -449,7 +449,7 @@ class Selectable(LogicalPlan, ABC):
             # Only SelectStatement has has_clause/has_projection; other
             # Selectable subclasses (SelectSQL, SetStatement, etc.) skip this.
             if (
-                hasattr(self, "has_clause")
+                isinstance(self, SelectStatement)
                 and not self.has_clause
                 and not self.has_projection
                 and isinstance(self.from_, SelectSnowflakePlan)
