@@ -731,7 +731,7 @@ def test_agg_no_grouping_exprs_limit_snowpark_connect_compatible(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing query does not have limit 1",
 )
-def test_global_aggregate_limit_allowlist_snowpark_connect_compatible(session):
+def test_global_aggregate_limit_compat_mode_snowpark_connect_compatible(session):
     df = session.create_dataframe([[1, 2], [3, 4], [1, 4]], schema=["A", "B"])
 
     with mock.patch(
@@ -743,13 +743,13 @@ def test_global_aggregate_limit_allowlist_snowpark_connect_compatible(session):
     with mock.patch(
         "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
     ):
-        allowlisted_sum_query = df.agg(sum_(col("a"))).queries["queries"][-1].upper()
-        allowlisted_count_query = df.agg(count(col("a"))).queries["queries"][-1].upper()
+        sum_query = df.agg(sum_(col("a"))).queries["queries"][-1].upper()
+        count_query = df.agg(count(col("a"))).queries["queries"][-1].upper()
         non_agg_expr_query = df.agg(lit(1)).queries["queries"][-1].upper()
 
-        assert "LIMIT 1" not in allowlisted_sum_query
-        assert "LIMIT 1" not in allowlisted_count_query
-        assert "LIMIT 1" in non_agg_expr_query
+        assert "LIMIT 1" not in sum_query
+        assert "LIMIT 1" not in count_query
+        assert "LIMIT 1" not in non_agg_expr_query
 
 
 @pytest.mark.skipif(

@@ -18,6 +18,7 @@ from snowflake.connector.pandas_tools import (
     _create_temp_file_format,
     build_location_helper,
 )
+import snowflake.snowpark.context as context
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Except,
@@ -686,13 +687,14 @@ def aggregate_statement(
     aggregate_exprs: List[str],
     child: str,
     child_uuid: Optional[str] = None,
-    append_global_limit_one: bool = True,
 ) -> str:
     # add limit 1 because aggregate may be on non-aggregate function in a scalar aggregation
     # for example, df.agg(lit(1))
     if not grouping_exprs:
         return project_statement(aggregate_exprs, child, child_uuid=child_uuid) + (
-            limit_expression(1) if append_global_limit_one else EMPTY_STRING
+            EMPTY_STRING
+            if context._is_snowpark_connect_compatible_mode
+            else limit_expression(1)
         )
     return project_statement(aggregate_exprs, child, child_uuid=child_uuid) + (
         NEW_LINE

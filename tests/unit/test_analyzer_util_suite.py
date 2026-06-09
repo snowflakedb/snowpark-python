@@ -681,19 +681,18 @@ def test_sample_by_statement_formatting(mock_random_name):
 
 
 def test_aggregate_statement_formatting():
-    assert aggregate_statement([], ["COUNT(*) as cnt"], "my_table") == (
-        " SELECT \n" "    COUNT(*) as cnt\n" " FROM (\n" "my_table\n" ") LIMIT 1"
-    )
-    assert (
-        aggregate_statement(
-            [], ["COUNT(*) as cnt"], "my_table", append_global_limit_one=False
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", False
+    ):
+        assert aggregate_statement([], ["COUNT(*) as cnt"], "my_table") == (
+            " SELECT \n" "    COUNT(*) as cnt\n" " FROM (\n" "my_table\n" ") LIMIT 1"
         )
-        == " SELECT \n"
-        "    COUNT(*) as cnt\n"
-        " FROM (\n"
-        "my_table\n"
-        ")"
-    )
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
+        assert aggregate_statement([], ["COUNT(*) as cnt"], "my_table") == (
+            " SELECT \n" "    COUNT(*) as cnt\n" " FROM (\n" "my_table\n" ")"
+        )
 
     assert aggregate_statement(["dept", "title"], ["COUNT(*) as cnt"], "my_table") == (
         " SELECT \n"

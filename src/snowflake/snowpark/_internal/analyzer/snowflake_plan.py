@@ -96,10 +96,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
     SetOperation,
 )
-from snowflake.snowpark._internal.analyzer.expression import (
-    Attribute,
-    FunctionExpression,
-)
+from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.metadata_utils import (
     PlanMetadata,
     cache_metadata_if_selectable,
@@ -155,10 +152,6 @@ else:
     from collections.abc import Iterable
 
 _logger = getLogger(__name__)
-
-_SCOS_LIMIT_ELISION_ALLOWLIST = frozenset(
-    {"count", "sum", "avg", "mean", "min", "max", "std"}
-)
 
 
 class SnowflakePlan(LogicalPlan):
@@ -1116,37 +1109,6 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def _expression_contains_allowlisted_aggregate(self, expression: Any) -> bool:
-        if isinstance(expression, FunctionExpression):
-            if expression.name.lower() in _SCOS_LIMIT_ELISION_ALLOWLIST:
-                return True
-
-        children = getattr(expression, "children", None)
-        if children is None:
-            return False
-        return any(
-            child is not None and self._expression_contains_allowlisted_aggregate(child)
-            for child in children
-        )
-
-    def _should_append_global_aggregate_limit(
-        self,
-        grouping_exprs: List[str],
-        source_plan: Optional[LogicalPlan],
-    ) -> bool:
-        if grouping_exprs:
-            return True
-        # only try to remove limit when in compatible mode
-        if not context._is_snowpark_connect_compatible_mode:
-            return True
-        if source_plan is None or not hasattr(source_plan, "aggregate_expressions"):
-            return True
-        # remove limit 1 if contain agg functions in the allowlist
-        return not any(
-            self._expression_contains_allowlisted_aggregate(expression)
-            for expression in source_plan.aggregate_expressions  # type: ignore[attr-defined]
-        )
-
     def aggregate(
         self,
         grouping_exprs: List[str],
@@ -1154,15 +1116,11 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        append_global_limit_one = self._should_append_global_aggregate_limit(
-            grouping_exprs, source_plan
-        )
         return self.build(
             lambda x: aggregate_statement(
                 grouping_exprs,
                 aggregate_exprs,
                 x,
-                append_global_limit_one=append_global_limit_one,
                 child_uuid=(
                     child.uuid
                     if context._enable_trace_sql_errors_to_dataframe
