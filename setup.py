@@ -14,8 +14,7 @@ from setuptools.command.build_py import build_py as _build_py
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
-# Snowpark pandas requires modin 0.36.x or 0.37.x, which are compatible with pandas
-# 2.2.x or 2.3.x
+# Snowpark pandas requires modin 0.36.x or 0.37.x.
 MODIN_DEPENDENCY_VERSION = ">=0.36.0, <0.38.0"
 CONNECTOR_DEPENDENCY_VERSION = ">=3.17.0, <5.0.0"
 CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
@@ -43,7 +42,7 @@ PANDAS_REQUIREMENTS = [
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
     f"modin{MODIN_DEPENDENCY_VERSION}",
-    "pandas<=2.4",
+    "pandas<3.1",
     "tqdm",  # For progress bars during backend switching
     "ipywidgets",  # For enhanced progress bars in Jupyter notebooks
 ]

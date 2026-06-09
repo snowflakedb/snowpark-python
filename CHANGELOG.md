@@ -28,6 +28,12 @@
 
 - Clarified that the JDBC driver JAR referenced via `udtf_configs.imports` in `DataFrameReader.jdbc()` must be downloaded from the database vendor and uploaded to a Snowflake stage.
 
+### Snowpark pandas API Updates
+
+#### Dependency Updates
+
+- Relaxed the `pandas` dependency ceiling for Snowpark pandas extras to `<3.1`.
+
 ## 1.51.0 (2026-05-18)
 
 ### Snowpark Python API Updates
