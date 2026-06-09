@@ -968,13 +968,22 @@ _SELECT_STAR_FROM_SUFFIX = NEW_LINE + RIGHT_PARENTHESIS
 def _unwrap_select_star_from(sql: str) -> Optional[str]:
     """If sql is a join-produced `SELECT * FROM (\n<join_source>\n)` (the
     output of project_statement([], join_source)), return <join_source>.
-    Only unwraps when the inner content starts with '(' which indicates
-    a parenthesized join operand rather than a wrapped SELECT statement."""
+    Only unwraps when the inner content starts with '(' (possibly preceded
+    by UUID trace comments) which indicates a parenthesized join operand
+    rather than a wrapped SELECT statement."""
     if sql.startswith(_SELECT_STAR_FROM_PREFIX) and sql.endswith(
         _SELECT_STAR_FROM_SUFFIX
     ):
         inner = sql[len(_SELECT_STAR_FROM_PREFIX) : -len(_SELECT_STAR_FROM_SUFFIX)]
-        if inner.startswith(LEFT_PARENTHESIS):
+        # In trace-SQL mode, UUID comments (\n-- <uuid>\n) may precede the
+        # opening parenthesis. Strip them before checking.
+        check = inner.lstrip("\n")
+        if check.startswith("--"):
+            # Skip the comment line and any trailing newline
+            newline_pos = check.find("\n")
+            if newline_pos != -1:
+                check = check[newline_pos + 1 :]
+        if check.startswith(LEFT_PARENTHESIS) or inner.startswith(LEFT_PARENTHESIS):
             return inner
     return None
 

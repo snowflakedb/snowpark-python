@@ -487,6 +487,61 @@ def test_join_statement_flattens_chained_joins():
     assert "table_c" in second_join
 
 
+def test_join_statement_flattens_with_uuid_trace_comments():
+    """Flattening must work when UUID trace comments are present (trace-SQL mode)."""
+    join_type = UsingJoin(Inner(), ["key"])
+
+    # First join with UUID trace comments
+    first_join = join_statement(
+        "SELECT * FROM table_a",
+        "SELECT * FROM table_b",
+        join_type,
+        "",
+        "",
+        True,
+        left_uuid="aaaa-bbbb",
+        right_uuid="cccc-dddd",
+    )
+
+    # Second join: flattening with UUIDs
+    second_join = join_statement(
+        first_join,
+        "SELECT * FROM table_c",
+        join_type,
+        "",
+        "",
+        True,
+        left_uuid="eeee-ffff",
+        right_uuid="1111-2222",
+        left_is_join=True,
+    )
+
+    # Should still flatten — only one top-level SELECT *
+    assert second_join.count(" SELECT ") == 1
+    assert "table_a" in second_join
+    assert "table_b" in second_join
+    assert "table_c" in second_join
+
+    # Third join: must also flatten successfully despite accumulated UUID comments
+    third_join = join_statement(
+        second_join,
+        "SELECT * FROM table_d",
+        join_type,
+        "",
+        "",
+        True,
+        left_uuid="3333-4444",
+        right_uuid="5555-6666",
+        left_is_join=True,
+    )
+
+    assert third_join.count(" SELECT ") == 1
+    assert "table_a" in third_join
+    assert "table_b" in third_join
+    assert "table_c" in third_join
+    assert "table_d" in third_join
+
+
 def test_join_statement_does_not_flatten_user_generated_select_star():
     """A user-generated SELECT * that coincidentally matches the internal
     pattern must NOT be flattened when left_is_join is False (the default)."""
