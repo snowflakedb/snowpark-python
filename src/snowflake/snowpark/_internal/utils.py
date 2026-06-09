@@ -24,6 +24,7 @@ import time
 import threading
 import traceback
 import uuid
+import warnings
 import zipfile
 from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache, wraps
@@ -452,6 +453,17 @@ def warn_session_config_update_in_multithreaded_mode(config: str) -> None:
             f"{config}. Updating this while other tasks are running can potentially cause "
             "unexpected behavior. Please update the session configuration before starting the threads."
         )
+
+
+def warn_sql_simplifier_disabled(stacklevel: int = 2) -> None:
+    warnings.warn(
+        "SQL simplifier is disabled (sql_simplifier_enabled=False). This code path "
+        "is no longer maintained. If you encounter issues, please reach out through "
+        "GitHub issues (https://github.com/snowflakedb/snowpark-python/issues) or "
+        "Snowflake support.",
+        UserWarning,
+        stacklevel=stacklevel,
+    )
 
 
 def normalize_remote_file_or_dir(name: str) -> str:
