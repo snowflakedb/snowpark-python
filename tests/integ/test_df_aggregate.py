@@ -1382,8 +1382,14 @@ def test_copy_preserves_agg_state(session):
     that .limit() and .sort() on the copy go through _build_post_agg_df and
     generate correct SQL (ORDER BY inside the aggregate subquery, not lost on
     the outer wrapper)."""
+    # Disable AST: copy.copy(df).limit() triggers debug_check_missing_ast because
+    # the copy carries the source's API usage with no corresponding AST entries.
     with mock.patch(
         "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ), mock.patch(
+        "snowflake.snowpark.session.Session.ast_enabled",
+        new_callable=mock.PropertyMock,
+        return_value=False,
     ):
         df = session.create_dataframe(
             [
