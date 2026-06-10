@@ -2102,34 +2102,34 @@ class TimeTravelConfig(NamedTuple):
 
         Note on escaping: string-valued parameters (``statement``,
         ``stream``, ``version_tag``, ``timestamp``) are embedded inside
-        single-quoted SQL literals. We double any embedded ``'`` to the
-        Snowflake-standard ``''`` escape sequence before interpolation
-        so a value like ``release_'s`` produces ``'release_''s'``
-        rather than breaking SQL or opening an injection surface
-        (e.g. ``'); DROP TABLE foo; --``). Numeric parameters
+        single-quoted SQL literals via the existing ``str_to_sql``
+        helper in ``analyzer.datatype_mapper`` so embedded ``'``, ``\\``
+        and newline characters are properly escaped. This keeps the
+        emission consistent with the rest of Snowpark Python's SQL
+        generation and avoids both broken SQL and injection surface
+        (e.g. ``x'); DROP TABLE foo; --``). Numeric parameters
         (``offset``, ``version``) are not quoted and don't need
         escaping.
-        """
 
-        def _quote(value: str) -> str:
-            # Snowflake's SQL string-literal escape is doubled single
-            # quotes; backslashes have no special meaning in
-            # single-quoted literals here, so we don't need to escape
-            # those.
-            return "'" + str(value).replace("'", "''") + "'"
+        ``str_to_sql`` is imported lazily here because
+        ``analyzer.datatype_mapper`` imports from this module at top
+        level — same pattern used elsewhere in this file for analyzer
+        cross-references.
+        """
+        from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 
         clause = f" {self.time_travel_mode.upper()} "
 
         if self.statement is not None:
-            clause += f"(STATEMENT => {_quote(self.statement)})"
+            clause += f"(STATEMENT => {str_to_sql(self.statement)})"
         elif self.offset is not None:
             clause += f"(OFFSET => {self.offset})"
         elif self.stream is not None:
-            clause += f"(STREAM => {_quote(self.stream)})"
+            clause += f"(STREAM => {str_to_sql(self.stream)})"
         elif self.version is not None:
             clause += f"(VERSION => {self.version})"
         elif self.version_tag is not None:
-            clause += f"(VERSION_TAG => {_quote(self.version_tag)})"
+            clause += f"(VERSION_TAG => {str_to_sql(self.version_tag)})"
         elif self.timestamp is not None:
             if self.timestamp_type is not None:
                 timestamp_type = self.timestamp_type.upper()
@@ -2141,9 +2141,9 @@ class TimeTravelConfig(NamedTuple):
                     func_name = "TO_TIMESTAMP_TZ"
                 else:
                     func_name = "TO_TIMESTAMP"
-                clause += f"(TIMESTAMP => {func_name}({_quote(self.timestamp)}))"
+                clause += f"(TIMESTAMP => {func_name}({str_to_sql(self.timestamp)}))"
             else:
-                clause += f"(TIMESTAMP => {_quote(self.timestamp)})"
+                clause += f"(TIMESTAMP => {str_to_sql(self.timestamp)})"
 
         return clause
 

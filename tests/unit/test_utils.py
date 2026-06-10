@@ -1076,16 +1076,16 @@ def test_time_travel_version_tag():
 
 def test_time_travel_string_literal_escaping():
     """SQL literals embedded in time-travel clauses (``statement``,
-    ``stream``, ``version_tag``, string-form ``timestamp``) must
-    escape embedded single quotes by doubling them — Snowflake's
-    standard string-literal escape — so neither malicious nor
-    accidental ``'`` characters in the value can break the SQL
-    text or open an injection surface.
+    ``stream``, ``version_tag``, string-form ``timestamp``) are
+    emitted via ``analyzer.datatype_mapper.str_to_sql``, the shared
+    Snowpark Python helper that escapes embedded single quotes
+    (``'`` → ``''``), backslashes (``\\`` → ``\\\\``), and newlines
+    (``\\n`` → literal ``\\n``) before wrapping in single quotes.
 
     Pinned via this test rather than only at the call sites because
-    the four parameters share one code path (``_quote`` in
-    ``generate_sql_clause``); a regression in any one of them would
-    fail here.
+    the four parameters share one code path in ``generate_sql_clause``;
+    a regression in any one of them — or in ``str_to_sql`` itself —
+    would fail here.
     """
     # version_tag — the parameter introduced by this PR.
     config = TimeTravelConfig.validate_and_normalize_params(
@@ -1128,6 +1128,28 @@ def test_time_travel_string_literal_escaping():
     assert (
         ts_typed.generate_sql_clause()
         == " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('2024-01-01''); --'))"
+    )
+
+    # ``str_to_sql`` also escapes backslashes and newlines — pin that
+    # so a future change to the shared helper that affects
+    # time-travel emission fails here rather than silently producing
+    # broken SQL.
+    config_backslash = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="weird\\name"
+    )
+    # Single backslash in the input → doubled in the SQL.
+    assert (
+        config_backslash.generate_sql_clause() == " AT (VERSION_TAG => 'weird\\\\name')"
+    )
+
+    config_newline = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="line1\nline2"
+    )
+    # Real newline in the input → literal ``\n`` two-char sequence in
+    # the SQL text (so the literal stays on one line for Snowflake's
+    # parser).
+    assert (
+        config_newline.generate_sql_clause() == " AT (VERSION_TAG => 'line1\\nline2')"
     )
 
 
