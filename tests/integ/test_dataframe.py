@@ -8423,3 +8423,70 @@ def test_iceberg_snapshot_id_time_travel_dataframe_reader_option(session):
         session.read.option("snapshot-id", snapshot_id).table(table_fqn).collect()
     )
     assert via_kwarg == via_option
+
+
+# ----------------------------------------------------------------------
+# Iceberg tag (``version_tag=``) time travel.
+#
+# TODO(SNOW-3473261): Wire these up to a CI test account that has:
+#   * a Catalog-Linked Database (CLD) such as cldUnity / cldglue, AND
+#   * an unmanaged Iceberg table inside it that exposes a named tag
+#     (e.g. created via ``ALTER TABLE ... CREATE TAG <name>`` on the OSS
+#     Iceberg side, or via the catalog's tag API).
+#
+# Snowflake's ``AT(VERSION_TAG => '<name>')`` is the released tag-only
+# Iceberg time-travel clause (Spark Iceberg's
+# ``VERSION AS OF '<tag_name>'`` for tag reads). Like the snapshot-id
+# surface, it currently requires ``FEATURE_ICEBERG_TIME_TRAVEL`` on the
+# account and is scoped to unmanaged Iceberg tables in CLDs, so these
+# tests are skipped by default and exercised manually against
+# ``sfctest0`` (see ``tests/sas_tests/test_iceberg_version_tag_sample.py``
+# in snowflake-eng/sas for the manual reproducer).
+# ----------------------------------------------------------------------
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with at least one "
+        "named tag and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_version_tag_time_travel_session_table(session):
+    """End-to-end: ``Session.table(..., version_tag='<name>')`` returns the
+    table state at the requested Iceberg tag."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+    # Demo table is set up with a tag ``first_load`` pointing at the
+    # earliest snapshot (see sas-side reproducer for the setup script).
+    tag_name = "first_load"
+
+    tagged = session.table(
+        table_fqn, time_travel_mode="at", version_tag=tag_name
+    ).collect()
+    latest = session.table(table_fqn).collect()
+    # Tag reads use the snapshot's schema as it existed at the tag —
+    # row count at an earlier tag should be ≤ current row count, since the
+    # tag is bound to a specific (earlier) snapshot.
+    assert len(tagged) <= len(latest)
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with at least one "
+        "named tag and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_version_tag_time_travel_dataframe_reader_option(session):
+    """End-to-end: ``session.read.option('version_tag', 'name').table(...)``
+    routes through the Iceberg-compat option alias and produces the same
+    result as the explicit ``version_tag=`` kwarg."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+    tag_name = "first_load"
+
+    via_kwarg = session.read.table(
+        table_fqn, time_travel_mode="at", version_tag=tag_name
+    ).collect()
+    via_option = session.read.option("version_tag", tag_name).table(table_fqn).collect()
+    via_hyphen_option = (
+        session.read.option("version-tag", tag_name).table(table_fqn).collect()
+    )
+    assert via_kwarg == via_option == via_hyphen_option

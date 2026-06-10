@@ -987,3 +987,130 @@ def test_extract_time_travel_snapshot_id_option():
         ValueError, match="'snapshot-id' must be a 64-bit integer Iceberg snapshot id"
     ):
         _extract_time_travel_from_options({"SNAPSHOT-ID": "not-a-number"})
+
+
+def test_time_travel_version_tag():
+    """Test Iceberg tag time travel via ``version_tag`` parameter.
+
+    Covers SQL generation, validation, and the ``mode='at'``-only restriction.
+    Verifies the SQL matches the Snowflake ``AT(VERSION_TAG => '<name>')``
+    grammar — the released tag-only form of Iceberg time travel (Spark
+    Iceberg's ``VERSION AS OF '<tag_name>'`` for tag reads).
+    """
+    # Valid: typical tag name.
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="release_v1"
+    )
+    assert config.version_tag == "release_v1"
+    assert config.time_travel_mode == "at"
+    assert config.generate_sql_clause() == " AT (VERSION_TAG => 'release_v1')"
+
+    # Hyphens and dots in tag names round-trip through the SQL clause —
+    # Iceberg allows these in tag names (e.g. ``snapshot-2023-01-01``,
+    # ``v1.2.3``).
+    config_hyphen = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="audit-tag"
+    )
+    assert config_hyphen.generate_sql_clause() == " AT (VERSION_TAG => 'audit-tag')"
+
+    config_dotted = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="snapshot-2023-01-01"
+    )
+    assert (
+        config_dotted.generate_sql_clause()
+        == " AT (VERSION_TAG => 'snapshot-2023-01-01')"
+    )
+
+    # Direct construction also generates the right SQL.
+    direct = TimeTravelConfig(time_travel_mode="AT", version_tag="EOM_JULY_2025")
+    assert direct.generate_sql_clause() == " AT (VERSION_TAG => 'EOM_JULY_2025')"
+
+    # version_tag + 'before' is invalid (tag reads are positional — bound
+    # to a specific snapshot — not range-of-time).
+    with pytest.raises(
+        ValueError,
+        match=r"Iceberg version_tag time travel can only be used with time_travel_mode='at'",
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="before", version_tag="release_v1"
+        )
+
+    # version_tag + another time-travel param is invalid (must pick one).
+    with pytest.raises(ValueError, match="Exactly one of"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version_tag="release_v1", offset=-3600
+        )
+    with pytest.raises(ValueError, match="Exactly one of"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            version_tag="release_v1",
+            timestamp="2023-01-01 12:00:00",
+        )
+    # version_tag + version (snapshot-id) is invalid — the user must pick
+    # the tag form or the snapshot-id form, not both.
+    with pytest.raises(ValueError, match="Exactly one of"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            version_tag="release_v1",
+            version=5129038471029384756,
+        )
+
+    # Non-string version_tag is rejected.
+    with pytest.raises(
+        ValueError, match="'version_tag' must be a string Iceberg tag name"
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version_tag=123
+        )
+
+    # Empty version_tag is rejected (Iceberg tag names are non-empty strings).
+    with pytest.raises(ValueError, match="'version_tag' must be a non-empty"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version_tag=""
+        )
+
+    # version_tag alone (no mode) requires mode (same shape as version=).
+    with pytest.raises(ValueError, match="Must specify time travel mode"):
+        TimeTravelConfig.validate_and_normalize_params(version_tag="release_v1")
+
+
+def test_extract_time_travel_version_tag_option():
+    """Test Iceberg tag option extraction for the reader API.
+
+    Both ``version_tag`` and ``version-tag`` aliases map to the internal
+    ``version_tag`` time-travel parameter and auto-set
+    ``time_travel_mode='at'`` (``AT(VERSION_TAG => '<name>')`` is the only
+    valid form — tag reads are positional).
+    """
+    from snowflake.snowpark.dataframe_reader import _extract_time_travel_from_options
+
+    # Canonical underscore form
+    result = _extract_time_travel_from_options({"VERSION_TAG": "release_v1"})
+    assert result == {"time_travel_mode": "at", "version_tag": "release_v1"}
+
+    # Hyphen form (matches the ``snapshot-id`` style)
+    result = _extract_time_travel_from_options({"VERSION-TAG": "audit-tag"})
+    assert result == {"time_travel_mode": "at", "version_tag": "audit-tag"}
+
+    # Numeric-looking tag names are coerced to string (Iceberg tag names
+    # can be numeric strings).
+    result = _extract_time_travel_from_options({"VERSION_TAG": 42})
+    assert result == {"time_travel_mode": "at", "version_tag": "42"}
+
+    # version_tag + time_travel_mode='before' is rejected
+    with pytest.raises(
+        ValueError,
+        match=r"Cannot use 'version_tag' option with time_travel_mode='before'",
+    ):
+        _extract_time_travel_from_options(
+            {"VERSION_TAG": "release_v1", "TIME_TRAVEL_MODE": "before"}
+        )
+    # Same for the hyphen alias — error message reflects the alias the user
+    # actually typed.
+    with pytest.raises(
+        ValueError,
+        match=r"Cannot use 'version-tag' option with time_travel_mode='before'",
+    ):
+        _extract_time_travel_from_options(
+            {"VERSION-TAG": "release_v1", "TIME_TRAVEL_MODE": "before"}
+        )
