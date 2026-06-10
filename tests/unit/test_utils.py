@@ -1074,6 +1074,63 @@ def test_time_travel_version_tag():
         TimeTravelConfig.validate_and_normalize_params(version_tag="release_v1")
 
 
+def test_time_travel_string_literal_escaping():
+    """SQL literals embedded in time-travel clauses (``statement``,
+    ``stream``, ``version_tag``, string-form ``timestamp``) must
+    escape embedded single quotes by doubling them — Snowflake's
+    standard string-literal escape — so neither malicious nor
+    accidental ``'`` characters in the value can break the SQL
+    text or open an injection surface.
+
+    Pinned via this test rather than only at the call sites because
+    the four parameters share one code path (``_quote`` in
+    ``generate_sql_clause``); a regression in any one of them would
+    fail here.
+    """
+    # version_tag — the parameter introduced by this PR.
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="release_'s"
+    )
+    assert config.generate_sql_clause() == " AT (VERSION_TAG => 'release_''s')"
+
+    # An attempted injection payload — the closing quote and the
+    # injected DROP must be fully neutralized by the doubled quotes.
+    config_injection = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="x'); DROP TABLE foo; --"
+    )
+    assert (
+        config_injection.generate_sql_clause()
+        == " AT (VERSION_TAG => 'x''); DROP TABLE foo; --')"
+    )
+
+    # statement — same escape applies (pre-existing pattern hardened
+    # while we're here; raised in PR #4211 review).
+    stmt_config = TimeTravelConfig(time_travel_mode="AT", statement="01a' OR '1'='1")
+    assert (
+        stmt_config.generate_sql_clause() == " AT (STATEMENT => '01a'' OR ''1''=''1')"
+    )
+
+    # stream — same escape applies.
+    stream_config = TimeTravelConfig(time_travel_mode="AT", stream="my_stream'); --")
+    assert stream_config.generate_sql_clause() == " AT (STREAM => 'my_stream''); --')"
+
+    # timestamp (string form, no timestamp_type) — same escape.
+    ts_config = TimeTravelConfig(time_travel_mode="AT", timestamp="2024-01-01'); --")
+    assert ts_config.generate_sql_clause() == " AT (TIMESTAMP => '2024-01-01''); --')"
+
+    # timestamp (with typed TO_TIMESTAMP_*) — same escape inside the
+    # function-call argument.
+    ts_typed = TimeTravelConfig(
+        time_travel_mode="AT",
+        timestamp="2024-01-01'); --",
+        timestamp_type="NTZ",
+    )
+    assert (
+        ts_typed.generate_sql_clause()
+        == " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('2024-01-01''); --'))"
+    )
+
+
 def test_extract_time_travel_version_tag_option():
     """Test Iceberg tag option extraction for the reader API.
 

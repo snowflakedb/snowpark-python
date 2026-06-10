@@ -2099,19 +2099,37 @@ class TimeTravelConfig(NamedTuple):
             " AT (VERSION => 1234567890)" for Iceberg snapshot id time travel,
             or " AT (VERSION_TAG => 'release_v1')" for Iceberg tag time
             travel.
+
+        Note on escaping: string-valued parameters (``statement``,
+        ``stream``, ``version_tag``, ``timestamp``) are embedded inside
+        single-quoted SQL literals. We double any embedded ``'`` to the
+        Snowflake-standard ``''`` escape sequence before interpolation
+        so a value like ``release_'s`` produces ``'release_''s'``
+        rather than breaking SQL or opening an injection surface
+        (e.g. ``'); DROP TABLE foo; --``). Numeric parameters
+        (``offset``, ``version``) are not quoted and don't need
+        escaping.
         """
+
+        def _quote(value: str) -> str:
+            # Snowflake's SQL string-literal escape is doubled single
+            # quotes; backslashes have no special meaning in
+            # single-quoted literals here, so we don't need to escape
+            # those.
+            return "'" + str(value).replace("'", "''") + "'"
+
         clause = f" {self.time_travel_mode.upper()} "
 
         if self.statement is not None:
-            clause += f"(STATEMENT => '{self.statement}')"
+            clause += f"(STATEMENT => {_quote(self.statement)})"
         elif self.offset is not None:
             clause += f"(OFFSET => {self.offset})"
         elif self.stream is not None:
-            clause += f"(STREAM => '{self.stream}')"
+            clause += f"(STREAM => {_quote(self.stream)})"
         elif self.version is not None:
             clause += f"(VERSION => {self.version})"
         elif self.version_tag is not None:
-            clause += f"(VERSION_TAG => '{self.version_tag}')"
+            clause += f"(VERSION_TAG => {_quote(self.version_tag)})"
         elif self.timestamp is not None:
             if self.timestamp_type is not None:
                 timestamp_type = self.timestamp_type.upper()
@@ -2123,9 +2141,9 @@ class TimeTravelConfig(NamedTuple):
                     func_name = "TO_TIMESTAMP_TZ"
                 else:
                     func_name = "TO_TIMESTAMP"
-                clause += f"(TIMESTAMP => {func_name}('{self.timestamp}'))"
+                clause += f"(TIMESTAMP => {func_name}({_quote(self.timestamp)}))"
             else:
-                clause += f"(TIMESTAMP => '{self.timestamp}')"
+                clause += f"(TIMESTAMP => {_quote(self.timestamp)})"
 
         return clause
 
