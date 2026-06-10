@@ -17,6 +17,7 @@
 #### Improvements
 
 - Improved CTE optimization to deduplicate identical subtrees in self-joins, which were previously emitted as repeated subqueries.
+- Reduced the size of generated query text for repeated join operations.
 
 #### Deprecations
 
