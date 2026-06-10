@@ -1,5 +1,9 @@
 # Release History
 
+## 1.53.0 (TBD)
+
+### Snowpark Python API Updates
+
 ## 1.52.0 (2026-06-10)
 
 ### Snowpark Python API Updates
