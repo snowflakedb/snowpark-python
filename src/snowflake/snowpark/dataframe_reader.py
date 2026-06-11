@@ -161,6 +161,15 @@ def _extract_time_travel_from_options(options: dict) -> dict:
     - Automatically set time_travel_mode to 'at'
       (Iceberg snapshot ids only support ``AT(VERSION => N)``, not ``BEFORE``)
     - Cannot be used with time_travel_mode='before' (raises error)
+
+    Special handling for 'VERSION_TAG' / 'VERSION-TAG' (Iceberg tag name) —
+    both aliases map to the internal ``version_tag`` time travel parameter
+    and emit ``AT(VERSION_TAG => '<name>')`` on the Snowflake side (see
+    Spark Iceberg's ``VERSION AS OF '<tag_name>'`` reader path):
+    - Automatically set time_travel_mode to 'at'
+      (tag reads are positional — bound to a specific snapshot — not
+      range-of-time)
+    - Cannot be used with time_travel_mode='before' (raises error)
     """
     result = {}
     excluded_keys = set()
@@ -209,6 +218,27 @@ def _extract_time_travel_from_options(options: dict) -> dict:
                 f"'{snapshot_id_source}' must be a 64-bit integer Iceberg "
                 f"snapshot id, got {snapshot_id_value!r}."
             )
+        result["time_travel_mode"] = "at"
+
+    # Handle Iceberg tag (``version_tag`` / ``version-tag``). Both aliases
+    # route to the internal ``version_tag`` parameter and emit
+    # ``AT(VERSION_TAG => '<name>')`` server-side. Auto-sets mode='at'.
+    version_tag_value = options.get("VERSION_TAG")
+    version_tag_source = "version_tag"
+    if version_tag_value is None:
+        version_tag_value = options.get("VERSION-TAG")
+        version_tag_source = "version-tag"
+    if version_tag_value is not None:
+        if (
+            "TIME_TRAVEL_MODE" in options
+            and options["TIME_TRAVEL_MODE"].lower() == "before"
+        ):
+            raise ValueError(
+                f"Cannot use '{version_tag_source}' option with "
+                "time_travel_mode='before'. Iceberg tag time travel only "
+                "supports time_travel_mode='at'."
+            )
+        result["version_tag"] = str(version_tag_value)
         result["time_travel_mode"] = "at"
 
     for option_key, param_name in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items():
@@ -634,11 +664,13 @@ class DataFrameReader:
             ...     .option("offset", -60)                 # This will be IGNORED
             ...     .table("my_table", time_travel_mode="at", offset=-3600))  # Only this is used
         """
-        # ``version`` (Iceberg snapshot id) is intentionally not in the public
-        # signature — it's consumed by Snowpark Connect and may be removed
-        # once a first-class API lands. Accept it through **kwargs so direct
-        # callers can still pass it without us advertising it.
+        # ``version`` (Iceberg snapshot id) and ``version_tag`` (Iceberg tag
+        # name) are intentionally not in the public signature — they are
+        # consumed by Snowpark Connect and may be removed once a first-class
+        # API lands. Accept them through **kwargs so direct callers can
+        # still pass them without us advertising the surface.
         version = kwargs.pop("version", None)
+        version_tag = kwargs.pop("version_tag", None)
         if kwargs:
             raise TypeError(
                 f"table() got unexpected keyword arguments: {sorted(kwargs)}"
@@ -664,13 +696,20 @@ class DataFrameReader:
             if stream is not None:
                 ast.stream.value = stream
 
-        if time_travel_mode is not None or version is not None:
-            # If version is provided without mode, default to 'at' (snapshot ids
-            # only make sense with AT — symmetric with iceberg_tag handling).
+        if (
+            time_travel_mode is not None
+            or version is not None
+            or version_tag is not None
+        ):
+            # If version / version_tag is provided without mode, default to
+            # 'at' — snapshot ids and tag reads only make sense with AT
+            # (symmetric with the as-of-timestamp option handling).
             effective_mode = (
                 time_travel_mode
                 if time_travel_mode
-                else ("at" if version is not None else None)
+                else (
+                    "at" if (version is not None or version_tag is not None) else None
+                )
             )
             time_travel_params = {
                 "time_travel_mode": effective_mode,
@@ -680,6 +719,7 @@ class DataFrameReader:
                 "timestamp_type": timestamp_type,
                 "stream": stream,
                 "version": version,
+                "version_tag": version_tag,
             }
         else:
             # if time_travel_mode is not provided, extract time travel config from options
