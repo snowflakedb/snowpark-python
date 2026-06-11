@@ -2219,7 +2219,12 @@ def can_select_statement_be_flattened(
             state.change_state == ColumnChangeState.DROPPED
             and (subquery_state := subquery_column_states.get(col))
             and subquery_state.change_state == ColumnChangeState.NEW
-            and subquery_state.is_referenced_by_same_level_column
+            and (
+                subquery_state.is_referenced_by_same_level_column
+                # In connect mode, preserve the subquery so that future
+                # filter/sort clauses can still reference the dropped NEW column.
+                or context._is_snowpark_connect_compatible_mode
+            )
         ):
             return False
     return True
