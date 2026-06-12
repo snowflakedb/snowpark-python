@@ -8,6 +8,7 @@ import re
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
+from modin.config import context as config_context
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import (
@@ -386,3 +387,65 @@ class TestTableName:
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
             written, native_df.rename(str, axis=1)
         )
+
+
+class TestWritePandasParquetPath:
+    @pytest.fixture(autouse=True)
+    def use_starting_backend_and_parquet_threshold(self):
+        with config_context(Backend="Pandas", PandasToSnowflakeParquetThresholdBytes=0):
+            yield
+
+    def test_table_name_only(self, session, test_table_name):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        with to_snowflake_counter(dataset=df, if_exists="replace"):
+            session.write_pandas(
+                df, test_table_name, auto_create_table=True, overwrite=True
+            )
+        written = pd.read_snowflake(test_table_name)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            written, native_df.rename(str, axis=1)
+        )
+
+    def test_table_name_with_schema(self, session, test_table_name):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        schema = session.get_current_schema().strip('"')
+        with to_snowflake_counter(dataset=df, if_exists="replace"):
+            session.write_pandas(
+                df, test_table_name, schema=schema, auto_create_table=True, overwrite=True
+            )
+        written = pd.read_snowflake(test_table_name)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            written, native_df.rename(str, axis=1)
+        )
+
+    def test_table_name_with_database_and_schema(self, session, test_table_name):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        database = session.get_current_database().strip('"')
+        schema = session.get_current_schema().strip('"')
+        with to_snowflake_counter(dataset=df, if_exists="replace"):
+            session.write_pandas(
+                df,
+                test_table_name,
+                database=database,
+                schema=schema,
+                auto_create_table=True,
+                overwrite=True,
+            )
+        written = pd.read_snowflake(test_table_name)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            written, native_df.rename(str, axis=1)
+        )
+
+    def test_too_many_parts_raises(self, test_table_name):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        with SqlCounter(query_count=0):
+            with pytest.raises(ValueError, match="at most 3 parts"):
+                df.to_snowflake(
+                    ["extra", "db", "schema", test_table_name],
+                    if_exists="replace",
+                    index=False,
+                )
