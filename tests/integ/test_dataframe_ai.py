@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import datetime
 import json
 import pytest
 from snowflake.snowpark.functions import ai_complete, col, lit, to_file
@@ -15,11 +14,6 @@ pytestmark = [
     pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
         reason="AI functions are not yet supported in local testing mode.",
-    ),
-    pytest.mark.xfail(
-        datetime.date.today() <= datetime.date(2026, 6, 4),
-        reason="AI tests flaky due to infrastructure issues",
-        strict=False,
     ),
 ]
 
@@ -1294,6 +1288,10 @@ def test_dataframe_ai_count_tokens_error_handling(session):
         )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-3664377: AI_SPLIT tests fail due to server-side anaconda repository validation error",
+    strict=True,
+)
 def test_dataframe_ai_split_text_markdown_header_basic(session):
     """Test DataFrame.ai.split_text_markdown_header with basic usage."""
     # Create a DataFrame with Markdown text
@@ -1369,6 +1367,10 @@ Final thoughts and summary of the findings."""
     ]
 
 
+@pytest.mark.xfail(
+    reason="SNOW-3664377: AI_SPLIT tests fail due to server-side anaconda repository validation error",
+    strict=True,
+)
 def test_dataframe_ai_split_text_markdown_header_default_output(session):
     """Test DataFrame.ai.split_text_markdown_header with default output column."""
     df = session.create_dataframe(
@@ -1401,6 +1403,10 @@ def test_dataframe_ai_split_text_markdown_header_error_handling(session):
         )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-3664377: AI_SPLIT tests fail due to server-side anaconda repository validation error",
+    strict=True,
+)
 def test_dataframe_ai_split_text_recursive_character_basic(session):
     """Test DataFrame.ai.split_text_recursive_character with basic usage."""
     long_text = """This is a long document with multiple sentences. It contains various information
@@ -1440,6 +1446,10 @@ Final paragraph with concluding remarks."""
     ]
 
 
+@pytest.mark.xfail(
+    reason="SNOW-3664377: AI_SPLIT tests fail due to server-side anaconda repository validation error",
+    strict=True,
+)
 def test_dataframe_ai_split_text_recursive_character_markdown_format(session):
     """Test DataFrame.ai.split_text_recursive_character with markdown format."""
     markdown_text = """# Main Title
@@ -1497,6 +1507,10 @@ More content in section 2.
     ]
 
 
+@pytest.mark.xfail(
+    reason="SNOW-3664377: AI_SPLIT tests fail due to server-side anaconda repository validation error",
+    strict=True,
+)
 def test_dataframe_ai_split_text_recursive_character_custom_separators(session):
     """Test DataFrame.ai.split_text_recursive_character with custom separators."""
     code_text = """def function_one():
@@ -1538,6 +1552,10 @@ def function_three():
     ]
 
 
+@pytest.mark.xfail(
+    reason="SNOW-3664377: AI_SPLIT tests fail due to server-side anaconda repository validation error",
+    strict=True,
+)
 def test_dataframe_ai_split_text_recursive_character_default_output(session):
     """Test DataFrame.ai.split_text_recursive_character with default output column."""
     df = session.create_dataframe(
