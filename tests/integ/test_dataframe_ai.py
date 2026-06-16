@@ -6,7 +6,7 @@ import json
 import pytest
 from snowflake.snowpark.functions import ai_complete, col, lit, to_file
 from snowflake.snowpark.row import Row
-from tests.utils import TestFiles, Utils
+from tests.utils import TestFiles, Utils, running_on_jenkins
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
 
@@ -1289,6 +1289,7 @@ def test_dataframe_ai_count_tokens_error_handling(session):
 
 
 @pytest.mark.xfail(
+    running_on_jenkins(),
     reason="SNOW-3664377: AI_SPLIT tests fail due to server-side anaconda repository validation error",
     strict=True,
 )
@@ -1368,6 +1369,7 @@ Final thoughts and summary of the findings."""
 
 
 @pytest.mark.xfail(
+    running_on_jenkins(),
     reason="SNOW-3664377: AI_SPLIT tests fail due to server-side anaconda repository validation error",
     strict=True,
 )
@@ -1404,6 +1406,7 @@ def test_dataframe_ai_split_text_markdown_header_error_handling(session):
 
 
 @pytest.mark.xfail(
+    running_on_jenkins(),
     reason="SNOW-3664377: AI_SPLIT tests fail due to server-side anaconda repository validation error",
     strict=True,
 )
@@ -1447,6 +1450,7 @@ Final paragraph with concluding remarks."""
 
 
 @pytest.mark.xfail(
+    running_on_jenkins(),
     reason="SNOW-3664377: AI_SPLIT tests fail due to server-side anaconda repository validation error",
     strict=True,
 )
@@ -1508,6 +1512,7 @@ More content in section 2.
 
 
 @pytest.mark.xfail(
+    running_on_jenkins(),
     reason="SNOW-3664377: AI_SPLIT tests fail due to server-side anaconda repository validation error",
     strict=True,
 )
@@ -1553,6 +1558,7 @@ def function_three():
 
 
 @pytest.mark.xfail(
+    running_on_jenkins(),
     reason="SNOW-3664377: AI_SPLIT tests fail due to server-side anaconda repository validation error",
     strict=True,
 )
