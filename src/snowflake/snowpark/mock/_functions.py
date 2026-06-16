@@ -709,6 +709,13 @@ def mock_abs(expr):
         return abs(expr)
 
 
+@patch("nullifzero")
+def mock_nullifzero(expr: ColumnEmulator) -> ColumnEmulator:
+    result = expr.replace(0, None)
+    result.sf_type = ColumnType(expr.sf_type.datatype, nullable=True)
+    return result
+
+
 @patch("to_decimal")
 def mock_to_decimal(
     e: ColumnEmulator,
