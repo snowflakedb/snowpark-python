@@ -248,6 +248,81 @@ def _extract_time_travel_from_options(options: dict) -> dict:
     return result
 
 
+def _get_reader_option(options: dict, *keys: str):
+    """Case-insensitive lookup for a reader option key."""
+    for key in keys:
+        for option_key, value in options.items():
+            if option_key.upper() == key.upper():
+                return value
+    return None
+
+
+def _extract_iceberg_changes_from_options(options: dict) -> dict:
+    """Extract Spark Iceberg incremental-read options from a reader dict.
+
+    Maps ``start-snapshot-id`` / ``end-snapshot-id`` (and underscore
+    variants) to internal ``start_snapshot_id`` / ``end_snapshot_id``
+    kwargs consumed by :meth:`Session.table`.
+    """
+    start = _get_reader_option(options, "start-snapshot-id", "start_snapshot_id")
+    end = _get_reader_option(options, "end-snapshot-id", "end_snapshot_id")
+    if start is None and end is None:
+        return {}
+    if start is None:
+        raise ValueError(
+            "Iceberg incremental read requires 'start-snapshot-id'; "
+            "'end-snapshot-id' cannot be used alone."
+        )
+    try:
+        start_id = int(start)
+    except (TypeError, ValueError):
+        raise ValueError(
+            "'start-snapshot-id' must be a 64-bit integer Iceberg snapshot id, "
+            f"got {start!r}."
+        ) from None
+    end_id = None
+    if end is not None:
+        try:
+            end_id = int(end)
+        except (TypeError, ValueError):
+            raise ValueError(
+                "'end-snapshot-id' must be a 64-bit integer Iceberg snapshot id, "
+                f"got {end!r}."
+            ) from None
+    return {"start_snapshot_id": start_id, "end_snapshot_id": end_id}
+
+
+def _reader_options_conflict_with_incremental_read(options: dict) -> list[str]:
+    """Return reader option keys that cannot coexist with incremental read."""
+    incremental_keys = {
+        "start-snapshot-id",
+        "start_snapshot_id",
+        "end-snapshot-id",
+        "end_snapshot_id",
+    }
+    if not any(
+        k.upper().replace("_", "-") in {x.replace("_", "-") for x in incremental_keys}
+        for k in options
+    ):
+        return []
+    blocked = []
+    for key in options:
+        upper = key.upper()
+        if upper in incremental_keys or upper.replace("_", "-") in {
+            x.replace("_", "-") for x in incremental_keys
+        }:
+            continue
+        if upper in _TIME_TRAVEL_OPTIONS_PARAMS_MAP or upper in (
+            "SNAPSHOT-ID",
+            "SNAPSHOT_ID",
+            "AS-OF-TIMESTAMP",
+            "VERSION_TAG",
+            "VERSION-TAG",
+        ):
+            blocked.append(key)
+    return blocked
+
+
 class DataFrameReader:
     """Provides methods to load data in various supported formats from a Snowflake
     stage to a :class:`DataFrame`. The paths provided to the DataFrameReader must refer
@@ -671,10 +746,28 @@ class DataFrameReader:
         # still pass them without us advertising the surface.
         version = kwargs.pop("version", None)
         version_tag = kwargs.pop("version_tag", None)
+        start_snapshot_id = kwargs.pop("start_snapshot_id", None)
+        end_snapshot_id = kwargs.pop("end_snapshot_id", None)
         if kwargs:
             raise TypeError(
                 f"table() got unexpected keyword arguments: {sorted(kwargs)}"
             )
+
+        changes_from_options = _extract_iceberg_changes_from_options(self._cur_options)
+        if changes_from_options:
+            conflicting = _reader_options_conflict_with_incremental_read(
+                self._cur_options
+            )
+            if conflicting:
+                raise ValueError(
+                    "Cannot combine Iceberg incremental read "
+                    "('start-snapshot-id' / 'end-snapshot-id') with time travel "
+                    f"options on the same read; found {conflicting!r}."
+                )
+            if start_snapshot_id is None:
+                start_snapshot_id = changes_from_options["start_snapshot_id"]
+            if end_snapshot_id is None:
+                end_snapshot_id = changes_from_options.get("end_snapshot_id")
 
         # AST.
         stmt = None
@@ -697,6 +790,17 @@ class DataFrameReader:
                 ast.stream.value = stream
 
         if (
+            start_snapshot_id is not None
+            or end_snapshot_id is not None
+            or changes_from_options
+        ):
+            table = self._session.table(
+                name,
+                _emit_ast=False,
+                start_snapshot_id=start_snapshot_id,
+                end_snapshot_id=end_snapshot_id,
+            )
+        elif (
             time_travel_mode is not None
             or version is not None
             or version_tag is not None
