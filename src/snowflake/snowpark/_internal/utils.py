@@ -2201,6 +2201,89 @@ class TimeTravelConfig(NamedTuple):
         return clause
 
 
+class IcebergChangesConfig(NamedTuple):
+    """Configuration for Iceberg incremental reads via Snowflake ``CHANGES``.
+
+    Spark Iceberg exposes incremental reads through::
+
+        spark.read.format("iceberg")
+            .option("start-snapshot-id", S1)
+            .option("end-snapshot-id", S2)  # optional
+            .load("table")
+
+    Snowflake translates this to::
+
+        SELECT * FROM table
+          CHANGES (INFORMATION => APPEND_ONLY)
+          AT (VERSION => S1)
+          [ END (VERSION => S2) ]
+
+    When ``end_version`` is omitted, Snowflake uses the current snapshot as
+    the end of the change interval (same semantics as omitting ``END`` on
+    generic ``CHANGES`` queries).
+    """
+
+    start_version: int
+    end_version: Optional[int] = None
+    information: str = "APPEND_ONLY"
+
+    @staticmethod
+    def _coerce_snapshot_id(value: object, option_name: str) -> int:
+        try:
+            snapshot_id = int(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"'{option_name}' must be a 64-bit integer Iceberg snapshot id, "
+                f"got {value!r}."
+            ) from None
+        if isinstance(snapshot_id, bool):
+            raise ValueError(
+                f"'{option_name}' must be a 64-bit integer Iceberg snapshot id, "
+                f"got {type(value).__name__}."
+            )
+        return snapshot_id
+
+    @staticmethod
+    def validate_and_normalize_params(
+        start_snapshot_id: Optional[int] = None,
+        end_snapshot_id: Optional[int] = None,
+        information: str = "APPEND_ONLY",
+    ) -> Optional["IcebergChangesConfig"]:
+        if start_snapshot_id is None and end_snapshot_id is None:
+            return None
+        if start_snapshot_id is None:
+            raise ValueError(
+                "Iceberg incremental read requires 'start-snapshot-id'; "
+                "'end-snapshot-id' cannot be used alone."
+            )
+        start = IcebergChangesConfig._coerce_snapshot_id(
+            start_snapshot_id, "start-snapshot-id"
+        )
+        end = None
+        if end_snapshot_id is not None:
+            end = IcebergChangesConfig._coerce_snapshot_id(
+                end_snapshot_id, "end-snapshot-id"
+            )
+        info = information.upper()
+        if info not in ("APPEND_ONLY", "DEFAULT"):
+            raise ValueError(
+                "Iceberg incremental read 'information' must be 'APPEND_ONLY' "
+                f"or 'DEFAULT', got {information!r}."
+            )
+        return IcebergChangesConfig(
+            start_version=start, end_version=end, information=info
+        )
+
+    def generate_sql_clause(self) -> str:
+        clause = (
+            f" CHANGES (INFORMATION => {self.information}) "
+            f"AT (VERSION => {self.start_version})"
+        )
+        if self.end_version is not None:
+            clause += f" END (VERSION => {self.end_version})"
+        return clause
+
+
 def get_line_numbers(
     commented_sql_query: str,
     child_uuids: List[str],

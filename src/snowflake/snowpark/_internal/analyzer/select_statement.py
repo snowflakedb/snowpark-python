@@ -603,7 +603,11 @@ class SelectableEntity(Selectable):
         # Metadata/Attributes for the plan
         self._attributes: Optional[List[Attribute]] = None
         self.table_reference = self.entity.name
-        if self.entity.time_travel_config is not None:
+        if self.entity.iceberg_changes_config is not None:
+            self.table_reference += (
+                self.entity.iceberg_changes_config.generate_sql_clause()
+            )
+        elif self.entity.time_travel_config is not None:
             self.table_reference += self.entity.time_travel_config.generate_sql_clause()
 
     def __deepcopy__(self, memodict={}) -> "SelectableEntity":  # noqa: B006
