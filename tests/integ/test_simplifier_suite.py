@@ -2709,8 +2709,8 @@ def test_concurrent_retrieve_agg_event_set_after_context_published(
 
 
 # ---------------------------------------------------------------------------
-# Tests for the three "select() flattens too aggressively" scenarios described
-# in "Loosen flattening rules.md" (SCOS Compatibility section).
+# Tests for three scenarios in SCOS where leaving flattening enabled causes
+# semantic differences from SCOS.
 #
 # Scenario 1 — map_with_columns (SNOW-3489991):
 #   df.withColumn("new", lit(1)).select("c").filter(col("new") > 0)
@@ -2731,7 +2731,7 @@ def test_concurrent_retrieve_agg_event_set_after_context_published(
 
 
 class TestProtectDroppedNewColumns:
-    """Scenario 1 from 'Loosen flattening rules.md': map_with_columns.
+    """Scenario 1: map_with_columns.
 
     Verify that protect_dropped_new_columns=True on a SelectStatement
     prevents can_select_statement_be_flattened() from collapsing a subquery
@@ -2795,7 +2795,7 @@ class TestProtectDroppedNewColumns:
         ), f"Expected 2 SELECT levels, got:\n{sql}"
 
     def test_chained_withcolumn_only_last_is_protected(self, session):
-        """The q66 pattern: two consecutive withColumn calls followed by a
+        """The TPC-DS Q66 pattern: two consecutive withColumn calls followed by a
         narrowing select that drops an UNCHANGED_EXP column (d_year).
 
         This mirrors SCOS map_with_columns behaviour for chained calls:
@@ -2847,7 +2847,7 @@ class TestProtectDroppedNewColumns:
 
 
 class TestFlattenDisabledGetTemporaryView:
-    """Scenario 2 from 'Loosen flattening rules.md': _get_temporary_view.
+    """Scenario 2: _get_temporary_view.
 
     All rename-target columns are NEW; when a subsequent select drops some
     of them before an orderBy, flatten_disabled=True on the renaming
@@ -2909,7 +2909,7 @@ class TestFlattenDisabledGetTemporaryView:
 
 
 class TestFlattenDisabledMapToDf:
-    """Scenario 3 from 'Loosen flattening rules.md': map_to_df / toDF.
+    """Scenario 3: map_to_df / toDF.
 
     toDF renames every column (all become NEW).  A subsequent select drops
     some of those renamed columns before a filter that references them.
