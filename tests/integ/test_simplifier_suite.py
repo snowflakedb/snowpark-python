@@ -2786,13 +2786,15 @@ class TestProtectDroppedNewColumns:
         wc = df.select(col("a"), col("b").alias("sort_key"))
         wc._select_statement.protect_dropped_new_columns = True
 
-        sel = wc.select(col("a"))
+        sel = wc.select(col("a")).order_by(col("sort_key"))
         sql = sel.queries["queries"][0]
 
         # Subquery preserved: outer ORDER BY can reference "sort_key".
         assert (
             sql.upper().count("SELECT") == 2
         ), f"Expected 2 SELECT levels, got:\n{sql}"
+        # sort_key order: 1 (a=2), 2 (a=3), 3 (a=1)
+        Utils.check_answer(sel, [Row(2), Row(3), Row(1)], sort=False)
 
     def test_chained_withcolumn_only_last_is_protected(self, session):
         """The TPC-DS Q66 pattern: two consecutive withColumn calls followed by a
@@ -2887,7 +2889,12 @@ class TestFlattenDisabledGetTemporaryView:
 
     def test_without_flatten_disabled_select_flattens(self, session):
         """Control: without flatten_disabled the renaming select is collapsed
-        away and "t2c_renamed" would not be in scope for ORDER BY."""
+        away, so the subquery is gone and dropped columns would be inaccessible.
+
+        This uses a plain select with no order_by at the same level so that
+        is_referenced_by_same_level_column cannot block flattening — the only
+        thing that would preserve the subquery is flatten_disabled itself.
+        """
         df = session.create_dataframe(
             [[1, 2, 3, 4], [5, 6, 7, 8]], schema=["t2a", "t2b", "t2c", "t2d"]
         )
@@ -2897,15 +2904,16 @@ class TestFlattenDisabledGetTemporaryView:
             col("t2c").alias("t2c_renamed"),
             col("t2d").alias("t2d_renamed"),
         )
-        # No flatten_disabled — all renames are NEW and t2c_renamed IS
-        # referenced by same-level order_by, so flattening is blocked anyway.
-        result = renamed.select("t2d_renamed").order_by("t2c_renamed", "t2d_renamed")
+        # No flatten_disabled — t2c_renamed is dropped and NOT referenced at
+        # the same level, so flattening proceeds and the subquery collapses.
+        result = renamed.select("t2d_renamed")
         sql = result.queries["queries"][0]
 
-        # t2c_renamed IS referenced (is_referenced_by_same_level_column),
-        # so even without flatten_disabled the subquery is preserved.
-        assert "ORDER BY" in sql.upper(), f"Expected ORDER BY in SQL:\n{sql}"
-        Utils.check_answer(result, [Row(4), Row(8)], sort=False)
+        # Without flatten_disabled the renaming subquery is collapsed: 1 SELECT.
+        assert (
+            sql.upper().count("SELECT") == 1
+        ), f"Expected 1 SELECT level (flattened), got:\n{sql}"
+        Utils.check_answer(result, [Row(4), Row(8)], sort=True)
 
 
 class TestFlattenDisabledMapToDf:
