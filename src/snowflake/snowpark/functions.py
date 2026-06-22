@@ -14115,3 +14115,286 @@ def ai_translate(
         _ast=ast,
         _emit_ast=_emit_ast,
     )
+
+
+@publicapi
+def ai_count_tokens(
+    function_name: str,
+    input_text: ColumnOrLiteralStr,
+    model: Optional[str] = None,
+    options: Optional[dict] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns an estimate of the number of tokens that would be consumed by a call to the
+    specified AI function.
+
+    This is the updated version of ``SNOWFLAKE.CORTEX.COUNT_TOKENS``. For the latest
+    functionality, use this function.
+
+    Args:
+        function_name: The name of the AI function to base the token count on (e.g.
+            ``'ai_complete'``, ``'ai_classify'``, ``'ai_embed'``). Must begin with ``'ai_'``
+            and use only lowercase letters.
+        input_text: The text to count tokens for.
+        model: The model name, required for functions that accept a model parameter
+            (e.g. ``ai_complete``, ``ai_embed``).
+        options: Optional VARIANT object specifying additional processing parameters.
+
+    Returns:
+        An INTEGER representing the estimated token count.
+
+    Examples::
+
+        >>> # Count tokens for ai_complete with a specific model
+        >>> df = session.range(1).select(
+        ...     ai_count_tokens('ai_complete', 'What is a large language model?', model='llama3.1-70b').alias("token_count")
+        ... )
+        >>> df.collect()[0][0] > 0
+        True
+
+        >>> # Count tokens for ai_sentiment (no model required)
+        >>> df = session.range(1).select(
+        ...     ai_count_tokens('ai_sentiment', 'I love this product!').alias("token_count")
+        ... )
+        >>> df.collect()[0][0] > 0
+        True
+    """
+    sql_func_name = "ai_count_tokens"
+
+    args: list = [function_name, input_text]
+    if model is not None:
+        args = [function_name, model, input_text]
+    if options is not None:
+        args.append(options)
+
+    ast = build_function_expr(sql_func_name, args) if _emit_ast else None
+
+    func_name_col = lit(function_name)
+    input_col = _to_col_if_lit(input_text, sql_func_name)
+
+    if model is not None and options is not None:
+        model_col = lit(model)
+        options_col = sql_expr(json.dumps(options).replace('"', "'"))
+        return _call_function(
+            sql_func_name,
+            func_name_col,
+            model_col,
+            input_col,
+            options_col,
+            _ast=ast,
+            _emit_ast=_emit_ast,
+        )
+    elif model is not None:
+        model_col = lit(model)
+        return _call_function(
+            sql_func_name,
+            func_name_col,
+            model_col,
+            input_col,
+            _ast=ast,
+            _emit_ast=_emit_ast,
+        )
+    elif options is not None:
+        options_col = sql_expr(json.dumps(options).replace('"', "'"))
+        return _call_function(
+            sql_func_name,
+            func_name_col,
+            input_col,
+            options_col,
+            _ast=ast,
+            _emit_ast=_emit_ast,
+        )
+    else:
+        return _call_function(
+            sql_func_name, func_name_col, input_col, _ast=ast, _emit_ast=_emit_ast
+        )
+
+
+@publicapi
+def ai_multi_embed(
+    model: str,
+    input: Union[ColumnOrLiteralStr, Column],
+    _emit_ast: bool = True,
+    **kwargs,
+) -> Column:
+    """
+    Creates multimodal embeddings from text, an image, an audio file, or a video file.
+
+    Args:
+        model: The multimodal embedding model to use. Currently supported:
+            ``'twelvelabs-marengo-embed-3-0'``
+        input: The input to embed. Can be a string with text or a FILE column
+            referencing an image (JPG, PNG), audio (MP3, WAV, FLAC, OGG), or
+            video (MP4, MOV, AVI, MKV, WEBM, FLV) file.
+        **kwargs: Optional configuration settings for video/audio inputs:
+
+            - start_sec: Start time in seconds (float).
+            - end_sec: End time in seconds (float).
+            - embedding_options: Array of modalities to embed. Supported values:
+              ``['visual', 'audio', 'transcription']``.
+            - embedding_scope: Granularity of embeddings. Use ``['clip']`` for
+              per-segment embeddings or ``['clip', 'asset']`` to also include a
+              whole-asset embedding.
+            - embedding_type: ``['separate_embedding']`` (default) or
+              ``['fused_embedding']`` to combine modalities.
+            - use_fixed_length_sec: Duration of each fixed-length segment in seconds
+              (1–10).
+            - min_clip_sec: Minimum dynamic segment length in seconds (1–5).
+
+    Returns:
+        An OBJECT with an ``error`` field (NULL on success) and a ``value`` field
+        containing an array of embedding objects. Each embedding object has:
+
+            - ``embedding``: A 512-dimensional VECTOR(FLOAT, 512).
+            - ``embedding_option``: Modality type (``'visual'``, ``'audio'``,
+              ``'transcription'``, or ``'fused'``).
+            - ``embedding_scope``: Either ``'clip'`` or ``'asset'``.
+            - ``start_sec`` / ``end_sec``: Segment timestamps.
+
+    Note:
+        - Maximum video/audio duration: 4 hours.
+        - Maximum file size (default): 19 MB.
+        - Requires the ``SNOWFLAKE.CORTEX_USER`` or
+          ``SNOWFLAKE.CORTEX_EMBED_USER`` database role.
+
+    Examples::
+
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/dog.jpg", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_multi_embed(
+        ...         'twelvelabs-marengo-embed-3-0',
+        ...         to_file('@mystage/dog.jpg')
+        ...     ).alias("embedding")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> result['error'] is None
+        True
+    """
+    sql_func_name = "ai_multi_embed"
+    config_dict = dict(kwargs)
+
+    model_col = lit(model)
+    if isinstance(input, str):
+        input_col = lit(input)
+    else:
+        input_col = input
+
+    if config_dict:
+        ast = (
+            build_function_expr(sql_func_name, [model, input, config_dict])
+            if _emit_ast
+            else None
+        )
+        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        return _call_function(
+            sql_func_name,
+            model_col,
+            input_col,
+            config_col,
+            _ast=ast,
+            _emit_ast=_emit_ast,
+        )
+    else:
+        ast = (
+            build_function_expr(sql_func_name, [model, input]) if _emit_ast else None
+        )
+        return _call_function(
+            sql_func_name, model_col, input_col, _ast=ast, _emit_ast=_emit_ast
+        )
+
+
+@publicapi
+def ai_redact(
+    input: ColumnOrLiteralStr,
+    categories: Optional[List[str]] = None,
+    mode: Optional[str] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Detects and redacts personally identifiable information (PII) from unstructured text.
+
+    Args:
+        input: A string or Column containing the text to process.
+        categories: An optional list of PII category names to target. When omitted,
+            all supported PII categories are redacted. Example categories include
+            ``'NAME'``, ``'EMAIL'``, ``'PHONE'``, ``'ADDRESS'``, ``'SSN'``.
+        mode: Operating mode. Either ``'redact'`` (default) to replace PII with
+            placeholder labels (e.g. ``[NAME]``), or ``'detect'`` to return an
+            object with metadata about each detected PII span without modifying
+            the text.
+
+    Returns:
+        In ``'redact'`` mode (default): a VARCHAR with PII replaced by placeholder labels.
+
+        In ``'detect'`` mode: an OBJECT with a ``spans`` array, where each entry contains:
+
+            - ``category``: The PII category name.
+            - ``start`` / ``end``: Character offsets of the PII span in the original text.
+            - ``text``: The matched PII text.
+
+    Examples::
+
+        >>> # Redact all PII (default mode)
+        >>> df = session.range(1).select(
+        ...     ai_redact('John Smith lives at 123 Main St and his email is john@example.com').alias("redacted")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> '[NAME]' in result or '[EMAIL]' in result
+        True
+
+        >>> # Redact only specific categories
+        >>> df = session.range(1).select(
+        ...     ai_redact(
+        ...         'John Smith, john@example.com, 555-1234',
+        ...         categories=['NAME', 'PHONE']
+        ...     ).alias("redacted")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> '[NAME]' in result
+        True
+
+        >>> # Detect mode - return span metadata
+        >>> df = session.range(1).select(
+        ...     ai_redact('Contact John at 555-1234', mode='detect').alias("detected")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> 'spans' in result
+        True
+    """
+    sql_func_name = "ai_redact"
+
+    args: list = [input]
+    if categories is not None:
+        args.append(categories)
+    if mode is not None:
+        args.append(mode)
+
+    ast = build_function_expr(sql_func_name, args) if _emit_ast else None
+
+    input_col = _to_col_if_lit(input, sql_func_name)
+
+    if categories is not None and mode is not None:
+        cat_col = lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
+        mode_col = lit(mode)
+        return _call_function(
+            sql_func_name,
+            input_col,
+            cat_col,
+            mode_col,
+            _ast=ast,
+            _emit_ast=_emit_ast,
+        )
+    elif categories is not None:
+        cat_col = lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
+        return _call_function(
+            sql_func_name, input_col, cat_col, _ast=ast, _emit_ast=_emit_ast
+        )
+    elif mode is not None:
+        mode_col = lit(mode)
+        return _call_function(
+            sql_func_name, input_col, mode_col, _ast=ast, _emit_ast=_emit_ast
+        )
+    else:
+        return _call_function(sql_func_name, input_col, _ast=ast, _emit_ast=_emit_ast)

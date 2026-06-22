@@ -4,6 +4,18 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added `ai_count_tokens` function to `snowflake.snowpark.functions` to estimate token counts for AI function calls. This is the updated replacement for the deprecated `SNOWFLAKE.CORTEX.COUNT_TOKENS`.
+- Added `ai_multi_embed` function to `snowflake.snowpark.functions` to generate multimodal embeddings from text, images, audio, or video files.
+- Added `ai_redact` function to `snowflake.snowpark.functions` to detect and redact personally identifiable information (PII) from text.
+- Added `DataFrame.ai.multi_embed` method to generate multimodal embeddings via the DataFrame API.
+- Added `DataFrame.ai.redact` method to detect and redact PII from text columns via the DataFrame API.
+
+#### Bug Fixes
+
+- Fixed `DataFrame.ai.count_tokens` to use `AI_COUNT_TOKENS` instead of the deprecated `SNOWFLAKE.CORTEX.COUNT_TOKENS`.
+
 ## 1.52.0 (2026-06-10)
 
 ### Snowpark Python API Updates
