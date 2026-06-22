@@ -1618,3 +1618,197 @@ def test_ai_complete_response_format_with_special_quotes(session):
         ).alias("result")
     )
     assert "name" in json.loads(df.collect()[0][0])
+
+
+# ── ai_count_tokens standalone function ─────────────────────────────────────
+
+def test_ai_count_tokens_basic(session):
+    """Test standalone ai_count_tokens function."""
+    from snowflake.snowpark.functions import ai_count_tokens
+
+    df = session.range(1).select(
+        ai_count_tokens("ai_complete", "What is a large language model?", model="llama3.1-70b").alias("tokens")
+    )
+    result = df.collect()[0][0]
+    assert isinstance(result, int) and result > 0
+
+
+def test_ai_count_tokens_no_model(session):
+    """Test ai_count_tokens for functions that don't require a model."""
+    from snowflake.snowpark.functions import ai_count_tokens
+
+    df = session.range(1).select(
+        ai_count_tokens("ai_sentiment", "I love this product!").alias("tokens")
+    )
+    result = df.collect()[0][0]
+    assert isinstance(result, int) and result > 0
+
+
+def test_ai_count_tokens_column_input(session):
+    """Test ai_count_tokens with a column reference."""
+    from snowflake.snowpark.functions import ai_count_tokens
+
+    df = session.create_dataframe(
+        [["Hello world"], ["A longer sentence with more tokens here"]],
+        schema=["text"],
+    )
+    result_df = df.select(ai_count_tokens("ai_complete", col("text"), model="llama3.1-8b").alias("tokens"))
+    results = result_df.collect()
+    assert len(results) == 2
+    assert all(r[0] > 0 for r in results)
+    # Longer text should have more tokens
+    assert results[1][0] > results[0][0]
+
+
+# ── ai_redact standalone function ────────────────────────────────────────────
+
+def test_ai_redact_basic(session):
+    """Test standalone ai_redact replaces PII with placeholders."""
+    from snowflake.snowpark.functions import ai_redact
+
+    df = session.range(1).select(
+        ai_redact("John Smith lives at 123 Main St").alias("redacted")
+    )
+    result = df.collect()[0][0]
+    assert isinstance(result, str)
+    assert "[NAME]" in result or "[ADDRESS]" in result
+
+
+def test_ai_redact_with_categories(session):
+    """Test ai_redact targeting specific PII categories."""
+    from snowflake.snowpark.functions import ai_redact
+
+    df = session.range(1).select(
+        ai_redact("Call John at 555-1234", categories=["PHONE"]).alias("redacted")
+    )
+    result = df.collect()[0][0]
+    assert isinstance(result, str)
+    assert "[PHONE]" in result
+
+
+def test_ai_redact_detect_mode(session):
+    """Test ai_redact in detect mode returns span metadata."""
+    from snowflake.snowpark.functions import ai_redact
+    import json
+
+    df = session.range(1).select(
+        ai_redact("Contact Alice at alice@example.com", mode="detect").alias("spans")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "spans" in parsed
+
+
+def test_ai_redact_column_input(session):
+    """Test ai_redact with a column reference."""
+    from snowflake.snowpark.functions import ai_redact
+
+    df = session.create_dataframe(
+        [["Bob Smith, bob@example.com"], ["No PII here"]],
+        schema=["text"],
+    )
+    result_df = df.select(ai_redact(col("text")).alias("redacted"))
+    results = result_df.collect()
+    assert len(results) == 2
+    assert isinstance(results[0][0], str)
+
+
+# ── df.ai.redact ─────────────────────────────────────────────────────────────
+
+def test_dataframe_ai_redact_basic(session):
+    """Test DataFrame.ai.redact basic redaction."""
+    df = session.create_dataframe(
+        [
+            ["Alice Johnson, alice@example.com, 555-0100"],
+            ["Bob Smith, 123 Main St, SSN 000-00-0000"],
+        ],
+        schema=["text"],
+    )
+    result_df = df.ai.redact(input_column="text", output_column="redacted_text")
+    results = result_df.collect()
+    assert len(results) == 2
+    assert any("[NAME]" in row["REDACTED_TEXT"] for row in results)
+
+
+def test_dataframe_ai_redact_detect_mode(session):
+    """Test DataFrame.ai.redact in detect mode."""
+    df = session.create_dataframe(
+        [["Call John at 555-1234"]],
+        schema=["text"],
+    )
+    result_df = df.ai.redact(input_column="text", mode="detect", output_column="pii")
+    results = result_df.collect()
+    parsed = json.loads(results[0]["PII"]) if isinstance(results[0]["PII"], str) else results[0]["PII"]
+    assert "spans" in parsed
+
+
+def test_dataframe_ai_redact_with_categories(session):
+    """Test DataFrame.ai.redact with specific categories."""
+    df = session.create_dataframe(
+        [["Email: alice@example.com, Phone: 555-0100"]],
+        schema=["text"],
+    )
+    result_df = df.ai.redact(
+        input_column="text", categories=["EMAIL"], output_column="redacted"
+    )
+    results = result_df.collect()
+    assert "[EMAIL]" in results[0]["REDACTED"]
+
+
+def test_dataframe_ai_redact_default_output_column(session):
+    """Test DataFrame.ai.redact uses default output column name."""
+    df = session.create_dataframe([["John Smith"]], schema=["text"])
+    result_df = df.ai.redact(input_column="text")
+    assert "AI_REDACT_OUTPUT" in result_df.columns
+
+
+# ── ai_multi_embed standalone function ───────────────────────────────────────
+
+def test_ai_multi_embed_basic(session, resources_path):
+    """Test standalone ai_multi_embed with an image file."""
+    from snowflake.snowpark.functions import ai_multi_embed, to_file
+
+    _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+    _ = session.file.put(f"{resources_path}/dog.jpg", "@mystage", auto_compress=False)
+
+    df = session.range(1).select(
+        ai_multi_embed("twelvelabs-marengo-embed-3-0", to_file("@mystage/dog.jpg")).alias("emb")
+    )
+    result = df.collect()[0][0]
+    assert result["error"] is None
+    assert len(result["value"]) > 0
+
+
+# ── df.ai.multi_embed ────────────────────────────────────────────────────────
+
+def test_dataframe_ai_multi_embed_basic(session, resources_path):
+    """Test DataFrame.ai.multi_embed with image files."""
+    from snowflake.snowpark.functions import to_file
+
+    _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+    _ = session.file.put(f"{resources_path}/dog.jpg", "@mystage", auto_compress=False)
+
+    df = session.read.file("@mystage")
+    result_df = df.ai.multi_embed(
+        input_column="file",
+        model="twelvelabs-marengo-embed-3-0",
+        output_column="multimodal_vector",
+    )
+    results = result_df.collect()
+    assert len(results) > 0
+    assert results[0]["MULTIMODAL_VECTOR"]["error"] is None
+
+
+def test_dataframe_ai_multi_embed_default_output_column(session, resources_path):
+    """Test DataFrame.ai.multi_embed uses default output column name."""
+    from snowflake.snowpark.functions import to_file
+
+    _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+    _ = session.file.put(f"{resources_path}/dog.jpg", "@mystage", auto_compress=False)
+
+    df = session.read.file("@mystage")
+    result_df = df.ai.multi_embed(
+        input_column="file",
+        model="twelvelabs-marengo-embed-3-0",
+    )
+    assert "AI_MULTI_EMBED_OUTPUT" in result_df.columns

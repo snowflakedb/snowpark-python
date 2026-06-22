@@ -892,6 +892,24 @@ message DataframeAiTranscribe {
   SrcPosition src = 5;
 }
 
+message DataframeAiMultiEmbed {
+  Expr df = 1;
+  Expr input_column = 2;
+  repeated Tuple_String_Expr kwargs = 3;
+  string model = 4;
+  google.protobuf.StringValue output_column = 5;
+  SrcPosition src = 6;
+}
+
+message DataframeAiRedact {
+  Expr categories = 1;
+  Expr df = 2;
+  Expr input_column = 3;
+  google.protobuf.StringValue mode = 4;
+  google.protobuf.StringValue output_column = 5;
+  SrcPosition src = 6;
+}
+
 // dataframe.ir:188
 message DataframeAlias {
   Expr df = 1;
@@ -1570,6 +1588,8 @@ message Expr {
     DataframeAiSplitTextRecursiveCharacter dataframe_ai_split_text_recursive_character = 60;
     DataframeAiSummarizeAgg dataframe_ai_summarize_agg = 61;
     DataframeAiTranscribe dataframe_ai_transcribe = 62;
+    DataframeAiMultiEmbed dataframe_ai_multi_embed = 204;
+    DataframeAiRedact dataframe_ai_redact = 205;
     DataframeAlias dataframe_alias = 63;
     DataframeAnalyticsComputeLag dataframe_analytics_compute_lag = 64;
     DataframeAnalyticsComputeLead dataframe_analytics_compute_lead = 65;
@@ -1882,6 +1902,8 @@ message HasSrcPosition {
     DataframeAiSplitTextRecursiveCharacter dataframe_ai_split_text_recursive_character = 63;
     DataframeAiSummarizeAgg dataframe_ai_summarize_agg = 64;
     DataframeAiTranscribe dataframe_ai_transcribe = 65;
+    DataframeAiMultiEmbed dataframe_ai_multi_embed = 213;
+    DataframeAiRedact dataframe_ai_redact = 214;
     DataframeAlias dataframe_alias = 66;
     DataframeAnalyticsComputeLag dataframe_analytics_compute_lag = 67;
     DataframeAnalyticsComputeLead dataframe_analytics_compute_lead = 68;
