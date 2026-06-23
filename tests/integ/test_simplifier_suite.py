@@ -2757,9 +2757,12 @@ class TestProtectDroppedNewColumns:
         sql = sel.queries["queries"][0]
 
         # The subquery that defines "new" must still be visible in the SQL.
+        # With create_dataframe the base is always a SELECT from VALUES (1 layer),
+        # wc adds a second SELECT layer, and the protect flag prevents sel from
+        # flattening into wc, producing a third layer — 3 SELECTs total.
         assert (
-            sql.upper().count("SELECT") == 2
-        ), f"Expected 2 SELECT levels (subquery preserved), got:\n{sql}"
+            sql.upper().count("SELECT") == 3
+        ), f"Expected 3 SELECT levels (subquery preserved), got:\n{sql}"
         Utils.check_answer(sel, [Row(3), Row(6)], sort=True)
 
     def test_without_flag_select_is_flattened(self, session):
@@ -2773,9 +2776,11 @@ class TestProtectDroppedNewColumns:
         sql = sel.queries["queries"][0]
 
         # "new" is DROPPED and not referenced; flattening is safe and expected.
+        # sel flattens into wc, but the base create_dataframe VALUES plan always
+        # contributes one SELECT — so the minimum is 2 SELECTs total.
         assert (
-            sql.upper().count("SELECT") == 1
-        ), f"Expected 1 SELECT level (flattened), got:\n{sql}"
+            sql.upper().count("SELECT") == 2
+        ), f"Expected 2 SELECT levels (flattened), got:\n{sql}"
         Utils.check_answer(sel, [Row(3), Row(6)], sort=True)
 
     def test_orderby_on_dropped_new_column_blocked(self, session):
@@ -2790,9 +2795,11 @@ class TestProtectDroppedNewColumns:
         sql = sel.queries["queries"][0]
 
         # Subquery preserved: outer ORDER BY can reference "sort_key".
+        # Same layering as the filter test: VALUES (1) + wc (2) + sel blocked by
+        # protect flag (3) = 3 SELECTs total.
         assert (
-            sql.upper().count("SELECT") == 2
-        ), f"Expected 2 SELECT levels, got:\n{sql}"
+            sql.upper().count("SELECT") == 3
+        ), f"Expected 3 SELECT levels, got:\n{sql}"
         # sort_key order: 1 (a=2), 2 (a=3), 3 (a=1)
         Utils.check_answer(sel, [Row(2), Row(3), Row(1)], sort=False)
 
