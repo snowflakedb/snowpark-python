@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### Bug Fixes
+
+- Fixed a bug where stage paths and file format names that contain single quotes were not consistently escaped when generating SQL, which could produce malformed statements. This affects `INFER_SCHEMA` (used by `DataFrameReader.csv`/`json`/`parquet`/`orc`/`avro`) and `COPY FILES` (used by `FileOperation.copy_files`).
+
 ## 1.52.0 (2026-06-10)
 
 ### Snowpark Python API Updates
