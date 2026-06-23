@@ -41,7 +41,6 @@ from snowflake.snowpark._internal.telemetry import relational_group_df_api_usage
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import (
     check_agg_exprs,
-    experimental,
     is_valid_tuple_for_agg,
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
@@ -841,7 +840,6 @@ class RelationalGroupedDataFrame:
         return df
 
     @relational_group_df_api_usage
-    @experimental(version="1.39.0")
     @publicapi
     def ai_agg(
         self,

@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### Improvements
+
+- Removed the `experimental` tag from all AI SQL functions in `DataFrameAIFunctions` (`complete`, `filter`, `agg`, `classify`, `similarity`, `sentiment`, `embed`, `summarize_agg`, `transcribe`, `parse_document`, `extract`, `count_tokens`, `split_text_markdown_header`, `split_text_recursive_character`) and `RelationalGroupedDataFrame.ai_agg`.
+
 ## 1.52.0 (2026-06-10)
 
 ### Snowpark Python API Updates
