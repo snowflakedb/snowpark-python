@@ -1135,6 +1135,18 @@ def return_all_datatypes(
 ) -> str:
     final_str = f"{a}, {b}, {c}, {d}, {e}, {f}, {g}, {h}, {i}, {j}, {k}, {l}, {m}, {n}"
     return final_str
+
+def return_constructor_forms(
+    p: int = int("5"),
+    q: float = float("2.5"),
+    r: datetime.datetime = datetime.datetime(2020, 1, 1, 12, 0, 0).replace(hour=13),
+    s: datetime.date = datetime.date(2020, 1, 1).replace(year=2021),
+    t: decimal.Decimal = decimal.Decimal("4").sqrt(),
+    u: datetime.date = datetime.date.max,
+    v: datetime.datetime = datetime.datetime.now(),
+    w: datetime.date = datetime.date.today(),
+) -> str:
+    return f"{p}, {q}, {r}, {s}, {t}, {u}|{v}|{w}"
 """
     session.add_packages("snowflake-snowpark-python")
     if register_from_file:
@@ -1153,6 +1165,9 @@ def return_all_datatypes(
         return_all_datatypes_udf = session.udf.register_from_file(
             file_path, "return_all_datatypes"
         )
+        return_constructor_forms_udf = session.udf.register_from_file(
+            file_path, "return_constructor_forms"
+        )
     else:
         d = {}
         exec(func_body, {**globals(), **locals()}, d)
@@ -1163,6 +1178,9 @@ def return_all_datatypes(
         return_date_udf = session.udf.register(d["return_date"])
         return_arr_udf = session.udf.register(d["return_arr"])
         return_all_datatypes_udf = session.udf.register(d["return_all_datatypes"])
+        return_constructor_forms_udf = session.udf.register(
+            d["return_constructor_forms"]
+        )
 
     df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
     Utils.check_answer(
@@ -1228,6 +1246,79 @@ def return_all_datatypes(
             Row(default_row, custom_row),
             Row(default_row, custom_row),
         ],
+    )
+
+    # Additional default-value forms supported by the default-value evaluator:
+    # builtin-constructor spellings (``int("5")``/``float("2.5")``), non-dunder
+    # methods on datetime/decimal values (``.replace(...)``/``.sqrt()``) and bare
+    # references to type instances (``datetime.date.max``) -- compared by value. The
+    # trailing factory methods (``datetime.datetime.now()`` /
+    # ``datetime.date.today()``) are non-deterministic, so we only assert they
+    # resolve to a non-empty value.
+    expected_deterministic = (
+        "5, 2.5, 2020-01-01 13:00:00, 2021-01-01, 2.000000000000000000, 9999-12-31"
+    )
+    for row in df.select(return_constructor_forms_udf()).collect():
+        deterministic, now_value, today_value = row[0].split("|")
+        assert deterministic == expected_deterministic
+        assert now_value  # datetime.datetime.now() resolved to a value
+        assert today_value  # datetime.date.today() resolved to a value
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1412530 to fix bug",
+    run=False,
+)
+@pytest.mark.parametrize(
+    "unsupported_default",
+    [
+        # Expressions with side effects: must never be evaluated during registration.
+        "__import__('os').system('touch {marker}')",
+        "open('{marker}', 'w').write('hi')",
+        # Other unsupported calls: must be rejected, not evaluated.
+        "eval(\"open('{marker}', 'w').write('hi')\")",
+    ],
+)
+def test_register_udf_from_file_does_not_evaluate_unsupported_default(
+    session: Session, tmpdir, unsupported_default
+):
+    """An unsupported default in a source file must not be evaluated on the client.
+
+    Guards the fix end-to-end through ``register_from_file``: reconstructing the
+    default from the source must not evaluate it on the client, and registration
+    must fail open -- the unsupported default is dropped (the argument loses its
+    default) instead of crashing.
+
+    Note: this only covers *client-side* evaluation during registration. The
+    uploaded source is still imported by the server when the UDF runs, where
+    Python evaluates the default at ``def`` time as usual; that is inherent to
+    ``register_from_file`` and outside the scope of this client-side fix, so the
+    UDF is intentionally not invoked here.
+    """
+    marker = os.path.join(tmpdir, "marker.txt")
+    assert not os.path.exists(marker)
+
+    expr = unsupported_default.format(marker=marker)
+    func_body = f"""
+def sample(x: int = {expr}) -> int:
+    return x
+"""
+    file_path = os.path.join(tmpdir, "register_from_file_unsupported.py")
+    with open(file_path, "w") as f:
+        f.write(func_body)
+
+    session.add_packages("snowflake-snowpark-python")
+    # Fail-open: registration succeeds (the unsupported default is dropped) rather
+    # than raising or evaluating the expression.
+    sample_udf = session.udf.register_from_file(file_path, "sample")
+    assert sample_udf is not None
+
+    # The default value expression must not have been evaluated on the client: the
+    # marker file must not be created.
+    assert not os.path.exists(marker), (
+        "An unsupported UDF default value was evaluated on the client during "
+        "register_from_file."
     )
 
 

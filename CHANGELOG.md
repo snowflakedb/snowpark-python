@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### Bug Fixes
+
+- Fixed a bug where UDF default argument values reconstructed from a source file in `register_from_file` were evaluated with `eval()`; they are now evaluated only against the documented set of supported default-value types, and unsupported expressions are ignored.
+
 ## 1.52.0 (2026-06-10)
 
 ### Snowpark Python API Updates
