@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### Bug Fixes
+
+- Fixed a bug where `object_name`, `object_domain`, or `object_version` values containing single quotes or backslashes in `session.lineage.trace()` caused incorrect SQL generation. These values are now properly escaped before being embedded in the `SYSTEM$DGQL` call.
+
 ## 1.52.0 (2026-06-10)
 
 ### Snowpark Python API Updates
