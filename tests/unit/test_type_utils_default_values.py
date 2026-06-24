@@ -80,9 +80,13 @@ class TestSafeEvalDefaultValue:
     def test_unsupported_default_in_full_register_flow(self, tmp_path):
         """End-to-end: an unsupported default in a source file must not be evaluated."""
         marker_file = tmp_path / "side_effect_e2e.txt"
+        # Escape backslashes so a Windows path (e.g. C:\\Users\\...) embedded in the
+        # source string literal does not trigger a unicodeescape SyntaxError in
+        # ast.parse before the default value is ever reconstructed.
+        marker_in_source = str(marker_file).replace("\\", "\\\\")
 
         source = f"""
-def sample_udf(x: int = __import__('os').system('touch {marker_file}')) -> int:
+def sample_udf(x: int = __import__('os').system('touch {marker_in_source}')) -> int:
     return x
 """
         # retrieve_func_defaults_from_source parses the AST and reconstructs the

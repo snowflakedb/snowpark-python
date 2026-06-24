@@ -1299,7 +1299,11 @@ def test_register_udf_from_file_does_not_evaluate_unsupported_default(
     marker = os.path.join(tmpdir, "marker.txt")
     assert not os.path.exists(marker)
 
-    expr = unsupported_default.format(marker=marker)
+    # Escape backslashes so a Windows path (e.g. C:\\Users\\...) embedded in the
+    # source string literal does not trigger a unicodeescape SyntaxError in
+    # ast.parse before the default value is ever reconstructed.
+    marker_in_source = marker.replace("\\", "\\\\")
+    expr = unsupported_default.format(marker=marker_in_source)
     func_body = f"""
 def sample(x: int = {expr}) -> int:
     return x
