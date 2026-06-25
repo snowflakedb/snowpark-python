@@ -2916,10 +2916,12 @@ class TestFlattenDisabledGetTemporaryView:
         result = renamed.select("t2d_renamed")
         sql = result.queries["queries"][0]
 
-        # Without flatten_disabled the renaming subquery is collapsed: 1 SELECT.
+        # Without flatten_disabled the renaming subquery is collapsed into the
+        # VALUES plan's SELECT.  create_dataframe always wraps VALUES in a SELECT,
+        # so the minimum achievable is 2 SELECTs (outer projection + VALUES).
         assert (
-            sql.upper().count("SELECT") == 1
-        ), f"Expected 1 SELECT level (flattened), got:\n{sql}"
+            sql.upper().count("SELECT") == 2
+        ), f"Expected 2 SELECT levels (flattened), got:\n{sql}"
         Utils.check_answer(result, [Row(4), Row(8)], sort=True)
 
 
