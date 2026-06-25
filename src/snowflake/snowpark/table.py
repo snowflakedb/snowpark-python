@@ -303,6 +303,8 @@ class Table(DataFrame):
         # still pass them without us advertising the surface.
         version = kwargs.pop("version", None)
         version_tag = kwargs.pop("version_tag", None)
+        version_ref = kwargs.pop("version_ref", None)
+        branch = kwargs.pop("branch", None)
         if kwargs:
             raise TypeError(
                 f"Table() got unexpected keyword arguments: {sorted(kwargs)}"
@@ -336,6 +338,8 @@ class Table(DataFrame):
             stream=stream,
             version=version,
             version_tag=version_tag,
+            version_ref=version_ref,
+            branch=branch,
         )
 
         snowflake_table_plan = SnowflakeTable(
