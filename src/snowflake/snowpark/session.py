@@ -2782,6 +2782,8 @@ class Session:
         version_tag = kwargs.pop("version_tag", None)
         start_snapshot_id = kwargs.pop("start_snapshot_id", None)
         end_snapshot_id = kwargs.pop("end_snapshot_id", None)
+        version_ref = kwargs.pop("version_ref", None)
+        branch = kwargs.pop("branch", None)
         if kwargs:
             raise TypeError(
                 f"table() got unexpected keyword arguments: {sorted(kwargs)}"
@@ -2827,6 +2829,8 @@ class Session:
             version_tag=version_tag,
             start_snapshot_id=start_snapshot_id,
             end_snapshot_id=end_snapshot_id,
+            version_ref=version_ref,
+            branch=branch,
         )
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")

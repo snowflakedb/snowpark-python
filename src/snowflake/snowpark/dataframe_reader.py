@@ -165,12 +165,17 @@ def _extract_time_travel_from_options(options: dict) -> dict:
 
     Special handling for 'VERSION_TAG' / 'VERSION-TAG' (Iceberg tag name) —
     both aliases map to the internal ``version_tag`` time travel parameter
-    and emit ``AT(VERSION_TAG => '<name>')`` on the Snowflake side (see
-    Spark Iceberg's ``VERSION AS OF '<tag_name>'`` reader path):
-    - Automatically set time_travel_mode to 'at'
-      (tag reads are positional — bound to a specific snapshot — not
-      range-of-time)
-    - Cannot be used with time_travel_mode='before' (raises error)
+    and emit ``AT(VERSION_REF => '<name>')`` on the Snowflake side.
+
+    Special handling for 'VERSION_REF' / 'VERSION-REF' (Iceberg tag or
+    branch name) — maps to the internal ``version_ref`` parameter.
+
+    Special handling for 'BRANCH' (Spark Iceberg WAP branch read) — maps
+    to the internal ``branch`` parameter and emits
+    ``AT(VERSION_REF => '<name>')``.
+
+    Special handling for 'TAG' (Spark Iceberg ``SparkReadOptions.TAG``) —
+    maps to the internal ``version_tag`` parameter.
     """
     result = {}
     excluded_keys = set()
@@ -221,26 +226,63 @@ def _extract_time_travel_from_options(options: dict) -> dict:
             )
         result["time_travel_mode"] = "at"
 
-    # Handle Iceberg tag (``version_tag`` / ``version-tag``). Both aliases
-    # route to the internal ``version_tag`` parameter and emit
-    # ``AT(VERSION_TAG => '<name>')`` server-side. Auto-sets mode='at'.
-    version_tag_value = options.get("VERSION_TAG")
-    version_tag_source = "version_tag"
-    if version_tag_value is None:
-        version_tag_value = options.get("VERSION-TAG")
-        version_tag_source = "version-tag"
-    if version_tag_value is not None:
+    def _set_named_ref_option(
+        result: dict,
+        *,
+        param_name: str,
+        option_source: str,
+        raw_value: Any,
+    ) -> None:
         if (
             "TIME_TRAVEL_MODE" in options
             and options["TIME_TRAVEL_MODE"].lower() == "before"
         ):
             raise ValueError(
-                f"Cannot use '{version_tag_source}' option with "
-                "time_travel_mode='before'. Iceberg tag time travel only "
-                "supports time_travel_mode='at'."
+                f"Cannot use '{option_source}' option with "
+                "time_travel_mode='before'. Iceberg named-ref time travel "
+                "only supports time_travel_mode='at'."
             )
-        result["version_tag"] = str(version_tag_value)
+        result[param_name] = str(raw_value)
         result["time_travel_mode"] = "at"
+
+    # Handle Iceberg tag (``version_tag`` / ``version-tag`` / Spark ``tag``).
+    version_tag_value = options.get("VERSION_TAG")
+    version_tag_source = "version_tag"
+    if version_tag_value is None:
+        version_tag_value = options.get("VERSION-TAG")
+        version_tag_source = "version-tag"
+    if version_tag_value is None:
+        version_tag_value = options.get("TAG")
+        version_tag_source = "tag"
+    if version_tag_value is not None:
+        _set_named_ref_option(
+            result,
+            param_name="version_tag",
+            option_source=version_tag_source,
+            raw_value=version_tag_value,
+        )
+
+    version_ref_value = options.get("VERSION_REF")
+    version_ref_source = "version_ref"
+    if version_ref_value is None:
+        version_ref_value = options.get("VERSION-REF")
+        version_ref_source = "version-ref"
+    if version_ref_value is not None:
+        _set_named_ref_option(
+            result,
+            param_name="version_ref",
+            option_source=version_ref_source,
+            raw_value=version_ref_value,
+        )
+
+    branch_value = options.get("BRANCH")
+    if branch_value is not None:
+        _set_named_ref_option(
+            result,
+            param_name="branch",
+            option_source="branch",
+            raw_value=branch_value,
+        )
 
     for option_key, param_name in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items():
         if option_key in options and option_key not in excluded_keys:
@@ -737,6 +779,8 @@ class DataFrameReader:
         version_tag = kwargs.pop("version_tag", None)
         start_snapshot_id = kwargs.pop("start_snapshot_id", None)
         end_snapshot_id = kwargs.pop("end_snapshot_id", None)
+        version_ref = kwargs.pop("version_ref", None)
+        branch = kwargs.pop("branch", None)
         if kwargs:
             raise TypeError(
                 f"table() got unexpected keyword arguments: {sorted(kwargs)}"
@@ -793,15 +837,23 @@ class DataFrameReader:
             time_travel_mode is not None
             or version is not None
             or version_tag is not None
+            or version_ref is not None
+            or branch is not None
         ):
-            # If version / version_tag is provided without mode, default to
-            # 'at' — snapshot ids and tag reads only make sense with AT
-            # (symmetric with the as-of-timestamp option handling).
+            # If version / named-ref params are provided without mode,
+            # default to 'at'.
             effective_mode = (
                 time_travel_mode
                 if time_travel_mode
                 else (
-                    "at" if (version is not None or version_tag is not None) else None
+                    "at"
+                    if (
+                        version is not None
+                        or version_tag is not None
+                        or version_ref is not None
+                        or branch is not None
+                    )
+                    else None
                 )
             )
             time_travel_params = {
@@ -813,6 +865,8 @@ class DataFrameReader:
                 "stream": stream,
                 "version": version,
                 "version_tag": version_tag,
+                "version_ref": version_ref,
+                "branch": branch,
             }
             table = self._session.table(name, _emit_ast=False, **time_travel_params)
         else:

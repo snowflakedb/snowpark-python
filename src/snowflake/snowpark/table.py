@@ -306,6 +306,8 @@ class Table(DataFrame):
         version_tag = kwargs.pop("version_tag", None)
         start_snapshot_id = kwargs.pop("start_snapshot_id", None)
         end_snapshot_id = kwargs.pop("end_snapshot_id", None)
+        version_ref = kwargs.pop("version_ref", None)
+        branch = kwargs.pop("branch", None)
         if kwargs:
             raise TypeError(
                 f"Table() got unexpected keyword arguments: {sorted(kwargs)}"
@@ -344,6 +346,8 @@ class Table(DataFrame):
             stream=stream,
             version=version,
             version_tag=version_tag,
+            version_ref=version_ref,
+            branch=branch,
         )
         if iceberg_changes_config is not None and time_travel_config is not None:
             raise ValueError(
