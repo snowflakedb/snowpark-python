@@ -96,8 +96,8 @@ def load_test_cases():
     """
     test_files = DATA_DIR.glob("*.test")
     major_version, minor_version = sys.version_info[0], sys.version_info[1]
-    if major_version == 3 and minor_version < 9:
-        # Remove the `to_snowpark_pandas` test since Snowpark pandas is only supported in Python 3.9+.
+    if major_version == 3 and minor_version < 10:
+        # Remove the `to_snowpark_pandas` test since Snowpark pandas is only supported in Python 3.10+.
         test_files = filter(
             lambda file: "to_snowpark_pandas" not in file.name, test_files
         )

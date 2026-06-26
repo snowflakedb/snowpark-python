@@ -1,6 +1,68 @@
 # Release History
 
-## 1.50.0 (TBD)
+## 1.53.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where stage paths and file format names that contain single quotes were not consistently escaped when generating SQL, which could produce malformed statements. This affects `INFER_SCHEMA` (used by `DataFrameReader.csv`/`json`/`parquet`/`orc`/`avro`) and `COPY FILES` (used by `FileOperation.copy_files`).
+- Fixed a bug where UDF default argument values reconstructed from a source file in `register_from_file` were evaluated with `eval()`; they are now evaluated only against the documented set of supported default-value types, and unsupported expressions are ignored.
+- Fixed a bug where `object_name`, `object_domain`, or `object_version` values containing single quotes or backslashes in `session.lineage.trace()` caused incorrect SQL generation. These values are now properly escaped before being embedded in the `SYSTEM$DGQL` call.
+
+## 1.52.0 (2026-06-10)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added `get_wif_token` to `snowflake.snowpark.secrets` for workload identity federation tokens on the Snowflake server (not available in SPCS file-based secret environments).
+
+#### Bug Fixes
+
+- Fixed a bug where copying a `DataFrame` via `copy.copy()` lost post-aggregate state, causing subsequent `.limit()` or `.sort()` to generate incorrect SQL.
+- Fixed a bug where calling `DataFrame.alias()` twice on the same DataFrame (e.g. for a self-join) caused both aliases to share the same internal column-mapping dictionary. This made `col("R", "col")` resolve to the same column as `col("L", "col")`, producing incorrect join conditions and filter expressions.
+- Fixed a bug where `cloudpickle` could not be resolved when registering a Python stored procedure or UDF with `runtime_version='3.13'`.
+
+#### Improvements
+
+- Improved CTE optimization to deduplicate identical subtrees in self-joins, which were previously emitted as repeated subqueries.
+- Reduced the size of generated query text for repeated join operations.
+
+#### Deprecations
+
+- Removed support for Python 3.9.
+
+## 1.51.1 (2026-05-28)
+
+#### Documentation
+
+- Clarified that the JDBC driver JAR referenced via `udtf_configs.imports` in `DataFrameReader.jdbc()` must be downloaded from the database vendor and uploaded to a Snowflake stage.
+
+## 1.51.0 (2026-05-18)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where `AsyncJob.result("no_result")` sometimes silently returned without raising error for failed queries.
+- Fixed a bug where `INTERVAL YEAR TO MONTH` values with zero months were displayed incorrectly (e.g. `INTERVAL '0-4' YEAR TO MONTH` instead of `INTERVAL '4-0' YEAR TO MONTH`) when using `snowflake-connector-python>=4.3.0`.
+
+#### Improvements
+
+- When `Session.reduce_describe_query_enabled` is enabled, fewer DESCRIBE queries are issued when the outer query only projects or renames columns from an inner subquery whose column types are already known.
+
+## 1.50.1 (2026-05-06)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where using parameter bindings for `CALL` queries issued through `session.sql` would raise an error.
+- Fixed a bug where `StringType` columns from Iceberg tables were not recognized as max-size strings.
+- Improved the `FileNotFoundError` message raised when `INFER_SCHEMA` returns zero rows so it also points to file format options (`PARSE_HEADER`, `SKIP_HEADER`, `ON_ERROR=CONTINUE`) that can silently filter everything out, instead of only suggesting a missing path.
+
+## 1.50.0 (2026-04-23)
 
 ### Snowpark Python API Updates
 

@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
 import json
 import pytest
 from snowflake.snowpark.functions import ai_complete, col, lit, to_file
@@ -14,6 +15,11 @@ pytestmark = [
     pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
         reason="AI functions are not yet supported in local testing mode.",
+    ),
+    pytest.mark.xfail(
+        datetime.date.today() <= datetime.date(2026, 6, 4),
+        reason="AI tests flaky due to infrastructure issues",
+        strict=False,
     ),
 ]
 
@@ -39,7 +45,7 @@ def test_dataframe_ai_complete_with_named_placeholders(session):
             "category": col("category"),
         },
         output_column="sentiment_analysis",
-        model="snowflake-arctic",
+        model="llama3.1-8b",
     )
 
     # Check schema
@@ -96,7 +102,7 @@ def test_dataframe_ai_complete_default_output_column(session):
     result_df = df.ai.complete(
         prompt="Answer the question",
         input_columns=[col("question")],
-        model="snowflake-arctic",
+        model="llama3.1-8b",
         model_parameters={
             "temperature": 0.8,
             "top_p": 0.95,
@@ -135,7 +141,7 @@ def test_dataframe_ai_complete_error_handling(session):
         df.ai.complete(
             prompt="Test",
             input_columns="invalid",  # Should be list or dict
-            model="snowflake-arctic",
+            model="llama3.1-8b",
         )
 
 

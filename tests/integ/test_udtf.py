@@ -5,7 +5,6 @@
 import datetime
 import decimal
 import os
-import sys
 from textwrap import dedent
 from typing import Dict, List, Tuple
 from unittest import mock
@@ -30,15 +29,10 @@ from snowflake.snowpark.types import (
     StructType,
 )
 from snowflake.snowpark.udtf import UserDefinedTableFunction
+from tests.integ.session_parameters import create_session_for_test
 from tests.utils import IS_IN_STORED_PROC, IS_NOT_ON_GITHUB, TestFiles, Utils
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
+from collections.abc import Iterable
 
 try:
     import pandas as pd
@@ -726,7 +720,7 @@ def test_permanent_udtf_negative(session, db_parameters):
         ) -> Iterable[Tuple[int]]:
             return [(num,)]
 
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         try:
             Utils.create_stage(session, stage_name, is_temporary=False)
@@ -1508,9 +1502,6 @@ def test_udtf_external_access_integration(session, db_parameters):
     IS_IN_STORED_PROC,
     reason="Stored proc env does not have permissions to look up warehouse details",
 )
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_udtf_artifact_repository(session, resources_path):
     class ArtifactRepositoryUDTF:
         def process(self) -> Iterable[Tuple[str]]:
@@ -1566,9 +1557,6 @@ def test_udtf_artifact_repository(session, resources_path):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_udtf_artifact_repository_from_file(session, tmpdir):
     source = dedent(
         """

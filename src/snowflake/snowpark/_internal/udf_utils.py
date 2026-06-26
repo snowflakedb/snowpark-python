@@ -71,13 +71,7 @@ if installed_pandas:
         PandasSeriesType,
     )
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
+from collections.abc import Iterable
 
 logger = getLogger(__name__)
 
@@ -1247,7 +1241,7 @@ def resolve_imports_and_packages(
     if artifact_repository != _ANACONDA_SHARED_REPOSITORY:
         # Non-conda artifact repository - skip conda-based package resolution
         resolved_packages = []
-        if not packages and session:
+        if packages is None and session:
             resolved_packages = list(
                 session._resolve_packages(
                     [],
@@ -1256,7 +1250,7 @@ def resolve_imports_and_packages(
                     include_pandas=is_pandas_udf,
                 )
             )
-        elif packages:
+        elif packages is not None:
             if not all(isinstance(package, str) for package in packages):
                 raise TypeError(
                     "Non-conda artifact repository requires that all packages be passed as str."
@@ -1276,7 +1270,7 @@ def resolve_imports_and_packages(
                     any(pkg.startswith("cloudpickle") for pkg in packages)
                 )
             resolved_packages = packages + (
-                [f"cloudpickle=={cloudpickle.__version__}"]
+                [f"cloudpickle>={cloudpickle.__version__}"]
                 if not has_cloudpickle
                 else []
             )
@@ -1615,7 +1609,6 @@ HANDLER='{handler}'{execute_as_sql}
         is_ddl_on_temp_object=not is_permanent,
         statement_params=statement_params,
     )
-
     if comment is not None:
         object_signature_sql = f"{object_name}({','.join(input_sql_types)})"
         comment = escape_single_quotes(comment)

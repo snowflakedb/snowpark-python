@@ -451,6 +451,136 @@ def test_join_statement_negative():
         join_statement("", "", join_type, "cond2", "", False)
 
 
+def test_join_statement_flattens_chained_joins():
+    """Chained joins should produce a flat multi-way join, not nested SELECT * wrappers."""
+    join_type = UsingJoin(Inner(), ["key"])
+
+    # First join: produces SELECT * FROM ((left) AS L JOIN (right) AS R USING (key))
+    first_join = join_statement(
+        "SELECT * FROM table_a",
+        "SELECT * FROM table_b",
+        join_type,
+        "",
+        "",
+        True,
+    )
+
+    # Second join uses first join's output as left operand.
+    # left_is_join=True signals that the left operand is a join result.
+    second_join = join_statement(
+        first_join,
+        "SELECT * FROM table_c",
+        join_type,
+        "",
+        "",
+        True,
+        left_is_join=True,
+    )
+
+    # Should NOT have nested SELECT * FROM (SELECT * FROM (...))
+    # Count occurrences of "SELECT" — expect exactly one top-level SELECT *
+    assert second_join.count(" SELECT ") == 1
+
+    # The SQL should contain all three table references at the same nesting level
+    assert "table_a" in second_join
+    assert "table_b" in second_join
+    assert "table_c" in second_join
+
+
+def test_join_statement_flattens_with_uuid_trace_comments():
+    """Flattening must work when UUID trace comments are present (trace-SQL mode)."""
+    join_type = UsingJoin(Inner(), ["key"])
+
+    # First join with UUID trace comments
+    first_join = join_statement(
+        "SELECT * FROM table_a",
+        "SELECT * FROM table_b",
+        join_type,
+        "",
+        "",
+        True,
+        left_uuid="aaaa-bbbb",
+        right_uuid="cccc-dddd",
+    )
+
+    # Second join: flattening with UUIDs
+    second_join = join_statement(
+        first_join,
+        "SELECT * FROM table_c",
+        join_type,
+        "",
+        "",
+        True,
+        left_uuid="eeee-ffff",
+        right_uuid="1111-2222",
+        left_is_join=True,
+    )
+
+    # Should still flatten — only one top-level SELECT *
+    assert second_join.count(" SELECT ") == 1
+    assert "table_a" in second_join
+    assert "table_b" in second_join
+    assert "table_c" in second_join
+
+    # Third join: must also flatten successfully despite accumulated UUID comments
+    third_join = join_statement(
+        second_join,
+        "SELECT * FROM table_d",
+        join_type,
+        "",
+        "",
+        True,
+        left_uuid="3333-4444",
+        right_uuid="5555-6666",
+        left_is_join=True,
+    )
+
+    assert third_join.count(" SELECT ") == 1
+    assert "table_a" in third_join
+    assert "table_b" in third_join
+    assert "table_c" in third_join
+    assert "table_d" in third_join
+
+
+def test_join_statement_does_not_flatten_user_generated_select_star():
+    """A user-generated SELECT * that coincidentally matches the internal
+    pattern must NOT be flattened when left_is_join is False (the default)."""
+    join_type = UsingJoin(Inner(), ["key"])
+
+    # Craft a SQL string that matches the internal _SELECT_STAR_FROM_PREFIX/SUFFIX
+    # pattern exactly — this simulates what session.sql("SELECT * FROM (...)") or
+    # a similar user-provided query might produce.
+    user_sql = (
+        " SELECT  * \n FROM (\n"
+        "(SELECT id, key FROM user_table) AS t1"
+        " INNER  JOIN \n(SELECT id, key FROM other_table) AS t2\n"
+        " USING (key)"
+        "\n)"
+    )
+
+    # join_statement with left_is_join=False (default) — should NOT unwrap because
+    # left_is_join is only True when a plan object is constructed from a dataframe
+    # join operation
+    result = join_statement(
+        user_sql,
+        "SELECT * FROM table_c",
+        join_type,
+        "",
+        "",
+        True,
+        left_is_join=False,
+    )
+
+    # The user SQL should be preserved as a nested subquery, producing
+    # two SELECT levels (the outer wrapper + the user's original SELECT *)
+    assert result.count(" SELECT ") >= 2
+
+    # The user's original SQL should appear within the output intact
+    assert "user_table" in result
+    assert "other_table" in result
+    assert "table_c" in result
+
+
 def test_create_iceberg_table_statement():
     assert create_table_statement(
         table_name="test_table",

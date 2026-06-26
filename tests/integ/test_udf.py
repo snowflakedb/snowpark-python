@@ -10,7 +10,6 @@ import logging
 import math
 import os
 import re
-import sys
 from textwrap import dedent
 from typing import Callable
 
@@ -83,6 +82,7 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
 )
+from tests.integ.session_parameters import create_session_for_test
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
@@ -206,11 +206,8 @@ def test_call_named_udf(session, temp_schema, db_parameters, local_testing_mode)
 
     if not local_testing_mode:  # this test case does not apply to Local Testing
         # create a UDF when the session doesn't have a schema
-        new_session = (
-            Session.builder.configs(db_parameters)._remove_config("schema").create()
-        )
-        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
-        try:
+        with create_session_for_test(db_parameters, remove_schema=True) as new_session:
+            new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
             assert not new_session.get_current_schema()
             add_udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
             tmp_stage_name_in_temp_schema = f"{temp_schema}.{Utils.random_name_for_temp_object(TempObjectType.STAGE)}"
@@ -240,9 +237,6 @@ def test_call_named_udf(session, temp_schema, db_parameters, local_testing_mode)
                 )
                 == 1
             )
-        finally:
-            new_session.close()
-            # restore active session
 
 
 def test_recursive_udf(session):
@@ -1141,6 +1135,18 @@ def return_all_datatypes(
 ) -> str:
     final_str = f"{a}, {b}, {c}, {d}, {e}, {f}, {g}, {h}, {i}, {j}, {k}, {l}, {m}, {n}"
     return final_str
+
+def return_constructor_forms(
+    p: int = int("5"),
+    q: float = float("2.5"),
+    r: datetime.datetime = datetime.datetime(2020, 1, 1, 12, 0, 0).replace(hour=13),
+    s: datetime.date = datetime.date(2020, 1, 1).replace(year=2021),
+    t: decimal.Decimal = decimal.Decimal("4").sqrt(),
+    u: datetime.date = datetime.date.max,
+    v: datetime.datetime = datetime.datetime.now(),
+    w: datetime.date = datetime.date.today(),
+) -> str:
+    return f"{p}, {q}, {r}, {s}, {t}, {u}|{v}|{w}"
 """
     session.add_packages("snowflake-snowpark-python")
     if register_from_file:
@@ -1159,6 +1165,9 @@ def return_all_datatypes(
         return_all_datatypes_udf = session.udf.register_from_file(
             file_path, "return_all_datatypes"
         )
+        return_constructor_forms_udf = session.udf.register_from_file(
+            file_path, "return_constructor_forms"
+        )
     else:
         d = {}
         exec(func_body, {**globals(), **locals()}, d)
@@ -1169,6 +1178,9 @@ def return_all_datatypes(
         return_date_udf = session.udf.register(d["return_date"])
         return_arr_udf = session.udf.register(d["return_arr"])
         return_all_datatypes_udf = session.udf.register(d["return_all_datatypes"])
+        return_constructor_forms_udf = session.udf.register(
+            d["return_constructor_forms"]
+        )
 
     df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
     Utils.check_answer(
@@ -1234,6 +1246,83 @@ def return_all_datatypes(
             Row(default_row, custom_row),
             Row(default_row, custom_row),
         ],
+    )
+
+    # Additional default-value forms supported by the default-value evaluator:
+    # builtin-constructor spellings (``int("5")``/``float("2.5")``), non-dunder
+    # methods on datetime/decimal values (``.replace(...)``/``.sqrt()``) and bare
+    # references to type instances (``datetime.date.max``) -- compared by value. The
+    # trailing factory methods (``datetime.datetime.now()`` /
+    # ``datetime.date.today()``) are non-deterministic, so we only assert they
+    # resolve to a non-empty value.
+    expected_deterministic = (
+        "5, 2.5, 2020-01-01 13:00:00, 2021-01-01, 2.000000000000000000, 9999-12-31"
+    )
+    for row in df.select(return_constructor_forms_udf()).collect():
+        deterministic, now_value, today_value = row[0].split("|")
+        assert deterministic == expected_deterministic
+        assert now_value  # datetime.datetime.now() resolved to a value
+        assert today_value  # datetime.date.today() resolved to a value
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1412530 to fix bug",
+    run=False,
+)
+@pytest.mark.parametrize(
+    "unsupported_default",
+    [
+        # Expressions with side effects: must never be evaluated during registration.
+        "__import__('os').system('touch {marker}')",
+        "open('{marker}', 'w').write('hi')",
+        # Other unsupported calls: must be rejected, not evaluated.
+        "eval(\"open('{marker}', 'w').write('hi')\")",
+    ],
+)
+def test_register_udf_from_file_does_not_evaluate_unsupported_default(
+    session: Session, tmpdir, unsupported_default
+):
+    """An unsupported default in a source file must not be evaluated on the client.
+
+    Guards the fix end-to-end through ``register_from_file``: reconstructing the
+    default from the source must not evaluate it on the client, and registration
+    must fail open -- the unsupported default is dropped (the argument loses its
+    default) instead of crashing.
+
+    Note: this only covers *client-side* evaluation during registration. The
+    uploaded source is still imported by the server when the UDF runs, where
+    Python evaluates the default at ``def`` time as usual; that is inherent to
+    ``register_from_file`` and outside the scope of this client-side fix, so the
+    UDF is intentionally not invoked here.
+    """
+    marker = os.path.join(tmpdir, "marker.txt")
+    assert not os.path.exists(marker)
+
+    # Escape backslashes so a Windows path (e.g. C:\\Users\\...) embedded in the
+    # source string literal does not trigger a unicodeescape SyntaxError in
+    # ast.parse before the default value is ever reconstructed.
+    marker_in_source = marker.replace("\\", "\\\\")
+    expr = unsupported_default.format(marker=marker_in_source)
+    func_body = f"""
+def sample(x: int = {expr}) -> int:
+    return x
+"""
+    file_path = os.path.join(tmpdir, "register_from_file_unsupported.py")
+    with open(file_path, "w") as f:
+        f.write(func_body)
+
+    session.add_packages("snowflake-snowpark-python")
+    # Fail-open: registration succeeds (the unsupported default is dropped) rather
+    # than raising or evaluating the expression.
+    sample_udf = session.udf.register_from_file(file_path, "sample")
+    assert sample_udf is not None
+
+    # The default value expression must not have been evaluated on the client: the
+    # marker file must not be created.
+    assert not os.path.exists(marker), (
+        "An unsupported UDF default value was evaluated on the client during "
+        "register_from_file."
     )
 
 
@@ -1303,7 +1392,7 @@ def test_register_udf_with_preserve_parameter_names(session, resources_path):
 def test_permanent_udf(session, db_parameters):
     stage_name = Utils.random_stage_name()
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         try:
             Utils.create_stage(session, stage_name, is_temporary=False)
@@ -1336,7 +1425,7 @@ def test_permanent_udf(session, db_parameters):
 def test_permanent_udf_negative(session, db_parameters):
     stage_name = Utils.random_stage_name()
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    with Session.builder.configs(db_parameters).create() as new_session:
+    with create_session_for_test(db_parameters) as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         try:
             Utils.create_stage(session, stage_name, is_temporary=False)
@@ -1921,17 +2010,25 @@ def test_udf_describe(session):
         "handler",
         "runtime_version",
         "packages",
+        "artifact_repository",
+        "artifact_repository_packages",
         "installed_packages",
         "is_aggregate",
+        "artifact_repository_installed_packages",
     ]
-    # We use zip such that it is compatible regardless of UDAF is enabled or not on the merge gate accounts
-    for actual_field, expected_field in zip(actual_fields, expected_fields):
-        assert (
-            actual_field == expected_field
-        ), f"Actual: {actual_fields}, Expected: {expected_fields}"
 
+    # use subset since the actual fields seem to change based on deployment
+    assert set(actual_fields).issubset(
+        set(expected_fields)
+    ), f"Actual: {actual_fields}, Expected superset: {expected_fields}"
+
+    packages_field = (
+        "artifact_repository_packages"
+        if "artifact_repository_packages" in actual_fields
+        else "packages"
+    )
     for row in describe_res:
-        if row[0] == "packages":
+        if row[0] == packages_field:
             assert "numpy" in row[1] and "pandas" in row[1]
             break
 
@@ -2943,9 +3040,6 @@ def test_access_snowflake_import_directory(session, resources_path):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_register_artifact_repository(session):
     def test_urllib() -> str:
         import urllib3
@@ -3015,9 +3109,6 @@ def test_register_artifact_repository_with_packages_includes_cloudpickle(session
     IS_IN_STORED_PROC,
     reason="Stored proc env does not have permissions to look up warehouse details",
 )
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_register_artifact_repository_negative(session):
     def test_nop() -> str:
         pass
@@ -3075,9 +3166,6 @@ def test_register_artifact_repository_negative(session):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_udf_artifact_repository_from_file(session, tmpdir):
     source = dedent(
         """
@@ -3108,18 +3196,12 @@ def test_udf_artifact_repository_from_file(session, tmpdir):
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_use_default_artifact_repository(db_parameters):
-    with Session.builder.configs(db_parameters).create() as session:
+    with create_session_for_test(db_parameters) as session:
         temp_database = Utils.random_temp_database()
         temp_schema = Utils.random_temp_schema()
         session.sql(f"create database {temp_database}").collect()
         session.sql(f"use database {temp_database}").collect()
-        session.sql(
-            "ALTER SESSION SET ENABLE_DEFAULT_PYTHON_ARTIFACT_REPOSITORY = true"
-        ).collect()
         session.sql(
             "ALTER database set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = snowflake.snowpark.anaconda_shared_repository"
         ).collect()

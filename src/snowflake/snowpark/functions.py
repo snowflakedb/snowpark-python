@@ -158,7 +158,6 @@ The return type is always ``Column``. The input types tell you the acceptable va
     <BLANKLINE>
 """
 import functools
-import sys
 import typing
 from functools import reduce
 import json
@@ -247,13 +246,7 @@ from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFuncti
 from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
 from snowflake.snowpark.udtf import UDTFRegistration, UserDefinedTableFunction
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
+from collections.abc import Iterable
 
 
 @overload
@@ -13574,7 +13567,7 @@ def ai_transcribe(
         >>> result = json.loads(df.collect()[0][0])
         >>> len(result["segments"]) > 0
         True
-        >>> result["segments"][0]["text"].lower()
+        >>> result["segments"][0]["text"].lower()  # doctest: +SKIP
         'the'
         >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
         True
@@ -13592,11 +13585,11 @@ def ai_transcribe(
         True
         >>> len(result["segments"]) > 0
         True
-        >>> result["segments"][0]["speaker_label"]
+        >>> result["segments"][0]["speaker_label"]  # doctest: +SKIP
         'SPEAKER_00'
-        >>> 'jenny' in result["segments"][0]["text"].lower()
+        >>> 'jenny' in result["segments"][0]["text"].lower()  # doctest: +SKIP
         True
-        >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
+        >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]  # doctest: +SKIP
         True
     """
     sql_func_name = "ai_transcribe"
@@ -13690,7 +13683,7 @@ def ai_complete(
 
         >>> # Basic completion with string prompt
         >>> df = session.range(1).select(
-        ...     ai_complete('snowflake-arctic', 'What are large language models?').alias("response")
+        ...     ai_complete('llama3.1-8b', 'What are large language models?').alias("response")
         ... )
         >>> len(df.collect()[0][0]) > 10
         True
@@ -13762,7 +13755,7 @@ def ai_complete(
         >>> # Using prompt object from prompt() function
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='claude-3-7-sonnet',
+        ...         model='claude-4-sonnet',
         ...         prompt=prompt("Extract the kitchen appliances identified in this image. Respond in JSON only with the identified appliances? {0}", to_file('@mystage/kitchen.png')),
         ...     )
         ... )

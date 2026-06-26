@@ -83,13 +83,7 @@ from snowflake.snowpark.types import (
     File,
 )
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
-    from typing import Iterable  # noqa: F401
-except ImportError:
-    from collections.abc import Iterable  # noqa: F401
+from collections.abc import Iterable  # noqa: F401
 
 if installed_pandas:
     from snowflake.snowpark.types import (
@@ -278,7 +272,11 @@ def convert_sf_to_sp_type(
             )
     if column_type_name == "TEXT":
         if internal_size > 0:
-            return StringType(internal_size, internal_size == max_string_size)
+            return StringType(
+                internal_size,
+                internal_size == max_string_size
+                or internal_size == _MAX_ICEBERG_STRING_SIZE,
+            )
         elif internal_size == 0:
             return StringType()
         raise ValueError("Negative value is not a valid input for StringType")
@@ -636,6 +634,123 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
         return a
 
 
+# Default values of UDF arguments are statically reconstructed into strings from
+# the source file passed to ``register_from_file``. ``safe_eval_default_value``
+# below evaluates such a string by walking its AST and computing the result
+# directly, instead of using a bare ``eval`` (which would evaluate arbitrary
+# expressions rather than just the documented default-value forms).
+#
+# A UDF argument value can only be one of the documented SQL<->Python types (see
+# https://docs.snowflake.com/en/developer-guide/udf-stored-procedure-data-type-mapping
+# #sql-python-data-type-mappings): int, float, bool, str, list, dict plus
+# decimal.Decimal, datetime.date/time/datetime and bytes/bytearray. The collections
+# below permit those values written either as literals (handled directly by
+# ``evaluate``) or via their constructors (e.g. ``int('5')``, ``decimal.Decimal(...)``,
+# ``datetime.date(...)``); anything else raises ``TypeError`` instead of being
+# evaluated.
+#
+# Everything the evaluator supports is derived from these two collections:
+#
+# 1. ``_SAFE_BUILTINS`` -- builtin value constructors. Their literal forms are
+#    handled directly by ``evaluate``; listing them here also allows the explicit
+#    spelling (``int('5')``, ``list((1, 2))``).
+# 2. ``_SAFE_TYPES`` -- the documented non-literal default types. They are
+#    constructible (``datetime.date(...)``) and expose only pure date/decimal
+#    helpers, so their methods may be called too (``datetime.datetime.now()``,
+#    ``decimal.Decimal('1').sqrt()``) and instances of them may be referenced
+#    (``datetime.timezone.utc``).
+#
+# ``pandas``/``numpy``/other modules are intentionally absent: they are not part of
+# the documented default-value type mapping.
+_SAFE_BUILTINS = (int, float, bool, str, bytes, bytearray, tuple, list, dict)
+_SAFE_TYPES = (
+    decimal.Decimal,
+    datetime.date,
+    datetime.datetime,
+    datetime.time,
+    datetime.timezone,
+    datetime.timedelta,
+)
+# Root identifiers ``resolve`` may start from: the ``datetime``/``decimal`` modules
+# and the builtin constructors. Everything else is reached via attribute access.
+_SAFE_DEFAULT_VALUE_NAMES: Dict[str, Any] = {
+    "datetime": datetime,
+    "decimal": decimal,
+    **{builtin.__name__: builtin for builtin in _SAFE_BUILTINS},
+}
+
+
+def safe_eval_default_value(value: str) -> Any:
+    """Safely evaluate a UDF default-value expression reconstructed from source.
+
+    Only literals, containers, the builtin value constructors (``int``, ``str``,
+    ``list``, ...), the documented non-literal constructors (``decimal``/
+    ``datetime`` types and ``bytes``/``bytearray``) and non-dunder methods of those
+    ``datetime``/``decimal`` types (e.g. ``datetime.datetime.now()``,
+    ``decimal.Decimal('1').sqrt()``) are permitted. Any other expression raises
+    ``TypeError`` instead of being evaluated.
+    """
+
+    def resolve(node: ast.expr) -> Any:
+        # Best-effort value of a reference/expression, or ``None`` if it is not
+        # reachable from the safe namespace. A ``name`` is looked up in the safe
+        # namespace; ``base.attr`` reads a (non-dunder) attribute of the resolved
+        # base; anything else (e.g. a nested call receiver) is evaluated.
+        if isinstance(node, ast.Name):
+            return _SAFE_DEFAULT_VALUE_NAMES.get(node.id)
+        if isinstance(node, ast.Attribute):
+            if node.attr.startswith("_"):
+                return None
+            base = resolve(node.value)
+            return None if base is None else getattr(base, node.attr, None)
+        return evaluate(node)
+
+    def evaluate(node: ast.expr) -> Any:
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.List):
+            return [evaluate(elt) for elt in node.elts]
+        if isinstance(node, ast.Tuple):
+            return tuple(evaluate(elt) for elt in node.elts)
+        if isinstance(node, ast.Set):
+            return {evaluate(elt) for elt in node.elts}
+        if isinstance(node, ast.Dict):
+            return {evaluate(k): evaluate(v) for k, v in zip(node.keys, node.values)}
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+            operand = evaluate(node.operand)
+            return +operand if isinstance(node.op, ast.UAdd) else -operand
+        if isinstance(node, ast.Call):
+            args = [evaluate(arg) for arg in node.args]
+            kwargs = {kw.arg: evaluate(kw.value) for kw in node.keywords}
+            # A constructor, e.g. ``int('5')`` or ``datetime.date(...)``.
+            func = resolve(node.func)
+            if func in _SAFE_BUILTINS or func in _SAFE_TYPES:
+                return func(*args, **kwargs)
+            # A non-dunder method on a supported datetime/decimal class or instance,
+            # e.g. ``datetime.datetime.now()`` or ``decimal.Decimal('1').sqrt()``.
+            if isinstance(node.func, ast.Attribute) and not node.func.attr.startswith(
+                "_"
+            ):
+                receiver = resolve(node.func.value)
+                if receiver in _SAFE_TYPES or isinstance(receiver, _SAFE_TYPES):
+                    return getattr(receiver, node.func.attr)(*args, **kwargs)
+            raise TypeError(f"disallowed call in default value: {value!r}")
+        if isinstance(node, (ast.Name, ast.Attribute)):
+            # A bare reference is only allowed if it is an instance of a supported
+            # type, e.g. ``datetime.timezone.utc`` or ``datetime.date.max``.
+            obj = resolve(node)
+            if isinstance(obj, _SAFE_TYPES):
+                return obj
+            raise TypeError(f"disallowed reference in default value: {value!r}")
+        raise TypeError(f"invalid default value: {value!r}")
+
+    try:
+        tree = ast.parse(value, mode="eval")
+    except (ValueError, SyntaxError, RecursionError) as e:
+        raise TypeError(f"invalid default value: {value!r}") from e
+    return evaluate(tree.body)
+
+
 def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
     if tp is None:
         return None
@@ -655,17 +770,17 @@ def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
             TimestampType,
         ),
     ):
-        return eval(value)
+        return safe_eval_default_value(value)
 
     if isinstance(tp, ArrayType):
-        curr_list = eval(value)
+        curr_list = safe_eval_default_value(value)
         if curr_list is None:
             return None
         element_tp = tp.element_type or StringType()
         return [python_value_str_to_object(val, element_tp) for val in curr_list]
 
     if isinstance(tp, MapType):
-        curr_dict: dict = eval(value)
+        curr_dict: dict = safe_eval_default_value(value)
         if curr_dict is None:
             return None
         key_tp = tp.key_type or StringType()
@@ -1320,22 +1435,36 @@ def parse_struct_field_list(fields_str: str) -> Optional[StructType]:
 
 def split_top_level_comma_fields(s: str) -> List[str]:
     """
-    Splits 's' by commas not enclosed in matching brackets.
+    Splits 's' by commas not enclosed in matching brackets or inside quoted
+    identifiers.
+
     Example: "int, array<long>, decimal(10,2)" => ["int", "array<long>", "decimal(10,2)"].
+
+    Quoted-identifier-aware: ``,`` ``(`` ``)`` ``<`` ``>`` characters that
+    appear inside a ``"..."`` quoted span (e.g. an OBJECT field name like
+    ``"a, b"`` or ``"x<y>z"``) are skipped over and do not affect the
+    bracket counter or split positions. Snowflake uses ``""`` as the only
+    in-band escape inside a quoted identifier.
     """
     parts = []
     bracket_depth = 0
     start_idx = 0
-    for i, c in enumerate(s):
-        if c in ["<", "("]:
+    i = 0
+    while i < len(s):
+        c = s[i]
+        if c == '"':
+            i = _scan_quoted_identifier(s, i)
+            continue
+        if c in ("<", "("):
             bracket_depth += 1
-        elif c in [">", ")"]:
+        elif c in (">", ")"):
             bracket_depth -= 1
             if bracket_depth < 0:
                 raise ValueError(f"Mismatched bracket in '{s}'.")
         elif c == "," and bracket_depth == 0:
             parts.append(s[start_idx:i].strip())
             start_idx = i + 1
+        i += 1
     parts.append(s[start_idx:].strip())
     return parts
 
@@ -1402,6 +1531,60 @@ def _lookup_simple_type(name: str, original: str) -> DataType:
     raise ValueError(f"'{original}' is not a supported type")
 
 
+def _scan_quoted_identifier(s: str, start: int) -> int:
+    """Return the index just past a quoted identifier that begins at ``s[start] == '"'``.
+
+    Snowflake's identifier grammar (``SFSqlLexer.g`` ``QuotedString`` rule) allows
+    any character inside ``"..."`` and uses ``""`` as the only in-band escape for a
+    literal ``"``. The canonical inverse is
+    ``SqlIdentifierUtils.java::quote()`` which doubles every embedded ``"``
+    and nothing else.
+
+    Raises ``ValueError`` if the closing quote is missing.
+
+    Precondition: ``s[start] == '"'``. All current callers guard on this; we
+    do not re-check here because asserts are stripped under ``python -O`` and
+    promoting to ``raise`` would be overkill for a private helper.
+    """
+    i = start + 1
+    while i < len(s):
+        if s[i] == '"':
+            if i + 1 < len(s) and s[i + 1] == '"':
+                i += 2  # escaped "" inside the name; keep scanning
+                continue
+            return i + 1  # index just past the closing quote
+        i += 1
+    raise ValueError(f"Unterminated quoted identifier in: {s!r}")
+
+
+def _split_object_field(field_def: str) -> Tuple[str, str]:
+    """Split a single OBJECT field definition into ``(name_token, remainder)``.
+
+    Quoted-identifier-aware:
+      ``foo NUMBER``                  -> (``foo``, ``NUMBER``)
+      ``"col with space" NUMBER``     -> (``"col with space"``, ``NUMBER``)
+      ``"a, b" NUMBER``               -> (``"a, b"``, ``NUMBER``)
+
+    The returned ``name_token`` still carries any surrounding quotes so the
+    caller can decide whether to unquote (via ``_strip_quoted_identifier``)
+    while preserving the raw form for diagnostics.
+    """
+    field_def = field_def.lstrip()
+    if not field_def:
+        raise ValueError("Empty OBJECT field definition")
+    if field_def[0] == '"':
+        end = _scan_quoted_identifier(field_def, 0)
+        name_token = field_def[:end]
+        remainder = field_def[end:].lstrip()
+        if not remainder:
+            raise ValueError(f"Cannot parse OBJECT field definition: {field_def!r}")
+        return name_token, remainder
+    parts = field_def.split(None, 1)
+    if len(parts) != 2:
+        raise ValueError(f"Cannot parse OBJECT field definition: {field_def!r}")
+    return parts[0], parts[1]
+
+
 def _extract_paren_content(type_str: str) -> Optional[Tuple[str, str]]:
     """Extract the base keyword and content inside matching parentheses.
 
@@ -1414,6 +1597,10 @@ def _extract_paren_content(type_str: str) -> Optional[Tuple[str, str]]:
     backend (``INFER_SCHEMA``), so we fail loudly rather than silently
     degrade to ``VariantType``.
 
+    Quoted-identifier-aware: ``(`` and ``)`` characters appearing inside a
+    ``"..."`` quoted name (``OBJECT("a(b)c" TEXT)``) are skipped over and do
+    not affect the depth counter.
+
     E.g. "OBJECT(city VARCHAR, zip NUMBER(38,0))" -> ("OBJECT", "city VARCHAR, zip NUMBER(38,0)")
     """
     paren_idx = type_str.find("(")
@@ -1421,13 +1608,19 @@ def _extract_paren_content(type_str: str) -> Optional[Tuple[str, str]]:
         return None
     base = type_str[:paren_idx].strip()
     depth = 0
-    for i in range(paren_idx, len(type_str)):
-        if type_str[i] == "(":
+    i = paren_idx
+    while i < len(type_str):
+        c = type_str[i]
+        if c == '"':
+            i = _scan_quoted_identifier(type_str, i)
+            continue
+        if c == "(":
             depth += 1
-        elif type_str[i] == ")":
+        elif c == ")":
             depth -= 1
             if depth == 0:
                 return base, type_str[paren_idx + 1 : i]
+        i += 1
     raise ValueError(f"Unbalanced parentheses in type string: '{type_str}'")
 
 
@@ -1495,13 +1688,17 @@ def _sf_type_to_type_object(type_str: str) -> DataType:
                 # SQL grammar for OBJECT types; raise so backend bugs or
                 # malformed input surface loudly.
                 raise ValueError(f"Empty field in OBJECT type: '{type_str}'")
-            parts = field_def.split(None, 1)
-            if len(parts) != 2:
-                raise ValueError(f"Cannot parse OBJECT field definition: '{field_def}'")
-            field_name = parts[0]
-            type_part, nullable = extract_nullable_keyword(parts[1])
+            # Quoted-identifier-aware split so OBJECT field names containing
+            # spaces, commas, parens, or other non-bare characters survive
+            # round-trip through INFER_SCHEMA. The name token is passed to
+            # ``StructField`` with its surrounding quotes intact so
+            # ``ColumnIdentifier``'s ``ALREADY_QUOTED`` branch preserves
+            # mixed-case names verbatim (without quotes the bare-identifier
+            # rule would case-fold ``"Foo"`` to ``"FOO"``).
+            name_token, type_remainder = _split_object_field(field_def)
+            type_part, nullable = extract_nullable_keyword(type_remainder)
             field_type = _sf_type_to_type_object(type_part)
-            struct_fields.append(StructField(field_name, field_type, nullable=nullable))
+            struct_fields.append(StructField(name_token, field_type, nullable=nullable))
         return StructType(struct_fields, structured=True)
 
     precision_scale = get_number_precision_scale(type_str)
@@ -1678,11 +1875,11 @@ def format_year_month_interval_for_display(
             years = str(int(parts[0]))
             months = str(int(parts[1]))
     else:
-        # Format like "+2" or "-3"
-        if (
-            start_field == YearMonthIntervalType.YEAR
-            and end_field == YearMonthIntervalType.YEAR
-        ):
+        # Format like "+2" or "-3" — a single number without a year-month dash.
+        # When start_field is YEAR the value represents years (connector >=4.3.0
+        # omits the "-0" suffix when months=0). Only treat as months when the
+        # interval type starts at MONTH.
+        if start_field == YearMonthIntervalType.YEAR:
             years = str(int(remaining))
         else:
             months = str(int(remaining))

@@ -108,6 +108,24 @@ class RepeatedSubqueryElimination:
             total_num_ctes=self._total_number_ctes,
         )
 
+    @staticmethod
+    def _has_alias_conflict(
+        node: TreeNode, existing_cte: Optional[SnowflakePlan]
+    ) -> bool:
+        """Whether sharing ``existing_cte`` for ``node`` would map the same expr_id to a
+        different alias. encode_query_id hashes expr_to_alias by alias values only, so
+        nodes mapping the same expr_id to different aliases can collide. Merging such a
+        node into the shared CTE would silently drop an entry and corrupt parent column
+        resolution, so in that case we skip the CTE and render the node inline."""
+        if existing_cte is None:
+            return False
+        node_expr_to_alias = getattr(node, "expr_to_alias", None) or {}
+        return any(
+            key in existing_cte.expr_to_alias
+            and existing_cte.expr_to_alias[key] != alias
+            for key, alias in node_expr_to_alias.items()
+        )
+
     def _replace_duplicate_node_with_cte(
         self,
         root: TreeNode,
@@ -159,16 +177,20 @@ class RepeatedSubqueryElimination:
             if node in visited_nodes:
                 continue
 
-            # if the node is a duplicated node and deduplication is not done for the node,
-            # start the deduplication transformation use CTE
-            if node.encoded_node_id_with_query in duplicated_node_ids:
-                if node.encoded_node_id_with_query in resolved_with_block_map:
-                    # if the corresponding CTE block has been created, use the existing
-                    # one.
-                    resolved_with_block = resolved_with_block_map[
-                        node.encoded_node_id_with_query
-                    ]
-                else:
+            # Decide whether this node should be represented by a (new or shared) CTE:
+            # it must be a detected duplicate, and sharing the CTE must not introduce an
+            # alias conflict (see _has_alias_conflict). When it cannot be a CTE, the node
+            # is left inline and only the parent-propagation path applies, exactly like a
+            # non-duplicated node.
+            resolved_with_block = resolved_with_block_map.get(
+                node.encoded_node_id_with_query
+            )
+            is_cte_node = node.encoded_node_id_with_query in duplicated_node_ids and (
+                not self._has_alias_conflict(node, resolved_with_block)
+            )
+            if is_cte_node:
+                if resolved_with_block is None:
+                    # no CTE block has been created for this node yet, create one.
                     if (
                         self._query_generator.session.reduce_describe_query_enabled
                         and context._is_snowpark_connect_compatible_mode
@@ -187,6 +209,12 @@ class RepeatedSubqueryElimination:
                         node.encoded_node_id_with_query
                     ] = resolved_with_block
                     self._total_number_ctes += 1
+                elif getattr(node, "expr_to_alias", None):
+                    # reuse the existing CTE block. expr_ids are regenerated on copy, so
+                    # this node's keys differ from the node the CTE was built from; merge
+                    # this node's entries so every expr_id variant stays resolvable during
+                    # parent re-resolution.
+                    resolved_with_block.expr_to_alias.update(node.expr_to_alias)
                 _update_parents(
                     node, should_replace_child=True, new_child=resolved_with_block
                 )

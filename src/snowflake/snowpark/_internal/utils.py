@@ -383,7 +383,7 @@ def get_application_name() -> str:
 
 
 def is_single_quoted(name: str) -> bool:
-    return name.startswith("'") and name.endswith("'")
+    return name.startswith(SINGLE_QUOTE) and name.endswith(SINGLE_QUOTE)
 
 
 def is_snowflake_quoted_id_case_insensitive(name: str) -> bool:
@@ -1430,6 +1430,7 @@ def parse_table_name(table_name: str) -> List[str]:
 
 EMPTY_STRING = ""
 DOUBLE_QUOTE = '"'
+SINGLE_QUOTE = "'"
 # Quoted values may also include newlines, so '.' must match _everything_ within quotes
 ALREADY_QUOTED = re.compile('^(".+")$', re.DOTALL)
 UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
@@ -1955,6 +1956,8 @@ class TimeTravelConfig(NamedTuple):
     timestamp: Optional[str] = None
     timestamp_type: Optional[str] = None
     stream: Optional[str] = None
+    version: Optional[int] = None
+    version_tag: Optional[str] = None
 
     @staticmethod
     def validate_and_normalize_params(
@@ -1964,6 +1967,8 @@ class TimeTravelConfig(NamedTuple):
         timestamp: Optional[Union[str, datetime.datetime]] = None,
         timestamp_type: Optional[Union[str, "TimestampTimeZone"]] = None,
         stream: Optional[str] = None,
+        version: Optional[int] = None,
+        version_tag: Optional[str] = None,
     ) -> Optional["TimeTravelConfig"]:
         """
         Validates and normalizes time travel parameters.
@@ -1986,7 +1991,8 @@ class TimeTravelConfig(NamedTuple):
             ValueError: If parameters are invalid.
         """
         time_travel_arg_count = sum(
-            arg is not None for arg in (statement, offset, timestamp, stream)
+            arg is not None
+            for arg in (statement, offset, timestamp, stream, version, version_tag)
         )
 
         # Validate mode
@@ -2003,10 +2009,50 @@ class TimeTravelConfig(NamedTuple):
                 f"Invalid time travel mode: {time_travel_mode}. Must be 'at' or 'before'."
             )
 
+        # version (Iceberg snapshot id) only works with 'at' mode — matches
+        # Snowflake's ``AT(VERSION => <id>)`` grammar and Spark Iceberg's
+        # ``snapshot-id`` option semantics ("read snapshot N", not "before N").
+        if version is not None and time_travel_mode.lower() != "at":
+            raise ValueError(
+                "Iceberg snapshot version time travel can only be used with "
+                "time_travel_mode='at', not 'before'."
+            )
+
+        # Validate version type — snapshot IDs are 64-bit integers in Iceberg.
+        # Reject bool explicitly because ``isinstance(True, int)`` is True in Python.
+        if version is not None and (
+            not isinstance(version, int) or isinstance(version, bool)
+        ):
+            raise ValueError(
+                f"'version' must be an int Iceberg snapshot id, got {type(version).__name__}."
+            )
+
+        # version_tag (Iceberg tag name, mapped to Snowflake's
+        # ``AT(VERSION_TAG => '<name>')`` grammar) only works with 'at' mode —
+        # Iceberg tag reads are positional (bound to a specific snapshot),
+        # not range-of-time, so ``BEFORE`` has no meaning.
+        if version_tag is not None and time_travel_mode.lower() != "at":
+            raise ValueError(
+                "Iceberg version_tag time travel can only be used with "
+                "time_travel_mode='at', not 'before'."
+            )
+
+        # Validate version_tag type — Iceberg tag names are strings. Empty
+        # strings are invalid.
+        if version_tag is not None:
+            if not isinstance(version_tag, str):
+                raise ValueError(
+                    f"'version_tag' must be a string Iceberg tag name, "
+                    f"got {type(version_tag).__name__}."
+                )
+            if not version_tag:
+                raise ValueError("'version_tag' must be a non-empty Iceberg tag name.")
+
         # Validate exactly one parameter is provided
         if time_travel_arg_count != 1:
             raise ValueError(
-                "Exactly one of 'statement', 'offset', 'timestamp', or 'stream' must be provided."
+                "Exactly one of 'statement', 'offset', 'timestamp', 'stream', "
+                "'version', or 'version_tag' must be provided."
             )
 
         # Normalize timestamp
@@ -2040,6 +2086,8 @@ class TimeTravelConfig(NamedTuple):
             timestamp=normalized_timestamp,
             timestamp_type=timestamp_type,
             stream=stream,
+            version=version,
+            version_tag=version_tag,
         )
 
     def generate_sql_clause(self) -> str:
@@ -2048,16 +2096,41 @@ class TimeTravelConfig(NamedTuple):
         Args:
             config: Time travel configuration.
         Returns:
-            SQL clause like " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('...'))"
+            SQL clause like " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('...'))",
+            " AT (VERSION => 1234567890)" for Iceberg snapshot id time travel,
+            or " AT (VERSION_TAG => 'release_v1')" for Iceberg tag time
+            travel.
+
+        Note on escaping: string-valued parameters (``statement``,
+        ``stream``, ``version_tag``, ``timestamp``) are embedded inside
+        single-quoted SQL literals via the existing ``str_to_sql``
+        helper in ``analyzer.datatype_mapper`` so embedded ``'``, ``\\``
+        and newline characters are properly escaped. This keeps the
+        emission consistent with the rest of Snowpark Python's SQL
+        generation and avoids both broken SQL and injection surface
+        (e.g. ``x'); DROP TABLE foo; --``). Numeric parameters
+        (``offset``, ``version``) are not quoted and don't need
+        escaping.
+
+        ``str_to_sql`` is imported lazily here because
+        ``analyzer.datatype_mapper`` imports from this module at top
+        level — same pattern used elsewhere in this file for analyzer
+        cross-references.
         """
+        from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
+
         clause = f" {self.time_travel_mode.upper()} "
 
         if self.statement is not None:
-            clause += f"(STATEMENT => '{self.statement}')"
+            clause += f"(STATEMENT => {str_to_sql(self.statement)})"
         elif self.offset is not None:
             clause += f"(OFFSET => {self.offset})"
         elif self.stream is not None:
-            clause += f"(STREAM => '{self.stream}')"
+            clause += f"(STREAM => {str_to_sql(self.stream)})"
+        elif self.version is not None:
+            clause += f"(VERSION => {self.version})"
+        elif self.version_tag is not None:
+            clause += f"(VERSION_TAG => {str_to_sql(self.version_tag)})"
         elif self.timestamp is not None:
             if self.timestamp_type is not None:
                 timestamp_type = self.timestamp_type.upper()
@@ -2069,9 +2142,9 @@ class TimeTravelConfig(NamedTuple):
                     func_name = "TO_TIMESTAMP_TZ"
                 else:
                     func_name = "TO_TIMESTAMP"
-                clause += f"(TIMESTAMP => {func_name}('{self.timestamp}'))"
+                clause += f"(TIMESTAMP => {func_name}({str_to_sql(self.timestamp)}))"
             else:
-                clause += f"(TIMESTAMP => '{self.timestamp}')"
+                clause += f"(TIMESTAMP => {str_to_sql(self.timestamp)})"
 
         return clause
 

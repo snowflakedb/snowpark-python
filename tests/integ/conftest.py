@@ -4,13 +4,13 @@
 #
 import os
 from logging import getLogger
-import sys
 from typing import Dict
 
 import pytest
 
 import snowflake.connector
 from snowflake.snowpark import Session
+from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
@@ -18,6 +18,7 @@ from tests.ast.ast_test_utils import (
     close_full_ast_validation_mode,
     setup_full_ast_validation_mode,
 )
+from tests.integ.session_parameters import set_up_test_session_parameters
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import (
     TEST_SCHEMA,
@@ -73,6 +74,9 @@ def set_up_external_access_integration_resources(
     integration1,
     integration2,
     integration3,
+    key4,
+    integration4,
+    wif_audience,
 ):
     try:
         # IMPORTANT SETUP NOTES: the test role needs to be granted the creation privilege
@@ -127,6 +131,12 @@ def set_up_external_access_integration_resources(
         ).collect()
         session.sql(
             f"""
+    CREATE SECRET IF NOT EXISTS {key4}
+      TYPE = WORKLOAD_IDENTITY_FEDERATION;
+    """
+        ).collect()
+        session.sql(
+            f"""
     CREATE IF NOT EXISTS EXTERNAL ACCESS INTEGRATION {integration1}
       ALLOWED_NETWORK_RULES = ({rule1})
       ALLOWED_AUTHENTICATION_SECRETS = ({key1})
@@ -149,15 +159,26 @@ def set_up_external_access_integration_resources(
       ENABLED = true;
     """
         ).collect()
+        session.sql(
+            f"""
+    CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS {integration4}
+      ALLOWED_NETWORK_RULES = ({rule1})
+      ALLOWED_AUTHENTICATION_SECRETS = ({key4})
+      ENABLED = true;
+    """
+        ).collect()
         CONNECTION_PARAMETERS["external_access_rule1"] = rule1
         CONNECTION_PARAMETERS["external_access_rule2"] = rule2
         CONNECTION_PARAMETERS["external_access_rule3"] = rule3
         CONNECTION_PARAMETERS["external_access_key1"] = key1
         CONNECTION_PARAMETERS["external_access_key2"] = key2
         CONNECTION_PARAMETERS["external_access_key3"] = key3
+        CONNECTION_PARAMETERS["external_access_key4"] = key4
         CONNECTION_PARAMETERS["external_access_integration1"] = integration1
         CONNECTION_PARAMETERS["external_access_integration2"] = integration2
         CONNECTION_PARAMETERS["external_access_integration3"] = integration3
+        CONNECTION_PARAMETERS["external_access_integration4"] = integration4
+        CONNECTION_PARAMETERS["wif_audience"] = wif_audience
     except SnowparkSQLException:
         # GCP currently does not support external access integration
         # we can remove the exception once the integration is available on GCP
@@ -183,9 +204,12 @@ def clean_up_external_access_integration_resources():
     CONNECTION_PARAMETERS.pop("external_access_key1", None)
     CONNECTION_PARAMETERS.pop("external_access_key2", None)
     CONNECTION_PARAMETERS.pop("external_access_key3", None)
+    CONNECTION_PARAMETERS.pop("external_access_key4", None)
     CONNECTION_PARAMETERS.pop("external_access_integration1", None)
     CONNECTION_PARAMETERS.pop("external_access_integration2", None)
     CONNECTION_PARAMETERS.pop("external_access_integration3", None)
+    CONNECTION_PARAMETERS.pop("external_access_integration4", None)
+    CONNECTION_PARAMETERS.pop("wif_audience", None)
 
 
 def set_up_dataframe_processor_parameters(
@@ -286,6 +310,9 @@ def test_schema(connection, local_testing_mode) -> None:
             cursor.execute(
                 f"GRANT ALL PRIVILEGES ON SCHEMA {TEST_SCHEMA} TO ROLE PUBLIC"
             )
+            cursor.execute(
+                f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
+            )
             yield
             cursor.execute(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}")
 
@@ -311,9 +338,12 @@ def session(
     key1 = "snowpark_python_test_key1"
     key2 = "snowpark_python_test_key2"
     key3 = "snowpark_python_test_key3"
+    key4 = "snowpark_python_test_key4"
     integration1 = "snowpark_python_test_integration1"
     integration2 = "snowpark_python_test_integration2"
     integration3 = "snowpark_python_test_integration3"
+    integration4 = "snowpark_python_test_integration4"
+    wif_audience = "https://replace-with-your-wif-audience"
 
     session = (
         Session.builder.configs(db_parameters)
@@ -347,6 +377,9 @@ def session(
             integration1,
             integration2,
             integration3,
+            key4,
+            integration4,
+            wif_audience,
         )
 
     if validate_ast:
@@ -355,13 +388,7 @@ def session(
         )
 
     # TODO: SNOW-2346239: Set parameter on user level instead of in config file
-    if not local_testing_mode:
-        session.sql(
-            "alter session set ENABLE_EXTRACTION_PUSHDOWN_EXTERNAL_PARQUET_FOR_COPY_PHASE_I='Track';"
-        ).collect()
-        session.sql("alter session set ENABLE_ROW_ACCESS_POLICY=true").collect()
-        if sys.version_info.major == 3 and sys.version_info.minor == 14:
-            session.sql("alter session set ENABLE_PYTHON_3_14=true").collect()
+    set_up_test_session_parameters(session, local_testing_mode)
 
     try:
         yield session
@@ -389,9 +416,12 @@ def profiler_session(
     key1 = "snowpark_python_profiler_test_key1"
     key2 = "snowpark_python_profiler_test_key2"
     key3 = "snowpark_python_profiler_test_key3"
+    key4 = "snowpark_python_profiler_test_key4"
     integration1 = "snowpark_python_profiler_test_integration1"
     integration2 = "snowpark_python_profiler_test_integration2"
     integration3 = "snowpark_python_profiler_test_integration3"
+    integration4 = "snowpark_python_profiler_test_integration4"
+    wif_audience = "https://replace-with-your-wif-audience"
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
@@ -411,7 +441,11 @@ def profiler_session(
             integration1,
             integration2,
             integration3,
+            key4,
+            integration4,
+            wif_audience,
         )
+    set_up_test_session_parameters(session, local_testing_mode)
     try:
         yield session
     finally:
@@ -433,6 +467,9 @@ def temp_schema(connection, session, local_testing_mode) -> None:
             # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
             cursor.execute(
                 f"GRANT ALL PRIVILEGES ON SCHEMA {temp_schema_name} TO ROLE PUBLIC"
+            )
+            cursor.execute(
+                f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
             )
             yield temp_schema_name
             cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")

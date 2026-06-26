@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import sys
 import datetime
 from logging import getLogger
 from typing import Dict, List, Literal, NamedTuple, Optional, Union, overload
@@ -42,13 +41,7 @@ from snowflake.snowpark.dataframe import DataFrame, _disambiguate
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import TimestampTimeZone
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
+from collections.abc import Iterable
 
 _logger = getLogger(__name__)
 
@@ -301,7 +294,20 @@ class Table(DataFrame):
         timestamp: Optional[Union[str, datetime.datetime]] = None,
         timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
+        **kwargs,
     ) -> None:
+        # ``version`` (Iceberg snapshot id) and ``version_tag`` (Iceberg tag
+        # name) are intentionally not in the public signature — they are
+        # consumed by Snowpark Connect and may be removed once a first-class
+        # API lands. Accept them through **kwargs so direct callers can
+        # still pass them without us advertising the surface.
+        version = kwargs.pop("version", None)
+        version_tag = kwargs.pop("version_tag", None)
+        if kwargs:
+            raise TypeError(
+                f"Table() got unexpected keyword arguments: {sorted(kwargs)}"
+            )
+
         if _ast_stmt is None and session is not None and _emit_ast:
             _ast_stmt = session._ast_batch.bind()
             ast = with_src_position(_ast_stmt.expr.table, _ast_stmt)
@@ -328,6 +334,8 @@ class Table(DataFrame):
             timestamp=timestamp,
             timestamp_type=timestamp_type,
             stream=stream,
+            version=version,
+            version_tag=version_tag,
         )
 
         snowflake_table_plan = SnowflakeTable(

@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import datetime
 import doctest
 import logging
 import os
@@ -13,6 +14,7 @@ from _pytest.doctest import DoctestItem
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import to_timestamp
+from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
@@ -21,6 +23,8 @@ TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
 LOCAL_TESTING_MODE = False
 
 sys.path.append("tests/")
+from integ.session_parameters import set_up_test_session_parameters  # noqa: E402
+
 # get the absolute path of rsa private key files
 params_file = os.path.abspath("tests/parameters.py")
 with open("tests/parameters.py", encoding="utf-8") as f:
@@ -66,11 +70,15 @@ def add_snowpark_session(doctest_namespace, pytestconfig):
         session.sql_simplifier_enabled = (
             os.environ.get("USE_SQL_SIMPLIFIER") == "1" or LOCAL_TESTING_MODE
         )
+        set_up_test_session_parameters(session, LOCAL_TESTING_MODE)
         if RUNNING_ON_GH:
             session.sql(f"CREATE SCHEMA IF NOT EXISTS {TEST_SCHEMA}").collect()
             # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
             session.sql(
                 f"GRANT ALL PRIVILEGES ON SCHEMA {TEST_SCHEMA} TO ROLE PUBLIC"
+            ).collect()
+            session.sql(
+                f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
             ).collect()
             session.use_schema(TEST_SCHEMA)
         doctest_namespace["session"] = session
@@ -93,6 +101,16 @@ def pytest_collection_modifyitems(config, items):
     This function is used to skip some doctests on certain conditions.
     For example, some functions in PrPr might not be available on Azure and GCP.
     """
+    # Mark flaky tests as xfail for a time
+    if datetime.date.today() <= datetime.date(2026, 6, 4):
+        xfail_ai = pytest.mark.xfail(
+            reason="dataframe_ai_functions doctests flaky due to infrastructure issues",
+            strict=False,
+        )
+        for item in items:
+            if isinstance(item, DoctestItem) and "dataframe_ai" in item.name:
+                item.add_marker(xfail_ai)
+
     host = (
         conn_params.get("host") or conn_params.get("HOST") or conn_params.get("account")
     )
@@ -106,6 +124,6 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             # identify doctest items
             if isinstance(item, DoctestItem):
-                # match by the test’s “name” (module.name)
+                # match by the test's "name" (module.name)
                 if any(test_name in item.name for test_name in disabled_doctests):
                     item.add_marker(skip)

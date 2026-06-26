@@ -17,7 +17,7 @@ from array import array
 from collections import defaultdict
 from functools import reduce
 from logging import getLogger
-from threading import RLock
+from threading import Event, RLock
 from types import ModuleType
 from typing import (
     TYPE_CHECKING,
@@ -242,13 +242,7 @@ if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
     from snowflake.snowpark.udf import UserDefinedFunction  # pragma: no cover
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
+from collections.abc import Iterable
 
 _logger = getLogger(__name__)
 
@@ -858,6 +852,7 @@ class Session:
         self._client_telemetry = EventTableTelemetry(session=self)
 
         self._ast_batch = AstBatch(self)
+        self._start_async_aggregation_prefetch_if_needed()
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -1679,10 +1674,10 @@ class Session:
             >>> import pandas
             >>> import dateutil
             >>> # add numpy with the latest version on Snowflake Anaconda
-            >>> # and pandas with the version "2.1.*"
+            >>> # and pandas with the version "2.3.*"
             >>> # and dateutil with the local version in your environment
             >>> session.custom_package_usage_config = {"enabled": True}  # This is added because latest dateutil is not in snowflake yet
-            >>> session.add_packages("numpy", "pandas==2.2.*", dateutil)
+            >>> session.add_packages("numpy", "pandas==2.3.*", dateutil)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__, dateutil.__name__]
@@ -1739,7 +1734,7 @@ class Session:
             >>> session.clear_packages()
             >>> len(session.get_packages())
             0
-            >>> session.add_packages("numpy", "pandas==2.2.*")
+            >>> session.add_packages("numpy", "pandas==2.3.*")
             >>> len(session.get_packages())
             2
             >>> session.remove_package("numpy")
@@ -2133,7 +2128,10 @@ class Session:
             if isinstance(m, str) and m not in result_dict:
                 res.append(m)
             elif isinstance(m, ModuleType) and m.__name__ not in result_dict:
-                res.append(f"{m.__name__}=={m.__version__}")
+                if m.__name__ == "cloudpickle":
+                    res.append(f"{m.__name__}>={m.__version__}")
+                else:
+                    res.append(f"{m.__name__}=={m.__version__}")
 
         return res
 
@@ -2727,6 +2725,7 @@ class Session:
         timestamp: Optional[Union[str, datetime.datetime]] = None,
         timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
+        **kwargs,
     ) -> Table:
         """
         Returns a Table that points the specified table.
@@ -2774,6 +2773,18 @@ class Session:
             # timestamp_type remains "NTZ" (user's explicit choice respected)
             >>> table2 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware, timestamp_type="NTZ")  # doctest: +SKIP
         """
+        # ``version`` (Iceberg snapshot id) and ``version_tag`` (Iceberg tag
+        # name) are intentionally not in the public signature — they are
+        # consumed by Snowpark Connect and may be removed once a first-class
+        # API lands. Accept them through **kwargs so direct callers can
+        # still pass them without us advertising the surface.
+        version = kwargs.pop("version", None)
+        version_tag = kwargs.pop("version_tag", None)
+        if kwargs:
+            raise TypeError(
+                f"table() got unexpected keyword arguments: {sorted(kwargs)}"
+            )
+
         if _emit_ast:
             stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.table, stmt)
@@ -2810,6 +2821,8 @@ class Session:
             timestamp=timestamp,
             timestamp_type=timestamp_type,
             stream=stream,
+            version=version,
+            version_tag=version_tag,
         )
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
@@ -5045,53 +5058,129 @@ class Session:
 
     def _retrieve_aggregation_function_list(self) -> None:
         """Retrieve the list of aggregation functions which will later be used in sql simplifier."""
-        if (
-            not (
-                context._is_snowpark_connect_compatible_mode
-                and context._snowpark_connect_flatten_select_after_sort
-            )
-            or context._aggregation_function_set
+        if not (
+            context._is_snowpark_connect_compatible_mode
+            and context._snowpark_connect_flatten_select_after_sort
         ):
             return
 
-        retrieved_set = set()
-
-        # User-defined aggregation functions
-        try:
-            retrieved_set.update(
-                {
-                    r[0].lower()
-                    for r in self.sql(
-                        """select function_name from information_schema.functions where is_aggregate = 'YES'"""
-                    ).collect()
-                }
-            )
-        except Exception as e:
-            _logger.debug(
-                "Unable to get user-defined aggregation functions: %s",
-                e,
-            )
-
-        # System built-in aggregation functions
-        try:
-            retrieved_set.update(
-                {
-                    r[0].lower()
-                    for r in self.sql(
-                        """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'"""
-                    ).collect()
-                }
-            )
-        except Exception as e:
-            _logger.debug(
-                "Unable to get system aggregation functions, "
-                "falling back to hardcoded list: %s",
-                e,
-            )
-            retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
-
         with context._aggregation_function_set_lock:
-            context._aggregation_function_set.update(retrieved_set)
+            if context._aggregation_function_set:
+                return
+
+        retrieved_set = set()
+        system_fetch_succeeded = False
+        prefetch_state = context._aggregation_function_prefetch_state
+
+        # Atomically claim the async job. The claiming thread creates an Event so concurrent
+        # threads can wait on it rather than issuing redundant sync queries.
+        # AsyncJob.result() is not thread-safe — the underlying connector cursor mutates
+        # shared state (_result, _rownumber, _prefetch_hook) during result fetching, so only
+        # one thread may call it. The lock is held only for the pointer swap and event setup
+        # (nanoseconds), not the network call itself.
+        with prefetch_state["lock"]:
+            job, prefetch_state["job"] = prefetch_state["job"], None
+            if job is not None:
+                fetch_event = Event()
+                prefetch_state["event"] = fetch_event
+                wait_event = None
+            elif prefetch_state["event"] is not None:
+                fetch_event = None
+                wait_event = prefetch_state["event"]
+            else:
+                fetch_event = None
+                wait_event = None
+
+        if wait_event is not None:
+            # The query typically finishes in ~5s; 20s gives ample headroom while
+            # bounding the hang in the rare case the winner thread dies before its
+            # finally block runs (e.g. os._exit, interpreter shutdown).
+            wait_event.wait(timeout=20)
+            with context._aggregation_function_set_lock:
+                if context._aggregation_function_set:
+                    return
+            # Winner failed or timed out; fall through to sync query.
+
+        try:
+            if job is not None:
+                try:
+                    retrieved_set.update({r[0].lower() for r in job.result()})
+                    system_fetch_succeeded = True
+                except Exception as e:
+                    _logger.debug(
+                        "Unable to use async aggregation function prefetch: %s",
+                        e,
+                    )
+            else:
+                _logger.debug(
+                    "Async aggregation function prefetch job is unavailable; using sync fallback."
+                )
+
+            # Sync fallback query.
+            if not system_fetch_succeeded:
+                try:
+                    retrieved_set.update(
+                        {
+                            r[0].lower()
+                            for r in self._conn.run_query(
+                                """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'""",
+                                _is_internal=True,
+                            )["data"]
+                        }
+                    )
+                    system_fetch_succeeded = True
+                except Exception as e:
+                    _logger.debug(
+                        "Unable to get aggregation functions via sync fallback query: %s",
+                        e,
+                    )
+
+            # Fallback to the local hardcoded list only when metadata retrieval fails.
+            if not system_fetch_succeeded:
+                retrieved_set.update(context._KNOWN_AGGREGATION_FUNCTIONS)
+
+            with context._aggregation_function_set_lock:
+                context._aggregation_function_set.update(retrieved_set)
+        finally:
+            # Signal after _aggregation_function_set is published so waiters see
+            # the populated set immediately upon waking. Also fires on BaseException
+            # (e.g. KeyboardInterrupt) so waiters are never left blocking until timeout.
+            if fetch_event is not None:
+                fetch_event.set()
+
+    def _start_async_aggregation_prefetch_if_needed(self) -> None:
+        """Start aggregation metadata prefetch only when not already in progress."""
+        if not (
+            context._is_snowpark_connect_compatible_mode
+            and context._snowpark_connect_flatten_select_after_sort
+        ):
+            return
+        prefetch_state = context._aggregation_function_prefetch_state
+        with prefetch_state["lock"]:
+            with context._aggregation_function_set_lock:
+                if context._aggregation_function_set:
+                    return
+            if prefetch_state["job"] is not None:
+                return
+            # A winner thread has already claimed the async job and is still publishing results.
+            # Do not start a new async query while that in-flight fetch is unfinished.
+            if (
+                prefetch_state["event"] is not None
+                and not prefetch_state["event"].is_set()
+            ):
+                return
+            try:
+                result = self._conn.execute_async_and_notify_query_listener(
+                    """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'""",
+                    _is_internal=True,
+                )
+                prefetch_state["job"] = self.create_async_job(result["queryId"])
+            except Exception as e:  # pragma: no cover
+                _logger.debug(
+                    "Unable to start async aggregation metadata prefetch: %s",
+                    e,
+                )
+                prefetch_state["job"] = None
 
     def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
         """

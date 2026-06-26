@@ -209,10 +209,10 @@ class _DGQLQueryBuilder:
                     object_name, object_version
                 )
                 object_version = None
-            object_name = object_name.replace('"', '\\\\"')
+            object_name = object_name.replace('"', '\\"')
             query_object = object_name
             if object_version:
-                object_version = object_version.replace('"', '\\\\"')
+                object_version = object_version.replace('"', '\\"')
                 query_object = object_version
                 parent_param = f', parentName:"{object_name}"'
 
@@ -229,6 +229,13 @@ class _DGQLQueryBuilder:
             parent_param=parent_param,
             edges="".join(parts),
         )
+        # The assembled DGQL body is embedded inside a single-quoted SQL string
+        # literal passed to SYSTEM$DGQL. Backslash must be escaped before the
+        # single quote because Snowflake treats '\' as an escape character in
+        # string literals, so doubling quotes alone is insufficient when the
+        # input contains a backslash. This mirrors str_to_sql() in
+        # _internal/analyzer/datatype_mapper.py.
+        query = query.replace("\\", "\\\\").replace("'", "''")
         return f"select SYSTEM$DGQL('{query}')"
 
     @staticmethod

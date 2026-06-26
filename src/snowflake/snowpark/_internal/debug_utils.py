@@ -64,7 +64,7 @@ class DataFrameTraceNode:
                     code_lines[0] = code_lines[0][start_column:]
                     code_lines[-1] = code_lines[-1][:end_column]
             else:
-                # For python 3.9/3.10, we do not extract the end line from the source code
+                # For python 3.10, we do not extract the end line from the source code
                 # so we just read the start line and return.
                 for line in itertools.islice(f, start_line - 1, start_line):
                     code_lines.append(line)

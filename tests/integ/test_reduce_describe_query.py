@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List
+from typing import Dict, List
 import copy
 import pytest
 
@@ -10,7 +10,7 @@ import snowflake.snowpark._internal.analyzer.snowflake_plan as snowflake_plan
 
 from unittest.mock import patch
 
-from snowflake.snowpark import DataFrame
+from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
+from snowflake.snowpark.exceptions import SnowparkPlanException
 from snowflake.snowpark.functions import (
     avg,
     col,
@@ -34,9 +35,9 @@ from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED,
     Session,
 )
-from snowflake.snowpark.types import LongType, StructField, StructType
+from snowflake.snowpark.types import LongType, StringType, StructField, StructType
 from tests.integ.utils.sql_counter import SqlCounter
-from tests.utils import IS_IN_STORED_PROC, TestData
+from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 pytestmark = [
     pytest.mark.skipif(
@@ -226,6 +227,10 @@ def check_attributes_equality(attrs1: List[Attribute], attrs2: List[Attribute]) 
         assert attr1.name == attr2.name
         assert attr1.datatype == attr2.datatype
         assert attr1.nullable == attr2.nullable
+
+
+def _attrs_by_name(parent_attributes: List[Attribute]) -> Dict[str, Attribute]:
+    return {attr.name: attr for attr in parent_attributes}
 
 
 def has_star_in_projection(df: DataFrame) -> bool:
@@ -419,6 +424,289 @@ def test_cache_metadata_on_selectable_entity(session):
         else 1,
     ):
         _ = df.col("a")
+
+
+def test_project_alias_infers_attributes_from_parent_metadata(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
+    df = session.create_dataframe(["v"], schema=["c"])
+    _ = df.schema
+
+    parent_attributes = df._plan._metadata.attributes
+    assert parent_attributes is not None
+    expected_attributes = [parent_attributes[0].with_name("a2")]
+
+    df2 = df.select(col("c").alias("a2"))
+    if session.reduce_describe_query_enabled:
+        check_attributes_equality(df2._plan._metadata.attributes, expected_attributes)
+        expected_describe_count = 0
+    else:
+        assert df2._plan._metadata.attributes is None
+        expected_describe_count = 1
+
+    with SqlCounter(query_count=0, describe_count=expected_describe_count):
+        check_attributes_equality(df2._plan.attributes, expected_attributes)
+
+
+def test_swap_column_aliases_infers_types_from_source_names(session):
+    """n-1: columns a, b; n: b AS a, a AS b — metadata follows source column types."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    _ = df.schema
+
+    parent_attributes = df._plan._metadata.attributes
+    assert parent_attributes is not None
+    by_name = _attrs_by_name(parent_attributes)
+    expected_attributes = [
+        by_name['"B"'].with_name("a"),
+        by_name['"A"'].with_name("b"),
+    ]
+
+    df2 = df.select(col("b").alias("a"), col("a").alias("b"))
+    Utils.check_answer(df2, [Row(A=2, B=1)], sort=False)
+
+    if session.reduce_describe_query_enabled:
+        check_attributes_equality(df2._plan._metadata.attributes, expected_attributes)
+        expected_describe_count = 0
+    else:
+        assert df2._plan._metadata.attributes is None
+        expected_describe_count = 1
+
+    with SqlCounter(query_count=0, describe_count=expected_describe_count):
+        check_attributes_equality(df2._plan.attributes, expected_attributes)
+
+
+def test_swap_mixed_column_types_inference_follows_source(session):
+    """Swapped output names must take datatypes from the referenced source column."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
+    schema = StructType(
+        [
+            StructField("a", LongType(), nullable=True),
+            StructField("b", StringType(), nullable=True),
+        ]
+    )
+    df = session.create_dataframe([(1, "x")], schema=schema)
+    _ = df.schema
+
+    parent_attributes = df._plan._metadata.attributes
+    assert parent_attributes is not None
+    by_name = _attrs_by_name(parent_attributes)
+    expected_attributes = [
+        by_name['"B"'].with_name("a"),
+        by_name['"A"'].with_name("b"),
+    ]
+
+    df2 = df.select(col("b").alias("a"), col("a").alias("b"))
+    Utils.check_answer(df2, [Row(A="x", B=1)], sort=False)
+
+    if session.reduce_describe_query_enabled:
+        check_attributes_equality(df2._plan._metadata.attributes, expected_attributes)
+        expected_describe_count = 0
+    else:
+        assert df2._plan._metadata.attributes is None
+        expected_describe_count = 1
+
+    with SqlCounter(query_count=0, describe_count=expected_describe_count):
+        check_attributes_equality(df2._plan.attributes, expected_attributes)
+
+
+def test_column_permutation_inference_name_keyed_lookup(session):
+    """Non-swap rename: c->a, a->x, b->y — each output type matches its source column."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
+    df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
+    _ = df.schema
+
+    parent_attributes = df._plan._metadata.attributes
+    assert parent_attributes is not None
+    by_name = _attrs_by_name(parent_attributes)
+    expected_attributes = [
+        by_name['"C"'].with_name("a"),
+        by_name['"A"'].with_name("x"),
+        by_name['"B"'].with_name("y"),
+    ]
+
+    df2 = df.select(col("c").alias("a"), col("a").alias("x"), col("b").alias("y"))
+    Utils.check_answer(df2, [Row(A=3, X=1, Y=2)], sort=False)
+
+    if session.reduce_describe_query_enabled:
+        check_attributes_equality(df2._plan._metadata.attributes, expected_attributes)
+        expected_describe_count = 0
+    else:
+        assert df2._plan._metadata.attributes is None
+        expected_describe_count = 1
+
+    with SqlCounter(query_count=0, describe_count=expected_describe_count):
+        check_attributes_equality(df2._plan.attributes, expected_attributes)
+
+
+def test_chained_simple_renames_infer_from_previous_metadata(session):
+    """Second select's parent already has inferred attributes from the first rename."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
+    df = session.create_dataframe([[10, 20]], schema=["a", "b"])
+    _ = df.schema
+
+    df1 = df.select(col("a").alias("p"), col("b").alias("q"))
+    if session.reduce_describe_query_enabled:
+        assert df1._plan._metadata.attributes is not None
+    mid_attrs = df1._plan._metadata.attributes
+    assert mid_attrs is not None or not session.reduce_describe_query_enabled
+
+    df2 = df1.select(col("p").alias("x"), col("q").alias("y"))
+    _ = df1.schema
+
+    if session.reduce_describe_query_enabled:
+        assert df2._plan._metadata.attributes is not None
+        by_mid = _attrs_by_name(df1._plan._metadata.attributes or [])
+        expected_attributes = [
+            by_mid['"P"'].with_name("x"),
+            by_mid['"Q"'].with_name("y"),
+        ]
+        check_attributes_equality(df2._plan._metadata.attributes, expected_attributes)
+        with SqlCounter(query_count=0, describe_count=0):
+            check_attributes_equality(df2._plan.attributes, expected_attributes)
+    else:
+        assert df2._plan._metadata.attributes is None
+        with SqlCounter(query_count=0, describe_count=1):
+            _ = df2._plan.attributes
+
+
+def test_quoted_case_sensitive_sql_column_metadata_inference(session):
+    """Delimited identifier from session.sql: chained select infers metadata without DESCRIBE."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
+    df = session.sql('SELECT 1 AS "MixedCase"')
+    with SqlCounter(query_count=0, describe_count=1, strict=False):
+        _ = df.schema
+
+    df2 = df.select(col('"MixedCase"'))
+    if session.reduce_describe_query_enabled:
+        assert df2._plan._metadata.attributes is not None
+        assert len(df2._plan._metadata.attributes) == 1
+        assert df2._plan._metadata.attributes[0].name == '"MixedCase"'
+
+    expected_describe = 0 if session.reduce_describe_query_enabled else 1
+    with SqlCounter(query_count=0, describe_count=expected_describe):
+        attrs = df2._plan.attributes
+    assert attrs is not None
+    assert len(attrs) == 1
+    assert attrs[0].name == '"MixedCase"'
+
+
+def test_non_simple_projection_skips_metadata_inference(session):
+    """Expressions other than plain column or simple alias(column) do not infer attributes."""
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    _ = df.schema
+
+    df2 = df.select((col("a") + lit(1)).alias("ap1"), "b")
+
+    assert df2._plan._metadata.attributes is None
+
+    with SqlCounter(query_count=0, describe_count=1):
+        _ = df2._plan.attributes
+
+    df3 = df.select(col("a"), (col("b") + lit(1)).alias("b"))
+    assert df3._plan._metadata.attributes is None
+    with SqlCounter(query_count=0, describe_count=1):
+        _ = df3._plan.attributes
+
+
+def test_mixed_simple_column_and_literal_alias_still_requires_describe(session):
+    """Alias(Literal) is not a simple rename; inference aborts even when the first column is plain."""
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    _ = df.schema
+
+    df2 = df.select("a", lit(1).alias("c"))
+    assert df2._plan._metadata.attributes is None
+
+    with SqlCounter(query_count=0, describe_count=1):
+        _ = df2._plan.attributes
+
+
+def test_simple_column_then_complex_expression_no_partial_metadata(session):
+    """First column is inferable but second is not; all-or-nothing — no partial cached attributes."""
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    _ = df.schema
+
+    df2 = df.select("a", (col("b") + lit(1)).alias("b2"))
+    assert df2._plan._metadata.attributes is None
+
+    with SqlCounter(query_count=0, describe_count=1):
+        _ = df2._plan.attributes
+
+
+def test_cast_on_column_alias_still_requires_describe(session):
+    """Alias(Cast(...)) is not Alias(Attribute); types cannot be copied from the subquery without DESCRIBE."""
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    _ = df.schema
+
+    df2 = df.select(col("a").cast(LongType()).alias("a"))
+    assert df2._plan._metadata.attributes is None
+
+    with SqlCounter(query_count=0, describe_count=1):
+        _ = df2._plan.attributes
+
+
+def test_select_inference_skips_on_duplicate_parent_keys_and_missing_alias_name(
+    session,
+):
+    """SelectStatement.select: (1) duplicate parent output aliases — collision skips inference
+    on a follow-up select; DESCRIBE is not skipped when resolving schema for the duplicate-alias
+    frame. (2) Alias with missing output name — defensive inference abort."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
+    df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
+    _ = df.schema
+    dup = df.select((col("a") + 1).as_("b"), (col("c") + 1).as_("b"))
+    with SqlCounter(query_count=0, describe_count=1):
+        _ = dup.schema
+
+    dup_outer = dup.select(lit(1).alias("x"))
+    _ = dup_outer._plan.attributes
+
+    # Scenario B: hit missing-projected-name guard without DataFrame.resolve (which would
+    # quote_name(None) on the Alias). Call SelectStatement.select directly.
+    df2 = session.create_dataframe([[1]], schema=["a"])
+    _ = df2.schema
+    bad = col("a").alias("out")
+    object.__setattr__(bad._expression, "name", None)
+    inner = df2._select_statement
+    new_ss = inner.select([bad._named()])
+    assert new_ss.attributes is None
+
+
+def test_reduce_describe_inference_invalid_delimited_identifier_rejected(session):
+    """Malformed delimited identifiers are rejected by plan analysis (error 1200), not coerced."""
+    df = session.create_dataframe([[1]], schema=["x"])
+    _ = df.schema
+    for bad_col in (r'"col""', r'"ab"c"', r'""col"'):
+        with pytest.raises(SnowparkPlanException) as ex_info:
+            df.select(col(bad_col)).collect()
+        assert ex_info.value.error_code == "1200"
+        assert "Invalid identifier" in str(ex_info.value)
+
+
+def test_select_star_after_cached_parent(session):
+    """SELECT * after parent schema is cached: infer_metadata can copy child attributes when reduce_describe is on."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Not applicable when SQL simplifier is disabled.")
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    _ = df.schema
+    parent_attrs = df._plan._metadata.attributes
+    assert parent_attrs is not None
+
+    df2 = df.select("*")
+    if session.reduce_describe_query_enabled and session.cte_optimization_enabled:
+        assert df2._plan._metadata.attributes is not None
+        check_attributes_equality(df2._plan._metadata.attributes, parent_attrs)
+    else:
+        assert df2._plan._metadata.attributes is None
+
+    # Resolving attributes must match the logical schema (DESCRIBE may run when reduce is off).
+    check_attributes_equality(df2._plan.attributes, parent_attrs)
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")

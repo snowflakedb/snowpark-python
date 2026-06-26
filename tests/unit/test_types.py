@@ -5,7 +5,6 @@
 
 import decimal
 import os
-import sys
 import typing
 from array import array
 from collections import defaultdict
@@ -53,6 +52,7 @@ from snowflake.snowpark._internal.type_utils import (
     split_top_level_comma_fields,
     type_string_to_type_object,
     find_top_level_colon,
+    _MAX_ICEBERG_STRING_SIZE,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -95,13 +95,7 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import IS_WINDOWS, TestFiles
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
+from collections.abc import Iterable
 
 resources_path = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "../resources")
@@ -1043,6 +1037,25 @@ def test_convert_sf_to_sp_type_internal_size():
     assert isinstance(snowpark_type, StringType)
     assert snowpark_type.length == 16777216
     assert snowpark_type._is_max_size
+
+    # Iceberg deployments report internal_size=134217728 for max-length strings,
+    # which differs from the regular max_string_size (16777216). This must still
+    # be recognized as a max-size string so that StringType(134217728) == StringType().
+    snowpark_type = convert_sf_to_sp_type(
+        "TEXT", 0, 0, _MAX_ICEBERG_STRING_SIZE, 16777216
+    )
+    assert isinstance(snowpark_type, StringType)
+    assert snowpark_type.length == _MAX_ICEBERG_STRING_SIZE
+    assert snowpark_type._is_max_size
+    assert snowpark_type == StringType()
+
+    snowpark_type = convert_sf_to_sp_type(
+        "TEXT", 0, 0, _MAX_ICEBERG_STRING_SIZE, _MAX_ICEBERG_STRING_SIZE
+    )
+    assert isinstance(snowpark_type, StringType)
+    assert snowpark_type.length == _MAX_ICEBERG_STRING_SIZE
+    assert snowpark_type._is_max_size
+    assert snowpark_type == StringType()
 
     with pytest.raises(
         ValueError, match="Negative value is not a valid input for StringType"
