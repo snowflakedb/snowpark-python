@@ -1371,13 +1371,11 @@ def infer_schema_statement(
         + LEFT_PARENTHESIS
         + LOCATION
         + RIGHT_ARROW
-        + (path if is_single_quoted(path) else SINGLE_QUOTE + path + SINGLE_QUOTE)
+        + single_quote(path)
         + COMMA
         + FILE_FORMAT
         + RIGHT_ARROW
-        + SINGLE_QUOTE
-        + file_format_name
-        + SINGLE_QUOTE
+        + single_quote(file_format_name)
         + (
             ", "
             + ", ".join(
@@ -1406,7 +1404,14 @@ def file_operation_statement(
         return f"{REMOVE}{stage_location}{get_options_statement(options)}"
     if command.lower() == "copy_files":
         # For COPY FILES, file_name stores the value of the source stage location or subquery (from a DataFrame)
-        return f"{COPY_FILES}{INTO}{stage_location}{FROM}{file_name}{get_options_statement(options)}"
+        # Quote stage_location; file_name may be a subquery that must not be quoted
+        quoted_target = single_quote(stage_location)
+        # If file_name is a subquery (starts with '('), don't quote it
+        if file_name.strip().startswith("("):
+            source = file_name
+        else:
+            source = single_quote(file_name)
+        return f"{COPY_FILES}{INTO}{quoted_target}{FROM}{source}{get_options_statement(options)}"
     raise ValueError(f"Unsupported file operation type {command}")
 
 
@@ -2134,9 +2139,11 @@ def table(content: str) -> str:
 
 
 def single_quote(value: str) -> str:
-    if value.startswith(SINGLE_QUOTE) and value.endswith(SINGLE_QUOTE):
+    if is_single_quoted(value):
         return value
     else:
+        # Double any embedded single quotes so the value stays a single literal
+        value = value.replace("'", "''")
         return SINGLE_QUOTE + value + SINGLE_QUOTE
 
 
