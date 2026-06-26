@@ -1,7 +1,8 @@
 [build-system]
 requires = [
     "setuptools",
-    "protoc-wheel-0==21.1", # Protocol buffer compiler for Snowpark IR
+    # py>=3.14: protoc-wheel-0 (protoc 3.21) is incompatible with the protobuf>=7.x runtime available for cp314.
+    "protoc-wheel-0==21.1; python_version < '3.14'", # Protocol buffer compiler for Snowpark IR
     "mypy-protobuf", # used in generating typed Python code from protobuf for Snowpark IR
 ]
 build-backend = "setuptools.build_meta"

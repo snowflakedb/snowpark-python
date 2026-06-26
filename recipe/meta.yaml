@@ -40,8 +40,9 @@ requirements:
     - protobuf==4.25.3  # [py>310 and py<314]
     - protobuf==5.29.3  # [py>=314]
     - libprotobuf >=5.29.3 # [py>=314]
-    # mypy-protobuf 3.7.0 requires protobuf >= 5.26
-    - mypy-protobuf <=3.6.0
+    # mypy-protobuf <=3.6.0 requires protobuf<5.0, conflicts with protobuf==5.29.3 for py314
+    - mypy-protobuf <=3.6.0  # [py<314]
+    - mypy-protobuf >=3.7.0  # [py>=314]
   run:
     {% if noarch_build and py == 310 %}
     - python >=3.10,<3.11.0a0
