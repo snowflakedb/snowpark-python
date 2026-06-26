@@ -22,12 +22,12 @@ class SqlServerDialect(BaseDialect):
     ) -> str:
         cols = []
         for _field, raw_field in zip(schema.fields, raw_schema):
+            quoted_name = quote_name(raw_field[0], keep_case=True)
             field_name = (
-                f"{query_input_alias}.{quote_name(raw_field[0], keep_case=True)}"
-                if is_query
-                else f"{quote_name(raw_field[0], keep_case=True)}"
+                f"{query_input_alias}.{quoted_name}" if is_query else f"{quoted_name}"
             )
-            cols.append(f"{field_name} AS {raw_field[0]}") if is_query else cols.append(
+            alias = quoted_name
+            cols.append(f"{field_name} AS {alias}") if is_query else cols.append(
                 field_name
             )
         return QUERY_TEMPLATE.format(
