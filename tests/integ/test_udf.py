@@ -3206,24 +3206,25 @@ def test_use_default_artifact_repository(db_parameters):
             "ALTER database set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = snowflake.snowpark.anaconda_shared_repository"
         ).collect()
 
-        def test_art() -> str:
-            import art  # art is not available in the conda channel, but is in pypi
+        def test_turtles() -> str:
+            # turtles is not in Snowflake's anaconda channel, but is in PyPI.
+            import turtles
 
-            _ = art.text2art("test")
-            return "art works!"
+            return f"imported {turtles.__name__}"
 
         temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
-        # should not work in the database where the default is anaconda
+        # turtles is a PyPI-only package never in Snowflake's anaconda channel,
+        # so this reliably exercises the exception path for the anaconda default.
         with pytest.raises(
             Exception,
-            match="Cannot add package art because it is not available in Snowflake",
+            match="Cannot add package turtles because it is not available in Snowflake",
         ):
             udf(
                 session=session,
-                func=test_art,
+                func=test_turtles,
                 name=temp_func_name,
-                packages=["art", "cloudpickle"],
+                packages=["turtles", "cloudpickle"],
             )
 
         session.sql(f"create schema {temp_schema}").collect()
@@ -3231,19 +3232,22 @@ def test_use_default_artifact_repository(db_parameters):
         session.sql(
             "ALTER schema set DEFAULT_PYTHON_ARTIFACT_REPOSITORY = testdb_snowpark_python.testschema_snowpark_python.SNOWPARK_PYTHON_TEST_REPOSITORY"
         ).collect()
-        session.add_packages("art", "cloudpickle")
+        session.add_packages("turtles", "cloudpickle")
 
         try:
             # Test function registration
             udf(
                 session=session,
-                func=test_art,
+                func=test_turtles,
                 name=temp_func_name,
             )
 
             # Test UDF call
             df = session.create_dataframe([1]).to_df(["a"])
-            Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("art works!")])
+            Utils.check_answer(
+                df.select(call_udf(temp_func_name)),
+                [Row("imported turtles")],
+            )
         finally:
             session._run_query(f"drop function if exists {temp_func_name}(int)")
 
