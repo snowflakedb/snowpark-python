@@ -1,8 +1,13 @@
 [build-system]
 requires = [
     "setuptools",
-    # py>=3.14: protoc-wheel-0 (protoc 3.21) is incompatible with the protobuf>=7.x runtime available for cp314.
+    # py>=3.14: protoc-wheel-0 has no cp314 wheel on PyPI, so it cannot be installed
+    # in pip's build isolation venv. setup.py falls back to shutil.which("protoc").
     "protoc-wheel-0==21.1; python_version < '3.14'", # Protocol buffer compiler for Snowpark IR
-    "mypy-protobuf", # used in generating typed Python code from protobuf for Snowpark IR
+    # py>=3.14: pin <=3.6.0 so the build isolation venv does not install mypy-protobuf 5.x,
+    # whose extensions_pb2.py was generated with protobuf 6.x gencode and fails at import
+    # time when the isolated venv resolves protobuf 5.x (Snowflake internal channel).
+    "mypy-protobuf<=3.6.0; python_version >= '3.14'",
+    "mypy-protobuf; python_version < '3.14'", # used in generating typed Python code from protobuf for Snowpark IR
 ]
 build-backend = "setuptools.build_meta"

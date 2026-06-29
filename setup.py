@@ -29,8 +29,9 @@ INSTALL_REQ_LIST = [
     "cloudpickle>=1.6.0,<=3.1.1,!=2.1.0,!=2.2.0",
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
     "protobuf>=3.20, <6.34; python_version < '3.14'",  # Snowpark IR
-    # py314: 5.26.0 is the first release forward-compatible with Python 3.14+.
-    "protobuf>=5.26.0; python_version >= '3.14'",  # Snowpark IR
+    # py314: protoc-wheel-0 has no cp314 wheel; setup.py uses libprotobuf's protoc from PATH.
+    # conda-forge provides libprotobuf 6.x for py314; the generated ast_pb2.py requires 6.x.
+    "protobuf>=6.0,<6.34; python_version >= '3.14'",  # Snowpark IR
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
