@@ -40,7 +40,7 @@ from snowflake.snowpark._internal.utils import (
     EMPTY_STRING,
     TempObjectType,
     escape_quotes,
-    escape_single_quotes,
+    escape_quotes_and_backslashes,
     get_temp_type_for_object,
     is_single_quoted,
     is_sql_select_statement,
@@ -402,7 +402,26 @@ def regexp_expression(expr: str, pattern: str, parameters: Optional[str] = None)
 
 
 def collate_expression(expr: str, collation_spec: str) -> str:
-    return expr + COLLATE + single_quote(collation_spec)
+    # Escape the collation spec so a value containing single quotes or
+    # backslashes does not terminate the single-quoted literal early and produce
+    # invalid SQL.
+    #
+    # Preserve the historical behavior of single_quote(): a spec that is already
+    # wrapped in single quotes (e.g. "'en_US'") is treated as pre-quoted, so we
+    # strip the outer quotes, escape the interior, and re-wrap. An unquoted spec
+    # is escaped and wrapped. Specs (quoted or unquoted) with no interior quotes
+    # or backslashes therefore produce identical SQL to before.
+    if is_single_quoted(collation_spec):
+        inner = collation_spec[1:-1]
+    else:
+        inner = collation_spec
+    return (
+        expr
+        + COLLATE
+        + SINGLE_QUOTE
+        + escape_quotes_and_backslashes(inner)
+        + SINGLE_QUOTE
+    )
 
 
 def subfield_expression(expr: str, field: Union[str, int]) -> str:
@@ -410,7 +429,9 @@ def subfield_expression(expr: str, field: Union[str, int]) -> str:
         expr
         + LEFT_BRACKET
         + (
-            SINGLE_QUOTE + field + SINGLE_QUOTE
+            # Escape the field so a VARIANT/OBJECT key containing single quotes
+            # or backslashes does not terminate the literal early.
+            SINGLE_QUOTE + escape_quotes_and_backslashes(field) + SINGLE_QUOTE
             if isinstance(field, str)
             else str(field)
         )
@@ -431,7 +452,10 @@ def flatten_expression(
         + PATH
         + RIGHT_ARROW
         + SINGLE_QUOTE
-        + (path or EMPTY_STRING)
+        # Escape the JSON path so a value containing single quotes or
+        # backslashes does not terminate the literal early and produce invalid
+        # SQL in the FLATTEN argument list.
+        + (escape_quotes_and_backslashes(path) if path else EMPTY_STRING)
         + SINGLE_QUOTE
         + COMMA
         + OUTER
@@ -1147,7 +1171,12 @@ def join_statement(
 
 def get_comment_sql(comment: Optional[str]) -> str:
     return (
-        COMMENT + EQUALS + SINGLE_QUOTE + escape_single_quotes(comment) + SINGLE_QUOTE
+        COMMENT + EQUALS + SINGLE_QUOTE
+        # Escape backslashes and single quotes so a comment containing those
+        # characters does not terminate the single-quoted literal early and
+        # produce invalid SQL. A comment with no backslash/quote is emitted
+        # unchanged.
+        + escape_quotes_and_backslashes(comment) + SINGLE_QUOTE
         if comment
         else EMPTY_STRING
     )

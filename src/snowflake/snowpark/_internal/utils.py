@@ -409,6 +409,24 @@ def escape_single_quotes(input_str):
     return input_str.replace("'", r"\'")
 
 
+def escape_quotes_and_backslashes(input_str: str) -> str:
+    """Escape a value for embedding inside a single-quoted SQL string literal.
+
+    Snowflake treats backslash as an escape character inside string literals, so
+    escaping only single quotes is not enough: a value such as ``\\'`` would
+    otherwise be emitted as ``\\\\'``, which decodes to a literal backslash
+    followed by a quote that terminates the literal early and produces invalid
+    SQL. We escape backslashes first (``\\`` -> ``\\\\``) and then single quotes
+    by doubling them (``'`` -> ``''``) so the value is always emitted as literal
+    data.
+
+    A value that contains neither a backslash nor a single quote is returned
+    unchanged, so values without special characters produce identical SQL to
+    before.
+    """
+    return input_str.replace("\\", "\\\\").replace("'", "''")
+
+
 def is_sql_select_statement(sql: str) -> bool:
     return (
         SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None
