@@ -991,6 +991,55 @@ def test_writer_csv(session, temp_stage, caplog):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
+    reason="COPY INTO <location> is not supported in Local Testing",
+)
+def test_writer_csv_stage_path_escapes_special_characters(session, temp_stage):
+    """``DataFrame.write.csv`` routes the destination through ``normalize_path``,
+    which must escape both backslashes and single quotes so that a path
+    containing a backslash immediately followed by a single quote stays inside
+    the stage-location string literal in the generated ``COPY INTO`` and the
+    SQL is always valid.
+    """
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    schema = StructType(
+        [StructField("a", IntegerType()), StructField("b", IntegerType())]
+    )
+
+    # 1) Path whose directory name contains a backslash. This must round-trip
+    #    through both write (COPY INTO) and read (COPY INTO/SELECT).
+    backslash_path = f"{temp_stage}/back\\slash_dir/data.csv"
+    result = df.write.csv(backslash_path, single=True)
+    assert result[0].rows_unloaded == 2
+    data = session.read.schema(schema).csv(f"@{backslash_path}")
+    Utils.check_answer(data, df, sort=True)
+
+    # 2) Paths whose directory names contain a single quote and a
+    #    backslash-quote combination. The write must succeed and the bytes must
+    #    land verbatim on the stage (verified via LIST), confirming the path is
+    #    treated as literal data rather than parsed as SQL.
+    for sub in ["o'clock", "mix\\'both"]:
+        path = f"{temp_stage}/{sub}/data.csv"
+        write_result = df.write.csv(path, single=True)
+        assert write_result[0].rows_unloaded == 2
+
+    # 3) A file name containing several special characters at once: a backslash
+    #    followed by a single quote, parentheses, a comma and a trailing ``--``.
+    #    These must all be treated as literal characters of the path -- the file
+    #    is written with the DataFrame's own rows and the whole name appears
+    #    verbatim as a single physical file on the stage.
+    special_name = "out\\' , (note) -- draft"
+    special_path = f"@{temp_stage}/{special_name}"
+    special_result = df.write.csv(special_path, single=True)
+    # The DataFrame's own rows are unloaded; the path is not parsed as SQL.
+    assert special_result[0].rows_unloaded == 2
+
+    listed = [row[0] for row in session.sql(f"LIST '@{temp_stage}'").collect()]
+    # The full name survives as a single physical file.
+    assert any(special_name in name for name in listed), listed
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte', FEAT: parquet support",
 )
 def test_writer_json(session, tmpdir_factory):

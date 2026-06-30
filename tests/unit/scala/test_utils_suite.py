@@ -167,7 +167,9 @@ def test_normalize_file(is_local):
     assert normalize_path(name2, is_local) == f"'{symbol}sta\\'ge'"
     name3 = "s ta\\'ge "
     assert normalize_path(name3, is_local) == (
-        f"'{symbol}s ta/\\'ge'" if is_local and IS_WINDOWS else f"'{symbol}s ta\\\\'ge'"
+        f"'{symbol}s ta/\\'ge'"
+        if is_local and IS_WINDOWS
+        else f"'{symbol}s ta\\\\\\'ge'"
     )
 
 

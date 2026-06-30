@@ -76,6 +76,72 @@ def test_normalize_path(path: str, is_local: bool, expected: str) -> None:
     assert expected == actual
 
 
+def _decode_snowflake_literal(literal: str) -> str:
+    """Simulate Snowflake's decoding of a single-quoted string literal.
+
+    Snowflake treats ``\\`` as an escape character inside a single-quoted literal,
+    so ``\\\\`` decodes to one backslash and ``\\'`` decodes to one single quote.
+    An unescaped single quote closes the literal. This helper returns the decoded
+    literal value and raises if the literal is closed early -- which would mean the
+    path was not escaped correctly and the generated SQL is invalid.
+    """
+    assert literal.startswith("'") and literal.endswith(
+        "'"
+    ), f"not a quoted literal: {literal!r}"
+    body = literal[1:-1]
+    out = []
+    i = 0
+    while i < len(body):
+        ch = body[i]
+        if ch == "\\" and i + 1 < len(body):
+            out.append(body[i + 1])
+            i += 2
+        elif ch == "'":
+            raise AssertionError(
+                f"unescaped quote closes literal early at index {i}: {literal!r}"
+            )
+        else:
+            out.append(ch)
+            i += 1
+    return "".join(out)
+
+
+@pytest.mark.parametrize("is_local", [True, False])
+@pytest.mark.parametrize(
+    "raw_path",
+    [
+        # Paths containing a backslash immediately followed by a single quote,
+        # plus parentheses, commas and a trailing ``--``. Before the fix the
+        # backslash was not escaped, so ``\'`` was written as ``\\'`` and closed
+        # the literal early, producing invalid SQL.
+        "@~/out\\' , (note) FILE_FORMAT=(TYPE=CSV) -- draft",
+        "report\\' , (v2) draft --",
+        # Plain special characters that must round-trip as literal data.
+        "@stage/o'clock/file.csv",
+        "@stage/back\\slash/file.csv",
+        "@stage/double\\\\back/file.csv",
+        '@stage/dquote"/file.csv',
+        "@stage/uniécode/file.csv",
+        "@stage/all\\'\"mix/file.csv",
+    ],
+)
+def test_normalize_path_escapes_backslash_and_quote(raw_path, is_local):
+    """``normalize_path`` must produce a Snowflake string literal that decodes back
+    to the original path. A backslash followed by a single quote must stay inside
+    the literal and not close it early, so the generated SQL is always valid and
+    the path is treated as literal data."""
+    literal = utils.normalize_path(raw_path, is_local)
+    # The output must be a well-formed single-quoted literal: decoding it must not
+    # raise (i.e. the literal is not closed early).
+    decoded = _decode_snowflake_literal(literal)
+    # The decoded literal must end with the (stripped) raw path -- the prefix may
+    # differ only by an added ``@`` / ``file://`` scheme prefix.
+    expected_tail = raw_path.strip()
+    assert decoded.endswith(
+        expected_tail
+    ), f"decoded={decoded!r} does not end with {expected_tail!r}"
+
+
 def test__pandas_importer():
     imported_pandas = _pandas_importer()
     try:
