@@ -30,6 +30,11 @@ from snowflake.snowpark.functions import (
     xmlget,
 )
 from snowflake.snowpark.table_function import _create_table_function_expression
+from snowflake.snowpark.functions import (
+    _python_obj_to_sql_literal,
+    ai_extract,
+)
+from snowflake.snowpark._internal.analyzer.analyzer_utils import function_expression
 
 
 @pytest.mark.parametrize(
@@ -131,3 +136,110 @@ def test_functions_alias():
     assert functions.expr == functions.sql_expr
     assert functions.monotonically_increasing_id == functions.seq8
     assert functions.from_unixtime == functions.to_timestamp
+
+
+def _render_ai_extract_sql(response_format):
+    """Render the full generated SQL fragment for an ``ai_extract`` call.
+
+    Reproduces what ``Analyzer`` emits into the SELECT projection: each child
+    expression's raw SQL is concatenated by ``function_expression``. This lets
+    us assert at the unit level that ``response_format`` string content is
+    escaped and kept inside the SQL string literal so the generated SQL is valid.
+    """
+    column = ai_extract("INPUT_TEXT", response_format, _emit_ast=False)
+    expr = column._expression
+    children = [
+        child.name if hasattr(child, "name") else "<input>" for child in expr.children
+    ]
+    return function_expression(expr.name, children, False)
+
+
+# ---------------------------------------------------------------------------
+# Special-character escaping tests for the AI function object/array literals.
+# ---------------------------------------------------------------------------
+
+
+def test_python_obj_to_sql_literal_escapes_single_quotes():
+    # An apostrophe in a question must be doubled so it stays inside the literal.
+    out = _python_obj_to_sql_literal({"name": "What is the employee's last name?"})
+    assert out == "{'name': 'What is the employee''s last name?'}"
+    # Every single quote is paired: the literal stays balanced.
+    assert out.count("'") % 2 == 0
+
+
+def test_python_obj_to_sql_literal_escapes_backslash():
+    # Snowflake treats backslash as an escape char inside string literals, so it
+    # must be doubled to stay inside the literal.
+    out = _python_obj_to_sql_literal({"a": "b\\c"})
+    assert out == "{'a': 'b\\\\c'}"
+    # A trailing backslash must not escape the closing quote.
+    out2 = _python_obj_to_sql_literal(["ends_with_backslash\\"])
+    assert out2 == "['ends_with_backslash\\\\']"
+
+
+def test_python_obj_to_sql_literal_scalar_types():
+    assert _python_obj_to_sql_literal(None) == "null"
+    assert _python_obj_to_sql_literal(True) == "true"
+    assert _python_obj_to_sql_literal(False) == "false"
+    assert _python_obj_to_sql_literal(100) == "100"
+    assert _python_obj_to_sql_literal(0.7) == "0.7"
+    # bool must not be serialized as an int
+    assert _python_obj_to_sql_literal({"flag": True}) == "{'flag': true}"
+
+
+def test_python_obj_to_sql_literal_nested_structures():
+    assert (
+        _python_obj_to_sql_literal([["name", "q1"], ["addr", "q2"]])
+        == "[['name', 'q1'], ['addr', 'q2']]"
+    )
+    assert (
+        _python_obj_to_sql_literal({"temperature": 0.7, "max_tokens": 100})
+        == "{'temperature': 0.7, 'max_tokens': 100}"
+    )
+
+
+def test_python_obj_to_sql_literal_rejects_unsupported_type():
+    with pytest.raises(TypeError):
+        _python_obj_to_sql_literal({"k": object()})
+
+
+def test_ai_extract_apostrophe_question_valid_sql():
+    sql = _render_ai_extract_sql({"name": "What is the employee's last name?"})
+    # The whole call is a single ai_extract(...) with exactly one closing paren.
+    assert sql.startswith("ai_extract(")
+    assert sql.endswith(")")
+    assert sql == (
+        "ai_extract(<input>, {'name': 'What is the employee''s last name?'})"
+    )
+    # The literal portion is balanced: every single quote is paired.
+    assert sql.count("'") % 2 == 0
+
+
+def test_ai_extract_dict_value_special_characters_escaped():
+    # A question value with apostrophes, parentheses, commas, a trailing "--"
+    # and a double quote -- all must be escaped and kept inside one literal.
+    response_format = {"q": "what's the user's name? (v2) -- note \"x\""}
+    sql = _render_ai_extract_sql(response_format)
+    assert sql == (
+        "ai_extract(<input>, {'q': 'what''s the user''s name? (v2) -- note \"x\"'})"
+    )
+    # Each apostrophe in the value is doubled inside the literal.
+    assert "what''s the user''s name?" in sql
+    # Exactly one ai_extract(...) call, balanced single quotes, one output value.
+    assert sql.startswith("ai_extract(")
+    assert sql.endswith(")")
+    assert sql.count("'") % 2 == 0
+
+
+def test_ai_extract_list_value_special_characters_escaped():
+    # A list value containing single quotes, a backslash, parentheses, a comma
+    # and a trailing "--" -- all escaped and kept inside one string literal.
+    response_format = ["a'b\\c) , (d --"]
+    sql = _render_ai_extract_sql(response_format)
+    assert sql == "ai_extract(<input>, ['a''b\\\\c) , (d --'])"
+    # The call begins with exactly one ai_extract( and ends with one paren.
+    assert sql.startswith("ai_extract(")
+    assert sql.endswith(")")
+    # Single quotes are doubled and the backslash is doubled inside the literal.
+    assert "a''b\\\\c" in sql
+    assert sql.count("'") % 2 == 0

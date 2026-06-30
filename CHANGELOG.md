@@ -9,6 +9,7 @@
 - Fixed a bug where stage paths and file format names that contain single quotes were not consistently escaped when generating SQL, which could produce malformed statements. This affects `INFER_SCHEMA` (used by `DataFrameReader.csv`/`json`/`parquet`/`orc`/`avro`) and `COPY FILES` (used by `FileOperation.copy_files`).
 - Fixed a bug where UDF default argument values reconstructed from a source file in `register_from_file` were evaluated with `eval()`; they are now evaluated only against the documented set of supported default-value types, and unsupported expressions are ignored.
 - Fixed a bug where `object_name`, `object_domain`, or `object_version` values containing single quotes or backslashes in `session.lineage.trace()` caused incorrect SQL generation. These values are now properly escaped before being embedded in the `SYSTEM$DGQL` call.
+- Fixed a bug where string values in the AI functions (`ai_extract`, `ai_classify`, `ai_similarity`, `ai_parse_document`, `ai_transcribe`, `ai_complete`) configuration and `response_format` were not correctly escaped when generating the SQL object literal, which could produce malformed statements when a value contained single quotes or backslashes (for example, an apostrophe in a natural-language question).
 
 #### Dependency Updates
 
