@@ -38,9 +38,11 @@ requirements:
     # Snowpark IR
     - protobuf==3.20.1  # [py<=310]
     - protobuf==4.25.3  # [py>310 and py<314]
-    - protobuf==5.29.3  # [py>=314]
-    - libprotobuf >=5.29.3 # [py>=314]
-    # mypy-protobuf 3.7.0 requires protobuf >= 5.26
+    - protobuf >=5.29.3,<6.34  # [py>=314]
+    - libprotobuf >=5.29.3,<6.34  # [py>=314]
+    # mypy-protobuf <=3.6.0 has no ValidateProtobufRuntimeVersion in its pb2 files,
+    # safe with protobuf 5.x or 6.x. mypy-protobuf 5.x+ requires protobuf 6.x gencode
+    # which conflicts with the internal channel's protobuf 5.x for py314.
     - mypy-protobuf <=3.6.0
   run:
     {% if noarch_build and py == 310 %}
@@ -64,7 +66,8 @@ requirements:
     - libffi <=3.4.4
     - pyyaml
     # Snowpark IR
-    - protobuf >=3.20,<6.34
+    - protobuf >=3.20,<6.34    # [py<314]
+    - protobuf >=5.29.3,<6.34  # [py>=314]
     - python-dateutil
     - tzlocal
   run_constrained:
