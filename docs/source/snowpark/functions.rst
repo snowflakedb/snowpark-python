@@ -575,6 +575,7 @@ Functions
     typeof
     udaf
     udf
+    udf_init_once
     udtf
     unbase64
     unicode
