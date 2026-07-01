@@ -203,18 +203,20 @@ def test_python_obj_to_sql_literal_rejects_unsupported_type():
         _python_obj_to_sql_literal({"k": object()})
 
 
-def test_python_obj_to_sql_literal_rejects_non_finite_floats():
-    # NaN/inf/-inf have no valid SQL literal representation and must be rejected
-    # rather than emitted as an invalid token that breaks the generated SQL.
-    # NaN hits the `value != value` clause; the infinities hit the two others.
-    for bad in (float("nan"), float("inf"), float("-inf")):
-        with pytest.raises(TypeError, match="non-finite float"):
-            _python_obj_to_sql_literal(bad)
-    # ...and the guard still fires when the value is nested in a dict/list.
-    with pytest.raises(TypeError, match="non-finite float"):
+def test_python_obj_to_sql_literal_non_finite_floats_match_json():
+    # Non-finite floats are serialized the same way json.dumps does -- NaN /
+    # Infinity / -Infinity -- and left for Snowflake to reject server-side,
+    # rather than raising client-side. NaN hits the `value != value` clause;
+    # the infinities hit the two others.
+    assert _python_obj_to_sql_literal(float("nan")) == "NaN"
+    assert _python_obj_to_sql_literal(float("inf")) == "Infinity"
+    assert _python_obj_to_sql_literal(float("-inf")) == "-Infinity"
+    # ...including when nested in a dict/list.
+    assert (
         _python_obj_to_sql_literal({"temperature": float("inf")})
-    with pytest.raises(TypeError, match="non-finite float"):
-        _python_obj_to_sql_literal([1.0, float("nan")])
+        == "{'temperature': Infinity}"
+    )
+    assert _python_obj_to_sql_literal([1.0, float("nan")]) == "[1.0, NaN]"
 
 
 def test_ai_extract_apostrophe_question_valid_sql():

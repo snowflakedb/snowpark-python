@@ -12829,12 +12829,17 @@ def _python_obj_to_sql_literal(
         return str(int(value))
     if isinstance(value, float):
         value = float(value)  # normalize subclasses
-        # Note: do not use builtin abs() here — `abs` is shadowed by the Snowpark
-        # column function defined in this module.
-        if value != value or value == float("inf") or value == float("-inf"):
-            raise TypeError(
-                f"Cannot serialize non-finite float {value!r} to a SQL literal"
-            )
+        # Match json.dumps' handling of non-finite floats: emit NaN / Infinity /
+        # -Infinity (the same tokens the previous json.dumps-based code produced)
+        # and let Snowflake surface any error server-side, rather than raising
+        # client-side. Note: do not use builtin abs() here — `abs` is shadowed by
+        # the Snowpark column function defined in this module.
+        if value != value:
+            return "NaN"
+        if value == float("inf"):
+            return "Infinity"
+        if value == float("-inf"):
+            return "-Infinity"
         return repr(value)
     if isinstance(value, dict):
         items = ", ".join(
