@@ -1057,9 +1057,7 @@ def test_time_travel_version_tag():
         )
 
     # Non-string version_tag is rejected.
-    with pytest.raises(
-        ValueError, match="'version_tag' must be a string Iceberg tag name"
-    ):
+    with pytest.raises(ValueError, match="'version_tag' must be a string Iceberg name"):
         TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at", version_tag=123
         )
@@ -1159,8 +1157,8 @@ def test_extract_time_travel_version_tag_option():
 
     Both ``version_tag`` and ``version-tag`` aliases map to the internal
     ``version_tag`` time-travel parameter and auto-set
-    ``time_travel_mode='at'`` (``AT(VERSION_TAG => '<name>')`` is the only
-    valid form — tag reads are positional).
+    ``time_travel_mode='at'`` (``AT(VERSION_REF => '<name>')`` is the unified
+    named-ref form for tag reads).
     """
     from snowflake.snowpark.dataframe_reader import _extract_time_travel_from_options
 
@@ -1299,4 +1297,15 @@ def test_extract_time_travel_branch_and_version_ref_options():
     ):
         _extract_time_travel_from_options(
             {"BRANCH": "audit-branch", "TIME_TRAVEL_MODE": "before"}
+        )
+
+
+def test_time_travel_version_ref_validation():
+    with pytest.raises(ValueError, match="'version_ref' must be a non-empty"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version_ref=""
+        )
+    with pytest.raises(ValueError, match="'branch' must be a string Iceberg name"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", branch=123
         )
