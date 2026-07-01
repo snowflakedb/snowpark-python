@@ -10381,7 +10381,10 @@ def udf_init_once(func: Callable) -> Callable:
         raise TypeError(
             f"@udf_init_once function must take 0 arguments, got {len(sig.parameters)}"
         )
-    func._sf_init_once = True
+    # This client-side decorator is a no-op that returns the function unchanged;
+    # it exists only to mirror the ``_snowflake.udf_init_once`` signature so that
+    # handler files import and validate cleanly when authored/tested locally. The
+    # actual pre-fork execution is performed server-side by ``_snowflake``.
     return func
 
 

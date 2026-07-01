@@ -90,10 +90,9 @@ def test_udf_init_once_decorator_simple():
     def my_init():
         pass
 
-    # Sets _sf_init_once = True on the init function itself
-    assert my_init._sf_init_once is True
-    # The function is returned unchanged (not wrapped)
+    # The client-side decorator is a no-op: it returns the function unchanged.
     assert my_init.__name__ == "my_init"
+    assert callable(my_init)
 
 
 def test_udf_init_once_rejects_non_zero_arg_function():
