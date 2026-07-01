@@ -7,6 +7,7 @@
 #### Bug Fixes
 
 - Fixed a bug where stage paths and file format names that contain single quotes were not consistently escaped when generating SQL, which could produce malformed statements. This affects `INFER_SCHEMA` (used by `DataFrameReader.csv`/`json`/`parquet`/`orc`/`avro`) and `COPY FILES` (used by `FileOperation.copy_files`).
+- Fixed a bug where column names containing quote characters returned by an external database were not correctly escaped when generating the `SELECT` query for `DataFrameReader.dbapi`, which could produce malformed SQL. Embedded quote characters in identifiers are now doubled (backticks for Databricks/MySQL, double quotes for Oracle/PostgreSQL/SQL Server).
 - Fixed a bug where UDF default argument values reconstructed from a source file in `register_from_file` were evaluated with `eval()`; they are now evaluated only against the documented set of supported default-value types, and unsupported expressions are ignored.
 - Fixed a bug where `object_name`, `object_domain`, or `object_version` values containing single quotes or backslashes in `session.lineage.trace()` caused incorrect SQL generation. These values are now properly escaped before being embedded in the `SYSTEM$DGQL` call.
 
