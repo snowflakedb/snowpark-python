@@ -1146,13 +1146,11 @@ def test_subfield_expression_pre_doubled_quote_is_non_breaking():
     from snowflake.snowpark._internal.analyzer.analyzer_utils import subfield_expression
 
     assert (
-        subfield_expression("col", "date with '' and .")
-        == "col['date with '' and .']"
+        subfield_expression("col", "date with '' and .") == "col['date with '' and .']"
     )
     # a raw (single) apostrophe now also works and lands on the same SQL literal
     assert (
-        subfield_expression("col", "date with ' and .")
-        == "col['date with '' and .']"
+        subfield_expression("col", "date with ' and .") == "col['date with '' and .']"
     )
 
 
