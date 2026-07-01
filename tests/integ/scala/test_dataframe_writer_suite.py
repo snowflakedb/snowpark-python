@@ -999,43 +999,33 @@ def test_writer_csv_stage_path_escapes_special_characters(session, temp_stage):
     containing a backslash immediately followed by a single quote stays inside
     the stage-location string literal in the generated ``COPY INTO`` and the
     SQL is always valid.
+
+    Each write below uses a path with characters that, before the fix, would
+    close the location string literal early and produce invalid SQL (a
+    backslash, a single quote, a ``\\'`` combination, parentheses, a comma and a
+    trailing ``--``). The writes must now succeed with the DataFrame's own rows
+    unloaded, which proves the path is escaped as literal data and not parsed as
+    SQL. Note: a literal backslash is not preserved as a directory separator by
+    stage storage, so we assert the write succeeds rather than a read-back
+    round-trip.
     """
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    schema = StructType(
-        [StructField("a", IntegerType()), StructField("b", IntegerType())]
-    )
 
-    # 1) Path whose directory name contains a backslash. This must round-trip
-    #    through both write (COPY INTO) and read (COPY INTO/SELECT).
-    backslash_path = f"{temp_stage}/back\\slash_dir/data.csv"
-    result = df.write.csv(backslash_path, single=True)
-    assert result[0].rows_unloaded == 2
-    data = session.read.schema(schema).csv(f"@{backslash_path}")
-    Utils.check_answer(data, df, sort=True)
-
-    # 2) Paths whose directory names contain a single quote and a
-    #    backslash-quote combination. The write must succeed and the bytes must
-    #    land verbatim on the stage (verified via LIST), confirming the path is
-    #    treated as literal data rather than parsed as SQL.
-    for sub in ["o'clock", "mix\\'both"]:
-        path = f"{temp_stage}/{sub}/data.csv"
-        write_result = df.write.csv(path, single=True)
-        assert write_result[0].rows_unloaded == 2
-
-    # 3) A file name containing several special characters at once: a backslash
-    #    followed by a single quote, parentheses, a comma and a trailing ``--``.
-    #    These must all be treated as literal characters of the path -- the file
-    #    is written with the DataFrame's own rows and the whole name appears
-    #    verbatim as a single physical file on the stage.
-    special_name = "out\\' , (note) -- draft"
-    special_path = f"@{temp_stage}/{special_name}"
-    special_result = df.write.csv(special_path, single=True)
-    # The DataFrame's own rows are unloaded; the path is not parsed as SQL.
-    assert special_result[0].rows_unloaded == 2
-
-    listed = [row[0] for row in session.sql(f"LIST '@{temp_stage}'").collect()]
-    # The full name survives as a single physical file.
-    assert any(special_name in name for name in listed), listed
+    special_paths = [
+        # Directory name containing a backslash.
+        f"{temp_stage}/back\\slash_dir/data.csv",
+        # Directory name containing a single quote.
+        f"{temp_stage}/o'clock/data.csv",
+        # Directory name containing a backslash immediately followed by a quote.
+        f"{temp_stage}/mix\\'both/data.csv",
+        # File name mixing a backslash-quote, parentheses, a comma and a
+        # trailing ``--`` -- all must be treated as literal path characters.
+        f"@{temp_stage}/out\\' , (note) -- draft",
+    ]
+    for path in special_paths:
+        result = df.write.csv(path, single=True)
+        # The DataFrame's own rows are unloaded; the path is not parsed as SQL.
+        assert result[0].rows_unloaded == 2, path
 
 
 @pytest.mark.skipif(

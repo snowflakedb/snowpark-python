@@ -137,6 +137,12 @@ def test_normalize_path_escapes_backslash_and_quote(raw_path, is_local):
     # The decoded literal must end with the (stripped) raw path -- the prefix may
     # differ only by an added ``@`` / ``file://`` scheme prefix.
     expected_tail = raw_path.strip()
+    # Local paths on Windows are normalized (backslashes -> forward slashes)
+    # before escaping, so mirror that transform here. This only affects the
+    # round-trip comparison; the escaping guarantee checked above (the literal
+    # never closes early) still holds for every input on every platform.
+    if is_local and utils.OPERATING_SYSTEM == "Windows":
+        expected_tail = expected_tail.replace("\\", "/")
     assert decoded.endswith(
         expected_tail
     ), f"decoded={decoded!r} does not end with {expected_tail!r}"
