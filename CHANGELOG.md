@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added Iceberg WAP branch and named-ref time travel via `branch` and `version_ref` on `Session.table()`, `DataFrameReader.table()`, and `Table`. Spark Iceberg reader options `branch`, `tag`, `version_ref`, and existing `version_tag` / `version-tag` aliases now emit Snowflake `AT (VERSION_REF => '<name>')` SQL (replacing the prior `VERSION_TAG` clause for tag reads).
+
 #### Bug Fixes
 
 - Fixed a bug where stage paths and file format names that contain single quotes were not consistently escaped when generating SQL, which could produce malformed statements. This affects `INFER_SCHEMA` (used by `DataFrameReader.csv`/`json`/`parquet`/`orc`/`avro`) and `COPY FILES` (used by `FileOperation.copy_files`).
