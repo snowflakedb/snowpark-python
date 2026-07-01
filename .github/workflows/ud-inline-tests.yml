@@ -43,11 +43,12 @@ on:
   schedule:
     # Nightly, off-peak, off the :00 mark.
     - cron: '23 7 * * *'
-  # Only run on PRs that target the UD integration branches (not every PR / not forks).
+  # For now, run on every PR for visibility (jobs are continue-on-error, so they
+  # never block merges). `labeled` is included so adding a label also triggers a
+  # run. NOTE: PRs from forks get no secrets, so build-ud / decrypt will fail
+  # there — revisit with label-gating once UD is closer to green.
   pull_request:
-    branches:
-      - ud-ci-workflow-auto-triggered-full
-      - ud-ci-workflow-auto-triggered-full-improvements
+    types: [opened, synchronize, reopened, labeled]
 
 permissions:
   contents: read
