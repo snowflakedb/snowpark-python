@@ -83,6 +83,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     warning,
     experimental,
+    IcebergChangesConfig,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -273,22 +274,10 @@ def _extract_iceberg_changes_from_options(options: dict) -> dict:
             "Iceberg incremental read requires 'start-snapshot-id'; "
             "'end-snapshot-id' cannot be used alone."
         )
-    try:
-        start_id = int(start)
-    except (TypeError, ValueError):
-        raise ValueError(
-            "'start-snapshot-id' must be a 64-bit integer Iceberg snapshot id, "
-            f"got {start!r}."
-        ) from None
+    start_id = IcebergChangesConfig._coerce_snapshot_id(start, "start-snapshot-id")
     end_id = None
     if end is not None:
-        try:
-            end_id = int(end)
-        except (TypeError, ValueError):
-            raise ValueError(
-                "'end-snapshot-id' must be a 64-bit integer Iceberg snapshot id, "
-                f"got {end!r}."
-            ) from None
+        end_id = IcebergChangesConfig._coerce_snapshot_id(end, "end-snapshot-id")
     return {"start_snapshot_id": start_id, "end_snapshot_id": end_id}
 
 

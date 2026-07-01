@@ -1235,3 +1235,12 @@ def test_extract_iceberg_changes_from_options():
         "end_snapshot_id": None,
     }
     assert _extract_iceberg_changes_from_options({}) == {}
+
+
+def test_extract_iceberg_changes_from_options_rejects_bool_snapshot_id():
+    from snowflake.snowpark.dataframe_reader import (
+        _extract_iceberg_changes_from_options,
+    )
+
+    with pytest.raises(ValueError, match="start-snapshot-id"):
+        _extract_iceberg_changes_from_options({"start-snapshot-id": True})

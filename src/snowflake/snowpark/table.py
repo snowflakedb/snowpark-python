@@ -404,6 +404,13 @@ class Table(DataFrame):
         kwargs = {}
         if self._time_travel_config:
             kwargs.update(self._time_travel_config._asdict())
+        if self._iceberg_changes_config:
+            kwargs.update(
+                {
+                    "start_snapshot_id": self._iceberg_changes_config.start_version,
+                    "end_snapshot_id": self._iceberg_changes_config.end_version,
+                }
+            )
 
         return Table(
             self.table_name,
