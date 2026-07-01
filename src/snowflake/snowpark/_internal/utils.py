@@ -2239,6 +2239,11 @@ class IcebergChangesConfig(NamedTuple):
 
     @staticmethod
     def _coerce_snapshot_id(value: object, option_name: str) -> int:
+        if isinstance(value, bool):
+            raise ValueError(
+                f"'{option_name}' must be a 64-bit integer Iceberg snapshot id, "
+                f"got {type(value).__name__}."
+            )
         try:
             snapshot_id = int(value)  # type: ignore[arg-type]
         except (TypeError, ValueError):
@@ -2246,11 +2251,6 @@ class IcebergChangesConfig(NamedTuple):
                 f"'{option_name}' must be a 64-bit integer Iceberg snapshot id, "
                 f"got {value!r}."
             ) from None
-        if isinstance(snapshot_id, bool):
-            raise ValueError(
-                f"'{option_name}' must be a 64-bit integer Iceberg snapshot id, "
-                f"got {type(value).__name__}."
-            )
         return snapshot_id
 
     @staticmethod
