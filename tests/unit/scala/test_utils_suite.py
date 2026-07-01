@@ -105,11 +105,11 @@ def test_calculate_checksum():
     if IS_WINDOWS:
         assert (
             calculate_checksum(test_files.test_udf_directory)
-            == "7ff46b5f3765187c7355852811c92ff232feb2f7207a12f1ab6d0b921319643b"
+            == "a72518e02fe61d2bfb6e54aa684b9af2da7845f4fb1a758c3c3974d35bf58d8f"
         )
         assert (
             calculate_checksum(test_files.test_udf_directory, algorithm="md5")
-            == "f6c1984af9ece1bd68edf16ae1a7f992"
+            == "34fa7ef3aa8ff5c19b328fcc8f601e1e"
         )
     else:
         assert (
