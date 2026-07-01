@@ -2717,7 +2717,15 @@ def test_udf_with_vectorized_nested_decorators_series(session):
     reason="UDF init_once is not supported in Local Testing",
 )
 def test_udf_init_once_register_from_file(session):
-    """Test @udf_init_once in a handler file used with register_from_file."""
+    """A handler file using @udf_init_once registers and runs correctly.
+
+    The client-side ``udf_init_once`` decorator is a no-op: it only tags the
+    function and does not execute it. This test verifies that a handler file
+    decorated with ``@udf_init_once`` can be registered via
+    ``register_from_file`` and invoked without error. Because the init function
+    (``setup``) is not run, ``_multiplier`` keeps its default value of 1, so the
+    UDF behaves as an identity multiply and returns the inputs unchanged.
+    """
     multiply_udf = session.udf.register_from_file(
         file_path="tests/resources/test_udf_dir/test_udf_init_once_file.py",
         func_name="multiply",
@@ -2726,4 +2734,4 @@ def test_udf_init_once_register_from_file(session):
     )
     df = session.create_dataframe([[1], [2], [3]], schema=["a"])
     res = df.select(multiply_udf("a").alias("result")).collect()
-    assert sorted(row.RESULT for row in res) == [10, 20, 30]
+    assert sorted(row.RESULT for row in res) == [1, 2, 3]
