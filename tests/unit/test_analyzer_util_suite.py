@@ -1123,6 +1123,39 @@ def test_subfield_expression_escapes_special_characters():
     assert "'" not in inner.replace("\\\\", "").replace("''", "")
 
 
+def test_escape_subfield_key_preserves_already_doubled_quotes():
+    # Non-breaking contract: a key whose single quotes are already doubled (the
+    # historically-documented way to pass a quote in a subfield key) is preserved
+    # unchanged, so it is not double-escaped.
+    from snowflake.snowpark._internal.utils import escape_subfield_key
+
+    assert escape_subfield_key("date with '' and .") == "date with '' and ."
+    assert escape_subfield_key("plainkey") == "plainkey"
+    # a lone (unescaped) quote is fully escaped instead
+    assert escape_subfield_key("date with ' and .") == "date with '' and ."
+    # backslashes are always escaped so they are applied literally, even when the
+    # quotes are already doubled
+    assert escape_subfield_key("a\\b") == r"a\\b"
+    assert escape_subfield_key("o''clock\\t") == r"o''clock\\t"
+
+
+def test_subfield_expression_pre_doubled_quote_is_non_breaking():
+    # Regression for the historical contract exercised by
+    # tests/integ/scala/test_column_suite.py::test_subfield: a caller that
+    # already doubled the quote must get byte-identical SQL to before this fix.
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import subfield_expression
+
+    assert (
+        subfield_expression("col", "date with '' and .")
+        == "col['date with '' and .']"
+    )
+    # a raw (single) apostrophe now also works and lands on the same SQL literal
+    assert (
+        subfield_expression("col", "date with ' and .")
+        == "col['date with '' and .']"
+    )
+
+
 def test_flatten_expression_no_special_characters_unchanged():
     # A path with no quote/backslash must produce byte-identical SQL to before.
     from snowflake.snowpark._internal.analyzer.analyzer_utils import flatten_expression

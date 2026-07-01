@@ -41,6 +41,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     escape_quotes,
     escape_quotes_and_backslashes,
+    escape_subfield_key,
     get_temp_type_for_object,
     is_single_quoted,
     is_sql_select_statement,
@@ -430,8 +431,11 @@ def subfield_expression(expr: str, field: Union[str, int]) -> str:
         + LEFT_BRACKET
         + (
             # Escape the field so a VARIANT/OBJECT key containing single quotes
-            # or backslashes does not terminate the literal early.
-            SINGLE_QUOTE + escape_quotes_and_backslashes(field) + SINGLE_QUOTE
+            # or backslashes does not terminate the literal early. A key whose
+            # single quotes are already doubled is preserved unchanged (minus
+            # backslash normalization) to keep the historical "double your own
+            # quotes" contract non-breaking.
+            SINGLE_QUOTE + escape_subfield_key(field) + SINGLE_QUOTE
             if isinstance(field, str)
             else str(field)
         )
