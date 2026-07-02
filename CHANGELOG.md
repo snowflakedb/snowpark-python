@@ -4,10 +4,6 @@
 
 ### Snowpark Python API Updates
 
-#### New Features
-
-- Added Iceberg incremental read support via `start_snapshot_id` and `end_snapshot_id` on `Session.table()`, `DataFrameReader.table()`, and `Table`. Spark Iceberg reader options `start-snapshot-id` / `end-snapshot-id` (and underscore variants) are mapped to Snowflake `CHANGES (INFORMATION => APPEND_ONLY) AT (VERSION => ...) [ END (VERSION => ...) ]` SQL.
-
 #### Bug Fixes
 
 - Fixed a bug where stage paths and file format names that contain single quotes were not consistently escaped when generating SQL, which could produce malformed statements. This affects `INFER_SCHEMA` (used by `DataFrameReader.csv`/`json`/`parquet`/`orc`/`avro`) and `COPY FILES` (used by `FileOperation.copy_files`).
