@@ -158,6 +158,7 @@ The return type is always ``Column``. The input types tell you the acceptable va
     <BLANKLINE>
 """
 import functools
+import inspect
 import typing
 from functools import reduce
 import json  # noqa: F401  (only referenced by doctests in this module)
@@ -10327,6 +10328,64 @@ def vectorized(input: type, max_batch_size: Optional[int] = None) -> Callable:
         return _inner
 
     return _decorator
+
+
+def udf_init_once(func: Callable) -> Callable:
+    """Mark a function to be executed once during pre-fork initialization.
+
+    This decorator has the same signature as the server-side ``_snowflake.udf_init_once``.
+    It is a no-op for local invocation. Functions decorated with ``@udf_init_once`` run in
+    the head worker process before individual workers are forked. The initialized state
+    (e.g., loaded models, computed lookup tables) is shared across all workers via
+    Copy-On-Write.
+
+    The decorated function must:
+        - Accept zero arguments
+        - Be a callable (function, lambda, or callable object)
+
+    Multiple ``@udf_init_once`` functions are executed in the order they are defined.
+
+    Example::
+
+        from snowflake.snowpark.functions import udf_init_once
+
+        model = None
+
+        @udf_init_once
+        def load_model():
+            global model
+            model = 42
+
+    Use this decorator in handler files registered via
+    :meth:`~snowflake.snowpark.udf.UDFRegistration.register_from_file`.
+    On the Snowflake server the ``_snowflake.udf_init_once`` implementation
+    is used instead; this client-side definition provides the same API so
+    that handler files can be tested locally.
+
+    Args:
+        func: The init function to decorate. Must be callable and accept zero arguments.
+
+    Returns:
+        The decorated function, unchanged.
+
+    See Also:
+        - :func:`udf`
+        - :meth:`~snowflake.snowpark.udf.UDFRegistration.register_from_file`
+    """
+    if not callable(func):
+        raise TypeError(
+            f"@udf_init_once target must be callable, got {type(func).__name__}"
+        )
+    sig = inspect.signature(func)
+    if len(sig.parameters) != 0:
+        raise TypeError(
+            f"@udf_init_once function must take 0 arguments, got {len(sig.parameters)}"
+        )
+    # This client-side decorator is a no-op that returns the function unchanged;
+    # it exists only to mirror the ``_snowflake.udf_init_once`` signature so that
+    # handler files import and validate cleanly when authored/tested locally. The
+    # actual pre-fork execution is performed server-side by ``_snowflake``.
+    return func
 
 
 @publicapi

@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added the `udf_init_once` decorator in `snowflake.snowpark.functions` for marking functions to be executed once during pre-fork initialization on Snowflake workers, matching the server-side `_snowflake.udf_init_once` API.
+
 #### Bug Fixes
 
 - Fixed a bug where stage paths and file format names that contain single quotes were not consistently escaped when generating SQL, which could produce malformed statements. This affects `INFER_SCHEMA` (used by `DataFrameReader.csv`/`json`/`parquet`/`orc`/`avro`) and `COPY FILES` (used by `FileOperation.copy_files`).
