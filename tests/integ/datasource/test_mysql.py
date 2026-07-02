@@ -193,6 +193,30 @@ def test_double_quoted_column_name_mysql(session, custom_schema):
     assert df.schema == mysql_double_quoted_schema
 
 
+def test_embedded_quote_alias_has_no_side_effects_mysql(session):
+    conn = create_connection_mysql()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {TEST_TABLE_NAME}")
+            before_count = cur.fetchone()[0]
+
+        embedded_quote_alias = (
+            f"y` FROM {TEST_TABLE_NAME};DELETE FROM {TEST_TABLE_NAME};--"
+        )
+        escaped_alias = embedded_quote_alias.replace("`", "``")
+        crafted_query = f"SELECT 1 AS `{escaped_alias}`"
+
+        df = session.read.dbapi(create_connection_mysql, query=crafted_query)
+        assert len(df.collect()) == 1
+
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {TEST_TABLE_NAME}")
+            after_count = cur.fetchone()[0]
+        assert after_count == before_count
+    finally:
+        conn.close()
+
+
 @pytest.mark.parametrize(
     "data, number_of_columns, expected_result",
     [

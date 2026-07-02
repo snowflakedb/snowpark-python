@@ -11,6 +11,11 @@ QUERY_TEMPLATE = "SELECT {cols} FROM {table_or_query} {query_input_alias}"
 
 class BaseDialect:
     @staticmethod
+    def _quote_backtick(name: str) -> str:
+        """Escape a backtick-quoted identifier: double any embedded backticks."""
+        return "`" + name.replace("`", "``") + "`"
+
+    @staticmethod
     def generate_select_query(
         table_or_query: str,
         schema: StructType,
@@ -20,12 +25,11 @@ class BaseDialect:
     ) -> str:
         cols = []
         for raw_field in raw_schema:
+            quoted_name = BaseDialect._quote_backtick(raw_field[0])
             if is_query:
-                cols.append(
-                    f"""{query_input_alias}.`{raw_field[0]}` AS {raw_field[0]}"""
-                )
+                cols.append(f"""{query_input_alias}.{quoted_name} AS {quoted_name}""")
             else:
-                cols.append(raw_field[0])
+                cols.append(quoted_name)
 
         return QUERY_TEMPLATE.format(
             cols=", ".join(cols),

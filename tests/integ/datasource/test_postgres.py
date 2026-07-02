@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import pytest
+import uuid
 
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.data_source.drivers import Psycopg2Driver
@@ -145,6 +146,66 @@ def test_external_access_integration_not_set(session):
         session.read.dbapi(
             create_postgres_connection, table=POSTGRES_TABLE_NAME, udtf_configs={}
         )
+
+
+def test_embedded_quote_alias_has_no_side_effects_postgres(session):
+    """A column alias with an embedded quote must not run side-effect SQL during dbapi ingestion."""
+    from psycopg2 import sql
+
+    suffix = uuid.uuid4().hex[:8]
+    sentinel_table = f"quoting_sentinel_{suffix}"
+    sentinel_value = 42
+
+    conn = create_postgres_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                sql.SQL("CREATE TABLE test_schema.{} (id INTEGER)").format(
+                    sql.Identifier(sentinel_table)
+                )
+            )
+            cur.execute(
+                sql.SQL("INSERT INTO test_schema.{} (id) VALUES (%s)").format(
+                    sql.Identifier(sentinel_table)
+                ),
+                (sentinel_value,),
+            )
+        conn.commit()
+
+        embedded_quote_alias = (
+            f'y" FROM test_schema.{sentinel_table};'
+            f"DELETE FROM test_schema.{sentinel_table};--"
+        )
+        crafted_query = (
+            sql.SQL("SELECT 1 AS {}")
+            .format(sql.Identifier(embedded_quote_alias))
+            .as_string(conn)
+        )
+
+        df = session.read.dbapi(
+            create_postgres_connection,
+            query=crafted_query,
+            custom_schema='x INTEGER, "y" INTEGER',
+        )
+        assert len(df.collect()) == 1
+
+        with conn.cursor() as cur:
+            cur.execute(
+                sql.SQL("SELECT COUNT(*) FROM test_schema.{}").format(
+                    sql.Identifier(sentinel_table)
+                )
+            )
+            sentinel_count = cur.fetchone()[0]
+        assert sentinel_count == 1
+    finally:
+        with conn.cursor() as cur:
+            cur.execute(
+                sql.SQL("DROP TABLE IF EXISTS test_schema.{}").format(
+                    sql.Identifier(sentinel_table)
+                )
+            )
+        conn.commit()
+        conn.close()
 
 
 @pytest.mark.parametrize(
@@ -448,11 +509,11 @@ def test_unit_generate_select_query():
         "test_table", schema, raw_schema, is_query=False, query_input_alias="mock_alias"
     )
     expected_table_query = (
-        'SELECT TO_JSON("json_col")::TEXT AS json_col, '
-        'CASE WHEN "cash_col" IS NULL THEN NULL ELSE FORMAT(\'"%s"\', "cash_col"::TEXT) END AS cash_col, '
-        """ENCODE("bytea_col", 'HEX') AS bytea_col, """
-        '"timetz_col"::TIME AS timetz_col, '
-        '"interval_col"::TEXT AS interval_col, '
+        'SELECT TO_JSON("json_col")::TEXT AS "json_col", '
+        'CASE WHEN "cash_col" IS NULL THEN NULL ELSE FORMAT(\'"%s"\', "cash_col"::TEXT) END AS "cash_col", '
+        """ENCODE("bytea_col", 'HEX') AS "bytea_col", """
+        '"timetz_col"::TIME AS "timetz_col", '
+        '"interval_col"::TEXT AS "interval_col", '
         '"regular_col" '
         "FROM test_table"
     )
@@ -467,12 +528,12 @@ def test_unit_generate_select_query():
         query_input_alias="mock_alias",
     )
     expected_subquery_query = (
-        'SELECT TO_JSON(mock_alias."json_col")::TEXT AS json_col, '
-        'CASE WHEN mock_alias."cash_col" IS NULL THEN NULL ELSE FORMAT(\'"%s"\', "cash_col"::TEXT) END AS cash_col, '
-        """ENCODE(mock_alias."bytea_col", 'HEX') AS bytea_col, """
-        'mock_alias."timetz_col"::TIME AS timetz_col, '
-        'mock_alias."interval_col"::TEXT AS interval_col, '
-        'mock_alias."regular_col" AS regular_col '
+        'SELECT TO_JSON(mock_alias."json_col")::TEXT AS "json_col", '
+        'CASE WHEN mock_alias."cash_col" IS NULL THEN NULL ELSE FORMAT(\'"%s"\', "cash_col"::TEXT) END AS "cash_col", '
+        """ENCODE(mock_alias."bytea_col", 'HEX') AS "bytea_col", """
+        'mock_alias."timetz_col"::TIME AS "timetz_col", '
+        'mock_alias."interval_col"::TEXT AS "interval_col", '
+        'mock_alias."regular_col" AS "regular_col" '
         "FROM ((SELECT * FROM test_table)) mock_alias"
     )
     assert subquery_query == expected_subquery_query
@@ -490,7 +551,7 @@ def test_unit_generate_select_query():
         query_input_alias="mock_alias",
     )
     expected_jsonb_query = (
-        'SELECT TO_JSON("jsonb_col")::TEXT AS jsonb_col FROM test_table'
+        'SELECT TO_JSON("jsonb_col")::TEXT AS "jsonb_col" FROM test_table'
     )
     assert jsonb_query == expected_jsonb_query
 

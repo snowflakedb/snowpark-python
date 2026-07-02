@@ -5961,6 +5961,117 @@ def test_write_copy_into_location_options(session):
         Utils.drop_stage(session, temp_stage)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.copy_into_location is not supported in Local Testing",
+)
+@pytest.mark.parametrize(
+    "quote_mode,prefix,should_succeed",
+    [
+        ("unquoted", "quote_mode_unquoted", True),
+        ("single", "quote_mode_single", True),
+        ("double", "quote_mode_double", False),
+    ],
+)
+def test_write_copy_into_location_stage_location_quote_modes(
+    session, quote_mode, prefix, should_succeed
+):
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+    try:
+        df = session.create_dataframe(
+            [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+
+        base_stage_location = f"@{temp_stage}/{prefix}/"
+        if quote_mode == "single":
+            stage_location = f"'{base_stage_location}'"
+        elif quote_mode == "double":
+            stage_location = f'"{base_stage_location}"'
+        else:
+            stage_location = base_stage_location
+
+        if should_succeed:
+            ret = df.write.copy_into_location(
+                stage_location,
+                file_format_type="csv",
+                overwrite=True,
+                single=True,
+            )
+            assert len(ret) == 1 and ret[0].rows_unloaded == 3
+
+            copied_files = session.sql(f"list @{temp_stage}/{prefix}/").collect()
+            assert len(copied_files) == 1
+        else:
+            with pytest.raises(SnowparkSQLException, match="does not exist"):
+                df.write.copy_into_location(
+                    stage_location,
+                    file_format_type="csv",
+                    overwrite=True,
+                    single=True,
+                )
+    finally:
+        Utils.drop_stage(session, temp_stage)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.copy_into_location is not supported in Local Testing",
+)
+def test_stage_location_embedded_single_quote_raw_and_preescaped_forms(session):
+    source_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    target_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, source_stage, is_temporary=True)
+    Utils.create_stage(session, target_stage, is_temporary=True)
+    try:
+        df = session.create_dataframe(
+            [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+
+        # Raw form with embedded apostrophe.
+        raw_source_location = f"@{source_stage}/o'clock/raw/"
+        # Equivalent pre-escaped single-quoted form.
+        escaped_source_location = f"'@{source_stage}/o''clock/escaped/'"
+
+        raw_copy_result = df.write.copy_into_location(
+            raw_source_location,
+            file_format_type="csv",
+            overwrite=True,
+            single=True,
+        )
+        escaped_copy_result = df.write.copy_into_location(
+            escaped_source_location,
+            file_format_type="csv",
+            overwrite=True,
+            single=True,
+        )
+        assert len(raw_copy_result) == 1 and raw_copy_result[0].rows_unloaded == 3
+        assert (
+            len(escaped_copy_result) == 1 and escaped_copy_result[0].rows_unloaded == 3
+        )
+
+        raw_target_location = f"@{target_stage}/o'clock/raw/"
+        escaped_target_location = f"'@{target_stage}/o''clock/escaped/'"
+
+        raw_files_copied = session.file.copy_files(
+            raw_source_location,
+            raw_target_location,
+            detailed_output=False,
+        )
+        escaped_files_copied = session.file.copy_files(
+            escaped_source_location,
+            escaped_target_location,
+            detailed_output=False,
+        )
+        assert raw_files_copied == 1
+        assert escaped_files_copied == 1
+    finally:
+        Utils.drop_stage(session, source_stage)
+        Utils.drop_stage(session, target_stage)
+
+
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="This is testing SQL generation",

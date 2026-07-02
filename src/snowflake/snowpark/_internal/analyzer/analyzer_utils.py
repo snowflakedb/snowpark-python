@@ -6,6 +6,7 @@
 import json
 import math
 import os
+import re
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence
 
@@ -1964,7 +1965,7 @@ def copy_into_location(
     return (
         COPY
         + INTO
-        + stage_location
+        + escape_location_literal(stage_location)
         + FROM
         + LEFT_PARENTHESIS
         + query
@@ -2178,6 +2179,39 @@ def single_quote(value: str) -> str:
         # Double any embedded single quotes so the value stays a single literal
         value = value.replace("'", "''")
         return SINGLE_QUOTE + value + SINGLE_QUOTE
+
+
+# Matches a complete, well-formed single-quoted SQL literal. The three body
+# alternatives each start with a different character (non-quote/non-backslash,
+# ', \), so every input character fits exactly one branch -- the engine never
+# backtracks, giving linear-time matching even on adversarial input.
+# Matches:     "'@stage/o''clock/'"    (interior quote is doubled -> one literal)
+# No match:    "'@x' UNION SELECT --'"  (bare interior quote ends the literal early)
+_WELL_FORMED_SINGLE_QUOTED_LITERAL = re.compile(
+    r"""
+    '                # opening single quote
+    (                # body: zero or more of...
+        [^'\\]       #   any char that is neither a quote nor a backslash
+        | ''         #   or a doubled (escaped) quote
+        | \\.        #   or a backslash followed by any char (backslash escape)
+    )*
+    '                # closing single quote
+    """,
+    re.VERBOSE | re.DOTALL,
+)
+
+
+def escape_location_literal(value: str) -> str:
+    """Return ``value`` as a single, well-formed single-quoted SQL literal.
+
+    Unlike :func:`single_quote`, a value that merely starts and ends with a
+    single quote but contains unescaped interior quotes is treated as unquoted
+    and fully escaped. This prevents a caller-controlled location from breaking
+    out of the string literal in the generated ``COPY INTO`` statement.
+    """
+    if _WELL_FORMED_SINGLE_QUOTED_LITERAL.fullmatch(value):
+        return value
+    return SINGLE_QUOTE + value.replace("'", "''") + SINGLE_QUOTE
 
 
 def quote_name_without_upper_casing(name: str) -> str:
