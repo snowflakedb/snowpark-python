@@ -82,6 +82,36 @@ def test_generate_python_code_exception():
         assert "Source code comment could not be generated" in generated_code
 
 
+def test_udf_init_once_decorator_simple():
+    """Test @udf_init_once as simple decorator (same API as _snowflake.udf_init_once)."""
+    from snowflake.snowpark.functions import udf_init_once
+
+    @udf_init_once
+    def my_init():
+        pass
+
+    # The client-side decorator is a no-op: it returns the function unchanged.
+    assert my_init.__name__ == "my_init"
+    assert callable(my_init)
+
+
+def test_udf_init_once_rejects_non_zero_arg_function():
+    from snowflake.snowpark.functions import udf_init_once
+
+    with pytest.raises(TypeError, match="must take 0 arguments"):
+
+        @udf_init_once
+        def bad_init(x):
+            return x
+
+
+def test_udf_init_once_rejects_non_callable():
+    from snowflake.snowpark.functions import udf_init_once
+
+    with pytest.raises(TypeError, match="must be callable"):
+        udf_init_once("not_a_function")
+
+
 @pytest.mark.parametrize(
     "packages",
     [
