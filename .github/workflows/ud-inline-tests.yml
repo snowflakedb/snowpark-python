@@ -60,7 +60,8 @@ concurrency:
 env:
   PYTHON_VERSION: ${{ inputs.python-version || '3.13' }}
   CLOUD_PROVIDER: ${{ inputs.cloud-provider || 'aws' }}
-  UD_REF: ${{ inputs.ud-ref || 'snowpark-compatibility' }}
+  # Baseline experiment: pin to snowflake-eng/main HEAD (private repo, App-token auth).
+  UD_REF: ${{ inputs.ud-ref || 'd9e7cd7d36dce5986ea2d4c2265e99ef88c9202b' }}
   EXTRA_PYTEST_ADDOPTS: ${{ inputs.pytest-addopts || '' }}
 
 jobs:
@@ -73,15 +74,26 @@ jobs:
     name: "Build UD wheel py${{ inputs.python-version || '3.13' }}"
     runs-on: ubuntu-latest-64-cores
     steps:
+      # BASELINE EXPERIMENT vs PR #4275: build UD from the PRIVATE snowflake-eng/universal-driver
+      # (the new canonical repo). Auth via a GitHub App token, same pattern the odbc-reports
+      # early-adopter pipeline uses. NOTE: eng/main does NOT carry the snowpark-compat shims,
+      # so expect heavy import-time failures — this run primarily validates private-repo auth
+      # and gives the bare eng/main baseline. (App secrets may be snowflake-eng-org only.)
+      - name: Generate App token for universal-driver
+        id: ud-token
+        uses: actions/create-github-app-token@v3.0.0
+        with:
+          app-id: ${{ secrets.SNOWFLAKE_GH_ACTIONS_APP_ID }}
+          private-key: ${{ secrets.SNOWFLAKE_GH_ACTIONS_TOKEN }}
+          owner: snowflake-eng
+          repositories: universal-driver
+
       - name: Checkout universal-driver
         uses: actions/checkout@v4
         with:
-          # snowflakedb/universal-driver is a PUBLIC mirror and has snowpark-compatibility.
-          # Do NOT pass a custom token: an empty/invalid SNOWFLAKE_GITHUB_TOKEN sets a bad
-          # Authorization header and GitHub 401s instead of serving the public repo. Omitting
-          # `token:` lets checkout use the default GITHUB_TOKEN, which reads public repos fine.
-          repository: snowflakedb/universal-driver
+          repository: snowflake-eng/universal-driver
           ref: ${{ env.UD_REF }}
+          token: ${{ steps.ud-token.outputs.token }}
           persist-credentials: false
           fetch-depth: 1
 
