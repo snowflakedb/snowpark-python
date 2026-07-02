@@ -161,7 +161,7 @@ import functools
 import inspect
 import typing
 from functools import reduce
-import json
+import json  # noqa: F401  (only referenced by doctests in this module)
 from random import randint
 from types import ModuleType
 from typing import Callable, Dict, List, Optional, Tuple, Union, overload
@@ -12862,6 +12862,58 @@ def prompt(
     )
 
 
+def _python_obj_to_sql_literal(
+    value: Union[dict, list, str, int, float, bool, None],
+) -> str:
+    """Serialize a Python object into a Snowflake SQL object/array/scalar constant.
+
+    Used by the AI functions (``ai_extract``, ``ai_classify``, ``ai_similarity``,
+    ``ai_parse_document``, ``ai_transcribe``, ``ai_complete``) to embed
+    caller-supplied configuration / response-format structures into the generated
+    SQL. Unlike the previous ``json.dumps(value).replace('"', "'")`` approach,
+    every string key and value is SQL-escaped (single quotes doubled, backslashes
+    escaped), so string keys/values containing single quotes or backslashes
+    (e.g. an apostrophe in a natural-language question) produce valid SQL.
+    """
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        # bool must be checked before int since bool is a subclass of int
+        return "true" if value else "false"
+    if isinstance(value, str):
+        escaped = value.replace("\\", "\\\\").replace("'", "''")
+        return f"'{escaped}'"
+    if isinstance(value, int):
+        # bool is handled above; int() normalizes subclasses such as IntEnum
+        return str(int(value))
+    if isinstance(value, float):
+        value = float(value)  # normalize subclasses
+        # Match json.dumps' handling of non-finite floats: emit NaN / Infinity /
+        # -Infinity (the same tokens the previous json.dumps-based code produced)
+        # and let Snowflake surface any error server-side, rather than raising
+        # client-side. Note: do not use builtin abs() here — `abs` is shadowed by
+        # the Snowpark column function defined in this module.
+        if value != value:
+            return "NaN"
+        if value == float("inf"):
+            return "Infinity"
+        if value == float("-inf"):
+            return "-Infinity"
+        return repr(value)
+    if isinstance(value, dict):
+        items = ", ".join(
+            f"{_python_obj_to_sql_literal(str(k))}: {_python_obj_to_sql_literal(v)}"
+            for k, v in value.items()
+        )
+        return f"{{{items}}}"
+    if isinstance(value, (list, tuple)):
+        items = ", ".join(_python_obj_to_sql_literal(v) for v in value)
+        return f"[{items}]"
+    raise TypeError(
+        f"Cannot serialize value of type {type(value).__name__} to a SQL literal"
+    )
+
+
 @publicapi
 def ai_extract(
     input: Union[ColumnOrLiteralStr, Column],
@@ -13010,9 +13062,9 @@ def ai_extract(
     else:
         input_col = input
 
-    # Convert response_format to SQL expression
-    # We use json.dumps and replace double quotes with single quotes as per SQL requirements
-    response_format_col = sql_expr(json.dumps(response_format).replace('"', "'"))
+    # Convert response_format to a SQL object/array literal with every string
+    # key/value SQL-escaped so special characters produce valid SQL.
+    response_format_col = sql_expr(_python_obj_to_sql_literal(response_format))
 
     # Build AST if needed
     ast = (
@@ -13240,8 +13292,9 @@ def ai_classify(
             f"list_of_categories must be a list of str or a Column, got {list_of_categories}"
         )
     if config_dict:
-        # only object constant is supported for now
-        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        # only object constant is supported for now; keys/values are SQL-escaped
+        # so special characters produce valid SQL.
+        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
         return _call_function(
             sql_func_name, expr_col, cat_col, config_col, _ast=ast, _emit_ast=_emit_ast
         )
@@ -13431,8 +13484,9 @@ def ai_similarity(
     input2_col = _to_col_if_lit(input2, sql_func_name)
 
     if config_dict:
-        # only object constant is supported for now
-        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        # only object constant is supported for now; keys/values are SQL-escaped
+        # so special characters produce valid SQL.
+        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
         return _call_function(
             sql_func_name,
             input1_col,
@@ -13537,8 +13591,9 @@ def ai_parse_document(
             if _emit_ast
             else None
         )
-        # only object constant is supported for now
-        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        # only object constant is supported for now; keys/values are SQL-escaped
+        # so special characters produce valid SQL.
+        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
         return _call_function(
             sql_func_name, file, config_col, _ast=ast, _emit_ast=_emit_ast
         )
@@ -13660,8 +13715,9 @@ def ai_transcribe(
             if _emit_ast
             else None
         )
-        # only object constant is supported for now
-        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        # only object constant is supported for now; keys/values are SQL-escaped
+        # so special characters produce valid SQL.
+        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
         return _call_function(
             sql_func_name, audio_file, config_col, _ast=ast, _emit_ast=_emit_ast
         )
@@ -13858,16 +13914,12 @@ def ai_complete(
 
     # Add model_parameters if provided
     if model_parameters is not None:
-        model_params_col = sql_expr(
-            json.dumps(model_parameters).replace("'", "''").replace('"', "'")
-        )
+        model_params_col = sql_expr(_python_obj_to_sql_literal(model_parameters))
         call_kwargs["model_parameters"] = model_params_col
 
     # Add response_format if provided
     if response_format is not None:
-        response_format_col = sql_expr(
-            json.dumps(response_format).replace("'", "''").replace('"', "'")
-        )
+        response_format_col = sql_expr(_python_obj_to_sql_literal(response_format))
         call_kwargs["response_format"] = response_format_col
 
     # Add show_details if provided

@@ -13,6 +13,7 @@ from snowflake.snowpark import Row
 from snowflake.snowpark._internal.data_source.drivers.oracledb_driver import (
     output_type_handler,
 )
+from snowflake.snowpark._internal.data_source import DataSourcePartitioner
 from snowflake.snowpark._internal.data_source.drivers import (
     OracledbDriver,
 )
@@ -238,6 +239,36 @@ def test_double_quoted_column_name_oracledb(session, custom_schema):
         )
     ]
     assert df.schema == oracledb_double_quoted_schema
+
+
+def test_embedded_quote_alias_has_no_side_effects_oracledb(session):
+    conn = create_connection_oracledb()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {ORACLEDB_TABLE_NAME}")
+            before_count = cur.fetchone()[0]
+
+        # Use a reserved keyword as a quoted identifier to exercise the
+        # is_query=True alias quoting path without Oracle's ORA-03001 limitation
+        # for embedded double-quotes in nested subqueries.
+        crafted_query = 'SELECT 1 AS "select" FROM dual'
+        partitioner = DataSourcePartitioner(
+            create_connection_oracledb, crafted_query, is_query=True
+        )
+        partition_query = partitioner.partitions[0]
+        assert ' AS "select"' in partition_query
+
+        with conn.cursor() as cur:
+            cur.execute(partition_query)
+            rows = cur.fetchall()
+        assert len(rows) == 1
+
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {ORACLEDB_TABLE_NAME}")
+            after_count = cur.fetchone()[0]
+        assert after_count == before_count
+    finally:
+        conn.close()
 
 
 def test_unsupported_type():
