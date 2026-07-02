@@ -481,7 +481,17 @@ def normalize_path(path: str, is_local: bool) -> str:
         return path
     if is_local and OPERATING_SYSTEM == "Windows":
         path = path.replace("\\", "/")
-    path = path.strip().replace("'", "\\'")
+    # Escape the backslash before the single quote so the path stays a single
+    # Snowflake string literal; the reverse order would let an escaped quote
+    # close the literal early and produce invalid SQL. Constants keep the
+    # replacements readable (no Python escape double-counting).
+    BACKSLASH = "\\"
+    SINGLE_QUOTE = "'"
+    path = (
+        path.strip()
+        .replace(BACKSLASH, BACKSLASH * 2)  # \  ->  \\
+        .replace(SINGLE_QUOTE, BACKSLASH + SINGLE_QUOTE)  # '  ->  \'
+    )
     if not any(path.startswith(prefix) for prefix in prefixes):
         path = f"{prefixes[0]}{path}"
     return f"'{path}'"
