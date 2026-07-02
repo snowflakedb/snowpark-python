@@ -1,12 +1,18 @@
-name: Run UD tests inline (manual)
+name: UD compatibility tests (Snowpark on Universal Driver)
+
+# Runs the Snowpark test suites with the Universal Driver (UD) swapped in for the
+# legacy snowflake-connector-python, to surface which tests fail on UD.
+#
+# Scope is split into per-area matrix groups (unit-integ, scala, modin, datasource,
+# doctest). At-risk groups run with continue-on-error so every gap is visible in a
+# single run. UD is built once (build-ud job) from a pinned ref and consumed as a
+# prebuilt wheel via the ud_connector_path swap in scripts/tox_install_cmd.sh.
 
 on:
-  # TODO: remove pull_request once all tests are passing — keep workflow_dispatch only
-  pull_request:
   workflow_dispatch:
     inputs:
-      ud-branch:
-        description: 'Branch of universal-driver repo to use'
+      ud-ref:
+        description: 'universal-driver ref to build (commit SHA preferred for reproducibility; branch allowed)'
         required: false
         default: 'snowpark-compatibility'
         type: string
@@ -34,25 +40,103 @@ on:
         required: false
         default: ''
         type: string
+  schedule:
+    # Nightly, off-peak, off the :00 mark.
+    - cron: '23 7 * * *'
+  # For now, run on every PR for visibility (jobs are continue-on-error, so they
+  # never block merges). `labeled` is included so adding a label also triggers a
+  # run. NOTE: PRs from forks get no secrets, so build-ud / decrypt will fail
+  # there — revisit with label-gating once UD is closer to green.
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
 
 permissions:
   contents: read
 
+concurrency:
+  group: ud-tests-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   PYTHON_VERSION: ${{ inputs.python-version || '3.13' }}
   CLOUD_PROVIDER: ${{ inputs.cloud-provider || 'aws' }}
-  UD_BRANCH: ${{ inputs.ud-branch || 'snowpark-compatibility' }}
-  # TODO: change fallback back to '' once full suite passes against UD
-  EXTRA_PYTEST_ADDOPTS: ${{ inputs.pytest-addopts || '-v --tb=long' }}
+  UD_REF: ${{ inputs.ud-ref || 'snowpark-compatibility' }}
+  EXTRA_PYTEST_ADDOPTS: ${{ inputs.pytest-addopts || '' }}
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Build the UD Python wheel once, from a pinned ref. The wheel is cpXY/platform
+  # tagged (Rust core compiled via hatch_build.py). Cached by resolved UD commit
+  # so repeat runs at the same ref don't rebuild.
+  # ---------------------------------------------------------------------------
+  build-ud:
+    name: "Build UD wheel py${{ inputs.python-version || '3.13' }}"
+    runs-on: ubuntu-latest-64-cores
+    steps:
+      - name: Checkout universal-driver
+        uses: actions/checkout@v4
+        with:
+          # snowflakedb/universal-driver is a PUBLIC mirror and has snowpark-compatibility.
+          # Do NOT pass a custom token: an empty/invalid SNOWFLAKE_GITHUB_TOKEN sets a bad
+          # Authorization header and GitHub 401s instead of serving the public repo. Omitting
+          # `token:` lets checkout use the default GITHUB_TOKEN, which reads public repos fine.
+          repository: snowflakedb/universal-driver
+          ref: ${{ env.UD_REF }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Resolve UD commit
+        id: udsha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Ensure Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Cache UD wheel
+        id: udcache
+        uses: actions/cache@v4
+        with:
+          path: python/dist
+          key: ud-wheel-${{ steps.udsha.outputs.sha }}-py${{ env.PYTHON_VERSION }}-${{ runner.os }}
+
+      - name: Build UD wheel
+        if: steps.udcache.outputs.cache-hit != 'true'
+        run: |
+          uv tool install hatch
+          cd python
+          hatch build -t wheel
+          ls -al dist
+
+      - name: Upload UD wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: ud-wheel-py${{ env.PYTHON_VERSION }}
+          path: python/dist/*.whl
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Run each Snowpark test area against the UD wheel. continue-on-error keeps the
+  # whole matrix running so every gap is visible; promote a group to blocking
+  # once it is green.
+  # ---------------------------------------------------------------------------
   test:
+    needs: build-ud
     strategy:
       fail-fast: false
       matrix:
-        group: [integration, scala]
+        group: [unit-integ, scala, modin, datasource, doctest]
     name: "${{ matrix.group }} py${{ inputs.python-version || '3.13' }}-${{ inputs.cloud-provider || 'aws' }}"
     runs-on: ubuntu-latest-64-cores
+    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -67,6 +151,20 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
+      - name: Download UD wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: ud-wheel-py${{ env.PYTHON_VERSION }}
+          path: ud-wheel
+
+      - name: Locate UD wheel
+        id: udwheel
+        run: |
+          whl=$(ls "$PWD"/ud-wheel/*.whl | head -1)
+          test -n "$whl"
+          echo "path=$whl" >> "$GITHUB_OUTPUT"
+          echo "UD wheel: $whl"
+
       - name: Decrypt parameters.py
         run: .github/scripts/decrypt_parameters.sh
         env:
@@ -76,42 +174,97 @@ jobs:
       - name: Install protoc
         run: .github/scripts/install_protoc.sh
 
-      - name: Configure git credentials for universal-driver
-        run: |
-          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
-        env:
-          GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
-
       - name: Install tox
         run: uv pip install tox --system
+
+      - name: Install MS ODBC Driver
+        if: matrix.group == 'datasource'
+        run: |
+          curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+          curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list \
+            | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
 
       - name: Run tests
         id: tests
         run: |
           set +e
-          if [ "${{ matrix.group }}" = "integration" ]; then
-            python -m tox -e "py${PYTHON_VERSION//.}-notdoctest-ci" \
-              -- --ignore=tests/integ/scala 2>&1 | tee test-output.log
-          elif [ "${{ matrix.group }}" = "scala" ]; then
-            python -m tox -e "py${PYTHON_VERSION//.}-notdoctest-ci" \
-              -- -k scala 2>&1 | tee test-output.log
-          fi
-          grep -oP '[\d]+ (failed|passed|skipped|warnings?|errors?)' test-output.log > results.txt || true
-          cat results.txt
+          mkdir -p reports
+          V="${PYTHON_VERSION//.}"
+          case "${{ matrix.group }}" in
+            unit-integ)
+              TOX="py${V}-notdoctest-ci"
+              set -- --ignore=tests/integ/scala --ignore=tests/integ/datasource ;;
+            scala)
+              TOX="py${V}-notdoctest-ci"
+              set -- tests/integ/scala ;;
+            modin)
+              TOX="py${V}-snowparkpandasnotdoctest-modin-ci"
+              set -- ;;
+            datasource)
+              TOX="datasource"
+              set -- ;;
+            doctest)
+              TOX="py${V}-doctest-notudf-ci"
+              set -- ;;
+          esac
+          echo "tox env: $TOX  posargs: $*"
+          python -m tox -e "$TOX" -- "$@" 2>&1 | tee reports/test-output.log
         env:
           cloud_provider: ${{ env.CLOUD_PROVIDER }}
-          ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
-          GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
+          # Consume the prebuilt UD wheel via the safe swap path (deps installed
+          # first, then UD force-reinstalled last so it wins regardless of the
+          # connector version range).
+          ud_connector_path: ${{ steps.udwheel.outputs.path }}
+          # Honest counts for compatibility measurement: no reruns.
+          UD_RERUN_FLAGS: ''
+          # Write JUnit XML to a known dir for artifact upload / triage.
+          JUNIT_REPORT_DIR: ${{ github.workspace }}/reports
           PYTEST_ADDOPTS: --color=yes --tb=short ${{ env.EXTRA_PYTEST_ADDOPTS }}
           TOX_PARALLEL_NO_SPINNER: 1
+
+      - name: Extract results
+        if: always()
+        run: |
+          # Human-readable per-group counts. The pytest terminal summary line is
+          # left intact in the job log for odbc-reports log-scraping.
+          grep -oP '\d+ (failed|passed|skipped|errors?|warnings?)' reports/test-output.log \
+            > "reports/summary-${{ matrix.group }}.txt" || true
+          echo "== ${{ matrix.group }} ==" && cat "reports/summary-${{ matrix.group }}.txt" || true
+          # Failing/errored test IDs from JUnit XML (triage material).
+          python3 - "${{ matrix.group }}" <<'PY' || true
+          import glob, sys, xml.etree.ElementTree as ET
+          group = sys.argv[1]
+          out = []
+          for p in glob.glob("reports/junit*.xml"):
+              try:
+                  root = ET.parse(p).getroot()
+              except Exception:
+                  continue
+              for tc in root.iter("testcase"):
+                  if any(tc.iter("failure")) or any(tc.iter("error")):
+                      out.append(f"{tc.get('classname','')}::{tc.get('name','')}")
+          with open(f"reports/failing-{group}.txt", "w") as f:
+              f.write("\n".join(sorted(set(out))))
+              if out:
+                  f.write("\n")
+          print(f"failing/errored testcases: {len(set(out))}")
+          PY
 
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: results-${{ matrix.group }}
-          path: results.txt
+          path: reports/
+          if-no-files-found: warn
 
+  # ---------------------------------------------------------------------------
+  # Aggregate per-group counts into the GitHub step summary (UI only; odbc-reports
+  # derives its own totals from the job logs). Fails the run if any group had
+  # failures/errors, so humans see red until the suite is green on UD.
+  # ---------------------------------------------------------------------------
   summary:
     if: always()
     needs: test
@@ -127,25 +280,33 @@ jobs:
           python3 - <<'SCRIPT'
           import glob, re, collections, os
 
+          per_group = {}
           totals = collections.Counter()
-          for path in sorted(glob.glob("results-*/results.txt")):
+          for path in sorted(glob.glob("results-*/summary-*.txt")):
+              group = re.search(r"summary-(.+)\.txt$", path).group(1)
+              g = collections.Counter()
               with open(path) as f:
                   for line in f:
-                      line = line.strip()
-                      m = re.match(r"(\d+)\s+(\w+)", line)
+                      m = re.match(r"(\d+)\s+(\w+)", line.strip())
                       if m:
-                          totals[m.group(2)] += int(m.group(1))
+                          g[m.group(2)] += int(m.group(1))
+              per_group[group] = g
+              for k, v in g.items():
+                  totals[k] += v
 
-          parts = []
-          for key in ["failed", "passed", "skipped", "warnings", "errors"]:
-              if totals.get(key, 0) > 0:
-                  parts.append(f"{totals[key]} {key}")
+          def fmt(c):
+              order = ["failed", "errors", "passed", "skipped", "warnings"]
+              return ", ".join(f"{c[k]} {k}" for k in order if c.get(k, 0)) or "no results"
 
-          line = ", ".join(parts)
-          print(f"Total: {line}")
+          lines = ["## UD compatibility test results", "", "| group | result |", "|---|---|"]
+          for group in sorted(per_group):
+              lines.append(f"| {group} | `{fmt(per_group[group])}` |")
+          lines += ["", f"**Total:** `{fmt(totals)}`"]
+          summary = "\n".join(lines)
+          print(summary)
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
-              f.write(f"## Test Results\n\n`{line}`\n")
+              f.write(summary + "\n")
 
-          if totals.get("failed", 0) > 0 or totals.get("errors", 0) > 0:
-              exit(1)
+          if totals.get("failed", 0) or totals.get("errors", 0):
+              raise SystemExit(1)
           SCRIPT
