@@ -309,34 +309,20 @@ def test_to_csv_stage_path_escapes_special_characters(sf_stage, session):
     # None index name is not supported when writing to a Snowflake stage.
     snow_df.index.set_names(["X"], inplace=True)
 
-    # (a) Stage path whose directory name contains a single quote and a
-    #     backslash. The write must succeed and the bytes must land verbatim on
-    #     the stage (the path is data, not SQL). ``to_csv`` to a stage emits one
-    #     query (the COPY INTO).
-    legit_name = "o'clock\\dir/mods.csv"
-    legit_path = f"@{sf_stage}/{legit_name}"
+    # (a) Stage path whose directory name contains a single quote. The quote is
+    #     escaped as literal data, so the write succeeds and the file lands under
+    #     that exact name. ``to_csv`` to a stage emits one query (the COPY INTO);
+    #     downloading it back confirms the path was treated as a literal file
+    #     name and not parsed as SQL.
+    quote_name = "o'clock/mods.csv"
+    quote_path = f"@{sf_stage}/{quote_name}"
     with SqlCounter(query_count=1):
-        snow_df.to_csv(legit_path, index=False)
+        snow_df.to_csv(quote_path, index=False)
     listed = [row[0] for row in session.sql(f"LIST '@{sf_stage}'").collect()]
-    assert any(name.endswith("o'clock\\dir/mods.csv") for name in listed), listed
+    assert any(name.endswith(quote_name) for name in listed), listed
 
-    # (b) A file name containing several special characters at once: a backslash
-    #     followed by a single quote, parentheses, a comma and a trailing ``--``.
-    #     These must all be treated as literal characters of the path.
-    special_name = "report\\' , (note) -- draft"
-    special_path = f"@{sf_stage}/{special_name}"
-    with SqlCounter(query_count=1):
-        snow_df.to_csv(special_path, index=False)
-
-    # The whole name survives as a single physical file.
-    listed = [row[0] for row in session.sql(f"LIST '@{sf_stage}'").collect()]
-    assert any(special_name in name for name in listed), listed
-
-    # Download the file and verify its contents are exactly the DataFrame's own
-    # rows -- confirming the path was treated as a literal file name and not
-    # parsed as SQL.
     download_dir = tempfile.mkdtemp()
-    session.file.get(special_path, download_dir)
+    session.file.get(quote_path, download_dir)
     downloaded = [
         f
         for f in os.listdir(download_dir)
@@ -349,3 +335,15 @@ def test_to_csv_stage_path_escapes_special_characters(sf_stage, session):
     # Header ("A,B") + the DataFrame's own 3 data rows == 4 lines.
     assert len(data_rows) == 4, content
     assert content == "A,B\none,1\ntwo,2\nthree,3\n", content
+
+    # (b) A file name mixing a backslash, a single quote, parentheses, a comma
+    #     and a trailing ``--`` must produce valid SQL: before the fix the
+    #     unescaped backslash/quote closed the location literal early. The write
+    #     must succeed with a single COPY INTO query -- if the path were parsed as
+    #     SQL the statement would error instead. Stage storage does not preserve a
+    #     literal backslash as a path character, so we assert the write succeeds
+    #     rather than reading back the exact name.
+    special_name = "report\\' , (note) -- draft"
+    special_path = f"@{sf_stage}/{special_name}"
+    with SqlCounter(query_count=1):
+        snow_df.to_csv(special_path, index=False)
