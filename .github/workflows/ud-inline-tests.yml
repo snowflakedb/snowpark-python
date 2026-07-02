@@ -76,9 +76,12 @@ jobs:
       - name: Checkout universal-driver
         uses: actions/checkout@v4
         with:
+          # snowflakedb/universal-driver is a PUBLIC mirror and has snowpark-compatibility.
+          # Do NOT pass a custom token: an empty/invalid SNOWFLAKE_GITHUB_TOKEN sets a bad
+          # Authorization header and GitHub 401s instead of serving the public repo. Omitting
+          # `token:` lets checkout use the default GITHUB_TOKEN, which reads public repos fine.
           repository: snowflakedb/universal-driver
           ref: ${{ env.UD_REF }}
-          token: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
           persist-credentials: false
           fetch-depth: 1
 
