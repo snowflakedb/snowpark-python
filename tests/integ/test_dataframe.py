@@ -8601,3 +8601,21 @@ def test_iceberg_version_tag_time_travel_dataframe_reader_option(session):
         session.read.option("version-tag", tag_name).table(table_fqn).collect()
     )
     assert via_kwarg == via_option == via_hyphen_option
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a Snowflake-managed Iceberg table with a WAP branch and "
+        "FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. Tested manually."
+    )
+)
+def test_iceberg_branch_time_travel_dataframe_reader_option(session):
+    """End-to-end: Spark Iceberg ``branch`` option maps to VERSION_REF."""
+    table_fqn = "ICEBERG_GAP_TEST_HORIZON.TESTSCHEMA.snapshot_demo"
+    branch_name = "audit_branch"
+
+    via_branch = session.read.option("branch", branch_name).table(table_fqn).collect()
+    via_version_ref = (
+        session.read.option("version_ref", branch_name).table(table_fqn).collect()
+    )
+    assert via_branch == via_version_ref

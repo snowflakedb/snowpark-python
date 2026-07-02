@@ -993,7 +993,7 @@ def test_time_travel_version_tag():
     """Test Iceberg tag time travel via ``version_tag`` parameter.
 
     Covers SQL generation, validation, and the ``mode='at'``-only restriction.
-    Verifies the SQL matches the Snowflake ``AT(VERSION_TAG => '<name>')``
+    Verifies the SQL matches the Snowflake ``AT(VERSION_REF => '<name>')``
     grammar — the released tag-only form of Iceberg time travel (Spark
     Iceberg's ``VERSION AS OF '<tag_name>'`` for tag reads).
     """
@@ -1003,7 +1003,7 @@ def test_time_travel_version_tag():
     )
     assert config.version_tag == "release_v1"
     assert config.time_travel_mode == "at"
-    assert config.generate_sql_clause() == " AT (VERSION_TAG => 'release_v1')"
+    assert config.generate_sql_clause() == " AT (VERSION_REF => 'release_v1')"
 
     # Hyphens and dots in tag names round-trip through the SQL clause —
     # Iceberg allows these in tag names (e.g. ``snapshot-2023-01-01``,
@@ -1011,19 +1011,19 @@ def test_time_travel_version_tag():
     config_hyphen = TimeTravelConfig.validate_and_normalize_params(
         time_travel_mode="at", version_tag="audit-tag"
     )
-    assert config_hyphen.generate_sql_clause() == " AT (VERSION_TAG => 'audit-tag')"
+    assert config_hyphen.generate_sql_clause() == " AT (VERSION_REF => 'audit-tag')"
 
     config_dotted = TimeTravelConfig.validate_and_normalize_params(
         time_travel_mode="at", version_tag="snapshot-2023-01-01"
     )
     assert (
         config_dotted.generate_sql_clause()
-        == " AT (VERSION_TAG => 'snapshot-2023-01-01')"
+        == " AT (VERSION_REF => 'snapshot-2023-01-01')"
     )
 
     # Direct construction also generates the right SQL.
     direct = TimeTravelConfig(time_travel_mode="AT", version_tag="EOM_JULY_2025")
-    assert direct.generate_sql_clause() == " AT (VERSION_TAG => 'EOM_JULY_2025')"
+    assert direct.generate_sql_clause() == " AT (VERSION_REF => 'EOM_JULY_2025')"
 
     # version_tag + 'before' is invalid (tag reads are positional — bound
     # to a specific snapshot — not range-of-time).
@@ -1056,9 +1056,7 @@ def test_time_travel_version_tag():
         )
 
     # Non-string version_tag is rejected.
-    with pytest.raises(
-        ValueError, match="'version_tag' must be a string Iceberg tag name"
-    ):
+    with pytest.raises(ValueError, match="'version_tag' must be a string Iceberg name"):
         TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at", version_tag=123
         )
@@ -1091,7 +1089,7 @@ def test_time_travel_string_literal_escaping():
     config = TimeTravelConfig.validate_and_normalize_params(
         time_travel_mode="at", version_tag="release_'s"
     )
-    assert config.generate_sql_clause() == " AT (VERSION_TAG => 'release_''s')"
+    assert config.generate_sql_clause() == " AT (VERSION_REF => 'release_''s')"
 
     # An attempted injection payload — the closing quote and the
     # injected DROP must be fully neutralized by the doubled quotes.
@@ -1100,7 +1098,7 @@ def test_time_travel_string_literal_escaping():
     )
     assert (
         config_injection.generate_sql_clause()
-        == " AT (VERSION_TAG => 'x''); DROP TABLE foo; --')"
+        == " AT (VERSION_REF => 'x''); DROP TABLE foo; --')"
     )
 
     # statement — same escape applies (pre-existing pattern hardened
@@ -1139,7 +1137,7 @@ def test_time_travel_string_literal_escaping():
     )
     # Single backslash in the input → doubled in the SQL.
     assert (
-        config_backslash.generate_sql_clause() == " AT (VERSION_TAG => 'weird\\\\name')"
+        config_backslash.generate_sql_clause() == " AT (VERSION_REF => 'weird\\\\name')"
     )
 
     config_newline = TimeTravelConfig.validate_and_normalize_params(
@@ -1149,7 +1147,7 @@ def test_time_travel_string_literal_escaping():
     # the SQL text (so the literal stays on one line for Snowflake's
     # parser).
     assert (
-        config_newline.generate_sql_clause() == " AT (VERSION_TAG => 'line1\\nline2')"
+        config_newline.generate_sql_clause() == " AT (VERSION_REF => 'line1\\nline2')"
     )
 
 
@@ -1158,8 +1156,8 @@ def test_extract_time_travel_version_tag_option():
 
     Both ``version_tag`` and ``version-tag`` aliases map to the internal
     ``version_tag`` time-travel parameter and auto-set
-    ``time_travel_mode='at'`` (``AT(VERSION_TAG => '<name>')`` is the only
-    valid form — tag reads are positional).
+    ``time_travel_mode='at'`` (``AT(VERSION_REF => '<name>')`` is the unified
+    named-ref form for tag reads).
     """
     from snowflake.snowpark.dataframe_reader import _extract_time_travel_from_options
 
@@ -1192,4 +1190,71 @@ def test_extract_time_travel_version_tag_option():
     ):
         _extract_time_travel_from_options(
             {"VERSION-TAG": "release_v1", "TIME_TRAVEL_MODE": "before"}
+        )
+
+
+def test_time_travel_version_ref_and_branch():
+    """Iceberg tag/branch reads emit Snowflake ``AT(VERSION_REF => ...)``."""
+    config_ref = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_ref="historical-snapshot"
+    )
+    assert config_ref.version_ref == "historical-snapshot"
+    assert (
+        config_ref.generate_sql_clause() == " AT (VERSION_REF => 'historical-snapshot')"
+    )
+
+    config_branch = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", branch="audit-branch"
+    )
+    assert config_branch.branch == "audit-branch"
+    assert config_branch.generate_sql_clause() == " AT (VERSION_REF => 'audit-branch')"
+
+    with pytest.raises(
+        ValueError,
+        match="Exactly one of 'version_tag', 'version_ref', or 'branch'",
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            version_tag="tag1",
+            branch="audit-branch",
+        )
+
+
+def test_extract_time_travel_branch_and_version_ref_options():
+    from snowflake.snowpark.dataframe_reader import _extract_time_travel_from_options
+
+    assert _extract_time_travel_from_options({"BRANCH": "audit-branch"}) == {
+        "time_travel_mode": "at",
+        "branch": "audit-branch",
+    }
+    assert _extract_time_travel_from_options({"TAG": "release_v1"}) == {
+        "time_travel_mode": "at",
+        "version_tag": "release_v1",
+    }
+    assert _extract_time_travel_from_options({"VERSION_REF": "wap_ref"}) == {
+        "time_travel_mode": "at",
+        "version_ref": "wap_ref",
+    }
+    assert _extract_time_travel_from_options({"VERSION-REF": "wap_ref"}) == {
+        "time_travel_mode": "at",
+        "version_ref": "wap_ref",
+    }
+
+    with pytest.raises(
+        ValueError,
+        match=r"Cannot use 'branch' option with time_travel_mode='before'",
+    ):
+        _extract_time_travel_from_options(
+            {"BRANCH": "audit-branch", "TIME_TRAVEL_MODE": "before"}
+        )
+
+
+def test_time_travel_version_ref_validation():
+    with pytest.raises(ValueError, match="'version_ref' must be a non-empty"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version_ref=""
+        )
+    with pytest.raises(ValueError, match="'branch' must be a string Iceberg name"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", branch=123
         )
