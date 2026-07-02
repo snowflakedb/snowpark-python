@@ -409,6 +409,58 @@ def escape_single_quotes(input_str):
     return input_str.replace("'", r"\'")
 
 
+def escape_quotes_and_backslashes(input_str: str) -> str:
+    """Escape a value for embedding inside a single-quoted SQL string literal.
+
+    Snowflake treats backslash as an escape character inside string literals, so
+    escaping only single quotes is not enough: a value such as ``\\'`` would
+    otherwise be emitted as ``\\\\'``, which decodes to a literal backslash
+    followed by a quote that terminates the literal early and produces invalid
+    SQL. We escape backslashes first (``\\`` -> ``\\\\``) and then single quotes
+    by doubling them (``'`` -> ``''``) so the value is always emitted as literal
+    data.
+
+    A value that contains neither a backslash nor a single quote is returned
+    unchanged, so values without special characters produce identical SQL to
+    before.
+    """
+    return input_str.replace("\\", "\\\\").replace("'", "''")
+
+
+# Matches a value in which every single quote is already doubled (''); every
+# other character -- including backslash -- is treated as ordinary. A value that
+# fully matches already follows the historical "double your own single quotes"
+# contract for VARIANT/OBJECT subfield keys, so its quotes must not be doubled
+# again.
+_ALL_SINGLE_QUOTES_DOUBLED = re.compile(r"(?:[^']|'')*")
+
+
+def escape_subfield_key(field: str) -> str:
+    """Escape a VARIANT/OBJECT subfield key for a single-quoted SQL literal
+    without breaking the historical "double your own single quotes" contract.
+
+    ``Column.__getitem__`` previously emitted the key verbatim between single
+    quotes, so callers were expected to double any single quote themselves (see
+    ``tests/integ/scala/test_column_suite.py::test_subfield``). To keep that
+    behavior working while still preventing an unescaped quote from terminating
+    the literal early:
+
+    * If every single quote in ``field`` is already doubled, the key is assumed
+      to follow the historical contract; its quotes are left as-is and only
+      backslashes are escaped (so ``\\t``/``\\n`` are applied literally rather
+      than interpreted). This is byte-identical to the old output for such keys.
+    * Otherwise the key contains a lone single quote -- previously this produced
+      malformed SQL or allowed the literal to be terminated early -- and it is
+      fully escaped via :func:`escape_quotes_and_backslashes`.
+
+    Either way the emitted literal is well-formed, so a caller-controlled key can
+    no longer break out of it.
+    """
+    if _ALL_SINGLE_QUOTES_DOUBLED.fullmatch(field):
+        return field.replace("\\", "\\\\")
+    return escape_quotes_and_backslashes(field)
+
+
 def is_sql_select_statement(sql: str) -> bool:
     return (
         SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None
