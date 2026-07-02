@@ -6,8 +6,6 @@
 
 #### New Features
 
-#### New Features
-
 - Added the `udf_init_once` decorator in `snowflake.snowpark.functions` for marking functions to be executed once during pre-fork initialization on Snowflake workers, matching the server-side `_snowflake.udf_init_once` API.
 
 #### Bug Fixes
