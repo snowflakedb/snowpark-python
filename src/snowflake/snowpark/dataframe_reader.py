@@ -814,11 +814,11 @@ class DataFrameReader:
                 "version": version,
                 "version_tag": version_tag,
             }
+            table = self._session.table(name, _emit_ast=False, **time_travel_params)
         else:
             # if time_travel_mode is not provided, extract time travel config from options
             time_travel_params = _extract_time_travel_from_options(self._cur_options)
-
-        table = self._session.table(name, _emit_ast=False, **time_travel_params)
+            table = self._session.table(name, _emit_ast=False, **time_travel_params)
 
         if _emit_ast and stmt is not None:
             table._ast_id = stmt.uid
