@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.utils import (
     get_line_numbers,
     get_plan_from_line_numbers,
     TimeTravelConfig,
+    IcebergChangesConfig,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
@@ -1193,3 +1194,53 @@ def test_extract_time_travel_version_tag_option():
         _extract_time_travel_from_options(
             {"VERSION-TAG": "release_v1", "TIME_TRAVEL_MODE": "before"}
         )
+
+
+def test_iceberg_changes_config_generate_sql_with_end():
+    config = IcebergChangesConfig(start_version=111, end_version=222)
+    assert (
+        config.generate_sql_clause()
+        == " CHANGES (INFORMATION => APPEND_ONLY) AT (VERSION => 111) END (VERSION => 222)"
+    )
+
+
+def test_iceberg_changes_config_generate_sql_without_end():
+    config = IcebergChangesConfig(start_version=111)
+    assert (
+        config.generate_sql_clause()
+        == " CHANGES (INFORMATION => APPEND_ONLY) AT (VERSION => 111)"
+    )
+
+
+def test_iceberg_changes_config_validate_requires_start():
+    with pytest.raises(ValueError, match="requires 'start-snapshot-id'"):
+        IcebergChangesConfig.validate_and_normalize_params(end_snapshot_id=42)
+
+
+def test_iceberg_changes_config_validate_rejects_non_integer():
+    with pytest.raises(ValueError, match="start-snapshot-id"):
+        IcebergChangesConfig.validate_and_normalize_params(start_snapshot_id="abc")
+
+
+def test_extract_iceberg_changes_from_options():
+    from snowflake.snowpark.dataframe_reader import (
+        _extract_iceberg_changes_from_options,
+    )
+
+    assert _extract_iceberg_changes_from_options(
+        {"start-snapshot-id": "1", "end-snapshot-id": "2"}
+    ) == {"start_snapshot_id": 1, "end_snapshot_id": 2}
+    assert _extract_iceberg_changes_from_options({"start-snapshot-id": "5"}) == {
+        "start_snapshot_id": 5,
+        "end_snapshot_id": None,
+    }
+    assert _extract_iceberg_changes_from_options({}) == {}
+
+
+def test_extract_iceberg_changes_from_options_rejects_bool_snapshot_id():
+    from snowflake.snowpark.dataframe_reader import (
+        _extract_iceberg_changes_from_options,
+    )
+
+    with pytest.raises(ValueError, match="start-snapshot-id"):
+        _extract_iceberg_changes_from_options({"start-snapshot-id": True})

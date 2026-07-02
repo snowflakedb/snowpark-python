@@ -8601,3 +8601,147 @@ def test_iceberg_version_tag_time_travel_dataframe_reader_option(session):
         session.read.option("version-tag", tag_name).table(table_fqn).collect()
     )
     assert via_kwarg == via_option == via_hyphen_option
+
+
+# ----------------------------------------------------------------------
+# Iceberg incremental read (``start-snapshot-id`` / ``end-snapshot-id``).
+#
+# TODO(SNOW-XXXXXX): Wire these up to a CI test account that has:
+#   * a Catalog-Linked Database (CLD) such as cldUnity / cldglue, AND
+#   * an unmanaged Iceberg table inside it with at least two snapshots
+#     readable through ``INFORMATION_SCHEMA.GET_TABLE_VERSIONS(...)``.
+#
+# Snowflake expresses incremental reads as::
+#
+#     SELECT * FROM <table>
+#       CHANGES (INFORMATION => APPEND_ONLY)
+#       AT (VERSION => <start>)
+#       END (VERSION => <end>)
+#
+# Like the snapshot-id / tag surfaces above, this currently requires
+# ``FEATURE_ICEBERG_TIME_TRAVEL`` on the account and is scoped to
+# unmanaged Iceberg tables in CLDs, so these tests are skipped by default
+# and exercised manually against ``sfctest0`` (see the oss-iceberg-tests
+# ``query.incremental_read`` scenario in snowflake-eng/sas).
+# ----------------------------------------------------------------------
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with multiple "
+        "snapshots and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_incremental_read_session_table_kwargs(session):
+    """End-to-end: ``Session.table(..., start_snapshot_id=..., end_snapshot_id=...)``
+    returns append-only changes between two Iceberg snapshots."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+
+    snapshot_ids = [
+        row["SNAPSHOT_ID"]
+        for row in session.sql(
+            f"SELECT SNAPSHOT_ID FROM "
+            f"TABLE(INFORMATION_SCHEMA.GET_TABLE_VERSIONS('{table_fqn}')) "
+            "ORDER BY SNAPSHOT_TIMESTAMP"
+        ).collect()
+    ]
+    assert len(snapshot_ids) >= 2, "Demo table needs at least 2 snapshots"
+    start_id, end_id = snapshot_ids[0], snapshot_ids[1]
+
+    via_kwargs = session.table(
+        table_fqn,
+        start_snapshot_id=start_id,
+        end_snapshot_id=end_id,
+    ).collect()
+    via_sql = session.sql(
+        f"SELECT * FROM {table_fqn} "
+        f"CHANGES (INFORMATION => APPEND_ONLY) "
+        f"AT (VERSION => {start_id}) "
+        f"END (VERSION => {end_id})"
+    ).collect()
+    assert via_kwargs == via_sql
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with multiple "
+        "snapshots and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_incremental_read_dataframe_reader_option(session):
+    """End-to-end: ``session.read.option('start-snapshot-id', S1)
+    .option('end-snapshot-id', S2).table(...)`` routes through the Spark
+    Iceberg-compat aliases and emits the ``CHANGES ... AT(VERSION => ...)``
+    SQL surface."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+
+    snapshot_ids = [
+        row["SNAPSHOT_ID"]
+        for row in session.sql(
+            f"SELECT SNAPSHOT_ID FROM "
+            f"TABLE(INFORMATION_SCHEMA.GET_TABLE_VERSIONS('{table_fqn}')) "
+            "ORDER BY SNAPSHOT_TIMESTAMP"
+        ).collect()
+    ]
+    assert len(snapshot_ids) >= 2, "Demo table needs at least 2 snapshots"
+    start_id, end_id = snapshot_ids[0], snapshot_ids[1]
+
+    via_kwargs = session.table(
+        table_fqn,
+        start_snapshot_id=start_id,
+        end_snapshot_id=end_id,
+    ).collect()
+    via_option = (
+        session.read.option("start-snapshot-id", start_id)
+        .option("end-snapshot-id", end_id)
+        .table(table_fqn)
+        .collect()
+    )
+    assert via_kwargs == via_option
+
+    df = (
+        session.read.option("start-snapshot-id", start_id)
+        .option("end-snapshot-id", end_id)
+        .table(table_fqn)
+    )
+    df.collect()
+    sql = df.queries["queries"][0]
+    assert "CHANGES (INFORMATION => APPEND_ONLY)" in sql
+    assert f"AT (VERSION => {start_id})" in sql
+    assert f"END (VERSION => {end_id})" in sql
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with multiple "
+        "snapshots and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_incremental_read_start_snapshot_only(session):
+    """End-to-end: ``start-snapshot-id`` without ``end-snapshot-id`` omits the
+    ``END (VERSION => ...)`` clause and reads append-only changes through the
+    current snapshot (Snowflake ``CHANGES`` default end point)."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+
+    start_id = session.sql(
+        f"SELECT SNAPSHOT_ID FROM "
+        f"TABLE(INFORMATION_SCHEMA.GET_TABLE_VERSIONS('{table_fqn}')) "
+        "ORDER BY SNAPSHOT_TIMESTAMP LIMIT 1"
+    ).collect()[0]["SNAPSHOT_ID"]
+
+    via_kwargs = session.table(
+        table_fqn,
+        start_snapshot_id=start_id,
+    ).collect()
+    via_option = (
+        session.read.option("start-snapshot-id", start_id).table(table_fqn).collect()
+    )
+    assert via_kwargs == via_option
+
+    df = session.read.option("start-snapshot-id", start_id).table(table_fqn)
+    df.collect()
+    sql = df.queries["queries"][0]
+    assert "CHANGES (INFORMATION => APPEND_ONLY)" in sql
+    assert f"AT (VERSION => {start_id})" in sql
+    assert "END (VERSION =>" not in sql
