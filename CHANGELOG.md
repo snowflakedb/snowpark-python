@@ -22,6 +22,7 @@
 #### Dependency Updates
 
 - Lifted `protobuf` restriction for Python 3.14 from `==5.29.3` to `>=5.29.3,<6.34`.
+- Capped `pandas` to `<3.0.0` for the `[pandas]` install extra, as Snowpark Python pandas-related features may not be fully compatible with pandas 3.0 or later.
 
 ## 1.52.0 (2026-06-10)
 
