@@ -1068,8 +1068,13 @@ class SnowflakePlanBuilder:
 
     def table(self, table_name: str, source_plan: LogicalPlan) -> SnowflakePlan:
         table_reference = table_name
-        if isinstance(source_plan, SnowflakeTable) and source_plan.time_travel_config:
-            table_reference += source_plan.time_travel_config.generate_sql_clause()
+        if isinstance(source_plan, SnowflakeTable):
+            if source_plan.iceberg_changes_config:
+                table_reference += (
+                    source_plan.iceberg_changes_config.generate_sql_clause()
+                )
+            elif source_plan.time_travel_config:
+                table_reference += source_plan.time_travel_config.generate_sql_clause()
 
         return self.query(project_statement([], table_reference), source_plan)
 

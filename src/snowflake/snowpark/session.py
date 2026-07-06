@@ -2780,6 +2780,8 @@ class Session:
         # still pass them without us advertising the surface.
         version = kwargs.pop("version", None)
         version_tag = kwargs.pop("version_tag", None)
+        start_snapshot_id = kwargs.pop("start_snapshot_id", None)
+        end_snapshot_id = kwargs.pop("end_snapshot_id", None)
         if kwargs:
             raise TypeError(
                 f"table() got unexpected keyword arguments: {sorted(kwargs)}"
@@ -2823,6 +2825,8 @@ class Session:
             stream=stream,
             version=version,
             version_tag=version_tag,
+            start_snapshot_id=start_snapshot_id,
+            end_snapshot_id=end_snapshot_id,
         )
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
