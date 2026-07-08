@@ -91,3 +91,54 @@ def test_vsc_history_exporter_notify_swallows_oserror(tmp_path):
     # _notify should not throw error even if it fails to write to the VSC history dir.
     exporter._notify(QueryRecord("query-1", "select 1"))
     assert not target.exists()
+
+
+def test_vsc_history_exporter_disables_when_dir_at_limit(tmp_path):
+    # Pre-fill the directory to the default limit.
+    for i in range(_VscHistoryExporter.DEFAULT_FILE_COUNT_LIMIT_AT_INIT):
+        (tmp_path / f"existing-{i}").touch()
+
+    exporter = _VscHistoryExporter(str(tmp_path))
+    assert exporter._disabled is True
+
+    # _notify is a pure no-op: no new file is written.
+    exporter._notify(QueryRecord("query-1", "select 1"))
+    assert not (tmp_path / "query-1").exists()
+
+
+def test_vsc_history_exporter_enabled_when_dir_under_limit(tmp_path):
+    (tmp_path / "existing").touch()
+
+    exporter = _VscHistoryExporter(str(tmp_path))
+    assert exporter._disabled is False
+
+    # Existing behavior is preserved: the query file is written.
+    exporter._notify(QueryRecord("query-1", "select 1"))
+    assert (tmp_path / "query-1").is_file()
+
+
+def test_vsc_history_exporter_env_var_overrides_limit(tmp_path, monkeypatch):
+    monkeypatch.setenv("SNOWFLAKE_SNOWPARK_VSC_QUERY_HISTORY_DIR_MAX_FILES", "1")
+    (tmp_path / "existing").touch()  # Already at the overridden limit of 1.
+
+    exporter = _VscHistoryExporter(str(tmp_path))
+    assert exporter._disabled is True
+
+    exporter._notify(QueryRecord("query-1", "select 1"))
+    assert not (tmp_path / "query-1").exists()
+
+
+def test_vsc_history_exporter_invalid_env_var_falls_back_to_default(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv(
+        "SNOWFLAKE_SNOWPARK_VSC_QUERY_HISTORY_DIR_MAX_FILES", "not-an-int"
+    )
+    (tmp_path / "existing").touch()
+
+    # Invalid value is ignored; default (well above 1) keeps the exporter enabled.
+    exporter = _VscHistoryExporter(str(tmp_path))
+    assert exporter._disabled is False
+
+    exporter._notify(QueryRecord("query-1", "select 1"))
+    assert (tmp_path / "query-1").is_file()
