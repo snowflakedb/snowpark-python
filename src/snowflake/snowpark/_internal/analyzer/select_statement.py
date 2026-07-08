@@ -269,6 +269,7 @@ class Selectable(LogicalPlan, ABC):
         self.pre_actions: Optional[List["Query"]] = None
         self.post_actions: Optional[List["Query"]] = None
         self.flatten_disabled: bool = False
+        self.protect_dropped_new_columns: bool = False
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = (
@@ -603,7 +604,11 @@ class SelectableEntity(Selectable):
         # Metadata/Attributes for the plan
         self._attributes: Optional[List[Attribute]] = None
         self.table_reference = self.entity.name
-        if self.entity.time_travel_config is not None:
+        if self.entity.iceberg_changes_config is not None:
+            self.table_reference += (
+                self.entity.iceberg_changes_config.generate_sql_clause()
+            )
+        elif self.entity.time_travel_config is not None:
             self.table_reference += self.entity.time_travel_config.generate_sql_clause()
 
     def __deepcopy__(self, memodict={}) -> "SelectableEntity":  # noqa: B006
@@ -1499,7 +1504,7 @@ class SelectStatement(Selectable):
             can_be_flattened = False
         else:
             can_be_flattened = can_select_statement_be_flattened(
-                self.column_states, new_column_states
+                self.column_states, new_column_states, self.protect_dropped_new_columns
             )
 
         if can_be_flattened:
@@ -2196,7 +2201,9 @@ def parse_column_name(
 
 
 def can_select_statement_be_flattened(
-    subquery_column_states: ColumnStateDict, new_column_states: ColumnStateDict
+    subquery_column_states: ColumnStateDict,
+    new_column_states: ColumnStateDict,
+    protect_dropped_new_columns: bool = False,
 ) -> bool:
     for col, state in new_column_states.items():
         dependent_columns = state.dependent_columns
@@ -2219,7 +2226,13 @@ def can_select_statement_be_flattened(
             state.change_state == ColumnChangeState.DROPPED
             and (subquery_state := subquery_column_states.get(col))
             and subquery_state.change_state == ColumnChangeState.NEW
-            and subquery_state.is_referenced_by_same_level_column
+            and (
+                subquery_state.is_referenced_by_same_level_column
+                # If the subquery was explicitly marked (e.g. by the SCOS withColumn
+                # path), preserve it so that future filter/sort clauses can still
+                # reference the dropped NEW column.
+                or protect_dropped_new_columns
+            )
         ):
             return False
     return True
