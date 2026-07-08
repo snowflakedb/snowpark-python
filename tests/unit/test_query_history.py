@@ -142,3 +142,37 @@ def test_vsc_history_exporter_invalid_env_var_falls_back_to_default(
 
     exporter._notify(QueryRecord("query-1", "select 1"))
     assert (tmp_path / "query-1").is_file()
+
+
+def test_vsc_history_exporter_invalid_env_var_still_caps_at_default(
+    tmp_path, monkeypatch
+):
+    # Exercises the ValueError fallback: a non-int env value is ignored and the
+    # default limit is used, so a dir already at the default is still disabled.
+    monkeypatch.setenv(
+        "SNOWFLAKE_SNOWPARK_VSC_QUERY_HISTORY_DIR_MAX_FILES", "not-an-int"
+    )
+    for i in range(_VscHistoryExporter.DEFAULT_FILE_COUNT_LIMIT_AT_INIT):
+        (tmp_path / f"existing-{i}").touch()
+
+    exporter = _VscHistoryExporter(str(tmp_path))
+    assert exporter._disabled is True
+
+    exporter._notify(QueryRecord("query-1", "select 1"))
+    assert not (tmp_path / "query-1").exists()
+
+
+def test_vsc_history_exporter_disabled_when_dir_count_fails(tmp_path, monkeypatch):
+    # Exercises the OSError fallback around os.listdir: if the directory cannot
+    # be inspected, the exporter errs on the side of caution and stays disabled.
+    def raise_oserror(*args, **kwargs):
+        raise OSError("cannot list directory")
+
+    monkeypatch.setattr(os, "listdir", raise_oserror)
+
+    exporter = _VscHistoryExporter(str(tmp_path))
+    assert exporter._disabled is True
+
+    # _notify is a pure no-op: no file is written.
+    exporter._notify(QueryRecord("query-1", "select 1"))
+    assert not (tmp_path / "query-1").exists()
