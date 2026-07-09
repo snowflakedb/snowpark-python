@@ -13821,7 +13821,7 @@ def ai_complete(
         >>> # With detailed output
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='mistral-large',
+        ...         model='mistral-large2',
         ...         prompt='Explain AI in one sentence.',
         ...         show_details=True
         ...     ).alias("detailed_response")
