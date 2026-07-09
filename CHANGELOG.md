@@ -1,6 +1,6 @@
 # Release History
 
-## 1.53.0 (2026-07-08)
+## 1.53.0 (2026-07-09)
 
 ### Snowpark Python API Updates
 
