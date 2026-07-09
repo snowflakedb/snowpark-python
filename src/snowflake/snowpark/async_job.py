@@ -6,10 +6,10 @@ from enum import Enum
 from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
-import snowflake.snowpark
-from snowflake.connector.cursor import ASYNC_RETRY_PATTERN
 from snowflake.connector.errors import DatabaseError
 from snowflake.connector.options import pandas
+
+import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
@@ -26,6 +26,10 @@ if TYPE_CHECKING:
     import snowflake.snowpark.session
 
 _logger = getLogger(__name__)
+
+# Async-poll backoff schedule (seconds multiplier per retry slot).
+# Defined locally — the UD connector no longer owns this constant.
+ASYNC_RETRY_PATTERN = [1, 1, 2, 3, 4, 8, 10]
 
 
 class _AsyncResultType(Enum):
@@ -284,9 +288,10 @@ class AsyncJob:
                 "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
             )
         ):
-            import _snowflake
             import json
             import uuid
+
+            import _snowflake
 
             try:
                 uuid.UUID(self.query_id)
