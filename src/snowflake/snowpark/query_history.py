@@ -1,10 +1,14 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import os
 from abc import abstractmethod
+from logging import getLogger
 from typing import Dict, List, NamedTuple, Tuple
 
 import snowflake.snowpark
+
+_logger = getLogger(__name__)
 
 
 class QueryRecord(NamedTuple):
@@ -141,3 +145,94 @@ class AstListener(QueryListener):
     @property
     def base64_batches(self) -> List[str]:
         return self._ast_batches
+
+
+class _VscHistoryExporter(QueryListener):
+    """Exports executed query IDs to a directory watched by the Snowflake VS Code extension.
+
+    For each query, an empty file named after the query ID is created in the
+    target directory.
+
+    Note that this exporter is active only when the
+    ``SNOWFLAKE_SNOWPARK_VSC_QUERY_HISTORY_DIR`` environment variable is set.
+
+    The exported files are meant to be consumed by the Snowflake VS Code
+    extension, which is responsible for cleaning up the directory; the exporter
+    never removes files on its own. As a safeguard against an unbounded
+    directory, the constructor counts the files already present and disables the
+    exporter (making it a no-op) if that count is at or above a threshold. The
+    threshold defaults to :attr:`DEFAULT_FILE_COUNT_LIMIT_AT_INIT` and can be
+    overridden via the ``SNOWFLAKE_SNOWPARK_VSC_QUERY_HISTORY_DIR_MAX_FILES``
+    environment variable.
+    """
+
+    DEFAULT_FILE_COUNT_LIMIT_AT_INIT = 1000
+
+    def __init__(self, query_history_dir: str) -> None:
+        """
+        Initializes the _VscHistoryExporter.
+
+        Args:
+            query_history_dir: Directory into which an empty file named after each
+                executed query ID is written. Created if it does not already exist.
+        """
+        self._query_history_dir = query_history_dir
+        # When _disabled is True, _notify becomes a pure no-op. Default to
+        # disabled, and only enable below if the target directory is ready
+        # (created or already present) and confirmed below the file-count
+        # limit; any failure leaves it disabled.
+        self._disabled = True
+        try:
+            os.makedirs(query_history_dir, exist_ok=True)
+        except OSError:
+            # Exporting query history is a best-effort feature for the VS Code
+            # extension; a failure here must not break the user's session.
+            _logger.debug(
+                "Failed to create query history directory %s",
+                query_history_dir,
+                exc_info=True,
+            )
+            return
+
+        # Resolve the file-count limit, falling back to the default when the env
+        # var is unset or not a valid integer.
+        try:
+            limit = int(
+                os.environ.get(
+                    "SNOWFLAKE_SNOWPARK_VSC_QUERY_HISTORY_DIR_MAX_FILES",
+                    self.DEFAULT_FILE_COUNT_LIMIT_AT_INIT,
+                )
+            )
+        except ValueError:
+            limit = self.DEFAULT_FILE_COUNT_LIMIT_AT_INIT
+        try:
+            # Enable exporting only if the directory is below the limit; if it is
+            # already saturated we stay disabled so we do not keep growing it.
+            self._disabled = len(os.listdir(self._query_history_dir)) >= limit
+        except OSError:
+            # If we cannot inspect the directory, err on the side of caution
+            # by keeping the exporter disabled.
+            _logger.debug(
+                "Failed to count files in query history directory %s",
+                self._query_history_dir,
+                exc_info=True,
+            )
+
+    def _notify(self, query_record: QueryRecord, **kwargs) -> None:
+        if self._disabled:
+            return
+        if query_record.is_describe or not query_record.query_id:
+            return
+        try:
+            open(
+                os.path.join(self._query_history_dir, query_record.query_id), "w"
+            ).close()
+        except OSError:
+            # Exporting query history is a best-effort feature for the VS Code
+            # extension; a failure here must not break the user's session.
+            _logger.debug(
+                "Failed to write query history file for query id %s in %s",
+                query_record.query_id,
+                self._query_history_dir,
+                exc_info=True,
+            )
