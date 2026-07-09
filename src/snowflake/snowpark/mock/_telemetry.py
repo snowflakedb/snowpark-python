@@ -9,11 +9,12 @@ import threading
 import uuid
 from datetime import datetime
 from enum import Enum
+from http.client import OK
 from typing import Optional
 
-from snowflake.connector.compat import OK
 from snowflake.connector.secret_detector import SecretDetector
 from snowflake.connector.telemetry_oob import TelemetryService
+
 from snowflake.snowpark._internal.utils import (
     get_os_name,
     get_python_version,
