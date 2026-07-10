@@ -8745,3 +8745,21 @@ def test_iceberg_incremental_read_start_snapshot_only(session):
     assert "CHANGES (INFORMATION => APPEND_ONLY)" in sql
     assert f"AT (VERSION => {start_id})" in sql
     assert "END (VERSION =>" not in sql
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a Snowflake-managed Iceberg table with a WAP branch and "
+        "FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. Tested manually."
+    )
+)
+def test_iceberg_branch_time_travel_dataframe_reader_option(session):
+    """End-to-end: Spark Iceberg ``branch`` option maps to VERSION_REF."""
+    table_fqn = "ICEBERG_GAP_TEST_HORIZON.TESTSCHEMA.snapshot_demo"
+    branch_name = "audit_branch"
+
+    via_branch = session.read.option("branch", branch_name).table(table_fqn).collect()
+    via_version_ref = (
+        session.read.option("version_ref", branch_name).table(table_fqn).collect()
+    )
+    assert via_branch == via_version_ref
