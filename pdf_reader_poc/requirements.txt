@@ -1,0 +1,16 @@
+# The snowpark client itself is installed editable from the local checkout:
+#     pip install -e ~/snowpark-python
+# (that checkout carries the new DataFrameReader.pdf()). Do NOT also install
+# snowflake-snowpark-python from PyPI here -- it would shadow the editable one.
+
+# demo-only: generating sample invoice PDFs locally
+reportlab>=4.0
+
+# demo-only: sp500_earnings_demo.py — fetch SEC EDGAR press releases (HTML) and
+# render them to text-layer PDFs.
+beautifulsoup4>=4.12
+lxml>=5.0
+
+# NOTE: pdfplumber is NOT a client dep. The `text`/`auto` modes run it inside a
+# server-side UDF, where it must come from the Snowflake Anaconda channel or your
+# artifact repository -- not from this client venv.

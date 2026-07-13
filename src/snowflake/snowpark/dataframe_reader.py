@@ -1164,6 +1164,102 @@ class DataFrameReader:
         return df
 
     @publicapi
+    def pdf(
+        self,
+        path: str,
+        schema: StructType,
+        *,
+        prompt: Optional[str] = None,
+        mode: Optional[str] = None,
+        model: Optional[str] = None,
+        target: Optional[str] = None,
+        threshold: Optional[int] = None,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """Read a stage of PDFs into a materialized, typed :class:`DataFrame`.
+
+        Given an output ``schema``, ``read.pdf()`` runs ``AI_PARSE_DOCUMENT`` +
+        ``AI_COMPLETE`` behind the scenes and returns typed columns. The
+        extraction prompt is generated from the schema, so you do not write one.
+
+        ``mode``, ``model``, ``target``, ``threshold`` and the optional ``prompt``
+        may be set as keyword arguments here or via :func:`option` (keyword
+        arguments win). ``schema`` is a required argument (positional or keyword);
+        it does not go through :func:`option`, and is distinct from
+        :func:`schema`, which describes an input *file* schema for CSV/JSON/etc.
+
+        Example::
+
+            >>> df = session.read.pdf("@invoices/2026/", invoice_schema)  # doctest: +SKIP
+            >>> df.write.save_as_table("INVOICE_FACTS")                   # doctest: +SKIP
+
+        Args:
+            path: Stage location of the PDF(s), e.g. ``@invoices/2026/``. Internal
+                or external stage; the stage must have a directory table enabled.
+            schema: **Required.** :class:`~snowflake.snowpark.types.StructType`
+                describing the desired output columns. This is the contract: it
+                drives the generated extraction prompt, the structured output, and
+                the typed cast of the response.
+            prompt: Optional extra instructions appended to the generated prompt
+                (domain hints, disambiguation). Not required.
+            mode: One of ``text`` (pdfplumber UDF), ``parse`` (AI_PARSE_DOCUMENT),
+                ``direct`` (multimodal AI_COMPLETE, no parse), or ``auto`` (probe,
+                then OCR only the scanned files). Defaults to ``auto``.
+            model: Cortex model id for ``AI_COMPLETE``.
+            target: Fully-qualified table to write. If omitted, a session temp
+                table is created and returned.
+            threshold: Chars-per-page probe cutoff for scan detection
+                (``text``/``auto`` modes).
+
+        Returns:
+            A :class:`DataFrame` over the materialized result table with columns
+            ``file_url``, the schema fields (typed), ``_raw_response`` and
+            ``_parse_failed``.
+
+        Note:
+            Unlike other ``read.*`` methods, ``pdf()`` is **eager**: it executes
+            the pipeline and materializes results on this call, because the plan
+            contains volatile, expensive AI calls that a lazy DataFrame would
+            re-run and re-bill on every action.
+        """
+        from snowflake.snowpark._internal import pdf_reader_utils as _pdf
+
+        def _opt(name: str) -> Any:
+            for k, v in self._cur_options.items():
+                if k.lower() == name.lower():
+                    return v
+            return None
+
+        if schema is None:
+            raise ValueError("pdf() requires a schema (the output contract)")
+
+        prompt = prompt if prompt is not None else _opt("prompt")
+        mode = (mode or _opt("mode") or "auto").lower()
+        model = model or _opt("model") or _pdf.DEFAULT_MODEL
+        target = target if target is not None else _opt("target")
+        threshold = (
+            threshold
+            if threshold is not None
+            else (_opt("threshold") or _pdf.DEFAULT_TEXT_THRESHOLD)
+        )
+
+        if mode not in _pdf.MODES:
+            raise ValueError(f"mode must be one of {_pdf.MODES}, got {mode!r}")
+
+        # NOTE (POC): pdf() executes eagerly and does not emit reader AST;
+        # sufficient for local/live execution. Revisit for phase0/stored-proc.
+        return _pdf.read_pdf(
+            self._session,
+            path,
+            schema=schema,
+            prompt=prompt,
+            mode=mode,
+            model=model,
+            target=target,
+            threshold=int(threshold),
+        )
+
+    @publicapi
     def avro(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the AVRO file(s) to load.
 
