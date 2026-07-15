@@ -4,6 +4,10 @@
 
 ### Snowpark Python API updates
 
+## 1.53.1 (2026-07-14)
+
+No user-facing changes in this release.
+
 ## 1.53.0 (2026-07-09)
 
 ### Snowpark Python API Updates
