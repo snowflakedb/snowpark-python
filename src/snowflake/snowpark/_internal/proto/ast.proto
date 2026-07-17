@@ -910,6 +910,15 @@ message DataframeAiRedact {
   SrcPosition src = 6;
 }
 
+message DataframeAiTranslate {
+  Expr df = 1;
+  Expr input_column = 2;
+  google.protobuf.StringValue output_column = 3;
+  Expr source_language = 4;
+  SrcPosition src = 5;
+  Expr target_language = 6;
+}
+
 // dataframe.ir:188
 message DataframeAlias {
   Expr df = 1;
@@ -1590,6 +1599,7 @@ message Expr {
     DataframeAiTranscribe dataframe_ai_transcribe = 62;
     DataframeAiMultiEmbed dataframe_ai_multi_embed = 204;
     DataframeAiRedact dataframe_ai_redact = 205;
+    DataframeAiTranslate dataframe_ai_translate = 206;
     DataframeAlias dataframe_alias = 63;
     DataframeAnalyticsComputeLag dataframe_analytics_compute_lag = 64;
     DataframeAnalyticsComputeLead dataframe_analytics_compute_lead = 65;
@@ -1904,6 +1914,7 @@ message HasSrcPosition {
     DataframeAiTranscribe dataframe_ai_transcribe = 65;
     DataframeAiMultiEmbed dataframe_ai_multi_embed = 213;
     DataframeAiRedact dataframe_ai_redact = 214;
+    DataframeAiTranslate dataframe_ai_translate = 215;
     DataframeAlias dataframe_alias = 66;
     DataframeAnalyticsComputeLag dataframe_analytics_compute_lag = 67;
     DataframeAnalyticsComputeLead dataframe_analytics_compute_lead = 68;

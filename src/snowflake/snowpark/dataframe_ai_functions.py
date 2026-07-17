@@ -32,6 +32,7 @@ from snowflake.snowpark.functions import (
     ai_summarize_agg,
     ai_transcribe,
     ai_parse_document,
+    ai_translate,
 )
 from snowflake.snowpark._internal.telemetry import add_api_call
 
@@ -2010,6 +2011,100 @@ class DataFrameAIFunctions:
         df = self._dataframe.with_column(output_column_name, result_col, _emit_ast=False)
 
         add_api_call(df, "DataFrame.ai.redact")
+        if _emit_ast:
+            df._ast_id = stmt.uid
+        return df
+
+    @experimental(version="1.53.0")
+    @publicapi
+    def translate(
+        self,
+        input_column: ColumnOrName,
+        source_language: Union[Column, str],
+        target_language: Union[Column, str],
+        *,
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Translate text from one language to another.
+
+        This method translates the text in each row from a source language to a target
+        language using a Snowflake-hosted large language model.
+
+        Args:
+            input_column: The column (Column object or column name as string) containing
+                the text to translate.
+            source_language: The BCP-47 language code for the source language (e.g.
+                ``'en'``, ``'de'``, ``'fr'``), or a Column whose rows contain language
+                codes. Pass an empty string ``''`` to auto-detect the source language.
+            target_language: The BCP-47 language code for the target language (e.g.
+                ``'en'``, ``'de'``, ``'fr'``), or a Column whose rows contain language
+                codes.
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``AI_TRANSLATE_OUTPUT`` is appended.
+
+        Returns:
+            A new DataFrame with an appended output column containing the translated text.
+
+        Examples::
+
+            >>> df = session.create_dataframe([
+            ...     ["Hello world"],
+            ...     ["Good morning"],
+            ...     ["How are you?"],
+            ... ], schema=["text"])
+            >>> result_df = df.ai.translate(
+            ...     input_column="text",
+            ...     source_language="en",
+            ...     target_language="de",
+            ...     output_column="translation"
+            ... )
+            >>> result_df.columns
+            ['TEXT', 'TRANSLATION']
+
+            >>> # Auto-detect source language and translate to English
+            >>> df = session.create_dataframe([
+            ...     ["Hola mundo"],
+            ...     ["Bonjour le monde"],
+            ... ], schema=["text"])
+            >>> result_df = df.ai.translate(
+            ...     input_column="text",
+            ...     source_language="",
+            ...     target_language="en",
+            ...     output_column="translation"
+            ... )
+            >>> result_df.columns
+            ['TEXT', 'TRANSLATION']
+
+        Note:
+            Pass an empty string ``''`` as ``source_language`` to have Snowflake
+            automatically detect the source language.
+
+        See details in `AI_TRANSLATE <https://docs.snowflake.com/en/sql-reference/functions/ai_translate>`_.
+        """
+        output_column_name = output_column or "AI_TRANSLATE_OUTPUT"
+
+        stmt = None
+        input_col = _to_col_if_str(input_column, "DataFrame.ai.translate")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_translate, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
+            build_expr_from_snowpark_column_or_python_val(ast.source_language, source_language)
+            build_expr_from_snowpark_column_or_python_val(ast.target_language, target_language)
+            ast.output_column.value = output_column_name
+
+        result_col = ai_translate(
+            text=input_col,
+            source_language=source_language,
+            target_language=target_language,
+            _emit_ast=False,
+        )
+
+        df = self._dataframe.with_column(output_column_name, result_col, _emit_ast=False)
+
+        add_api_call(df, "DataFrame.ai.translate")
         if _emit_ast:
             df._ast_id = stmt.uid
         return df
