@@ -14295,9 +14295,6 @@ def ai_count_tokens(
     Returns an estimate of the number of tokens that would be consumed by a call to the
     specified AI function.
 
-    This is the updated version of ``SNOWFLAKE.CORTEX.COUNT_TOKENS``. For the latest
-    functionality, use this function.
-
     Args:
         function_name: The name of the AI function to base the token count on (e.g.
             ``'ai_complete'``, ``'ai_classify'``, ``'ai_embed'``). Must begin with ``'ai_'``
