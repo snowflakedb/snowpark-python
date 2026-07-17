@@ -383,7 +383,7 @@ def get_application_name() -> str:
 
 
 def is_single_quoted(name: str) -> bool:
-    return name.startswith("'") and name.endswith("'")
+    return name.startswith(SINGLE_QUOTE) and name.endswith(SINGLE_QUOTE)
 
 
 def is_snowflake_quoted_id_case_insensitive(name: str) -> bool:
@@ -409,6 +409,58 @@ def escape_single_quotes(input_str):
     return input_str.replace("'", r"\'")
 
 
+def escape_quotes_and_backslashes(input_str: str) -> str:
+    """Escape a value for embedding inside a single-quoted SQL string literal.
+
+    Snowflake treats backslash as an escape character inside string literals, so
+    escaping only single quotes is not enough: a value such as ``\\'`` would
+    otherwise be emitted as ``\\\\'``, which decodes to a literal backslash
+    followed by a quote that terminates the literal early and produces invalid
+    SQL. We escape backslashes first (``\\`` -> ``\\\\``) and then single quotes
+    by doubling them (``'`` -> ``''``) so the value is always emitted as literal
+    data.
+
+    A value that contains neither a backslash nor a single quote is returned
+    unchanged, so values without special characters produce identical SQL to
+    before.
+    """
+    return input_str.replace("\\", "\\\\").replace("'", "''")
+
+
+# Matches a value in which every single quote is already doubled (''); every
+# other character -- including backslash -- is treated as ordinary. A value that
+# fully matches already follows the historical "double your own single quotes"
+# contract for VARIANT/OBJECT subfield keys, so its quotes must not be doubled
+# again.
+_ALL_SINGLE_QUOTES_DOUBLED = re.compile(r"(?:[^']|'')*")
+
+
+def escape_subfield_key(field: str) -> str:
+    """Escape a VARIANT/OBJECT subfield key for a single-quoted SQL literal
+    without breaking the historical "double your own single quotes" contract.
+
+    ``Column.__getitem__`` previously emitted the key verbatim between single
+    quotes, so callers were expected to double any single quote themselves (see
+    ``tests/integ/scala/test_column_suite.py::test_subfield``). To keep that
+    behavior working while still preventing an unescaped quote from terminating
+    the literal early:
+
+    * If every single quote in ``field`` is already doubled, the key is assumed
+      to follow the historical contract; its quotes are left as-is and only
+      backslashes are escaped (so ``\\t``/``\\n`` are applied literally rather
+      than interpreted). This is byte-identical to the old output for such keys.
+    * Otherwise the key contains a lone single quote -- previously this produced
+      malformed SQL or allowed the literal to be terminated early -- and it is
+      fully escaped via :func:`escape_quotes_and_backslashes`.
+
+    Either way the emitted literal is well-formed, so a caller-controlled key can
+    no longer break out of it.
+    """
+    if _ALL_SINGLE_QUOTES_DOUBLED.fullmatch(field):
+        return field.replace("\\", "\\\\")
+    return escape_quotes_and_backslashes(field)
+
+
 def is_sql_select_statement(sql: str) -> bool:
     return (
         SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None
@@ -429,7 +481,17 @@ def normalize_path(path: str, is_local: bool) -> str:
         return path
     if is_local and OPERATING_SYSTEM == "Windows":
         path = path.replace("\\", "/")
-    path = path.strip().replace("'", "\\'")
+    # Escape the backslash before the single quote so the path stays a single
+    # Snowflake string literal; the reverse order would let an escaped quote
+    # close the literal early and produce invalid SQL. Constants keep the
+    # replacements readable (no Python escape double-counting).
+    BACKSLASH = "\\"
+    SINGLE_QUOTE = "'"
+    path = (
+        path.strip()
+        .replace(BACKSLASH, BACKSLASH * 2)  # \  ->  \\
+        .replace(SINGLE_QUOTE, BACKSLASH + SINGLE_QUOTE)  # '  ->  \'
+    )
     if not any(path.startswith(prefix) for prefix in prefixes):
         path = f"{prefixes[0]}{path}"
     return f"'{path}'"
@@ -1430,6 +1492,7 @@ def parse_table_name(table_name: str) -> List[str]:
 
 EMPTY_STRING = ""
 DOUBLE_QUOTE = '"'
+SINGLE_QUOTE = "'"
 # Quoted values may also include newlines, so '.' must match _everything_ within quotes
 ALREADY_QUOTED = re.compile('^(".+")$', re.DOTALL)
 UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
@@ -1946,6 +2009,23 @@ def remove_comments(sql_query: str, uuids: List[str]) -> str:
     )
 
 
+def _validate_iceberg_named_version_ref(
+    value: Optional[str], param_name: str
+) -> Optional[str]:
+    """Validate a non-empty Iceberg tag/branch/version-ref name."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(
+            f"'{param_name}' must be a string Iceberg name, "
+            f"got {type(value).__name__}."
+        )
+    stripped = value.strip()
+    if not stripped:
+        raise ValueError(f"'{param_name}' must be a non-empty Iceberg name.")
+    return stripped
+
+
 class TimeTravelConfig(NamedTuple):
     """Configuration for time travel operations."""
 
@@ -1957,6 +2037,8 @@ class TimeTravelConfig(NamedTuple):
     stream: Optional[str] = None
     version: Optional[int] = None
     version_tag: Optional[str] = None
+    version_ref: Optional[str] = None
+    branch: Optional[str] = None
 
     @staticmethod
     def validate_and_normalize_params(
@@ -1968,6 +2050,8 @@ class TimeTravelConfig(NamedTuple):
         stream: Optional[str] = None,
         version: Optional[int] = None,
         version_tag: Optional[str] = None,
+        version_ref: Optional[str] = None,
+        branch: Optional[str] = None,
     ) -> Optional["TimeTravelConfig"]:
         """
         Validates and normalizes time travel parameters.
@@ -1989,9 +2073,31 @@ class TimeTravelConfig(NamedTuple):
         Raises:
             ValueError: If parameters are invalid.
         """
+        version_tag = _validate_iceberg_named_version_ref(version_tag, "version_tag")
+        version_ref = _validate_iceberg_named_version_ref(version_ref, "version_ref")
+        branch = _validate_iceberg_named_version_ref(branch, "branch")
+
+        named_ref_count = sum(
+            arg is not None for arg in (version_tag, version_ref, branch)
+        )
+        if named_ref_count > 1:
+            raise ValueError(
+                "Exactly one of 'version_tag', 'version_ref', or 'branch' may be "
+                "provided for Iceberg named-ref time travel."
+            )
+
         time_travel_arg_count = sum(
             arg is not None
-            for arg in (statement, offset, timestamp, stream, version, version_tag)
+            for arg in (
+                statement,
+                offset,
+                timestamp,
+                stream,
+                version,
+                version_tag,
+                version_ref,
+                branch,
+            )
         )
 
         # Validate mode
@@ -2026,32 +2132,25 @@ class TimeTravelConfig(NamedTuple):
                 f"'version' must be an int Iceberg snapshot id, got {type(version).__name__}."
             )
 
-        # version_tag (Iceberg tag name, mapped to Snowflake's
-        # ``AT(VERSION_TAG => '<name>')`` grammar) only works with 'at' mode —
-        # Iceberg tag reads are positional (bound to a specific snapshot),
-        # not range-of-time, so ``BEFORE`` has no meaning.
-        if version_tag is not None and time_travel_mode.lower() != "at":
-            raise ValueError(
-                "Iceberg version_tag time travel can only be used with "
-                "time_travel_mode='at', not 'before'."
-            )
-
-        # Validate version_tag type — Iceberg tag names are strings. Empty
-        # strings are invalid.
-        if version_tag is not None:
-            if not isinstance(version_tag, str):
+        # Named Iceberg refs (tag / branch / version_ref) map to Snowflake's
+        # ``AT(VERSION_REF => '<name>')`` grammar and only work with 'at' mode.
+        for param_name, param_value in (
+            ("version_tag", version_tag),
+            ("version_ref", version_ref),
+            ("branch", branch),
+        ):
+            if param_value is not None and time_travel_mode.lower() != "at":
                 raise ValueError(
-                    f"'version_tag' must be a string Iceberg tag name, "
-                    f"got {type(version_tag).__name__}."
+                    f"Iceberg {param_name} time travel can only be used with "
+                    "time_travel_mode='at', not 'before'."
                 )
-            if not version_tag:
-                raise ValueError("'version_tag' must be a non-empty Iceberg tag name.")
 
         # Validate exactly one parameter is provided
         if time_travel_arg_count != 1:
             raise ValueError(
                 "Exactly one of 'statement', 'offset', 'timestamp', 'stream', "
-                "'version', or 'version_tag' must be provided."
+                "'version', 'version_tag', 'version_ref', or 'branch' must be "
+                "provided."
             )
 
         # Normalize timestamp
@@ -2087,6 +2186,8 @@ class TimeTravelConfig(NamedTuple):
             stream=stream,
             version=version,
             version_tag=version_tag,
+            version_ref=version_ref,
+            branch=branch,
         )
 
     def generate_sql_clause(self) -> str:
@@ -2097,11 +2198,12 @@ class TimeTravelConfig(NamedTuple):
         Returns:
             SQL clause like " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('...'))",
             " AT (VERSION => 1234567890)" for Iceberg snapshot id time travel,
-            or " AT (VERSION_TAG => 'release_v1')" for Iceberg tag time
-            travel.
+            or " AT (VERSION_REF => 'audit-branch')" for Iceberg tag/branch
+            time travel.
 
         Note on escaping: string-valued parameters (``statement``,
-        ``stream``, ``version_tag``, ``timestamp``) are embedded inside
+        ``stream``, ``version_tag``, ``version_ref``, ``branch``,
+        ``timestamp``) are embedded inside
         single-quoted SQL literals via the existing ``str_to_sql``
         helper in ``analyzer.datatype_mapper`` so embedded ``'``, ``\\``
         and newline characters are properly escaped. This keeps the
@@ -2128,8 +2230,12 @@ class TimeTravelConfig(NamedTuple):
             clause += f"(STREAM => {str_to_sql(self.stream)})"
         elif self.version is not None:
             clause += f"(VERSION => {self.version})"
+        elif self.version_ref is not None:
+            clause += f"(VERSION_REF => {str_to_sql(self.version_ref)})"
+        elif self.branch is not None:
+            clause += f"(VERSION_REF => {str_to_sql(self.branch)})"
         elif self.version_tag is not None:
-            clause += f"(VERSION_TAG => {str_to_sql(self.version_tag)})"
+            clause += f"(VERSION_REF => {str_to_sql(self.version_tag)})"
         elif self.timestamp is not None:
             if self.timestamp_type is not None:
                 timestamp_type = self.timestamp_type.upper()
@@ -2145,6 +2251,89 @@ class TimeTravelConfig(NamedTuple):
             else:
                 clause += f"(TIMESTAMP => {str_to_sql(self.timestamp)})"
 
+        return clause
+
+
+class IcebergChangesConfig(NamedTuple):
+    """Configuration for Iceberg incremental reads via Snowflake ``CHANGES``.
+
+    Spark Iceberg exposes incremental reads through::
+
+        spark.read.format("iceberg")
+            .option("start-snapshot-id", S1)
+            .option("end-snapshot-id", S2)  # optional
+            .load("table")
+
+    Snowflake translates this to::
+
+        SELECT * FROM table
+          CHANGES (INFORMATION => APPEND_ONLY)
+          AT (VERSION => S1)
+          [ END (VERSION => S2) ]
+
+    When ``end_version`` is omitted, Snowflake uses the current snapshot as
+    the end of the change interval (same semantics as omitting ``END`` on
+    generic ``CHANGES`` queries).
+    """
+
+    start_version: int
+    end_version: Optional[int] = None
+    information: str = "APPEND_ONLY"
+
+    @staticmethod
+    def _coerce_snapshot_id(value: object, option_name: str) -> int:
+        if isinstance(value, bool):
+            raise ValueError(
+                f"'{option_name}' must be a 64-bit integer Iceberg snapshot id, "
+                f"got {type(value).__name__}."
+            )
+        try:
+            snapshot_id = int(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"'{option_name}' must be a 64-bit integer Iceberg snapshot id, "
+                f"got {value!r}."
+            ) from None
+        return snapshot_id
+
+    @staticmethod
+    def validate_and_normalize_params(
+        start_snapshot_id: Optional[int] = None,
+        end_snapshot_id: Optional[int] = None,
+        information: str = "APPEND_ONLY",
+    ) -> Optional["IcebergChangesConfig"]:
+        if start_snapshot_id is None and end_snapshot_id is None:
+            return None
+        if start_snapshot_id is None:
+            raise ValueError(
+                "Iceberg incremental read requires 'start-snapshot-id'; "
+                "'end-snapshot-id' cannot be used alone."
+            )
+        start = IcebergChangesConfig._coerce_snapshot_id(
+            start_snapshot_id, "start-snapshot-id"
+        )
+        end = None
+        if end_snapshot_id is not None:
+            end = IcebergChangesConfig._coerce_snapshot_id(
+                end_snapshot_id, "end-snapshot-id"
+            )
+        info = information.upper()
+        if info not in ("APPEND_ONLY", "DEFAULT"):
+            raise ValueError(
+                "Iceberg incremental read 'information' must be 'APPEND_ONLY' "
+                f"or 'DEFAULT', got {information!r}."
+            )
+        return IcebergChangesConfig(
+            start_version=start, end_version=end, information=info
+        )
+
+    def generate_sql_clause(self) -> str:
+        clause = (
+            f" CHANGES (INFORMATION => {self.information}) "
+            f"AT (VERSION => {self.start_version})"
+        )
+        if self.end_version is not None:
+            clause += f" END (VERSION => {self.end_version})"
         return clause
 
 

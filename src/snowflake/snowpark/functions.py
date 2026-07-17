@@ -158,9 +158,10 @@ The return type is always ``Column``. The input types tell you the acceptable va
     <BLANKLINE>
 """
 import functools
+import inspect
 import typing
 from functools import reduce
-import json
+import json  # noqa: F401  (only referenced by doctests in this module)
 from random import randint
 from types import ModuleType
 from typing import Callable, Dict, List, Optional, Tuple, Union, overload
@@ -10329,6 +10330,64 @@ def vectorized(input: type, max_batch_size: Optional[int] = None) -> Callable:
     return _decorator
 
 
+def udf_init_once(func: Callable) -> Callable:
+    """Mark a function to be executed once during pre-fork initialization.
+
+    This decorator has the same signature as the server-side ``_snowflake.udf_init_once``.
+    It is a no-op for local invocation. Functions decorated with ``@udf_init_once`` run in
+    the head worker process before individual workers are forked. The initialized state
+    (e.g., loaded models, computed lookup tables) is shared across all workers via
+    Copy-On-Write.
+
+    The decorated function must:
+        - Accept zero arguments
+        - Be a callable (function, lambda, or callable object)
+
+    Multiple ``@udf_init_once`` functions are executed in the order they are defined.
+
+    Example::
+
+        from snowflake.snowpark.functions import udf_init_once
+
+        model = None
+
+        @udf_init_once
+        def load_model():
+            global model
+            model = 42
+
+    Use this decorator in handler files registered via
+    :meth:`~snowflake.snowpark.udf.UDFRegistration.register_from_file`.
+    On the Snowflake server the ``_snowflake.udf_init_once`` implementation
+    is used instead; this client-side definition provides the same API so
+    that handler files can be tested locally.
+
+    Args:
+        func: The init function to decorate. Must be callable and accept zero arguments.
+
+    Returns:
+        The decorated function, unchanged.
+
+    See Also:
+        - :func:`udf`
+        - :meth:`~snowflake.snowpark.udf.UDFRegistration.register_from_file`
+    """
+    if not callable(func):
+        raise TypeError(
+            f"@udf_init_once target must be callable, got {type(func).__name__}"
+        )
+    sig = inspect.signature(func)
+    if len(sig.parameters) != 0:
+        raise TypeError(
+            f"@udf_init_once function must take 0 arguments, got {len(sig.parameters)}"
+        )
+    # This client-side decorator is a no-op that returns the function unchanged;
+    # it exists only to mirror the ``_snowflake.udf_init_once`` signature so that
+    # handler files import and validate cleanly when authored/tested locally. The
+    # actual pre-fork execution is performed server-side by ``_snowflake``.
+    return func
+
+
 @publicapi
 def pandas_udtf(
     handler: Optional[Callable] = None,
@@ -12803,6 +12862,58 @@ def prompt(
     )
 
 
+def _python_obj_to_sql_literal(
+    value: Union[dict, list, str, int, float, bool, None],
+) -> str:
+    """Serialize a Python object into a Snowflake SQL object/array/scalar constant.
+
+    Used by the AI functions (``ai_extract``, ``ai_classify``, ``ai_similarity``,
+    ``ai_parse_document``, ``ai_transcribe``, ``ai_complete``) to embed
+    caller-supplied configuration / response-format structures into the generated
+    SQL. Unlike the previous ``json.dumps(value).replace('"', "'")`` approach,
+    every string key and value is SQL-escaped (single quotes doubled, backslashes
+    escaped), so string keys/values containing single quotes or backslashes
+    (e.g. an apostrophe in a natural-language question) produce valid SQL.
+    """
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        # bool must be checked before int since bool is a subclass of int
+        return "true" if value else "false"
+    if isinstance(value, str):
+        escaped = value.replace("\\", "\\\\").replace("'", "''")
+        return f"'{escaped}'"
+    if isinstance(value, int):
+        # bool is handled above; int() normalizes subclasses such as IntEnum
+        return str(int(value))
+    if isinstance(value, float):
+        value = float(value)  # normalize subclasses
+        # Match json.dumps' handling of non-finite floats: emit NaN / Infinity /
+        # -Infinity (the same tokens the previous json.dumps-based code produced)
+        # and let Snowflake surface any error server-side, rather than raising
+        # client-side. Note: do not use builtin abs() here — `abs` is shadowed by
+        # the Snowpark column function defined in this module.
+        if value != value:
+            return "NaN"
+        if value == float("inf"):
+            return "Infinity"
+        if value == float("-inf"):
+            return "-Infinity"
+        return repr(value)
+    if isinstance(value, dict):
+        items = ", ".join(
+            f"{_python_obj_to_sql_literal(str(k))}: {_python_obj_to_sql_literal(v)}"
+            for k, v in value.items()
+        )
+        return f"{{{items}}}"
+    if isinstance(value, (list, tuple)):
+        items = ", ".join(_python_obj_to_sql_literal(v) for v in value)
+        return f"[{items}]"
+    raise TypeError(
+        f"Cannot serialize value of type {type(value).__name__} to a SQL literal"
+    )
+
+
 @publicapi
 def ai_extract(
     input: Union[ColumnOrLiteralStr, Column],
@@ -12951,9 +13062,9 @@ def ai_extract(
     else:
         input_col = input
 
-    # Convert response_format to SQL expression
-    # We use json.dumps and replace double quotes with single quotes as per SQL requirements
-    response_format_col = sql_expr(json.dumps(response_format).replace('"', "'"))
+    # Convert response_format to a SQL object/array literal with every string
+    # key/value SQL-escaped so special characters produce valid SQL.
+    response_format_col = sql_expr(_python_obj_to_sql_literal(response_format))
 
     # Build AST if needed
     ast = (
@@ -13181,8 +13292,9 @@ def ai_classify(
             f"list_of_categories must be a list of str or a Column, got {list_of_categories}"
         )
     if config_dict:
-        # only object constant is supported for now
-        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        # only object constant is supported for now; keys/values are SQL-escaped
+        # so special characters produce valid SQL.
+        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
         return _call_function(
             sql_func_name, expr_col, cat_col, config_col, _ast=ast, _emit_ast=_emit_ast
         )
@@ -13372,8 +13484,9 @@ def ai_similarity(
     input2_col = _to_col_if_lit(input2, sql_func_name)
 
     if config_dict:
-        # only object constant is supported for now
-        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        # only object constant is supported for now; keys/values are SQL-escaped
+        # so special characters produce valid SQL.
+        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
         return _call_function(
             sql_func_name,
             input1_col,
@@ -13478,8 +13591,9 @@ def ai_parse_document(
             if _emit_ast
             else None
         )
-        # only object constant is supported for now
-        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        # only object constant is supported for now; keys/values are SQL-escaped
+        # so special characters produce valid SQL.
+        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
         return _call_function(
             sql_func_name, file, config_col, _ast=ast, _emit_ast=_emit_ast
         )
@@ -13601,8 +13715,9 @@ def ai_transcribe(
             if _emit_ast
             else None
         )
-        # only object constant is supported for now
-        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        # only object constant is supported for now; keys/values are SQL-escaped
+        # so special characters produce valid SQL.
+        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
         return _call_function(
             sql_func_name, audio_file, config_col, _ast=ast, _emit_ast=_emit_ast
         )
@@ -13706,7 +13821,7 @@ def ai_complete(
         >>> # With detailed output
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='mistral-large',
+        ...         model='mistral-large2',
         ...         prompt='Explain AI in one sentence.',
         ...         show_details=True
         ...     ).alias("detailed_response")
@@ -13799,16 +13914,12 @@ def ai_complete(
 
     # Add model_parameters if provided
     if model_parameters is not None:
-        model_params_col = sql_expr(
-            json.dumps(model_parameters).replace("'", "''").replace('"', "'")
-        )
+        model_params_col = sql_expr(_python_obj_to_sql_literal(model_parameters))
         call_kwargs["model_parameters"] = model_params_col
 
     # Add response_format if provided
     if response_format is not None:
-        response_format_col = sql_expr(
-            json.dumps(response_format).replace("'", "''").replace('"', "'")
-        )
+        response_format_col = sql_expr(_python_obj_to_sql_literal(response_format))
         call_kwargs["response_format"] = response_format_col
 
     # Add show_details if provided

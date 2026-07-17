@@ -1,5 +1,5 @@
 {% set name = "snowflake-snowpark-python" %}
-{% set version = "1.52.0" %}
+{% set version = "1.53.1" %}
 {% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 {% set build_number = os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 0) %}
 
@@ -38,9 +38,11 @@ requirements:
     # Snowpark IR
     - protobuf==3.20.1  # [py<=310]
     - protobuf==4.25.3  # [py>310 and py<314]
-    - protobuf==5.29.3  # [py>=314]
-    - libprotobuf >=5.29.3 # [py>=314]
-    # mypy-protobuf 3.7.0 requires protobuf >= 5.26
+    - protobuf >=5.29.3,<6.34  # [py>=314]
+    - libprotobuf >=5.29.3,<6.34  # [py>=314]
+    # mypy-protobuf <=3.6.0 has no ValidateProtobufRuntimeVersion in its pb2 files,
+    # safe with protobuf 5.x or 6.x. mypy-protobuf 5.x+ requires protobuf 6.x gencode
+    # which conflicts with the internal channel's protobuf 5.x for py314.
     - mypy-protobuf <=3.6.0
   run:
     {% if noarch_build and py == 310 %}
@@ -59,12 +61,10 @@ requirements:
     - cloudpickle >=1.6.0,<=3.1.1,!=2.1.0,!=2.2.0
     - snowflake-connector-python >=3.17.0,<5.0.0
     - typing-extensions >=4.1.0,<5.0.0
-    # need to pin libffi because of problems in cryptography.
-    # This might no longer hold true but keep it just to avoid it from biting us again
-    - libffi <=3.4.4
     - pyyaml
     # Snowpark IR
-    - protobuf >=3.20,<6.34
+    - protobuf >=3.20,<6.34    # [py<314]
+    - protobuf >=5.29.3,<6.34  # [py>=314]
     - python-dateutil
     - tzlocal
   run_constrained:

@@ -28,7 +28,12 @@ INSTALL_REQ_LIST = [
     "pyyaml",
     "cloudpickle>=1.6.0,<=3.1.1,!=2.1.0,!=2.2.0",
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
-    "protobuf>=3.20, <6.34",  # Snowpark IR
+    "protobuf>=3.20, <6.34; python_version < '3.14'",  # Snowpark IR
+    # py314: protoc-wheel-0 has no cp314 wheel; setup.py uses libprotobuf's protoc from PATH.
+    # The pre-generated ast_pb2.py in the tarball has no ValidateProtobufRuntimeVersion call
+    # (built with protoc 3.21), so 5.29.0+ is sufficient. Conda recipes may regenerate with
+    # a different protoc version and override this constraint via their run deps.
+    "protobuf>=5.29.0,<6.34; python_version >= '3.14'",  # Snowpark IR
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
@@ -39,6 +44,7 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
 
 PANDAS_REQUIREMENTS = [
     f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
+    "pandas<3.0.0",
 ]
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
