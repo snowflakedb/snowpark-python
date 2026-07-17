@@ -1860,8 +1860,6 @@ def test_ai_multi_embed_basic(session, resources_path):
 
 def test_dataframe_ai_multi_embed_basic(session, resources_path):
     """Test DataFrame.ai.multi_embed with image files."""
-    from snowflake.snowpark.functions import to_file
-
     _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
     _ = session.file.put(f"{resources_path}/dog.jpg", "@mystage", auto_compress=False)
 
@@ -1878,8 +1876,6 @@ def test_dataframe_ai_multi_embed_basic(session, resources_path):
 
 def test_dataframe_ai_multi_embed_default_output_column(session, resources_path):
     """Test DataFrame.ai.multi_embed uses default output column name."""
-    from snowflake.snowpark.functions import to_file
-
     _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
     _ = session.file.put(f"{resources_path}/dog.jpg", "@mystage", auto_compress=False)
 

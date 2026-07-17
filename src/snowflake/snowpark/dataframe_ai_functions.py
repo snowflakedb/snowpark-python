@@ -33,6 +33,7 @@ from snowflake.snowpark.functions import (
     ai_transcribe,
     ai_parse_document,
     ai_translate,
+    function,
 )
 from snowflake.snowpark._internal.telemetry import add_api_call
 
