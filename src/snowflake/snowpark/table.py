@@ -33,6 +33,7 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 from snowflake.snowpark._internal.utils import (
+    IcebergChangesConfig,
     publicapi,
     TimeTravelConfig,
 )
@@ -303,10 +304,19 @@ class Table(DataFrame):
         # still pass them without us advertising the surface.
         version = kwargs.pop("version", None)
         version_tag = kwargs.pop("version_tag", None)
+        start_snapshot_id = kwargs.pop("start_snapshot_id", None)
+        end_snapshot_id = kwargs.pop("end_snapshot_id", None)
+        version_ref = kwargs.pop("version_ref", None)
+        branch = kwargs.pop("branch", None)
         if kwargs:
             raise TypeError(
                 f"Table() got unexpected keyword arguments: {sorted(kwargs)}"
             )
+
+        iceberg_changes_config = IcebergChangesConfig.validate_and_normalize_params(
+            start_snapshot_id=start_snapshot_id,
+            end_snapshot_id=end_snapshot_id,
+        )
 
         if _ast_stmt is None and session is not None and _emit_ast:
             _ast_stmt = session._ast_batch.bind()
@@ -336,13 +346,22 @@ class Table(DataFrame):
             stream=stream,
             version=version,
             version_tag=version_tag,
+            version_ref=version_ref,
+            branch=branch,
         )
+        if iceberg_changes_config is not None and time_travel_config is not None:
+            raise ValueError(
+                "Cannot combine Iceberg incremental read "
+                "('start-snapshot-id' / 'end-snapshot-id') with time travel "
+                "options on the same read."
+            )
 
         snowflake_table_plan = SnowflakeTable(
             table_name,
             session=session,
             is_temp_table_for_cleanup=is_temp_table_for_cleanup,
             time_travel_config=time_travel_config,
+            iceberg_changes_config=iceberg_changes_config,
         )
         if session.sql_simplifier_enabled:
             plan = session._analyzer.create_select_statement(
@@ -358,6 +377,7 @@ class Table(DataFrame):
         self.table_name: str = table_name  #: The table name
         self._is_temp_table_for_cleanup = is_temp_table_for_cleanup
         self._time_travel_config = time_travel_config
+        self._iceberg_changes_config = iceberg_changes_config
 
         # By default, the set the initial API call to say 'Table.__init__' since
         # people could instantiate a table directly. This value is overwritten when
@@ -368,6 +388,13 @@ class Table(DataFrame):
         kwargs = {}
         if self._time_travel_config:
             kwargs.update(self._time_travel_config._asdict())
+        if self._iceberg_changes_config:
+            kwargs.update(
+                {
+                    "start_snapshot_id": self._iceberg_changes_config.start_version,
+                    "end_snapshot_id": self._iceberg_changes_config.end_version,
+                }
+            )
 
         return Table(
             self.table_name,
@@ -381,6 +408,13 @@ class Table(DataFrame):
         kwargs = {}
         if self._time_travel_config:
             kwargs.update(self._time_travel_config._asdict())
+        if self._iceberg_changes_config:
+            kwargs.update(
+                {
+                    "start_snapshot_id": self._iceberg_changes_config.start_version,
+                    "end_snapshot_id": self._iceberg_changes_config.end_version,
+                }
+            )
 
         return Table(
             self.table_name,

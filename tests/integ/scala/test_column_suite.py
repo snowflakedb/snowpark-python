@@ -692,6 +692,8 @@ def test_regexp(session):
 )
 @pytest.mark.parametrize("spec", ["en_US-trim", "'en_US-trim'"])
 def test_collate(session, spec):
+    # Both the unquoted spec and the pre-quoted spec must produce the same
+    # result; the pre-quoted form is passed through unchanged.
     Utils.check_answer(
         TestData.string3(session).where(col("a").collate(spec) == "abcba"),
         [Row("  abcba  ")],
