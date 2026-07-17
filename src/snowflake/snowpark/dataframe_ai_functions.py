@@ -2015,7 +2015,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.53.0")
     @publicapi
     def translate(
         self,
