@@ -12918,6 +12918,8 @@ def _python_obj_to_sql_literal(
 def ai_extract(
     input: Union[ColumnOrLiteralStr, Column],
     response_format: Union[dict, list],
+    scores: Optional[bool] = None,
+    config: Optional[dict] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """
@@ -12926,7 +12928,7 @@ def ai_extract(
     Args:
         input: Either:
             - A string or Column containing text to extract information from
-            - A FILE type Column representing a document to extract from
+            - A FILE type Column representing a document to extract from (e.g. from :func:`to_file`)
 
         response_format: Information to be extracted in one of the following formats:
 
@@ -12939,8 +12941,23 @@ def ai_extract(
             - Array of strings with colon-separated feature names and extraction prompts:
               ``['name: What is the last name of the employee?', 'address: What is the address of the employee?']``
 
+        scores: Optional boolean. When ``True``, the returned JSON includes a ``scoring`` object
+            alongside ``response``. Each extracted field gets a ``score`` between 0 and 1 indicating
+            the model's confidence in the extracted value. Requires the named-argument SQL syntax;
+            providing this parameter automatically switches to named-argument form.
+            Default is ``None`` (no scores).
+
+        config: Optional dict of configuration settings for file inputs. Supported keys:
+
+            - ``scale_factor``: A numeric value from 1.0 through 4.0 that scales pages before
+              processing, which can enhance OCR quality for dense layouts or small text.
+
+            Only valid when ``input`` is a FILE column. Requires the named-argument SQL syntax;
+            providing this parameter automatically switches to named-argument form.
+
     Returns:
-        A Column containing a JSON object with the extracted information.
+        A Column containing a JSON object with the extracted information. When ``scores=True``,
+        the object also includes a ``scoring`` sub-object with per-field confidence scores.
 
     Note:
         - You can either ask questions in natural language or describe information to be extracted
@@ -12950,7 +12967,7 @@ def ai_extract(
         - Documents must be no more than 125 pages long
         - Maximum output length is 512 tokens per question
 
-        Supported file formats: PDF, PNG, PPTX, EML, DOC, DOCX, JPEG, JPG, HTM, HTML, TEXT, TXT, TIF, TIFF
+        Supported file formats: PDF, PNG, PPTX, EML, DOC, DOCX, JPEG, JPG, HTM, HTML, TEXT, TXT, TIF, TIFF, BMP, GIF, WEBP, MD
         Files must be less than 100 MB in size.
 
     Examples::
@@ -13030,7 +13047,6 @@ def ai_extract(
         ----------------------
         <BLANKLINE>
 
-
         >>> # Extract from file
         >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
         >>> _ = session.file.put("tests/resources/invoice.pdf", "@mystage", auto_compress=False)
@@ -13053,6 +13069,18 @@ def ai_extract(
         |}                             |
         --------------------------------
         <BLANKLINE>
+
+        >>> # Extract with confidence scores
+        >>> df = session.range(1).select(
+        ...     ai_extract(
+        ...         'John Smith lives in San Francisco',
+        ...         {'name': 'What is the name?', 'city': 'What is the city?'},
+        ...         scores=True
+        ...     ).alias("extracted")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> 'scoring' in result
+        True
     """
     sql_func_name = "ai_extract"
 
@@ -13062,18 +13090,36 @@ def ai_extract(
     else:
         input_col = input
 
-    # Convert response_format to a SQL object/array literal with every string
-    # key/value SQL-escaped so special characters produce valid SQL.
-    response_format_col = sql_expr(_python_obj_to_sql_literal(response_format))
-
     # Build AST if needed
-    ast = (
-        build_function_expr(sql_func_name, [input, response_format])
-        if _emit_ast
-        else None
-    )
+    ast_args = [input, response_format]
+    if scores is not None:
+        ast_args.append(scores)
+    if config is not None:
+        ast_args.append(config)
+    ast = build_function_expr(sql_func_name, ast_args) if _emit_ast else None
 
-    # Call the function with positional arguments
+    # Use named-argument form when scores or config is requested
+    if scores is not None or config is not None:
+        response_format_col = sql_expr(_python_obj_to_sql_literal(response_format))
+        # Detect file vs text input: TO_FILE() calls produce a FunctionExpression named "to_file"
+        is_file = isinstance(input_col, Column) and isinstance(
+            input_col._expr1, FunctionExpression
+        ) and input_col._expr1.name.upper() == "TO_FILE"
+        input_key = "file" if is_file else "text"
+        call_kwargs: Dict[str, Column] = {
+            input_key: input_col,
+            "responseFormat": response_format_col,
+        }
+        if config is not None:
+            call_kwargs["config"] = sql_expr(_python_obj_to_sql_literal(config))
+        if scores is not None:
+            call_kwargs["scores"] = sql_expr(str(scores).upper())
+        return _call_named_arguments_function(
+            sql_func_name, call_kwargs, _ast=ast, _emit_ast=_emit_ast
+        )
+
+    # Default: positional form (backward-compatible)
+    response_format_col = sql_expr(_python_obj_to_sql_literal(response_format))
     return _call_function(
         sql_func_name,
         input_col,
@@ -13521,25 +13567,34 @@ def ai_parse_document(
                 - 'LAYOUT': The function extracts layout as well as text, including structural
                   content such as tables.
 
+            - extract_images: If set to True, the function extracts images embedded in the document.
+              Requires ``mode='LAYOUT'``. Each extracted image is returned in the ``images`` array
+              with fields ``id``, bounding-box coordinates, and ``image_base64``.
+
             - page_split: If set to True, the function splits the document into pages and
               processes each page separately. This feature supports only PDF, PowerPoint (.pptx),
               and Word (.docx) documents. Documents in other formats return an error.
               The default is False.
               Tip: To process long documents that exceed the token limit, set this option to True.
 
+            - page_filter: An array of page-range objects specifying which pages of a multi-page
+              document to process. Each object must have ``start`` (inclusive, 0-based) and
+              ``end`` (exclusive) fields. For example, ``[{'start': 0, 'end': 2}]`` processes
+              the first two pages. Specifying ``page_filter`` implies ``page_split``.
+
     Returns:
         A JSON object (as a string) that contains the extracted data and associated metadata.
         The options argument determines the structure of the returned object.
 
-        If ``page_split`` is set, the output contains:
+        If ``page_split`` is set (or ``page_filter`` is provided), the output contains:
             - pages: An array of JSON objects, each containing text extracted from the document.
-            - metadata: Contains metadata about the document, such as page count.
-            - errorInformation: Contains error information if document can't be parsed (only on error).
 
         If ``page_split`` is False or not present, the output contains:
             - content: Plain text (in OCR mode) or Markdown-formatted text (in LAYOUT mode).
-            - metadata: Contains metadata about the document, such as page count.
-            - errorInformation: Contains error information if document can't be parsed (only on error).
+
+        If ``extract_images`` is True (requires ``mode='LAYOUT'``), the output additionally contains:
+            - images: An array of objects, each with ``id``, ``top_left_x``, ``top_left_y``,
+              ``bottom_right_x``, ``bottom_right_y``, and ``image_base64`` fields.
 
     Examples::
 

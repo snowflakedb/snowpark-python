@@ -1271,6 +1271,8 @@ class DataFrameAIFunctions:
         input_column: ColumnOrName,
         *,
         response_format: Optional[Union[Dict[str, str], List]] = None,
+        scores: Optional[bool] = None,
+        config: Optional[Dict] = None,
         output_column: Optional[str] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
@@ -1289,6 +1291,14 @@ class DataFrameAIFunctions:
                   ``[['name', 'What is the last name of the employee?'], ['address', 'What is the address of the employee?']]``
                 - Array of strings with colon-separated feature names and extraction prompts:
                   ``['name: What is the last name of the employee?', 'address: What is the address of the employee?']``
+
+            scores: When ``True``, the output JSON includes a ``scoring`` object alongside
+                ``response`` with per-field confidence scores between 0 and 1.
+                Default is ``None`` (no scores).
+            config: Optional dict of configuration settings for file inputs. Supported key:
+
+                - ``scale_factor``: Numeric value 1.0–4.0 to scale pages before processing,
+                  improving OCR quality for dense or small-text documents.
 
             output_column: The name of the output column to be appended.
                 If not provided, a column named ``AI_EXTRACT_OUTPUT`` is appended.
@@ -1421,16 +1431,20 @@ class DataFrameAIFunctions:
             build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
             if response_format is not None:
                 build_expr_from_python_val(ast.response_format, response_format)
-
+            if scores is not None:
+                ast.scores.value = scores
+            if config is not None:
+                build_expr_from_python_val(ast.config, config)
             ast.output_column.value = output_column_name
 
         result_col = ai_extract(
             input=input_col,
             response_format=response_format,
+            scores=scores,
+            config=config,
             _emit_ast=False,
         )
 
-        output_column_name = output_column or "AI_EXTRACT_OUTPUT"
         df = self._dataframe.with_column(
             output_column_name, result_col, _emit_ast=False
         )
