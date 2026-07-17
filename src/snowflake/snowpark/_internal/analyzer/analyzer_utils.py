@@ -990,33 +990,6 @@ def lateral_join_statement(
     )
 
 
-_SELECT_STAR_FROM_PREFIX = SELECT + STAR + NEW_LINE + FROM + LEFT_PARENTHESIS + NEW_LINE
-_SELECT_STAR_FROM_SUFFIX = NEW_LINE + RIGHT_PARENTHESIS
-
-
-def _unwrap_select_star_from(sql: str) -> Optional[str]:
-    """If sql is a join-produced `SELECT * FROM (\n<join_source>\n)` (the
-    output of project_statement([], join_source)), return <join_source>.
-    Only unwraps when the inner content starts with '(' (possibly preceded
-    by UUID trace comments) which indicates a parenthesized join operand
-    rather than a wrapped SELECT statement."""
-    if sql.startswith(_SELECT_STAR_FROM_PREFIX) and sql.endswith(
-        _SELECT_STAR_FROM_SUFFIX
-    ):
-        inner = sql[len(_SELECT_STAR_FROM_PREFIX) : -len(_SELECT_STAR_FROM_SUFFIX)]
-        # In trace-SQL mode, UUID comments (\n-- <uuid>\n) may precede the
-        # opening parenthesis. Strip them before checking.
-        check = inner.lstrip("\n")
-        if check.startswith("--"):
-            # Skip the comment line and any trailing newline
-            newline_pos = check.find("\n")
-            if newline_pos != -1:
-                check = check[newline_pos + 1 :]
-        if check.startswith(LEFT_PARENTHESIS) or inner.startswith(LEFT_PARENTHESIS):
-            return inner
-    return None
-
-
 def snowflake_supported_join_statement(
     left: str,
     right: str,
@@ -1027,30 +1000,17 @@ def snowflake_supported_join_statement(
     left_uuid: Optional[str] = None,
     right_uuid: Optional[str] = None,
     directed: bool = False,
-    left_is_join: bool = False,
 ) -> str:
     LEFT_UUID = format_uuid(left_uuid)
     RIGHT_UUID = format_uuid(right_uuid)
-
-    # If left is the output of a previous join, flatten into a multi-way join
-    # by unwrapping the SELECT * FROM (...) envelope and appending the new
-    # right operand directly to the existing join source. This avoids nested
-    # SELECT * layers that inflate query text without changing semantics.
-    #
-    # Though it is technically less efficient than constructing the join sub-queries
-    # without the SELECT in the first place, the structure of our SQL processing code
-    # needs top-level projections to be wrapped by a select to be well-formed, so we
-    # must strip it here instead.
-    #
-    # We only unwrap the left side because it is simpler to deal with than unwrapping
-    # both left and right, and left-deep chains are more common, as they're produced
-    # by calls like df1.join(df2).join(df3) etc.
-    unwrapped_left = _unwrap_select_star_from(left) if left_is_join else None
+    left_alias = (
+        "SNOWPARK_LEFT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
     right_alias = (
         "SNOWPARK_RIGHT"
-        if use_constant_subquery_alias and unwrapped_left is None
-        # Multi-way join: right alias must be unique to avoid collisions
-        # with aliases already present in the flattened join source.
+        if use_constant_subquery_alias
         else random_name_for_temp_object(TempObjectType.TABLE)
     )
 
@@ -1086,31 +1046,18 @@ def snowflake_supported_join_statement(
 
     maybe_directed_sql = DIRECTED_JOIN if directed else JOIN
 
-    if unwrapped_left is not None:
-        # No need for additional parentheses around the left expression here, since it
-        # should already be parenthesized
-        left_expr = LEFT_UUID + unwrapped_left + NEW_LINE + LEFT_UUID
-    else:
-        left_alias = (
-            "SNOWPARK_LEFT"
-            if use_constant_subquery_alias
-            else random_name_for_temp_object(TempObjectType.TABLE)
-        )
-        left_expr = (
-            LEFT_PARENTHESIS
-            + NEW_LINE
-            + LEFT_UUID
-            + left
-            + NEW_LINE
-            + LEFT_UUID
-            + RIGHT_PARENTHESIS
-            + AS
-            + left_alias
-            + SPACE
-            + NEW_LINE
-        )
     source = (
-        left_expr
+        LEFT_PARENTHESIS
+        + NEW_LINE
+        + LEFT_UUID
+        + left
+        + NEW_LINE
+        + LEFT_UUID
+        + RIGHT_PARENTHESIS
+        + AS
+        + left_alias
+        + SPACE
+        + NEW_LINE
         + join_sql
         + maybe_directed_sql
         + NEW_LINE
@@ -1142,7 +1089,6 @@ def join_statement(
     left_uuid: Optional[str] = None,
     right_uuid: Optional[str] = None,
     directed: bool = False,
-    left_is_join: bool = False,
 ) -> str:
     if isinstance(join_type, (LeftSemi, LeftAnti)):
         return left_semi_or_anti_join_statement(
@@ -1170,7 +1116,6 @@ def join_statement(
         left_uuid=left_uuid,
         right_uuid=right_uuid,
         directed=directed,
-        left_is_join=left_is_join,
     )
 
 
