@@ -1866,7 +1866,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.52.0")
     @publicapi
     def multi_embed(
         self,
@@ -1941,7 +1940,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.52.0")
     @publicapi
     def redact(
         self,
