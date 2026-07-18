@@ -1537,7 +1537,9 @@ class DataFrameAIFunctions:
 
             ast.output_column.value = output_column_name
 
-        result_col = ai_count_tokens("ai_complete", prompt_col, model=model, _emit_ast=False)
+        result_col = ai_count_tokens(
+            "ai_complete", prompt_col, model=model, _emit_ast=False
+        )
 
         # Add the output column to the DataFrame
         df = self._dataframe.with_column(
@@ -1683,7 +1685,6 @@ class DataFrameAIFunctions:
         return df
 
     @experimental(version="1.39.0")
-
     @publicapi
     def split_text_recursive_character(
         self,
@@ -1942,9 +1943,13 @@ class DataFrameAIFunctions:
                 build_expr_from_snowpark_column_or_python_val(entry.value, v)
             ast.output_column.value = output_column_name
 
-        result_col = ai_multi_embed(model=model, input=input_col, _emit_ast=False, **kwargs)
+        result_col = ai_multi_embed(
+            model=model, input=input_col, _emit_ast=False, **kwargs
+        )
 
-        df = self._dataframe.with_column(output_column_name, result_col, _emit_ast=False)
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
 
         add_api_call(df, "DataFrame.ai.multi_embed")
         if _emit_ast:
@@ -2023,7 +2028,9 @@ class DataFrameAIFunctions:
             input=input_col, categories=categories, mode=mode, _emit_ast=False
         )
 
-        df = self._dataframe.with_column(output_column_name, result_col, _emit_ast=False)
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
 
         add_api_call(df, "DataFrame.ai.redact")
         if _emit_ast:
@@ -2105,8 +2112,12 @@ class DataFrameAIFunctions:
             ast = with_src_position(stmt.expr.dataframe_ai_translate, stmt)
             self._dataframe._set_ast_ref(ast.df)
             build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
-            build_expr_from_snowpark_column_or_python_val(ast.source_language, source_language)
-            build_expr_from_snowpark_column_or_python_val(ast.target_language, target_language)
+            build_expr_from_snowpark_column_or_python_val(
+                ast.source_language, source_language
+            )
+            build_expr_from_snowpark_column_or_python_val(
+                ast.target_language, target_language
+            )
             ast.output_column.value = output_column_name
 
         result_col = ai_translate(
@@ -2116,7 +2127,9 @@ class DataFrameAIFunctions:
             _emit_ast=False,
         )
 
-        df = self._dataframe.with_column(output_column_name, result_col, _emit_ast=False)
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
 
         add_api_call(df, "DataFrame.ai.translate")
         if _emit_ast:

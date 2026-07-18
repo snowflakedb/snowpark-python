@@ -13102,9 +13102,11 @@ def ai_extract(
     if scores is not None or config is not None:
         response_format_col = sql_expr(_python_obj_to_sql_literal(response_format))
         # Detect file vs text input: TO_FILE() calls produce a FunctionExpression named "to_file"
-        is_file = isinstance(input_col, Column) and isinstance(
-            input_col._expr1, FunctionExpression
-        ) and input_col._expr1.name.upper() == "TO_FILE"
+        is_file = (
+            isinstance(input_col, Column)
+            and isinstance(input_col._expr1, FunctionExpression)
+            and input_col._expr1.name.upper() == "TO_FILE"
+        )
         input_key = "file" if is_file else "text"
         call_kwargs: Dict[str, Column] = {
             input_key: input_col,
@@ -14460,9 +14462,7 @@ def ai_multi_embed(
             _emit_ast=_emit_ast,
         )
     else:
-        ast = (
-            build_function_expr(sql_func_name, [model, input]) if _emit_ast else None
-        )
+        ast = build_function_expr(sql_func_name, [model, input]) if _emit_ast else None
         return _call_function(
             sql_func_name, model_col, input_col, _ast=ast, _emit_ast=_emit_ast
         )

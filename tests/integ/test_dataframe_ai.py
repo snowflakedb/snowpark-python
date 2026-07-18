@@ -1699,12 +1699,15 @@ def test_dataframe_ai_extract_apostrophe_question_runs(session):
 
 # ── ai_count_tokens standalone function ─────────────────────────────────────
 
+
 def test_ai_count_tokens_basic(session):
     """Test standalone ai_count_tokens function."""
     from snowflake.snowpark.functions import ai_count_tokens
 
     df = session.range(1).select(
-        ai_count_tokens("ai_complete", "What is a large language model?", model="llama3.1-70b").alias("tokens")
+        ai_count_tokens(
+            "ai_complete", "What is a large language model?", model="llama3.1-70b"
+        ).alias("tokens")
     )
     result = df.collect()[0][0]
     assert isinstance(result, int) and result > 0
@@ -1729,7 +1732,9 @@ def test_ai_count_tokens_column_input(session):
         [["Hello world"], ["A longer sentence with more tokens here"]],
         schema=["text"],
     )
-    result_df = df.select(ai_count_tokens("ai_complete", col("text"), model="llama3.1-8b").alias("tokens"))
+    result_df = df.select(
+        ai_count_tokens("ai_complete", col("text"), model="llama3.1-8b").alias("tokens")
+    )
     results = result_df.collect()
     assert len(results) == 2
     assert all(r[0] > 0 for r in results)
@@ -1738,6 +1743,7 @@ def test_ai_count_tokens_column_input(session):
 
 
 # ── ai_redact standalone function ────────────────────────────────────────────
+
 
 def test_ai_redact_basic(session):
     """Test standalone ai_redact replaces PII with placeholders."""
@@ -1792,6 +1798,7 @@ def test_ai_redact_column_input(session):
 
 # ── df.ai.redact ─────────────────────────────────────────────────────────────
 
+
 def test_dataframe_ai_redact_basic(session):
     """Test DataFrame.ai.redact basic redaction."""
     df = session.create_dataframe(
@@ -1815,7 +1822,11 @@ def test_dataframe_ai_redact_detect_mode(session):
     )
     result_df = df.ai.redact(input_column="text", mode="detect", output_column="pii")
     results = result_df.collect()
-    parsed = json.loads(results[0]["PII"]) if isinstance(results[0]["PII"], str) else results[0]["PII"]
+    parsed = (
+        json.loads(results[0]["PII"])
+        if isinstance(results[0]["PII"], str)
+        else results[0]["PII"]
+    )
     assert "spans" in parsed
 
 
@@ -1841,15 +1852,20 @@ def test_dataframe_ai_redact_default_output_column(session):
 
 # ── ai_multi_embed standalone function ───────────────────────────────────────
 
+
 def test_ai_multi_embed_basic(session, resources_path):
     """Test standalone ai_multi_embed with an image file."""
     from snowflake.snowpark.functions import ai_multi_embed, to_file
 
-    _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+    _ = session.sql(
+        "CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
     _ = session.file.put(f"{resources_path}/dog.jpg", "@mystage", auto_compress=False)
 
     df = session.range(1).select(
-        ai_multi_embed("twelvelabs-marengo-embed-3-0", to_file("@mystage/dog.jpg")).alias("emb")
+        ai_multi_embed(
+            "twelvelabs-marengo-embed-3-0", to_file("@mystage/dog.jpg")
+        ).alias("emb")
     )
     result = df.collect()[0][0]
     assert result["error"] is None
@@ -1858,9 +1874,12 @@ def test_ai_multi_embed_basic(session, resources_path):
 
 # ── df.ai.multi_embed ────────────────────────────────────────────────────────
 
+
 def test_dataframe_ai_multi_embed_basic(session, resources_path):
     """Test DataFrame.ai.multi_embed with image files."""
-    _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+    _ = session.sql(
+        "CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
     _ = session.file.put(f"{resources_path}/dog.jpg", "@mystage", auto_compress=False)
 
     df = session.read.file("@mystage")
@@ -1876,7 +1895,9 @@ def test_dataframe_ai_multi_embed_basic(session, resources_path):
 
 def test_dataframe_ai_multi_embed_default_output_column(session, resources_path):
     """Test DataFrame.ai.multi_embed uses default output column name."""
-    _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+    _ = session.sql(
+        "CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
     _ = session.file.put(f"{resources_path}/dog.jpg", "@mystage", auto_compress=False)
 
     df = session.read.file("@mystage")
