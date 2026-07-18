@@ -12,6 +12,10 @@
 - Added `DataFrame.ai.multi_embed` method to generate multimodal embeddings via the DataFrame API.
 - Added `DataFrame.ai.redact` method to detect and redact PII from text columns via the DataFrame API.
 
+#### Improvements
+
+- Removed the `experimental` tag from all AI SQL functions in `DataFrameAIFunctions` (`complete`, `filter`, `agg`, `classify`, `similarity`, `sentiment`, `embed`, `summarize_agg`, `transcribe`, `parse_document`, `extract`, `count_tokens`, `split_text_markdown_header`, `split_text_recursive_character`) and `RelationalGroupedDataFrame.ai_agg`.
+
 ## 1.53.1 (2026-07-14)
 
 No user-facing changes in this release.
