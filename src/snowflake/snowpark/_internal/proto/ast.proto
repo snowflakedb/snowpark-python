@@ -775,6 +775,7 @@ message DataframeAiClassify {
   Expr input_column = 3;
   repeated Tuple_String_Expr kwargs = 4;
   google.protobuf.StringValue output_column = 5;
+  google.protobuf.BoolValue return_error_details = 7;
   SrcPosition src = 6;
 }
 
@@ -786,6 +787,7 @@ message DataframeAiComplete {
   repeated Tuple_String_Expr model_parameters = 4;
   google.protobuf.StringValue output_column = 5;
   string prompt = 6;
+  google.protobuf.BoolValue return_error_details = 8;
   SrcPosition src = 7;
 }
 
@@ -795,6 +797,7 @@ message DataframeAiCountTokens {
   string model = 2;
   google.protobuf.StringValue output_column = 3;
   Expr prompt = 4;
+  google.protobuf.BoolValue return_error_details = 6;
   SrcPosition src = 5;
 }
 
@@ -823,6 +826,7 @@ message DataframeAiFilter {
   Expr df = 1;
   Expr input_columns = 2;
   string predicate = 3;
+  google.protobuf.BoolValue return_error_details = 5;
   SrcPosition src = 4;
 }
 
@@ -832,6 +836,7 @@ message DataframeAiParseDocument {
   Expr input_column = 2;
   repeated Tuple_String_Expr kwargs = 3;
   google.protobuf.StringValue output_column = 4;
+  google.protobuf.BoolValue return_error_details = 6;
   SrcPosition src = 5;
 }
 
@@ -841,6 +846,7 @@ message DataframeAiSentiment {
   Expr df = 2;
   Expr input_column = 3;
   google.protobuf.StringValue output_column = 4;
+  google.protobuf.BoolValue return_error_details = 6;
   SrcPosition src = 5;
 }
 
@@ -891,6 +897,7 @@ message DataframeAiTranscribe {
   Expr input_column = 2;
   repeated Tuple_String_Expr kwargs = 3;
   google.protobuf.StringValue output_column = 4;
+  google.protobuf.BoolValue return_error_details = 6;
   SrcPosition src = 5;
 }
 
@@ -917,6 +924,7 @@ message DataframeAiTranslate {
   Expr df = 1;
   Expr input_column = 2;
   google.protobuf.StringValue output_column = 3;
+  google.protobuf.BoolValue return_error_details = 7;
   Expr source_language = 4;
   SrcPosition src = 5;
   Expr target_language = 6;

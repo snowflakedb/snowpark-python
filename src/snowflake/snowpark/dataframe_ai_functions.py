@@ -55,6 +55,7 @@ class DataFrameAIFunctions:
         *,
         output_column: Optional[str] = None,
         model_parameters: Optional[Dict[str, Any]] = None,
+        return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """Generate a response (completion) on each row using the specified language model.
@@ -74,6 +75,9 @@ class DataFrameAIFunctions:
                 - top_p: Value from 0 to 1 controlling diversity (default: 0)
                 - max_tokens: Maximum number of output tokens (default: 4096, max: 8192)
                 - guardrails: Enable Cortex Guard filtering (default: False)
+
+            return_error_details: When ``True``, returns an OBJECT with ``value`` and ``error``
+                fields instead of returning NULL on failure.
 
         Returns:
             A new DataFrame with appended output columns at the end.
@@ -159,6 +163,8 @@ class DataFrameAIFunctions:
                     entry = ast.model_parameters.add()
                     entry._1 = k
                     build_expr_from_python_val(entry._2, v)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
 
             ast.output_column.value = output_column_name
 
@@ -167,6 +173,7 @@ class DataFrameAIFunctions:
             model=model,
             prompt=prompt_obj,
             model_parameters=model_parameters,
+            return_error_details=return_error_details,
             _emit_ast=False,
         )
 
@@ -403,6 +410,7 @@ class DataFrameAIFunctions:
         categories: Union[List[str], Column],
         *,
         output_column: Optional[str] = None,
+        return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
         **kwargs,
     ) -> "snowflake.snowpark.DataFrame":
@@ -532,6 +540,8 @@ class DataFrameAIFunctions:
                 entry = ast.kwargs.add()
                 entry._1 = k
                 build_expr_from_python_val(entry._2, v)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
 
             ast.output_column.value = output_column_name
 
@@ -539,6 +549,7 @@ class DataFrameAIFunctions:
         result_col = ai_classify(
             input_col,
             categories,
+            return_error_details=return_error_details,
             _emit_ast=False,
             **kwargs,
         )
@@ -717,6 +728,7 @@ class DataFrameAIFunctions:
         categories: Optional[List[str]] = None,
         *,
         output_column: Optional[str] = None,
+        return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """Extract sentiment analysis from text content.
@@ -805,6 +817,8 @@ class DataFrameAIFunctions:
             build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
             if categories is not None:
                 build_expr_from_python_val(ast.categories, categories)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
 
             ast.output_column.value = output_column_name
 
@@ -812,6 +826,7 @@ class DataFrameAIFunctions:
         result_col = ai_sentiment(
             input_col,
             categories=categories,
+            return_error_details=return_error_details,
             _emit_ast=False,
         )
 
@@ -1062,6 +1077,7 @@ class DataFrameAIFunctions:
         input_column: ColumnOrName,
         *,
         output_column: Optional[str] = None,
+        return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
         **kwargs,
     ) -> "snowflake.snowpark.DataFrame":
@@ -1139,11 +1155,14 @@ class DataFrameAIFunctions:
                 entry = ast.kwargs.add()
                 entry._1 = k
                 build_expr_from_python_val(entry._2, v)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
 
             ast.output_column.value = output_column_name
 
         result_col = ai_transcribe(
             input_col,
+            return_error_details=return_error_details,
             _emit_ast=False,
             **kwargs,
         )
@@ -1166,6 +1185,7 @@ class DataFrameAIFunctions:
         input_column: ColumnOrName,
         *,
         output_column: Optional[str] = None,
+        return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
         **kwargs,
     ) -> "snowflake.snowpark.DataFrame":
@@ -1233,10 +1253,13 @@ class DataFrameAIFunctions:
                 entry = ast.kwargs.add()
                 entry._1 = k
                 build_expr_from_python_val(entry._2, v)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
             ast.output_column.value = output_column_name
 
         result_col = ai_parse_document(
             input_col,
+            return_error_details=return_error_details,
             _emit_ast=False,
             **kwargs,
         )
@@ -2041,6 +2064,7 @@ class DataFrameAIFunctions:
         target_language: Union[Column, str],
         *,
         output_column: Optional[str] = None,
+        return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """Translate text from one language to another.
@@ -2114,12 +2138,15 @@ class DataFrameAIFunctions:
             build_expr_from_snowpark_column_or_python_val(
                 ast.target_language, target_language
             )
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
             ast.output_column.value = output_column_name
 
         result_col = ai_translate(
             text=input_col,
             source_language=source_language,
             target_language=target_language,
+            return_error_details=return_error_details,
             _emit_ast=False,
         )
 
