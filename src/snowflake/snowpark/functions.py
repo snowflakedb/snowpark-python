@@ -13115,7 +13115,7 @@ def ai_extract(
         if config is not None:
             call_kwargs["config"] = sql_expr(_python_obj_to_sql_literal(config))
         if scores is not None:
-            call_kwargs["scores"] = sql_expr(str(scores).upper())
+            call_kwargs["scores"] = lit(scores)
         return _call_named_arguments_function(
             sql_func_name, call_kwargs, _ast=ast, _emit_ast=_emit_ast
         )
@@ -13355,7 +13355,7 @@ def ai_classify(
     if config_dict:
         call_args.append(sql_expr(_python_obj_to_sql_literal(config_dict)))
     elif return_error_details is not None:
-        call_args.append(sql_expr("NULL"))
+        call_args.append(lit(None))
     if return_error_details is not None:
         call_args.append(lit(return_error_details))
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
@@ -13667,7 +13667,7 @@ def ai_parse_document(
     if config_dict:
         call_args.append(sql_expr(_python_obj_to_sql_literal(config_dict)))
     elif return_error_details is not None:
-        call_args.append(sql_expr("NULL"))
+        call_args.append(lit(None))
     if return_error_details is not None:
         call_args.append(lit(return_error_details))
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
@@ -13795,7 +13795,7 @@ def ai_transcribe(
     if config_dict:
         call_args.append(sql_expr(_python_obj_to_sql_literal(config_dict)))
     elif return_error_details is not None:
-        call_args.append(sql_expr("NULL"))
+        call_args.append(lit(None))
     if return_error_details is not None:
         call_args.append(lit(return_error_details))
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
@@ -14002,10 +14002,10 @@ def ai_complete(
         )
 
     if show_details is not None:
-        call_kwargs["show_details"] = sql_expr(str(show_details))
+        call_kwargs["show_details"] = lit(show_details)
 
     if return_error_details is not None:
-        call_kwargs["return_error_details"] = sql_expr(str(return_error_details))
+        call_kwargs["return_error_details"] = lit(return_error_details)
 
     return _call_named_arguments_function(
         sql_func_name, call_kwargs, _ast=ast, _emit_ast=_emit_ast
@@ -14246,7 +14246,7 @@ def ai_sentiment(
             lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
         )
     elif return_error_details is not None:
-        call_args.append(sql_expr("NULL"))
+        call_args.append(lit(None))
     if return_error_details is not None:
         call_args.append(lit(return_error_details))
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
@@ -14567,10 +14567,10 @@ def ai_redact(
         call_args.append(
             lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
             if has_cat
-            else sql_expr("NULL")
+            else lit(None)
         )
     if has_red or has_mode:
-        call_args.append(lit(return_error_details) if has_red else sql_expr("NULL"))
+        call_args.append(lit(return_error_details) if has_red else lit(None))
     if has_mode:
         call_args.append(lit(mode))
 
