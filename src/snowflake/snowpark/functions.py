@@ -13199,6 +13199,10 @@ def ai_filter(
         args.append(return_error_details)
     ast = build_function_expr(sql_func_name, args) if _emit_ast else None
 
+    # AI_FILTER has two overloads:
+    #   AI_FILTER(<input> [, <return_error_details>])              -- text
+    #   AI_FILTER(<predicate>, <file> [, <return_error_details>])  -- image
+    # Snowflake resolves by argument count/type, so no NULL placeholder is needed.
     call_args = [predicate_col] if file is None else [predicate_col, file]
     if return_error_details is not None:
         call_args.append(lit(return_error_details))
@@ -13346,9 +13350,12 @@ def ai_classify(
             f"list_of_categories must be a list of str or a Column, got {list_of_categories}"
         )
 
+    # SQL positional order: AI_CLASSIFY(expr, categories [, config] [, return_error_details])
     call_args = [expr_col, cat_col]
     if config_dict:
         call_args.append(sql_expr(_python_obj_to_sql_literal(config_dict)))
+    elif return_error_details is not None:
+        call_args.append(sql_expr("NULL"))
     if return_error_details is not None:
         call_args.append(lit(return_error_details))
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
@@ -13655,9 +13662,12 @@ def ai_parse_document(
         ast_args.append(return_error_details)
     ast = build_function_expr(sql_func_name, ast_args) if _emit_ast else None
 
+    # SQL positional order: AI_PARSE_DOCUMENT(file [, config] [, return_error_details])
     call_args: list = [file]
     if config_dict:
         call_args.append(sql_expr(_python_obj_to_sql_literal(config_dict)))
+    elif return_error_details is not None:
+        call_args.append(sql_expr("NULL"))
     if return_error_details is not None:
         call_args.append(lit(return_error_details))
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
@@ -13780,9 +13790,12 @@ def ai_transcribe(
         ast_args.append(return_error_details)
     ast = build_function_expr(sql_func_name, ast_args) if _emit_ast else None
 
+    # SQL positional order: AI_TRANSCRIBE(audio_file [, config] [, return_error_details])
     call_args: list = [audio_file]
     if config_dict:
         call_args.append(sql_expr(_python_obj_to_sql_literal(config_dict)))
+    elif return_error_details is not None:
+        call_args.append(sql_expr("NULL"))
     if return_error_details is not None:
         call_args.append(lit(return_error_details))
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
@@ -14226,11 +14239,14 @@ def ai_sentiment(
         ast_args.append(return_error_details)
     ast = build_function_expr(sql_func_name, ast_args) if _emit_ast else None
 
+    # SQL positional order: AI_SENTIMENT(text [, categories] [, return_error_details])
     call_args = [text_col]
     if categories is not None:
         call_args.append(
             lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
         )
+    elif return_error_details is not None:
+        call_args.append(sql_expr("NULL"))
     if return_error_details is not None:
         call_args.append(lit(return_error_details))
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
@@ -14349,7 +14365,12 @@ def ai_count_tokens(
     func_name_col = lit(function_name)
     input_col = _to_col_if_lit(input_text, sql_func_name)
 
-    # Build positional call args: (func_name [, model], input [, options] [, return_error_details])
+    # AI_COUNT_TOKENS has four overloads for each combination of {model, options}:
+    #   AI_COUNT_TOKENS(<function_name>, <input_text> [, <return_error_details>])
+    #   AI_COUNT_TOKENS(<function_name>, <model_name>, <input_text> [, <return_error_details>])
+    #   AI_COUNT_TOKENS(<function_name>, <input_text>, <options> [, <return_error_details>])
+    #   AI_COUNT_TOKENS(<function_name>, <model_name>, <input_text>, <options> [, <return_error_details>])
+    # Snowflake picks the overload by arg count, so no NULL placeholder is needed.
     call_args: list = [func_name_col]
     if model is not None:
         call_args.append(lit(model))
@@ -14458,8 +14479,8 @@ def ai_multi_embed(
 def ai_redact(
     input: ColumnOrLiteralStr,
     categories: Optional[List[str]] = None,
-    return_error_details: Optional[bool] = None,
     mode: Optional[str] = None,
+    return_error_details: Optional[bool] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """
@@ -14470,14 +14491,12 @@ def ai_redact(
         categories: An optional list of PII category names to target. When omitted,
             all supported PII categories are redacted. Example categories include
             ``'NAME'``, ``'EMAIL'``, ``'PHONE'``, ``'ADDRESS'``, ``'SSN'``.
-        return_error_details: When ``True``, the function returns an OBJECT with ``value``
-            and ``error`` fields instead of raising on failure. Requires the session
-            parameter ``AI_SQL_ERROR_HANDLING_USE_FAIL_ON_ERROR`` to be set to ``FALSE``.
-            Default is ``None`` (errors propagate normally).
         mode: Operating mode. Either ``'redact'`` (default) to replace PII with
             placeholder labels (e.g. ``[NAME]``), or ``'detect'`` to return an
             object with metadata about each detected PII span without modifying
             the text.
+        return_error_details: When ``True``, returns an OBJECT with ``value`` and
+            ``error`` fields instead of returning NULL on failure.
 
     Returns:
         In ``'redact'`` mode (default): a VARCHAR with PII replaced by placeholder labels.

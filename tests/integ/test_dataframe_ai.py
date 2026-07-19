@@ -1906,3 +1906,73 @@ def test_dataframe_ai_multi_embed_default_output_column(session, resources_path)
         model="twelvelabs-marengo-embed-3-0",
     )
     assert "AI_MULTI_EMBED_OUTPUT" in result_df.columns
+
+
+# ── return_error_details ─────────────────────────────────────────────────────
+
+
+def test_ai_sentiment_return_error_details(session):
+    """AI_SENTIMENT with return_error_details=True returns an OBJECT with value/error."""
+    from snowflake.snowpark.functions import ai_sentiment
+
+    df = session.range(1).select(
+        ai_sentiment("I love this product!", return_error_details=True).alias("out")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+
+
+def test_ai_classify_return_error_details(session):
+    """AI_CLASSIFY with return_error_details=True (no config) returns OBJECT with value/error."""
+    from snowflake.snowpark.functions import ai_classify
+
+    df = session.range(1).select(
+        ai_classify(
+            "penguin", ["bird", "mammal", "fish"], return_error_details=True
+        ).alias("out")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+
+
+def test_ai_redact_return_error_details(session):
+    """AI_REDACT with return_error_details=True (no categories, no mode) returns OBJECT."""
+    from snowflake.snowpark.functions import ai_redact
+
+    df = session.range(1).select(
+        ai_redact("John Smith at 555-1234", return_error_details=True).alias("out")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+
+
+def test_ai_filter_return_error_details(session):
+    """AI_FILTER (text overload) with return_error_details=True returns OBJECT with value/error."""
+    from snowflake.snowpark.functions import ai_filter
+
+    df = session.range(1).select(
+        ai_filter("Is Paris the capital of France?", return_error_details=True).alias("out")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+
+
+def test_ai_count_tokens_return_error_details(session):
+    """AI_COUNT_TOKENS with return_error_details=True returns OBJECT with value/error."""
+    from snowflake.snowpark.functions import ai_count_tokens
+
+    df = session.range(1).select(
+        ai_count_tokens(
+            "ai_complete",
+            "What is a large language model?",
+            model="llama3.1-70b",
+            return_error_details=True,
+        ).alias("out")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed

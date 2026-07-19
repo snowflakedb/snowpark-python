@@ -1946,8 +1946,8 @@ class DataFrameAIFunctions:
             ast.model = model
             for k, v in kwargs.items():
                 entry = ast.kwargs.add()
-                entry.name = k
-                build_expr_from_snowpark_column_or_python_val(entry.value, v)
+                entry._1 = k
+                build_expr_from_python_val(entry._2, v)
             ast.output_column.value = output_column_name
 
         result_col = ai_multi_embed(
@@ -1969,8 +1969,8 @@ class DataFrameAIFunctions:
         input_column: ColumnOrName,
         *,
         categories: Optional[List[str]] = None,
-        return_error_details: Optional[bool] = None,
         mode: Optional[str] = None,
+        return_error_details: Optional[bool] = None,
         output_column: Optional[str] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
@@ -1982,13 +1982,11 @@ class DataFrameAIFunctions:
             categories: An optional list of PII category names to target. When omitted,
                 all supported categories are redacted (e.g. ``'NAME'``, ``'EMAIL'``,
                 ``'PHONE'``, ``'ADDRESS'``, ``'SSN'``).
-            return_error_details: When ``True``, returns an OBJECT with ``value`` and
-                ``error`` fields instead of raising on failure. Requires the session
-                parameter ``AI_SQL_ERROR_HANDLING_USE_FAIL_ON_ERROR`` to be set to
-                ``FALSE``.
             mode: ``'redact'`` (default) to replace PII with placeholder labels such as
                 ``[NAME]``, or ``'detect'`` to return span metadata without modifying
                 the text.
+            return_error_details: When ``True``, returns an OBJECT with ``value`` and
+                ``error`` fields instead of returning NULL on failure.
             output_column: The name of the output column to be appended.
                 If not provided, a column named ``AI_REDACT_OUTPUT`` is appended.
 
