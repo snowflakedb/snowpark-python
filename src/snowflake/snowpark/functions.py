@@ -14340,7 +14340,7 @@ def ai_count_tokens(
 
     if model is not None and options is not None:
         model_col = lit(model)
-        options_col = sql_expr(json.dumps(options).replace('"', "'"))
+        options_col = sql_expr(_python_obj_to_sql_literal(options))
         return _call_function(
             sql_func_name,
             func_name_col,
@@ -14361,7 +14361,7 @@ def ai_count_tokens(
             _emit_ast=_emit_ast,
         )
     elif options is not None:
-        options_col = sql_expr(json.dumps(options).replace('"', "'"))
+        options_col = sql_expr(_python_obj_to_sql_literal(options))
         return _call_function(
             sql_func_name,
             func_name_col,
@@ -14452,7 +14452,7 @@ def ai_multi_embed(
             if _emit_ast
             else None
         )
-        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
         return _call_function(
             sql_func_name,
             model_col,

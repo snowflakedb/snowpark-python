@@ -11,6 +11,7 @@
 - Added `ai_redact` function to `snowflake.snowpark.functions` to detect and redact personally identifiable information (PII) from text.
 - Added `DataFrame.ai.multi_embed` method to generate multimodal embeddings via the DataFrame API.
 - Added `DataFrame.ai.redact` method to detect and redact PII from text columns via the DataFrame API.
+- Added `DataFrame.ai.translate` method to translate text columns between languages via the DataFrame API.
 
 #### Improvements
 

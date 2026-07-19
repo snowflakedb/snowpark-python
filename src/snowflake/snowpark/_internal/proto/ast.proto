@@ -809,13 +809,13 @@ message DataframeAiEmbed {
 
 // dataframe-ai.ir:82
 message DataframeAiExtract {
-  Expr config = 1;
-  Expr df = 2;
-  Expr input_column = 3;
-  google.protobuf.StringValue output_column = 4;
-  Expr response_format = 5;
+  Expr df = 1;
+  Expr input_column = 2;
+  google.protobuf.StringValue output_column = 3;
+  Expr response_format = 4;
+  SrcPosition src = 5;
   google.protobuf.BoolValue scores = 6;
-  SrcPosition src = 7;
+  Expr config = 7;
 }
 
 // dataframe-ai.ir:19
