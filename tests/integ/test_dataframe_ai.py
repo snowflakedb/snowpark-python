@@ -1954,7 +1954,9 @@ def test_ai_filter_return_error_details(session):
     from snowflake.snowpark.functions import ai_filter
 
     df = session.range(1).select(
-        ai_filter("Is Paris the capital of France?", return_error_details=True).alias("out")
+        ai_filter("Is Paris the capital of France?", return_error_details=True).alias(
+            "out"
+        )
     )
     result = df.collect()[0][0]
     parsed = json.loads(result) if isinstance(result, str) else result

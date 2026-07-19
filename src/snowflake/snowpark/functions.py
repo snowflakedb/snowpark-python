@@ -14354,7 +14354,11 @@ def ai_count_tokens(
     """
     sql_func_name = "ai_count_tokens"
 
-    args: list = [function_name, model, input_text] if model is not None else [function_name, input_text]
+    args: list = (
+        [function_name, model, input_text]
+        if model is not None
+        else [function_name, input_text]
+    )
     if options is not None:
         args.append(options)
     if return_error_details is not None:
