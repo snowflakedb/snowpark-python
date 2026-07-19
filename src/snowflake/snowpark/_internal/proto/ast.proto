@@ -909,6 +909,7 @@ message DataframeAiRedact {
   Expr input_column = 3;
   google.protobuf.StringValue mode = 4;
   google.protobuf.StringValue output_column = 5;
+  google.protobuf.BoolValue return_error_details = 7;
   SrcPosition src = 6;
 }
 

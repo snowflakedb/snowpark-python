@@ -1946,6 +1946,7 @@ class DataFrameAIFunctions:
         input_column: ColumnOrName,
         *,
         categories: Optional[List[str]] = None,
+        return_error_details: Optional[bool] = None,
         mode: Optional[str] = None,
         output_column: Optional[str] = None,
         _emit_ast: bool = True,
@@ -1958,6 +1959,10 @@ class DataFrameAIFunctions:
             categories: An optional list of PII category names to target. When omitted,
                 all supported categories are redacted (e.g. ``'NAME'``, ``'EMAIL'``,
                 ``'PHONE'``, ``'ADDRESS'``, ``'SSN'``).
+            return_error_details: When ``True``, returns an OBJECT with ``value`` and
+                ``error`` fields instead of raising on failure. Requires the session
+                parameter ``AI_SQL_ERROR_HANDLING_USE_FAIL_ON_ERROR`` to be set to
+                ``FALSE``.
             mode: ``'redact'`` (default) to replace PII with placeholder labels such as
                 ``[NAME]``, or ``'detect'`` to return span metadata without modifying
                 the text.
@@ -1968,6 +1973,8 @@ class DataFrameAIFunctions:
             A new DataFrame with an appended output column. In ``'redact'`` mode the
             column contains the redacted VARCHAR. In ``'detect'`` mode it contains an
             OBJECT with a ``spans`` array describing each detected PII span.
+            When ``return_error_details=True``, the column contains an OBJECT with
+            ``value`` and ``error`` fields.
 
         Examples::
 
@@ -2003,12 +2010,18 @@ class DataFrameAIFunctions:
             build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
             if categories is not None:
                 build_expr_from_python_val(ast.categories, categories)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
             if mode is not None:
                 ast.mode.value = mode
             ast.output_column.value = output_column_name
 
         result_col = ai_redact(
-            input=input_col, categories=categories, mode=mode, _emit_ast=False
+            input=input_col,
+            categories=categories,
+            return_error_details=return_error_details,
+            mode=mode,
+            _emit_ast=False,
         )
 
         df = self._dataframe.with_column(

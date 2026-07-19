@@ -14472,6 +14472,7 @@ def ai_multi_embed(
 def ai_redact(
     input: ColumnOrLiteralStr,
     categories: Optional[List[str]] = None,
+    return_error_details: Optional[bool] = None,
     mode: Optional[str] = None,
     _emit_ast: bool = True,
 ) -> Column:
@@ -14483,6 +14484,10 @@ def ai_redact(
         categories: An optional list of PII category names to target. When omitted,
             all supported PII categories are redacted. Example categories include
             ``'NAME'``, ``'EMAIL'``, ``'PHONE'``, ``'ADDRESS'``, ``'SSN'``.
+        return_error_details: When ``True``, the function returns an OBJECT with ``value``
+            and ``error`` fields instead of raising on failure. Requires the session
+            parameter ``AI_SQL_ERROR_HANDLING_USE_FAIL_ON_ERROR`` to be set to ``FALSE``.
+            Default is ``None`` (errors propagate normally).
         mode: Operating mode. Either ``'redact'`` (default) to replace PII with
             placeholder labels (e.g. ``[NAME]``), or ``'detect'`` to return an
             object with metadata about each detected PII span without modifying
@@ -14496,6 +14501,9 @@ def ai_redact(
             - ``category``: The PII category name.
             - ``start`` / ``end``: Character offsets of the PII span in the original text.
             - ``text``: The matched PII text.
+
+        When ``return_error_details=True``: an OBJECT with ``value`` (the result or NULL)
+        and ``error`` (the error message or NULL) fields.
 
     Examples::
 
@@ -14528,36 +14536,37 @@ def ai_redact(
     """
     sql_func_name = "ai_redact"
 
+    has_cat = categories is not None
+    has_red = return_error_details is not None
+    has_mode = mode is not None
+
     args: list = [input]
-    if categories is not None:
+    if has_cat:
         args.append(categories)
-    if mode is not None:
+    if has_red:
+        args.append(return_error_details)
+    if has_mode:
         args.append(mode)
 
     ast = build_function_expr(sql_func_name, args) if _emit_ast else None
 
     input_col = _to_col_if_lit(input, sql_func_name)
 
-    if categories is not None and mode is not None:
-        cat_col = lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
-        mode_col = lit(mode)
-        return _call_function(
-            sql_func_name,
-            input_col,
-            cat_col,
-            mode_col,
-            _ast=ast,
-            _emit_ast=_emit_ast,
+    # Build positional call args in SQL order:
+    # AI_REDACT(input [, categories] [, return_error_details] [, mode])
+    # NULL is used as a placeholder when a middle optional arg is omitted but a
+    # later arg is provided, so that the positional order is preserved.
+    call_args = [input_col]
+
+    if has_cat or has_red or has_mode:
+        call_args.append(
+            lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
+            if has_cat
+            else sql_expr("NULL")
         )
-    elif categories is not None:
-        cat_col = lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
-        return _call_function(
-            sql_func_name, input_col, cat_col, _ast=ast, _emit_ast=_emit_ast
-        )
-    elif mode is not None:
-        mode_col = lit(mode)
-        return _call_function(
-            sql_func_name, input_col, mode_col, _ast=ast, _emit_ast=_emit_ast
-        )
-    else:
-        return _call_function(sql_func_name, input_col, _ast=ast, _emit_ast=_emit_ast)
+    if has_red or has_mode:
+        call_args.append(lit(return_error_details) if has_red else sql_expr("NULL"))
+    if has_mode:
+        call_args.append(lit(mode))
+
+    return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
