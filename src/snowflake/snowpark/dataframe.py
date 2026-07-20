@@ -238,6 +238,7 @@ from collections.abc import Iterable
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
+    import polars  # pragma: no cover
     from table import Table  # pragma: no cover
 
 _logger = getLogger(__name__)
@@ -1370,6 +1371,111 @@ class DataFrame:
             ),
             **kwargs,
         )
+
+    @publicapi
+    @overload
+    def to_polars(
+        self,
+        *,
+        lazy: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> "polars.DataFrame":
+        ...  # pragma: no cover
+
+    @publicapi
+    @overload
+    def to_polars(
+        self,
+        *,
+        lazy: bool = True,
+        statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> "polars.LazyFrame":
+        ...  # pragma: no cover
+
+    @experimental(version="1.54.0")
+    @df_collect_api_telemetry
+    @publicapi
+    def to_polars(
+        self,
+        *,
+        lazy: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> Union["polars.DataFrame", "polars.LazyFrame"]:
+        """Executes the query representing this DataFrame and returns the result as a
+        `polars DataFrame <https://docs.pola.rs/py-polars/html/reference/dataframe/index.html>`_
+        or, when ``lazy=True``, a `polars LazyFrame <https://docs.pola.rs/py-polars/html/reference/lazyframe/index.html>`_.
+
+        When the full result set is too large to materialize, use ``lazy=True`` and
+        push down column projections or row limits via polars expressions before
+        calling ``.collect()``.
+
+        Example::
+
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df.to_polars().shape
+            (2, 2)
+            >>> lf = df.to_polars(lazy=True)
+            >>> lf.collect().sort("A").to_dicts()
+            [{'A': 1, 'B': 2}, {'A': 3, 'B': 4}]
+
+        Args:
+            lazy: If ``True``, the Snowpark plan is deferred until ``.collect()`` is called
+                on the returned :class:`polars.LazyFrame`. Defaults to ``False``.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        Note:
+            Requires ``polars>=1.0``.
+        """
+        import polars as pl
+
+        if lazy:
+            schema = pl.from_arrow(
+                self.limit(1).to_arrow(
+                    statement_params=statement_params, _emit_ast=False, **kwargs
+                )
+            ).schema
+
+            def _scan(with_columns, predicate, n_rows, batch_size):
+                # TODO(SNOW-3472759): push predicates down to Snowpark operations for Polars Exprs.
+                # Polars re-applies the predicate post-fetch, so correctness is preserved as-is.
+                scoped = self
+                if with_columns:
+                    # Quote each name to preserve case for mixed-case / quoted
+                    # Snowflake identifiers (unquoted names are always uppercase
+                    # in Arrow, so quoting them is safe too).
+                    scoped = scoped.select(
+                        *[quote_name(c, keep_case=True) for c in with_columns]
+                    )
+                if n_rows is not None:
+                    scoped = scoped.limit(n_rows)
+                for batch in scoped.to_arrow_batches(
+                    statement_params=statement_params, _emit_ast=False, **kwargs
+                ):
+                    yield pl.from_arrow(batch)
+
+            return pl.io.plugins.register_io_source(_scan, schema=schema)
+
+        parts = [
+            pl.from_arrow(batch)
+            for batch in self.to_arrow_batches(
+                statement_params=statement_params, _emit_ast=False, **kwargs
+            )
+        ]
+        if not parts:
+            # No batches returned: run a 0-row fetch to get the schema so the
+            # returned DataFrame has correct column names and types.
+            return pl.from_arrow(
+                self.limit(0).to_arrow(
+                    statement_params=statement_params, _emit_ast=False, **kwargs
+                )
+            )
+        return pl.concat(parts) if len(parts) > 1 else parts[0]
 
     @df_api_usage
     @publicapi
