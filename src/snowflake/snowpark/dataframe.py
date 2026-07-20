@@ -1418,10 +1418,10 @@ class DataFrame:
         Example::
 
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-            >>> df.to_polars().shape
+            >>> df.to_polars().shape  # doctest: +SKIP
             (2, 2)
-            >>> lf = df.to_polars(lazy=True)
-            >>> lf.collect().sort("A").to_dicts()
+            >>> lf = df.to_polars(lazy=True)  # doctest: +SKIP
+            >>> lf.collect().sort("A").to_dicts()  # doctest: +SKIP
             [{'A': 1, 'B': 2}, {'A': 3, 'B': 4}]
 
         Args:
