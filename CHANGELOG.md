@@ -8,6 +8,10 @@
 
 - Removed the `experimental` tag from all AI SQL functions in `DataFrameAIFunctions` (`complete`, `filter`, `agg`, `classify`, `similarity`, `sentiment`, `embed`, `summarize_agg`, `transcribe`, `parse_document`, `extract`, `count_tokens`, `split_text_markdown_header`, `split_text_recursive_character`) and `RelationalGroupedDataFrame.ai_agg`.
 
+#### Bug Fixes
+
+- Reverted the change introduced in 1.53.0 to eliminate unnecessary `SELECT *` from joins, which was causing performance regressions. This has no functional impact.
+
 ## 1.53.1 (2026-07-14)
 
 No user-facing changes in this release.
