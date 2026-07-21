@@ -719,6 +719,25 @@ class MockServerConnection:
             # we do not mock the splitting into data chunks behavior
             rows = [rows] if to_iter else rows
 
+        to_arrow = kwargs.get("to_arrow", False)
+        if to_arrow:
+            try:
+                import pyarrow as pa
+
+                if isinstance(res, TableEmulator):
+                    renamed = res.rename(
+                        columns={c: unquote_if_quoted(c) for c in res.columns}
+                    )
+                    arrow_table = pa.Table.from_pandas(renamed, preserve_index=False)
+                else:
+                    arrow_table = pa.table({})
+            except Exception:
+                import pyarrow as pa
+
+                arrow_table = pa.table({})
+            self.notify_mock_query_record_listener(**kwargs)
+            return iter([arrow_table]) if to_iter else arrow_table
+
         # Notify query listeners.
         self.notify_mock_query_record_listener(**kwargs)
 

@@ -246,7 +246,7 @@ message FlattenMode {
   }
 }
 
-// dataframe.ir:252
+// dataframe.ir:258
 message JoinType {
   oneof variant {
     bool join_type__asof = 1;
@@ -752,7 +752,7 @@ message CreateDataframe {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:183
+// dataframe.ir:189
 message DataframeAgg {
   Expr df = 1;
   ExprArgList exprs = 2;
@@ -892,7 +892,7 @@ message DataframeAiTranscribe {
   SrcPosition src = 5;
 }
 
-// dataframe.ir:188
+// dataframe.ir:194
 message DataframeAlias {
   Expr df = 1;
   string name = 2;
@@ -955,7 +955,7 @@ message DataframeAnalyticsTimeSeriesAgg {
   repeated string windows = 8;
 }
 
-// dataframe.ir:378
+// dataframe.ir:384
 message DataframeCacheResult {
   Expr df = 1;
   NameRef object_name = 2;
@@ -970,7 +970,7 @@ message DataframeCol {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:385
+// dataframe.ir:391
 message DataframeColIlike {
   Expr df = 1;
   string pattern = 2;
@@ -1042,7 +1042,7 @@ message DataframeCreateOrReplaceView {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// dataframe.ir:193
+// dataframe.ir:199
 message DataframeCrossJoin {
   google.protobuf.BoolValue directed = 1;
   Expr lhs = 2;
@@ -1059,7 +1059,7 @@ message DataframeCube {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:201
+// dataframe.ir:207
 message DataframeDescribe {
   ExprArgList cols = 1;
   Expr df = 2;
@@ -1067,41 +1067,41 @@ message DataframeDescribe {
   bool strings_include_math_stats = 4;
 }
 
-// dataframe.ir:207
+// dataframe.ir:213
 message DataframeDistinct {
   Expr df = 1;
   SrcPosition src = 2;
 }
 
-// dataframe.ir:211
+// dataframe.ir:217
 message DataframeDrop {
   ExprArgList cols = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:216
+// dataframe.ir:222
 message DataframeDropDuplicates {
   ExprArgList cols = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:221
+// dataframe.ir:227
 message DataframeExcept {
   Expr df = 1;
   Expr other = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:226
+// dataframe.ir:232
 message DataframeFilter {
   Expr condition = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:240
+// dataframe.ir:246
 message DataframeFirst {
   bool block = 1;
   Expr df = 2;
@@ -1110,7 +1110,7 @@ message DataframeFirst {
   repeated Tuple_String_String statement_params = 5;
 }
 
-// dataframe.ir:231
+// dataframe.ir:237
 message DataframeFlatten {
   Expr df = 1;
   Expr input = 2;
@@ -1135,14 +1135,14 @@ message DataframeGroupByGroupingSets {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:247
+// dataframe.ir:253
 message DataframeIntersect {
   Expr df = 1;
   Expr other = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:263
+// dataframe.ir:269
 message DataframeJoin {
   google.protobuf.BoolValue directed = 1;
   Expr join_expr = 2;
@@ -1155,14 +1155,14 @@ message DataframeJoin {
   SrcPosition src = 9;
 }
 
-// dataframe.ir:282
+// dataframe.ir:288
 message DataframeJoinTableFunction {
   Expr fn = 1;
   Expr lhs = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:274
+// dataframe.ir:280
 message DataframeLateralJoin {
   Expr join_expr = 1;
   Expr lhs = 2;
@@ -1172,7 +1172,7 @@ message DataframeLateralJoin {
   SrcPosition src = 6;
 }
 
-// dataframe.ir:287
+// dataframe.ir:293
 message DataframeLimit {
   Expr df = 1;
   int64 n = 2;
@@ -1180,7 +1180,7 @@ message DataframeLimit {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:153
+// dataframe.ir:159
 message DataframeNaDrop_Python {
   Expr df = 1;
   string how = 2;
@@ -1189,7 +1189,7 @@ message DataframeNaDrop_Python {
   google.protobuf.Int64Value thresh = 5;
 }
 
-// dataframe.ir:147
+// dataframe.ir:153
 message DataframeNaDrop_Scala {
   repeated string cols = 1;
   Expr df = 2;
@@ -1197,7 +1197,7 @@ message DataframeNaDrop_Scala {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:160
+// dataframe.ir:166
 message DataframeNaFill {
   Expr df = 1;
   bool include_decimal = 2;
@@ -1207,7 +1207,7 @@ message DataframeNaFill {
   repeated Tuple_String_Expr value_map = 6;
 }
 
-// dataframe.ir:168
+// dataframe.ir:174
 message DataframeNaReplace {
   Expr df = 1;
   bool include_decimal = 2;
@@ -1220,7 +1220,7 @@ message DataframeNaReplace {
   repeated Expr values = 9;
 }
 
-// dataframe.ir:293
+// dataframe.ir:299
 message DataframeNaturalJoin {
   google.protobuf.BoolValue directed = 1;
   JoinType join_type = 2;
@@ -1238,7 +1238,7 @@ message DataframePivot {
   Expr values = 5;
 }
 
-// dataframe.ir:308
+// dataframe.ir:314
 message DataframeRandomSplit {
   Expr df = 1;
   google.protobuf.Int64Value seed = 2;
@@ -1262,7 +1262,7 @@ message DataframeRef {
   SrcPosition src = 2;
 }
 
-// dataframe.ir:315
+// dataframe.ir:321
 message DataframeRename {
   Expr col_or_mapper = 1;
   Expr df = 2;
@@ -1277,7 +1277,7 @@ message DataframeRollup {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:321
+// dataframe.ir:327
 message DataframeSample {
   Expr df = 1;
   google.protobuf.Int64Value num = 2;
@@ -1286,7 +1286,7 @@ message DataframeSample {
   SrcPosition src = 5;
 }
 
-// dataframe.ir:328
+// dataframe.ir:334
 message DataframeSelect {
   ExprArgList cols = 1;
   Expr df = 2;
@@ -1301,7 +1301,7 @@ message DataframeShow {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:335
+// dataframe.ir:341
 message DataframeSort {
   Expr ascending = 1;
   ExprArgList cols = 2;
@@ -1353,7 +1353,7 @@ message DataframeStatSampleBy {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:138
+// dataframe.ir:144
 message DataframeToDf {
   ExprArgList col_names = 1;
   Expr df = 2;
@@ -1385,7 +1385,15 @@ message DataframeToPandasBatches {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// dataframe.ir:341
+// dataframe.ir:138
+message DataframeToPolars {
+  Expr df = 1;
+  bool is_lazy = 2;
+  SrcPosition src = 3;
+  repeated Tuple_String_String statement_params = 4;
+}
+
+// dataframe.ir:347
 message DataframeUnion {
   bool all = 1;
   bool allow_missing_columns = 2;
@@ -1395,7 +1403,7 @@ message DataframeUnion {
   SrcPosition src = 6;
 }
 
-// dataframe.ir:300
+// dataframe.ir:306
 message DataframeUnpivot {
   repeated Expr column_list = 1;
   Expr df = 2;
@@ -1405,7 +1413,7 @@ message DataframeUnpivot {
   string value_column = 6;
 }
 
-// dataframe.ir:349
+// dataframe.ir:355
 message DataframeWithColumn {
   Expr col = 1;
   string col_name = 2;
@@ -1413,7 +1421,7 @@ message DataframeWithColumn {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:355
+// dataframe.ir:361
 message DataframeWithColumnRenamed {
   Expr col = 1;
   Expr df = 2;
@@ -1421,7 +1429,7 @@ message DataframeWithColumnRenamed {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:361
+// dataframe.ir:367
 message DataframeWithColumns {
   repeated string col_names = 1;
   Expr df = 2;
@@ -1625,92 +1633,93 @@ message Expr {
     DataframeToLocalIterator dataframe_to_local_iterator = 115;
     DataframeToPandas dataframe_to_pandas = 116;
     DataframeToPandasBatches dataframe_to_pandas_batches = 117;
-    DataframeUnion dataframe_union = 118;
-    DataframeUnpivot dataframe_unpivot = 119;
-    DataframeWithColumn dataframe_with_column = 120;
-    DataframeWithColumnRenamed dataframe_with_column_renamed = 121;
-    DataframeWithColumns dataframe_with_columns = 122;
-    DataframeWriter dataframe_writer = 123;
-    DatatypeVal datatype_val = 124;
-    Directory directory = 125;
-    Div div = 126;
-    Eq eq = 127;
-    Flatten flatten = 128;
-    Float64Val float64_val = 129;
-    FnRef fn_ref = 130;
-    Generator generator = 131;
-    Geq geq = 132;
-    GroupingSets grouping_sets = 133;
-    Gt gt = 134;
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 135;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 136;
-    Int64Val int64_val = 137;
-    Leq leq = 138;
-    ListVal list_val = 139;
-    Lt lt = 140;
-    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 141;
-    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 142;
-    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 143;
-    Mod mod = 144;
-    Mul mul = 145;
-    Neg neg = 146;
-    Neq neq = 147;
-    Not not = 148;
-    NullVal null_val = 149;
-    ObjectGetItem object_get_item = 150;
-    Or or = 151;
-    Pow pow = 152;
-    PythonDateVal python_date_val = 153;
-    PythonTimeVal python_time_val = 154;
-    PythonTimestampVal python_timestamp_val = 155;
-    Range range = 156;
-    ReadAvro read_avro = 157;
-    ReadCsv read_csv = 158;
-    ReadDirectory read_directory = 159;
-    ReadJson read_json = 160;
-    ReadLoad read_load = 161;
-    ReadOrc read_orc = 162;
-    ReadParquet read_parquet = 163;
-    ReadTable read_table = 164;
-    ReadXml read_xml = 165;
-    RedactedConst redacted_const = 166;
-    RelationalGroupedDataframeAgg relational_grouped_dataframe_agg = 167;
-    RelationalGroupedDataframeAiAgg relational_grouped_dataframe_ai_agg = 168;
-    RelationalGroupedDataframeApplyInPandas relational_grouped_dataframe_apply_in_pandas = 169;
-    RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 170;
-    RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 171;
-    RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 172;
-    Rollback rollback = 173;
-    Row row = 174;
-    SeqMapVal seq_map_val = 175;
-    SessionTableFunction session_table_function = 176;
-    Sql sql = 177;
-    SqlExpr sql_expr = 178;
-    StoredProcedure stored_procedure = 179;
-    StringVal string_val = 180;
-    Sub sub = 181;
-    Table table = 182;
-    TableDelete table_delete = 183;
-    TableDropTable table_drop_table = 184;
-    TableFnCallAlias table_fn_call_alias = 185;
-    TableFnCallOver table_fn_call_over = 186;
-    TableMerge table_merge = 187;
-    TableSample table_sample = 188;
-    TableUpdate table_update = 189;
-    ToSnowparkPandas to_snowpark_pandas = 190;
-    TruncatedExpr truncated_expr = 191;
-    TupleVal tuple_val = 192;
-    Udaf udaf = 193;
-    Udf udf = 194;
-    Udtf udtf = 195;
-    WriteCopyIntoLocation write_copy_into_location = 196;
-    WriteCsv write_csv = 197;
-    WriteInsertInto write_insert_into = 198;
-    WriteJson write_json = 199;
-    WritePandas write_pandas = 200;
-    WriteParquet write_parquet = 201;
-    WriteSave write_save = 202;
-    WriteTable write_table = 203;
+    DataframeToPolars dataframe_to_polars = 118;
+    DataframeUnion dataframe_union = 119;
+    DataframeUnpivot dataframe_unpivot = 120;
+    DataframeWithColumn dataframe_with_column = 121;
+    DataframeWithColumnRenamed dataframe_with_column_renamed = 122;
+    DataframeWithColumns dataframe_with_columns = 123;
+    DataframeWriter dataframe_writer = 124;
+    DatatypeVal datatype_val = 125;
+    Directory directory = 126;
+    Div div = 127;
+    Eq eq = 128;
+    Flatten flatten = 129;
+    Float64Val float64_val = 130;
+    FnRef fn_ref = 131;
+    Generator generator = 132;
+    Geq geq = 133;
+    GroupingSets grouping_sets = 134;
+    Gt gt = 135;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 136;
+    IndirectTableFnNameRef indirect_table_fn_name_ref = 137;
+    Int64Val int64_val = 138;
+    Leq leq = 139;
+    ListVal list_val = 140;
+    Lt lt = 141;
+    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 142;
+    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 143;
+    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 144;
+    Mod mod = 145;
+    Mul mul = 146;
+    Neg neg = 147;
+    Neq neq = 148;
+    Not not = 149;
+    NullVal null_val = 150;
+    ObjectGetItem object_get_item = 151;
+    Or or = 152;
+    Pow pow = 153;
+    PythonDateVal python_date_val = 154;
+    PythonTimeVal python_time_val = 155;
+    PythonTimestampVal python_timestamp_val = 156;
+    Range range = 157;
+    ReadAvro read_avro = 158;
+    ReadCsv read_csv = 159;
+    ReadDirectory read_directory = 160;
+    ReadJson read_json = 161;
+    ReadLoad read_load = 162;
+    ReadOrc read_orc = 163;
+    ReadParquet read_parquet = 164;
+    ReadTable read_table = 165;
+    ReadXml read_xml = 166;
+    RedactedConst redacted_const = 167;
+    RelationalGroupedDataframeAgg relational_grouped_dataframe_agg = 168;
+    RelationalGroupedDataframeAiAgg relational_grouped_dataframe_ai_agg = 169;
+    RelationalGroupedDataframeApplyInPandas relational_grouped_dataframe_apply_in_pandas = 170;
+    RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 171;
+    RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 172;
+    RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 173;
+    Rollback rollback = 174;
+    Row row = 175;
+    SeqMapVal seq_map_val = 176;
+    SessionTableFunction session_table_function = 177;
+    Sql sql = 178;
+    SqlExpr sql_expr = 179;
+    StoredProcedure stored_procedure = 180;
+    StringVal string_val = 181;
+    Sub sub = 182;
+    Table table = 183;
+    TableDelete table_delete = 184;
+    TableDropTable table_drop_table = 185;
+    TableFnCallAlias table_fn_call_alias = 186;
+    TableFnCallOver table_fn_call_over = 187;
+    TableMerge table_merge = 188;
+    TableSample table_sample = 189;
+    TableUpdate table_update = 190;
+    ToSnowparkPandas to_snowpark_pandas = 191;
+    TruncatedExpr truncated_expr = 192;
+    TupleVal tuple_val = 193;
+    Udaf udaf = 194;
+    Udf udf = 195;
+    Udtf udtf = 196;
+    WriteCopyIntoLocation write_copy_into_location = 197;
+    WriteCsv write_csv = 198;
+    WriteInsertInto write_insert_into = 199;
+    WriteJson write_json = 200;
+    WritePandas write_pandas = 201;
+    WriteParquet write_parquet = 202;
+    WriteSave write_save = 203;
+    WriteTable write_table = 204;
   }
 }
 
@@ -1802,7 +1811,7 @@ message Geq {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:367
+// dataframe.ir:373
 message GroupingSets {
   ExprArgList sets = 1;
   SrcPosition src = 2;
@@ -1937,98 +1946,99 @@ message HasSrcPosition {
     DataframeToLocalIterator dataframe_to_local_iterator = 118;
     DataframeToPandas dataframe_to_pandas = 119;
     DataframeToPandasBatches dataframe_to_pandas_batches = 120;
-    DataframeUnion dataframe_union = 121;
-    DataframeUnpivot dataframe_unpivot = 122;
-    DataframeWithColumn dataframe_with_column = 123;
-    DataframeWithColumnRenamed dataframe_with_column_renamed = 124;
-    DataframeWithColumns dataframe_with_columns = 125;
-    DataframeWriter dataframe_writer = 126;
-    DatatypeVal datatype_val = 127;
-    Directory directory = 128;
-    Div div = 129;
-    Eq eq = 130;
-    Flatten flatten = 131;
-    Float64Val float64_val = 132;
-    FnRef fn_ref = 133;
-    Generator generator = 134;
-    Geq geq = 135;
-    GroupingSets grouping_sets = 136;
-    Gt gt = 137;
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 138;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 139;
-    Int64Val int64_val = 140;
-    Leq leq = 141;
-    ListVal list_val = 142;
-    Lt lt = 143;
-    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 144;
-    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 145;
-    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 146;
-    Mod mod = 147;
-    Mul mul = 148;
-    NameRef name_ref = 149;
-    Neg neg = 150;
-    Neq neq = 151;
-    Not not = 152;
-    NullVal null_val = 153;
-    ObjectGetItem object_get_item = 154;
-    Or or = 155;
-    Pow pow = 156;
-    PythonDateVal python_date_val = 157;
-    PythonTimeVal python_time_val = 158;
-    PythonTimestampVal python_timestamp_val = 159;
-    Range range = 160;
-    ReadAvro read_avro = 161;
-    ReadCsv read_csv = 162;
-    ReadDirectory read_directory = 163;
-    ReadJson read_json = 164;
-    ReadLoad read_load = 165;
-    ReadOrc read_orc = 166;
-    ReadParquet read_parquet = 167;
-    ReadTable read_table = 168;
-    ReadXml read_xml = 169;
-    RedactedConst redacted_const = 170;
-    RelationalGroupedDataframeAgg relational_grouped_dataframe_agg = 171;
-    RelationalGroupedDataframeAiAgg relational_grouped_dataframe_ai_agg = 172;
-    RelationalGroupedDataframeApplyInPandas relational_grouped_dataframe_apply_in_pandas = 173;
-    RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 174;
-    RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 175;
-    RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 176;
-    Rollback rollback = 177;
-    Row row = 178;
-    SeqMapVal seq_map_val = 179;
-    SessionTableFunction session_table_function = 180;
-    Sql sql = 181;
-    SqlExpr sql_expr = 182;
-    StoredProcedure stored_procedure = 183;
-    StringVal string_val = 184;
-    Sub sub = 185;
-    Table table = 186;
-    TableDelete table_delete = 187;
-    TableDropTable table_drop_table = 188;
-    TableFnCallAlias table_fn_call_alias = 189;
-    TableFnCallOver table_fn_call_over = 190;
-    TableMerge table_merge = 191;
-    TableSample table_sample = 192;
-    TableUpdate table_update = 193;
-    ToSnowparkPandas to_snowpark_pandas = 194;
-    TruncatedExpr truncated_expr = 195;
-    TupleVal tuple_val = 196;
-    Udaf udaf = 197;
-    Udf udf = 198;
-    Udtf udtf = 199;
-    WindowSpecEmpty window_spec_empty = 200;
-    WindowSpecOrderBy window_spec_order_by = 201;
-    WindowSpecPartitionBy window_spec_partition_by = 202;
-    WindowSpecRangeBetween window_spec_range_between = 203;
-    WindowSpecRowsBetween window_spec_rows_between = 204;
-    WriteCopyIntoLocation write_copy_into_location = 205;
-    WriteCsv write_csv = 206;
-    WriteInsertInto write_insert_into = 207;
-    WriteJson write_json = 208;
-    WritePandas write_pandas = 209;
-    WriteParquet write_parquet = 210;
-    WriteSave write_save = 211;
-    WriteTable write_table = 212;
+    DataframeToPolars dataframe_to_polars = 121;
+    DataframeUnion dataframe_union = 122;
+    DataframeUnpivot dataframe_unpivot = 123;
+    DataframeWithColumn dataframe_with_column = 124;
+    DataframeWithColumnRenamed dataframe_with_column_renamed = 125;
+    DataframeWithColumns dataframe_with_columns = 126;
+    DataframeWriter dataframe_writer = 127;
+    DatatypeVal datatype_val = 128;
+    Directory directory = 129;
+    Div div = 130;
+    Eq eq = 131;
+    Flatten flatten = 132;
+    Float64Val float64_val = 133;
+    FnRef fn_ref = 134;
+    Generator generator = 135;
+    Geq geq = 136;
+    GroupingSets grouping_sets = 137;
+    Gt gt = 138;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 139;
+    IndirectTableFnNameRef indirect_table_fn_name_ref = 140;
+    Int64Val int64_val = 141;
+    Leq leq = 142;
+    ListVal list_val = 143;
+    Lt lt = 144;
+    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 145;
+    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 146;
+    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 147;
+    Mod mod = 148;
+    Mul mul = 149;
+    NameRef name_ref = 150;
+    Neg neg = 151;
+    Neq neq = 152;
+    Not not = 153;
+    NullVal null_val = 154;
+    ObjectGetItem object_get_item = 155;
+    Or or = 156;
+    Pow pow = 157;
+    PythonDateVal python_date_val = 158;
+    PythonTimeVal python_time_val = 159;
+    PythonTimestampVal python_timestamp_val = 160;
+    Range range = 161;
+    ReadAvro read_avro = 162;
+    ReadCsv read_csv = 163;
+    ReadDirectory read_directory = 164;
+    ReadJson read_json = 165;
+    ReadLoad read_load = 166;
+    ReadOrc read_orc = 167;
+    ReadParquet read_parquet = 168;
+    ReadTable read_table = 169;
+    ReadXml read_xml = 170;
+    RedactedConst redacted_const = 171;
+    RelationalGroupedDataframeAgg relational_grouped_dataframe_agg = 172;
+    RelationalGroupedDataframeAiAgg relational_grouped_dataframe_ai_agg = 173;
+    RelationalGroupedDataframeApplyInPandas relational_grouped_dataframe_apply_in_pandas = 174;
+    RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 175;
+    RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 176;
+    RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 177;
+    Rollback rollback = 178;
+    Row row = 179;
+    SeqMapVal seq_map_val = 180;
+    SessionTableFunction session_table_function = 181;
+    Sql sql = 182;
+    SqlExpr sql_expr = 183;
+    StoredProcedure stored_procedure = 184;
+    StringVal string_val = 185;
+    Sub sub = 186;
+    Table table = 187;
+    TableDelete table_delete = 188;
+    TableDropTable table_drop_table = 189;
+    TableFnCallAlias table_fn_call_alias = 190;
+    TableFnCallOver table_fn_call_over = 191;
+    TableMerge table_merge = 192;
+    TableSample table_sample = 193;
+    TableUpdate table_update = 194;
+    ToSnowparkPandas to_snowpark_pandas = 195;
+    TruncatedExpr truncated_expr = 196;
+    TupleVal tuple_val = 197;
+    Udaf udaf = 198;
+    Udf udf = 199;
+    Udtf udtf = 200;
+    WindowSpecEmpty window_spec_empty = 201;
+    WindowSpecOrderBy window_spec_order_by = 202;
+    WindowSpecPartitionBy window_spec_partition_by = 203;
+    WindowSpecRangeBetween window_spec_range_between = 204;
+    WindowSpecRowsBetween window_spec_rows_between = 205;
+    WriteCopyIntoLocation write_copy_into_location = 206;
+    WriteCsv write_csv = 207;
+    WriteInsertInto write_insert_into = 208;
+    WriteJson write_json = 209;
+    WritePandas write_pandas = 210;
+    WriteParquet write_parquet = 211;
+    WriteSave write_save = 212;
+    WriteTable write_table = 213;
   }
 }
 
@@ -2534,7 +2544,7 @@ message TableUpdate {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// dataframe.ir:371
+// dataframe.ir:377
 message ToSnowparkPandas {
   repeated string columns = 1;
   Expr df = 2;

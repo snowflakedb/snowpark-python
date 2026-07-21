@@ -1432,14 +1432,26 @@ class DataFrame:
         Note:
             Requires ``polars>=1.0``.
         """
+        if _emit_ast:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_to_polars, stmt)
+            self._set_ast_ref(ast.df)
+            ast.is_lazy = lazy
+            if statement_params is not None:
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
+            self._session._ast_batch.eval(stmt)
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
+
         import polars as pl
 
         if lazy:
             schema = pl.from_arrow(
-                self.limit(1).to_arrow(
+                self.limit(1, _emit_ast=False).to_arrow(
                     statement_params=statement_params, _emit_ast=False, **kwargs
                 )
             ).schema
+            # Remove the AST parameter so _scan calls don't re-report the same batch.
+            kwargs.pop(DATAFRAME_AST_PARAMETER, None)
 
             def _scan(with_columns, predicate, n_rows, batch_size):
                 # TODO(SNOW-3472759): push predicates down to Snowpark operations for Polars Exprs.
@@ -1471,7 +1483,7 @@ class DataFrame:
             # No batches returned: run a 0-row fetch to get the schema so the
             # returned DataFrame has correct column names and types.
             return pl.from_arrow(
-                self.limit(0).to_arrow(
+                self.limit(0, _emit_ast=False).to_arrow(
                     statement_params=statement_params, _emit_ast=False, **kwargs
                 )
             )
