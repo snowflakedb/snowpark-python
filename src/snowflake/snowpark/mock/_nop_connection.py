@@ -231,11 +231,27 @@ class NopConnection(MockServerConnection):
             # Create a dummy single row DataFrame with the expected schema.  Note that the schema
             # attributes is a based on best effort based on most common operators but won't work for
             # things like dynamic pivot and possibly other operators.
+            to_arrow_flag = kwargs.get("to_arrow", False)
             if to_pandas:
                 result = pandas.DataFrame(
                     [[v for v in result_row[0]]],
                     columns=[rm.name for rm in result_meta],
                 )
+            elif to_arrow_flag:
+                try:
+                    import pyarrow as pa
+
+                    cols = {
+                        result_meta[i].name: [result_row[0][i]]
+                        for i in range(len(result_meta))
+                    }
+                    arrow_result = pa.table(cols)
+                except Exception:
+                    import pyarrow as pa
+
+                    arrow_result = pa.table({})
+                self.notify_mock_query_record_listener(**kwargs)
+                return iter([arrow_result]) if to_iter else arrow_result
             else:
                 result = result_row
 
