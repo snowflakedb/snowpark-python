@@ -588,10 +588,14 @@ def test_read_csv_with_infer_schema_negative(session, mode, caplog):
     reader = get_reader(session, mode)
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_parquet}"
 
+    # Capture the real method before patching. Calling session._conn.run_query
+    # from the side_effect would recurse into this mock.
+    run_query = session._conn.run_query
+
     def mock_run_query(*args, **kwargs):
         if "INFER_SCHEMA ( LOCATION  =>" in args[0]:
             raise ProgrammingError("Cannot infer schema")
-        return session._conn.run_query(args, kwargs)
+        return run_query(*args, **kwargs)
 
     with mock.patch(
         "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
