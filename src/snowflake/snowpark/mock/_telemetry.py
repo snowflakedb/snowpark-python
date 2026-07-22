@@ -14,7 +14,6 @@ from typing import Optional
 
 from snowflake.connector.secret_detector import SecretDetector
 from snowflake.connector.telemetry_oob import TelemetryService
-
 from snowflake.snowpark._internal.utils import (
     get_os_name,
     get_python_version,
