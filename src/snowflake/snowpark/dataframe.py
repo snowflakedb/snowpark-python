@@ -1436,7 +1436,7 @@ class DataFrame:
 
         if lazy:
             schema = pl.from_arrow(
-                self.limit(1).to_arrow(
+                self.limit(0).to_arrow(
                     statement_params=statement_params, _emit_ast=False, **kwargs
                 )
             ).schema
