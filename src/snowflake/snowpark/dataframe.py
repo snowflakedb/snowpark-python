@@ -8,7 +8,6 @@ import datetime
 import itertools
 import random
 import re
-import sys
 from collections import Counter
 from decimal import Decimal
 from functools import cached_property, reduce
@@ -235,13 +234,7 @@ from snowflake.snowpark.types import (
     YearMonthIntervalType,
 )
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
+from collections.abc import Iterable
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
@@ -1054,9 +1047,21 @@ class DataFrame:
         else:
             return copy.copy(self._plan)
 
+    def _copy_agg_state(self, target: "DataFrame") -> None:
+        """Copy post-aggregate state to target so operations like .limit() and
+        .sort() on the copy go through _build_post_agg_df and generate correct
+        SQL (ORDER BY inside the aggregate subquery, not on the outer query)."""
+        target._ops_after_agg = self._ops_after_agg
+        target._agg_base_plan = self._agg_base_plan
+        target._agg_base_select_statement = self._agg_base_select_statement
+        target._pending_havings = self._pending_havings
+        target._pending_order_bys = self._pending_order_bys
+
     def _copy_without_ast(self) -> "DataFrame":
         """Returns a shallow copy of the DataFrame without AST generation."""
-        return DataFrame(self._session, self._copy_plan(), _emit_ast=False)
+        result = DataFrame(self._session, self._copy_plan(), _emit_ast=False)
+        self._copy_agg_state(result)
+        return result
 
     def __copy__(self) -> "DataFrame":
         """Implements shallow copy protocol for copy.copy(...)."""
@@ -1065,12 +1070,14 @@ class DataFrame:
             stmt = self._session._ast_batch.bind()
             with_src_position(stmt.expr.dataframe_ref, stmt)
             self._set_ast_ref(stmt.expr)
-        return DataFrame(
+        result = DataFrame(
             self._session,
             self._copy_plan(),
             _ast_stmt=stmt,
             _emit_ast=self._session.ast_enabled,
         )
+        self._copy_agg_state(result)
+        return result
 
     if installed_pandas:
         import pandas  # pragma: no cover

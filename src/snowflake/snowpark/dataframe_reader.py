@@ -4,9 +4,9 @@
 import json
 import os
 import re
-import sys
 import time
 from collections import defaultdict
+from collections.abc import Iterable
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 from datetime import datetime
@@ -83,6 +83,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     warning,
     experimental,
+    IcebergChangesConfig,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -102,14 +103,6 @@ from snowflake.snowpark.types import (
     VariantType,
     StructField,
 )
-
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
 
 logger = getLogger(__name__)
 
@@ -162,6 +155,27 @@ def _extract_time_travel_from_options(options: dict) -> dict:
     - Automatically sets time_travel_mode to 'at'
     - Cannot be used with time_travel_mode='before' (raises error)
     - Cannot be mixed with regular 'timestamp' option (raises error)
+
+    Special handling for 'SNAPSHOT-ID' / 'SNAPSHOT_ID' (Spark Iceberg
+    compatibility) — both aliases map to the internal ``version`` time
+    travel parameter:
+    - Automatically set time_travel_mode to 'at'
+      (Iceberg snapshot ids only support ``AT(VERSION => N)``, not ``BEFORE``)
+    - Cannot be used with time_travel_mode='before' (raises error)
+
+    Special handling for 'VERSION_TAG' / 'VERSION-TAG' (Iceberg tag name) —
+    both aliases map to the internal ``version_tag`` time travel parameter
+    and emit ``AT(VERSION_REF => '<name>')`` on the Snowflake side.
+
+    Special handling for 'VERSION_REF' / 'VERSION-REF' (Iceberg tag or
+    branch name) — maps to the internal ``version_ref`` parameter.
+
+    Special handling for 'BRANCH' (Spark Iceberg WAP branch read) — maps
+    to the internal ``branch`` parameter and emits
+    ``AT(VERSION_REF => '<name>')``.
+
+    Special handling for 'TAG' (Spark Iceberg ``SparkReadOptions.TAG``) —
+    maps to the internal ``version_tag`` parameter.
     """
     result = {}
     excluded_keys = set()
@@ -183,11 +197,161 @@ def _extract_time_travel_from_options(options: dict) -> dict:
         result["timestamp"] = options["AS-OF-TIMESTAMP"]
         excluded_keys.add("TIMESTAMP")
 
+    # Handle Iceberg snapshot id (Spark ``snapshot-id`` / ``snapshot_id``).
+    # Auto-sets mode='at' since ``AT(VERSION => N)`` is the only valid form.
+    snapshot_id_value = options.get("SNAPSHOT-ID")
+    snapshot_id_source = "snapshot-id"
+    if snapshot_id_value is None:
+        snapshot_id_value = options.get("SNAPSHOT_ID")
+        snapshot_id_source = "snapshot_id"
+    if snapshot_id_value is not None:
+        if (
+            "TIME_TRAVEL_MODE" in options
+            and options["TIME_TRAVEL_MODE"].lower() == "before"
+        ):
+            raise ValueError(
+                f"Cannot use '{snapshot_id_source}' option with "
+                "time_travel_mode='before'. Iceberg snapshot id time travel "
+                "only supports time_travel_mode='at'."
+            )
+        # Coerce string snapshot ids (Spark accepts both string and long
+        # literals via .option(); we normalize to int so the SQL emits an
+        # unquoted long).
+        try:
+            result["version"] = int(snapshot_id_value)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"'{snapshot_id_source}' must be a 64-bit integer Iceberg "
+                f"snapshot id, got {snapshot_id_value!r}."
+            )
+        result["time_travel_mode"] = "at"
+
+    def _set_named_ref_option(
+        result: dict,
+        *,
+        param_name: str,
+        option_source: str,
+        raw_value: Any,
+    ) -> None:
+        if (
+            "TIME_TRAVEL_MODE" in options
+            and options["TIME_TRAVEL_MODE"].lower() == "before"
+        ):
+            raise ValueError(
+                f"Cannot use '{option_source}' option with "
+                "time_travel_mode='before'. Iceberg named-ref time travel "
+                "only supports time_travel_mode='at'."
+            )
+        result[param_name] = str(raw_value)
+        result["time_travel_mode"] = "at"
+
+    # Handle Iceberg tag (``version_tag`` / ``version-tag`` / Spark ``tag``).
+    version_tag_value = options.get("VERSION_TAG")
+    version_tag_source = "version_tag"
+    if version_tag_value is None:
+        version_tag_value = options.get("VERSION-TAG")
+        version_tag_source = "version-tag"
+    if version_tag_value is None:
+        version_tag_value = options.get("TAG")
+        version_tag_source = "tag"
+    if version_tag_value is not None:
+        _set_named_ref_option(
+            result,
+            param_name="version_tag",
+            option_source=version_tag_source,
+            raw_value=version_tag_value,
+        )
+
+    version_ref_value = options.get("VERSION_REF")
+    version_ref_source = "version_ref"
+    if version_ref_value is None:
+        version_ref_value = options.get("VERSION-REF")
+        version_ref_source = "version-ref"
+    if version_ref_value is not None:
+        _set_named_ref_option(
+            result,
+            param_name="version_ref",
+            option_source=version_ref_source,
+            raw_value=version_ref_value,
+        )
+
+    branch_value = options.get("BRANCH")
+    if branch_value is not None:
+        _set_named_ref_option(
+            result,
+            param_name="branch",
+            option_source="branch",
+            raw_value=branch_value,
+        )
+
     for option_key, param_name in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items():
         if option_key in options and option_key not in excluded_keys:
             result[param_name] = options[option_key]
 
     return result
+
+
+def _get_reader_option(options: dict, *keys: str):
+    """Case-insensitive lookup for a reader option key."""
+    for key in keys:
+        for option_key, value in options.items():
+            if option_key.upper() == key.upper():
+                return value
+    return None
+
+
+def _extract_iceberg_changes_from_options(options: dict) -> dict:
+    """Extract Spark Iceberg incremental-read options from a reader dict.
+
+    Maps ``start-snapshot-id`` / ``end-snapshot-id`` (and underscore
+    variants) to internal ``start_snapshot_id`` / ``end_snapshot_id``
+    kwargs consumed by :meth:`Session.table`.
+    """
+    start = _get_reader_option(options, "start-snapshot-id", "start_snapshot_id")
+    end = _get_reader_option(options, "end-snapshot-id", "end_snapshot_id")
+    if start is None and end is None:
+        return {}
+    if start is None:
+        raise ValueError(
+            "Iceberg incremental read requires 'start-snapshot-id'; "
+            "'end-snapshot-id' cannot be used alone."
+        )
+    start_id = IcebergChangesConfig._coerce_snapshot_id(start, "start-snapshot-id")
+    end_id = None
+    if end is not None:
+        end_id = IcebergChangesConfig._coerce_snapshot_id(end, "end-snapshot-id")
+    return {"start_snapshot_id": start_id, "end_snapshot_id": end_id}
+
+
+def _reader_options_conflict_with_incremental_read(options: dict) -> list[str]:
+    """Return reader option keys that cannot coexist with incremental read."""
+    incremental_keys = {
+        "start-snapshot-id",
+        "start_snapshot_id",
+        "end-snapshot-id",
+        "end_snapshot_id",
+    }
+    if not any(
+        k.upper().replace("_", "-") in {x.replace("_", "-") for x in incremental_keys}
+        for k in options
+    ):
+        return []
+    blocked = []
+    for key in options:
+        upper = key.upper()
+        if upper in incremental_keys or upper.replace("_", "-") in {
+            x.replace("_", "-") for x in incremental_keys
+        }:
+            continue
+        if upper in _TIME_TRAVEL_OPTIONS_PARAMS_MAP or upper in (
+            "SNAPSHOT-ID",
+            "SNAPSHOT_ID",
+            "AS-OF-TIMESTAMP",
+            "VERSION_TAG",
+            "VERSION-TAG",
+        ):
+            blocked.append(key)
+    return blocked
 
 
 class DataFrameReader:
@@ -549,6 +713,7 @@ class DataFrameReader:
         timestamp: Optional[Union[str, datetime]] = None,
         timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
+        **kwargs,
     ) -> Table:
         """Returns a Table that points to the specified table.
 
@@ -605,6 +770,37 @@ class DataFrameReader:
             ...     .option("offset", -60)                 # This will be IGNORED
             ...     .table("my_table", time_travel_mode="at", offset=-3600))  # Only this is used
         """
+        # ``version`` (Iceberg snapshot id) and ``version_tag`` (Iceberg tag
+        # name) are intentionally not in the public signature — they are
+        # consumed by Snowpark Connect and may be removed once a first-class
+        # API lands. Accept them through **kwargs so direct callers can
+        # still pass them without us advertising the surface.
+        version = kwargs.pop("version", None)
+        version_tag = kwargs.pop("version_tag", None)
+        start_snapshot_id = kwargs.pop("start_snapshot_id", None)
+        end_snapshot_id = kwargs.pop("end_snapshot_id", None)
+        version_ref = kwargs.pop("version_ref", None)
+        branch = kwargs.pop("branch", None)
+        if kwargs:
+            raise TypeError(
+                f"table() got unexpected keyword arguments: {sorted(kwargs)}"
+            )
+
+        changes_from_options = _extract_iceberg_changes_from_options(self._cur_options)
+        if changes_from_options:
+            conflicting = _reader_options_conflict_with_incremental_read(
+                self._cur_options
+            )
+            if conflicting:
+                raise ValueError(
+                    "Cannot combine Iceberg incremental read "
+                    "('start-snapshot-id' / 'end-snapshot-id') with time travel "
+                    f"options on the same read; found {conflicting!r}."
+                )
+            if start_snapshot_id is None:
+                start_snapshot_id = changes_from_options["start_snapshot_id"]
+            if end_snapshot_id is None:
+                end_snapshot_id = changes_from_options.get("end_snapshot_id")
 
         # AST.
         stmt = None
@@ -626,20 +822,57 @@ class DataFrameReader:
             if stream is not None:
                 ast.stream.value = stream
 
-        if time_travel_mode is not None:
+        if (
+            start_snapshot_id is not None
+            or end_snapshot_id is not None
+            or changes_from_options
+        ):
+            table = self._session.table(
+                name,
+                _emit_ast=False,
+                start_snapshot_id=start_snapshot_id,
+                end_snapshot_id=end_snapshot_id,
+            )
+        elif (
+            time_travel_mode is not None
+            or version is not None
+            or version_tag is not None
+            or version_ref is not None
+            or branch is not None
+        ):
+            # If version / named-ref params are provided without mode,
+            # default to 'at'.
+            effective_mode = (
+                time_travel_mode
+                if time_travel_mode
+                else (
+                    "at"
+                    if (
+                        version is not None
+                        or version_tag is not None
+                        or version_ref is not None
+                        or branch is not None
+                    )
+                    else None
+                )
+            )
             time_travel_params = {
-                "time_travel_mode": time_travel_mode,
+                "time_travel_mode": effective_mode,
                 "statement": statement,
                 "offset": offset,
                 "timestamp": timestamp,
                 "timestamp_type": timestamp_type,
                 "stream": stream,
+                "version": version,
+                "version_tag": version_tag,
+                "version_ref": version_ref,
+                "branch": branch,
             }
+            table = self._session.table(name, _emit_ast=False, **time_travel_params)
         else:
             # if time_travel_mode is not provided, extract time travel config from options
             time_travel_params = _extract_time_travel_from_options(self._cur_options)
-
-        table = self._session.table(name, _emit_ast=False, **time_travel_params)
+            table = self._session.table(name, _emit_ast=False, **time_travel_params)
 
         if _emit_ast and stmt is not None:
             table._ast_id = stmt.uid
@@ -1894,6 +2127,8 @@ class DataFrameReader:
 
                 - imports (List[str], required): A list of stage file names to import into the UDTF.
                     Please include Jar file of jdbc driver to establish connection to external data source.
+                    Download the driver JAR from the database vendor and upload it to a Snowflake stage
+                    before referencing it here.
 
                 - java_version (int, optional): A integer that indicate the java runtime version of udtf.
                     By default, we use java 17.

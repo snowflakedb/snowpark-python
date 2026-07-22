@@ -71,13 +71,7 @@ if installed_pandas:
         PandasSeriesType,
     )
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
+from collections.abc import Iterable
 
 logger = getLogger(__name__)
 
@@ -1276,7 +1270,7 @@ def resolve_imports_and_packages(
                     any(pkg.startswith("cloudpickle") for pkg in packages)
                 )
             resolved_packages = packages + (
-                [f"cloudpickle=={cloudpickle.__version__}"]
+                [f"cloudpickle>={cloudpickle.__version__}"]
                 if not has_cloudpickle
                 else []
             )

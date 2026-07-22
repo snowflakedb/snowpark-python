@@ -83,13 +83,7 @@ from snowflake.snowpark.types import (
     File,
 )
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
-    from typing import Iterable  # noqa: F401
-except ImportError:
-    from collections.abc import Iterable  # noqa: F401
+from collections.abc import Iterable  # noqa: F401
 
 if installed_pandas:
     from snowflake.snowpark.types import (
@@ -640,6 +634,123 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
         return a
 
 
+# Default values of UDF arguments are statically reconstructed into strings from
+# the source file passed to ``register_from_file``. ``safe_eval_default_value``
+# below evaluates such a string by walking its AST and computing the result
+# directly, instead of using a bare ``eval`` (which would evaluate arbitrary
+# expressions rather than just the documented default-value forms).
+#
+# A UDF argument value can only be one of the documented SQL<->Python types (see
+# https://docs.snowflake.com/en/developer-guide/udf-stored-procedure-data-type-mapping
+# #sql-python-data-type-mappings): int, float, bool, str, list, dict plus
+# decimal.Decimal, datetime.date/time/datetime and bytes/bytearray. The collections
+# below permit those values written either as literals (handled directly by
+# ``evaluate``) or via their constructors (e.g. ``int('5')``, ``decimal.Decimal(...)``,
+# ``datetime.date(...)``); anything else raises ``TypeError`` instead of being
+# evaluated.
+#
+# Everything the evaluator supports is derived from these two collections:
+#
+# 1. ``_SAFE_BUILTINS`` -- builtin value constructors. Their literal forms are
+#    handled directly by ``evaluate``; listing them here also allows the explicit
+#    spelling (``int('5')``, ``list((1, 2))``).
+# 2. ``_SAFE_TYPES`` -- the documented non-literal default types. They are
+#    constructible (``datetime.date(...)``) and expose only pure date/decimal
+#    helpers, so their methods may be called too (``datetime.datetime.now()``,
+#    ``decimal.Decimal('1').sqrt()``) and instances of them may be referenced
+#    (``datetime.timezone.utc``).
+#
+# ``pandas``/``numpy``/other modules are intentionally absent: they are not part of
+# the documented default-value type mapping.
+_SAFE_BUILTINS = (int, float, bool, str, bytes, bytearray, tuple, list, dict)
+_SAFE_TYPES = (
+    decimal.Decimal,
+    datetime.date,
+    datetime.datetime,
+    datetime.time,
+    datetime.timezone,
+    datetime.timedelta,
+)
+# Root identifiers ``resolve`` may start from: the ``datetime``/``decimal`` modules
+# and the builtin constructors. Everything else is reached via attribute access.
+_SAFE_DEFAULT_VALUE_NAMES: Dict[str, Any] = {
+    "datetime": datetime,
+    "decimal": decimal,
+    **{builtin.__name__: builtin for builtin in _SAFE_BUILTINS},
+}
+
+
+def safe_eval_default_value(value: str) -> Any:
+    """Safely evaluate a UDF default-value expression reconstructed from source.
+
+    Only literals, containers, the builtin value constructors (``int``, ``str``,
+    ``list``, ...), the documented non-literal constructors (``decimal``/
+    ``datetime`` types and ``bytes``/``bytearray``) and non-dunder methods of those
+    ``datetime``/``decimal`` types (e.g. ``datetime.datetime.now()``,
+    ``decimal.Decimal('1').sqrt()``) are permitted. Any other expression raises
+    ``TypeError`` instead of being evaluated.
+    """
+
+    def resolve(node: ast.expr) -> Any:
+        # Best-effort value of a reference/expression, or ``None`` if it is not
+        # reachable from the safe namespace. A ``name`` is looked up in the safe
+        # namespace; ``base.attr`` reads a (non-dunder) attribute of the resolved
+        # base; anything else (e.g. a nested call receiver) is evaluated.
+        if isinstance(node, ast.Name):
+            return _SAFE_DEFAULT_VALUE_NAMES.get(node.id)
+        if isinstance(node, ast.Attribute):
+            if node.attr.startswith("_"):
+                return None
+            base = resolve(node.value)
+            return None if base is None else getattr(base, node.attr, None)
+        return evaluate(node)
+
+    def evaluate(node: ast.expr) -> Any:
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.List):
+            return [evaluate(elt) for elt in node.elts]
+        if isinstance(node, ast.Tuple):
+            return tuple(evaluate(elt) for elt in node.elts)
+        if isinstance(node, ast.Set):
+            return {evaluate(elt) for elt in node.elts}
+        if isinstance(node, ast.Dict):
+            return {evaluate(k): evaluate(v) for k, v in zip(node.keys, node.values)}
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+            operand = evaluate(node.operand)
+            return +operand if isinstance(node.op, ast.UAdd) else -operand
+        if isinstance(node, ast.Call):
+            args = [evaluate(arg) for arg in node.args]
+            kwargs = {kw.arg: evaluate(kw.value) for kw in node.keywords}
+            # A constructor, e.g. ``int('5')`` or ``datetime.date(...)``.
+            func = resolve(node.func)
+            if func in _SAFE_BUILTINS or func in _SAFE_TYPES:
+                return func(*args, **kwargs)
+            # A non-dunder method on a supported datetime/decimal class or instance,
+            # e.g. ``datetime.datetime.now()`` or ``decimal.Decimal('1').sqrt()``.
+            if isinstance(node.func, ast.Attribute) and not node.func.attr.startswith(
+                "_"
+            ):
+                receiver = resolve(node.func.value)
+                if receiver in _SAFE_TYPES or isinstance(receiver, _SAFE_TYPES):
+                    return getattr(receiver, node.func.attr)(*args, **kwargs)
+            raise TypeError(f"disallowed call in default value: {value!r}")
+        if isinstance(node, (ast.Name, ast.Attribute)):
+            # A bare reference is only allowed if it is an instance of a supported
+            # type, e.g. ``datetime.timezone.utc`` or ``datetime.date.max``.
+            obj = resolve(node)
+            if isinstance(obj, _SAFE_TYPES):
+                return obj
+            raise TypeError(f"disallowed reference in default value: {value!r}")
+        raise TypeError(f"invalid default value: {value!r}")
+
+    try:
+        tree = ast.parse(value, mode="eval")
+    except (ValueError, SyntaxError, RecursionError) as e:
+        raise TypeError(f"invalid default value: {value!r}") from e
+    return evaluate(tree.body)
+
+
 def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
     if tp is None:
         return None
@@ -659,17 +770,17 @@ def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
             TimestampType,
         ),
     ):
-        return eval(value)
+        return safe_eval_default_value(value)
 
     if isinstance(tp, ArrayType):
-        curr_list = eval(value)
+        curr_list = safe_eval_default_value(value)
         if curr_list is None:
             return None
         element_tp = tp.element_type or StringType()
         return [python_value_str_to_object(val, element_tp) for val in curr_list]
 
     if isinstance(tp, MapType):
-        curr_dict: dict = eval(value)
+        curr_dict: dict = safe_eval_default_value(value)
         if curr_dict is None:
             return None
         key_tp = tp.key_type or StringType()

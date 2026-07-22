@@ -6,7 +6,7 @@
 """Context module for Snowpark."""
 import logging
 import sys
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import snowflake.snowpark
 import threading
@@ -45,6 +45,11 @@ _aggregation_function_set = (
     set()
 )  # lower cased names of aggregation functions, used in sql simplification
 _aggregation_function_set_lock = threading.RLock()
+_aggregation_function_prefetch_state: dict[str, Any] = {
+    "lock": threading.RLock(),
+    "event": None,
+    "job": None,
+}
 
 # Hardcoded fallback for system built-in aggregation functions.
 # Used when the dynamic query fails to retrieve the list from the database.
@@ -62,9 +67,6 @@ _KNOWN_AGGREGATION_FUNCTIONS = frozenset(
         "ai_agg",
         "ai_summarize_agg",
         "any_value",
-        "approximate_count_distinct",
-        "approximate_jaccard_index",
-        "approximate_similarity",
         "approx_count_distinct",
         "approx_percentile",
         "approx_percentile_accumulate",
@@ -72,25 +74,29 @@ _KNOWN_AGGREGATION_FUNCTIONS = frozenset(
         "approx_top_k",
         "approx_top_k_accumulate",
         "approx_top_k_combine",
-        "arrayagg",
+        "approximate_count_distinct",
+        "approximate_jaccard_index",
+        "approximate_similarity",
         "array_agg",
         "array_union_agg",
         "array_unique_agg",
+        "arrayagg",
         "avg",
-        "bitandagg",
+        "bit_and_agg",
+        "bit_andagg",
+        "bit_or_agg",
+        "bit_oragg",
+        "bit_xor_agg",
+        "bit_xoragg",
         "bitand_agg",
+        "bitandagg",
+        "bitmap_and_agg",
         "bitmap_construct_agg",
         "bitmap_or_agg",
-        "bitoragg",
         "bitor_agg",
-        "bitxoragg",
+        "bitoragg",
         "bitxor_agg",
-        "bit_andagg",
-        "bit_and_agg",
-        "bit_oragg",
-        "bit_or_agg",
-        "bit_xoragg",
-        "bit_xor_agg",
+        "bitxoragg",
         "booland_agg",
         "boolor_agg",
         "boolxor_agg",
@@ -115,12 +121,12 @@ _KNOWN_AGGREGATION_FUNCTIONS = frozenset(
         "max_by",
         "median",
         "min",
+        "min_by",
         "minhash",
         "minhash_combine",
-        "min_by",
         "mode",
-        "objectagg",
         "object_agg",
+        "objectagg",
         "percentile_cont",
         "percentile_disc",
         "regr_avgx",
@@ -133,26 +139,28 @@ _KNOWN_AGGREGATION_FUNCTIONS = frozenset(
         "regr_sxy",
         "regr_syy",
         "skew",
+        "st_intersection_agg_geography_internal",
+        "st_union_agg_geography_internal",
         "stddev",
         "stddev_pop",
         "stddev_samp",
-        "st_intersection_agg_geography_internal",
-        "st_union_agg_geography_internal",
         "sum",
         "sum_internal",
         "sum_internal_real",
         "sum_real",
+        "summarize_agg",
+        "var_pop",
+        "var_samp",
         "variance",
         "variance_pop",
         "variance_samp",
-        "var_pop",
-        "var_samp",
         "vector_avg",
         "vector_max",
         "vector_min",
         "vector_sum",
     ]
 )
+
 
 _cte_error_threshold = 3  # 0 to disable auto-cte-disable, otherwise the number of times CTE optimization can fail before it is automatically disabled for the remainder of the session.
 

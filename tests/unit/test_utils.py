@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.utils import (
     get_line_numbers,
     get_plan_from_line_numbers,
     TimeTravelConfig,
+    IcebergChangesConfig,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
@@ -877,3 +878,434 @@ def test_generate_time_travel_sql_clause():
     )
     sql_clause = config.generate_sql_clause()
     assert sql_clause == " AT (STATEMENT => 'abc123')"
+
+
+def test_time_travel_version_snapshot_id():
+    """Test Iceberg snapshot id time travel via ``version`` parameter.
+
+    Covers SQL generation, validation, and the ``mode='at'``-only restriction.
+    Verifies the SQL matches the Snowflake AT(VERSION => N) grammar for
+    Iceberg snapshot id time travel — unquoted long literal, no casting.
+    """
+    # Valid: large int64 snapshot id emits unquoted long literal.
+    snapshot_id = 5129038471029384756
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version=snapshot_id
+    )
+    assert config.version == snapshot_id
+    assert config.time_travel_mode == "at"
+    assert config.generate_sql_clause() == f" AT (VERSION => {snapshot_id})"
+
+    # Negative snapshot ids are allowed (Iceberg occasionally uses negative
+    # hash-derived ids); validation is on type, not sign.
+    config_neg = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version=-1
+    )
+    assert config_neg.generate_sql_clause() == " AT (VERSION => -1)"
+
+    # Direct construction also generates the right SQL.
+    direct = TimeTravelConfig(time_travel_mode="AT", version=42)
+    assert direct.generate_sql_clause() == " AT (VERSION => 42)"
+
+    # version + 'before' is invalid (Snowflake only supports AT(VERSION => ...)).
+    with pytest.raises(
+        ValueError,
+        match=r"Iceberg snapshot version time travel can only be used with time_travel_mode='at'",
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="before", version=snapshot_id
+        )
+
+    # version + another time-travel param is invalid (must pick one).
+    with pytest.raises(ValueError, match="Exactly one of"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version=snapshot_id, offset=-3600
+        )
+    with pytest.raises(ValueError, match="Exactly one of"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            version=snapshot_id,
+            timestamp="2023-01-01 12:00:00",
+        )
+
+    # Non-int version is rejected.
+    with pytest.raises(
+        ValueError, match="'version' must be an int Iceberg snapshot id"
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version="abc"
+        )
+
+    # bool is explicitly rejected (isinstance(True, int) is True in Python).
+    with pytest.raises(
+        ValueError, match="'version' must be an int Iceberg snapshot id"
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version=True
+        )
+
+    # version alone (no mode) requires mode.
+    with pytest.raises(ValueError, match="Must specify time travel mode"):
+        TimeTravelConfig.validate_and_normalize_params(version=snapshot_id)
+
+
+def test_extract_time_travel_snapshot_id_option():
+    """Test Iceberg snapshot id option extraction for the reader API.
+
+    The Spark-compat aliases ``snapshot-id`` / ``snapshot_id`` map to the
+    internal ``version`` time-travel parameter and auto-set
+    ``time_travel_mode='at'`` (``AT(VERSION => N)`` is the only valid form
+    for Iceberg snapshot id time travel).
+    """
+    from snowflake.snowpark.dataframe_reader import _extract_time_travel_from_options
+
+    # Long int via SNAPSHOT-ID (Spark canonical key)
+    result = _extract_time_travel_from_options({"SNAPSHOT-ID": 5129038471029384756})
+    assert result == {
+        "time_travel_mode": "at",
+        "version": 5129038471029384756,
+    }
+
+    # Underscore variant
+    result = _extract_time_travel_from_options({"SNAPSHOT_ID": 42})
+    assert result == {"time_travel_mode": "at", "version": 42}
+
+    # String snapshot ids coerced to int (Spark accepts both via .option())
+    result = _extract_time_travel_from_options({"SNAPSHOT-ID": "10963874102873"})
+    assert result == {"time_travel_mode": "at", "version": 10963874102873}
+
+    # snapshot-id + time_travel_mode='before' is rejected
+    with pytest.raises(
+        ValueError,
+        match=r"Cannot use 'snapshot-id' option with time_travel_mode='before'",
+    ):
+        _extract_time_travel_from_options(
+            {"SNAPSHOT-ID": 1, "TIME_TRAVEL_MODE": "before"}
+        )
+
+    # Non-numeric snapshot-id is rejected
+    with pytest.raises(
+        ValueError, match="'snapshot-id' must be a 64-bit integer Iceberg snapshot id"
+    ):
+        _extract_time_travel_from_options({"SNAPSHOT-ID": "not-a-number"})
+
+
+def test_time_travel_version_tag():
+    """Test Iceberg tag time travel via ``version_tag`` parameter.
+
+    Covers SQL generation, validation, and the ``mode='at'``-only restriction.
+    Verifies the SQL matches the Snowflake ``AT(VERSION_REF => '<name>')``
+    grammar — the released tag-only form of Iceberg time travel (Spark
+    Iceberg's ``VERSION AS OF '<tag_name>'`` for tag reads).
+    """
+    # Valid: typical tag name.
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="release_v1"
+    )
+    assert config.version_tag == "release_v1"
+    assert config.time_travel_mode == "at"
+    assert config.generate_sql_clause() == " AT (VERSION_REF => 'release_v1')"
+
+    # Hyphens and dots in tag names round-trip through the SQL clause —
+    # Iceberg allows these in tag names (e.g. ``snapshot-2023-01-01``,
+    # ``v1.2.3``).
+    config_hyphen = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="audit-tag"
+    )
+    assert config_hyphen.generate_sql_clause() == " AT (VERSION_REF => 'audit-tag')"
+
+    config_dotted = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="snapshot-2023-01-01"
+    )
+    assert (
+        config_dotted.generate_sql_clause()
+        == " AT (VERSION_REF => 'snapshot-2023-01-01')"
+    )
+
+    # Direct construction also generates the right SQL.
+    direct = TimeTravelConfig(time_travel_mode="AT", version_tag="EOM_JULY_2025")
+    assert direct.generate_sql_clause() == " AT (VERSION_REF => 'EOM_JULY_2025')"
+
+    # version_tag + 'before' is invalid (tag reads are positional — bound
+    # to a specific snapshot — not range-of-time).
+    with pytest.raises(
+        ValueError,
+        match=r"Iceberg version_tag time travel can only be used with time_travel_mode='at'",
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="before", version_tag="release_v1"
+        )
+
+    # version_tag + another time-travel param is invalid (must pick one).
+    with pytest.raises(ValueError, match="Exactly one of"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version_tag="release_v1", offset=-3600
+        )
+    with pytest.raises(ValueError, match="Exactly one of"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            version_tag="release_v1",
+            timestamp="2023-01-01 12:00:00",
+        )
+    # version_tag + version (snapshot-id) is invalid — the user must pick
+    # the tag form or the snapshot-id form, not both.
+    with pytest.raises(ValueError, match="Exactly one of"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            version_tag="release_v1",
+            version=5129038471029384756,
+        )
+
+    # Non-string version_tag is rejected.
+    with pytest.raises(ValueError, match="'version_tag' must be a string Iceberg name"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version_tag=123
+        )
+
+    # Empty version_tag is rejected (Iceberg tag names are non-empty strings).
+    with pytest.raises(ValueError, match="'version_tag' must be a non-empty"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version_tag=""
+        )
+
+    # version_tag alone (no mode) requires mode (same shape as version=).
+    with pytest.raises(ValueError, match="Must specify time travel mode"):
+        TimeTravelConfig.validate_and_normalize_params(version_tag="release_v1")
+
+
+def test_time_travel_string_literal_escaping():
+    """SQL literals embedded in time-travel clauses (``statement``,
+    ``stream``, ``version_tag``, string-form ``timestamp``) are
+    emitted via ``analyzer.datatype_mapper.str_to_sql``, the shared
+    Snowpark Python helper that escapes embedded single quotes
+    (``'`` → ``''``), backslashes (``\\`` → ``\\\\``), and newlines
+    (``\\n`` → literal ``\\n``) before wrapping in single quotes.
+
+    Pinned via this test rather than only at the call sites because
+    the four parameters share one code path in ``generate_sql_clause``;
+    a regression in any one of them — or in ``str_to_sql`` itself —
+    would fail here.
+    """
+    # version_tag — the parameter introduced by this PR.
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="release_'s"
+    )
+    assert config.generate_sql_clause() == " AT (VERSION_REF => 'release_''s')"
+
+    # An attempted injection payload — the closing quote and the
+    # injected DROP must be fully neutralized by the doubled quotes.
+    config_injection = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="x'); DROP TABLE foo; --"
+    )
+    assert (
+        config_injection.generate_sql_clause()
+        == " AT (VERSION_REF => 'x''); DROP TABLE foo; --')"
+    )
+
+    # statement — same escape applies (pre-existing pattern hardened
+    # while we're here; raised in PR #4211 review).
+    stmt_config = TimeTravelConfig(time_travel_mode="AT", statement="01a' OR '1'='1")
+    assert (
+        stmt_config.generate_sql_clause() == " AT (STATEMENT => '01a'' OR ''1''=''1')"
+    )
+
+    # stream — same escape applies.
+    stream_config = TimeTravelConfig(time_travel_mode="AT", stream="my_stream'); --")
+    assert stream_config.generate_sql_clause() == " AT (STREAM => 'my_stream''); --')"
+
+    # timestamp (string form, no timestamp_type) — same escape.
+    ts_config = TimeTravelConfig(time_travel_mode="AT", timestamp="2024-01-01'); --")
+    assert ts_config.generate_sql_clause() == " AT (TIMESTAMP => '2024-01-01''); --')"
+
+    # timestamp (with typed TO_TIMESTAMP_*) — same escape inside the
+    # function-call argument.
+    ts_typed = TimeTravelConfig(
+        time_travel_mode="AT",
+        timestamp="2024-01-01'); --",
+        timestamp_type="NTZ",
+    )
+    assert (
+        ts_typed.generate_sql_clause()
+        == " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('2024-01-01''); --'))"
+    )
+
+    # ``str_to_sql`` also escapes backslashes and newlines — pin that
+    # so a future change to the shared helper that affects
+    # time-travel emission fails here rather than silently producing
+    # broken SQL.
+    config_backslash = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="weird\\name"
+    )
+    # Single backslash in the input → doubled in the SQL.
+    assert (
+        config_backslash.generate_sql_clause() == " AT (VERSION_REF => 'weird\\\\name')"
+    )
+
+    config_newline = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_tag="line1\nline2"
+    )
+    # Real newline in the input → literal ``\n`` two-char sequence in
+    # the SQL text (so the literal stays on one line for Snowflake's
+    # parser).
+    assert (
+        config_newline.generate_sql_clause() == " AT (VERSION_REF => 'line1\\nline2')"
+    )
+
+
+def test_extract_time_travel_version_tag_option():
+    """Test Iceberg tag option extraction for the reader API.
+
+    Both ``version_tag`` and ``version-tag`` aliases map to the internal
+    ``version_tag`` time-travel parameter and auto-set
+    ``time_travel_mode='at'`` (``AT(VERSION_REF => '<name>')`` is the unified
+    named-ref form for tag reads).
+    """
+    from snowflake.snowpark.dataframe_reader import _extract_time_travel_from_options
+
+    # Canonical underscore form
+    result = _extract_time_travel_from_options({"VERSION_TAG": "release_v1"})
+    assert result == {"time_travel_mode": "at", "version_tag": "release_v1"}
+
+    # Hyphen form (matches the ``snapshot-id`` style)
+    result = _extract_time_travel_from_options({"VERSION-TAG": "audit-tag"})
+    assert result == {"time_travel_mode": "at", "version_tag": "audit-tag"}
+
+    # Numeric-looking tag names are coerced to string (Iceberg tag names
+    # can be numeric strings).
+    result = _extract_time_travel_from_options({"VERSION_TAG": 42})
+    assert result == {"time_travel_mode": "at", "version_tag": "42"}
+
+    # version_tag + time_travel_mode='before' is rejected
+    with pytest.raises(
+        ValueError,
+        match=r"Cannot use 'version_tag' option with time_travel_mode='before'",
+    ):
+        _extract_time_travel_from_options(
+            {"VERSION_TAG": "release_v1", "TIME_TRAVEL_MODE": "before"}
+        )
+    # Same for the hyphen alias — error message reflects the alias the user
+    # actually typed.
+    with pytest.raises(
+        ValueError,
+        match=r"Cannot use 'version-tag' option with time_travel_mode='before'",
+    ):
+        _extract_time_travel_from_options(
+            {"VERSION-TAG": "release_v1", "TIME_TRAVEL_MODE": "before"}
+        )
+
+
+def test_iceberg_changes_config_generate_sql_with_end():
+    config = IcebergChangesConfig(start_version=111, end_version=222)
+    assert (
+        config.generate_sql_clause()
+        == " CHANGES (INFORMATION => APPEND_ONLY) AT (VERSION => 111) END (VERSION => 222)"
+    )
+
+
+def test_iceberg_changes_config_generate_sql_without_end():
+    config = IcebergChangesConfig(start_version=111)
+    assert (
+        config.generate_sql_clause()
+        == " CHANGES (INFORMATION => APPEND_ONLY) AT (VERSION => 111)"
+    )
+
+
+def test_iceberg_changes_config_validate_requires_start():
+    with pytest.raises(ValueError, match="requires 'start-snapshot-id'"):
+        IcebergChangesConfig.validate_and_normalize_params(end_snapshot_id=42)
+
+
+def test_iceberg_changes_config_validate_rejects_non_integer():
+    with pytest.raises(ValueError, match="start-snapshot-id"):
+        IcebergChangesConfig.validate_and_normalize_params(start_snapshot_id="abc")
+
+
+def test_extract_iceberg_changes_from_options():
+    from snowflake.snowpark.dataframe_reader import (
+        _extract_iceberg_changes_from_options,
+    )
+
+    assert _extract_iceberg_changes_from_options(
+        {"start-snapshot-id": "1", "end-snapshot-id": "2"}
+    ) == {"start_snapshot_id": 1, "end_snapshot_id": 2}
+    assert _extract_iceberg_changes_from_options({"start-snapshot-id": "5"}) == {
+        "start_snapshot_id": 5,
+        "end_snapshot_id": None,
+    }
+    assert _extract_iceberg_changes_from_options({}) == {}
+
+
+def test_extract_iceberg_changes_from_options_rejects_bool_snapshot_id():
+    from snowflake.snowpark.dataframe_reader import (
+        _extract_iceberg_changes_from_options,
+    )
+
+    with pytest.raises(ValueError, match="start-snapshot-id"):
+        _extract_iceberg_changes_from_options({"start-snapshot-id": True})
+
+
+def test_time_travel_version_ref_and_branch():
+    """Iceberg tag/branch reads emit Snowflake ``AT(VERSION_REF => ...)``."""
+    config_ref = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", version_ref="historical-snapshot"
+    )
+    assert config_ref.version_ref == "historical-snapshot"
+    assert (
+        config_ref.generate_sql_clause() == " AT (VERSION_REF => 'historical-snapshot')"
+    )
+
+    config_branch = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", branch="audit-branch"
+    )
+    assert config_branch.branch == "audit-branch"
+    assert config_branch.generate_sql_clause() == " AT (VERSION_REF => 'audit-branch')"
+
+    with pytest.raises(
+        ValueError,
+        match="Exactly one of 'version_tag', 'version_ref', or 'branch'",
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            version_tag="tag1",
+            branch="audit-branch",
+        )
+
+
+def test_extract_time_travel_branch_and_version_ref_options():
+    from snowflake.snowpark.dataframe_reader import _extract_time_travel_from_options
+
+    assert _extract_time_travel_from_options({"BRANCH": "audit-branch"}) == {
+        "time_travel_mode": "at",
+        "branch": "audit-branch",
+    }
+    assert _extract_time_travel_from_options({"TAG": "release_v1"}) == {
+        "time_travel_mode": "at",
+        "version_tag": "release_v1",
+    }
+    assert _extract_time_travel_from_options({"VERSION_REF": "wap_ref"}) == {
+        "time_travel_mode": "at",
+        "version_ref": "wap_ref",
+    }
+    assert _extract_time_travel_from_options({"VERSION-REF": "wap_ref"}) == {
+        "time_travel_mode": "at",
+        "version_ref": "wap_ref",
+    }
+
+    with pytest.raises(
+        ValueError,
+        match=r"Cannot use 'branch' option with time_travel_mode='before'",
+    ):
+        _extract_time_travel_from_options(
+            {"BRANCH": "audit-branch", "TIME_TRAVEL_MODE": "before"}
+        )
+
+
+def test_time_travel_version_ref_validation():
+    with pytest.raises(ValueError, match="'version_ref' must be a non-empty"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", version_ref=""
+        )
+    with pytest.raises(ValueError, match="'branch' must be a string Iceberg name"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", branch=123
+        )

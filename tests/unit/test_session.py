@@ -4,6 +4,7 @@
 import json
 import logging
 import os
+import types
 from typing import Optional
 from unittest import mock
 from unittest.mock import MagicMock
@@ -808,9 +809,8 @@ def test_infer_is_return_table_uses_internal_describe():
         assert mocked_run_query.call_count == 1
 
 
-def test_retrieve_aggregation_function_list_handles_user_defined_error():
-    """When querying user-defined aggregation functions fails, the error is
-    swallowed and the method continues to query system functions."""
+def test_retrieve_aggregation_function_list_handles_async_error():
+    """When async metadata prefetch fails, sync internal fallback is used."""
     import snowflake.snowpark.context as ctx
 
     fake_server_connection = mock.create_autospec(ServerConnection)
@@ -818,34 +818,38 @@ def test_retrieve_aggregation_function_list_handles_user_defined_error():
     session = Session(fake_server_connection)
 
     original_compat = ctx._is_snowpark_connect_compatible_mode
+    original_flatten = ctx._snowpark_connect_flatten_select_after_sort
     original_agg_set = ctx._aggregation_function_set
     try:
         ctx._is_snowpark_connect_compatible_mode = True
+        ctx._snowpark_connect_flatten_select_after_sort = True
         ctx._aggregation_function_set = set()
+        ctx._aggregation_function_prefetch_state["event"] = None
 
-        mock_df = MagicMock()
-        call_count = [0]
+        fake_async_job = MagicMock()
+        fake_async_job.result.side_effect = RuntimeError("async query failed")
+        ctx._aggregation_function_prefetch_state["job"] = fake_async_job
 
-        def sql_side_effect(query, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                raise RuntimeError("user-defined query failed")
-            mock_df.collect.return_value = [["SUM"], ["AVG"]]
-            return mock_df
+        def run_query_side_effect(query, **kwargs):
+            assert kwargs.get("_is_internal") is True
+            assert "show functions" in query
+            return {"data": [["SUM"], ["AVG"]]}
 
-        with mock.patch.object(session, "sql", side_effect=sql_side_effect):
+        with mock.patch.object(
+            fake_server_connection, "run_query", side_effect=run_query_side_effect
+        ):
             session._retrieve_aggregation_function_list()
 
         assert "sum" in ctx._aggregation_function_set
         assert "avg" in ctx._aggregation_function_set
     finally:
         ctx._is_snowpark_connect_compatible_mode = original_compat
+        ctx._snowpark_connect_flatten_select_after_sort = original_flatten
         ctx._aggregation_function_set = original_agg_set
 
 
-def test_retrieve_aggregation_function_list_handles_system_error():
-    """When querying system aggregation functions fails, the method falls back
-    to the hardcoded _KNOWN_AGGREGATION_FUNCTIONS set."""
+def test_retrieve_aggregation_function_list_handles_sync_error():
+    """When sync metadata query fails, hardcoded fallback applies."""
     import snowflake.snowpark.context as ctx
 
     fake_server_connection = mock.create_autospec(ServerConnection)
@@ -853,44 +857,254 @@ def test_retrieve_aggregation_function_list_handles_system_error():
     session = Session(fake_server_connection)
 
     original_compat = ctx._is_snowpark_connect_compatible_mode
+    original_flatten = ctx._snowpark_connect_flatten_select_after_sort
     original_agg_set = ctx._aggregation_function_set
     try:
         ctx._is_snowpark_connect_compatible_mode = True
+        ctx._snowpark_connect_flatten_select_after_sort = True
         ctx._aggregation_function_set = set()
 
-        mock_df = MagicMock()
-        mock_df.collect.side_effect = RuntimeError("system query failed")
-
-        with mock.patch.object(session, "sql", return_value=mock_df):
-            session._retrieve_aggregation_function_list()
-
-        assert ctx._KNOWN_AGGREGATION_FUNCTIONS.issubset(ctx._aggregation_function_set)
-    finally:
-        ctx._is_snowpark_connect_compatible_mode = original_compat
-        ctx._aggregation_function_set = original_agg_set
-
-
-def test_retrieve_aggregation_function_list_handles_both_errors():
-    """When both aggregation function queries fail, the hardcoded fallback
-    set is still populated."""
-    import snowflake.snowpark.context as ctx
-
-    fake_server_connection = mock.create_autospec(ServerConnection)
-    fake_server_connection._thread_safe_session_enabled = True
-    session = Session(fake_server_connection)
-
-    original_compat = ctx._is_snowpark_connect_compatible_mode
-    original_agg_set = ctx._aggregation_function_set
-    try:
-        ctx._is_snowpark_connect_compatible_mode = True
-        ctx._aggregation_function_set = set()
+        def run_query_side_effect(query, **kwargs):
+            assert kwargs.get("_is_internal") is True
+            assert "show functions" in query
+            raise RuntimeError("sync query failed")
 
         with mock.patch.object(
-            session, "sql", side_effect=RuntimeError("query failed")
+            fake_server_connection, "run_query", side_effect=run_query_side_effect
         ):
             session._retrieve_aggregation_function_list()
 
         assert ctx._KNOWN_AGGREGATION_FUNCTIONS.issubset(ctx._aggregation_function_set)
     finally:
         ctx._is_snowpark_connect_compatible_mode = original_compat
+        ctx._snowpark_connect_flatten_select_after_sort = original_flatten
         ctx._aggregation_function_set = original_agg_set
+
+
+def test_get_req_identifiers_list_cloudpickle_only_uses_ge(mock_server_connection):
+    """Only cloudpickle is injected with >= to allow runtime-compatible resolution."""
+    import cloudpickle as cp
+
+    session = Session(mock_server_connection)
+    dummy_module = types.ModuleType("dummy_module")
+    dummy_module.__version__ = "1.2.3"
+
+    result = session._get_req_identifiers_list([cp, dummy_module], {})
+    assert result == [f"cloudpickle>={cp.__version__}", "dummy_module==1.2.3"]
+    assert f"cloudpickle=={cp.__version__}" not in result
+
+
+def test_retrieve_aggregation_function_list_uses_single_internal_sync_query():
+    """Sync fallback executes exactly one internal metadata query."""
+    import snowflake.snowpark.context as ctx
+
+    fake_server_connection = mock.create_autospec(ServerConnection)
+    fake_server_connection._thread_safe_session_enabled = True
+    session = Session(fake_server_connection)
+
+    original_compat = ctx._is_snowpark_connect_compatible_mode
+    original_flatten = ctx._snowpark_connect_flatten_select_after_sort
+    original_agg_set = ctx._aggregation_function_set
+    try:
+        ctx._is_snowpark_connect_compatible_mode = True
+        ctx._snowpark_connect_flatten_select_after_sort = True
+        ctx._aggregation_function_set = set()
+        ctx._aggregation_function_prefetch_state["event"] = None
+        ctx._aggregation_function_prefetch_state["job"] = None
+
+        called_queries = []
+
+        def run_query_side_effect(query, **kwargs):
+            called_queries.append(query)
+            assert kwargs.get("_is_internal") is True
+            return {"data": [["SUM"]]}
+
+        with mock.patch.object(
+            fake_server_connection,
+            "run_query",
+            side_effect=run_query_side_effect,
+        ):
+            session._retrieve_aggregation_function_list()
+
+        assert len(called_queries) == 1
+        assert "show functions" in called_queries[0]
+        assert "information_schema.functions" not in called_queries[0]
+        assert "sum" in ctx._aggregation_function_set
+    finally:
+        ctx._is_snowpark_connect_compatible_mode = original_compat
+        ctx._snowpark_connect_flatten_select_after_sort = original_flatten
+        ctx._aggregation_function_set = original_agg_set
+
+
+def test_retrieve_agg_event_set_after_context_published(monkeypatch):
+    """fetch_event.set() must be called only after _aggregation_function_set is
+    populated — the original bug was setting the event before publishing."""
+    import snowflake.snowpark.context as ctx
+    from threading import Event as _Event
+
+    fake_conn = mock.create_autospec(ServerConnection)
+    fake_conn._thread_safe_session_enabled = True
+    session = Session(fake_conn)
+    ctx._aggregation_function_prefetch_state["event"] = None
+
+    monkeypatch.setattr(ctx, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(ctx, "_snowpark_connect_flatten_select_after_sort", True)
+    monkeypatch.setattr(ctx, "_aggregation_function_set", set())
+
+    class TrackingAsyncJob:
+        def result(self):
+            return [("SUM",)]
+
+    ctx._aggregation_function_prefetch_state["job"] = TrackingAsyncJob()
+
+    publish_order = []
+    original_set = _Event.set
+
+    def patched_set(self_event):
+        publish_order.append(("event_set", frozenset(ctx._aggregation_function_set)))
+        original_set(self_event)
+
+    with mock.patch.object(_Event, "set", patched_set):
+        session._retrieve_aggregation_function_list()
+
+    assert publish_order, "fetch_event.set() was never called"
+    # At the moment event fires the set must already contain the result.
+    _, snapshot = publish_order[0]
+    assert (
+        "sum" in snapshot
+    ), f"fetch_event fired before context was populated; snapshot={snapshot}"
+
+
+def test_retrieve_agg_waiters_fall_through_on_winner_failure(monkeypatch):
+    """When the winner's async job fails, waiters fall through to sync query
+    rather than hanging or returning an empty set."""
+    import threading
+    import time
+    import snowflake.snowpark.context as ctx
+
+    fake_conn = mock.create_autospec(ServerConnection)
+    fake_conn._thread_safe_session_enabled = True
+    session = Session(fake_conn)
+    ctx._aggregation_function_prefetch_state["event"] = None
+
+    monkeypatch.setattr(ctx, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(ctx, "_snowpark_connect_flatten_select_after_sort", True)
+    monkeypatch.setattr(ctx, "_aggregation_function_set", set())
+
+    job_may_proceed = threading.Event()
+    waiter_registered = threading.Event()
+
+    class FailingAsyncJob:
+        def result(self):
+            job_may_proceed.wait()
+            raise RuntimeError("async job failed")
+
+    ctx._aggregation_function_prefetch_state["job"] = FailingAsyncJob()
+
+    sync_query_calls = []
+
+    def run_query_side_effect(query, **kwargs):
+        sync_query_calls.append(query)
+        return {"data": [("COUNT",)]}
+
+    fake_conn.run_query.side_effect = run_query_side_effect
+
+    errors = []
+
+    def run_winner():
+        try:
+            session._retrieve_aggregation_function_list()
+        except Exception as e:
+            errors.append(e)
+
+    def run_waiter():
+        try:
+            waiter_registered.set()
+            session._retrieve_aggregation_function_list()
+        except Exception as e:
+            errors.append(e)
+
+    winner = threading.Thread(target=run_winner)
+    waiter = threading.Thread(target=run_waiter)
+
+    winner.start()
+    time.sleep(0.05)  # give winner time to claim the job and set fetch_event
+    waiter.start()
+    waiter_registered.wait(timeout=5)
+    time.sleep(0.05)  # give waiter time to reach wait_event.wait()
+    job_may_proceed.set()  # let the winner fail
+
+    winner.join(timeout=10)
+    waiter.join(timeout=10)
+
+    assert not errors
+    # Winner failed → waiter fell through to sync query → count in set.
+    assert "count" in ctx._aggregation_function_set
+
+
+def test_retrieve_agg_event_always_set_on_base_exception(monkeypatch):
+    """fetch_event.set() fires even when a BaseException escapes the async job,
+    so waiters are never left blocking until timeout"""
+    import snowflake.snowpark.context as ctx
+    from threading import Event as _Event
+
+    fake_conn = mock.create_autospec(ServerConnection)
+    fake_conn._thread_safe_session_enabled = True
+    session = Session(fake_conn)
+    ctx._aggregation_function_prefetch_state["event"] = None
+
+    monkeypatch.setattr(ctx, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(ctx, "_snowpark_connect_flatten_select_after_sort", True)
+    monkeypatch.setattr(ctx, "_aggregation_function_set", set())
+
+    class KeyboardInterruptJob:
+        def result(self):
+            raise KeyboardInterrupt()
+
+    ctx._aggregation_function_prefetch_state["job"] = KeyboardInterruptJob()
+
+    event_was_set = []
+    original_set = _Event.set
+
+    def patched_set(self_event):
+        event_was_set.append(True)
+        original_set(self_event)
+
+    with mock.patch.object(_Event, "set", patched_set):
+        try:
+            session._retrieve_aggregation_function_list()
+        except KeyboardInterrupt:
+            pass
+
+    assert event_was_set, "fetch_event.set() was not called despite BaseException"
+
+
+def _fake_connection_for_session():
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection._thread_safe_session_enabled = True
+    return fake_connection
+
+
+def test_vsc_history_exporter_registered_when_env_var_set(tmp_path, monkeypatch):
+    from snowflake.snowpark.query_history import _VscHistoryExporter
+
+    monkeypatch.setenv("SNOWFLAKE_SNOWPARK_VSC_QUERY_HISTORY_DIR", str(tmp_path))
+    fake_connection = _fake_connection_for_session()
+
+    session = Session(fake_connection)
+
+    assert isinstance(session._vsc_history_exporter, _VscHistoryExporter)
+    fake_connection.add_query_listener.assert_called_once_with(
+        session._vsc_history_exporter
+    )
+
+
+def test_vsc_history_exporter_not_registered_when_env_var_unset(monkeypatch):
+    monkeypatch.delenv("SNOWFLAKE_SNOWPARK_VSC_QUERY_HISTORY_DIR", raising=False)
+    fake_connection = _fake_connection_for_session()
+
+    session = Session(fake_connection)
+
+    assert session._vsc_history_exporter is None
+    fake_connection.add_query_listener.assert_not_called()

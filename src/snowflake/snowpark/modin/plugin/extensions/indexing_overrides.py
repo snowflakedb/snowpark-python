@@ -122,7 +122,7 @@ def is_boolean_array(x: Any) -> bool:
     """
 
     # special case empty list is not regarded as boolean array;
-    # because of later Numpy versions (for Python 3.9+), can't
+    # because of later Numpy versions, can't
     # compare directly to [], but need workaround to detect list properly
     if isinstance(x, list) and 0 == len(x):
         return False

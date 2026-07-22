@@ -4,7 +4,7 @@ This directory contains scripts for Docker-based verification of Snowflake Snowp
 
 ## Overview
 
-The verification system automatically tests conda packages (.conda and .tar.bz2 formats) for **all Python versions 3.9-3.13** on both x86_64 and aarch64 architectures by:
+The verification system automatically tests conda packages (.conda and .tar.bz2 formats) for **all Python versions 3.10-3.13** on both x86_64 and aarch64 architectures by:
 
 1. Scanning the `package/` directory for conda packages in `linux-64`, `linux-aarch64`, and `noarch` subdirectories
 2. Launching Docker containers using `continuumio/miniconda3` (supports both architectures)
@@ -27,20 +27,17 @@ The verification expects packages to be organized as follows:
 ```
 package/
 ├── linux-64/                    # x86_64 packages
-│   ├── snowflake-snowpark-python-1.38.0-py39_0.conda
 │   ├── snowflake-snowpark-python-1.38.0-py310_0.conda
 │   ├── snowflake-snowpark-python-1.38.0-py311_0.conda
 │   ├── snowflake-snowpark-python-1.38.0-py312_0.conda
 │   ├── snowflake-snowpark-python-1.38.0-py313_0.conda
 │   └── ... (corresponding .tar.bz2 files)
 ├── linux-aarch64/               # aarch64 packages  
-│   ├── snowflake-snowpark-python-1.38.0-py39_0.conda
 │   ├── snowflake-snowpark-python-1.38.0-py310_0.conda
-│   └── ... (all Python versions 3.9-3.13)
+│   └── ... (all Python versions 3.10-3.13)
 └── noarch/                      # Architecture-independent packages
-    ├── snowflake-snowpark-python-1.39.0-py39_0.conda
     ├── snowflake-snowpark-python-1.39.0-py310_0.conda
-    └── ... (all Python versions 3.9-3.13)
+    └── ... (all Python versions 3.10-3.13)
 ```
 
 ## Usage
@@ -50,7 +47,7 @@ package/
 **Prerequisites**: Ensure you have created `parameters.py` with valid Snowflake connection parameters (see Required Setup section above).
 
 ```bash
-# Test all Python versions (3.9-3.13) on noarch only
+# Test all Python versions (3.10-3.13) on noarch only
 ./conda_build_verification.sh
 
 # Test all Python versions on specific architecture(s)
@@ -105,10 +102,10 @@ Then run verification:
 - `architecture...` (optional): One or more architecture directories to test
   - Available: `linux-64`, `linux-aarch64`, `noarch`
   - Default: `noarch` only if no architectures specified
-- **Python versions**: Automatically tests all Python versions 3.9-3.13
+- **Python versions**: Automatically tests all Python versions 3.10-3.13
 
 **Examples:**
-- `./conda_build_verification.sh` → Test all Python versions (3.9-3.13) on noarch
+- `./conda_build_verification.sh` → Test all Python versions (3.10-3.13) on noarch
 - `./conda_build_verification.sh linux-64` → Test all Python versions on linux-64 only
 - `./conda_build_verification.sh linux-64 noarch` → Test all Python versions on both linux-64 and noarch
 - `./conda_build_verification.sh linux-64 linux-aarch64 noarch` → Test all Python versions on all architectures
@@ -131,7 +128,7 @@ Then run verification:
    - Validates `parameters.py` file existence and provides helpful error messages if missing
    - Fails fast before any Docker operations begin
 
-2. **Package Discovery**: Scans `package/linux-64`, `package/linux-aarch64`, and `package/noarch` for packages across all Python versions (3.9-3.13)
+2. **Package Discovery**: Scans `package/linux-64`, `package/linux-aarch64`, and `package/noarch` for packages across all Python versions (3.10-3.13)
    - **Strict Validation**: If packages are not found in any requested architecture directory, the script errors out immediately
 
 3. **Docker Container Launch**: For each architecture with packages:
@@ -140,7 +137,7 @@ Then run verification:
    - Mounts verification scripts and package directory  
    - Runs `docker_verify.sh` inside the container
 
-4. **Package Testing**: Inside each container, for each Python version (3.9-3.13):
+4. **Package Testing**: Inside each container, for each Python version (3.10-3.13):
    - Creates isolated conda environment for the specific Python version
    - Installs package dependencies
    - Installs the conda package (.conda and .tar.bz2 formats) if available for that version
@@ -168,7 +165,7 @@ Docker uses the `--platform` flag to specify the target architecture:
 ## Example Output
 
 ```
-Testing Python versions: 3.9, 3.10, 3.11, 3.12, 3.13
+Testing Python versions: 3.10, 3.11, 3.12, 3.13
 Using default architecture: noarch
 Testing architectures: noarch
 Script directory: /path/to/scripts/conda_build_verification
@@ -178,15 +175,8 @@ GPG_KEY found, attempting to decrypt parameters.py...
 Starting Docker-based conda package verification...
 Found packages in noarch
 === Running verification for noarch ===
-Found packages in noarch, will test all Python versions (3.9-3.13)
+Found packages in noarch, will test all Python versions (3.10-3.13)
 Running Docker command for noarch...
-
-=== Testing Python 3.9 ===
-Testing conda package: snowflake-snowpark-python-1.39.0-py39_0.conda
-✅ Package test completed successfully: snowflake-snowpark-python-1.39.0-py39_0.conda
-Testing tar.bz2 package: snowflake-snowpark-python-1.39.0-py39_0.tar.bz2
-✅ Package test completed successfully: snowflake-snowpark-python-1.39.0-py39_0.tar.bz2
-✅ All tests passed for Python 3.9
 
 === Testing Python 3.10 ===
 Testing conda package: snowflake-snowpark-python-1.39.0-py310_0.conda
@@ -225,7 +215,7 @@ Removed decrypted parameters.py
    ```
    This error occurs when the script cannot find packages for a requested architecture directory. 
    
-   **To fix**: Ensure packages are in the correct `package/` subdirectories with proper naming patterns (e.g., `snowflake-snowpark-python-*-py39_*.conda`), or use one of the available architectures listed in the error message.
+   **To fix**: Ensure packages are in the correct `package/` subdirectories with proper naming patterns (e.g., `snowflake-snowpark-python-*-py310_*.conda`), or use one of the available architectures listed in the error message.
 
 3. **GPG decryption fails**
    ```
@@ -294,7 +284,7 @@ docker run -it --rm \
   continuumio/miniconda3:latest \
   bash
 
-# Inside container, run the verification script (tests all Python versions 3.9-3.13)
+# Inside container, run the verification script (tests all Python versions 3.10-3.13)
 bash /verification/docker_verify.sh
 ```
 

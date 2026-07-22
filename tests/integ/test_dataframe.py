@@ -9,7 +9,6 @@ import decimal
 import json
 import logging
 import math
-import sys
 import time
 from array import array
 from collections import namedtuple
@@ -112,13 +111,7 @@ from tests.utils import (
     structured_types_supported,
 )
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
+from collections.abc import Iterable
 
 tmp_stage_name = Utils.random_stage_name()
 test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
@@ -5968,6 +5961,117 @@ def test_write_copy_into_location_options(session):
         Utils.drop_stage(session, temp_stage)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.copy_into_location is not supported in Local Testing",
+)
+@pytest.mark.parametrize(
+    "quote_mode,prefix,should_succeed",
+    [
+        ("unquoted", "quote_mode_unquoted", True),
+        ("single", "quote_mode_single", True),
+        ("double", "quote_mode_double", False),
+    ],
+)
+def test_write_copy_into_location_stage_location_quote_modes(
+    session, quote_mode, prefix, should_succeed
+):
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+    try:
+        df = session.create_dataframe(
+            [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+
+        base_stage_location = f"@{temp_stage}/{prefix}/"
+        if quote_mode == "single":
+            stage_location = f"'{base_stage_location}'"
+        elif quote_mode == "double":
+            stage_location = f'"{base_stage_location}"'
+        else:
+            stage_location = base_stage_location
+
+        if should_succeed:
+            ret = df.write.copy_into_location(
+                stage_location,
+                file_format_type="csv",
+                overwrite=True,
+                single=True,
+            )
+            assert len(ret) == 1 and ret[0].rows_unloaded == 3
+
+            copied_files = session.sql(f"list @{temp_stage}/{prefix}/").collect()
+            assert len(copied_files) == 1
+        else:
+            with pytest.raises(SnowparkSQLException, match="does not exist"):
+                df.write.copy_into_location(
+                    stage_location,
+                    file_format_type="csv",
+                    overwrite=True,
+                    single=True,
+                )
+    finally:
+        Utils.drop_stage(session, temp_stage)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.copy_into_location is not supported in Local Testing",
+)
+def test_stage_location_embedded_single_quote_raw_and_preescaped_forms(session):
+    source_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    target_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, source_stage, is_temporary=True)
+    Utils.create_stage(session, target_stage, is_temporary=True)
+    try:
+        df = session.create_dataframe(
+            [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+
+        # Raw form with embedded apostrophe.
+        raw_source_location = f"@{source_stage}/o'clock/raw/"
+        # Equivalent pre-escaped single-quoted form.
+        escaped_source_location = f"'@{source_stage}/o''clock/escaped/'"
+
+        raw_copy_result = df.write.copy_into_location(
+            raw_source_location,
+            file_format_type="csv",
+            overwrite=True,
+            single=True,
+        )
+        escaped_copy_result = df.write.copy_into_location(
+            escaped_source_location,
+            file_format_type="csv",
+            overwrite=True,
+            single=True,
+        )
+        assert len(raw_copy_result) == 1 and raw_copy_result[0].rows_unloaded == 3
+        assert (
+            len(escaped_copy_result) == 1 and escaped_copy_result[0].rows_unloaded == 3
+        )
+
+        raw_target_location = f"@{target_stage}/o'clock/raw/"
+        escaped_target_location = f"'@{target_stage}/o''clock/escaped/'"
+
+        raw_files_copied = session.file.copy_files(
+            raw_source_location,
+            raw_target_location,
+            detailed_output=False,
+        )
+        escaped_files_copied = session.file.copy_files(
+            escaped_source_location,
+            escaped_target_location,
+            detailed_output=False,
+        )
+        assert raw_files_copied == 1
+        assert escaped_files_copied == 1
+    finally:
+        Utils.drop_stage(session, source_stage)
+        Utils.drop_stage(session, target_stage)
+
+
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="This is testing SQL generation",
@@ -6836,6 +6940,36 @@ def test_dataframe_alias(session):
         df1.join(df3, df1.col1 == df3.col1)
         .join(df2, df2.col1 == df3.col1)
         .select(df1["*"], df3["*"], df2["col1"]),
+    )
+
+    # Regression: aliasing the same DataFrame twice must produce independent
+    # df_aliased_col_name_to_real_col_name dicts so that col("R","col") resolves
+    # to the right-side column, not the left-side column.
+    # Before the fix, SelectStatement.__copy__ assigned the dict by reference,
+    # causing alias("L") and alias("R") on the same df to share the same dict.
+    df_self = session.create_dataframe(
+        [[1, 10], [2, 20], [3, 30]], schema=["id", "val"]
+    )
+
+    # Self-join ON condition using col() alias references: each row should match
+    # only itself (equi-join on unique key).  With the shared-dict bug the ON
+    # condition degenerates to "id" = "id" (always true), producing a cross-join.
+    Utils.check_answer(
+        df_self.alias("L")
+        .join(df_self.alias("R"), col("L", "id") == col("R", "id"))
+        .select(col("L", "id"), col("L", "val"), col("R", "val")),
+        [(1, 10, 10), (2, 20, 20), (3, 30, 30)],
+    )
+
+    # Post-join filter using col() alias references: col("R","val") must resolve
+    # to the right-side column.  With the shared-dict bug it resolved to the
+    # left-side column, making the filter semantically wrong.
+    Utils.check_answer(
+        df_self.alias("L")
+        .join(df_self.alias("R"), col("L", "id") == col("R", "id"))
+        .filter(col("R", "val") == 20)
+        .select(col("L", "id")),
+        [(2,)],
     )
 
 
@@ -8326,3 +8460,306 @@ def test_time_travel_comprehensive_coverage(session):
     finally:
         Utils.drop_table(session, table1_name)
         Utils.drop_table(session, table2_name)
+
+
+# ----------------------------------------------------------------------
+# Iceberg snapshot id (``version=``) time travel.
+#
+# TODO(SNOW-3525585): Wire these up to a CI test account that has:
+#   * a Catalog-Linked Database (CLD) such as cldUnity / cldglue, AND
+#   * an unmanaged Iceberg table inside it with at least two snapshots
+#     readable through ``INFORMATION_SCHEMA.GET_TABLE_VERSIONS(...)``.
+#
+# Snowflake's ``AT(VERSION => N)`` syntax requires the
+# ``FEATURE_ICEBERG_TIME_TRAVEL`` server parameter to be enabled on the
+# account and is currently scoped to **unmanaged** Iceberg tables in CLDs.
+# Because the existing snowpark-python integ accounts don't have a CLD with
+# a multi-snapshot Iceberg table provisioned, these tests are skipped by
+# default and run manually against ``sfctest0`` (see
+# ``tests/sas_tests/test_iceberg_snapshot_id_sample.py`` in the
+# snowflake-eng/sas repo for the manual reproducer).
+# ----------------------------------------------------------------------
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with multiple "
+        "snapshots and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_snapshot_id_time_travel_session_table(session):
+    """End-to-end: ``Session.table(..., version=<snapshot_id>)`` returns the
+    table state at the requested Iceberg snapshot."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+
+    snapshot_ids = [
+        row["SNAPSHOT_ID"]
+        for row in session.sql(
+            f"SELECT SNAPSHOT_ID FROM "
+            f"TABLE(INFORMATION_SCHEMA.GET_TABLE_VERSIONS('{table_fqn}')) "
+            "ORDER BY SNAPSHOT_TIMESTAMP"
+        ).collect()
+    ]
+    assert len(snapshot_ids) >= 2, "Demo table needs at least 2 snapshots"
+
+    first_snapshot = session.table(
+        table_fqn, time_travel_mode="at", version=snapshot_ids[0]
+    ).collect()
+    latest = session.table(table_fqn).collect()
+    assert len(first_snapshot) <= len(latest)
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with multiple "
+        "snapshots and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_snapshot_id_time_travel_dataframe_reader_option(session):
+    """End-to-end: ``session.read.option('snapshot-id', N).table(...)``
+    routes through the Spark Iceberg-compat alias and produces the same
+    result as the explicit ``version=`` kwarg."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+
+    snapshot_id = session.sql(
+        f"SELECT SNAPSHOT_ID FROM "
+        f"TABLE(INFORMATION_SCHEMA.GET_TABLE_VERSIONS('{table_fqn}')) "
+        "ORDER BY SNAPSHOT_TIMESTAMP LIMIT 1"
+    ).collect()[0]["SNAPSHOT_ID"]
+
+    via_kwarg = session.read.table(
+        table_fqn, time_travel_mode="at", version=snapshot_id
+    ).collect()
+    via_option = (
+        session.read.option("snapshot-id", snapshot_id).table(table_fqn).collect()
+    )
+    assert via_kwarg == via_option
+
+
+# ----------------------------------------------------------------------
+# Iceberg tag (``version_tag=``) time travel.
+#
+# TODO(SNOW-3473261): Wire these up to a CI test account that has:
+#   * a Catalog-Linked Database (CLD) such as cldUnity / cldglue, AND
+#   * an unmanaged Iceberg table inside it that exposes a named tag
+#     (e.g. created via ``ALTER TABLE ... CREATE TAG <name>`` on the OSS
+#     Iceberg side, or via the catalog's tag API).
+#
+# Snowflake's ``AT(VERSION_TAG => '<name>')`` is the released tag-only
+# Iceberg time-travel clause (Spark Iceberg's
+# ``VERSION AS OF '<tag_name>'`` for tag reads). Like the snapshot-id
+# surface, it currently requires ``FEATURE_ICEBERG_TIME_TRAVEL`` on the
+# account and is scoped to unmanaged Iceberg tables in CLDs, so these
+# tests are skipped by default and exercised manually against
+# ``sfctest0`` (see ``tests/sas_tests/test_iceberg_version_tag_sample.py``
+# in snowflake-eng/sas for the manual reproducer).
+# ----------------------------------------------------------------------
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with at least one "
+        "named tag and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_version_tag_time_travel_session_table(session):
+    """End-to-end: ``Session.table(..., version_tag='<name>')`` returns the
+    table state at the requested Iceberg tag."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+    # Demo table is set up with a tag ``first_load`` pointing at the
+    # earliest snapshot (see sas-side reproducer for the setup script).
+    tag_name = "first_load"
+
+    tagged = session.table(
+        table_fqn, time_travel_mode="at", version_tag=tag_name
+    ).collect()
+    latest = session.table(table_fqn).collect()
+    # Tag reads use the snapshot's schema as it existed at the tag —
+    # row count at an earlier tag should be ≤ current row count, since the
+    # tag is bound to a specific (earlier) snapshot.
+    assert len(tagged) <= len(latest)
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with at least one "
+        "named tag and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_version_tag_time_travel_dataframe_reader_option(session):
+    """End-to-end: ``session.read.option('version_tag', 'name').table(...)``
+    routes through the Iceberg-compat option alias and produces the same
+    result as the explicit ``version_tag=`` kwarg."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+    tag_name = "first_load"
+
+    via_kwarg = session.read.table(
+        table_fqn, time_travel_mode="at", version_tag=tag_name
+    ).collect()
+    via_option = session.read.option("version_tag", tag_name).table(table_fqn).collect()
+    via_hyphen_option = (
+        session.read.option("version-tag", tag_name).table(table_fqn).collect()
+    )
+    assert via_kwarg == via_option == via_hyphen_option
+
+
+# ----------------------------------------------------------------------
+# Iceberg incremental read (``start-snapshot-id`` / ``end-snapshot-id``).
+#
+# TODO(SNOW-XXXXXX): Wire these up to a CI test account that has:
+#   * a Catalog-Linked Database (CLD) such as cldUnity / cldglue, AND
+#   * an unmanaged Iceberg table inside it with at least two snapshots
+#     readable through ``INFORMATION_SCHEMA.GET_TABLE_VERSIONS(...)``.
+#
+# Snowflake expresses incremental reads as::
+#
+#     SELECT * FROM <table>
+#       CHANGES (INFORMATION => APPEND_ONLY)
+#       AT (VERSION => <start>)
+#       END (VERSION => <end>)
+#
+# Like the snapshot-id / tag surfaces above, this currently requires
+# ``FEATURE_ICEBERG_TIME_TRAVEL`` on the account and is scoped to
+# unmanaged Iceberg tables in CLDs, so these tests are skipped by default
+# and exercised manually against ``sfctest0`` (see the oss-iceberg-tests
+# ``query.incremental_read`` scenario in snowflake-eng/sas).
+# ----------------------------------------------------------------------
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with multiple "
+        "snapshots and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_incremental_read_session_table_kwargs(session):
+    """End-to-end: ``Session.table(..., start_snapshot_id=..., end_snapshot_id=...)``
+    returns append-only changes between two Iceberg snapshots."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+
+    snapshot_ids = [
+        row["SNAPSHOT_ID"]
+        for row in session.sql(
+            f"SELECT SNAPSHOT_ID FROM "
+            f"TABLE(INFORMATION_SCHEMA.GET_TABLE_VERSIONS('{table_fqn}')) "
+            "ORDER BY SNAPSHOT_TIMESTAMP"
+        ).collect()
+    ]
+    assert len(snapshot_ids) >= 2, "Demo table needs at least 2 snapshots"
+    start_id, end_id = snapshot_ids[0], snapshot_ids[1]
+
+    via_kwargs = session.table(
+        table_fqn,
+        start_snapshot_id=start_id,
+        end_snapshot_id=end_id,
+    ).collect()
+    via_sql = session.sql(
+        f"SELECT * FROM {table_fqn} "
+        f"CHANGES (INFORMATION => APPEND_ONLY) "
+        f"AT (VERSION => {start_id}) "
+        f"END (VERSION => {end_id})"
+    ).collect()
+    assert via_kwargs == via_sql
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with multiple "
+        "snapshots and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_incremental_read_dataframe_reader_option(session):
+    """End-to-end: ``session.read.option('start-snapshot-id', S1)
+    .option('end-snapshot-id', S2).table(...)`` routes through the Spark
+    Iceberg-compat aliases and emits the ``CHANGES ... AT(VERSION => ...)``
+    SQL surface."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+
+    snapshot_ids = [
+        row["SNAPSHOT_ID"]
+        for row in session.sql(
+            f"SELECT SNAPSHOT_ID FROM "
+            f"TABLE(INFORMATION_SCHEMA.GET_TABLE_VERSIONS('{table_fqn}')) "
+            "ORDER BY SNAPSHOT_TIMESTAMP"
+        ).collect()
+    ]
+    assert len(snapshot_ids) >= 2, "Demo table needs at least 2 snapshots"
+    start_id, end_id = snapshot_ids[0], snapshot_ids[1]
+
+    via_kwargs = session.table(
+        table_fqn,
+        start_snapshot_id=start_id,
+        end_snapshot_id=end_id,
+    ).collect()
+    via_option = (
+        session.read.option("start-snapshot-id", start_id)
+        .option("end-snapshot-id", end_id)
+        .table(table_fqn)
+        .collect()
+    )
+    assert via_kwargs == via_option
+
+    df = (
+        session.read.option("start-snapshot-id", start_id)
+        .option("end-snapshot-id", end_id)
+        .table(table_fqn)
+    )
+    df.collect()
+    sql = df.queries["queries"][0]
+    assert "CHANGES (INFORMATION => APPEND_ONLY)" in sql
+    assert f"AT (VERSION => {start_id})" in sql
+    assert f"END (VERSION => {end_id})" in sql
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with multiple "
+        "snapshots and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_incremental_read_start_snapshot_only(session):
+    """End-to-end: ``start-snapshot-id`` without ``end-snapshot-id`` omits the
+    ``END (VERSION => ...)`` clause and reads append-only changes through the
+    current snapshot (Snowflake ``CHANGES`` default end point)."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+
+    start_id = session.sql(
+        f"SELECT SNAPSHOT_ID FROM "
+        f"TABLE(INFORMATION_SCHEMA.GET_TABLE_VERSIONS('{table_fqn}')) "
+        "ORDER BY SNAPSHOT_TIMESTAMP LIMIT 1"
+    ).collect()[0]["SNAPSHOT_ID"]
+
+    via_kwargs = session.table(
+        table_fqn,
+        start_snapshot_id=start_id,
+    ).collect()
+    via_option = (
+        session.read.option("start-snapshot-id", start_id).table(table_fqn).collect()
+    )
+    assert via_kwargs == via_option
+
+    df = session.read.option("start-snapshot-id", start_id).table(table_fqn)
+    df.collect()
+    sql = df.queries["queries"][0]
+    assert "CHANGES (INFORMATION => APPEND_ONLY)" in sql
+    assert f"AT (VERSION => {start_id})" in sql
+    assert "END (VERSION =>" not in sql
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a Snowflake-managed Iceberg table with a WAP branch and "
+        "FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. Tested manually."
+    )
+)
+def test_iceberg_branch_time_travel_dataframe_reader_option(session):
+    """End-to-end: Spark Iceberg ``branch`` option maps to VERSION_REF."""
+    table_fqn = "ICEBERG_GAP_TEST_HORIZON.TESTSCHEMA.snapshot_demo"
+    branch_name = "audit_branch"
+
+    via_branch = session.read.option("branch", branch_name).table(table_fqn).collect()
+    via_version_ref = (
+        session.read.option("version_ref", branch_name).table(table_fqn).collect()
+    )
+    assert via_branch == via_version_ref

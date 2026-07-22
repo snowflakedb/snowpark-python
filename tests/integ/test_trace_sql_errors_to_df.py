@@ -2,9 +2,11 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import os
+import sys
+
 import pytest
 import snowflake.snowpark.context as context
-import sys
 
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -24,7 +26,12 @@ pytestmark = [
     ),
     pytest.mark.skipif(
         sys.version_info < (3, 11),
-        reason="Line numbers are flaky in Python 3.9",
+        reason="Line numbers are flaky before Python 3.11",
+        run=False,
+    ),
+    pytest.mark.skipif(
+        "FIPS_TEST" in os.environ,
+        reason="SNOW-2204213: Reading source file location is not correct in FIPS mode",
         run=False,
     ),
 ]

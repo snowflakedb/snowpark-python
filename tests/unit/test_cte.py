@@ -30,6 +30,9 @@ from snowflake.snowpark._internal.compiler.cte_utils import (
     encode_node_id_with_query,
     find_duplicate_subtrees,
 )
+from snowflake.snowpark._internal.compiler.repeated_subquery_elimination import (
+    RepeatedSubqueryElimination,
+)
 
 
 def create_test_case1():
@@ -118,6 +121,9 @@ def test_encode_node_id_with_query_select_sql(mock_session, mock_analyzer):
 
 
 def test_encode_node_id_with_query_includes_aliases():
+    # expr_to_alias is hashed by sorted(set(values())) so two nodes with the
+    # same alias values but different UUID keys (e.g. deep-copied self-join
+    # branches) produce the same hash.
     node = SimpleNamespace(
         sql_query="select col1 from t",
         query_params=(("p1", 1), ("p2", "x")),
@@ -134,12 +140,76 @@ def test_encode_node_id_with_query_includes_aliases():
     if node.query_params:
         expected_string = f"{expected_string}#{node.query_params}"
     if node.expr_to_alias:
-        expected_string = f"{expected_string}#{stringify_dict(node.expr_to_alias)}"
+        # Values-only sort (no UUID keys) normalizes away UUID differences
+        expected_string = (
+            f"{expected_string}#{sorted(set(node.expr_to_alias.values()))}"
+        )
     if node.df_aliased_col_name_to_real_col_name:
         expected_string = f"{expected_string}#{stringify_dict(node.df_aliased_col_name_to_real_col_name)}"
 
     expected_hash = hashlib.sha256(expected_string.encode()).hexdigest()[:10]
     assert encode_node_id_with_query(node) == f"{expected_hash}_SimpleNamespace"
+
+    # Two nodes with the same SQL and same alias values but different UUID keys
+    # must hash identically — this is the Q39 self-join case.
+    node_same_values_diff_keys = SimpleNamespace(
+        sql_query="select col1 from t",
+        query_params=(("p1", 1), ("p2", "x")),
+        expr_to_alias={"uuid_different": "ALIAS1"},
+        df_aliased_col_name_to_real_col_name={"ALIAS1": "col1"},
+    )
+    assert encode_node_id_with_query(node) == encode_node_id_with_query(
+        node_same_values_diff_keys
+    )
+
+    # Two nodes with the same SQL but different alias values must hash
+    # differently — this preserves the SNOW-2261400 join-suffix fix.
+    node_different_values = SimpleNamespace(
+        sql_query="select col1 from t",
+        query_params=(("p1", 1), ("p2", "x")),
+        expr_to_alias={"uuid1": "ALIAS1_WITH_SUFFIX"},
+        df_aliased_col_name_to_real_col_name={"ALIAS1": "col1"},
+    )
+    assert encode_node_id_with_query(node) != encode_node_id_with_query(
+        node_different_values
+    )
+
+
+def test_has_alias_conflict():
+    # encode_query_id hashes expr_to_alias by alias values only, so two nodes can
+    # share a CTE while carrying different expr_id keys. _has_alias_conflict guards
+    # the only unsafe case: the same expr_id mapping to a *different* alias, where
+    # merging would silently drop an entry and corrupt parent column resolution.
+    has_conflict = RepeatedSubqueryElimination._has_alias_conflict
+
+    node = SimpleNamespace(expr_to_alias={"uuid1": "ALIAS1"})
+
+    # No existing CTE yet (first occurrence) -> nothing to conflict with.
+    assert has_conflict(node, None) is False
+
+    # Same expr_id mapped to the same alias -> safe to merge.
+    existing_same = SimpleNamespace(expr_to_alias={"uuid1": "ALIAS1"})
+    assert has_conflict(node, existing_same) is False
+
+    # Disjoint expr_id keys (the normal self-join case: same alias values, fresh
+    # UUIDs) -> no conflict, the entries simply coexist after merge.
+    existing_disjoint = SimpleNamespace(expr_to_alias={"uuid2": "ALIAS1"})
+    assert has_conflict(node, existing_disjoint) is False
+
+    # Same expr_id mapped to a *different* alias -> conflict, must not share CTE.
+    existing_conflict = SimpleNamespace(expr_to_alias={"uuid1": "ALIAS2"})
+    assert has_conflict(node, existing_conflict) is True
+
+    # A conflict on any one key is enough, even when other keys agree.
+    node_multi = SimpleNamespace(expr_to_alias={"uuid1": "ALIAS1", "uuid2": "ALIAS2"})
+    existing_partial_conflict = SimpleNamespace(
+        expr_to_alias={"uuid1": "ALIAS1", "uuid2": "DIFFERENT"}
+    )
+    assert has_conflict(node_multi, existing_partial_conflict) is True
+
+    # Node without any expr_to_alias entries can never conflict.
+    node_empty = SimpleNamespace(expr_to_alias={})
+    assert has_conflict(node_empty, existing_conflict) is False
 
 
 def test_select_statement_contains_data_generation(mock_session, mock_analyzer):
