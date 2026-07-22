@@ -27,8 +27,6 @@ if TYPE_CHECKING:
 
 _logger = getLogger(__name__)
 
-# Async-poll backoff schedule (seconds multiplier per retry slot).
-# Defined locally — the UD connector no longer owns this constant.
 ASYNC_RETRY_PATTERN = [1, 1, 2, 3, 4, 8, 10]
 
 
@@ -288,10 +286,9 @@ class AsyncJob:
                 "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
             )
         ):
+            import _snowflake
             import json
             import uuid
-
-            import _snowflake
 
             try:
                 uuid.UUID(self.query_id)
