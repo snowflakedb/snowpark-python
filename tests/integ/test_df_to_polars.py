@@ -405,6 +405,311 @@ def test_to_polars_lazy_unit_scan_pushdowns(local_session, _no_polars_required):
 
 
 # ---------------------------------------------------------------------------
+# Predicate correctness — regression coverage
+#
+# Polars passes the predicate to _scan and REMOVES it from its own plan
+# (parsed_predicate_success=True after deserialize). If _scan does not apply
+# it, rows leak through unfiltered. _scan therefore MUST apply
+# df.filter(predicate) per batch. These tests would fail if that ever regressed.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def _predicate_df(session):
+    """24-row dataset used across predicate/DML tests."""
+    rows = [
+        [i, i * 10, ["A", "B", "C", "D"][i % 4], round(i * 1.5, 1)] for i in range(24)
+    ]
+    return session.create_dataframe(rows, schema=["ID", "VAL", "CAT", "SCORE"])
+
+
+@_skip_local
+def test_to_polars_lazy_predicate_applied(_predicate_df):
+    """Simple filter: lazy result must match eager result."""
+    lf = _predicate_df.to_polars(lazy=True)
+    eager = _predicate_df.to_polars()
+    got = lf.filter(pl.col("VAL") > 100).collect().sort("ID")
+    want = eager.filter(pl.col("VAL") > 100).sort("ID")
+    assert got.equals(want)
+
+
+@_skip_local
+def test_to_polars_lazy_filter_then_limit_correctness(_predicate_df):
+    """lf.filter().limit(n) — the bug case: without _scan applying the predicate,
+    Polars removes the filter from its plan and returns unfiltered rows.
+
+    Correctness rule: filter().limit(n) → up to n rows where predicate holds.
+    """
+    lf = _predicate_df.to_polars(lazy=True)
+    filtered = lf.filter(pl.col("VAL") > 100).collect()
+    limited = lf.filter(pl.col("VAL") > 100).head(3).collect()
+    assert limited.height <= 3
+    # Every returned row must satisfy the predicate.
+    assert (limited["VAL"] > 100).all()
+    # Every returned row must be a subset of the full filter result.
+    assert set(limited["ID"].to_list()).issubset(set(filtered["ID"].to_list()))
+
+
+@_skip_local
+def test_to_polars_lazy_limit_then_filter_differs(_predicate_df):
+    """lf.head(n).filter(pred) — the ONLY case where Polars pushes BOTH n_rows
+    AND predicate to _scan simultaneously. _scan must apply LIMIT first (in SQL),
+    then filter (in Python). If the order were swapped, this test would return
+    10 rows instead of 0 on this dataset.
+
+    Semantic contract:
+      lf.head(10).filter(VAL>100)  → 0 rows  (first 10 rows all have VAL≤90)
+      lf.filter(VAL>100).head(10)  → 10 rows (IDs 11-20)
+
+    Verify both actual row content (not just count) matches native Polars.
+    """
+    lf = _predicate_df.to_polars(lazy=True)
+    eager = _predicate_df.to_polars()
+
+    # Case: head(n).filter(p) — BOTH pushed to _scan; order-sensitive path
+    lazy_limit_first = lf.head(10).filter(pl.col("VAL") > 100).collect().sort("ID")
+    eager_limit_first = eager.head(10).filter(pl.col("VAL") > 100).sort("ID")
+    assert lazy_limit_first.equals(eager_limit_first)
+    assert lazy_limit_first.height == 0  # ← wrong _scan order would give 10 here
+
+    # Case: filter(p).head(n) — only predicate pushed; Polars slices post-scan
+    lazy_filter_first = lf.filter(pl.col("VAL") > 100).head(10).collect().sort("ID")
+    eager_filter_first = eager.filter(pl.col("VAL") > 100).head(10).sort("ID")
+    assert lazy_filter_first.equals(eager_filter_first)
+    assert lazy_filter_first.height == 10
+
+    # Regression guard: the two orderings must not accidentally converge.
+    assert lazy_limit_first.height != lazy_filter_first.height
+
+
+@_skip_local
+@pytest.mark.parametrize(
+    "predicate_fn",
+    [
+        lambda: (pl.col("VAL") > 100) & (pl.col("CAT") == "A"),
+        lambda: (pl.col("VAL") < 50) | (pl.col("VAL") > 180),
+        lambda: pl.col("CAT").is_in(["B", "D"]),
+        lambda: pl.col("SCORE").is_between(10.0, 25.0),
+        lambda: pl.col("CAT") != "A",
+    ],
+    ids=["and", "or", "is_in", "between", "not_eq"],
+)
+def test_to_polars_lazy_predicate_variety(_predicate_df, predicate_fn):
+    """Every predicate type must round-trip through _scan correctly."""
+    predicate = predicate_fn()
+    lazy = _predicate_df.to_polars(lazy=True).filter(predicate).collect().sort("ID")
+    eager = _predicate_df.to_polars().filter(predicate).sort("ID")
+    assert lazy.equals(eager)
+
+
+# ---------------------------------------------------------------------------
+# DML operations Polars applies AFTER _scan yields batches
+#
+# _scan only knows about (with_columns, predicate, n_rows, batch_size).
+# Everything else — group_by, agg, sort, join, distinct, window — is applied
+# by the Polars engine on the yielded batches. These tests verify Polars can
+# correctly consume our streamed batches for those operations.
+# ---------------------------------------------------------------------------
+
+
+@_skip_local
+def test_to_polars_lazy_group_by_agg(_predicate_df):
+    """group_by + agg is executed by Polars on batches yielded by _scan."""
+    lazy = (
+        _predicate_df.to_polars(lazy=True)
+        .group_by("CAT")
+        .agg(
+            pl.col("VAL").sum().alias("TOTAL"),
+            pl.col("SCORE").mean().alias("AVG"),
+            pl.len().alias("CNT"),
+        )
+        .collect()
+        .sort("CAT")
+    )
+    eager = (
+        _predicate_df.to_polars()
+        .group_by("CAT")
+        .agg(
+            pl.col("VAL").sum().alias("TOTAL"),
+            pl.col("SCORE").mean().alias("AVG"),
+            pl.len().alias("CNT"),
+        )
+        .sort("CAT")
+    )
+    assert lazy.equals(eager)
+
+
+@_skip_local
+def test_to_polars_lazy_filter_then_group_by(_predicate_df):
+    """filter (pushed to _scan) + group_by (executed post-scan by Polars)."""
+    lazy = (
+        _predicate_df.to_polars(lazy=True)
+        .filter(pl.col("VAL") > 50)
+        .group_by("CAT")
+        .agg(pl.len().alias("CNT"))
+        .collect()
+        .sort("CAT")
+    )
+    eager = (
+        _predicate_df.to_polars()
+        .filter(pl.col("VAL") > 50)
+        .group_by("CAT")
+        .agg(pl.len().alias("CNT"))
+        .sort("CAT")
+    )
+    assert lazy.equals(eager)
+
+
+@_skip_local
+def test_to_polars_lazy_group_by_then_filter_on_agg(_predicate_df):
+    """Filter on an aggregated column — Polars keeps this filter in its own plan
+    because the column doesn't exist in the scan source."""
+    lazy = (
+        _predicate_df.to_polars(lazy=True)
+        .group_by("CAT")
+        .agg(pl.col("VAL").sum().alias("TOTAL"))
+        .filter(pl.col("TOTAL") > 500)
+        .collect()
+        .sort("CAT")
+    )
+    eager = (
+        _predicate_df.to_polars()
+        .group_by("CAT")
+        .agg(pl.col("VAL").sum().alias("TOTAL"))
+        .filter(pl.col("TOTAL") > 500)
+        .sort("CAT")
+    )
+    assert lazy.equals(eager)
+
+
+@_skip_local
+def test_to_polars_lazy_window_over(_predicate_df):
+    """Window/partition_by via .over() — Polars applies these post-scan."""
+    lazy = (
+        _predicate_df.to_polars(lazy=True)
+        .with_columns(
+            pl.col("VAL").sum().over("CAT").alias("CAT_TOTAL"),
+            pl.col("VAL").rank().over("CAT").alias("RANK_IN_CAT"),
+        )
+        .collect()
+        .sort("ID")
+    )
+    eager = (
+        _predicate_df.to_polars()
+        .with_columns(
+            pl.col("VAL").sum().over("CAT").alias("CAT_TOTAL"),
+            pl.col("VAL").rank().over("CAT").alias("RANK_IN_CAT"),
+        )
+        .sort("ID")
+    )
+    assert lazy.equals(eager)
+
+
+@_skip_local
+def test_to_polars_lazy_unique_and_sort(_predicate_df):
+    """unique + sort are executed by Polars on scan output."""
+    lazy = (
+        _predicate_df.to_polars(lazy=True).select("CAT").unique().sort("CAT").collect()
+    )
+    eager = _predicate_df.to_polars().select("CAT").unique().sort("CAT")
+    assert lazy.equals(eager)
+
+
+@_skip_local
+def test_to_polars_lazy_join_between_lazyframes(session, _predicate_df):
+    """Two LazyFrames from separate Snowpark scans, joined by Polars."""
+    lookup = session.create_dataframe(
+        [["A", "alpha"], ["B", "beta"], ["C", "gamma"], ["D", "delta"]],
+        schema=["CAT", "LABEL"],
+    )
+    left = _predicate_df.to_polars(lazy=True)
+    right = lookup.to_polars(lazy=True)
+    lazy = left.join(right, on="CAT", how="inner").collect().sort("ID")
+
+    left_e = _predicate_df.to_polars()
+    right_e = lookup.to_polars()
+    eager = left_e.join(right_e, on="CAT", how="inner").sort("ID")
+    assert lazy.equals(eager)
+
+
+@_skip_local
+def test_to_polars_lazy_multi_step_chain(_predicate_df):
+    """Chain touching every pushdown + post-scan operation together."""
+    lazy = (
+        _predicate_df.to_polars(lazy=True)
+        .select("ID", "VAL", "CAT", "SCORE")  # projection → _scan
+        .filter(pl.col("VAL") > 20)  # predicate → _scan
+        .group_by("CAT")  # post-scan
+        .agg(
+            pl.col("SCORE").mean().alias("AVG_SCORE"),
+            pl.col("VAL").max().alias("MAX_VAL"),
+        )
+        .filter(pl.col("AVG_SCORE") > 15.0)  # post-scan
+        .sort("CAT")  # post-scan
+        .collect()
+    )
+    eager = (
+        _predicate_df.to_polars()
+        .select("ID", "VAL", "CAT", "SCORE")
+        .filter(pl.col("VAL") > 20)
+        .group_by("CAT")
+        .agg(
+            pl.col("SCORE").mean().alias("AVG_SCORE"),
+            pl.col("VAL").max().alias("MAX_VAL"),
+        )
+        .filter(pl.col("AVG_SCORE") > 15.0)
+        .sort("CAT")
+    )
+    assert lazy.equals(eager)
+
+
+# ---------------------------------------------------------------------------
+# Column identifier casing (unquoted / quoted lowercase / quoted mixed-case)
+#
+# Snowflake folds unquoted identifiers to UPPERCASE, but preserves the exact
+# case of quoted identifiers. Both Arrow output names and the with_columns
+# pushdown path inside _scan must respect this. Polars is case-sensitive, so
+# any mismatch would surface as ColumnNotFoundError on downstream ops.
+# ---------------------------------------------------------------------------
+
+
+@_skip_local
+@pytest.mark.parametrize(
+    "sql, expected_columns, pushdown_col",
+    [
+        # unquoted → Snowflake folds to uppercase
+        ("SELECT 1 AS revenue, 'US' AS region", ["REVENUE", "REGION"], "REVENUE"),
+        # quoted lowercase → preserved
+        ('SELECT 1 AS "revenue", \'US\' AS "region"', ["revenue", "region"], "revenue"),
+        # quoted mixed-case → preserved
+        (
+            'SELECT 1 AS "myRevenue", \'US\' AS "myRegion"',
+            ["myRevenue", "myRegion"],
+            "myRevenue",
+        ),
+    ],
+    ids=["unquoted_folds_uppercase", "quoted_lowercase", "quoted_mixed_case"],
+)
+def test_to_polars_column_identifier_casing(
+    session, sql, expected_columns, pushdown_col
+):
+    """Casing is preserved end-to-end through eager, lazy, and _scan projection pushdown."""
+    df = session.sql(sql)
+
+    eager = df.to_polars()
+    assert eager.columns == expected_columns
+
+    lf = df.to_polars(lazy=True)
+    assert lf.collect_schema().names() == expected_columns
+
+    # Round-trip via _scan's quote_name() path — user selects by the Polars column
+    # name (which is what they see); _scan must translate that back to a Snowflake
+    # identifier that resolves to the same column.
+    projected = lf.select(pushdown_col).collect()
+    assert projected.columns == [pushdown_col] and projected.height == 1
+
+
+# ---------------------------------------------------------------------------
 # Missing dependency
 # ---------------------------------------------------------------------------
 

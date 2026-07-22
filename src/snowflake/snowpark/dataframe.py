@@ -1442,8 +1442,24 @@ class DataFrame:
             ).schema
 
             def _scan(with_columns, predicate, n_rows, batch_size):
-                # TODO(SNOW-3472759): push predicates down to Snowpark operations for Polars Exprs.
-                # Polars re-applies the predicate post-fetch, so correctness is preserved as-is.
+                """Custom IO source callback invoked by Polars' lazy engine.
+
+                Args (all optional, passed by Polars after query optimization):
+                - with_columns : list[str] | None
+                    Column projection — pushed to Snowflake as SQL SELECT.
+                - predicate    : pl.Expr | None
+                    Filter expression. Polars removes it from its own plan
+                    and expects the source to apply it. Applied in Python
+                    per batch here, can be later substituted for a Snowpark filter().
+                - n_rows       : int | None
+                    Row limit — pushed to Snowflake as SQL LIMIT.
+                - batch_size   : int | None
+                    Streaming hint. Ignored — Snowflake controls batch sizes.
+
+                TODO(SNOW-3472759): translate Polars Exprs into Snowpark
+                filter() calls so predicates prune rows at Snowflake instead
+                of client-side, for further performance gains.
+                """
                 scoped = self
                 if with_columns:
                     # Quote each name to preserve case for mixed-case / quoted
@@ -1457,7 +1473,8 @@ class DataFrame:
                 for batch in scoped.to_arrow_batches(
                     statement_params=statement_params, _emit_ast=False, **kwargs
                 ):
-                    yield pl.from_arrow(batch)
+                    df = pl.from_arrow(batch)
+                    yield df.filter(predicate) if predicate is not None else df
 
             return pl.io.plugins.register_io_source(_scan, schema=schema)
 
