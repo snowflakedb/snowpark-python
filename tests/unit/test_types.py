@@ -8,7 +8,7 @@ import os
 import typing
 from array import array
 from collections import defaultdict
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from unittest import mock
 
@@ -509,6 +509,7 @@ def test_python_type_to_snow_type():
     check_type(DataFrame, StructType(), False, is_return_type_of_sproc=True)
     check_type(YearMonthInterval, YearMonthIntervalType(), False)
     check_type(DayTimeInterval, DayTimeIntervalType(), False)
+    check_type(timedelta, DayTimeIntervalType(), False)
 
     # complicated (nested) types
     check_type(
@@ -1133,6 +1134,67 @@ def test_convert_sp_to_sf_type():
     assert convert_sp_to_sf_type(VectorType("float", 3)) == "VECTOR(float,3)"
     with pytest.raises(TypeError, match="Unsupported data type"):
         convert_sp_to_sf_type(None)
+
+
+def test_interval_types_in_udf_context():
+    """Verify that interval types can be used as UDF/sproc parameter and return types.
+
+    This covers SNOW-3746497 (UDFs) and SNOW-3746506 (sprocs). The actual UDF
+    execution requires ENABLE_INTERVAL_TYPES_IN_UDF to be enabled on the account;
+    this test covers the client-side SDK type-mapping layer only.
+    """
+    # datetime.timedelta maps to DayTimeIntervalType (DAY TO SECOND).
+    dt_snow, dt_nullable = python_type_to_snow_type(timedelta)
+    assert dt_snow == DayTimeIntervalType()
+    assert dt_nullable is False
+
+    # The string "timedelta" (as it appears in register_from_file type hints) maps the same way.
+    dt_str_snow, _ = python_type_to_snow_type("timedelta")
+    assert dt_str_snow == DayTimeIntervalType()
+
+    # DayTimeInterval (the Snowpark marker class) also maps to DayTimeIntervalType.
+    assert python_type_to_snow_type(DayTimeInterval) == (DayTimeIntervalType(), False)
+
+    # YearMonthInterval maps to YearMonthIntervalType.
+    assert python_type_to_snow_type(YearMonthInterval) == (
+        YearMonthIntervalType(),
+        False,
+    )
+
+    # Optional[timedelta] is nullable DayTimeIntervalType.
+    import typing
+
+    opt_snow, opt_nullable = python_type_to_snow_type(typing.Optional[timedelta])
+    assert opt_snow == DayTimeIntervalType()
+    assert opt_nullable is True
+
+    # convert_sp_to_sf_type produces the correct DDL type strings for RETURNS clauses.
+    assert convert_sp_to_sf_type(DayTimeIntervalType()) == "INTERVAL DAY TO SECOND"
+    assert (
+        convert_sp_to_sf_type(
+            DayTimeIntervalType(DayTimeIntervalType.DAY, DayTimeIntervalType.HOUR)
+        )
+        == "INTERVAL DAY TO HOUR"
+    )
+    assert (
+        convert_sp_to_sf_type(
+            DayTimeIntervalType(DayTimeIntervalType.HOUR, DayTimeIntervalType.SECOND)
+        )
+        == "INTERVAL HOUR TO SECOND"
+    )
+    assert (
+        convert_sp_to_sf_type(DayTimeIntervalType(DayTimeIntervalType.SECOND))
+        == "INTERVAL SECOND"
+    )
+    assert convert_sp_to_sf_type(YearMonthIntervalType()) == "INTERVAL YEAR TO MONTH"
+    assert (
+        convert_sp_to_sf_type(YearMonthIntervalType(YearMonthIntervalType.MONTH))
+        == "INTERVAL MONTH"
+    )
+
+    # Simulating end-to-end: timedelta annotation -> DDL type string (as used in RETURNS/arg clauses).
+    timedelta_snow, _ = python_type_to_snow_type(timedelta)
+    assert convert_sp_to_sf_type(timedelta_snow) == "INTERVAL DAY TO SECOND"
 
 
 @pytest.mark.parametrize("use_structured_type_semantics", [True, False])

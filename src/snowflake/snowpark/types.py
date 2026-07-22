@@ -244,7 +244,7 @@ class YearMonthIntervalType(_AnsiIntervalType):
     Notes:
         YearMonthIntervalType is currently in private preview since 1.38.0. It needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `ENABLED`.
 
-        YearMonthIntervalType is currently not supported in UDFs and Stored Procedures.
+        Support for YearMonthIntervalType in UDFs and Stored Procedures requires the ``ENABLE_INTERVAL_TYPES_IN_UDF`` account parameter to be enabled. Use :class:`YearMonthInterval` as the Python type annotation; values are passed as the total number of months (``int``).
     """
 
     YEAR = 0  #: Constant representing the YEAR field for interval start/end positions
@@ -305,7 +305,7 @@ class DayTimeIntervalType(_AnsiIntervalType):
     Notes:
         DayTimeIntervalType is currently in private preview since 1.38.0. It needs to be enabled by setting parameters `FEATURE_INTERVAL_TYPES` to `ENABLED`.
 
-        DayTimeIntervalType is currently not supported in UDFs and Stored Procedures.
+        Support for DayTimeIntervalType in UDFs and Stored Procedures requires the ``ENABLE_INTERVAL_TYPES_IN_UDF`` account parameter to be enabled. Use :class:`DayTimeInterval` or ``datetime.timedelta`` as the Python type annotation; values are passed as ``datetime.timedelta``.
     """
 
     DAY = 0  #: Constant representing the DAY field for interval start/end positions
