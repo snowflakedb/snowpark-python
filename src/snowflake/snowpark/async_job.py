@@ -6,10 +6,9 @@ from enum import Enum
 from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
+import snowflake.snowpark
 from snowflake.connector.errors import DatabaseError
 from snowflake.connector.options import pandas
-
-import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
