@@ -146,6 +146,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
     warn_session_config_update_in_multithreaded_mode,
+    warn_sql_simplifier_disabled,
     warning,
     zip_file_or_directory_to_stream,
     set_ast_state,
@@ -659,6 +660,8 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
             )
         )
+        if not self._sql_simplifier_enabled:
+            warn_sql_simplifier_disabled(stacklevel=3)
         self._cte_optimization_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION
         )
@@ -1162,6 +1165,8 @@ class Session:
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
         warn_session_config_update_in_multithreaded_mode("sql_simplifier_enabled")
+        if not value and value != self._sql_simplifier_enabled:
+            warn_sql_simplifier_disabled()
 
         with self._lock:
             self._conn._telemetry_client.send_sql_simplifier_telemetry(

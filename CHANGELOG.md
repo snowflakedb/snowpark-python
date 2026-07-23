@@ -61,6 +61,7 @@ No user-facing changes in this release.
 #### Improvements
 
 - Improved CTE optimization to deduplicate identical subtrees in self-joins, which were previously emitted as repeated subqueries.
+- Added a warning when SQL simplifier is disabled (`session.sql_simplifier_enabled = False` or `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER = False`). The code path with SQL simplifier disabled is no longer maintained; if you encounter issues, please reach out through [GitHub issues](https://github.com/snowflakedb/snowpark-python/issues) or Snowflake support.
 
 #### Deprecations
 
