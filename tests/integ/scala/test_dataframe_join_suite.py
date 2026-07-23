@@ -4,7 +4,6 @@
 #
 
 import copy
-import operator
 import re
 
 import pytest
@@ -42,11 +41,14 @@ def test_join_using(session):
     df2 = session.create_dataframe([[i, str(i + 1)] for i in range(1, 4)]).to_df(
         ["int", "str"]
     )
-    assert df.join(df2, "int").collect() == [
-        Row(1, "1", "2"),
-        Row(2, "2", "3"),
-        Row(3, "3", "4"),
-    ]
+    Utils.check_answer(
+        df.join(df2, "int"),
+        [
+            Row(1, "1", "2"),
+            Row(2, "2", "3"),
+            Row(3, "3", "4"),
+        ],
+    )
 
 
 def test_join_using_multiple_columns(session):
@@ -57,12 +59,14 @@ def test_join_using_multiple_columns(session):
         ["int", "int2", "str"]
     )
 
-    res = df.join(df2, ["int", "int2"]).collect()
-    assert sorted(res, key=operator.itemgetter(0)) == [
-        Row(1, 2, "1", "2"),
-        Row(2, 3, "2", "3"),
-        Row(3, 4, "3", "4"),
-    ]
+    Utils.check_answer(
+        df.join(df2, ["int", "int2"]),
+        [
+            Row(1, 2, "1", "2"),
+            Row(2, 3, "2", "3"),
+            Row(3, 4, "3", "4"),
+        ],
+    )
 
 
 def test_full_outer_join_followed_by_inner_join(session):
@@ -99,14 +103,15 @@ def test_default_inner_join(session):
         ["a", "b"]
     )
 
-    res = df.join(df2).collect()
-    res.sort(key=lambda x: (x[0], x[1]))
-    assert res == [
-        Row(1, 1, "test1"),
-        Row(1, 2, "test2"),
-        Row(2, 1, "test1"),
-        Row(2, 2, "test2"),
-    ]
+    Utils.check_answer(
+        df.join(df2),
+        [
+            Row(1, 1, "test1"),
+            Row(1, 2, "test2"),
+            Row(2, 1, "test1"),
+            Row(2, 2, "test2"),
+        ],
+    )
 
 
 def test_default_inner_join_using_column(session):
@@ -115,8 +120,8 @@ def test_default_inner_join_using_column(session):
         ["a", "b"]
     )
 
-    assert df.join(df2, "a").collect() == [Row(1, "test1"), Row(2, "test2")]
-    assert df.join(df2, "a").filter(col("a") > 1).collect() == [Row(2, "test2")]
+    Utils.check_answer(df.join(df2, "a"), [Row(1, "test1"), Row(2, "test2")])
+    Utils.check_answer(df.join(df2, "a").filter(col("a") > 1), [Row(2, "test2")])
 
 
 def test_3_way_joins(session):
@@ -129,8 +134,10 @@ def test_3_way_joins(session):
     ).to_df(["key", "val"])
 
     # 3 way join with column renaming
-    res = df1.join(df2, "a").to_df(["num", "key"]).join(df3, ["key"]).collect()
-    assert res == [Row("test1", 1, "hello1"), Row("test2", 2, "hello2")]
+    Utils.check_answer(
+        df1.join(df2, "a").to_df(["num", "key"]).join(df3, ["key"]),
+        [Row("test1", 1, "hello1"), Row("test2", 2, "hello2")],
+    )
 
 
 def test_default_inner_join_with_join_conditions(session):
@@ -141,11 +148,13 @@ def test_default_inner_join_with_join_conditions(session):
         ["num", "val"]
     )
 
-    res = df1.join(df2, df1["a"] == df2["num"]).collect()
-    assert sorted(res, key=operator.itemgetter(0)) == [
-        Row(1, "test1", 1, "num1"),
-        Row(2, "test2", 2, "num2"),
-    ]
+    Utils.check_answer(
+        df1.join(df2, df1["a"] == df2["num"]),
+        [
+            Row(1, "test1", 1, "num1"),
+            Row(2, "test2", 2, "num2"),
+        ],
+    )
 
 
 def test_join_with_multiple_conditions(session):
@@ -197,33 +206,38 @@ def test_join_using_multiple_columns_and_specifying_join_type(
     df = session.table(table_name1)
     df2 = session.table(table_name2)
 
-    assert df.join(df2, ["int", "str"], "inner").collect() == [Row(1, "1", 2, 3)]
+    Utils.check_answer(df.join(df2, ["int", "str"], "inner"), [Row(1, "1", 2, 3)])
 
-    res = df.join(df2, ["int", "str"], "left").collect()
-    assert sorted(res, key=operator.itemgetter(0)) == [
-        Row(1, "1", 2, 3),
-        Row(3, "3", 4, None),
-    ]
+    Utils.check_answer(
+        df.join(df2, ["int", "str"], "left"),
+        [
+            Row(1, "1", 2, 3),
+            Row(3, "3", 4, None),
+        ],
+    )
 
-    res = df.join(df2, ["int", "str"], "right").collect()
-    assert sorted(res, key=operator.itemgetter(0)) == [
-        Row(1, "1", 2, 3),
-        Row(5, "5", None, 6),
-    ]
+    Utils.check_answer(
+        df.join(df2, ["int", "str"], "right"),
+        [
+            Row(1, "1", 2, 3),
+            Row(5, "5", None, 6),
+        ],
+    )
 
-    res = df.join(df2, ["int", "str"], "outer").collect()
-    res.sort(key=operator.itemgetter(0))
-    assert res == [
-        Row(1, "1", 2, 3),
-        Row(3, "3", 4, None),
-        Row(5, "5", None, 6),
-    ]
+    Utils.check_answer(
+        df.join(df2, ["int", "str"], "outer"),
+        [
+            Row(1, "1", 2, 3),
+            Row(3, "3", 4, None),
+            Row(5, "5", None, 6),
+        ],
+    )
 
-    assert df.join(df2, ["int", "str"], "left_semi").collect() == [Row(1, 2, "1")]
-    assert df.join(df2, ["int", "str"], "semi").collect() == [Row(1, 2, "1")]
+    Utils.check_answer(df.join(df2, ["int", "str"], "left_semi"), [Row(1, 2, "1")])
+    Utils.check_answer(df.join(df2, ["int", "str"], "semi"), [Row(1, 2, "1")])
 
-    assert df.join(df2, ["int", "str"], "left_anti").collect() == [Row(3, 4, "3")]
-    assert df.join(df2, ["int", "str"], "anti").collect() == [Row(3, 4, "3")]
+    Utils.check_answer(df.join(df2, ["int", "str"], "left_anti"), [Row(3, 4, "3")])
+    Utils.check_answer(df.join(df2, ["int", "str"], "anti"), [Row(3, 4, "3")])
 
     if not local_testing_mode:
         # skipping asof test in local testing mode as it is not yet implemented
@@ -282,23 +296,25 @@ def test_cross_join(session):
     df1 = session.create_dataframe([[1, "1"], [3, "3"]]).to_df(["int", "str"])
     df2 = session.create_dataframe([[2, "2"], [4, "4"]]).to_df(["int", "str"])
 
-    res = df1.cross_join(df2).collect()
-    res.sort(key=operator.itemgetter(0))
-    assert res == [
-        Row(1, "1", 2, "2"),
-        Row(1, "1", 4, "4"),
-        Row(3, "3", 2, "2"),
-        Row(3, "3", 4, "4"),
-    ]
+    Utils.check_answer(
+        df1.cross_join(df2),
+        [
+            Row(1, "1", 2, "2"),
+            Row(1, "1", 4, "4"),
+            Row(3, "3", 2, "2"),
+            Row(3, "3", 4, "4"),
+        ],
+    )
 
-    res = df2.cross_join(df1).collect()
-    res.sort(key=lambda x: (x[0], x[2]))
-    assert res == [
-        Row(2, "2", 1, "1"),
-        Row(2, "2", 3, "3"),
-        Row(4, "4", 1, "1"),
-        Row(4, "4", 3, "3"),
-    ]
+    Utils.check_answer(
+        df2.cross_join(df1),
+        [
+            Row(2, "2", 1, "1"),
+            Row(2, "2", 3, "3"),
+            Row(4, "4", 1, "1"),
+            Row(4, "4", 3, "3"),
+        ],
+    )
 
 
 @pytest.mark.skipif(
@@ -535,14 +551,18 @@ def test_join_ambiguous_columns_with_specified_sources(
         ["a", "b"]
     )
 
-    res = df.join(df2, df["a"] == df2["a"]).collect()
-    assert sorted(res, key=operator.itemgetter(0)) == [
-        Row(1, 1, "test1"),
-        Row(2, 2, "test2"),
-    ]
+    Utils.check_answer(
+        df.join(df2, df["a"] == df2["a"]),
+        [
+            Row(1, 1, "test1"),
+            Row(2, 2, "test2"),
+        ],
+    )
 
-    res = df.join(df2, df["a"] == df2["a"]).select(df["a"] * df2["a"], "b").collect()
-    assert sorted(res, key=operator.itemgetter(0)) == [Row(1, "test1"), Row(4, "test2")]
+    Utils.check_answer(
+        df.join(df2, df["a"] == df2["a"]).select(df["a"] * df2["a"], "b"),
+        [Row(1, "test1"), Row(4, "test2")],
+    )
 
 
 @pytest.mark.skipif(
@@ -602,8 +622,10 @@ def test_join_expression_ambiguous_columns(
         "rhscol",
     )
 
-    res = sorted(df.collect(), key=operator.itemgetter(0))
-    assert res == [Row(2, -1, -10, "one", "one"), Row(4, -2, -20, "two", "two")]
+    Utils.check_answer(
+        df,
+        [Row(2, -1, -10, "one", "one"), Row(4, -2, -20, "two", "two")],
+    )
 
 
 @pytest.mark.skip("Ignored in Scala tests since this only produces a warning")
@@ -640,55 +662,43 @@ def test_semi_join_with_columns_from_LHS(
         ["intcol", "negcol", "rhscol"]
     )
 
-    res = (
-        lhs.join(rhs, lhs["intcol"] == rhs["intcol"], "leftsemi")
-        .select("intcol")
-        .collect()
+    Utils.check_answer(
+        lhs.join(rhs, lhs["intcol"] == rhs["intcol"], "leftsemi").select("intcol"),
+        [Row(1), Row(2)],
     )
-    assert sorted(res, key=operator.itemgetter(0)) == [Row(1), Row(2)]
 
-    res = (
-        rhs.join(lhs, lhs["intcol"] == rhs["intcol"], "leftsemi")
-        .select("intcol")
-        .collect()
+    Utils.check_answer(
+        rhs.join(lhs, lhs["intcol"] == rhs["intcol"], "leftsemi").select("intcol"),
+        [Row(1), Row(2)],
     )
-    assert sorted(res, key=operator.itemgetter(0)) == [Row(1), Row(2)]
 
-    res = (
+    Utils.check_answer(
         lhs.join(
             rhs,
             (lhs["intcol"] == rhs["intcol"]) & (lhs["negcol"] == rhs["negcol"]),
             "leftsemi",
-        )
-        .select(lhs["intcol"])
-        .collect()
+        ).select(lhs["intcol"]),
+        [],
     )
-    assert res == []
 
-    res = (
-        lhs.join(rhs, lhs["intcol"] == rhs["intcol"], "leftanti")
-        .select("intcol")
-        .collect()
+    Utils.check_answer(
+        lhs.join(rhs, lhs["intcol"] == rhs["intcol"], "leftanti").select("intcol"),
+        [],
     )
-    assert res == []
 
-    res = (
-        lhs.join(rhs, lhs["intcol"] == rhs["intcol"], "leftanti")
-        .select(lhs["intcol"])
-        .collect()
+    Utils.check_answer(
+        lhs.join(rhs, lhs["intcol"] == rhs["intcol"], "leftanti").select(lhs["intcol"]),
+        [],
     )
-    assert res == []
 
-    res = (
+    Utils.check_answer(
         lhs.join(
             rhs,
             (lhs["intcol"] == rhs["intcol"]) & (lhs["negcol"] == rhs["negcol"]),
             "leftanti",
-        )
-        .select(lhs["intcol"])
-        .collect()
+        ).select(lhs["intcol"]),
+        [Row(1), Row(2)],
     )
-    assert sorted(res, key=operator.itemgetter(0)) == [Row(1), Row(2)]
 
 
 @pytest.mark.parametrize(
@@ -747,12 +757,12 @@ def test_using_joins(session, join_type, local_testing_mode):
         .collect()
     )
     Utils.check_answer(res, [Row(1), Row(2)])
-    res = (
-        lhs.join(rhs, ["intcol"], join_type, match_condition=match_condition)
-        .select(lhs["negcol"], rhs["negcol"])
-        .collect()
+    Utils.check_answer(
+        lhs.join(rhs, ["intcol"], join_type, match_condition=match_condition).select(
+            lhs["negcol"], rhs["negcol"]
+        ),
+        [Row(-1, -10), Row(-2, -20)],
     )
-    assert sorted(res, key=lambda x: -x[0]) == [Row(-1, -10), Row(-2, -20)]
 
 
 def test_columns_with_and_without_quotes(session, local_testing_mode):
@@ -797,17 +807,16 @@ def test_aliases_multiple_levels_deep(
         ["intcol", "negcol", "rhscol"]
     )
 
-    res = (
+    Utils.check_answer(
         lhs.join(rhs, lhs["intcol"] == rhs["intcol"])
         .select(
             (lhs["negcol"] + rhs["negcol"]).alias("newCol"),
             lhs["intcol"],
             rhs["intcol"],
         )
-        .select((lhs["intcol"] + rhs["intcol"]), "newCol")
-        .collect()
+        .select((lhs["intcol"] + rhs["intcol"]), "newCol"),
+        [Row(2, -11), Row(4, -22)],
     )
-    assert sorted(res, key=operator.itemgetter(0)) == [Row(2, -11), Row(4, -22)]
 
 
 @pytest.mark.xfail(
@@ -828,31 +837,38 @@ def test_join_sql_as_the_backing_dataframe(session):
             "select 1 as INT, 3 as INT2, '1' as STR UNION select 5 as INT, 6 as INT2, '5' as STR"
         )
 
-        assert df.join(df2, ["int", "str"], "inner").collect() == [Row(1, "1", 2, 3)]
+        Utils.check_answer(df.join(df2, ["int", "str"], "inner"), [Row(1, "1", 2, 3)])
 
-        assert df.join(df2, ["int", "str"], "left").collect() == [
-            Row(1, "1", 2, 3),
-            Row(3, "3", 4, None),
-        ]
+        Utils.check_answer(
+            df.join(df2, ["int", "str"], "left"),
+            [
+                Row(1, "1", 2, 3),
+                Row(3, "3", 4, None),
+            ],
+        )
 
-        assert df.join(df2, ["int", "str"], "right").collect() == [
-            Row(1, "1", 2, 3),
-            Row(5, "5", None, 6),
-        ]
+        Utils.check_answer(
+            df.join(df2, ["int", "str"], "right"),
+            [
+                Row(1, "1", 2, 3),
+                Row(5, "5", None, 6),
+            ],
+        )
 
-        res = df.join(df2, ["int", "str"], "outer").collect()
-        res.sort(key=operator.itemgetter(0))
-        assert res == [
-            Row(1, "1", 2, 3),
-            Row(3, "3", 4, None),
-            Row(5, "5", None, 6),
-        ]
+        Utils.check_answer(
+            df.join(df2, ["int", "str"], "outer"),
+            [
+                Row(1, "1", 2, 3),
+                Row(3, "3", 4, None),
+                Row(5, "5", None, 6),
+            ],
+        )
 
-        assert df.join(df2, ["int", "str"], "left_semi").collect() == [Row(1, 2, "1")]
-        assert df.join(df2, ["int", "str"], "semi").collect() == [Row(1, 2, "1")]
+        Utils.check_answer(df.join(df2, ["int", "str"], "left_semi"), [Row(1, 2, "1")])
+        Utils.check_answer(df.join(df2, ["int", "str"], "semi"), [Row(1, 2, "1")])
 
-        assert df.join(df2, ["int", "str"], "left_anti").collect() == [Row(3, 4, "3")]
-        assert df.join(df2, ["int", "str"], "anti").collect() == [Row(3, 4, "3")]
+        Utils.check_answer(df.join(df2, ["int", "str"], "left_anti"), [Row(3, 4, "3")])
+        Utils.check_answer(df.join(df2, ["int", "str"], "anti"), [Row(3, 4, "3")])
 
     finally:
         Utils.drop_table(session, table_name1)
@@ -906,28 +922,31 @@ def test_clone_can_help_these_self_joins(session):
     cloned_df = copy.copy(df)
 
     # inner self join
-    assert df.join(cloned_df, df["c1"] == cloned_df["c2"]).collect() == [
-        Row(2, 3, 1, 2)
-    ]
+    Utils.check_answer(
+        df.join(cloned_df, df["c1"] == cloned_df["c2"]), [Row(2, 3, 1, 2)]
+    )
 
     # left self join
-    res = df.join(cloned_df, df["c1"] == cloned_df["c2"], "left").collect()
-    res.sort(key=operator.itemgetter(0))
-    assert res == [Row(1, 2, None, None), Row(2, 3, 1, 2)]
+    Utils.check_answer(
+        df.join(cloned_df, df["c1"] == cloned_df["c2"], "left"),
+        [Row(1, 2, None, None), Row(2, 3, 1, 2)],
+    )
 
     # right self join
-    res = df.join(cloned_df, df["c1"] == cloned_df["c2"], "right").collect()
-    res.sort(key=lambda x: x[0] or 0)
-    assert res == [Row(None, None, 2, 3), Row(2, 3, 1, 2)]
+    Utils.check_answer(
+        df.join(cloned_df, df["c1"] == cloned_df["c2"], "right"),
+        [Row(None, None, 2, 3), Row(2, 3, 1, 2)],
+    )
 
     # outer self join
-    res = df.join(cloned_df, df["c1"] == cloned_df["c2"], "outer").collect()
-    res.sort(key=lambda x: x[0] or 0)
-    assert res == [
-        Row(None, None, 2, 3),
-        Row(1, 2, None, None),
-        Row(2, 3, 1, 2),
-    ]
+    Utils.check_answer(
+        df.join(cloned_df, df["c1"] == cloned_df["c2"], "outer"),
+        [
+            Row(None, None, 2, 3),
+            Row(1, 2, None, None),
+            Row(2, 3, 1, 2),
+        ],
+    )
 
 
 def test_natural_cross_joins(session):
@@ -936,27 +955,29 @@ def test_natural_cross_joins(session):
     cloned_df1 = copy.copy(df1)
 
     # "natural join" supports self join
-    assert df1.natural_join(df2).collect() == [Row(1, 2), Row(2, 3)]
-    assert df1.natural_join(cloned_df1).collect() == [Row(1, 2), Row(2, 3)]
+    Utils.check_answer(df1.natural_join(df2), [Row(1, 2), Row(2, 3)])
+    Utils.check_answer(df1.natural_join(cloned_df1), [Row(1, 2), Row(2, 3)])
 
     # "cross join" supports self join
-    res = df1.cross_join(df2).collect()
-    res.sort(key=operator.itemgetter(0))
-    assert res == [
-        Row(1, 2, 1, 2),
-        Row(1, 2, 2, 3),
-        Row(2, 3, 1, 2),
-        Row(2, 3, 2, 3),
-    ]
+    Utils.check_answer(
+        df1.cross_join(df2),
+        [
+            Row(1, 2, 1, 2),
+            Row(1, 2, 2, 3),
+            Row(2, 3, 1, 2),
+            Row(2, 3, 2, 3),
+        ],
+    )
 
-    res = df1.cross_join(df2).collect()
-    res.sort(key=operator.itemgetter(0))
-    assert res == [
-        Row(1, 2, 1, 2),
-        Row(1, 2, 2, 3),
-        Row(2, 3, 1, 2),
-        Row(2, 3, 2, 3),
-    ]
+    Utils.check_answer(
+        df1.cross_join(df2),
+        [
+            Row(1, 2, 1, 2),
+            Row(1, 2, 2, 3),
+            Row(2, 3, 1, 2),
+            Row(2, 3, 2, 3),
+        ],
+    )
 
 
 def test_clone_with_join_dataframe(session):
@@ -967,17 +988,17 @@ def test_clone_with_join_dataframe(session):
 
     df = session.table(table_name1)
 
-    assert df.collect() == [Row(1, 2), Row(2, 3)]
+    Utils.check_answer(df, [Row(1, 2), Row(2, 3)])
 
     cloned_df = copy.copy(df)
     #  Cloned DF has the same conent with original DF
-    assert cloned_df.collect() == [Row(1, 2), Row(2, 3)]
+    Utils.check_answer(cloned_df, [Row(1, 2), Row(2, 3)])
 
     join_df = df.join(cloned_df, df["c1"] == cloned_df["c2"])
-    assert join_df.collect() == [Row(2, 3, 1, 2)]
+    Utils.check_answer(join_df, [Row(2, 3, 1, 2)])
     # Cloned join DF
     cloned_join_df = copy.copy(join_df)
-    assert cloned_join_df.collect() == [Row(2, 3, 1, 2)]
+    Utils.check_answer(cloned_join_df, [Row(2, 3, 1, 2)])
 
 
 def test_join_of_join(session):
@@ -989,17 +1010,20 @@ def test_join_of_join(session):
     df_r = copy.copy(df_l)
     df_j = df_l.join(df_r, df_l["c1"] == df_r["c1"])
 
-    assert df_j.collect() == [Row(1, 1, 1, 1), Row(2, 2, 2, 2)]
+    Utils.check_answer(df_j, [Row(1, 1, 1, 1), Row(2, 2, 2, 2)])
 
     df_j_clone = copy.copy(df_j)
     # Because of duplicate column name rename, we have to get a name.
     col_name = df_j.schema.fields[0].name
     df_j_j = df_j.join(df_j_clone, df_j[col_name] == df_j_clone[col_name])
 
-    assert df_j_j.collect() == [
-        Row(1, 1, 1, 1, 1, 1, 1, 1),
-        Row(2, 2, 2, 2, 2, 2, 2, 2),
-    ]
+    Utils.check_answer(
+        df_j_j,
+        [
+            Row(1, 1, 1, 1, 1, 1, 1, 1),
+            Row(2, 2, 2, 2, 2, 2, 2, 2),
+        ],
+    )
 
 
 @pytest.mark.skipif(
@@ -1618,7 +1642,7 @@ def test_dataframe_join_and_select_same_column_name_from_one_df(session):
         ),
     )
     df_selected = df_join.select(df_table_1.col("a_common"))
-    assert df_selected.collect() == [Row(1), Row(2)]
+    Utils.check_answer(df_selected, [Row(1), Row(2)])
 
     # simplified case
     df1 = session.create_dataframe(
