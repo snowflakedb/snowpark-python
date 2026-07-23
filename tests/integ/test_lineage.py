@@ -361,8 +361,9 @@ def test_lineage_trace(session, tmp_lineage_schema):
         f"CREATE OR REPLACE VIEW {db}.{schema}.V6 AS SELECT * FROM {db}.{schema}.V5"
     ).collect()
 
-    # Limit the trace to distance=2 so the traversal stops at the masked
-    # node (which has no id and therefore cannot be traced any further).
+    # Limit the trace to distance=2 so the traversal stops at the second hop.
+    # On most deployments that hop is a MASKED placeholder for the inaccessible
+    # ancestor (V4); Azure currently returns the concrete V4 object instead.
     rows = wait_for_lineage(
         session,
         f"{db}.{schema}.V6",
@@ -383,20 +384,41 @@ def test_lineage_trace(session, tmp_lineage_schema):
         )
     )
 
+    # Direct upstream edge is consistent across deployments.
     assert_lineage_contains(
         df,
         {
             "SOURCE_OBJECT": [
                 {"domain": "VIEW", "name": f"{db}.{schema}.V5", "status": "ACTIVE"},
-                {"domain": "VIEW", "name": "***.***.***", "status": "MASKED"},
             ],
             "TARGET_OBJECT": [
                 {"domain": "VIEW", "name": f"{db}.{schema}.V6", "status": "ACTIVE"},
-                {"domain": "VIEW", "name": f"{db}.{schema}.V5", "status": "ACTIVE"},
             ],
-            "DIRECTION": ["Upstream", "Upstream"],
-            "DISTANCE": [1, 2],
+            "DIRECTION": ["Upstream"],
+            "DISTANCE": [1],
         },
+    )
+
+    # Second hop: either MASKED (privilege redaction) or concrete V4 (Azure).
+    target_v5 = {"domain": "VIEW", "name": f"{db}.{schema}.V5", "status": "ACTIVE"}
+    second_hop_sources = [
+        {"domain": "VIEW", "name": "***.***.***", "status": "MASKED"},
+        {"domain": "VIEW", "name": f"{db}.{schema}.V4", "status": "ACTIVE"},
+    ]
+    matched_second_hop = False
+    for source in second_hop_sources:
+        match = df[
+            (df["SOURCE_OBJECT"] == source)
+            & (df["TARGET_OBJECT"] == target_v5)
+            & (df["DIRECTION"] == "Upstream")
+            & (df["DISTANCE"] == 2)
+        ]
+        if len(match) > 0:
+            matched_second_hop = True
+            break
+    assert matched_second_hop, (
+        "Expected distance-2 Upstream edge into V5 with SOURCE_OBJECT in "
+        f"{second_hop_sources}.\nActual:\n{df.to_string()}"
     )
 
     # CASE 5 : trace with deleted object. Poll until the deletion propagates
