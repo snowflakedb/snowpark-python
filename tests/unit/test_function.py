@@ -184,9 +184,7 @@ def test_ai_functions_ast_optional_args_use_named_args():
         to_file,
     )
 
-    pos, named = _ast_pos_and_named(
-        ai_filter("is it true?", return_error_details=True)
-    )
+    pos, named = _ast_pos_and_named(ai_filter("is it true?", return_error_details=True))
     assert pos == ["string_val"]
     assert named == ["return_error_details"]
 
