@@ -397,9 +397,16 @@ def lit(
 
 
 @publicapi
-def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
+def sql_expr(sql: str, _emit_ast: bool = True, *, is_constant: bool = False) -> Column:
     """Creates a :class:`~snowflake.snowpark.Column` expression from raw SQL text.
     Note that the function does not interpret or check the SQL text.
+
+    Args:
+        sql: The raw SQL text to embed as a column expression.
+        is_constant: When ``True``, indicates that ``sql`` is a constant value
+            (for example an object/array/scalar literal) that does not reference
+            any input columns. This allows the SQL simplifier to treat the
+            expression as having no column dependencies.
 
     Example::
         >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
@@ -414,9 +421,12 @@ def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
 
         # Capture with ApplyFn in order to restore sql_expr(...) function.
         ast = proto.Expr()
-        build_builtin_fn_apply(ast, "sql_expr", sql_expr_ast)
+        if is_constant:
+            build_builtin_fn_apply(ast, "sql_expr", sql_expr_ast, is_constant=True)
+        else:
+            build_builtin_fn_apply(ast, "sql_expr", sql_expr_ast)
 
-    return Column._expr(sql, ast=ast)
+    return Column._expr(sql, ast=ast, is_constant=is_constant)
 
 
 @publicapi
@@ -12918,6 +12928,8 @@ def _python_obj_to_sql_literal(
 def ai_extract(
     input: Union[ColumnOrLiteralStr, Column],
     response_format: Union[dict, list],
+    scores: Optional[bool] = None,
+    config: Optional[dict] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """
@@ -12926,7 +12938,7 @@ def ai_extract(
     Args:
         input: Either:
             - A string or Column containing text to extract information from
-            - A FILE type Column representing a document to extract from
+            - A FILE type Column representing a document to extract from (e.g. from :func:`to_file`)
 
         response_format: Information to be extracted in one of the following formats:
 
@@ -12939,8 +12951,23 @@ def ai_extract(
             - Array of strings with colon-separated feature names and extraction prompts:
               ``['name: What is the last name of the employee?', 'address: What is the address of the employee?']``
 
+        scores: Optional boolean. When ``True``, the returned JSON includes a ``scoring`` object
+            alongside ``response``. Each extracted field gets a ``score`` between 0 and 1 indicating
+            the model's confidence in the extracted value. Requires the named-argument SQL syntax;
+            providing this parameter automatically switches to named-argument form.
+            Default is ``None`` (no scores).
+
+        config: Optional dict of configuration settings for file inputs. Supported keys:
+
+            - ``scale_factor``: A numeric value from 1.0 through 4.0 that scales pages before
+              processing, which can enhance OCR quality for dense layouts or small text.
+
+            Only valid when ``input`` is a FILE column. Requires the named-argument SQL syntax;
+            providing this parameter automatically switches to named-argument form.
+
     Returns:
-        A Column containing a JSON object with the extracted information.
+        A Column containing a JSON object with the extracted information. When ``scores=True``,
+        the object also includes a ``scoring`` sub-object with per-field confidence scores.
 
     Note:
         - You can either ask questions in natural language or describe information to be extracted
@@ -12950,7 +12977,7 @@ def ai_extract(
         - Documents must be no more than 125 pages long
         - Maximum output length is 512 tokens per question
 
-        Supported file formats: PDF, PNG, PPTX, EML, DOC, DOCX, JPEG, JPG, HTM, HTML, TEXT, TXT, TIF, TIFF
+        Supported file formats: PDF, PNG, PPTX, EML, DOC, DOCX, JPEG, JPG, HTM, HTML, TEXT, TXT, TIF, TIFF, BMP, GIF, WEBP, MD
         Files must be less than 100 MB in size.
 
     Examples::
@@ -13030,7 +13057,6 @@ def ai_extract(
         ----------------------
         <BLANKLINE>
 
-
         >>> # Extract from file
         >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
         >>> _ = session.file.put("tests/resources/invoice.pdf", "@mystage", auto_compress=False)
@@ -13053,6 +13079,18 @@ def ai_extract(
         |}                             |
         --------------------------------
         <BLANKLINE>
+
+        >>> # Extract with confidence scores
+        >>> df = session.range(1).select(
+        ...     ai_extract(
+        ...         'John Smith lives in San Francisco',
+        ...         {'name': 'What is the name?', 'city': 'What is the city?'},
+        ...         scores=True
+        ...     ).alias("extracted")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> 'scoring' in result
+        True
     """
     sql_func_name = "ai_extract"
 
@@ -13062,18 +13100,48 @@ def ai_extract(
     else:
         input_col = input
 
-    # Convert response_format to a SQL object/array literal with every string
-    # key/value SQL-escaped so special characters produce valid SQL.
-    response_format_col = sql_expr(_python_obj_to_sql_literal(response_format))
+    if _emit_ast:
+        ast = proto.Expr()
+        _pos: list = [input, response_format]
+        _kw: dict = {}
+        if scores is not None:
+            _pos.append(scores)
+        if config is not None:
+            _kw["config"] = config
+        build_builtin_fn_apply(ast, sql_func_name, *_pos, **_kw)
+    else:
+        ast = None
 
-    # Build AST if needed
-    ast = (
-        build_function_expr(sql_func_name, [input, response_format])
-        if _emit_ast
-        else None
+    # Use named-argument form when scores or config is requested
+    if scores is not None or config is not None:
+        response_format_col = sql_expr(
+            _python_obj_to_sql_literal(response_format), is_constant=True
+        )
+        # Detect file vs text input: TO_FILE() calls produce a FunctionExpression named "to_file"
+        is_file = (
+            isinstance(input_col, Column)
+            and isinstance(input_col._expr1, FunctionExpression)
+            and input_col._expr1.name.upper() == "TO_FILE"
+        )
+        input_key = "file" if is_file else "text"
+        call_kwargs: Dict[str, Column] = {
+            input_key: input_col,
+            "responseFormat": response_format_col,
+        }
+        if config is not None:
+            call_kwargs["config"] = sql_expr(
+                _python_obj_to_sql_literal(config), is_constant=True
+            )
+        if scores is not None:
+            call_kwargs["scores"] = lit(scores)
+        return _call_named_arguments_function(
+            sql_func_name, call_kwargs, _ast=ast, _emit_ast=_emit_ast
+        )
+
+    # Default: positional form (backward-compatible)
+    response_format_col = sql_expr(
+        _python_obj_to_sql_literal(response_format), is_constant=True
     )
-
-    # Call the function with positional arguments
     return _call_function(
         sql_func_name,
         input_col,
@@ -13087,6 +13155,7 @@ def ai_extract(
 def ai_filter(
     predicate: ColumnOrLiteralStr,
     file: Optional[Column] = None,
+    return_error_details: Optional[bool] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """
@@ -13098,6 +13167,8 @@ def ai_filter(
             classify the file input as either TRUE or FALSE.
         file: The FILE type column that the file is classified by based on the instructions specified in ``predicate``.
             You can use IMAGE FILE as an input to the AI_FILTER function.
+        return_error_details: When ``True``, returns an OBJECT with ``value`` and ``error`` fields instead
+            of returning NULL on failure.
 
     Note:
         For more complicated prompts, especially with multiple file columns, you can use the :func:`prompt()`
@@ -13142,24 +13213,32 @@ def ai_filter(
     """
     sql_func_name = "ai_filter"
     predicate_col = _to_col_if_lit(predicate, sql_func_name)
-    if file is None:
-        ast = build_function_expr(sql_func_name, [predicate]) if _emit_ast else None
-        return _call_function(
-            sql_func_name, predicate_col, _ast=ast, _emit_ast=_emit_ast
-        )
+
+    if _emit_ast:
+        ast = proto.Expr()
+        _pos: list = [predicate] if file is None else [predicate, file]
+        _kw: dict = {}
+        if return_error_details is not None:
+            _kw["return_error_details"] = return_error_details
+        build_builtin_fn_apply(ast, sql_func_name, *_pos, **_kw)
     else:
-        ast = (
-            build_function_expr(sql_func_name, [predicate, file]) if _emit_ast else None
-        )
-        return _call_function(
-            sql_func_name, predicate_col, file, _ast=ast, _emit_ast=_emit_ast
-        )
+        ast = None
+
+    # AI_FILTER has two overloads:
+    #   AI_FILTER(<input> [, <return_error_details>])              -- text
+    #   AI_FILTER(<predicate>, <file> [, <return_error_details>])  -- image
+    # Snowflake resolves by argument count/type, so no NULL placeholder is needed.
+    call_args = [predicate_col] if file is None else [predicate_col, file]
+    if return_error_details is not None:
+        call_args.append(lit(return_error_details))
+    return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
 
 
 @publicapi
 def ai_classify(
     expr: ColumnOrLiteralStr,
     list_of_categories: Union[Column, List[str]],
+    return_error_details: Optional[bool] = None,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Column:
@@ -13173,6 +13252,8 @@ def ai_classify(
         list_of_categories: An array of strings that represents the different categories.
             Categories are case-sensitive. The array must contain at least 2 and no more than 100 categories.
             If the requirements aren't met, the function returns an error.
+        return_error_details: When ``True``, returns an OBJECT with ``value`` and ``error`` fields instead
+            of returning NULL on failure.
         **kwargs: Configuration settings specified as key/value pairs. Supported keys:
 
             - task_description: A explanation of the classification task that is 50 words or fewer.
@@ -13272,11 +13353,15 @@ def ai_classify(
     """
     sql_func_name = "ai_classify"
     config_dict = dict(kwargs)
-    ast = (
-        build_function_expr(sql_func_name, [expr, list_of_categories, config_dict])
-        if _emit_ast
-        else None
-    )
+
+    if _emit_ast:
+        ast = proto.Expr()
+        _kw: dict = dict(config_dict)
+        if return_error_details is not None:
+            _kw["return_error_details"] = return_error_details
+        build_builtin_fn_apply(ast, sql_func_name, expr, list_of_categories, **_kw)
+    else:
+        ast = None
 
     expr_col = _to_col_if_lit(expr, sql_func_name)
     if isinstance(list_of_categories, list) and all(
@@ -13291,17 +13376,24 @@ def ai_classify(
         raise TypeError(
             f"list_of_categories must be a list of str or a Column, got {list_of_categories}"
         )
+
+    # AI_CLASSIFY does not accept a NULL placeholder for a skipped config
+    # argument, but return_error_details accepts named-argument syntax, so it
+    # can always be appended that way regardless of whether config is present.
+    # SQL order: AI_CLASSIFY(expr, categories [, config] [, return_error_details])
+    call_args = [expr_col, cat_col]
     if config_dict:
-        # only object constant is supported for now; keys/values are SQL-escaped
-        # so special characters produce valid SQL.
-        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
-        return _call_function(
-            sql_func_name, expr_col, cat_col, config_col, _ast=ast, _emit_ast=_emit_ast
+        call_args.append(
+            sql_expr(_python_obj_to_sql_literal(config_dict), is_constant=True)
         )
-    else:
-        return _call_function(
-            sql_func_name, expr_col, cat_col, _ast=ast, _emit_ast=_emit_ast
+    if return_error_details is not None:
+        call_args.append(
+            sql_expr(
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}",
+                is_constant=True,
+            )
         )
+    return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
 
 
 @publicapi
@@ -13486,7 +13578,7 @@ def ai_similarity(
     if config_dict:
         # only object constant is supported for now; keys/values are SQL-escaped
         # so special characters produce valid SQL.
-        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
+        config_col = sql_expr(_python_obj_to_sql_literal(config_dict), is_constant=True)
         return _call_function(
             sql_func_name,
             input1_col,
@@ -13504,6 +13596,7 @@ def ai_similarity(
 @publicapi
 def ai_parse_document(
     file: Column,
+    return_error_details: Optional[bool] = None,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Column:
@@ -13514,6 +13607,9 @@ def ai_parse_document(
     Args:
         file: A FILE type column containing the document to parse. The document must be on a
             Snowflake stage that uses server-side encryption and is accessible to the user.
+        return_error_details: When ``True``, returns an OBJECT with ``value``, ``error``, and
+            ``metadata`` fields. ``metadata`` contains document-level metadata such as page count
+            that is otherwise not surfaced.
         **kwargs: Configuration settings specified as key/value pairs. Supported keys:
 
             - mode: Specifies the parsing mode. Supported modes are:
@@ -13521,25 +13617,34 @@ def ai_parse_document(
                 - 'LAYOUT': The function extracts layout as well as text, including structural
                   content such as tables.
 
+            - extract_images: If set to True, the function extracts images embedded in the document.
+              Requires ``mode='LAYOUT'``. Each extracted image is returned in the ``images`` array
+              with fields ``id``, bounding-box coordinates, and ``image_base64``.
+
             - page_split: If set to True, the function splits the document into pages and
               processes each page separately. This feature supports only PDF, PowerPoint (.pptx),
               and Word (.docx) documents. Documents in other formats return an error.
               The default is False.
               Tip: To process long documents that exceed the token limit, set this option to True.
 
+            - page_filter: An array of page-range objects specifying which pages of a multi-page
+              document to process. Each object must have ``start`` (inclusive, 0-based) and
+              ``end`` (exclusive) fields. For example, ``[{'start': 0, 'end': 2}]`` processes
+              the first two pages. Specifying ``page_filter`` implies ``page_split``.
+
     Returns:
         A JSON object (as a string) that contains the extracted data and associated metadata.
         The options argument determines the structure of the returned object.
 
-        If ``page_split`` is set, the output contains:
+        If ``page_split`` is set (or ``page_filter`` is provided), the output contains:
             - pages: An array of JSON objects, each containing text extracted from the document.
-            - metadata: Contains metadata about the document, such as page count.
-            - errorInformation: Contains error information if document can't be parsed (only on error).
 
         If ``page_split`` is False or not present, the output contains:
             - content: Plain text (in OCR mode) or Markdown-formatted text (in LAYOUT mode).
-            - metadata: Contains metadata about the document, such as page count.
-            - errorInformation: Contains error information if document can't be parsed (only on error).
+
+        If ``extract_images`` is True (requires ``mode='LAYOUT'``), the output additionally contains:
+            - images: An array of objects, each with ``id``, ``top_left_x``, ``top_left_y``,
+              ``bottom_right_x``, ``bottom_right_y``, and ``image_base64`` fields.
 
     Examples::
 
@@ -13585,26 +13690,38 @@ def ai_parse_document(
     sql_func_name = "ai_parse_document"
     config_dict = dict(kwargs)
 
-    if config_dict:
-        ast = (
-            build_function_expr(sql_func_name, [file, config_dict])
-            if _emit_ast
-            else None
-        )
-        # only object constant is supported for now; keys/values are SQL-escaped
-        # so special characters produce valid SQL.
-        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
-        return _call_function(
-            sql_func_name, file, config_col, _ast=ast, _emit_ast=_emit_ast
-        )
+    if _emit_ast:
+        ast = proto.Expr()
+        _kw: dict = dict(config_dict)
+        if return_error_details is not None:
+            _kw["return_error_details"] = return_error_details
+        build_builtin_fn_apply(ast, sql_func_name, file, **_kw)
     else:
-        ast = build_function_expr(sql_func_name, [file]) if _emit_ast else None
-        return _call_function(sql_func_name, file, _ast=ast, _emit_ast=_emit_ast)
+        ast = None
+
+    # return_error_details is passed via named-argument syntax so config can be
+    # skipped entirely (rather than using a NULL placeholder) when only
+    # return_error_details is provided.
+    # SQL order: AI_PARSE_DOCUMENT(file [, config] [, return_error_details])
+    call_args: list = [file]
+    if config_dict:
+        call_args.append(
+            sql_expr(_python_obj_to_sql_literal(config_dict), is_constant=True)
+        )
+    if return_error_details is not None:
+        call_args.append(
+            sql_expr(
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}",
+                is_constant=True,
+            )
+        )
+    return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
 
 
 @publicapi
 def ai_transcribe(
     audio_file: Column,
+    return_error_details: Optional[bool] = None,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Column:
@@ -13619,6 +13736,8 @@ def ai_transcribe(
         audio_file: A FILE type column representing an audio file. The audio file must be on a
             Snowflake stage that uses server-side encryption and is accessible to the user.
             Use the to_file() function to create a reference to your staged file.
+        return_error_details: When ``True``, returns an OBJECT with ``value`` and ``error`` fields
+            instead of returning NULL on failure.
         **kwargs: Configuration settings specified as key/value pairs. Supported keys:
 
             - timestamp_granularity: A string specifying the desired timestamp granularity.
@@ -13709,21 +13828,32 @@ def ai_transcribe(
     sql_func_name = "ai_transcribe"
     config_dict = dict(kwargs)
 
-    if config_dict:
-        ast = (
-            build_function_expr(sql_func_name, [audio_file, config_dict])
-            if _emit_ast
-            else None
-        )
-        # only object constant is supported for now; keys/values are SQL-escaped
-        # so special characters produce valid SQL.
-        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
-        return _call_function(
-            sql_func_name, audio_file, config_col, _ast=ast, _emit_ast=_emit_ast
-        )
+    if _emit_ast:
+        ast = proto.Expr()
+        _kw: dict = dict(config_dict)
+        if return_error_details is not None:
+            _kw["return_error_details"] = return_error_details
+        build_builtin_fn_apply(ast, sql_func_name, audio_file, **_kw)
     else:
-        ast = build_function_expr(sql_func_name, [audio_file]) if _emit_ast else None
-        return _call_function(sql_func_name, audio_file, _ast=ast, _emit_ast=_emit_ast)
+        ast = None
+
+    # return_error_details is passed via named-argument syntax so config can be
+    # skipped entirely (rather than using a NULL placeholder) when only
+    # return_error_details is provided.
+    # SQL order: AI_TRANSCRIBE(audio_file [, config] [, return_error_details])
+    call_args: list = [audio_file]
+    if config_dict:
+        call_args.append(
+            sql_expr(_python_obj_to_sql_literal(config_dict), is_constant=True)
+        )
+    if return_error_details is not None:
+        call_args.append(
+            sql_expr(
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}",
+                is_constant=True,
+            )
+        )
+    return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
 
 
 @overload
@@ -13734,6 +13864,7 @@ def ai_complete(
     model_parameters: Optional[dict] = None,
     response_format: Optional[dict] = None,
     show_details: Optional[bool] = None,
+    return_error_details: Optional[bool] = None,
     _emit_ast: bool = True,
 ) -> Column:
     ...
@@ -13748,6 +13879,7 @@ def ai_complete(
     model_parameters: Optional[dict] = None,
     response_format: Optional[dict] = None,
     show_details: Optional[bool] = None,
+    return_error_details: Optional[bool] = None,
     _emit_ast: bool = True,
 ) -> Column:
     ...
@@ -13761,6 +13893,7 @@ def ai_complete(
     model_parameters: Optional[dict] = None,
     response_format: Optional[dict] = None,
     show_details: Optional[bool] = None,
+    return_error_details: Optional[bool] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """
@@ -13785,6 +13918,8 @@ def ai_complete(
 
         response_format: Optional JSON schema that the response should follow for structured outputs.
         show_details: Optional boolean flag to return detailed inference information (default: ``FALSE``).
+        return_error_details: When ``True``, returns an OBJECT with ``value`` and ``error`` fields instead
+            of returning NULL on failure.
 
     Returns:
         ``response_format`` and ``show_details`` are only supported for single string.
@@ -13890,19 +14025,18 @@ def ai_complete(
         args.append(response_format)
     if show_details is not None:
         args.append(show_details)
+    if return_error_details is not None:
+        args.append(return_error_details)
 
     ast = build_function_expr(sql_func_name, args) if _emit_ast else None
 
-    # Convert arguments to columns
     model_col = lit(model)
     prompt_col = _to_col_if_lit(prompt, sql_func_name)
 
-    # Build the function call arguments
     call_kwargs = {
         "model": model_col,
     }
 
-    # Add file if provided
     if file is not None:
         if isinstance(prompt, str) or isinstance(prompt._expr1, Literal):
             call_kwargs["predicate"] = prompt_col
@@ -13912,19 +14046,23 @@ def ai_complete(
     else:
         call_kwargs["prompt"] = prompt_col
 
-    # Add model_parameters if provided
     if model_parameters is not None:
-        model_params_col = sql_expr(_python_obj_to_sql_literal(model_parameters))
-        call_kwargs["model_parameters"] = model_params_col
+        call_kwargs["model_parameters"] = sql_expr(
+            _python_obj_to_sql_literal(model_parameters),
+            is_constant=True,
+        )
 
-    # Add response_format if provided
     if response_format is not None:
-        response_format_col = sql_expr(_python_obj_to_sql_literal(response_format))
-        call_kwargs["response_format"] = response_format_col
+        call_kwargs["response_format"] = sql_expr(
+            _python_obj_to_sql_literal(response_format),
+            is_constant=True,
+        )
 
-    # Add show_details if provided
     if show_details is not None:
-        call_kwargs["show_details"] = sql_expr(str(show_details))
+        call_kwargs["show_details"] = lit(show_details)
+
+    if return_error_details is not None:
+        call_kwargs["return_error_details"] = lit(return_error_details)
 
     return _call_named_arguments_function(
         sql_func_name, call_kwargs, _ast=ast, _emit_ast=_emit_ast
@@ -14012,6 +14150,7 @@ def ai_embed(
 def ai_sentiment(
     text: ColumnOrLiteralStr,
     categories: Optional[List[str]] = None,
+    return_error_details: Optional[bool] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """
@@ -14023,6 +14162,8 @@ def ai_sentiment(
             Each category is a string. For example, if extracting sentiment from a restaurant review, you might specify
             ``['cost', 'quality', 'service', 'wait time']`` as the categories. Each category may be a maximum of 30 characters long.
             If you do not provide this argument, AI_SENTIMENT returns only the overall sentiment.
+        return_error_details: When ``True``, returns an OBJECT with ``value`` and ``error`` fields instead
+            of returning NULL on failure.
 
     Returns:
         An OBJECT value containing a ``categories`` field. ``categories`` is an array of category records. Each category includes these fields:
@@ -14138,15 +14279,9 @@ def ai_sentiment(
     """
     sql_func_name = "ai_sentiment"
 
-    # Convert text to column
     text_col = _to_col_if_lit(text, sql_func_name)
 
-    if categories is None:
-        # Only one argument: text
-        ast = build_function_expr(sql_func_name, [text]) if _emit_ast else None
-        return _call_function(sql_func_name, text_col, _ast=ast, _emit_ast=_emit_ast)
-    else:
-        # Handle categories parameter - must be list of strings
+    if categories is not None:
         if not isinstance(categories, list) or not all(
             isinstance(x, str) for x in categories
         ):
@@ -14154,16 +14289,35 @@ def ai_sentiment(
                 f"categories must be a list of str, got {type(categories).__name__}"
             )
 
-        cat_col = lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
+    if _emit_ast:
+        ast = proto.Expr()
+        _pos: list = [text]
+        _kw: dict = {}
+        if categories is not None:
+            _pos.append(categories)
+        if return_error_details is not None:
+            _kw["return_error_details"] = return_error_details
+        build_builtin_fn_apply(ast, sql_func_name, *_pos, **_kw)
+    else:
+        ast = None
 
-        ast = (
-            build_function_expr(sql_func_name, [text, categories])
-            if _emit_ast
-            else None
+    # return_error_details is passed via named-argument syntax so categories
+    # can be skipped entirely (rather than using a NULL placeholder) when only
+    # return_error_details is provided.
+    # SQL order: AI_SENTIMENT(text [, categories] [, return_error_details])
+    call_args = [text_col]
+    if categories is not None:
+        call_args.append(
+            lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
         )
-        return _call_function(
-            sql_func_name, text_col, cat_col, _ast=ast, _emit_ast=_emit_ast
+    if return_error_details is not None:
+        call_args.append(
+            sql_expr(
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}",
+                is_constant=True,
+            )
         )
+    return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
 
 
 @publicapi
@@ -14171,6 +14325,7 @@ def ai_translate(
     text: ColumnOrLiteralStr,
     source_language: ColumnOrLiteralStr,
     target_language: ColumnOrLiteralStr,
+    return_error_details: Optional[bool] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """
@@ -14181,6 +14336,8 @@ def ai_translate(
         source_language: A string or Column specifying the language code for the source language.
             Specify an empty string ``''`` to automatically detect the source language.
         target_language: A string or Column specifying the language code for the target language.
+        return_error_details: When ``True``, returns an OBJECT with ``value`` and ``error`` fields instead
+            of returning NULL on failure.
 
     Returns:
         A string containing a translation of the original text into the target language.
@@ -14205,24 +14362,307 @@ def ai_translate(
     """
     sql_func_name = "ai_translate"
 
-    # Build AST
-    ast = (
-        build_function_expr(sql_func_name, [text, source_language, target_language])
-        if _emit_ast
-        else None
-    )
+    ast_args = [text, source_language, target_language]
+    if return_error_details is not None:
+        ast_args.append(return_error_details)
+    ast = build_function_expr(sql_func_name, ast_args) if _emit_ast else None
 
-    # Convert arguments to columns
     text_col = _to_col_if_lit(text, sql_func_name)
     source_lang_col = _to_col_if_lit(source_language, sql_func_name)
     target_lang_col = _to_col_if_lit(target_language, sql_func_name)
 
-    # Call the function
-    return _call_function(
-        sql_func_name,
-        text_col,
-        source_lang_col,
-        target_lang_col,
-        _ast=ast,
-        _emit_ast=_emit_ast,
-    )
+    call_args = [text_col, source_lang_col, target_lang_col]
+    if return_error_details is not None:
+        call_args.append(lit(return_error_details))
+    return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
+
+
+@publicapi
+def ai_count_tokens(
+    function_name: str,
+    input_text: ColumnOrLiteralStr,
+    model: Optional[str] = None,
+    options: Optional[dict] = None,
+    return_error_details: Optional[bool] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns an estimate of the number of tokens that would be consumed by a call to the
+    specified AI function.
+
+    Args:
+        function_name: The name of the AI function to base the token count on (e.g.
+            ``'ai_complete'``, ``'ai_classify'``, ``'ai_embed'``). Must begin with ``'ai_'``
+            and use only lowercase letters.
+        input_text: The text to count tokens for.
+        model: The model name, required for functions that accept a model parameter
+            (e.g. ``ai_complete``, ``ai_embed``).
+        options: Optional VARIANT object specifying additional processing parameters.
+        return_error_details: When ``True``, returns an OBJECT with ``value`` and ``error`` fields
+            instead of returning NULL on failure.
+
+    Returns:
+        An INTEGER representing the estimated token count.
+
+    Examples::
+
+        >>> # Count tokens for ai_complete with a specific model
+        >>> df = session.range(1).select(
+        ...     ai_count_tokens('ai_complete', 'What is a large language model?', model='llama3.1-70b').alias("token_count")
+        ... )
+        >>> df.collect()[0][0] > 0
+        True
+
+        >>> # Count tokens for ai_sentiment (no model required)
+        >>> df = session.range(1).select(
+        ...     ai_count_tokens('ai_sentiment', 'I love this product!').alias("token_count")
+        ... )
+        >>> df.collect()[0][0] > 0
+        True
+    """
+    sql_func_name = "ai_count_tokens"
+
+    if _emit_ast:
+        ast = proto.Expr()
+        _kw: dict = {}
+        if model is not None:
+            _kw["model"] = model
+        if options is not None:
+            _kw["options"] = options
+        if return_error_details is not None:
+            _kw["return_error_details"] = return_error_details
+        build_builtin_fn_apply(ast, sql_func_name, function_name, input_text, **_kw)
+    else:
+        ast = None
+
+    func_name_col = lit(function_name)
+    input_col = _to_col_if_lit(input_text, sql_func_name)
+
+    # AI_COUNT_TOKENS has four overloads for each combination of {model, options}:
+    #   AI_COUNT_TOKENS(<function_name>, <input_text>)
+    #   AI_COUNT_TOKENS(<function_name>, <model_name>, <input_text>)
+    #   AI_COUNT_TOKENS(<function_name>, <input_text>, <options>)
+    #   AI_COUNT_TOKENS(<function_name>, <model_name>, <input_text>, <options>)
+    # Snowflake picks the overload by arg count, so no NULL placeholder is
+    # needed for model/options. return_error_details is only recognized via
+    # named-argument syntax; passing it positionally silently returns NULL
+    # instead of the expected value/error OBJECT, so it is always appended
+    # using `return_error_details => ...` regardless of the chosen overload.
+    call_args: list = [func_name_col]
+    if model is not None:
+        call_args.append(lit(model))
+    call_args.append(input_col)
+    if options is not None:
+        call_args.append(
+            sql_expr(_python_obj_to_sql_literal(options), is_constant=True)
+        )
+    if return_error_details is not None:
+        call_args.append(
+            sql_expr(
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}",
+                is_constant=True,
+            )
+        )
+
+    return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
+
+
+@publicapi
+def ai_multi_embed(
+    model: str,
+    input: ColumnOrLiteralStr,
+    _emit_ast: bool = True,
+    **kwargs,
+) -> Column:
+    """
+    Creates multimodal embeddings from text, an image, an audio file, or a video file.
+
+    Args:
+        model: The multimodal embedding model to use. Currently supported:
+            ``'twelvelabs-marengo-embed-3-0'``
+        input: The input to embed. Can be a string with text or a FILE column
+            referencing an image (JPG, PNG), audio (MP3, WAV, FLAC, OGG), or
+            video (MP4, MOV, AVI, MKV, WEBM, FLV) file.
+        **kwargs: Optional configuration settings for video/audio inputs:
+
+            - start_sec: Start time in seconds (float).
+            - end_sec: End time in seconds (float).
+            - embedding_options: Array of modalities to embed. Supported values:
+              ``['visual', 'audio', 'transcription']``.
+            - embedding_scope: Granularity of embeddings. Use ``['clip']`` for
+              per-segment embeddings or ``['clip', 'asset']`` to also include a
+              whole-asset embedding.
+            - embedding_type: ``['separate_embedding']`` (default) or
+              ``['fused_embedding']`` to combine modalities.
+            - use_fixed_length_sec: Duration of each fixed-length segment in seconds
+              (1–10).
+            - min_clip_sec: Minimum dynamic segment length in seconds (1–5).
+
+    Returns:
+        An OBJECT with an ``error`` field (NULL on success) and a ``value`` field
+        containing an array of embedding objects. Each embedding object has:
+
+            - ``embedding``: A 512-dimensional VECTOR(FLOAT, 512).
+            - ``embedding_option``: Modality type (``'visual'``, ``'audio'``,
+              ``'transcription'``, or ``'fused'``).
+            - ``embedding_scope``: Either ``'clip'`` or ``'asset'``.
+            - ``start_sec`` / ``end_sec``: Segment timestamps.
+
+    Note:
+        - Maximum video/audio duration: 4 hours.
+        - Maximum file size (default): 19 MB.
+        - Requires the ``SNOWFLAKE.CORTEX_USER`` or
+          ``SNOWFLAKE.CORTEX_EMBED_USER`` database role.
+
+    Examples::
+
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/dog.jpg", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_multi_embed(
+        ...         'twelvelabs-marengo-embed-3-0',
+        ...         to_file('@mystage/dog.jpg')
+        ...     ).alias("embedding")
+        ... )
+        >>> result = df.collect()[0][0]  # doctest: +SKIP
+        >>> result['error'] is None  # doctest: +SKIP
+        True  # doctest: +SKIP
+    """
+    sql_func_name = "ai_multi_embed"
+    config_dict = dict(kwargs)
+
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, sql_func_name, model, input, **config_dict)
+    else:
+        ast = None
+
+    model_col = lit(model)
+    input_col = _to_col_if_lit(input, sql_func_name)
+
+    if config_dict:
+        config_col = sql_expr(_python_obj_to_sql_literal(config_dict), is_constant=True)
+        return _call_function(
+            sql_func_name,
+            model_col,
+            input_col,
+            config_col,
+            _ast=ast,
+            _emit_ast=_emit_ast,
+        )
+    else:
+        return _call_function(
+            sql_func_name, model_col, input_col, _ast=ast, _emit_ast=_emit_ast
+        )
+
+
+@publicapi
+def ai_redact(
+    input: ColumnOrLiteralStr,
+    categories: Optional[List[str]] = None,
+    mode: Optional[str] = None,
+    return_error_details: Optional[bool] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Detects and redacts personally identifiable information (PII) from unstructured text.
+
+    Args:
+        input: A string or Column containing the text to process.
+        categories: An optional list of PII category names to target. When omitted,
+            all supported PII categories are redacted. Example categories include
+            ``'NAME'``, ``'EMAIL'``, ``'PHONE_NUMBER'``, ``'ADDRESS'``, ``'NATIONAL_ID'``.
+        mode: Operating mode. Either ``'redact'`` (default) to replace PII with
+            placeholder labels (e.g. ``[NAME]``), or ``'detect'`` to return an
+            object with metadata about each detected PII span without modifying
+            the text.
+        return_error_details: When ``True``, returns an OBJECT with ``value`` and
+            ``error`` fields instead of returning NULL on failure.
+
+    Returns:
+        In ``'redact'`` mode (default): a VARCHAR with PII replaced by placeholder labels.
+
+        In ``'detect'`` mode: an OBJECT with a ``spans`` array, where each entry contains:
+
+            - ``category``: The PII category name.
+            - ``start`` / ``end``: Character offsets of the PII span in the original text.
+            - ``text``: The matched PII text.
+
+        When ``return_error_details=True``: an OBJECT with ``value`` (the result or NULL)
+        and ``error`` (the error message or NULL) fields.
+
+    Examples::
+
+        >>> # Redact all PII (default mode)
+        >>> df = session.range(1).select(
+        ...     ai_redact('John Smith lives at 123 Main St and his email is john@example.com').alias("redacted")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> '[NAME]' in result or '[EMAIL]' in result
+        True
+
+        >>> # Redact only specific categories
+        >>> df = session.range(1).select(
+        ...     ai_redact(
+        ...         'John Smith, john@example.com, 555-1234',
+        ...         categories=['NAME', 'PHONE_NUMBER']
+        ...     ).alias("redacted")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> '[NAME]' in result
+        True
+
+        >>> # Detect mode - return span metadata
+        >>> df = session.range(1).select(
+        ...     ai_redact('Contact John at 555-1234', mode='detect').alias("detected")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> 'spans' in result
+        True
+    """
+    sql_func_name = "ai_redact"
+
+    has_cat = categories is not None
+    has_red = return_error_details is not None
+    has_mode = mode is not None
+
+    if _emit_ast:
+        ast = proto.Expr()
+        _pos: list = [input]
+        _kw: dict = {}
+        if has_cat:
+            _pos.append(categories)
+        if has_red:
+            _kw["return_error_details"] = return_error_details
+        if has_mode:
+            _kw["mode"] = mode
+        build_builtin_fn_apply(ast, sql_func_name, *_pos, **_kw)
+    else:
+        ast = None
+
+    input_col = _to_col_if_lit(input, sql_func_name)
+
+    # AI_REDACT only reliably supports skipping a positional argument (e.g.
+    # categories) when a later one is provided (e.g. mode) if that later
+    # argument is passed using named-argument syntax; a NULL placeholder in
+    # the categories slot causes AI_REDACT to fail/return NULL. return_error_details
+    # and mode both accept named-argument syntax, so we always pass them that
+    # way and only ever pass categories positionally.
+    call_args = [input_col]
+    if has_cat:
+        call_args.append(
+            lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
+        )
+    if has_red:
+        call_args.append(
+            sql_expr(
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}",
+                is_constant=True,
+            )
+        )
+    if has_mode:
+        call_args.append(
+            sql_expr(f"mode => {_python_obj_to_sql_literal(mode)}", is_constant=True)
+        )
+
+    return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
