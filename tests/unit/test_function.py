@@ -159,6 +159,7 @@ def test_sql_expr_is_constant():
 
 def _ast_pos_and_named(col):
     """Return (pos_arg_kinds, named_arg_names) from a Column's ApplyExpr AST."""
+    assert col._ast is not None, "Expected AST to be emitted; pass _emit_ast=True"
     ae = col._ast.apply_expr
     pos = [a.WhichOneof("variant") for a in ae.pos_args]
     named = [e._1 for e in ae.named_args]
@@ -184,7 +185,12 @@ def test_ai_functions_ast_optional_args_use_named_args():
         to_file,
     )
 
-    pos, named = _ast_pos_and_named(ai_filter("is it true?", return_error_details=True))
+    # CI unit-test runs disable AST globally; force emission for this test.
+    emit = True
+
+    pos, named = _ast_pos_and_named(
+        ai_filter("is it true?", return_error_details=True, _emit_ast=emit)
+    )
     assert pos == ["string_val"]
     assert named == ["return_error_details"]
 
@@ -194,46 +200,59 @@ def test_ai_functions_ast_optional_args_use_named_args():
             ["a", "b"],
             return_error_details=True,
             task_description="desc",
+            _emit_ast=emit,
         )
     )
     assert pos == ["string_val", "list_val"]
     assert named == ["return_error_details", "task_description"]
 
-    f = to_file("@s/f.pdf")
+    f = to_file("@s/f.pdf", _emit_ast=emit)
     pos, named = _ast_pos_and_named(
-        ai_parse_document(f, return_error_details=True, mode="LAYOUT")
+        ai_parse_document(f, return_error_details=True, mode="LAYOUT", _emit_ast=emit)
     )
     assert len(pos) == 1
     assert named == ["mode", "return_error_details"]
 
     pos, named = _ast_pos_and_named(
-        ai_transcribe(f, return_error_details=True, timestamp_granularity="word")
+        ai_transcribe(
+            f,
+            return_error_details=True,
+            timestamp_granularity="word",
+            _emit_ast=emit,
+        )
     )
     assert len(pos) == 1
     assert named == ["return_error_details", "timestamp_granularity"]
 
     pos, named = _ast_pos_and_named(
-        ai_count_tokens("ai_complete", "hello", model="llama3.1-70b")
+        ai_count_tokens("ai_complete", "hello", model="llama3.1-70b", _emit_ast=emit)
     )
     assert pos == ["string_val", "string_val"]
     assert named == ["model"]
 
     pos, named = _ast_pos_and_named(
-        ai_extract("text", {"a": "q"}, config={"scale_factor": 2.0})
+        ai_extract("text", {"a": "q"}, config={"scale_factor": 2.0}, _emit_ast=emit)
     )
     assert pos == ["string_val", "seq_map_val"]
     assert named == ["config"]
 
-    pos, named = _ast_pos_and_named(ai_sentiment("text", return_error_details=True))
+    pos, named = _ast_pos_and_named(
+        ai_sentiment("text", return_error_details=True, _emit_ast=emit)
+    )
     assert pos == ["string_val"]
     assert named == ["return_error_details"]
 
-    pos, named = _ast_pos_and_named(ai_redact("text", mode="detect"))
+    pos, named = _ast_pos_and_named(ai_redact("text", mode="detect", _emit_ast=emit))
     assert pos == ["string_val"]
     assert named == ["mode"]
 
     pos, named = _ast_pos_and_named(
-        ai_multi_embed("twelvelabs-marengo-embed-3-0", "hello", start_sec=1.0)
+        ai_multi_embed(
+            "twelvelabs-marengo-embed-3-0",
+            "hello",
+            start_sec=1.0,
+            _emit_ast=emit,
+        )
     )
     assert pos == ["string_val", "string_val"]
     assert named == ["start_sec"]
