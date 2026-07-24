@@ -397,9 +397,16 @@ def lit(
 
 
 @publicapi
-def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
+def sql_expr(sql: str, _emit_ast: bool = True, *, is_constant: bool = False) -> Column:
     """Creates a :class:`~snowflake.snowpark.Column` expression from raw SQL text.
     Note that the function does not interpret or check the SQL text.
+
+    Args:
+        sql: The raw SQL text to embed as a column expression.
+        is_constant: When ``True``, indicates that ``sql`` is a constant value
+            (for example an object/array/scalar literal) that does not reference
+            any input columns. This allows the SQL simplifier to treat the
+            expression as having no column dependencies.
 
     Example::
         >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
@@ -414,9 +421,12 @@ def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
 
         # Capture with ApplyFn in order to restore sql_expr(...) function.
         ast = proto.Expr()
-        build_builtin_fn_apply(ast, "sql_expr", sql_expr_ast)
+        if is_constant:
+            build_builtin_fn_apply(ast, "sql_expr", sql_expr_ast, is_constant=True)
+        else:
+            build_builtin_fn_apply(ast, "sql_expr", sql_expr_ast)
 
-    return Column._expr(sql, ast=ast)
+    return Column._expr(sql, ast=ast, is_constant=is_constant)
 
 
 @publicapi
@@ -13100,7 +13110,9 @@ def ai_extract(
 
     # Use named-argument form when scores or config is requested
     if scores is not None or config is not None:
-        response_format_col = sql_expr(_python_obj_to_sql_literal(response_format))
+        response_format_col = sql_expr(
+            _python_obj_to_sql_literal(response_format), is_constant=True
+        )
         # Detect file vs text input: TO_FILE() calls produce a FunctionExpression named "to_file"
         is_file = (
             isinstance(input_col, Column)
@@ -13113,7 +13125,9 @@ def ai_extract(
             "responseFormat": response_format_col,
         }
         if config is not None:
-            call_kwargs["config"] = sql_expr(_python_obj_to_sql_literal(config))
+            call_kwargs["config"] = sql_expr(
+                _python_obj_to_sql_literal(config), is_constant=True
+            )
         if scores is not None:
             call_kwargs["scores"] = lit(scores)
         return _call_named_arguments_function(
@@ -13121,7 +13135,9 @@ def ai_extract(
         )
 
     # Default: positional form (backward-compatible)
-    response_format_col = sql_expr(_python_obj_to_sql_literal(response_format))
+    response_format_col = sql_expr(
+        _python_obj_to_sql_literal(response_format), is_constant=True
+    )
     return _call_function(
         sql_func_name,
         input_col,
@@ -13356,11 +13372,14 @@ def ai_classify(
     # SQL order: AI_CLASSIFY(expr, categories [, config] [, return_error_details])
     call_args = [expr_col, cat_col]
     if config_dict:
-        call_args.append(sql_expr(_python_obj_to_sql_literal(config_dict)))
+        call_args.append(
+            sql_expr(_python_obj_to_sql_literal(config_dict), is_constant=True)
+        )
     if return_error_details is not None:
         call_args.append(
             sql_expr(
-                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}"
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}",
+                is_constant=True,
             )
         )
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
@@ -13548,7 +13567,7 @@ def ai_similarity(
     if config_dict:
         # only object constant is supported for now; keys/values are SQL-escaped
         # so special characters produce valid SQL.
-        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
+        config_col = sql_expr(_python_obj_to_sql_literal(config_dict), is_constant=True)
         return _call_function(
             sql_func_name,
             input1_col,
@@ -13673,11 +13692,14 @@ def ai_parse_document(
     # SQL order: AI_PARSE_DOCUMENT(file [, config] [, return_error_details])
     call_args: list = [file]
     if config_dict:
-        call_args.append(sql_expr(_python_obj_to_sql_literal(config_dict)))
+        call_args.append(
+            sql_expr(_python_obj_to_sql_literal(config_dict), is_constant=True)
+        )
     if return_error_details is not None:
         call_args.append(
             sql_expr(
-                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}"
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}",
+                is_constant=True,
             )
         )
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
@@ -13806,11 +13828,14 @@ def ai_transcribe(
     # SQL order: AI_TRANSCRIBE(audio_file [, config] [, return_error_details])
     call_args: list = [audio_file]
     if config_dict:
-        call_args.append(sql_expr(_python_obj_to_sql_literal(config_dict)))
+        call_args.append(
+            sql_expr(_python_obj_to_sql_literal(config_dict), is_constant=True)
+        )
     if return_error_details is not None:
         call_args.append(
             sql_expr(
-                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}"
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}",
+                is_constant=True,
             )
         )
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
@@ -14008,12 +14033,14 @@ def ai_complete(
 
     if model_parameters is not None:
         call_kwargs["model_parameters"] = sql_expr(
-            _python_obj_to_sql_literal(model_parameters)
+            _python_obj_to_sql_literal(model_parameters),
+            is_constant=True,
         )
 
     if response_format is not None:
         call_kwargs["response_format"] = sql_expr(
-            _python_obj_to_sql_literal(response_format)
+            _python_obj_to_sql_literal(response_format),
+            is_constant=True,
         )
 
     if show_details is not None:
@@ -14266,7 +14293,8 @@ def ai_sentiment(
     if return_error_details is not None:
         call_args.append(
             sql_expr(
-                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}"
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}",
+                is_constant=True,
             )
         )
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
@@ -14404,11 +14432,14 @@ def ai_count_tokens(
         call_args.append(lit(model))
     call_args.append(input_col)
     if options is not None:
-        call_args.append(sql_expr(_python_obj_to_sql_literal(options)))
+        call_args.append(
+            sql_expr(_python_obj_to_sql_literal(options), is_constant=True)
+        )
     if return_error_details is not None:
         call_args.append(
             sql_expr(
-                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}"
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}",
+                is_constant=True,
             )
         )
 
@@ -14491,7 +14522,7 @@ def ai_multi_embed(
             if _emit_ast
             else None
         )
-        config_col = sql_expr(_python_obj_to_sql_literal(config_dict))
+        config_col = sql_expr(_python_obj_to_sql_literal(config_dict), is_constant=True)
         return _call_function(
             sql_func_name,
             model_col,
@@ -14603,10 +14634,13 @@ def ai_redact(
     if has_red:
         call_args.append(
             sql_expr(
-                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}"
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}",
+                is_constant=True,
             )
         )
     if has_mode:
-        call_args.append(sql_expr(f"mode => {_python_obj_to_sql_literal(mode)}"))
+        call_args.append(
+            sql_expr(f"mode => {_python_obj_to_sql_literal(mode)}", is_constant=True)
+        )
 
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)

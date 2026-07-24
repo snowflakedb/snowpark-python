@@ -119,6 +119,16 @@ def test_unresolved_attribute():
     assert c.dependent_column_names() == COLUMN_DEPENDENCY_DOLLAR
     assert c.dependent_column_names_with_duplication() == ["$"]
 
+    # Constant SQL text has no column dependencies, even if the string contains "$"
+    d = UnresolvedAttribute("{'k': 1}", is_sql_text=True, is_constant=True)
+    assert d.is_constant
+    assert d.dependent_column_names() == COLUMN_DEPENDENCY_EMPTY
+    assert d.dependent_column_names_with_duplication() == []
+
+    e = UnresolvedAttribute("$1", is_sql_text=True, is_constant=True)
+    assert e.dependent_column_names() == COLUMN_DEPENDENCY_EMPTY
+    assert e.dependent_column_names_with_duplication() == []
+
 
 def test_case_when():
     a = Column("a")

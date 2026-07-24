@@ -1905,6 +1905,10 @@ def test_dataframe_ai_multi_embed_basic(session, resources_path):
     assert results[0]["MULTIMODAL_VECTOR"]["error"] is None
 
 
+@pytest.mark.xfail(
+    reason="AI_MULTI_EMBED is not yet enabled in the test account (Unknown function error)",
+    strict=False,
+)
 def test_dataframe_ai_multi_embed_default_output_column(session, resources_path):
     """Test DataFrame.ai.multi_embed uses default output column name."""
     _ = session.sql(

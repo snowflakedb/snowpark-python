@@ -138,6 +138,25 @@ def test_functions_alias():
     assert functions.from_unixtime == functions.to_timestamp
 
 
+def test_sql_expr_is_constant():
+    from snowflake.snowpark._internal.analyzer.expression import (
+        COLUMN_DEPENDENCY_ALL,
+        COLUMN_DEPENDENCY_EMPTY,
+        UnresolvedAttribute,
+    )
+    from snowflake.snowpark.functions import sql_expr
+
+    col_expr = sql_expr("a + 1", _emit_ast=False)
+    assert isinstance(col_expr._expression, UnresolvedAttribute)
+    assert not col_expr._expression.is_constant
+    assert col_expr._expression.dependent_column_names() == COLUMN_DEPENDENCY_ALL
+
+    const_expr = sql_expr("{'k': 1}", _emit_ast=False, is_constant=True)
+    assert isinstance(const_expr._expression, UnresolvedAttribute)
+    assert const_expr._expression.is_constant
+    assert const_expr._expression.dependent_column_names() == COLUMN_DEPENDENCY_EMPTY
+
+
 def _render_ai_extract_sql(response_format):
     """Render the full generated SQL fragment for an ``ai_extract`` call.
 
