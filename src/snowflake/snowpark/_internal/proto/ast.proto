@@ -794,8 +794,10 @@ message DataframeAiComplete {
 // dataframe-ai.ir:89
 message DataframeAiCountTokens {
   Expr df = 1;
+  string function_name = 8;
   string model = 2;
   google.protobuf.StringValue output_column = 3;
+  Expr options = 7;
   Expr prompt = 4;
   google.protobuf.BoolValue return_error_details = 6;
   SrcPosition src = 5;

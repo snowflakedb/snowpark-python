@@ -14449,7 +14449,7 @@ def ai_count_tokens(
 @publicapi
 def ai_multi_embed(
     model: str,
-    input: Union[ColumnOrLiteralStr, Column],
+    input: ColumnOrLiteralStr,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Column:
@@ -14511,10 +14511,7 @@ def ai_multi_embed(
     config_dict = dict(kwargs)
 
     model_col = lit(model)
-    if isinstance(input, str):
-        input_col = lit(input)
-    else:
-        input_col = input
+    input_col = _to_col_if_lit(input, sql_func_name)
 
     if config_dict:
         ast = (

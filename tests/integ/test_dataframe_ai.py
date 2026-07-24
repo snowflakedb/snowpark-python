@@ -1283,6 +1283,21 @@ def test_dataframe_ai_count_tokens_default_output_column(session):
     assert results[0]["COUNT_TOKENS_OUTPUT"] > 0
 
 
+def test_dataframe_ai_count_tokens_function_name(session):
+    """Test DataFrame.ai.count_tokens with a non-default function_name."""
+    df = session.create_dataframe([["What is a large language model?"]], schema=["text"])
+
+    result_df = df.ai.count_tokens(
+        model="snowflake-arctic-embed-l-v2.0",
+        prompt="text",
+        function_name="ai_embed",
+        output_column="token_count",
+    )
+    results = result_df.collect()
+    assert len(results) == 1
+    assert results[0]["TOKEN_COUNT"] > 0
+
+
 def test_dataframe_ai_count_tokens_error_handling(session):
     """Test error handling in DataFrame.ai.count_tokens."""
     df = session.create_dataframe([["test"]], schema=["text"])
@@ -2016,3 +2031,33 @@ def test_dataframe_ai_count_tokens_return_error_details(session):
     assert "value" in parsed and "error" in parsed
     assert parsed["error"] is None
     assert parsed["value"] > 0
+
+
+def test_ai_complete_return_error_details(session):
+    """AI_COMPLETE with return_error_details=True returns OBJECT with value/error."""
+    from snowflake.snowpark.functions import ai_complete
+
+    df = session.range(1).select(
+        ai_complete(
+            "llama3.1-8b",
+            "Say hello in one word.",
+            return_error_details=True,
+        ).alias("out")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+    assert parsed["error"] is None
+
+
+def test_ai_translate_return_error_details(session):
+    """AI_TRANSLATE with return_error_details=True returns OBJECT with value/error."""
+    from snowflake.snowpark.functions import ai_translate
+
+    df = session.range(1).select(
+        ai_translate("Hello world", "en", "de", return_error_details=True).alias("out")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+    assert parsed["error"] is None

@@ -1481,6 +1481,7 @@ class DataFrameAIFunctions:
         model: str,
         prompt: ColumnOrName,
         *,
+        function_name: str = "ai_complete",
         output_column: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
         return_error_details: Optional[bool] = None,
@@ -1509,6 +1510,9 @@ class DataFrameAIFunctions:
                 - ``voyage-multilingual-2``
             prompt: The column (Column object or column name as string) containing the text
                 to count tokens for.
+            function_name: The AI function whose tokenizer should be used for counting.
+                Must begin with ``'ai_'``. Defaults to ``'ai_complete'``. Examples:
+                ``'ai_complete'``, ``'ai_classify'``, ``'ai_embed'``.
             output_column: The name of the output column to be appended.
                 If not provided, a column named ``COUNT_TOKENS_OUTPUT`` is appended.
             options: Optional dict specifying additional processing parameters for the
@@ -1523,7 +1527,7 @@ class DataFrameAIFunctions:
 
         Examples::
 
-            >>> # Count tokens for a simple text
+            >>> # Count tokens for ai_complete
             >>> df = session.create_dataframe([
             ...     ["What is a large language model?"],
             ...     ["Explain quantum computing in simple terms."],
@@ -1536,14 +1540,20 @@ class DataFrameAIFunctions:
             >>> result_df.collect()[0]["TOKEN_COUNT"] > 0
             True
 
+            >>> # Count tokens for ai_embed with a different model
+            >>> result_df = df.ai.count_tokens(
+            ...     model="snowflake-arctic-embed-l-v2.0",
+            ...     prompt="text",
+            ...     function_name="ai_embed",
+            ...     output_column="token_count"
+            ... )
+            >>> result_df.collect()[0]["TOKEN_COUNT"] > 0
+            True
+
         Note:
             The token count does not account for any managed system prompt that may be
             automatically added when using other Cortex AI functions. The actual token
             usage may be higher when using those functions.
-
-            This DataFrame method estimates tokens for ``ai_complete``. To count tokens
-            for other AI functions, use :func:`~snowflake.snowpark.functions.ai_count_tokens`
-            directly.
         """
 
         output_column_name = output_column or "COUNT_TOKENS_OUTPUT"
@@ -1555,15 +1565,18 @@ class DataFrameAIFunctions:
             stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_ai_count_tokens, stmt)
             self._dataframe._set_ast_ref(ast.df)
+            ast.function_name = function_name
             ast.model = model
             build_expr_from_snowpark_column_or_col_name(ast.prompt, prompt_col)
+            if options is not None:
+                build_expr_from_python_val(ast.options, options)
             if return_error_details is not None:
                 ast.return_error_details.value = return_error_details
 
             ast.output_column.value = output_column_name
 
         result_col = ai_count_tokens(
-            "ai_complete",
+            function_name,
             prompt_col,
             model=model,
             options=options,
