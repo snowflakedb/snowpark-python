@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import copy
 import decimal
 import math
 from unittest import mock
@@ -32,6 +33,7 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 from snowflake.snowpark.types import DoubleType, IntegerType, StructType, StructField
+from snowflake.snowpark._internal.utils import is_ast_enabled
 from tests.utils import Utils
 
 
@@ -1370,3 +1372,71 @@ def test_group_by_exclude_grouping_columns(session):
     )
     assert len(result_builtin_exclude[0]) == 1  # only sum
     Utils.check_answer(result_builtin_exclude, [Row(6), Row(15)])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ORDER BY append and limit append are not supported in local testing mode",
+)
+def test_copy_preserves_agg_state(session):
+    """copy.copy() and _copy_without_ast() must preserve post-aggregate state so
+    that .limit() and .sort() on the copy go through _build_post_agg_df and
+    generate correct SQL (ORDER BY inside the aggregate subquery, not lost on
+    the outer wrapper)."""
+    if is_ast_enabled():
+        pytest.skip(
+            "_copy_without_ast() leaves _ast_id=None; calling limit() on the copy "
+            "crashes in AST mode because publicapi injects _emit_ast=True via the "
+            "global is_ast_enabled() which bypasses the Session.ast_enabled mock."
+        )
+    # Disable AST: copy.copy(df).limit() triggers debug_check_missing_ast because
+    # the copy carries the source's API usage with no corresponding AST entries.
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
+        df = session.create_dataframe(
+            [
+                ("a", 3),
+                ("b", 1),
+                ("a", 1),
+                ("b", 2),
+                ("c", 10),
+            ],
+            ["k", "v"],
+        )
+        agg_sorted = (
+            df.group_by("k")
+            .agg(sum_("v").alias("total"))
+            .filter(col("total") > 1)
+            .sort(col("total").desc())
+        )
+
+        for copied in (copy.copy(agg_sorted), agg_sorted._copy_without_ast()):
+            # Internal state must be carried over so _build_post_agg_df fires correctly
+            assert (
+                copied._ops_after_agg
+                and copied._ops_after_agg == agg_sorted._ops_after_agg
+            )
+            assert (
+                copied._agg_base_plan
+                and copied._agg_base_plan == agg_sorted._agg_base_plan
+            )
+            # _agg_base_select_statement is only populated when the SQL simplifier
+            # is enabled; it is None (and legitimately so) when disabled.
+            if session.sql_simplifier_enabled:
+                assert (
+                    copied._agg_base_select_statement
+                    and copied._agg_base_select_statement
+                    is agg_sorted._agg_base_select_statement
+                )
+            assert (
+                copied._pending_order_bys
+                and copied._pending_order_bys == agg_sorted._pending_order_bys
+            )
+            assert (
+                copied._pending_havings
+                and copied._pending_havings == agg_sorted._pending_havings
+            )
+
+            # Observable result: ORDER BY must be respected under LIMIT
+            Utils.check_answer(copied.limit(2), [Row("c", 10), Row("a", 4)])

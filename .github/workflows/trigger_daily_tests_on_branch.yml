@@ -1,0 +1,76 @@
+name: Trigger Daily Tests on Branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch name to run tests on"
+        required: true
+        default: "main"
+
+permissions:
+  actions: write
+
+jobs:
+  trigger-tests:
+    name: Trigger all daily test workflows on branch "${{ inputs.branch }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger daily_precommit.yml
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'daily_precommit.yml',
+              ref: '${{ inputs.branch }}',
+            });
+            console.log('Triggered daily_precommit.yml on branch: ${{ inputs.branch }}');
+
+      - name: Trigger daily_modin_precommit_py310.yml
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'daily_modin_precommit_py310.yml',
+              ref: '${{ inputs.branch }}',
+            });
+            console.log('Triggered daily_modin_precommit_py310.yml on branch: ${{ inputs.branch }}');
+
+      - name: Trigger daily_modin_precommit_py311_py312.yml
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'daily_modin_precommit_py311_py312.yml',
+              ref: '${{ inputs.branch }}',
+            });
+            console.log('Triggered daily_modin_precommit_py311_py312.yml on branch: ${{ inputs.branch }}');
+
+      - name: Trigger daily_jupyter_nb_test.yml
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'daily_jupyter_nb_test.yml',
+              ref: '${{ inputs.branch }}',
+            });
+            console.log('Triggered daily_jupyter_nb_test.yml on branch: ${{ inputs.branch }}');
+
+      - name: Summary
+        run: |
+          echo "## Triggered Workflows" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Branch: \`${{ inputs.branch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- daily_precommit.yml" >> $GITHUB_STEP_SUMMARY
+          echo "- daily_modin_precommit_py310.yml" >> $GITHUB_STEP_SUMMARY
+          echo "- daily_modin_precommit_py311_py312.yml" >> $GITHUB_STEP_SUMMARY
+          echo "- daily_jupyter_nb_test.yml" >> $GITHUB_STEP_SUMMARY

@@ -174,7 +174,7 @@ def test_set_incorrect_active_profiler(
         """WITH myProcedure AS PROCEDURE ()
       RETURNS TABLE ( )
       LANGUAGE PYTHON
-      RUNTIME_VERSION = '3.9'
+      RUNTIME_VERSION = '3.10'
       PACKAGES = ( 'snowflake-snowpark-python==1.2.0', 'pandas==1.3.3' )
       IMPORTS = ( '@my_stage/file1.py', '@my_stage/file2.py' )
       HANDLER = 'my_function'

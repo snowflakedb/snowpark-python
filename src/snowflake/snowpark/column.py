@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import sys
 import typing
 from typing import Any, Optional, Union
 
@@ -100,13 +99,7 @@ from snowflake.snowpark.types import (
 )
 from snowflake.snowpark.window import Window, WindowSpec
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
+from collections.abc import Iterable
 
 
 def _to_col_if_lit(

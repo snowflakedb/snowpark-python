@@ -143,13 +143,7 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 import snowflake.snowpark.context as context
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
+from collections.abc import Iterable
 
 _logger = getLogger(__name__)
 
@@ -1071,8 +1065,13 @@ class SnowflakePlanBuilder:
 
     def table(self, table_name: str, source_plan: LogicalPlan) -> SnowflakePlan:
         table_reference = table_name
-        if isinstance(source_plan, SnowflakeTable) and source_plan.time_travel_config:
-            table_reference += source_plan.time_travel_config.generate_sql_clause()
+        if isinstance(source_plan, SnowflakeTable):
+            if source_plan.iceberg_changes_config:
+                table_reference += (
+                    source_plan.iceberg_changes_config.generate_sql_clause()
+                )
+            elif source_plan.time_travel_config:
+                table_reference += source_plan.time_travel_config.generate_sql_clause()
 
         return self.query(project_statement([], table_reference), source_plan)
 

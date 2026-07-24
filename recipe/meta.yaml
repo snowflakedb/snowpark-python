@@ -1,5 +1,5 @@
 {% set name = "snowflake-snowpark-python" %}
-{% set version = "1.50.1" %}
+{% set version = "1.53.1" %}
 {% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 {% set build_number = os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 0) %}
 
@@ -19,7 +19,6 @@ build:
     - SNOWFLAKE_IS_PYTHON_RUNTIME_TEST=1
 {% if noarch_build %}
   noarch: python
-  string: "py39_{{ build_number }}"  # [py==39]
   string: "py310_{{ build_number }}"  # [py==310]
   string: "py311_{{ build_number }}"  # [py==311]
   string: "py312_{{ build_number }}"  # [py==312]
@@ -27,8 +26,8 @@ build:
   string: "py314_{{ build_number }}"  # [py==314]
 {% endif %}
 
-{% if noarch_build and py not in [39, 310, 311, 312, 313, 314] %}
-error: "Noarch build for Python version {{ py }} is not supported. Supported versions: 3.9, 3.10, 3.11, 3.12, 3.13, or 3.14."
+{% if noarch_build and py not in [310, 311, 312, 313, 314] %}
+error: "Noarch build for Python version {{ py }} is not supported. Supported versions: 3.10, 3.11, 3.12, 3.13, or 3.14."
 {% else %}
 requirements:
   host:
@@ -39,14 +38,14 @@ requirements:
     # Snowpark IR
     - protobuf==3.20.1  # [py<=310]
     - protobuf==4.25.3  # [py>310 and py<314]
-    - protobuf==5.29.3  # [py>=314]
-    - libprotobuf >=5.29.3 # [py>=314]
-    # mypy-protobuf 3.7.0 requires protobuf >= 5.26
+    - protobuf >=5.29.3,<6.34  # [py>=314]
+    - libprotobuf >=5.29.3,<6.34  # [py>=314]
+    # mypy-protobuf <=3.6.0 has no ValidateProtobufRuntimeVersion in its pb2 files,
+    # safe with protobuf 5.x or 6.x. mypy-protobuf 5.x+ requires protobuf 6.x gencode
+    # which conflicts with the internal channel's protobuf 5.x for py314.
     - mypy-protobuf <=3.6.0
   run:
-    {% if noarch_build and py == 39 %}
-    - python >=3.9,<3.10.0a0
-    {% elif noarch_build and py == 310 %}
+    {% if noarch_build and py == 310 %}
     - python >=3.10,<3.11.0a0
     {% elif noarch_build and py == 311 %}
     - python >=3.11,<3.12.0a0
@@ -62,12 +61,10 @@ requirements:
     - cloudpickle >=1.6.0,<=3.1.1,!=2.1.0,!=2.2.0
     - snowflake-connector-python >=3.17.0,<5.0.0
     - typing-extensions >=4.1.0,<5.0.0
-    # need to pin libffi because of problems in cryptography.
-    # This might no longer hold true but keep it just to avoid it from biting us again
-    - libffi <=3.4.4
     - pyyaml
     # Snowpark IR
-    - protobuf >=3.20,<6.34
+    - protobuf >=3.20,<6.34    # [py<314]
+    - protobuf >=5.29.3,<6.34  # [py>=314]
     - python-dateutil
     - tzlocal
   run_constrained:

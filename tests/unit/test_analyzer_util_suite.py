@@ -860,3 +860,186 @@ def test_get_options_statement():
         )
         == " INCLUDE_METADATA = (col1 = METADATA$FILENAME, col2 = METADATA$FILE_ROW_NUMBER) "
     )
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for escaping special characters in SQL string literals.
+#
+# These cover four sinks that build single-quoted SQL string literals from
+# user-provided values:
+#   * get_comment_sql      (COMMENT clauses)
+#   * collate_expression   (Column.collate)
+#   * subfield_expression  (Column.__getitem__)
+#   * flatten_expression   (DataFrame/Session.flatten PATH)
+# All four route through the dedicated helper escape_quotes_and_backslashes,
+# which escapes backslashes first (`\` -> `\\`) then single quotes (`'` -> `''`)
+# so a value containing those characters does not terminate the literal early.
+# Verified against live Snowflake: values round-trip exactly and produce valid
+# SQL.
+#
+# The shared escape_single_quotes helper is intentionally LEFT UNCHANGED
+# (quote-only) so that unrelated callers (e.g. the udf COMMENT ON path) are
+# unaffected.
+# ---------------------------------------------------------------------------
+
+
+def test_escape_single_quotes_is_quote_only_and_unchanged():
+    # This helper must remain quote-only so that unrelated call sites are not
+    # affected. Backslashes are deliberately NOT escaped here.
+    from snowflake.snowpark._internal.utils import escape_single_quotes
+
+    assert escape_single_quotes("O'Brien") == r"O\'Brien"
+    # backslash left untouched
+    assert escape_single_quotes("a\\b") == "a\\b"
+    assert escape_single_quotes("\\'") == r"\\'"
+
+
+def test_escape_quotes_and_backslashes():
+    from snowflake.snowpark._internal.utils import escape_quotes_and_backslashes
+
+    # single quotes are doubled
+    assert escape_quotes_and_backslashes("O'Brien") == "O''Brien"
+    # lone backslash must be doubled so it cannot escape a following quote
+    assert escape_quotes_and_backslashes("a\\b") == r"a\\b"
+    # value with neither quote nor backslash is returned byte-identical
+    assert escape_quotes_and_backslashes("plain text 123") == "plain text 123"
+    # a backslash immediately followed by a quote previously became `\\'`
+    # (decoding to a literal backslash followed by a quote that ends the literal
+    # early); it must now become `\\''` (escaped backslash + doubled quote).
+    assert escape_quotes_and_backslashes("\\'") == r"\\" + "''"
+    # a value mixing both characters is fully escaped
+    value = "a'b\\c (draft), v2 --"
+    escaped = escape_quotes_and_backslashes(value)
+    assert escaped == "a''b" + "\\\\" + "c (draft), v2 --"
+
+
+def test_get_comment_sql_no_special_characters_unchanged():
+    # A comment with no quote/backslash must produce byte-identical SQL to the
+    # previous behavior.
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import get_comment_sql
+
+    assert (
+        get_comment_sql("A frosty winter wonderland with glistening snowflakes")
+        == " COMMENT  = 'A frosty winter wonderland with glistening snowflakes'"
+    )
+    # empty / None comment yields nothing
+    assert get_comment_sql(None) == ""
+    assert get_comment_sql("") == ""
+
+
+def test_get_comment_sql_escapes_special_characters():
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import get_comment_sql
+
+    # apostrophes are escaped by doubling
+    assert get_comment_sql("O'Brien's data") == " COMMENT  = 'O''Brien''s data'"
+    # a comment containing a backslash followed by a quote is escaped so it
+    # stays inside the literal
+    sql = get_comment_sql("O'Brien\\notes (draft), v2 --")
+    assert sql == " COMMENT  = 'O''Brien" + "\\\\" + "notes (draft), v2 --'"
+
+
+def test_collate_expression_no_special_characters_unchanged():
+    # Collation specs (quoted OR unquoted, no interior special chars) must
+    # produce byte-identical SQL to the previous single_quote() behavior.
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import collate_expression
+
+    assert collate_expression('"NAME"', "en_US") == "\"NAME\" COLLATE 'en_US'"
+    # pre-quoted spec is still passed through (outer quotes stripped, re-wrapped)
+    assert collate_expression('"NAME"', "'en_US'") == "\"NAME\" COLLATE 'en_US'"
+    assert collate_expression('"NAME"', "en_US-ci") == "\"NAME\" COLLATE 'en_US-ci'"
+    assert collate_expression('"NAME"', "en_US-trim") == "\"NAME\" COLLATE 'en_US-trim'"
+
+
+def test_collate_expression_escapes_special_characters():
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import collate_expression
+
+    # A pre-quoted spec whose interior contains a quote: the outer quotes are
+    # stripped but the interior quote is escaped, so the value stays inside the
+    # literal.
+    spec = "'en'); notes --"
+    out = collate_expression('"NAME"', spec)
+    assert out.startswith('"NAME" COLLATE \'')
+    assert out.endswith("'")
+    # every interior single quote is escaped (doubled)
+    inner = out[len('"NAME" COLLATE \'') : -1]
+    assert "'" not in inner.replace("''", "")
+    # a spec with quotes and parentheses is escaped
+    spec2 = "en') = 'x' (note) --"
+    out2 = collate_expression('"NAME"', spec2)
+    assert out2 == "\"NAME\" COLLATE 'en'') = ''x'' (note) --'"
+
+
+def test_subfield_expression_no_special_characters_unchanged():
+    # A key with no quote/backslash must produce byte-identical SQL to before.
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import subfield_expression
+
+    assert subfield_expression("col", "plainkey") == "col['plainkey']"
+    # integer subfields are unaffected
+    assert subfield_expression("col", 3) == "col[3]"
+
+
+def test_subfield_expression_escapes_special_characters():
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import subfield_expression
+
+    # key with an apostrophe is escaped (doubled)
+    assert subfield_expression("col", "O'Brien") == "col['O''Brien']"
+    # key mixing quotes, backslashes, parentheses, commas and trailing dashes is
+    # escaped so it stays inside the bracket literal
+    key = "a'b\\c (x), y --"
+    out = subfield_expression("col", key)
+    assert out.startswith("col['")
+    assert out.endswith("']")
+    inner = out[len("col['") : -len("']")]
+    assert "'" not in inner.replace("\\\\", "").replace("''", "")
+
+
+def test_escape_subfield_key_preserves_already_doubled_quotes():
+    # Non-breaking contract: a key whose single quotes are already doubled (the
+    # historically-documented way to pass a quote in a subfield key) is preserved
+    # unchanged, so it is not double-escaped.
+    from snowflake.snowpark._internal.utils import escape_subfield_key
+
+    assert escape_subfield_key("date with '' and .") == "date with '' and ."
+    assert escape_subfield_key("plainkey") == "plainkey"
+    # a lone (unescaped) quote is fully escaped instead
+    assert escape_subfield_key("date with ' and .") == "date with '' and ."
+    # backslashes are always escaped so they are applied literally, even when the
+    # quotes are already doubled
+    assert escape_subfield_key("a\\b") == r"a\\b"
+    assert escape_subfield_key("o''clock\\t") == r"o''clock\\t"
+
+
+def test_subfield_expression_pre_doubled_quote_is_non_breaking():
+    # Regression for the historical contract exercised by
+    # tests/integ/scala/test_column_suite.py::test_subfield: a caller that
+    # already doubled the quote must get byte-identical SQL to before this fix.
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import subfield_expression
+
+    assert (
+        subfield_expression("col", "date with '' and .") == "col['date with '' and .']"
+    )
+    # a raw (single) apostrophe now also works and lands on the same SQL literal
+    assert (
+        subfield_expression("col", "date with ' and .") == "col['date with '' and .']"
+    )
+
+
+def test_flatten_expression_no_special_characters_unchanged():
+    # A path with no quote/backslash must produce byte-identical SQL to before.
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import flatten_expression
+
+    out = flatten_expression("col", "request.headers", False, False, "BOTH")
+    assert " PATH  => 'request.headers'," in out
+    # None / empty path -> empty literal
+    out_none = flatten_expression("col", None, False, False, "BOTH")
+    assert " PATH  => ''," in out_none
+
+
+def test_flatten_expression_escapes_special_characters():
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import flatten_expression
+
+    # a path containing quotes/parentheses/commas/dashes is escaped so it stays
+    # inside the PATH literal
+    path = "a'b (x), y --"
+    out = flatten_expression("col", path, False, False, "BOTH")
+    assert " PATH  => 'a''b (x), y --'," in out

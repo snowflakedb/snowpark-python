@@ -31,13 +31,7 @@ from snowflake.snowpark._internal.ast.utils import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list, publicapi
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
+from collections.abc import Iterable
 
 
 def _convert_boundary_to_expr(

@@ -26,7 +26,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -51,7 +51,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -78,7 +78,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: '3.10'
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -108,10 +108,14 @@ jobs:
         # matrix is empty for pre-commit, tests are only added
         # through the include directive
         include:
-          # only run py3.9 tests on ubuntu+aws to isolate 3.9 failures
-          - python-version: "3.9"
-            os: ubuntu-latest-64-cores
+          # run py 3.10 tests on aws/ubuntu
+          - python-version: "3.10"
             cloud-provider: aws
+            os: ubuntu-latest-64-cores
+          # run py 3.11 tests on azure/windows
+          - python-version: "3.11"
+            cloud-provider: azure
+            os: windows-latest-64-cores
           # only run azure tests with latest python and ubuntu
           - cloud-provider: azure
             python-version: "3.12"
@@ -212,8 +216,7 @@ jobs:
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
         shell: bash
       - name: Run data source tests
-        # psycopg2 is not supported on macos 3.9
-        if: ${{ !(matrix.os == 'macos-latest' && matrix.python-version == '3.9') }}
+        if: ${{ !(matrix.python-version == '3.14') }}
         run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -392,7 +395,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ macos-latest ]
-        python-version: [ "3.9"]
+        python-version: [ "3.10"]
         cloud-provider: [ aws ]
     steps:
       - name: Checkout Code
@@ -520,7 +523,7 @@ jobs:
         # version/cloud/OS permutation coverage.
         include:
           # The steps below are configured to run only doctests for macos-3.12-aws
-          - python-version: "3.9"
+          - python-version: "3.10"
             os: macos-latest
             cloud-provider: aws
           - cloud-provider: gcp
@@ -625,7 +628,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos
-        python-version: ["3.9"]
+        python-version: ["3.10"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
@@ -701,7 +704,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -763,7 +766,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:

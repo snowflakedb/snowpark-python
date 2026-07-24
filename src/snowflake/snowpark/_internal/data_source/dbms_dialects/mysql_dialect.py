@@ -24,22 +24,22 @@ class MysqlDialect(BaseDialect):
     ) -> str:
         cols = []
         for field, raw_field in zip(schema.fields, raw_schema):
+            quoted_name = self._quote_backtick(raw_field[0])
             field_name = (
-                f"{query_input_alias}.`{raw_field[0]}`"
-                if is_query
-                else f"`{raw_field[0]}`"
+                f"{query_input_alias}.{quoted_name}" if is_query else quoted_name
             )
+            alias = quoted_name
             if isinstance(field.datatype, TimeType):
-                cols.append(f"""CAST({field_name} AS CHAR) AS {raw_field[0]}""")
+                cols.append(f"""CAST({field_name} AS CHAR) AS {alias}""")
             elif (
                 isinstance(field.datatype, BinaryType)
                 or raw_field[1] == PymysqlTypeCode.BIT
             ):
-                cols.append(f"""HEX({field_name}) AS {raw_field[0]}""")
+                cols.append(f"""HEX({field_name}) AS {alias}""")
             else:
-                cols.append(
-                    f"{field_name} AS {raw_field[0]}"
-                ) if is_query else cols.append(field_name)
+                cols.append(f"{field_name} AS {alias}") if is_query else cols.append(
+                    field_name
+                )
 
         return QUERY_TEMPLATE.format(
             cols=", ".join(cols),

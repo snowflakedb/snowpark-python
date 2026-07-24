@@ -219,7 +219,7 @@ def test_read_snowflake_query_cte_with_python_anonymous_sproc(
                 WITH filterByRole AS PROCEDURE (tableName VARCHAR, role VARCHAR)
                 RETURNS TABLE("id" NUMBER, "name" VARCHAR, "role" VARCHAR)
                 LANGUAGE PYTHON
-                RUNTIME_VERSION = '3.9'
+                RUNTIME_VERSION = '3.10'
                 PACKAGES = ('snowflake-snowpark-python')
                 HANDLER = 'filter_by_role'
                 AS $$from snowflake.snowpark.functions import col

@@ -1,10 +1,80 @@
 # Release History
 
-## 1.51.0 (TBD)
+## 1.54.0 (TBD)
+
+### Snowpark Python API updates
+
+#### Improvements
+
+- Removed the `experimental` tag from all AI SQL functions in `DataFrameAIFunctions` (`complete`, `filter`, `agg`, `classify`, `similarity`, `sentiment`, `embed`, `summarize_agg`, `transcribe`, `parse_document`, `extract`, `count_tokens`, `split_text_markdown_header`, `split_text_recursive_character`) and `RelationalGroupedDataFrame.ai_agg`.
+
+#### Bug Fixes
+
+- Reverted the change introduced in 1.53.0 to eliminate unnecessary `SELECT *` from joins, which was causing performance regressions. This has no functional impact.
+
+## 1.53.1 (2026-07-14)
+
+No user-facing changes in this release.
+
+## 1.53.0 (2026-07-09)
 
 ### Snowpark Python API Updates
 
 #### New Features
+
+- Added the `udf_init_once` decorator in `snowflake.snowpark.functions` for marking functions to be executed once during pre-fork initialization on Snowflake workers, matching the server-side `_snowflake.udf_init_once` API.
+
+#### Bug Fixes
+
+- Fixed a bug where stage paths and file format names that contain single quotes were not consistently escaped when generating SQL, which could produce malformed statements. This affects `INFER_SCHEMA` (used by `DataFrameReader.csv`/`json`/`parquet`/`orc`/`avro`) and `COPY FILES` (used by `FileOperation.copy_files`).
+- Fixed a bug where single quotes and backslashes in stage/file paths were not correctly escaped when generating `COPY INTO` / `PUT` / `GET` SQL, which could produce malformed statements. This affects `DataFrame.write.csv`/`copy_into_location` and the Snowpark-pandas `DataFrame.to_csv` stage path.
+- Fixed a bug where column names containing quote characters returned by an external database were not correctly escaped when generating the `SELECT` query for `DataFrameReader.dbapi`, which could produce malformed SQL. Embedded quote characters in identifiers are now doubled (backticks for Databricks/MySQL, double quotes for Oracle/PostgreSQL/SQL Server).
+- Fixed a bug where the destination passed to `DataFrameWriter.copy_into_location` (and `csv`/`json`/`parquet`/`save`) was embedded into the generated `COPY INTO` statement without quoting, which could produce malformed SQL for locations containing single quotes. The location is now consistently quoted and escaped, and a string that merely starts and ends with a single quote but contains unescaped interior quotes is no longer treated as an already-quoted literal; it is fully escaped so it stays a single SQL string literal.
+- Fixed a bug where UDF default argument values reconstructed from a source file in `register_from_file` were evaluated with `eval()`; they are now evaluated only against the documented set of supported default-value types, and unsupported expressions are ignored.
+- Fixed a bug where `object_name`, `object_domain`, or `object_version` values containing single quotes or backslashes in `session.lineage.trace()` caused incorrect SQL generation. These values are now properly escaped before being embedded in the `SYSTEM$DGQL` call.
+- Fixed a bug where single quotes and backslashes in `comment` (`create_or_replace_view` / dynamic table / `save_as_table`), collation specs (`Column.collate`), VARIANT/OBJECT subfield keys (`Column[...]`), and `DataFrame`/`Session.flatten` paths were not correctly escaped when generating SQL, which could produce malformed statements. Backslash sequences (e.g. `\t`, `\n`) in these values are now applied literally rather than interpreted.
+- Fixed a bug where string values in the AI functions (`ai_extract`, `ai_classify`, `ai_similarity`, `ai_parse_document`, `ai_transcribe`, `ai_complete`) configuration and `response_format` were not correctly escaped when generating the SQL object literal, which could produce malformed statements when a value contained single quotes or backslashes (for example, an apostrophe in a natural-language question).
+
+#### Improvements
+
+- Reduced the size of generated query text for repeated join operations.
+
+#### Dependency Updates
+
+- Lifted `protobuf` restriction for Python 3.14 from `==5.29.3` to `>=5.29.3,<6.34`.
+- Capped `pandas` to `<3.0.0` for the `[pandas]` install extra, as Snowpark Python pandas-related features may not be fully compatible with pandas 3.0 or later.
+
+## 1.52.0 (2026-06-10)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added `get_wif_token` to `snowflake.snowpark.secrets` for workload identity federation tokens on the Snowflake server (not available in SPCS file-based secret environments).
+
+#### Bug Fixes
+
+- Fixed a bug where copying a `DataFrame` via `copy.copy()` lost post-aggregate state, causing subsequent `.limit()` or `.sort()` to generate incorrect SQL.
+- Fixed a bug where calling `DataFrame.alias()` twice on the same DataFrame (e.g. for a self-join) caused both aliases to share the same internal column-mapping dictionary. This made `col("R", "col")` resolve to the same column as `col("L", "col")`, producing incorrect join conditions and filter expressions.
+- Fixed a bug where `cloudpickle` could not be resolved when registering a Python stored procedure or UDF with `runtime_version='3.13'`.
+
+#### Improvements
+
+- Improved CTE optimization to deduplicate identical subtrees in self-joins, which were previously emitted as repeated subqueries.
+
+#### Deprecations
+
+- Removed support for Python 3.9.
+
+## 1.51.1 (2026-05-28)
+
+#### Documentation
+
+- Clarified that the JDBC driver JAR referenced via `udtf_configs.imports` in `DataFrameReader.jdbc()` must be downloaded from the database vendor and uploaded to a Snowflake stage.
+
+## 1.51.0 (2026-05-18)
+
+### Snowpark Python API Updates
 
 #### Bug Fixes
 

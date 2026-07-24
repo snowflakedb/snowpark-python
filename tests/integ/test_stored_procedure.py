@@ -8,7 +8,6 @@ import importlib.metadata
 import logging
 import os
 import re
-import sys
 import time
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
@@ -2314,9 +2313,6 @@ def test_register_sproc_after_switch_schema(session):
     IS_IN_STORED_PROC,
     reason="Stored proc env does not have permissions to look up warehouse details",
 )
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 def test_sproc_artifact_repository(session):
     def artifact_repo_test(_):
         import urllib3
@@ -2406,9 +2402,6 @@ def test_sproc_artifact_repository_with_packages_includes_cloudpickle(session):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
 @pytest.mark.skip("SNOW-2362946: Skip until root cause is found.")
 def test_sproc_artifact_repository_from_file(session, tmpdir):
     source = dedent(
@@ -2736,3 +2729,27 @@ def test_data_source_udtf_ingestion(db_parameters):
             ]
 
         assert normalize(df.collect()) == normalize(oracledb_real_data)
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="not supported in stored proc")
+def test_sproc_runtime_313_cloudpickle_ge_spec_compiles_and_executes(session):
+    """Regression test for SNOW-3081273.
+
+    Verifies that a sproc targeting Python 3.13 deploys and executes correctly
+    even when the local cloudpickle version differs from the server-resolved one.
+    The auto-injected cloudpickle>=X spec must satisfy the 3.13 channel.
+    """
+    multiplier = 7
+
+    def multiply(session_: Session, x: int) -> int:
+        return x * multiplier
+
+    sp = session.sproc.register(
+        multiply,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        packages=["snowflake-snowpark-python"],
+        runtime_version="3.13",
+        is_permanent=False,
+    )
+    assert sp(6) == 42

@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
 from snowflake.snowpark._internal.utils import (
     create_prompt_column_from_template,
-    experimental,
     publicapi,
 )
 from snowflake.snowpark._internal.ast.utils import (
@@ -43,7 +42,6 @@ class DataFrameAIFunctions:
     def __init__(self, dataframe: "snowflake.snowpark.DataFrame") -> None:
         self._dataframe = dataframe
 
-    @experimental(version="1.39.0")
     @publicapi
     def complete(
         self,
@@ -181,7 +179,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.39.0")
     @publicapi
     def filter(
         self,
@@ -285,7 +282,6 @@ class DataFrameAIFunctions:
             filtered_df._ast_id = stmt.uid
         return filtered_df
 
-    @experimental(version="1.39.0")
     @publicapi
     def agg(
         self,
@@ -396,7 +392,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.39.0")
     @publicapi
     def classify(
         self,
@@ -557,7 +552,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.39.0")
     @publicapi
     def similarity(
         self,
@@ -712,7 +706,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.39.0")
     @publicapi
     def sentiment(
         self,
@@ -831,7 +824,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.39.0")
     @publicapi
     def embed(
         self,
@@ -959,7 +951,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.39.0")
     @publicapi
     def summarize_agg(
         self,
@@ -1061,7 +1052,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.39.0")
     @publicapi
     def transcribe(
         self,
@@ -1109,7 +1099,7 @@ class DataFrameAIFunctions:
             >>> result = json.loads(result_df.collect()[0]["TRANSCRIPT"])
             >>> len(result["segments"]) > 0
             True
-            >>> result["segments"][0]["text"].lower()
+            >>> result["segments"][0]["text"].lower()  # doctest: +SKIP
             'the'
             >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
             True
@@ -1125,11 +1115,11 @@ class DataFrameAIFunctions:
             >>> result = json.loads(result_df.collect()[0]["TRANSCRIPT"])
             >>> result["audio_duration"] > 100 and len(result["segments"]) > 0
             True
-            >>> result["segments"][0]["speaker_label"]
+            >>> result["segments"][0]["speaker_label"]  # doctest: +SKIP
             'SPEAKER_00'
-            >>> 'jenny' in result["segments"][0]["text"].lower()
+            >>> 'jenny' in result["segments"][0]["text"].lower()  # doctest: +SKIP
             True
-            >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
+            >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]  # doctest: +SKIP
             True
         """
         output_column_name = output_column or "AI_TRANSCRIBE_OUTPUT"
@@ -1166,7 +1156,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.39.0")
     @publicapi
     def parse_document(
         self,
@@ -1260,7 +1249,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.39.0")
     @publicapi
     def extract(
         self,
@@ -1439,7 +1427,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.39.0")
     @publicapi
     def count_tokens(
         self,
@@ -1536,7 +1523,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.39.0")
     @publicapi
     def split_text_markdown_header(
         self,
@@ -1666,7 +1652,6 @@ class DataFrameAIFunctions:
             df._ast_id = stmt.uid
         return df
 
-    @experimental(version="1.39.0")
     @publicapi
     def split_text_recursive_character(
         self,

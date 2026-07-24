@@ -588,10 +588,14 @@ def test_read_csv_with_infer_schema_negative(session, mode, caplog):
     reader = get_reader(session, mode)
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_parquet}"
 
+    # Capture the real method before patching. Calling session._conn.run_query
+    # from the side_effect would recurse into this mock.
+    run_query = session._conn.run_query
+
     def mock_run_query(*args, **kwargs):
         if "INFER_SCHEMA ( LOCATION  =>" in args[0]:
             raise ProgrammingError("Cannot infer schema")
-        return session._conn.run_query(args, kwargs)
+        return run_query(*args, **kwargs)
 
     with mock.patch(
         "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
@@ -2155,6 +2159,48 @@ def test_filepath_with_single_quote(session):
     )
 
     assert result1 == result2
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1435112: csv infer schema option is not supported",
+)
+def test_filepath_with_embedded_single_quote(session, resources_path):
+    """Reading via INFER_SCHEMA from a pre-escaped single-quoted stage path that
+    contains an embedded single quote (``'@stage/o''clock/file.csv'``) must
+    resolve to the correct file and return its contents.
+
+    This is a regression guard for infer_schema_statement: the path is already a
+    valid single-quoted SQL literal, so it must be passed through verbatim. The
+    previous implementation stripped the outer quotes and re-escaped the inner
+    (already-escaped) quote, producing ``o''''clock`` -- which points at a
+    different physical path and breaks schema inference.
+    """
+    test_files = TestFiles(resources_path)
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=True)
+    try:
+        # Upload the CSV into a sub-path whose directory name contains an
+        # embedded apostrophe (physical path: ``o'clock/testCSV.csv``).
+        Utils.upload_to_stage(
+            session, f"@{stage_name}/o'clock/", test_files.test_file_csv, compress=False
+        )
+
+        # Pre-escaped single-quoted form: the apostrophe is doubled and the whole
+        # path is wrapped in single quotes -- a valid SQL string literal.
+        preescaped_path = f"'@{stage_name}/o''clock/{test_file_csv}'"
+
+        result = (
+            session.read.option("INFER_SCHEMA", True).csv(preescaped_path).collect()
+        )
+
+        # The path resolved to the correct file and returned its contents
+        # (numeric type is left to schema inference, so compare loosely).
+        assert len(result) == 2
+        assert [(row[0], row[1]) for row in result] == [(1, "one"), (2, "two")]
+        assert [float(row[2]) for row in result] == [1.2, 2.2]
+    finally:
+        Utils.drop_stage(session, stage_name)
 
 
 @pytest.mark.skipif(

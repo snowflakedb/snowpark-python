@@ -748,6 +748,70 @@ def test_path_with_special_chars(session, tmp_path_factory, local_testing_mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="running sql query is not supported in local testing",
 )
+@pytest.mark.parametrize(
+    "source_quote_mode,target_quote_mode,target_prefix,should_succeed",
+    [
+        ("unquoted", "unquoted", "q_unquoted", True),
+        ("single", "single", "q_single", True),
+        ("double", "double", "q_double", False),
+        ("unquoted", "single", "q_mixed_1", True),
+        ("single", "unquoted", "q_mixed_2", True),
+    ],
+)
+def test_copy_files_stage_location_quote_modes(
+    session,
+    path1,
+    source_quote_mode,
+    target_quote_mode,
+    target_prefix,
+    should_succeed,
+):
+    source_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    target_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+
+    def apply_quote_mode(location: str, mode: str) -> str:
+        if mode == "single":
+            return f"'{location}'"
+        if mode == "double":
+            return f'"{location}"'
+        return location
+
+    try:
+        session.sql(f"create or replace temp stage {source_stage}").collect()
+        session.sql(f"create or replace temp stage {target_stage}").collect()
+
+        session.file.put(
+            f"file://{path1}", f"@{source_stage}/source_prefix/", auto_compress=False
+        )
+
+        source_location = apply_quote_mode(
+            f"@{source_stage}/source_prefix/", source_quote_mode
+        )
+        target_location = apply_quote_mode(
+            f"@{target_stage}/{target_prefix}/", target_quote_mode
+        )
+        if should_succeed:
+            copy_result = session.file.copy_files(
+                source_location, target_location, detailed_output=False
+            )
+            assert copy_result == 1
+
+            copied_files = session.file.list(f"@{target_stage}/{target_prefix}/")
+            assert len(copied_files) == 1
+        else:
+            with pytest.raises(SnowparkSQLException, match="does not exist"):
+                session.file.copy_files(
+                    source_location, target_location, detailed_output=False
+                )
+    finally:
+        session.sql(f"drop stage if exists {source_stage}").collect()
+        session.sql(f"drop stage if exists {target_stage}").collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="running sql query is not supported in local testing",
+)
 def test_copy_files(session, path1, path2, path3):
     """Test basic COPY FILES functionality from one stage to another."""
     source_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)

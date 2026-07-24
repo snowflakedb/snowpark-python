@@ -6,7 +6,7 @@
 import json
 import math
 import os
-import sys
+import re
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence
 
@@ -41,7 +41,8 @@ from snowflake.snowpark._internal.utils import (
     EMPTY_STRING,
     TempObjectType,
     escape_quotes,
-    escape_single_quotes,
+    escape_quotes_and_backslashes,
+    escape_subfield_key,
     get_temp_type_for_object,
     is_single_quoted,
     is_sql_select_statement,
@@ -52,13 +53,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DataType
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
+from collections.abc import Iterable
 
 LEFT_PARENTHESIS = "("
 RIGHT_PARENTHESIS = ")"
@@ -409,7 +404,26 @@ def regexp_expression(expr: str, pattern: str, parameters: Optional[str] = None)
 
 
 def collate_expression(expr: str, collation_spec: str) -> str:
-    return expr + COLLATE + single_quote(collation_spec)
+    # Escape the collation spec so a value containing single quotes or
+    # backslashes does not terminate the single-quoted literal early and produce
+    # invalid SQL.
+    #
+    # Preserve the historical behavior of single_quote(): a spec that is already
+    # wrapped in single quotes (e.g. "'en_US'") is treated as pre-quoted, so we
+    # strip the outer quotes, escape the interior, and re-wrap. An unquoted spec
+    # is escaped and wrapped. Specs (quoted or unquoted) with no interior quotes
+    # or backslashes therefore produce identical SQL to before.
+    if is_single_quoted(collation_spec):
+        inner = collation_spec[1:-1]
+    else:
+        inner = collation_spec
+    return (
+        expr
+        + COLLATE
+        + SINGLE_QUOTE
+        + escape_quotes_and_backslashes(inner)
+        + SINGLE_QUOTE
+    )
 
 
 def subfield_expression(expr: str, field: Union[str, int]) -> str:
@@ -417,7 +431,12 @@ def subfield_expression(expr: str, field: Union[str, int]) -> str:
         expr
         + LEFT_BRACKET
         + (
-            SINGLE_QUOTE + field + SINGLE_QUOTE
+            # Escape the field so a VARIANT/OBJECT key containing single quotes
+            # or backslashes does not terminate the literal early. A key whose
+            # single quotes are already doubled is preserved unchanged (minus
+            # backslash normalization) to keep the historical "double your own
+            # quotes" contract non-breaking.
+            SINGLE_QUOTE + escape_subfield_key(field) + SINGLE_QUOTE
             if isinstance(field, str)
             else str(field)
         )
@@ -438,7 +457,10 @@ def flatten_expression(
         + PATH
         + RIGHT_ARROW
         + SINGLE_QUOTE
-        + (path or EMPTY_STRING)
+        # Escape the JSON path so a value containing single quotes or
+        # backslashes does not terminate the literal early and produce invalid
+        # SQL in the FLATTEN argument list.
+        + (escape_quotes_and_backslashes(path) if path else EMPTY_STRING)
         + SINGLE_QUOTE
         + COMMA
         + OUTER
@@ -1099,7 +1121,12 @@ def join_statement(
 
 def get_comment_sql(comment: Optional[str]) -> str:
     return (
-        COMMENT + EQUALS + SINGLE_QUOTE + escape_single_quotes(comment) + SINGLE_QUOTE
+        COMMENT + EQUALS + SINGLE_QUOTE
+        # Escape backslashes and single quotes so a comment containing those
+        # characters does not terminate the single-quoted literal early and
+        # produce invalid SQL. A comment with no backslash/quote is emitted
+        # unchanged.
+        + escape_quotes_and_backslashes(comment) + SINGLE_QUOTE
         if comment
         else EMPTY_STRING
     )
@@ -1323,13 +1350,11 @@ def infer_schema_statement(
         + LEFT_PARENTHESIS
         + LOCATION
         + RIGHT_ARROW
-        + (path if is_single_quoted(path) else SINGLE_QUOTE + path + SINGLE_QUOTE)
+        + single_quote(path)
         + COMMA
         + FILE_FORMAT
         + RIGHT_ARROW
-        + SINGLE_QUOTE
-        + file_format_name
-        + SINGLE_QUOTE
+        + single_quote(file_format_name)
         + (
             ", "
             + ", ".join(
@@ -1358,7 +1383,14 @@ def file_operation_statement(
         return f"{REMOVE}{stage_location}{get_options_statement(options)}"
     if command.lower() == "copy_files":
         # For COPY FILES, file_name stores the value of the source stage location or subquery (from a DataFrame)
-        return f"{COPY_FILES}{INTO}{stage_location}{FROM}{file_name}{get_options_statement(options)}"
+        # Quote stage_location; file_name may be a subquery that must not be quoted
+        quoted_target = single_quote(stage_location)
+        # If file_name is a subquery (starts with '('), don't quote it
+        if file_name.strip().startswith("("):
+            source = file_name
+        else:
+            source = single_quote(file_name)
+        return f"{COPY_FILES}{INTO}{quoted_target}{FROM}{source}{get_options_statement(options)}"
     raise ValueError(f"Unsupported file operation type {command}")
 
 
@@ -1878,7 +1910,7 @@ def copy_into_location(
     return (
         COPY
         + INTO
-        + stage_location
+        + escape_location_literal(stage_location)
         + FROM
         + LEFT_PARENTHESIS
         + query
@@ -2086,10 +2118,45 @@ def table(content: str) -> str:
 
 
 def single_quote(value: str) -> str:
-    if value.startswith(SINGLE_QUOTE) and value.endswith(SINGLE_QUOTE):
+    if is_single_quoted(value):
         return value
     else:
+        # Double any embedded single quotes so the value stays a single literal
+        value = value.replace("'", "''")
         return SINGLE_QUOTE + value + SINGLE_QUOTE
+
+
+# Matches a complete, well-formed single-quoted SQL literal. The three body
+# alternatives each start with a different character (non-quote/non-backslash,
+# ', \), so every input character fits exactly one branch -- the engine never
+# backtracks, giving linear-time matching even on adversarial input.
+# Matches:     "'@stage/o''clock/'"    (interior quote is doubled -> one literal)
+# No match:    "'@x' UNION SELECT --'"  (bare interior quote ends the literal early)
+_WELL_FORMED_SINGLE_QUOTED_LITERAL = re.compile(
+    r"""
+    '                # opening single quote
+    (                # body: zero or more of...
+        [^'\\]       #   any char that is neither a quote nor a backslash
+        | ''         #   or a doubled (escaped) quote
+        | \\.        #   or a backslash followed by any char (backslash escape)
+    )*
+    '                # closing single quote
+    """,
+    re.VERBOSE | re.DOTALL,
+)
+
+
+def escape_location_literal(value: str) -> str:
+    """Return ``value`` as a single, well-formed single-quoted SQL literal.
+
+    Unlike :func:`single_quote`, a value that merely starts and ends with a
+    single quote but contains unescaped interior quotes is treated as unquoted
+    and fully escaped. This prevents a caller-controlled location from breaking
+    out of the string literal in the generated ``COPY INTO`` statement.
+    """
+    if _WELL_FORMED_SINGLE_QUOTED_LITERAL.fullmatch(value):
+        return value
+    return SINGLE_QUOTE + value.replace("'", "''") + SINGLE_QUOTE
 
 
 def quote_name_without_upper_casing(name: str) -> str:
