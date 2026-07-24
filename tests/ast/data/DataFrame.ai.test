@@ -87,7 +87,7 @@ df21 = df20.ai.extract(
 
 # DataFrame.ai.count_tokens simple
 df22 = session.create_dataframe([["What is a large language model?"], ["Explain quantum computing in simple terms."]], schema=["text"])
-df23 = df22.ai.count_tokens(model="llama3.1-70b", prompt="text")
+df23 = df22.ai.count_tokens("ai_complete", prompt="text", model="llama3.1-70b")
 
 # DataFrame.ai.split_text_markdown_header
 df24 = session.create_dataframe([["# Intro\nThis is the intro.\n## Background\nSome background info."]], schema=["document"])
@@ -149,7 +149,7 @@ df21 = df20.ai.extract(input_column="text", response_format={"name": "What is th
 
 df22 = session.create_dataframe([["What is a large language model?"], ["Explain quantum computing in simple terms."]], schema=["text"])
 
-df23 = df22.ai.count_tokens(model="llama3.1-70b", prompt="text", output_column="COUNT_TOKENS_OUTPUT")
+df23 = df22.ai.count_tokens("ai_complete", prompt="text", model="llama3.1-70b", output_column="COUNT_TOKENS_OUTPUT")
 
 df24 = session.create_dataframe([["# Intro\nThis is the intro.\n## Background\nSome background info."]], schema=["document"])
 

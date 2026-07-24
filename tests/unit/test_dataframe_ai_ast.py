@@ -55,10 +55,19 @@ def test_dataframe_ai_ast_optional_params(session):
 
         # count_tokens: options + return_error_details AST fields
         out = df.ai.count_tokens(
-            model="llama3.1-70b",
+            "ai_complete",
             prompt="text",
+            model="llama3.1-70b",
             options={"temperature": 0.0},
             return_error_details=True,
+            _emit_ast=emit,
+        )
+        assert out._ast_id is not None
+
+        # count_tokens: no model (optional)
+        out = df.ai.count_tokens(
+            "ai_sentiment",
+            prompt="text",
             _emit_ast=emit,
         )
         assert out._ast_id is not None

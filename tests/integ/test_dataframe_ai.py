@@ -1253,8 +1253,9 @@ def test_dataframe_ai_count_tokens_basic(session):
 
     # Count tokens using llama3.1-70b model
     result_df = df.ai.count_tokens(
-        model="llama3.1-70b",
+        "ai_complete",
         prompt="text",
+        model="llama3.1-70b",
         output_column="token_count",
     )
 
@@ -1273,8 +1274,9 @@ def test_dataframe_ai_count_tokens_default_output_column(session):
 
     # Don't specify output_column, should use default
     result_df = df.ai.count_tokens(
-        model="llama3.1-8b",
+        "ai_complete",
         prompt="text",
+        model="llama3.1-8b",
     )
 
     results = result_df.collect()
@@ -1284,15 +1286,29 @@ def test_dataframe_ai_count_tokens_default_output_column(session):
 
 
 def test_dataframe_ai_count_tokens_function_name(session):
-    """Test DataFrame.ai.count_tokens with a non-default function_name."""
+    """Test DataFrame.ai.count_tokens with ai_embed and an embed model."""
     df = session.create_dataframe(
         [["What is a large language model?"]], schema=["text"]
     )
 
     result_df = df.ai.count_tokens(
-        model="snowflake-arctic-embed-l-v2.0",
+        "ai_embed",
         prompt="text",
-        function_name="ai_embed",
+        model="snowflake-arctic-embed-l-v2.0",
+        output_column="token_count",
+    )
+    results = result_df.collect()
+    assert len(results) == 1
+    assert results[0]["TOKEN_COUNT"] > 0
+
+
+def test_dataframe_ai_count_tokens_no_model(session):
+    """Test DataFrame.ai.count_tokens for functions that don't require a model."""
+    df = session.create_dataframe([["I love this product!"]], schema=["text"])
+
+    result_df = df.ai.count_tokens(
+        "ai_sentiment",
+        prompt="text",
         output_column="token_count",
     )
     results = result_df.collect()
@@ -1307,8 +1323,9 @@ def test_dataframe_ai_count_tokens_error_handling(session):
     # Test invalid prompt type
     with pytest.raises(TypeError, match="expected Column or str"):
         df.ai.count_tokens(
-            model="llama3.1-70b",
+            "ai_complete",
             prompt=123,  # Invalid type
+            model="llama3.1-70b",
         )
 
 
@@ -2023,8 +2040,9 @@ def test_dataframe_ai_count_tokens_return_error_details(session):
         [["What is a large language model?"]], schema=["text"]
     )
     result_df = df.ai.count_tokens(
-        model="llama3.1-70b",
+        "ai_complete",
         prompt="text",
+        model="llama3.1-70b",
         output_column="out",
         return_error_details=True,
     )

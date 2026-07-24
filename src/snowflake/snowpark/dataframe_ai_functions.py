@@ -1478,23 +1478,30 @@ class DataFrameAIFunctions:
     @publicapi
     def count_tokens(
         self,
-        model: str,
+        function_name: str,
         prompt: ColumnOrName,
         *,
-        function_name: str = "ai_complete",
+        model: Optional[str] = None,
         output_column: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
         return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
-        """Count the number of tokens in text for a specified language model.
+        """Count the number of tokens in text for a specified AI function.
 
-        This method returns the number of tokens that would be consumed by the specified
-        model when processing the input text. This is useful for estimating costs and
-        ensuring inputs fit within model token limits.
+        This method returns an estimate of the number of tokens that would be consumed by
+        a call to the given AI function. This is useful for estimating costs and ensuring
+        inputs fit within model token limits.
 
         Args:
-            model: The model to base the token count on. Required. Supported models include:
+            function_name: The AI function whose tokenizer should be used for counting
+                (e.g. ``'ai_complete'``, ``'ai_classify'``, ``'ai_embed'``,
+                ``'ai_sentiment'``). Must begin with ``'ai_'`` and use only lowercase
+                letters.
+            prompt: The column (Column object or column name as string) containing the text
+                to count tokens for.
+            model: The model name, required for functions that accept a model parameter
+                (e.g. ``ai_complete``, ``ai_embed``). Supported models include:
 
                 - ``deepseek-r1``, ``e5-base-v2``, ``e5-large-v2``
                 - ``gemma-7b``, ``jamba-1.5-large``, ``jamba-1.5-mini``, ``jamba-instruct``
@@ -1508,11 +1515,6 @@ class DataFrameAIFunctions:
                 - ``snowflake-arctic-embed-m``, ``snowflake-arctic``
                 - ``snowflake-llama-3.1-405b``, ``snowflake-llama-3.3-70b``
                 - ``voyage-multilingual-2``
-            prompt: The column (Column object or column name as string) containing the text
-                to count tokens for.
-            function_name: The AI function whose tokenizer should be used for counting.
-                Must begin with ``'ai_'``. Defaults to ``'ai_complete'``. Examples:
-                ``'ai_complete'``, ``'ai_classify'``, ``'ai_embed'``.
             output_column: The name of the output column to be appended.
                 If not provided, a column named ``COUNT_TOKENS_OUTPUT`` is appended.
             options: Optional dict specifying additional processing parameters for the
@@ -1527,24 +1529,24 @@ class DataFrameAIFunctions:
 
         Examples::
 
-            >>> # Count tokens for ai_complete
+            >>> # Count tokens for ai_complete with a specific model
             >>> df = session.create_dataframe([
             ...     ["What is a large language model?"],
             ...     ["Explain quantum computing in simple terms."],
             ... ], schema=["text"])
             >>> result_df = df.ai.count_tokens(
-            ...     model="llama3.1-70b",
+            ...     "ai_complete",
             ...     prompt="text",
+            ...     model="llama3.1-70b",
             ...     output_column="token_count"
             ... )
             >>> result_df.collect()[0]["TOKEN_COUNT"] > 0
             True
 
-            >>> # Count tokens for ai_embed with a different model
+            >>> # Count tokens for ai_sentiment (no model required)
             >>> result_df = df.ai.count_tokens(
-            ...     model="snowflake-arctic-embed-l-v2.0",
+            ...     "ai_sentiment",
             ...     prompt="text",
-            ...     function_name="ai_embed",
             ...     output_column="token_count"
             ... )
             >>> result_df.collect()[0]["TOKEN_COUNT"] > 0
@@ -1566,7 +1568,8 @@ class DataFrameAIFunctions:
             ast = with_src_position(stmt.expr.dataframe_ai_count_tokens, stmt)
             self._dataframe._set_ast_ref(ast.df)
             ast.function_name = function_name
-            ast.model = model
+            if model is not None:
+                ast.model = model
             build_expr_from_snowpark_column_or_col_name(ast.prompt, prompt_col)
             if options is not None:
                 build_expr_from_python_val(ast.options, options)

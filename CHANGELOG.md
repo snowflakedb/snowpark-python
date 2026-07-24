@@ -16,7 +16,7 @@
 #### Improvements
 
 - Removed the `experimental` tag from all AI SQL functions in `DataFrameAIFunctions` (`complete`, `filter`, `agg`, `classify`, `similarity`, `sentiment`, `embed`, `summarize_agg`, `transcribe`, `parse_document`, `extract`, `count_tokens`, `split_text_markdown_header`, `split_text_recursive_character`) and `RelationalGroupedDataFrame.ai_agg`.
-- Added `function_name`, `options`, and `return_error_details` parameters to `DataFrame.ai.count_tokens` to match the standalone `ai_count_tokens` function. `function_name` defaults to `'ai_complete'` to preserve existing behavior.
+- Updated `DataFrame.ai.count_tokens` to match the standalone `ai_count_tokens` function: `function_name` is now the required first parameter, and `model` is optional. Also added `options` and `return_error_details` parameters.
 
 #### Bug Fixes
 
