@@ -4,12 +4,23 @@
 
 ### Snowpark Python API updates
 
+#### New Features
+
+- Added `ai_count_tokens` function to `snowflake.snowpark.functions` to estimate token counts for AI function calls.
+- Added `ai_multi_embed` function to `snowflake.snowpark.functions` to generate multimodal embeddings from text, images, audio, or video files.
+- Added `ai_redact` function to `snowflake.snowpark.functions` to detect and redact personally identifiable information (PII) from text.
+- Added `DataFrame.ai.multi_embed` method to generate multimodal embeddings via the DataFrame API.
+- Added `DataFrame.ai.redact` method to detect and redact PII from text columns via the DataFrame API.
+- Added `DataFrame.ai.translate` method to translate text columns between languages via the DataFrame API.
+
 #### Improvements
 
 - Removed the `experimental` tag from all AI SQL functions in `DataFrameAIFunctions` (`complete`, `filter`, `agg`, `classify`, `similarity`, `sentiment`, `embed`, `summarize_agg`, `transcribe`, `parse_document`, `extract`, `count_tokens`, `split_text_markdown_header`, `split_text_recursive_character`) and `RelationalGroupedDataFrame.ai_agg`.
+- Added `function_name`, `options`, and `return_error_details` parameters to `DataFrame.ai.count_tokens` to match the standalone `ai_count_tokens` function. `function_name` defaults to `'ai_complete'` to preserve existing behavior.
 
 #### Bug Fixes
 
+- Fixed `DataFrame.ai.count_tokens` to call the `AI_COUNT_TOKENS` SQL function instead of the deprecated `SNOWFLAKE.CORTEX.COUNT_TOKENS`. Token counts may differ slightly due to the updated tokenizer.
 - Reverted the change introduced in 1.53.0 to eliminate unnecessary `SELECT *` from joins, which was causing performance regressions. This has no functional impact.
 
 ## 1.53.1 (2026-07-14)

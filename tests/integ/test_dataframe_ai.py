@@ -6,7 +6,6 @@ import datetime
 import json
 import pytest
 from snowflake.snowpark.functions import ai_complete, ai_extract, col, lit, to_file
-from snowflake.snowpark.row import Row
 from tests.utils import TestFiles, Utils
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
@@ -1259,11 +1258,13 @@ def test_dataframe_ai_count_tokens_basic(session):
         output_column="token_count",
     )
 
-    # Verify results
-    Utils.check_answer(
-        result_df.select("token_count"),
-        [Row(TOKEN_COUNT=8), Row(TOKEN_COUNT=9), Row(TOKEN_COUNT=17)],
-    )
+    # Verify results. Exact token counts depend on the underlying tokenizer/model
+    # version, so only assert that each count is positive and the longest text
+    # has the most tokens, rather than pinning to exact literal counts.
+    results = [row["TOKEN_COUNT"] for row in result_df.select("token_count").collect()]
+    assert len(results) == 3
+    assert all(count > 0 for count in results)
+    assert results[2] > results[0] and results[2] > results[1]
 
 
 def test_dataframe_ai_count_tokens_default_output_column(session):
@@ -1278,7 +1279,25 @@ def test_dataframe_ai_count_tokens_default_output_column(session):
 
     results = result_df.collect()
     assert len(results) == 1
-    assert results[0]["COUNT_TOKENS_OUTPUT"] == 5
+    # Exact token count depends on the underlying tokenizer/model version.
+    assert results[0]["COUNT_TOKENS_OUTPUT"] > 0
+
+
+def test_dataframe_ai_count_tokens_function_name(session):
+    """Test DataFrame.ai.count_tokens with a non-default function_name."""
+    df = session.create_dataframe(
+        [["What is a large language model?"]], schema=["text"]
+    )
+
+    result_df = df.ai.count_tokens(
+        model="snowflake-arctic-embed-l-v2.0",
+        prompt="text",
+        function_name="ai_embed",
+        output_column="token_count",
+    )
+    results = result_df.collect()
+    assert len(results) == 1
+    assert results[0]["TOKEN_COUNT"] > 0
 
 
 def test_dataframe_ai_count_tokens_error_handling(session):
@@ -1695,3 +1714,352 @@ def test_dataframe_ai_extract_apostrophe_question_runs(session):
     results = result_df.collect(_emit_ast=False)
     assert len(results) == 1
     assert results[0]["EXTRACTED"] is not None
+
+
+# ── ai_count_tokens standalone function ─────────────────────────────────────
+
+
+def test_ai_count_tokens_basic(session):
+    """Test standalone ai_count_tokens function."""
+    from snowflake.snowpark.functions import ai_count_tokens
+
+    df = session.range(1).select(
+        ai_count_tokens(
+            "ai_complete", "What is a large language model?", model="llama3.1-70b"
+        ).alias("tokens")
+    )
+    result = df.collect()[0][0]
+    assert isinstance(result, int) and result > 0
+
+
+def test_ai_count_tokens_no_model(session):
+    """Test ai_count_tokens for functions that don't require a model."""
+    from snowflake.snowpark.functions import ai_count_tokens
+
+    df = session.range(1).select(
+        ai_count_tokens("ai_sentiment", "I love this product!").alias("tokens")
+    )
+    result = df.collect()[0][0]
+    assert isinstance(result, int) and result > 0
+
+
+def test_ai_count_tokens_column_input(session):
+    """Test ai_count_tokens with a column reference."""
+    from snowflake.snowpark.functions import ai_count_tokens
+
+    df = session.create_dataframe(
+        [["Hello world"], ["A longer sentence with more tokens here"]],
+        schema=["text"],
+    )
+    result_df = df.select(
+        ai_count_tokens("ai_complete", col("text"), model="llama3.1-8b").alias("tokens")
+    )
+    results = result_df.collect()
+    assert len(results) == 2
+    assert all(r[0] > 0 for r in results)
+    # Longer text should have more tokens
+    assert results[1][0] > results[0][0]
+
+
+# ── ai_redact standalone function ────────────────────────────────────────────
+
+
+def test_ai_redact_basic(session):
+    """Test standalone ai_redact replaces PII with placeholders."""
+    from snowflake.snowpark.functions import ai_redact
+
+    df = session.range(1).select(
+        ai_redact("John Smith lives at 123 Main St").alias("redacted")
+    )
+    result = df.collect()[0][0]
+    assert isinstance(result, str)
+    assert "[NAME]" in result or "[ADDRESS]" in result
+
+
+def test_ai_redact_with_categories(session):
+    """Test ai_redact targeting specific PII categories."""
+    from snowflake.snowpark.functions import ai_redact
+
+    df = session.range(1).select(
+        ai_redact("Call John at 555-1234", categories=["PHONE_NUMBER"]).alias(
+            "redacted"
+        )
+    )
+    result = df.collect()[0][0]
+    assert isinstance(result, str)
+    assert "[PHONE_NUMBER]" in result
+
+
+def test_ai_redact_detect_mode(session):
+    """Test ai_redact in detect mode returns span metadata."""
+    from snowflake.snowpark.functions import ai_redact
+    import json
+
+    df = session.range(1).select(
+        ai_redact("Contact Alice at alice@example.com", mode="detect").alias("spans")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "spans" in parsed
+
+
+def test_ai_redact_column_input(session):
+    """Test ai_redact with a column reference."""
+    from snowflake.snowpark.functions import ai_redact
+
+    df = session.create_dataframe(
+        [["Bob Smith, bob@example.com"], ["No PII here"]],
+        schema=["text"],
+    )
+    result_df = df.select(ai_redact(col("text")).alias("redacted"))
+    results = result_df.collect()
+    assert len(results) == 2
+    assert isinstance(results[0][0], str)
+
+
+# ── df.ai.redact ─────────────────────────────────────────────────────────────
+
+
+def test_dataframe_ai_redact_basic(session):
+    """Test DataFrame.ai.redact basic redaction."""
+    df = session.create_dataframe(
+        [
+            ["Alice Johnson, alice@example.com, 555-0100"],
+            ["Bob Smith, 123 Main St, SSN 000-00-0000"],
+        ],
+        schema=["text"],
+    )
+    result_df = df.ai.redact(input_column="text", output_column="redacted_text")
+    results = result_df.collect()
+    assert len(results) == 2
+    assert any("[NAME]" in row["REDACTED_TEXT"] for row in results)
+
+
+def test_dataframe_ai_redact_detect_mode(session):
+    """Test DataFrame.ai.redact in detect mode."""
+    df = session.create_dataframe(
+        [["Call John at 555-1234"]],
+        schema=["text"],
+    )
+    result_df = df.ai.redact(input_column="text", mode="detect", output_column="pii")
+    results = result_df.collect()
+    parsed = (
+        json.loads(results[0]["PII"])
+        if isinstance(results[0]["PII"], str)
+        else results[0]["PII"]
+    )
+    assert "spans" in parsed
+
+
+def test_dataframe_ai_redact_with_categories(session):
+    """Test DataFrame.ai.redact with specific categories."""
+    df = session.create_dataframe(
+        [["Email: alice@example.com, Phone: 555-0100"]],
+        schema=["text"],
+    )
+    result_df = df.ai.redact(
+        input_column="text", categories=["EMAIL"], output_column="redacted"
+    )
+    results = result_df.collect()
+    assert "[EMAIL]" in results[0]["REDACTED"]
+
+
+def test_dataframe_ai_redact_default_output_column(session):
+    """Test DataFrame.ai.redact uses default output column name."""
+    df = session.create_dataframe([["John Smith"]], schema=["text"])
+    result_df = df.ai.redact(input_column="text")
+    assert "AI_REDACT_OUTPUT" in result_df.columns
+
+
+# ── ai_multi_embed standalone function ───────────────────────────────────────
+
+
+@pytest.mark.xfail(
+    reason="AI_MULTI_EMBED is not yet enabled in the test account (Unknown function error)",
+    strict=False,
+)
+def test_ai_multi_embed_basic(session, resources_path):
+    """Test standalone ai_multi_embed with an image file."""
+    from snowflake.snowpark.functions import ai_multi_embed, to_file
+
+    _ = session.sql(
+        "CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
+    _ = session.file.put(f"{resources_path}/dog.jpg", "@mystage", auto_compress=False)
+
+    df = session.range(1).select(
+        ai_multi_embed(
+            "twelvelabs-marengo-embed-3-0", to_file("@mystage/dog.jpg")
+        ).alias("emb")
+    )
+    result = df.collect()[0][0]
+    assert result["error"] is None
+    assert len(result["value"]) > 0
+
+
+# ── df.ai.multi_embed ────────────────────────────────────────────────────────
+
+
+@pytest.mark.xfail(
+    reason="AI_MULTI_EMBED is not yet enabled in the test account (Unknown function error)",
+    strict=False,
+)
+def test_dataframe_ai_multi_embed_basic(session, resources_path):
+    """Test DataFrame.ai.multi_embed with image files."""
+    _ = session.sql(
+        "CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
+    _ = session.file.put(f"{resources_path}/dog.jpg", "@mystage", auto_compress=False)
+
+    df = session.read.file("@mystage")
+    result_df = df.ai.multi_embed(
+        input_column="file",
+        model="twelvelabs-marengo-embed-3-0",
+        output_column="multimodal_vector",
+    )
+    results = result_df.collect()
+    assert len(results) > 0
+    assert results[0]["MULTIMODAL_VECTOR"]["error"] is None
+
+
+@pytest.mark.xfail(
+    reason="AI_MULTI_EMBED is not yet enabled in the test account (Unknown function error)",
+    strict=False,
+)
+def test_dataframe_ai_multi_embed_default_output_column(session, resources_path):
+    """Test DataFrame.ai.multi_embed uses default output column name."""
+    _ = session.sql(
+        "CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
+    _ = session.file.put(f"{resources_path}/dog.jpg", "@mystage", auto_compress=False)
+
+    df = session.read.file("@mystage")
+    result_df = df.ai.multi_embed(
+        input_column="file",
+        model="twelvelabs-marengo-embed-3-0",
+    )
+    assert "AI_MULTI_EMBED_OUTPUT" in result_df.columns
+
+
+# ── return_error_details ─────────────────────────────────────────────────────
+
+
+def test_ai_sentiment_return_error_details(session):
+    """AI_SENTIMENT with return_error_details=True returns an OBJECT with value/error."""
+    from snowflake.snowpark.functions import ai_sentiment
+
+    df = session.range(1).select(
+        ai_sentiment("I love this product!", return_error_details=True).alias("out")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+
+
+@pytest.mark.xfail(
+    reason="AI_CLASSIFY return_error_details named argument is not yet supported on Azure",
+    strict=False,
+)
+def test_ai_classify_return_error_details(session):
+    """AI_CLASSIFY with return_error_details=True (no config) returns OBJECT with value/error."""
+    from snowflake.snowpark.functions import ai_classify
+
+    df = session.range(1).select(
+        ai_classify(
+            "penguin", ["bird", "mammal", "fish"], return_error_details=True
+        ).alias("out")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+
+
+def test_ai_redact_return_error_details(session):
+    """AI_REDACT with return_error_details=True (no categories, no mode) returns OBJECT."""
+    from snowflake.snowpark.functions import ai_redact
+
+    df = session.range(1).select(
+        ai_redact("John Smith at 555-1234", return_error_details=True).alias("out")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+
+
+def test_ai_filter_return_error_details(session):
+    """AI_FILTER (text overload) with return_error_details=True returns OBJECT with value/error."""
+    from snowflake.snowpark.functions import ai_filter
+
+    df = session.range(1).select(
+        ai_filter("Is Paris the capital of France?", return_error_details=True).alias(
+            "out"
+        )
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+
+
+def test_ai_count_tokens_return_error_details(session):
+    """AI_COUNT_TOKENS with return_error_details=True returns OBJECT with value/error."""
+    from snowflake.snowpark.functions import ai_count_tokens
+
+    df = session.range(1).select(
+        ai_count_tokens(
+            "ai_complete",
+            "What is a large language model?",
+            model="llama3.1-70b",
+            return_error_details=True,
+        ).alias("out")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+
+
+def test_dataframe_ai_count_tokens_return_error_details(session):
+    """DataFrame.ai.count_tokens with return_error_details=True returns OBJECT with value/error."""
+    df = session.create_dataframe(
+        [["What is a large language model?"]], schema=["text"]
+    )
+    result_df = df.ai.count_tokens(
+        model="llama3.1-70b",
+        prompt="text",
+        output_column="out",
+        return_error_details=True,
+    )
+    result = result_df.collect()[0]["OUT"]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+    assert parsed["error"] is None
+    assert parsed["value"] > 0
+
+
+def test_ai_complete_return_error_details(session):
+    """AI_COMPLETE with return_error_details=True returns OBJECT with value/error."""
+    from snowflake.snowpark.functions import ai_complete
+
+    df = session.range(1).select(
+        ai_complete(
+            "llama3.1-8b",
+            "Say hello in one word.",
+            return_error_details=True,
+        ).alias("out")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+    assert parsed["error"] is None
+
+
+def test_ai_translate_return_error_details(session):
+    """AI_TRANSLATE with return_error_details=True returns OBJECT with value/error."""
+    from snowflake.snowpark.functions import ai_translate
+
+    df = session.range(1).select(
+        ai_translate("Hello world", "en", "de", return_error_details=True).alias("out")
+    )
+    result = df.collect()[0][0]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+    assert parsed["error"] is None

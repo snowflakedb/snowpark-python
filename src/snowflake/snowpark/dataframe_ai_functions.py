@@ -18,16 +18,20 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.column import Column, _to_col_if_str, _to_col_if_lit
 from snowflake.snowpark.functions import (
     ai_complete,
+    ai_count_tokens,
     ai_filter,
     ai_agg,
     ai_classify,
     ai_extract,
+    ai_multi_embed,
+    ai_redact,
     ai_similarity,
     ai_sentiment,
     ai_embed,
     ai_summarize_agg,
     ai_transcribe,
     ai_parse_document,
+    ai_translate,
     function,
 )
 from snowflake.snowpark._internal.telemetry import add_api_call
@@ -51,6 +55,7 @@ class DataFrameAIFunctions:
         *,
         output_column: Optional[str] = None,
         model_parameters: Optional[Dict[str, Any]] = None,
+        return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """Generate a response (completion) on each row using the specified language model.
@@ -70,6 +75,16 @@ class DataFrameAIFunctions:
                 - top_p: Value from 0 to 1 controlling diversity (default: 0)
                 - max_tokens: Maximum number of output tokens (default: 4096, max: 8192)
                 - guardrails: Enable Cortex Guard filtering (default: False)
+
+            return_error_details: When ``True``, returns an OBJECT with ``value`` and ``error``
+                fields instead of returning NULL on failure.
+
+        Note:
+            ``response_format`` and ``show_details`` from :func:`~snowflake.snowpark.functions.ai_complete`
+            are not exposed here because this method always builds a ``PROMPT`` object from
+            ``prompt`` / ``input_columns``, and those options are only supported for the
+            single-string ``AI_COMPLETE`` overload. Use :func:`~snowflake.snowpark.functions.ai_complete`
+            directly for structured outputs or detailed responses.
 
         Returns:
             A new DataFrame with appended output columns at the end.
@@ -155,6 +170,8 @@ class DataFrameAIFunctions:
                     entry = ast.model_parameters.add()
                     entry._1 = k
                     build_expr_from_python_val(entry._2, v)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
 
             ast.output_column.value = output_column_name
 
@@ -163,6 +180,7 @@ class DataFrameAIFunctions:
             model=model,
             prompt=prompt_obj,
             model_parameters=model_parameters,
+            return_error_details=return_error_details,
             _emit_ast=False,
         )
 
@@ -399,6 +417,7 @@ class DataFrameAIFunctions:
         categories: Union[List[str], Column],
         *,
         output_column: Optional[str] = None,
+        return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
         **kwargs,
     ) -> "snowflake.snowpark.DataFrame":
@@ -528,6 +547,8 @@ class DataFrameAIFunctions:
                 entry = ast.kwargs.add()
                 entry._1 = k
                 build_expr_from_python_val(entry._2, v)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
 
             ast.output_column.value = output_column_name
 
@@ -535,6 +556,7 @@ class DataFrameAIFunctions:
         result_col = ai_classify(
             input_col,
             categories,
+            return_error_details=return_error_details,
             _emit_ast=False,
             **kwargs,
         )
@@ -713,6 +735,7 @@ class DataFrameAIFunctions:
         categories: Optional[List[str]] = None,
         *,
         output_column: Optional[str] = None,
+        return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """Extract sentiment analysis from text content.
@@ -801,6 +824,8 @@ class DataFrameAIFunctions:
             build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
             if categories is not None:
                 build_expr_from_python_val(ast.categories, categories)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
 
             ast.output_column.value = output_column_name
 
@@ -808,6 +833,7 @@ class DataFrameAIFunctions:
         result_col = ai_sentiment(
             input_col,
             categories=categories,
+            return_error_details=return_error_details,
             _emit_ast=False,
         )
 
@@ -1058,6 +1084,7 @@ class DataFrameAIFunctions:
         input_column: ColumnOrName,
         *,
         output_column: Optional[str] = None,
+        return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
         **kwargs,
     ) -> "snowflake.snowpark.DataFrame":
@@ -1135,11 +1162,14 @@ class DataFrameAIFunctions:
                 entry = ast.kwargs.add()
                 entry._1 = k
                 build_expr_from_python_val(entry._2, v)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
 
             ast.output_column.value = output_column_name
 
         result_col = ai_transcribe(
             input_col,
+            return_error_details=return_error_details,
             _emit_ast=False,
             **kwargs,
         )
@@ -1162,6 +1192,7 @@ class DataFrameAIFunctions:
         input_column: ColumnOrName,
         *,
         output_column: Optional[str] = None,
+        return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
         **kwargs,
     ) -> "snowflake.snowpark.DataFrame":
@@ -1229,10 +1260,13 @@ class DataFrameAIFunctions:
                 entry = ast.kwargs.add()
                 entry._1 = k
                 build_expr_from_python_val(entry._2, v)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
             ast.output_column.value = output_column_name
 
         result_col = ai_parse_document(
             input_col,
+            return_error_details=return_error_details,
             _emit_ast=False,
             **kwargs,
         )
@@ -1255,6 +1289,8 @@ class DataFrameAIFunctions:
         input_column: ColumnOrName,
         *,
         response_format: Optional[Union[Dict[str, str], List]] = None,
+        scores: Optional[bool] = None,
+        config: Optional[Dict] = None,
         output_column: Optional[str] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
@@ -1273,6 +1309,14 @@ class DataFrameAIFunctions:
                   ``[['name', 'What is the last name of the employee?'], ['address', 'What is the address of the employee?']]``
                 - Array of strings with colon-separated feature names and extraction prompts:
                   ``['name: What is the last name of the employee?', 'address: What is the address of the employee?']``
+
+            scores: When ``True``, the output JSON includes a ``scoring`` object alongside
+                ``response`` with per-field confidence scores between 0 and 1.
+                Default is ``None`` (no scores).
+            config: Optional dict of configuration settings for file inputs. Supported key:
+
+                - ``scale_factor``: Numeric value 1.0–4.0 to scale pages before processing,
+                  improving OCR quality for dense or small-text documents.
 
             output_column: The name of the output column to be appended.
                 If not provided, a column named ``AI_EXTRACT_OUTPUT`` is appended.
@@ -1405,16 +1449,20 @@ class DataFrameAIFunctions:
             build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
             if response_format is not None:
                 build_expr_from_python_val(ast.response_format, response_format)
-
+            if scores is not None:
+                ast.scores.value = scores
+            if config is not None:
+                build_expr_from_python_val(ast.config, config)
             ast.output_column.value = output_column_name
 
         result_col = ai_extract(
             input=input_col,
             response_format=response_format,
+            scores=scores,
+            config=config,
             _emit_ast=False,
         )
 
-        output_column_name = output_column or "AI_EXTRACT_OUTPUT"
         df = self._dataframe.with_column(
             output_column_name, result_col, _emit_ast=False
         )
@@ -1433,7 +1481,10 @@ class DataFrameAIFunctions:
         model: str,
         prompt: ColumnOrName,
         *,
+        function_name: str = "ai_complete",
         output_column: Optional[str] = None,
+        options: Optional[Dict[str, Any]] = None,
+        return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """Count the number of tokens in text for a specified language model.
@@ -1459,15 +1510,24 @@ class DataFrameAIFunctions:
                 - ``voyage-multilingual-2``
             prompt: The column (Column object or column name as string) containing the text
                 to count tokens for.
+            function_name: The AI function whose tokenizer should be used for counting.
+                Must begin with ``'ai_'``. Defaults to ``'ai_complete'``. Examples:
+                ``'ai_complete'``, ``'ai_classify'``, ``'ai_embed'``.
             output_column: The name of the output column to be appended.
                 If not provided, a column named ``COUNT_TOKENS_OUTPUT`` is appended.
+            options: Optional dict specifying additional processing parameters for the
+                underlying ``AI_COUNT_TOKENS`` call.
+            return_error_details: When ``True``, returns an OBJECT with ``value`` and
+                ``error`` fields instead of returning NULL on failure.
 
         Returns:
             A new DataFrame with an appended output column containing the token count as an integer.
+            When ``return_error_details=True``, the column contains an OBJECT with ``value``
+            and ``error`` fields instead.
 
         Examples::
 
-            >>> # Count tokens for a simple text
+            >>> # Count tokens for ai_complete
             >>> df = session.create_dataframe([
             ...     ["What is a large language model?"],
             ...     ["Explain quantum computing in simple terms."],
@@ -1477,14 +1537,18 @@ class DataFrameAIFunctions:
             ...     prompt="text",
             ...     output_column="token_count"
             ... )
-            >>> result_df.show()
-            --------------------------------------------------------------
-            |"TEXT"                                      |"TOKEN_COUNT"  |
-            --------------------------------------------------------------
-            |What is a large language model?             |8              |
-            |Explain quantum computing in simple terms.  |9              |
-            --------------------------------------------------------------
-            <BLANKLINE>
+            >>> result_df.collect()[0]["TOKEN_COUNT"] > 0
+            True
+
+            >>> # Count tokens for ai_embed with a different model
+            >>> result_df = df.ai.count_tokens(
+            ...     model="snowflake-arctic-embed-l-v2.0",
+            ...     prompt="text",
+            ...     function_name="ai_embed",
+            ...     output_column="token_count"
+            ... )
+            >>> result_df.collect()[0]["TOKEN_COUNT"] > 0
+            True
 
         Note:
             The token count does not account for any managed system prompt that may be
@@ -1501,14 +1565,24 @@ class DataFrameAIFunctions:
             stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_ai_count_tokens, stmt)
             self._dataframe._set_ast_ref(ast.df)
+            ast.function_name = function_name
             ast.model = model
             build_expr_from_snowpark_column_or_col_name(ast.prompt, prompt_col)
+            if options is not None:
+                build_expr_from_python_val(ast.options, options)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
 
             ast.output_column.value = output_column_name
 
-        # Call SNOWFLAKE.CORTEX.COUNT_TOKENS function
-        count_tokens_func = function("SNOWFLAKE.CORTEX.COUNT_TOKENS", _emit_ast=False)
-        result_col = count_tokens_func(model, prompt_col)
+        result_col = ai_count_tokens(
+            function_name,
+            prompt_col,
+            model=model,
+            options=options,
+            return_error_details=return_error_details,
+            _emit_ast=False,
+        )
 
         # Add the output column to the DataFrame
         df = self._dataframe.with_column(
@@ -1844,6 +1918,278 @@ class DataFrameAIFunctions:
             df,
             method_name,
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
+        return df
+
+    @publicapi
+    def multi_embed(
+        self,
+        input_column: ColumnOrName,
+        model: str,
+        *,
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+        **kwargs,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Generate multimodal embedding vectors from text, images, audio, or video.
+
+        Args:
+            input_column: The column (Column object or column name as string) containing
+                the input to embed. Can be a string column or a FILE column referencing
+                an image (JPG, PNG), audio (MP3, WAV, FLAC, OGG), or video
+                (MP4, MOV, AVI, MKV, WEBM, FLV) file.
+            model: The multimodal embedding model. Currently supported:
+                ``'twelvelabs-marengo-embed-3-0'``.
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``AI_MULTI_EMBED_OUTPUT`` is appended.
+            **kwargs: Optional configuration for video/audio inputs (``start_sec``,
+                ``end_sec``, ``embedding_options``, ``embedding_scope``,
+                ``embedding_type``, ``use_fixed_length_sec``, ``min_clip_sec``).
+
+        Returns:
+            A new DataFrame with an appended output column containing an OBJECT with
+            an ``error`` field (NULL on success) and a ``value`` array of embedding
+            objects, each with a 512-dimensional ``embedding`` vector.
+
+        Examples::
+
+            >>> from snowflake.snowpark.functions import to_file
+            >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+            >>> _ = session.file.put("tests/resources/dog.jpg", "@mystage", auto_compress=False)
+            >>> df = session.read.file("@mystage")
+            >>> result_df = df.ai.multi_embed(
+            ...     input_column="file",
+            ...     model="twelvelabs-marengo-embed-3-0",
+            ...     output_column="multimodal_vector"
+            ... )
+            >>> results = result_df.collect()  # doctest: +SKIP
+            >>> results[0]["MULTIMODAL_VECTOR"]["error"] is None  # doctest: +SKIP
+            True  # doctest: +SKIP
+        """
+        output_column_name = output_column or "AI_MULTI_EMBED_OUTPUT"
+
+        stmt = None
+        input_col = _to_col_if_str(input_column, "DataFrame.ai.multi_embed")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_multi_embed, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
+            ast.model = model
+            for k, v in kwargs.items():
+                entry = ast.kwargs.add()
+                entry._1 = k
+                build_expr_from_python_val(entry._2, v)
+            ast.output_column.value = output_column_name
+
+        result_col = ai_multi_embed(
+            model=model, input=input_col, _emit_ast=False, **kwargs
+        )
+
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
+
+        add_api_call(df, "DataFrame.ai.multi_embed")
+        if _emit_ast:
+            df._ast_id = stmt.uid
+        return df
+
+    @publicapi
+    def redact(
+        self,
+        input_column: ColumnOrName,
+        *,
+        categories: Optional[List[str]] = None,
+        mode: Optional[str] = None,
+        return_error_details: Optional[bool] = None,
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Detect and redact personally identifiable information (PII) from text.
+
+        Args:
+            input_column: The column (Column object or column name as string) containing
+                the text to process.
+            categories: An optional list of PII category names to target. When omitted,
+                all supported categories are redacted (e.g. ``'NAME'``, ``'EMAIL'``,
+                ``'PHONE_NUMBER'``, ``'ADDRESS'``, ``'NATIONAL_ID'``).
+            mode: ``'redact'`` (default) to replace PII with placeholder labels such as
+                ``[NAME]``, or ``'detect'`` to return span metadata without modifying
+                the text.
+            return_error_details: When ``True``, returns an OBJECT with ``value`` and
+                ``error`` fields instead of returning NULL on failure.
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``AI_REDACT_OUTPUT`` is appended.
+
+        Returns:
+            A new DataFrame with an appended output column. In ``'redact'`` mode the
+            column contains the redacted VARCHAR. In ``'detect'`` mode it contains an
+            OBJECT with a ``spans`` array describing each detected PII span.
+            When ``return_error_details=True``, the column contains an OBJECT with
+            ``value`` and ``error`` fields.
+
+        Examples::
+
+            >>> df = session.create_dataframe([
+            ...     ["Alice Johnson, alice@example.com, 555-0100"],
+            ...     ["Bob Smith, 123 Main St, SSN 000-00-0000"],
+            ... ], schema=["text"])
+            >>> result_df = df.ai.redact(
+            ...     input_column="text",
+            ...     output_column="redacted_text"
+            ... )
+            >>> results = result_df.collect()
+            >>> any('[NAME]' in row["REDACTED_TEXT"] for row in results)
+            True
+
+            >>> result_df = df.ai.redact(
+            ...     input_column="text",
+            ...     mode='detect',
+            ...     output_column="pii_spans"
+            ... )
+            >>> results = result_df.collect()
+            >>> 'spans' in results[0]["PII_SPANS"]
+            True
+        """
+        output_column_name = output_column or "AI_REDACT_OUTPUT"
+
+        stmt = None
+        input_col = _to_col_if_str(input_column, "DataFrame.ai.redact")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_redact, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
+            if categories is not None:
+                build_expr_from_python_val(ast.categories, categories)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
+            if mode is not None:
+                ast.mode.value = mode
+            ast.output_column.value = output_column_name
+
+        result_col = ai_redact(
+            input=input_col,
+            categories=categories,
+            return_error_details=return_error_details,
+            mode=mode,
+            _emit_ast=False,
+        )
+
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
+
+        add_api_call(df, "DataFrame.ai.redact")
+        if _emit_ast:
+            df._ast_id = stmt.uid
+        return df
+
+    @publicapi
+    def translate(
+        self,
+        input_column: ColumnOrName,
+        source_language: Union[Column, str],
+        target_language: Union[Column, str],
+        *,
+        output_column: Optional[str] = None,
+        return_error_details: Optional[bool] = None,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Translate text from one language to another.
+
+        This method translates the text in each row from a source language to a target
+        language using a Snowflake-hosted large language model.
+
+        Args:
+            input_column: The column (Column object or column name as string) containing
+                the text to translate.
+            source_language: The BCP-47 language code for the source language (e.g.
+                ``'en'``, ``'de'``, ``'fr'``), or a Column whose rows contain language
+                codes. Pass an empty string ``''`` to auto-detect the source language.
+            target_language: The BCP-47 language code for the target language (e.g.
+                ``'en'``, ``'de'``, ``'fr'``), or a Column whose rows contain language
+                codes.
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``AI_TRANSLATE_OUTPUT`` is appended.
+            return_error_details: When ``True``, returns an OBJECT with ``value`` and
+                ``error`` fields instead of returning NULL on failure.
+
+        Returns:
+            A new DataFrame with an appended output column containing the translated text.
+            When ``return_error_details=True``, the column contains an OBJECT with
+            ``value`` and ``error`` fields instead.
+
+        Examples::
+
+            >>> df = session.create_dataframe([
+            ...     ["Hello world"],
+            ...     ["Good morning"],
+            ...     ["How are you?"],
+            ... ], schema=["text"])
+            >>> result_df = df.ai.translate(
+            ...     input_column="text",
+            ...     source_language="en",
+            ...     target_language="de",
+            ...     output_column="translation"
+            ... )
+            >>> result_df.columns
+            ['TEXT', 'TRANSLATION']
+
+            >>> # Auto-detect source language and translate to English
+            >>> df = session.create_dataframe([
+            ...     ["Hola mundo"],
+            ...     ["Bonjour le monde"],
+            ... ], schema=["text"])
+            >>> result_df = df.ai.translate(
+            ...     input_column="text",
+            ...     source_language="",
+            ...     target_language="en",
+            ...     output_column="translation"
+            ... )
+            >>> result_df.columns
+            ['TEXT', 'TRANSLATION']
+
+        Note:
+            Pass an empty string ``''`` as ``source_language`` to have Snowflake
+            automatically detect the source language.
+
+        See details in `AI_TRANSLATE <https://docs.snowflake.com/en/sql-reference/functions/ai_translate>`_.
+        """
+        output_column_name = output_column or "AI_TRANSLATE_OUTPUT"
+
+        stmt = None
+        input_col = _to_col_if_str(input_column, "DataFrame.ai.translate")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_translate, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
+            build_expr_from_snowpark_column_or_python_val(
+                ast.source_language, source_language
+            )
+            build_expr_from_snowpark_column_or_python_val(
+                ast.target_language, target_language
+            )
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
+            ast.output_column.value = output_column_name
+
+        result_col = ai_translate(
+            text=input_col,
+            source_language=source_language,
+            target_language=target_language,
+            return_error_details=return_error_details,
+            _emit_ast=False,
+        )
+
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
+
+        add_api_call(df, "DataFrame.ai.translate")
         if _emit_ast:
             df._ast_id = stmt.uid
         return df

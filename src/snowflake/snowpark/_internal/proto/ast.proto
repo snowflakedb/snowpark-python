@@ -775,6 +775,7 @@ message DataframeAiClassify {
   Expr input_column = 3;
   repeated Tuple_String_Expr kwargs = 4;
   google.protobuf.StringValue output_column = 5;
+  google.protobuf.BoolValue return_error_details = 7;
   SrcPosition src = 6;
 }
 
@@ -786,15 +787,19 @@ message DataframeAiComplete {
   repeated Tuple_String_Expr model_parameters = 4;
   google.protobuf.StringValue output_column = 5;
   string prompt = 6;
+  google.protobuf.BoolValue return_error_details = 8;
   SrcPosition src = 7;
 }
 
 // dataframe-ai.ir:89
 message DataframeAiCountTokens {
   Expr df = 1;
+  string function_name = 8;
   string model = 2;
   google.protobuf.StringValue output_column = 3;
+  Expr options = 7;
   Expr prompt = 4;
+  google.protobuf.BoolValue return_error_details = 6;
   SrcPosition src = 5;
 }
 
@@ -814,6 +819,8 @@ message DataframeAiExtract {
   google.protobuf.StringValue output_column = 3;
   Expr response_format = 4;
   SrcPosition src = 5;
+  google.protobuf.BoolValue scores = 6;
+  Expr config = 7;
 }
 
 // dataframe-ai.ir:19
@@ -821,6 +828,7 @@ message DataframeAiFilter {
   Expr df = 1;
   Expr input_columns = 2;
   string predicate = 3;
+  google.protobuf.BoolValue return_error_details = 5;
   SrcPosition src = 4;
 }
 
@@ -830,6 +838,7 @@ message DataframeAiParseDocument {
   Expr input_column = 2;
   repeated Tuple_String_Expr kwargs = 3;
   google.protobuf.StringValue output_column = 4;
+  google.protobuf.BoolValue return_error_details = 6;
   SrcPosition src = 5;
 }
 
@@ -839,6 +848,7 @@ message DataframeAiSentiment {
   Expr df = 2;
   Expr input_column = 3;
   google.protobuf.StringValue output_column = 4;
+  google.protobuf.BoolValue return_error_details = 6;
   SrcPosition src = 5;
 }
 
@@ -889,7 +899,37 @@ message DataframeAiTranscribe {
   Expr input_column = 2;
   repeated Tuple_String_Expr kwargs = 3;
   google.protobuf.StringValue output_column = 4;
+  google.protobuf.BoolValue return_error_details = 6;
   SrcPosition src = 5;
+}
+
+message DataframeAiMultiEmbed {
+  Expr df = 1;
+  Expr input_column = 2;
+  repeated Tuple_String_Expr kwargs = 3;
+  string model = 4;
+  google.protobuf.StringValue output_column = 5;
+  SrcPosition src = 6;
+}
+
+message DataframeAiRedact {
+  Expr categories = 1;
+  Expr df = 2;
+  Expr input_column = 3;
+  google.protobuf.StringValue mode = 4;
+  google.protobuf.StringValue output_column = 5;
+  google.protobuf.BoolValue return_error_details = 7;
+  SrcPosition src = 6;
+}
+
+message DataframeAiTranslate {
+  Expr df = 1;
+  Expr input_column = 2;
+  google.protobuf.StringValue output_column = 3;
+  google.protobuf.BoolValue return_error_details = 7;
+  Expr source_language = 4;
+  SrcPosition src = 5;
+  Expr target_language = 6;
 }
 
 // dataframe.ir:188
@@ -1570,6 +1610,9 @@ message Expr {
     DataframeAiSplitTextRecursiveCharacter dataframe_ai_split_text_recursive_character = 60;
     DataframeAiSummarizeAgg dataframe_ai_summarize_agg = 61;
     DataframeAiTranscribe dataframe_ai_transcribe = 62;
+    DataframeAiMultiEmbed dataframe_ai_multi_embed = 204;
+    DataframeAiRedact dataframe_ai_redact = 205;
+    DataframeAiTranslate dataframe_ai_translate = 206;
     DataframeAlias dataframe_alias = 63;
     DataframeAnalyticsComputeLag dataframe_analytics_compute_lag = 64;
     DataframeAnalyticsComputeLead dataframe_analytics_compute_lead = 65;
@@ -1882,6 +1925,9 @@ message HasSrcPosition {
     DataframeAiSplitTextRecursiveCharacter dataframe_ai_split_text_recursive_character = 63;
     DataframeAiSummarizeAgg dataframe_ai_summarize_agg = 64;
     DataframeAiTranscribe dataframe_ai_transcribe = 65;
+    DataframeAiMultiEmbed dataframe_ai_multi_embed = 213;
+    DataframeAiRedact dataframe_ai_redact = 214;
+    DataframeAiTranslate dataframe_ai_translate = 215;
     DataframeAlias dataframe_alias = 66;
     DataframeAnalyticsComputeLag dataframe_analytics_compute_lag = 67;
     DataframeAnalyticsComputeLead dataframe_analytics_compute_lead = 68;
