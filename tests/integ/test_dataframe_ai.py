@@ -1285,7 +1285,9 @@ def test_dataframe_ai_count_tokens_default_output_column(session):
 
 def test_dataframe_ai_count_tokens_function_name(session):
     """Test DataFrame.ai.count_tokens with a non-default function_name."""
-    df = session.create_dataframe([["What is a large language model?"]], schema=["text"])
+    df = session.create_dataframe(
+        [["What is a large language model?"]], schema=["text"]
+    )
 
     result_df = df.ai.count_tokens(
         model="snowflake-arctic-embed-l-v2.0",
