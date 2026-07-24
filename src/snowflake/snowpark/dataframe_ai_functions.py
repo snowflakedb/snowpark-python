@@ -2114,9 +2114,13 @@ class DataFrameAIFunctions:
                 codes.
             output_column: The name of the output column to be appended.
                 If not provided, a column named ``AI_TRANSLATE_OUTPUT`` is appended.
+            return_error_details: When ``True``, returns an OBJECT with ``value`` and
+                ``error`` fields instead of returning NULL on failure.
 
         Returns:
             A new DataFrame with an appended output column containing the translated text.
+            When ``return_error_details=True``, the column contains an OBJECT with
+            ``value`` and ``error`` fields instead.
 
         Examples::
 

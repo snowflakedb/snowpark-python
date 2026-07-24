@@ -13100,13 +13100,17 @@ def ai_extract(
     else:
         input_col = input
 
-    # Build AST if needed
-    ast_args = [input, response_format]
-    if scores is not None:
-        ast_args.append(scores)
-    if config is not None:
-        ast_args.append(config)
-    ast = build_function_expr(sql_func_name, ast_args) if _emit_ast else None
+    if _emit_ast:
+        ast = proto.Expr()
+        _pos: list = [input, response_format]
+        _kw: dict = {}
+        if scores is not None:
+            _pos.append(scores)
+        if config is not None:
+            _kw["config"] = config
+        build_builtin_fn_apply(ast, sql_func_name, *_pos, **_kw)
+    else:
+        ast = None
 
     # Use named-argument form when scores or config is requested
     if scores is not None or config is not None:
@@ -13210,10 +13214,15 @@ def ai_filter(
     sql_func_name = "ai_filter"
     predicate_col = _to_col_if_lit(predicate, sql_func_name)
 
-    args: list = [predicate] if file is None else [predicate, file]
-    if return_error_details is not None:
-        args.append(return_error_details)
-    ast = build_function_expr(sql_func_name, args) if _emit_ast else None
+    if _emit_ast:
+        ast = proto.Expr()
+        _pos: list = [predicate] if file is None else [predicate, file]
+        _kw: dict = {}
+        if return_error_details is not None:
+            _kw["return_error_details"] = return_error_details
+        build_builtin_fn_apply(ast, sql_func_name, *_pos, **_kw)
+    else:
+        ast = None
 
     # AI_FILTER has two overloads:
     #   AI_FILTER(<input> [, <return_error_details>])              -- text
@@ -13345,12 +13354,14 @@ def ai_classify(
     sql_func_name = "ai_classify"
     config_dict = dict(kwargs)
 
-    ast_args: list = [expr, list_of_categories]
-    if config_dict:
-        ast_args.append(config_dict)
-    if return_error_details is not None:
-        ast_args.append(return_error_details)
-    ast = build_function_expr(sql_func_name, ast_args) if _emit_ast else None
+    if _emit_ast:
+        ast = proto.Expr()
+        _kw: dict = dict(config_dict)
+        if return_error_details is not None:
+            _kw["return_error_details"] = return_error_details
+        build_builtin_fn_apply(ast, sql_func_name, expr, list_of_categories, **_kw)
+    else:
+        ast = None
 
     expr_col = _to_col_if_lit(expr, sql_func_name)
     if isinstance(list_of_categories, list) and all(
@@ -13679,12 +13690,14 @@ def ai_parse_document(
     sql_func_name = "ai_parse_document"
     config_dict = dict(kwargs)
 
-    ast_args: list = [file]
-    if config_dict:
-        ast_args.append(config_dict)
-    if return_error_details is not None:
-        ast_args.append(return_error_details)
-    ast = build_function_expr(sql_func_name, ast_args) if _emit_ast else None
+    if _emit_ast:
+        ast = proto.Expr()
+        _kw: dict = dict(config_dict)
+        if return_error_details is not None:
+            _kw["return_error_details"] = return_error_details
+        build_builtin_fn_apply(ast, sql_func_name, file, **_kw)
+    else:
+        ast = None
 
     # return_error_details is passed via named-argument syntax so config can be
     # skipped entirely (rather than using a NULL placeholder) when only
@@ -13815,12 +13828,14 @@ def ai_transcribe(
     sql_func_name = "ai_transcribe"
     config_dict = dict(kwargs)
 
-    ast_args: list = [audio_file]
-    if config_dict:
-        ast_args.append(config_dict)
-    if return_error_details is not None:
-        ast_args.append(return_error_details)
-    ast = build_function_expr(sql_func_name, ast_args) if _emit_ast else None
+    if _emit_ast:
+        ast = proto.Expr()
+        _kw: dict = dict(config_dict)
+        if return_error_details is not None:
+            _kw["return_error_details"] = return_error_details
+        build_builtin_fn_apply(ast, sql_func_name, audio_file, **_kw)
+    else:
+        ast = None
 
     # return_error_details is passed via named-argument syntax so config can be
     # skipped entirely (rather than using a NULL placeholder) when only
@@ -14274,12 +14289,17 @@ def ai_sentiment(
                 f"categories must be a list of str, got {type(categories).__name__}"
             )
 
-    ast_args: list = [text]
-    if categories is not None:
-        ast_args.append(categories)
-    if return_error_details is not None:
-        ast_args.append(return_error_details)
-    ast = build_function_expr(sql_func_name, ast_args) if _emit_ast else None
+    if _emit_ast:
+        ast = proto.Expr()
+        _pos: list = [text]
+        _kw: dict = {}
+        if categories is not None:
+            _pos.append(categories)
+        if return_error_details is not None:
+            _kw["return_error_details"] = return_error_details
+        build_builtin_fn_apply(ast, sql_func_name, *_pos, **_kw)
+    else:
+        ast = None
 
     # return_error_details is passed via named-argument syntax so categories
     # can be skipped entirely (rather than using a NULL placeholder) when only
@@ -14402,17 +14422,18 @@ def ai_count_tokens(
     """
     sql_func_name = "ai_count_tokens"
 
-    args: list = (
-        [function_name, model, input_text]
-        if model is not None
-        else [function_name, input_text]
-    )
-    if options is not None:
-        args.append(options)
-    if return_error_details is not None:
-        args.append(return_error_details)
-
-    ast = build_function_expr(sql_func_name, args) if _emit_ast else None
+    if _emit_ast:
+        ast = proto.Expr()
+        _kw: dict = {}
+        if model is not None:
+            _kw["model"] = model
+        if options is not None:
+            _kw["options"] = options
+        if return_error_details is not None:
+            _kw["return_error_details"] = return_error_details
+        build_builtin_fn_apply(ast, sql_func_name, function_name, input_text, **_kw)
+    else:
+        ast = None
 
     func_name_col = lit(function_name)
     input_col = _to_col_if_lit(input_text, sql_func_name)
@@ -14510,15 +14531,16 @@ def ai_multi_embed(
     sql_func_name = "ai_multi_embed"
     config_dict = dict(kwargs)
 
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, sql_func_name, model, input, **config_dict)
+    else:
+        ast = None
+
     model_col = lit(model)
     input_col = _to_col_if_lit(input, sql_func_name)
 
     if config_dict:
-        ast = (
-            build_function_expr(sql_func_name, [model, input, config_dict])
-            if _emit_ast
-            else None
-        )
         config_col = sql_expr(_python_obj_to_sql_literal(config_dict), is_constant=True)
         return _call_function(
             sql_func_name,
@@ -14529,7 +14551,6 @@ def ai_multi_embed(
             _emit_ast=_emit_ast,
         )
     else:
-        ast = build_function_expr(sql_func_name, [model, input]) if _emit_ast else None
         return _call_function(
             sql_func_name, model_col, input_col, _ast=ast, _emit_ast=_emit_ast
         )
@@ -14605,15 +14626,19 @@ def ai_redact(
     has_red = return_error_details is not None
     has_mode = mode is not None
 
-    args: list = [input]
-    if has_cat:
-        args.append(categories)
-    if has_red:
-        args.append(return_error_details)
-    if has_mode:
-        args.append(mode)
-
-    ast = build_function_expr(sql_func_name, args) if _emit_ast else None
+    if _emit_ast:
+        ast = proto.Expr()
+        _pos: list = [input]
+        _kw: dict = {}
+        if has_cat:
+            _pos.append(categories)
+        if has_red:
+            _kw["return_error_details"] = return_error_details
+        if has_mode:
+            _kw["mode"] = mode
+        build_builtin_fn_apply(ast, sql_func_name, *_pos, **_kw)
+    else:
+        ast = None
 
     input_col = _to_col_if_lit(input, sql_func_name)
 

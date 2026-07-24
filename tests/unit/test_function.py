@@ -157,6 +157,90 @@ def test_sql_expr_is_constant():
     assert const_expr._expression.dependent_column_names() == COLUMN_DEPENDENCY_EMPTY
 
 
+def _ast_pos_and_named(col):
+    """Return (pos_arg_kinds, named_arg_names) from a Column's ApplyExpr AST."""
+    ae = col._ast.apply_expr
+    pos = [a.WhichOneof("variant") for a in ae.pos_args]
+    named = [e._1 for e in ae.named_args]
+    return pos, named
+
+
+def test_ai_functions_ast_optional_args_use_named_args():
+    """Optional AI args skipped in the middle must be encoded as named_args.
+
+    Encoding them as trailing positionals would bind to the wrong parameter on
+    AST replay (e.g. return_error_details landing in file / categories / config).
+    """
+    from snowflake.snowpark.functions import (
+        ai_classify,
+        ai_count_tokens,
+        ai_extract,
+        ai_filter,
+        ai_multi_embed,
+        ai_parse_document,
+        ai_redact,
+        ai_sentiment,
+        ai_transcribe,
+        to_file,
+    )
+
+    pos, named = _ast_pos_and_named(
+        ai_filter("is it true?", return_error_details=True)
+    )
+    assert pos == ["string_val"]
+    assert named == ["return_error_details"]
+
+    pos, named = _ast_pos_and_named(
+        ai_classify(
+            "x",
+            ["a", "b"],
+            return_error_details=True,
+            task_description="desc",
+        )
+    )
+    assert pos == ["string_val", "list_val"]
+    assert named == ["return_error_details", "task_description"]
+
+    f = to_file("@s/f.pdf")
+    pos, named = _ast_pos_and_named(
+        ai_parse_document(f, return_error_details=True, mode="LAYOUT")
+    )
+    assert len(pos) == 1
+    assert named == ["mode", "return_error_details"]
+
+    pos, named = _ast_pos_and_named(
+        ai_transcribe(f, return_error_details=True, timestamp_granularity="word")
+    )
+    assert len(pos) == 1
+    assert named == ["return_error_details", "timestamp_granularity"]
+
+    pos, named = _ast_pos_and_named(
+        ai_count_tokens("ai_complete", "hello", model="llama3.1-70b")
+    )
+    assert pos == ["string_val", "string_val"]
+    assert named == ["model"]
+
+    pos, named = _ast_pos_and_named(
+        ai_extract("text", {"a": "q"}, config={"scale_factor": 2.0})
+    )
+    assert pos == ["string_val", "seq_map_val"]
+    assert named == ["config"]
+
+    pos, named = _ast_pos_and_named(ai_sentiment("text", return_error_details=True))
+    assert pos == ["string_val"]
+    assert named == ["return_error_details"]
+
+    pos, named = _ast_pos_and_named(ai_redact("text", mode="detect"))
+    assert pos == ["string_val"]
+    assert named == ["mode"]
+
+    pos, named = _ast_pos_and_named(
+        ai_multi_embed("twelvelabs-marengo-embed-3-0", "hello", start_sec=1.0)
+    )
+    assert pos == ["string_val", "string_val"]
+    assert named == ["start_sec"]
+
+
 def _render_ai_extract_sql(response_format):
     """Render the full generated SQL fragment for an ``ai_extract`` call.
 

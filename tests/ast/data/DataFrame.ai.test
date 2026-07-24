@@ -1745,6 +1745,7 @@ body {
             id: 20
           }
         }
+        function_name: "ai_complete"
         model: "llama3.1-70b"
         output_column {
           value: "COUNT_TOKENS_OUTPUT"

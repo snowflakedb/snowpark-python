@@ -16,10 +16,11 @@
 #### Improvements
 
 - Removed the `experimental` tag from all AI SQL functions in `DataFrameAIFunctions` (`complete`, `filter`, `agg`, `classify`, `similarity`, `sentiment`, `embed`, `summarize_agg`, `transcribe`, `parse_document`, `extract`, `count_tokens`, `split_text_markdown_header`, `split_text_recursive_character`) and `RelationalGroupedDataFrame.ai_agg`.
-- Added `options` and `return_error_details` parameters to `DataFrame.ai.count_tokens` to match the standalone `ai_count_tokens` function.
+- Added `function_name`, `options`, and `return_error_details` parameters to `DataFrame.ai.count_tokens` to match the standalone `ai_count_tokens` function. `function_name` defaults to `'ai_complete'` to preserve existing behavior.
 
 #### Bug Fixes
 
+- Fixed `DataFrame.ai.count_tokens` to call the `AI_COUNT_TOKENS` SQL function instead of the deprecated `SNOWFLAKE.CORTEX.COUNT_TOKENS`. Token counts may differ slightly due to the updated tokenizer.
 - Reverted the change introduced in 1.53.0 to eliminate unnecessary `SELECT *` from joins, which was causing performance regressions. This has no functional impact.
 
 ## 1.53.1 (2026-07-14)
