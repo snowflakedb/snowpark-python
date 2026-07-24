@@ -16,6 +16,7 @@
 #### Improvements
 
 - Removed the `experimental` tag from all AI SQL functions in `DataFrameAIFunctions` (`complete`, `filter`, `agg`, `classify`, `similarity`, `sentiment`, `embed`, `summarize_agg`, `transcribe`, `parse_document`, `extract`, `count_tokens`, `split_text_markdown_header`, `split_text_recursive_character`) and `RelationalGroupedDataFrame.ai_agg`.
+- Added `options` and `return_error_details` parameters to `DataFrame.ai.count_tokens` to match the standalone `ai_count_tokens` function.
 
 ## 1.53.1 (2026-07-14)
 

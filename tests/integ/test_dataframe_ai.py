@@ -1939,6 +1939,10 @@ def test_ai_sentiment_return_error_details(session):
     assert "value" in parsed and "error" in parsed
 
 
+@pytest.mark.xfail(
+    reason="AI_CLASSIFY return_error_details named argument is not yet supported on Azure",
+    strict=False,
+)
 def test_ai_classify_return_error_details(session):
     """AI_CLASSIFY with return_error_details=True (no config) returns OBJECT with value/error."""
     from snowflake.snowpark.functions import ai_classify
@@ -1994,3 +1998,21 @@ def test_ai_count_tokens_return_error_details(session):
     result = df.collect()[0][0]
     parsed = json.loads(result) if isinstance(result, str) else result
     assert "value" in parsed and "error" in parsed
+
+
+def test_dataframe_ai_count_tokens_return_error_details(session):
+    """DataFrame.ai.count_tokens with return_error_details=True returns OBJECT with value/error."""
+    df = session.create_dataframe(
+        [["What is a large language model?"]], schema=["text"]
+    )
+    result_df = df.ai.count_tokens(
+        model="llama3.1-70b",
+        prompt="text",
+        output_column="out",
+        return_error_details=True,
+    )
+    result = result_df.collect()[0]["OUT"]
+    parsed = json.loads(result) if isinstance(result, str) else result
+    assert "value" in parsed and "error" in parsed
+    assert parsed["error"] is None
+    assert parsed["value"] > 0

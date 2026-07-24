@@ -79,6 +79,13 @@ class DataFrameAIFunctions:
             return_error_details: When ``True``, returns an OBJECT with ``value`` and ``error``
                 fields instead of returning NULL on failure.
 
+        Note:
+            ``response_format`` and ``show_details`` from :func:`~snowflake.snowpark.functions.ai_complete`
+            are not exposed here because this method always builds a ``PROMPT`` object from
+            ``prompt`` / ``input_columns``, and those options are only supported for the
+            single-string ``AI_COMPLETE`` overload. Use :func:`~snowflake.snowpark.functions.ai_complete`
+            directly for structured outputs or detailed responses.
+
         Returns:
             A new DataFrame with appended output columns at the end.
 
@@ -1475,6 +1482,8 @@ class DataFrameAIFunctions:
         prompt: ColumnOrName,
         *,
         output_column: Optional[str] = None,
+        options: Optional[Dict[str, Any]] = None,
+        return_error_details: Optional[bool] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """Count the number of tokens in text for a specified language model.
@@ -1502,9 +1511,15 @@ class DataFrameAIFunctions:
                 to count tokens for.
             output_column: The name of the output column to be appended.
                 If not provided, a column named ``COUNT_TOKENS_OUTPUT`` is appended.
+            options: Optional dict specifying additional processing parameters for the
+                underlying ``AI_COUNT_TOKENS`` call.
+            return_error_details: When ``True``, returns an OBJECT with ``value`` and
+                ``error`` fields instead of returning NULL on failure.
 
         Returns:
             A new DataFrame with an appended output column containing the token count as an integer.
+            When ``return_error_details=True``, the column contains an OBJECT with ``value``
+            and ``error`` fields instead.
 
         Examples::
 
@@ -1525,6 +1540,10 @@ class DataFrameAIFunctions:
             The token count does not account for any managed system prompt that may be
             automatically added when using other Cortex AI functions. The actual token
             usage may be higher when using those functions.
+
+            This DataFrame method estimates tokens for ``ai_complete``. To count tokens
+            for other AI functions, use :func:`~snowflake.snowpark.functions.ai_count_tokens`
+            directly.
         """
 
         output_column_name = output_column or "COUNT_TOKENS_OUTPUT"
@@ -1538,11 +1557,18 @@ class DataFrameAIFunctions:
             self._dataframe._set_ast_ref(ast.df)
             ast.model = model
             build_expr_from_snowpark_column_or_col_name(ast.prompt, prompt_col)
+            if return_error_details is not None:
+                ast.return_error_details.value = return_error_details
 
             ast.output_column.value = output_column_name
 
         result_col = ai_count_tokens(
-            "ai_complete", prompt_col, model=model, _emit_ast=False
+            "ai_complete",
+            prompt_col,
+            model=model,
+            options=options,
+            return_error_details=return_error_details,
+            _emit_ast=False,
         )
 
         # Add the output column to the DataFrame
