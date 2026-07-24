@@ -18,6 +18,10 @@
 - Removed the `experimental` tag from all AI SQL functions in `DataFrameAIFunctions` (`complete`, `filter`, `agg`, `classify`, `similarity`, `sentiment`, `embed`, `summarize_agg`, `transcribe`, `parse_document`, `extract`, `count_tokens`, `split_text_markdown_header`, `split_text_recursive_character`) and `RelationalGroupedDataFrame.ai_agg`.
 - Added `options` and `return_error_details` parameters to `DataFrame.ai.count_tokens` to match the standalone `ai_count_tokens` function.
 
+#### Bug Fixes
+
+- Reverted the change introduced in 1.53.0 to eliminate unnecessary `SELECT *` from joins, which was causing performance regressions. This has no functional impact.
+
 ## 1.53.1 (2026-07-14)
 
 No user-facing changes in this release.
@@ -41,6 +45,10 @@ No user-facing changes in this release.
 - Fixed a bug where single quotes and backslashes in `comment` (`create_or_replace_view` / dynamic table / `save_as_table`), collation specs (`Column.collate`), VARIANT/OBJECT subfield keys (`Column[...]`), and `DataFrame`/`Session.flatten` paths were not correctly escaped when generating SQL, which could produce malformed statements. Backslash sequences (e.g. `\t`, `\n`) in these values are now applied literally rather than interpreted.
 - Fixed a bug where string values in the AI functions (`ai_extract`, `ai_classify`, `ai_similarity`, `ai_parse_document`, `ai_transcribe`, `ai_complete`) configuration and `response_format` were not correctly escaped when generating the SQL object literal, which could produce malformed statements when a value contained single quotes or backslashes (for example, an apostrophe in a natural-language question).
 
+#### Improvements
+
+- Reduced the size of generated query text for repeated join operations.
+
 #### Dependency Updates
 
 - Lifted `protobuf` restriction for Python 3.14 from `==5.29.3` to `>=5.29.3,<6.34`.
@@ -63,7 +71,6 @@ No user-facing changes in this release.
 #### Improvements
 
 - Improved CTE optimization to deduplicate identical subtrees in self-joins, which were previously emitted as repeated subqueries.
-- Reduced the size of generated query text for repeated join operations.
 
 #### Deprecations
 

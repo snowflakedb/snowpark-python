@@ -458,7 +458,6 @@ class SnowflakePlan(LogicalPlan):
         self.session = session
         self.source_plan = source_plan
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
-        self._is_join_output = False
         # We need to copy this list since we don't want to change it for the
         # previous SnowflakePlan objects
         self.api_calls = api_calls.copy() if api_calls else []
@@ -770,7 +769,6 @@ class SnowflakePlan(LogicalPlan):
                 referenced_ctes=self.referenced_ctes,
             )
         plan.df_ast_ids = self.df_ast_ids
-        plan._is_join_output = self._is_join_output
         return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -810,7 +808,6 @@ class SnowflakePlan(LogicalPlan):
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
         copied_plan.df_ast_ids = self.df_ast_ids
-        copied_plan._is_join_output = self._is_join_output
 
         return copied_plan
 
@@ -1239,8 +1236,7 @@ class SnowflakePlanBuilder:
         use_constant_subquery_alias: bool,
         directed: bool = False,
     ):
-        left_is_join = left._is_join_output
-        result = self.build_binary(
+        return self.build_binary(
             lambda x, y: join_statement(
                 x,
                 y,
@@ -1257,14 +1253,11 @@ class SnowflakePlanBuilder:
                     else None
                 ),
                 directed=directed,
-                left_is_join=left_is_join,
             ),
             left,
             right,
             source_plan,
         )
-        result._is_join_output = True
-        return result
 
     def save_as_table(
         self,
