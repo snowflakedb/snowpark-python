@@ -230,11 +230,32 @@ def test_ai_functions_ast_optional_args_use_named_args():
     assert pos == ["string_val", "string_val"]
     assert named == ["model"]
 
+    # Cover options + return_error_details AST/SQL branches for ai_count_tokens
+    pos, named = _ast_pos_and_named(
+        ai_count_tokens(
+            "ai_complete",
+            "hello",
+            model="llama3.1-70b",
+            options={"temperature": 0.0},
+            return_error_details=True,
+            _emit_ast=emit,
+        )
+    )
+    assert pos == ["string_val", "string_val"]
+    assert named == ["model", "options", "return_error_details"]
+
     pos, named = _ast_pos_and_named(
         ai_extract("text", {"a": "q"}, config={"scale_factor": 2.0}, _emit_ast=emit)
     )
     assert pos == ["string_val", "seq_map_val"]
     assert named == ["config"]
+
+    # Cover scores AST branch (positional after response_format)
+    pos, named = _ast_pos_and_named(
+        ai_extract("text", {"a": "q"}, scores=True, _emit_ast=emit)
+    )
+    assert pos == ["string_val", "seq_map_val", "bool_val"]
+    assert named == []
 
     pos, named = _ast_pos_and_named(
         ai_sentiment("text", return_error_details=True, _emit_ast=emit)
@@ -242,9 +263,34 @@ def test_ai_functions_ast_optional_args_use_named_args():
     assert pos == ["string_val"]
     assert named == ["return_error_details"]
 
+    # Cover categories AST branch for ai_sentiment
+    pos, named = _ast_pos_and_named(
+        ai_sentiment(
+            "text",
+            categories=["quality", "price"],
+            return_error_details=True,
+            _emit_ast=emit,
+        )
+    )
+    assert pos == ["string_val", "list_val"]
+    assert named == ["return_error_details"]
+
     pos, named = _ast_pos_and_named(ai_redact("text", mode="detect", _emit_ast=emit))
     assert pos == ["string_val"]
     assert named == ["mode"]
+
+    # Cover categories + return_error_details AST branches for ai_redact
+    pos, named = _ast_pos_and_named(
+        ai_redact(
+            "text",
+            categories=["NAME", "EMAIL"],
+            return_error_details=True,
+            mode="detect",
+            _emit_ast=emit,
+        )
+    )
+    assert pos == ["string_val", "list_val"]
+    assert named == ["mode", "return_error_details"]
 
     pos, named = _ast_pos_and_named(
         ai_multi_embed(
