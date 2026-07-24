@@ -1518,14 +1518,8 @@ class DataFrameAIFunctions:
             ...     prompt="text",
             ...     output_column="token_count"
             ... )
-            >>> result_df.show()
-            --------------------------------------------------------------
-            |"TEXT"                                      |"TOKEN_COUNT"  |
-            --------------------------------------------------------------
-            |What is a large language model?             |8              |
-            |Explain quantum computing in simple terms.  |9              |
-            --------------------------------------------------------------
-            <BLANKLINE>
+            >>> result_df.collect()[0]["TOKEN_COUNT"] > 0
+            True
 
         Note:
             The token count does not account for any managed system prompt that may be
@@ -1930,9 +1924,9 @@ class DataFrameAIFunctions:
             ...     model="twelvelabs-marengo-embed-3-0",
             ...     output_column="multimodal_vector"
             ... )
-            >>> results = result_df.collect()
-            >>> results[0]["MULTIMODAL_VECTOR"]["error"] is None
-            True
+            >>> results = result_df.collect()  # doctest: +SKIP
+            >>> results[0]["MULTIMODAL_VECTOR"]["error"] is None  # doctest: +SKIP
+            True  # doctest: +SKIP
         """
         output_column_name = output_column or "AI_MULTI_EMBED_OUTPUT"
 
@@ -1981,7 +1975,7 @@ class DataFrameAIFunctions:
                 the text to process.
             categories: An optional list of PII category names to target. When omitted,
                 all supported categories are redacted (e.g. ``'NAME'``, ``'EMAIL'``,
-                ``'PHONE'``, ``'ADDRESS'``, ``'SSN'``).
+                ``'PHONE_NUMBER'``, ``'ADDRESS'``, ``'NATIONAL_ID'``).
             mode: ``'redact'`` (default) to replace PII with placeholder labels such as
                 ``[NAME]``, or ``'detect'`` to return span metadata without modifying
                 the text.

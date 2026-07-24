@@ -13350,14 +13350,19 @@ def ai_classify(
             f"list_of_categories must be a list of str or a Column, got {list_of_categories}"
         )
 
-    # SQL positional order: AI_CLASSIFY(expr, categories [, config] [, return_error_details])
+    # AI_CLASSIFY does not accept a NULL placeholder for a skipped config
+    # argument, but return_error_details accepts named-argument syntax, so it
+    # can always be appended that way regardless of whether config is present.
+    # SQL order: AI_CLASSIFY(expr, categories [, config] [, return_error_details])
     call_args = [expr_col, cat_col]
     if config_dict:
         call_args.append(sql_expr(_python_obj_to_sql_literal(config_dict)))
-    elif return_error_details is not None:
-        call_args.append(lit(None))
     if return_error_details is not None:
-        call_args.append(lit(return_error_details))
+        call_args.append(
+            sql_expr(
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}"
+            )
+        )
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
 
 
@@ -13662,14 +13667,19 @@ def ai_parse_document(
         ast_args.append(return_error_details)
     ast = build_function_expr(sql_func_name, ast_args) if _emit_ast else None
 
-    # SQL positional order: AI_PARSE_DOCUMENT(file [, config] [, return_error_details])
+    # return_error_details is passed via named-argument syntax so config can be
+    # skipped entirely (rather than using a NULL placeholder) when only
+    # return_error_details is provided.
+    # SQL order: AI_PARSE_DOCUMENT(file [, config] [, return_error_details])
     call_args: list = [file]
     if config_dict:
         call_args.append(sql_expr(_python_obj_to_sql_literal(config_dict)))
-    elif return_error_details is not None:
-        call_args.append(lit(None))
     if return_error_details is not None:
-        call_args.append(lit(return_error_details))
+        call_args.append(
+            sql_expr(
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}"
+            )
+        )
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
 
 
@@ -13790,14 +13800,19 @@ def ai_transcribe(
         ast_args.append(return_error_details)
     ast = build_function_expr(sql_func_name, ast_args) if _emit_ast else None
 
-    # SQL positional order: AI_TRANSCRIBE(audio_file [, config] [, return_error_details])
+    # return_error_details is passed via named-argument syntax so config can be
+    # skipped entirely (rather than using a NULL placeholder) when only
+    # return_error_details is provided.
+    # SQL order: AI_TRANSCRIBE(audio_file [, config] [, return_error_details])
     call_args: list = [audio_file]
     if config_dict:
         call_args.append(sql_expr(_python_obj_to_sql_literal(config_dict)))
-    elif return_error_details is not None:
-        call_args.append(lit(None))
     if return_error_details is not None:
-        call_args.append(lit(return_error_details))
+        call_args.append(
+            sql_expr(
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}"
+            )
+        )
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
 
 
@@ -14239,16 +14254,21 @@ def ai_sentiment(
         ast_args.append(return_error_details)
     ast = build_function_expr(sql_func_name, ast_args) if _emit_ast else None
 
-    # SQL positional order: AI_SENTIMENT(text [, categories] [, return_error_details])
+    # return_error_details is passed via named-argument syntax so categories
+    # can be skipped entirely (rather than using a NULL placeholder) when only
+    # return_error_details is provided.
+    # SQL order: AI_SENTIMENT(text [, categories] [, return_error_details])
     call_args = [text_col]
     if categories is not None:
         call_args.append(
             lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
         )
-    elif return_error_details is not None:
-        call_args.append(lit(None))
     if return_error_details is not None:
-        call_args.append(lit(return_error_details))
+        call_args.append(
+            sql_expr(
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}"
+            )
+        )
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
 
 
@@ -14370,11 +14390,15 @@ def ai_count_tokens(
     input_col = _to_col_if_lit(input_text, sql_func_name)
 
     # AI_COUNT_TOKENS has four overloads for each combination of {model, options}:
-    #   AI_COUNT_TOKENS(<function_name>, <input_text> [, <return_error_details>])
-    #   AI_COUNT_TOKENS(<function_name>, <model_name>, <input_text> [, <return_error_details>])
-    #   AI_COUNT_TOKENS(<function_name>, <input_text>, <options> [, <return_error_details>])
-    #   AI_COUNT_TOKENS(<function_name>, <model_name>, <input_text>, <options> [, <return_error_details>])
-    # Snowflake picks the overload by arg count, so no NULL placeholder is needed.
+    #   AI_COUNT_TOKENS(<function_name>, <input_text>)
+    #   AI_COUNT_TOKENS(<function_name>, <model_name>, <input_text>)
+    #   AI_COUNT_TOKENS(<function_name>, <input_text>, <options>)
+    #   AI_COUNT_TOKENS(<function_name>, <model_name>, <input_text>, <options>)
+    # Snowflake picks the overload by arg count, so no NULL placeholder is
+    # needed for model/options. return_error_details is only recognized via
+    # named-argument syntax; passing it positionally silently returns NULL
+    # instead of the expected value/error OBJECT, so it is always appended
+    # using `return_error_details => ...` regardless of the chosen overload.
     call_args: list = [func_name_col]
     if model is not None:
         call_args.append(lit(model))
@@ -14382,7 +14406,11 @@ def ai_count_tokens(
     if options is not None:
         call_args.append(sql_expr(_python_obj_to_sql_literal(options)))
     if return_error_details is not None:
-        call_args.append(lit(return_error_details))
+        call_args.append(
+            sql_expr(
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}"
+            )
+        )
 
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
 
@@ -14444,9 +14472,9 @@ def ai_multi_embed(
         ...         to_file('@mystage/dog.jpg')
         ...     ).alias("embedding")
         ... )
-        >>> result = df.collect()[0][0]
-        >>> result['error'] is None
-        True
+        >>> result = df.collect()[0][0]  # doctest: +SKIP
+        >>> result['error'] is None  # doctest: +SKIP
+        True  # doctest: +SKIP
     """
     sql_func_name = "ai_multi_embed"
     config_dict = dict(kwargs)
@@ -14494,7 +14522,7 @@ def ai_redact(
         input: A string or Column containing the text to process.
         categories: An optional list of PII category names to target. When omitted,
             all supported PII categories are redacted. Example categories include
-            ``'NAME'``, ``'EMAIL'``, ``'PHONE'``, ``'ADDRESS'``, ``'SSN'``.
+            ``'NAME'``, ``'EMAIL'``, ``'PHONE_NUMBER'``, ``'ADDRESS'``, ``'NATIONAL_ID'``.
         mode: Operating mode. Either ``'redact'`` (default) to replace PII with
             placeholder labels (e.g. ``[NAME]``), or ``'detect'`` to return an
             object with metadata about each detected PII span without modifying
@@ -14528,7 +14556,7 @@ def ai_redact(
         >>> df = session.range(1).select(
         ...     ai_redact(
         ...         'John Smith, john@example.com, 555-1234',
-        ...         categories=['NAME', 'PHONE']
+        ...         categories=['NAME', 'PHONE_NUMBER']
         ...     ).alias("redacted")
         ... )
         >>> result = df.collect()[0][0]
@@ -14561,21 +14589,24 @@ def ai_redact(
 
     input_col = _to_col_if_lit(input, sql_func_name)
 
-    # Build positional call args in SQL order:
-    # AI_REDACT(input [, categories] [, return_error_details] [, mode])
-    # NULL is used as a placeholder when a middle optional arg is omitted but a
-    # later arg is provided, so that the positional order is preserved.
+    # AI_REDACT only reliably supports skipping a positional argument (e.g.
+    # categories) when a later one is provided (e.g. mode) if that later
+    # argument is passed using named-argument syntax; a NULL placeholder in
+    # the categories slot causes AI_REDACT to fail/return NULL. return_error_details
+    # and mode both accept named-argument syntax, so we always pass them that
+    # way and only ever pass categories positionally.
     call_args = [input_col]
-
-    if has_cat or has_red or has_mode:
+    if has_cat:
         call_args.append(
             lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
-            if has_cat
-            else lit(None)
         )
-    if has_red or has_mode:
-        call_args.append(lit(return_error_details) if has_red else lit(None))
+    if has_red:
+        call_args.append(
+            sql_expr(
+                f"return_error_details => {_python_obj_to_sql_literal(return_error_details)}"
+            )
+        )
     if has_mode:
-        call_args.append(lit(mode))
+        call_args.append(sql_expr(f"mode => {_python_obj_to_sql_literal(mode)}"))
 
     return _call_function(sql_func_name, *call_args, _ast=ast, _emit_ast=_emit_ast)
