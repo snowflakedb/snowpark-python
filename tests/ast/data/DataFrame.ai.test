@@ -1745,7 +1745,6 @@ body {
             id: 20
           }
         }
-        function_name: "ai_complete"
         model: "llama3.1-70b"
         output_column {
           value: "COUNT_TOKENS_OUTPUT"
@@ -1753,7 +1752,7 @@ body {
         prompt {
           string_val {
             src {
-              end_column: 72
+              end_column: 87
               end_line: 112
               file: 2
               start_column: 15
@@ -1763,12 +1762,13 @@ body {
           }
         }
         src {
-          end_column: 72
+          end_column: 87
           end_line: 112
           file: 2
           start_column: 15
           start_line: 112
         }
+        function_name: "ai_complete"
       }
     }
     first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
