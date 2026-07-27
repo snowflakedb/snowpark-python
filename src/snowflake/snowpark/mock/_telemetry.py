@@ -113,13 +113,7 @@ class LocalTestOOBTelemetryService:
             os.getenv("SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY", False)
         )
         self._deployment_url = self.PROD
-        # NOTE: preserved as-is from the connector's telemetry_oob.TelemetryService
-        # based implementation for 1:1 behavior parity. This sets an attribute that
-        # is never read (the `enabled` property reads `self._enabled`, which
-        # defaults to `False`), so the service is effectively always disabled
-        # unless something else calls `.enable()`. See follow-up PR for a fix.
-        self._enable = True
-        self._enabled = False
+        self._enabled = True
         self._queue: "Queue" = Queue()
         self.batch_size = DEFAULT_BATCH_SIZE
         self._lock = threading.RLock()
