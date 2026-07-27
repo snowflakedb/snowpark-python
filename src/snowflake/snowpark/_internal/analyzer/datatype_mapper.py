@@ -501,6 +501,31 @@ def to_sql(
     if isinstance(value, str) and isinstance(datatype, DayTimeIntervalType):
         return f"{str_to_sql_for_day_time_interval(value, datatype)} :: {convert_sp_to_sf_type(datatype)}"
 
+    if isinstance(value, timedelta) and isinstance(datatype, DayTimeIntervalType):
+        # Serialize timedelta as an INTERVAL DAY TO SECOND literal.
+        # timedelta stores (days, seconds, microseconds) all non-negative after normalization.
+        sign = "-" if value < timedelta(0) else "+"
+        abs_val = abs(value)
+        d = abs_val.days
+        total_us = abs_val.seconds * 1_000_000 + abs_val.microseconds
+        h = total_us // 3_600_000_000
+        total_us %= 3_600_000_000
+        m = total_us // 60_000_000
+        total_us %= 60_000_000
+        s = total_us // 1_000_000
+        us = total_us % 1_000_000
+        interval_str = f"{sign}{d} {h:02d}:{m:02d}:{s:02d}.{us:06d}"
+        return f"INTERVAL '{interval_str}' DAY TO SECOND"
+
+    if isinstance(value, int) and isinstance(datatype, YearMonthIntervalType):
+        # Serialize int (total months) as an INTERVAL YEAR TO MONTH literal.
+        sign = "-" if value < 0 else "+"
+        abs_months = abs(value)
+        years = abs_months // 12
+        months = abs_months % 12
+        interval_str = f"{sign}{years}-{months:02d}"
+        return f"INTERVAL '{interval_str}' YEAR TO MONTH"
+
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 
 

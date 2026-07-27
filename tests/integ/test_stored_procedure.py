@@ -53,11 +53,13 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     DateType,
+    DayTimeIntervalType,
     DoubleType,
     IntegerType,
     StringType,
     StructField,
     StructType,
+    YearMonthIntervalType,
 )
 from tests.integ.session_parameters import create_session_for_test
 from tests.utils import (
@@ -2753,3 +2755,56 @@ def test_sproc_runtime_313_cloudpickle_ge_spec_compiles_and_executes(session):
         is_permanent=False,
     )
     assert sp(6) == 42
+
+
+# ── Interval type stored procedures (SNOW-3746506) ───────────────────────────
+
+
+def _interval_udf_flag_enabled(session: Session) -> bool:
+    """Return True when ENABLE_INTERVAL_TYPES_IN_UDF is set to TRUE on this account."""
+    rows = session.sql(
+        "SHOW PARAMETERS LIKE 'ENABLE_INTERVAL_TYPES_IN_UDF' IN ACCOUNT"
+    ).collect()
+    return bool(rows) and rows[0]["value"].upper() == "TRUE"
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_sproc_daytime_interval(session):
+    """DayTimeIntervalType sproc: timedelta arg/return round-trips correctly."""
+    if not _interval_udf_flag_enabled(session):
+        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not enabled on this account")
+
+    def double_interval(session: Session, d: datetime.timedelta) -> datetime.timedelta:
+        return d * 2
+
+    sp = session.sproc.register(
+        double_interval,
+        return_type=DayTimeIntervalType(),
+        input_types=[DayTimeIntervalType()],
+    )
+    result = sp(datetime.timedelta(days=3))
+    assert result == datetime.timedelta(days=6)
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_sproc_yearmonth_interval(session):
+    """YearMonthIntervalType sproc: int (total months) arg/return round-trips correctly."""
+    if not _interval_udf_flag_enabled(session):
+        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not enabled on this account")
+
+    from snowflake.snowpark.types import YearMonthInterval
+
+    def promote(session: Session, m: YearMonthInterval) -> YearMonthInterval:
+        return m + 12  # m is int (total months) inside the sproc
+
+    sp = session.sproc.register(
+        promote,
+        return_type=YearMonthIntervalType(),
+        input_types=[YearMonthIntervalType()],
+    )
+    # Call via SQL to pass an explicit INTERVAL literal (infer_type(int) → NUMBER).
+    result = session.sql(f"CALL {sp.name}(INTERVAL '1-2' YEAR TO MONTH)").collect()[0][
+        0
+    ]
+    # 14 months + 12 = 26 months → '+2-02'
+    assert result == "+2-02"
