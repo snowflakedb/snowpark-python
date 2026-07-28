@@ -198,7 +198,9 @@ def test_session_stage_created_once(threadsafe_session):
             for _ in range(10):
                 executor.submit(threadsafe_session.get_session_stage)
 
-        assert patched_run_query.call_count == 1
+        # connector >= 4.7.1 no longer caches database/schema from non-USE statements (e.g. CREATE TEMP STAGE).
+        # Older connectors did, expect 3 queries for >= 4.7.1, 1 for earlier versions.
+        assert patched_run_query.call_count in [1, 3]
 
 
 def test_action_ids_are_unique(threadsafe_session):
