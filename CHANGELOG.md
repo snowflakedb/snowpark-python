@@ -6,11 +6,23 @@
 
 #### New Features
 
-- Added `DataFrame.to_polars()` to convert a Snowpark DataFrame to a Polars DataFrame or LazyFrame.
+- Added `DataFrame.to_polars()` to convert a Snowpark DataFrame to a Polars DataFrame or LazyFrame when `lazy=True`. Supports an optional `use_parquet=True` mode for large data-transfer-dominated workloads.
+- Added `ai_count_tokens` function to `snowflake.snowpark.functions` to estimate token counts for AI function calls.
+- Added `ai_multi_embed` function to `snowflake.snowpark.functions` to generate multimodal embeddings from text, images, audio, or video files.
+- Added `ai_redact` function to `snowflake.snowpark.functions` to detect and redact personally identifiable information (PII) from text.
+- Added `DataFrame.ai.multi_embed` method to generate multimodal embeddings via the DataFrame API.
+- Added `DataFrame.ai.redact` method to detect and redact PII from text columns via the DataFrame API.
+- Added `DataFrame.ai.translate` method to translate text columns between languages via the DataFrame API.
 
 #### Improvements
 
 - Removed the `experimental` tag from all AI SQL functions in `DataFrameAIFunctions` (`complete`, `filter`, `agg`, `classify`, `similarity`, `sentiment`, `embed`, `summarize_agg`, `transcribe`, `parse_document`, `extract`, `count_tokens`, `split_text_markdown_header`, `split_text_recursive_character`) and `RelationalGroupedDataFrame.ai_agg`.
+- Updated `DataFrame.ai.count_tokens` to match the standalone `ai_count_tokens` function: `function_name` is now the required first parameter, and `model` is optional. Also added `options` and `return_error_details` parameters.
+
+#### Bug Fixes
+
+- Fixed `DataFrame.ai.count_tokens` to call the `AI_COUNT_TOKENS` SQL function instead of the deprecated `SNOWFLAKE.CORTEX.COUNT_TOKENS`. Token counts may differ slightly due to the updated tokenizer.
+- Reverted the change introduced in 1.53.0 to eliminate unnecessary `SELECT *` from joins, which was causing performance regressions. This has no functional impact.
 
 ## 1.53.1 (2026-07-14)
 
@@ -35,6 +47,10 @@ No user-facing changes in this release.
 - Fixed a bug where single quotes and backslashes in `comment` (`create_or_replace_view` / dynamic table / `save_as_table`), collation specs (`Column.collate`), VARIANT/OBJECT subfield keys (`Column[...]`), and `DataFrame`/`Session.flatten` paths were not correctly escaped when generating SQL, which could produce malformed statements. Backslash sequences (e.g. `\t`, `\n`) in these values are now applied literally rather than interpreted.
 - Fixed a bug where string values in the AI functions (`ai_extract`, `ai_classify`, `ai_similarity`, `ai_parse_document`, `ai_transcribe`, `ai_complete`) configuration and `response_format` were not correctly escaped when generating the SQL object literal, which could produce malformed statements when a value contained single quotes or backslashes (for example, an apostrophe in a natural-language question).
 
+#### Improvements
+
+- Reduced the size of generated query text for repeated join operations.
+
 #### Dependency Updates
 
 - Lifted `protobuf` restriction for Python 3.14 from `==5.29.3` to `>=5.29.3,<6.34`.
@@ -57,7 +73,6 @@ No user-facing changes in this release.
 #### Improvements
 
 - Improved CTE optimization to deduplicate identical subtrees in self-joins, which were previously emitted as repeated subqueries.
-- Reduced the size of generated query text for repeated join operations.
 
 #### Deprecations
 

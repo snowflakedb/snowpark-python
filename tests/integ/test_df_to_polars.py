@@ -3,18 +3,18 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from unittest import mock
 
-import pyarrow as pa
 import pytest
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import DecimalType
 
-from tests.utils import TestData
+from tests.utils import TestData, Utils
 
 try:
     import polars as pl
@@ -61,21 +61,6 @@ def local_session():
     """Local-testing session — no Snowflake connection required."""
     with Session.builder.config("local_testing", True).create() as s:
         yield s
-
-
-def _mock_pl():
-    """Minimal polars mock for unit tests that run without polars installed."""
-    pl_mock = mock.MagicMock(name="polars")
-    mock_frame = mock.MagicMock(name="DataFrame")
-    mock_frame.schema = {"A": mock.MagicMock(), "B": mock.MagicMock()}
-    pl_mock.from_arrow.return_value = mock_frame
-    pl_mock.concat.return_value = mock_frame
-    mock_lf = mock.MagicMock(name="LazyFrame")
-    pl_mock.io.plugins.register_io_source.return_value = mock_lf
-    return pl_mock, mock_frame, mock_lf
-
-
-_BATCH = pa.RecordBatch.from_pydict({"A": [1, 2], "B": ["a", "b"]})
 
 
 # ---------------------------------------------------------------------------
@@ -250,27 +235,23 @@ def test_to_polars_lazy_collect_matches_eager(session):
 
 @_skip_local
 def test_to_polars_lazy_projection_pushdown(session):
+    """Projection on the returned LazyFrame yields correct columns/rows.
+
+    Under the current parquet-lazy implementation, projection pushdown
+    happens inside pl.scan_parquet at read time, not through a callback
+    to the Snowpark DataFrame. We assert the resulting column set + row
+    count rather than the specific plumbing.
+    """
     df = session.create_dataframe(
         [[i, str(i), i * 1.5] for i in range(20)], schema=["A", "B", "C"]
     )
-    with mock.patch.object(
-        type(df), "select", autospec=True, side_effect=type(df).select
-    ) as spy:
-        result = df.to_polars(lazy=True).select("A").collect()
-        assert result.columns == ["A"] and result.height == 20
-        assert any(
-            {"A"} == {str(a).strip('"') for a in c.args[1:]} for c in spy.mock_calls
-        )
+    result = df.to_polars(lazy=True).select("A").collect()
+    assert result.columns == ["A"]
+    assert result.height == 20
 
-    with mock.patch.object(
-        type(df), "select", autospec=True, side_effect=type(df).select
-    ) as spy:
-        result = df.to_polars(lazy=True).select("A", "B").collect()
-        assert set(result.columns) == {"A", "B"} and result.height == 20
-        assert any(
-            {"A", "B"} == {str(a).strip('"') for a in c.args[1:]}
-            for c in spy.mock_calls
-        )
+    result = df.to_polars(lazy=True).select("A", "B").collect()
+    assert set(result.columns) == {"A", "B"}
+    assert result.height == 20
 
 
 @_skip_local
@@ -292,125 +273,129 @@ def test_to_polars_lazy_limit_pushdown(session):
 
 
 @_skip_local
-def test_to_polars_lazy_construction_does_not_fetch_batches(session):
+def test_to_polars_lazy_returns_lazyframe(session):
+    """Lazy mode returns a polars.LazyFrame; collect() materializes correct data."""
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
-    with mock.patch.object(
-        type(df),
-        "to_arrow_batches",
-        autospec=True,
-        side_effect=type(df).to_arrow_batches,
-    ) as spy:
-        lf = df.to_polars(lazy=True)
-        assert isinstance(lf, pl.LazyFrame) and spy.call_count == 0
-        lf.collect()
-        assert spy.call_count == 1
+    lf = df.to_polars(lazy=True)
+    assert isinstance(lf, pl.LazyFrame)
+    collected = lf.collect().sort("A")
+    assert collected.shape == (2, 2)
+    assert collected["A"].to_list() == [1, 3]
+    assert collected["B"].to_list() == [2, 4]
 
 
 @_skip_local
 def test_to_polars_statement_params(session):
+    """statement_params must reach Snowflake on every to_polars path,
+    including the raw-cursor Arrow path. Regression guard: earlier the Arrow
+    path forwarded the params only on the (rare) empty-batch fallback and
+    silently dropped them on the main query.
+
+    The ``query_history()`` context manager doubles as a check that the
+    raw-cursor Arrow path still triggers session-level query listeners.
+    """
     df = session.create_dataframe([[1]], schema=["A"])
-    params = {"QUERY_TAG": "polars_integ_test"}
-    assert isinstance(df.to_polars(statement_params=params), pl.DataFrame)
-    assert isinstance(
-        df.to_polars(lazy=True, statement_params=params).collect(), pl.DataFrame
-    )
+
+    tag = "polars_integ_test_" + uuid.uuid4().hex[:8]
+    with session.query_history() as history:
+        result = df.to_polars(statement_params={"QUERY_TAG": tag})
+    assert isinstance(result, pl.DataFrame)
+    assert history.queries, "no queries captured by the query listener"
+    Utils.assert_executed_with_query_tag(session, tag)
+
+    tag_lazy = "polars_integ_test_lazy_" + uuid.uuid4().hex[:8]
+    with session.query_history() as history_lazy:
+        result_lazy = df.to_polars(
+            lazy=True, statement_params={"QUERY_TAG": tag_lazy}
+        ).collect()
+    assert isinstance(result_lazy, pl.DataFrame)
+    assert history_lazy.queries, "no queries captured on the lazy path"
+    Utils.assert_executed_with_query_tag(session, tag_lazy)
 
 
 # ---------------------------------------------------------------------------
-# Unit coverage — no Snowflake, polars injected via mock
-# These run regardless of whether polars is installed.
+# use_parquet=True (eager parquet)
 # ---------------------------------------------------------------------------
 
 
-def test_to_polars_eager_unit_multi_batch_concat(local_session, _no_polars_required):
-    """pl.concat() is called when to_arrow_batches yields more than one batch."""
-    pl_mock, mock_frame, _ = _mock_pl()
-    df = local_session.create_dataframe([[1, "a"], [2, "b"]], schema=["A", "B"])
-    batch2 = pa.RecordBatch.from_pydict({"A": [3], "B": ["c"]})
-    with mock.patch.dict("sys.modules", {"polars": pl_mock}):
-        with mock.patch.object(
-            type(df), "to_arrow_batches", return_value=[_BATCH, batch2]
-        ):
-            result = df.to_polars()
-    pl_mock.concat.assert_called_once()
-    assert result is mock_frame
-
-
-def test_to_polars_eager_unit_no_batches_fallback(local_session, _no_polars_required):
-    """When to_arrow_batches yields nothing, falls back to limit(0).to_arrow() for schema."""
-    pl_mock, _, _ = _mock_pl()
-    schema_table = pa.Table.from_pydict({"A": pa.array([], type=pa.int64())})
-    df = local_session.create_dataframe([[1]], schema=["A"])
-    with mock.patch.dict("sys.modules", {"polars": pl_mock}):
-        with mock.patch.object(type(df), "to_arrow_batches", return_value=[]):
-            with mock.patch.object(type(df), "to_arrow", return_value=schema_table):
-                df.to_polars()
-    pl_mock.from_arrow.assert_called_once_with(schema_table)
-
-
-def test_to_polars_lazy_unit_scan_executes(local_session, _no_polars_required):
-    """_scan body yields pl.from_arrow(batch) for each batch returned by to_arrow_batches."""
-    pl_mock, _, mock_lf = _mock_pl()
-    schema_table = pa.Table.from_pydict({"A": [1], "B": ["a"]})
-    df = local_session.create_dataframe([[1, "a"]], schema=["A", "B"])
-
-    captured = {}
-    pl_mock.io.plugins.register_io_source.side_effect = (
-        lambda fn, schema: captured.update(fn=fn) or mock_lf
+@_skip_local
+def test_to_polars_use_parquet_basic_types(session):
+    """Common primitive types round-trip through the eager Parquet path."""
+    df = session.sql(
+        "SELECT 42::INT AS i, 'hello'::VARCHAR AS s, TRUE AS b,"
+        "       DATE '2024-01-01' AS d"
     )
-    with mock.patch.dict("sys.modules", {"polars": pl_mock}):
-        with mock.patch.object(type(df), "to_arrow", return_value=schema_table):
-            df.to_polars(lazy=True)
-
-    with mock.patch.object(type(df), "to_arrow_batches", return_value=[_BATCH]):
-        assert (
-            len(
-                list(
-                    captured["fn"](
-                        with_columns=None, predicate=None, n_rows=None, batch_size=None
-                    )
-                )
-            )
-            == 1
-        )
+    pl_df = df.to_polars(use_parquet=True)
+    assert isinstance(pl_df, pl.DataFrame)
+    assert pl_df.height == 1
+    row = pl_df.to_dicts()[0]
+    assert row["I"] == 42
+    assert row["S"] == "hello"
+    assert row["B"] is True
+    assert row["D"] == date(2024, 1, 1)
 
 
-def test_to_polars_lazy_unit_scan_pushdowns(local_session, _no_polars_required):
-    """_scan calls select() for with_columns projection and limit() for n_rows."""
-    pl_mock, _, mock_lf = _mock_pl()
-    schema_table = pa.Table.from_pydict({"A": [1], "B": ["a"]})
-    df = local_session.create_dataframe([[1, "a"]], schema=["A", "B"])
-
-    captured = {}
-    pl_mock.io.plugins.register_io_source.side_effect = (
-        lambda fn, schema: captured.update(fn=fn) or mock_lf
+@_skip_local
+def test_to_polars_use_parquet_matches_arrow_shape(session):
+    """Eager Parquet and eager Arrow return the same shape on a non-trivial
+    dataset. Values are compared in a downcast-aware way: FLOAT is compared
+    at float32 precision on both sides."""
+    df = session.create_dataframe(
+        [[i, str(i), i * 1.5] for i in range(500)], schema=["ID", "S", "F"]
     )
-    with mock.patch.dict("sys.modules", {"polars": pl_mock}):
-        with mock.patch.object(type(df), "to_arrow", return_value=schema_table):
-            df.to_polars(lazy=True)
+    pq = df.to_polars(use_parquet=True)
+    arrow = df.to_polars()
+    assert pq.height == arrow.height == 500
+    assert set(pq.columns) == set(arrow.columns)
+    # FLOAT is downcast to float32 by the Parquet unload, so cast both sides
+    # before comparing to avoid a precision-driven false negative.
+    assert (
+        pq.sort("ID")["F"]
+        .cast(pl.Float32)
+        .equals(arrow.sort("ID")["F"].cast(pl.Float32))
+    )
 
-    col_batch = pa.RecordBatch.from_pydict({"A": [1]})
-    with mock.patch.object(type(df), "select", wraps=df.select) as sel_spy:
-        with mock.patch.object(type(df), "limit", wraps=df.limit) as lim_spy:
-            with mock.patch.object(
-                type(df), "to_arrow_batches", return_value=[col_batch]
-            ):
-                list(
-                    captured["fn"](
-                        with_columns=["A"], predicate=None, n_rows=5, batch_size=None
-                    )
-                )
-    sel_spy.assert_called_once()
-    lim_spy.assert_called_once_with(5)
+
+@_skip_local
+def test_to_polars_use_parquet_timestamp_ltz_raises(session):
+    """TIMESTAMP_LTZ / TIMESTAMP_TZ can't be unloaded to Parquet — locks in
+    the documented behavior so a future change to the doc or code is caught."""
+    df = session.sql("SELECT TO_TIMESTAMP_LTZ('2024-01-15 12:00:00 -0800') AS ts_ltz")
+    with pytest.raises(Exception, match="(?i)timestamp"):
+        df.to_polars(use_parquet=True)
+
+
+@_skip_local
+def test_to_polars_use_parquet_empty(session):
+    """Empty result from the Parquet path returns a schema-preserving DataFrame."""
+    pl_df = (
+        session.create_dataframe([[1, 2]], schema=["A", "B"])
+        .filter(col("A") > 100)
+        .to_polars(use_parquet=True)
+    )
+    assert isinstance(pl_df, pl.DataFrame)
+    assert pl_df.height == 0
+    assert set(pl_df.columns) == {"A", "B"}
+
+
+@_skip_local
+def test_to_polars_use_parquet_ignored_when_lazy(session):
+    """use_parquet=True with lazy=True returns a LazyFrame (parquet is always
+    used for lazy; passing use_parquet is a no-op, not an error)."""
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
+    lf = df.to_polars(lazy=True, use_parquet=True)
+    assert isinstance(lf, pl.LazyFrame)
+    assert lf.collect().sort("A").shape == (2, 2)
 
 
 # ---------------------------------------------------------------------------
 # Predicate correctness — regression coverage
 #
-# Polars passes the predicate to _scan and REMOVES it from its own plan
-# (parsed_predicate_success=True after deserialize). If _scan does not apply
-# it, rows leak through unfiltered. _scan therefore MUST apply
-# df.filter(predicate) per batch. These tests would fail if that ever regressed.
+# Under the parquet-lazy implementation, predicates are applied by Polars on
+# top of scan_parquet; row-group pruning may or may not kick in depending on
+# clustering, but the collected result must always match the eager result.
+# These tests catch any regression where predicate application drops or
+# leaks rows.
 # ---------------------------------------------------------------------------
 
 
@@ -435,8 +420,7 @@ def test_to_polars_lazy_predicate_applied(_predicate_df):
 
 @_skip_local
 def test_to_polars_lazy_filter_then_limit_correctness(_predicate_df):
-    """lf.filter().limit(n) — the bug case: without _scan applying the predicate,
-    Polars removes the filter from its plan and returns unfiltered rows.
+    """lf.filter().limit(n) — must return up to n rows where the predicate holds.
 
     Correctness rule: filter().limit(n) → up to n rows where predicate holds.
     """
@@ -452,10 +436,7 @@ def test_to_polars_lazy_filter_then_limit_correctness(_predicate_df):
 
 @_skip_local
 def test_to_polars_lazy_limit_then_filter_differs(_predicate_df):
-    """lf.head(n).filter(pred) — the ONLY case where Polars pushes BOTH n_rows
-    AND predicate to _scan simultaneously. _scan must apply LIMIT first (in SQL),
-    then filter (in Python). If the order were swapped, this test would return
-    10 rows instead of 0 on this dataset.
+    """lf.head(n).filter(pred) vs lf.filter(pred).head(n) — order matters.
 
     Semantic contract:
       lf.head(10).filter(VAL>100)  → 0 rows  (first 10 rows all have VAL≤90)
@@ -466,13 +447,13 @@ def test_to_polars_lazy_limit_then_filter_differs(_predicate_df):
     lf = _predicate_df.to_polars(lazy=True)
     eager = _predicate_df.to_polars()
 
-    # Case: head(n).filter(p) — BOTH pushed to _scan; order-sensitive path
+    # Case: head(n).filter(p) — order-sensitive; limit must happen first.
     lazy_limit_first = lf.head(10).filter(pl.col("VAL") > 100).collect().sort("ID")
     eager_limit_first = eager.head(10).filter(pl.col("VAL") > 100).sort("ID")
     assert lazy_limit_first.equals(eager_limit_first)
-    assert lazy_limit_first.height == 0  # ← wrong _scan order would give 10 here
+    assert lazy_limit_first.height == 0  # swapped order would return 10
 
-    # Case: filter(p).head(n) — only predicate pushed; Polars slices post-scan
+    # Case: filter(p).head(n) — filter first, then slice.
     lazy_filter_first = lf.filter(pl.col("VAL") > 100).head(10).collect().sort("ID")
     eager_filter_first = eager.filter(pl.col("VAL") > 100).head(10).sort("ID")
     assert lazy_filter_first.equals(eager_filter_first)
@@ -495,7 +476,7 @@ def test_to_polars_lazy_limit_then_filter_differs(_predicate_df):
     ids=["and", "or", "is_in", "between", "not_eq"],
 )
 def test_to_polars_lazy_predicate_variety(_predicate_df, predicate_fn):
-    """Every predicate type must round-trip through _scan correctly."""
+    """Every predicate type must round-trip through the lazy path correctly."""
     predicate = predicate_fn()
     lazy = _predicate_df.to_polars(lazy=True).filter(predicate).collect().sort("ID")
     eager = _predicate_df.to_polars().filter(predicate).sort("ID")
@@ -503,18 +484,17 @@ def test_to_polars_lazy_predicate_variety(_predicate_df, predicate_fn):
 
 
 # ---------------------------------------------------------------------------
-# DML operations Polars applies AFTER _scan yields batches
+# DML operations Polars applies on top of the parquet scan
 #
-# _scan only knows about (with_columns, predicate, n_rows, batch_size).
-# Everything else — group_by, agg, sort, join, distinct, window — is applied
-# by the Polars engine on the yielded batches. These tests verify Polars can
-# correctly consume our streamed batches for those operations.
+# group_by, agg, sort, join, distinct, window etc. are executed by the Polars
+# engine on the rows the scan produces. These tests verify the lazy result
+# matches the eager result for those operations.
 # ---------------------------------------------------------------------------
 
 
 @_skip_local
 def test_to_polars_lazy_group_by_agg(_predicate_df):
-    """group_by + agg is executed by Polars on batches yielded by _scan."""
+    """group_by + agg on the lazy result matches the eager result."""
     lazy = (
         _predicate_df.to_polars(lazy=True)
         .group_by("CAT")
@@ -541,7 +521,7 @@ def test_to_polars_lazy_group_by_agg(_predicate_df):
 
 @_skip_local
 def test_to_polars_lazy_filter_then_group_by(_predicate_df):
-    """filter (pushed to _scan) + group_by (executed post-scan by Polars)."""
+    """filter + group_by on the lazy result matches the eager result."""
     lazy = (
         _predicate_df.to_polars(lazy=True)
         .filter(pl.col("VAL") > 50)
@@ -634,18 +614,18 @@ def test_to_polars_lazy_join_between_lazyframes(session, _predicate_df):
 
 @_skip_local
 def test_to_polars_lazy_multi_step_chain(_predicate_df):
-    """Chain touching every pushdown + post-scan operation together."""
+    """Chain touching projection, filter, group_by, agg, filter, sort together."""
     lazy = (
         _predicate_df.to_polars(lazy=True)
-        .select("ID", "VAL", "CAT", "SCORE")  # projection → _scan
-        .filter(pl.col("VAL") > 20)  # predicate → _scan
-        .group_by("CAT")  # post-scan
+        .select("ID", "VAL", "CAT", "SCORE")
+        .filter(pl.col("VAL") > 20)
+        .group_by("CAT")
         .agg(
             pl.col("SCORE").mean().alias("AVG_SCORE"),
             pl.col("VAL").max().alias("MAX_VAL"),
         )
-        .filter(pl.col("AVG_SCORE") > 15.0)  # post-scan
-        .sort("CAT")  # post-scan
+        .filter(pl.col("AVG_SCORE") > 15.0)
+        .sort("CAT")
         .collect()
     )
     eager = (
@@ -667,9 +647,10 @@ def test_to_polars_lazy_multi_step_chain(_predicate_df):
 # Column identifier casing (unquoted / quoted lowercase / quoted mixed-case)
 #
 # Snowflake folds unquoted identifiers to UPPERCASE, but preserves the exact
-# case of quoted identifiers. Both Arrow output names and the with_columns
-# pushdown path inside _scan must respect this. Polars is case-sensitive, so
-# any mismatch would surface as ColumnNotFoundError on downstream ops.
+# case of quoted identifiers. Both the Arrow output names and the Parquet
+# column names emitted by COPY INTO must respect this — Polars is
+# case-sensitive, so any mismatch would surface as ColumnNotFoundError on
+# downstream ops.
 # ---------------------------------------------------------------------------
 
 
@@ -693,7 +674,8 @@ def test_to_polars_lazy_multi_step_chain(_predicate_df):
 def test_to_polars_column_identifier_casing(
     session, sql, expected_columns, pushdown_col
 ):
-    """Casing is preserved end-to-end through eager, lazy, and _scan projection pushdown."""
+    """Casing is preserved end-to-end through eager Arrow, lazy Parquet scan,
+    and column-name-based projection on the LazyFrame."""
     df = session.sql(sql)
 
     eager = df.to_polars()
@@ -702,9 +684,8 @@ def test_to_polars_column_identifier_casing(
     lf = df.to_polars(lazy=True)
     assert lf.collect_schema().names() == expected_columns
 
-    # Round-trip via _scan's quote_name() path — user selects by the Polars column
-    # name (which is what they see); _scan must translate that back to a Snowflake
-    # identifier that resolves to the same column.
+    # User selects by the Polars column name they see; that name must resolve
+    # against the Parquet schema COPY INTO produced.
     projected = lf.select(pushdown_col).collect()
     assert projected.columns == [pushdown_col] and projected.height == 1
 
@@ -719,3 +700,229 @@ def test_to_polars_raises_when_polars_missing(local_session, _no_polars_required
     with mock.patch.dict("sys.modules", {"polars": None}):
         with pytest.raises(ModuleNotFoundError, match="polars"):
             df.to_polars()
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for polars_backend helpers
+#
+# These cover branches that either can't be triggered without a stored proc
+# (SnowflakeFile-based opens), or that only fire on transient error paths
+# (close failures, empty result edge cases). They run with polars installed
+# but do not talk to Snowflake.
+# ---------------------------------------------------------------------------
+
+
+def test_open_stage_files_parallel_empty_paths_returns_empty():
+    from snowflake.snowpark._internal.polars_backend import (
+        _open_stage_files_parallel,
+    )
+
+    assert _open_stage_files_parallel(mock.MagicMock(), [], is_sproc=False) == []
+    assert _open_stage_files_parallel(mock.MagicMock(), [], is_sproc=True) == []
+
+
+def test_open_and_read_parquet_parallel_empty_paths_returns_empty():
+    from snowflake.snowpark._internal.polars_backend import (
+        _open_and_read_parquet_parallel,
+    )
+
+    assert _open_and_read_parquet_parallel(mock.MagicMock(), [], is_sproc=False) == []
+    assert _open_and_read_parquet_parallel(mock.MagicMock(), [], is_sproc=True) == []
+
+
+def test_open_stage_files_parallel_sproc_uses_snowflake_file():
+    """is_sproc=True routes through SnowflakeFile.open."""
+    from snowflake.snowpark._internal.polars_backend import (
+        _open_stage_files_parallel,
+    )
+
+    fake_file = mock.MagicMock()
+    mock_module = mock.MagicMock()
+    mock_module.SnowflakeFile.open.return_value = fake_file
+    with mock.patch.dict("sys.modules", {"snowflake.snowpark.files": mock_module}):
+        result = _open_stage_files_parallel(
+            None, ["@stg/a.parquet", "@stg/b.parquet"], is_sproc=True
+        )
+
+    assert result == [fake_file, fake_file]
+    assert mock_module.SnowflakeFile.open.call_count == 2
+    mock_module.SnowflakeFile.open.assert_any_call(
+        "@stg/a.parquet", "rb", require_scoped_url=False
+    )
+
+
+def test_open_and_read_parquet_parallel_sproc_uses_snowflake_file():
+    """is_sproc=True routes reads through SnowflakeFile.open and closes files."""
+    from snowflake.snowpark._internal.polars_backend import (
+        _open_and_read_parquet_parallel,
+    )
+
+    fake_file = mock.MagicMock()
+    fake_frame = mock.MagicMock()
+    mock_files_module = mock.MagicMock()
+    mock_files_module.SnowflakeFile.open.return_value = fake_file
+    with mock.patch.dict(
+        "sys.modules", {"snowflake.snowpark.files": mock_files_module}
+    ), mock.patch("polars.read_parquet", return_value=fake_frame) as mock_read:
+        result = _open_and_read_parquet_parallel(
+            None, ["@stg/a.parquet"], is_sproc=True
+        )
+
+    assert result == [fake_frame]
+    mock_read.assert_called_once_with(fake_file)
+    fake_file.close.assert_called_once()
+
+
+def test_open_and_read_parquet_parallel_local_close_error_is_logged(caplog):
+    """Close failures on the client (get_stream) path emit a warning, not an exception."""
+    from snowflake.snowpark._internal.polars_backend import (
+        _open_and_read_parquet_parallel,
+    )
+
+    fake_file = mock.MagicMock()
+    fake_file.close.side_effect = OSError("close boom")
+    fake_frame = mock.MagicMock()
+    session = mock.MagicMock()
+    session.file.get_stream.return_value = fake_file
+    with mock.patch("polars.read_parquet", return_value=fake_frame), caplog.at_level(
+        "WARNING", logger="snowflake.snowpark._internal.polars_backend"
+    ):
+        result = _open_and_read_parquet_parallel(
+            session, ["@stg/x.parquet"], is_sproc=False
+        )
+
+    assert result == [fake_frame]
+    assert "failed to close stage file" in caplog.text
+
+
+def test_open_and_read_parquet_parallel_sproc_close_error_is_logged(caplog):
+    """Close failures on the sproc (SnowflakeFile) path emit a warning too."""
+    from snowflake.snowpark._internal.polars_backend import (
+        _open_and_read_parquet_parallel,
+    )
+
+    fake_file = mock.MagicMock()
+    fake_file.close.side_effect = OSError("close boom")
+    fake_frame = mock.MagicMock()
+    mock_files_module = mock.MagicMock()
+    mock_files_module.SnowflakeFile.open.return_value = fake_file
+    with mock.patch.dict(
+        "sys.modules", {"snowflake.snowpark.files": mock_files_module}
+    ), mock.patch("polars.read_parquet", return_value=fake_frame), caplog.at_level(
+        "WARNING", logger="snowflake.snowpark._internal.polars_backend"
+    ):
+        result = _open_and_read_parquet_parallel(
+            None, ["@stg/x.parquet"], is_sproc=True
+        )
+
+    assert result == [fake_frame]
+    assert "failed to close stage file" in caplog.text
+
+
+def test_arrow_eager_empty_batches_returns_schema_frame():
+    """When cursor.get_result_batches returns [], we fall back to a schema fetch."""
+    from snowflake.snowpark._internal import polars_backend
+
+    df = mock.MagicMock()
+    df._plan.queries = [mock.MagicMock(sql="SELECT 1", params=None)]
+    fake_cursor = mock.MagicMock()
+    fake_cursor.get_result_batches.return_value = []
+    df._session._conn.execute_and_notify_query_listener.return_value = fake_cursor
+    empty = mock.MagicMock(name="empty_pl_df")
+    with mock.patch.object(
+        polars_backend, "_empty_frame_from_schema", return_value=empty
+    ) as m:
+        result = polars_backend.arrow_eager(df, statement_params=None)
+    assert result is empty
+    m.assert_called_once()
+
+
+def test_arrow_eager_all_batches_empty_returns_schema_frame():
+    """Batches exist but each has 0 rows → schema-preserving empty frame."""
+    from snowflake.snowpark._internal import polars_backend
+
+    df = mock.MagicMock()
+    df._plan.queries = [mock.MagicMock(sql="SELECT 1", params=None)]
+    fake_batch = mock.MagicMock()
+    fake_table = mock.MagicMock()
+    fake_table.num_rows = 0
+    fake_batch.to_arrow.return_value = fake_table
+    fake_cursor = mock.MagicMock()
+    fake_cursor.get_result_batches.return_value = [fake_batch]
+    df._session._conn.execute_and_notify_query_listener.return_value = fake_cursor
+    empty = mock.MagicMock(name="empty_pl_df")
+    with mock.patch.object(
+        polars_backend, "_empty_frame_from_schema", return_value=empty
+    ) as m:
+        result = polars_backend.arrow_eager(df, statement_params=None)
+    assert result is empty
+    assert (
+        m.call_count == 1
+    )  # only the all-empty branch, not the get_result_batches branch
+
+
+def test_arrow_eager_fallback_no_batches_returns_schema_frame():
+    """Multi-query plan whose to_arrow_batches yields nothing → schema frame."""
+    from snowflake.snowpark._internal import polars_backend
+
+    df = mock.MagicMock()
+    df._plan.queries = [mock.MagicMock(), mock.MagicMock()]  # forces fallback
+    df.to_arrow_batches.return_value = iter([])
+    empty = mock.MagicMock(name="empty_pl_df")
+    with mock.patch.object(
+        polars_backend, "_empty_frame_from_schema", return_value=empty
+    ) as m:
+        result = polars_backend.arrow_eager(df, statement_params=None)
+    assert result is empty
+    m.assert_called_once()
+
+
+def test_parquet_eager_no_paths_returns_schema_frame():
+    """COPY INTO produced no files → schema-preserving empty frame."""
+    from snowflake.snowpark._internal import polars_backend
+
+    df = mock.MagicMock()
+    empty = mock.MagicMock(name="empty_pl_df")
+    with mock.patch.object(
+        polars_backend, "_copy_df_to_stage", return_value=[]
+    ), mock.patch.object(
+        polars_backend, "_empty_frame_from_schema", return_value=empty
+    ) as m:
+        result = polars_backend.parquet_eager(df)
+    assert result is empty
+    m.assert_called_once()
+
+
+def test_parquet_eager_no_frames_returns_schema_frame():
+    """Paths exist but all reads produce empty list → schema frame."""
+    from snowflake.snowpark._internal import polars_backend
+
+    df = mock.MagicMock()
+    empty = mock.MagicMock(name="empty_pl_df")
+    with mock.patch.object(
+        polars_backend, "_copy_df_to_stage", return_value=["@a.parquet"]
+    ), mock.patch.object(
+        polars_backend, "_open_and_read_parquet_parallel", return_value=[]
+    ), mock.patch.object(
+        polars_backend, "_empty_frame_from_schema", return_value=empty
+    ) as m:
+        result = polars_backend.parquet_eager(df)
+    assert result is empty
+    m.assert_called_once()
+
+
+def test_parquet_lazy_no_paths_returns_empty_lazyframe():
+    """COPY INTO produced no files → empty LazyFrame with the DataFrame's schema."""
+    from snowflake.snowpark._internal import polars_backend
+
+    df = mock.MagicMock()
+    empty_df = mock.MagicMock()
+    empty_df.schema = {"A": pl.Int64}
+    with mock.patch.object(
+        polars_backend, "_copy_df_to_stage", return_value=[]
+    ), mock.patch.object(
+        polars_backend, "_empty_frame_from_schema", return_value=empty_df
+    ):
+        result = polars_backend.parquet_lazy(df)
+    assert isinstance(result, pl.LazyFrame)
+    assert result.collect_schema().names() == ["A"]

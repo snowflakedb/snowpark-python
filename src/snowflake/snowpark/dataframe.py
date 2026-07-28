@@ -161,6 +161,7 @@ from snowflake.snowpark._internal.utils import (
     experimental,
     generate_random_alphanumeric,
     get_copy_into_table_options,
+    is_in_stored_procedure,
     is_snowflake_quoted_id_case_insensitive,
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
@@ -1378,9 +1379,9 @@ class DataFrame:
         self,
         *,
         lazy: bool = False,
+        use_parquet: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        _emit_ast: bool = True,
-        **kwargs: Dict[str, Any],
+        _emit_ast: bool = False,
     ) -> "polars.DataFrame":
         ...  # pragma: no cover
 
@@ -1390,9 +1391,9 @@ class DataFrame:
         self,
         *,
         lazy: bool = True,
+        use_parquet: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        _emit_ast: bool = True,
-        **kwargs: Dict[str, Any],
+        _emit_ast: bool = False,
     ) -> "polars.LazyFrame":
         ...  # pragma: no cover
 
@@ -1403,17 +1404,33 @@ class DataFrame:
         self,
         *,
         lazy: bool = False,
+        use_parquet: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        _emit_ast: bool = True,
-        **kwargs: Dict[str, Any],
+        _emit_ast: bool = False,
     ) -> Union["polars.DataFrame", "polars.LazyFrame"]:
-        """Executes the query representing this DataFrame and returns the result as a
-        `polars DataFrame <https://docs.pola.rs/py-polars/html/reference/dataframe/index.html>`_
-        or, when ``lazy=True``, a `polars LazyFrame <https://docs.pola.rs/py-polars/html/reference/lazyframe/index.html>`_.
+        """
+        Executes the query representing this DataFrame and returns the result
+        as a `polars DataFrame <https://docs.pola.rs/py-polars/html/reference/dataframe/index.html>`_,
+        or a `polars LazyFrame <https://docs.pola.rs/py-polars/html/reference/lazyframe/index.html>`_
+        when ``lazy=True``.
 
-        When the full result set is too large to materialize, use ``lazy=True`` and
-        push down column projections or row limits via polars expressions before
-        calling ``.collect()``.
+        The transport chosen for the fetch depends on both flags:
+
+        =====  ============  ============================================
+        lazy   use_parquet   Transport
+        =====  ============  ============================================
+        False  False         Arrow (default; full Snowflake type fidelity)
+        False  True          Parquet unload + eager read
+        True   False         Parquet unload + lazy scan
+        True   True          Parquet unload + lazy scan
+        =====  ============  ============================================
+
+        The Arrow path streams result chunks from the cursor and preserves
+        all Snowflake types. The Parquet paths ``COPY INTO`` a temporary
+        stage and can be faster for large data-transfer-dominated workloads,
+        but drop some type detail (see Note). When ``lazy=True`` the transport
+        is always Parquet since Arrow has no lazy equivalent that supports
+        scan-time pushdown, so ``use_parquet`` has no effect in that case.
 
         Example::
 
@@ -1425,74 +1442,58 @@ class DataFrame:
             [{'A': 1, 'B': 2}, {'A': 3, 'B': 4}]
 
         Args:
-            lazy: If ``True``, the Snowpark plan is deferred until ``.collect()`` is called
-                on the returned :class:`polars.LazyFrame`. Defaults to ``False``.
-            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            lazy: When ``True``, return a ``polars.LazyFrame`` and defer the
+                scan/decode until ``.collect()``. The result is still staged
+                to Parquet at call time; only the read is lazy.
+            use_parquet: When ``True``, unload the result to Parquet on the
+                session stage and read it back into Polars. Faster for large
+                results dominated by data transfer, but subject to the
+                type-fidelity limits below. Has no effect when ``lazy=True``.
+            statement_params: Dictionary of statement level parameters to be
+                set while executing this action.
 
         Note:
-            Requires ``polars>=1.0``.
+            1. Requires ``polars>=1.0``.
+
+            2. The Parquet paths (``use_parquet=True`` or ``lazy=True``)
+            do not fully preserve Snowflake types because ``COPY INTO``
+            has restrictions on Parquet unload:
+
+               - ``TIMESTAMP_LTZ`` and ``TIMESTAMP_TZ`` columns cause the
+                 unload to error.
+               - ``TIMESTAMP_NTZ`` values with nanosecond precision are
+                 truncated to milliseconds.
+               - ``FLOAT`` (double) columns are downcast to ``float32``.
+
+            See the `COPY INTO <location> usage notes
+            <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location#usage-notes>`_
+            for the full unload type mapping. Use the Arrow default when
+            full type fidelity is required.
         """
-        import polars as pl
+        from snowflake.snowpark._internal.polars_backend import (
+            arrow_eager as _arrow_eager,
+            parquet_eager as _parquet_eager,
+            parquet_lazy as _parquet_lazy,
+        )
+
+        is_sproc = is_in_stored_procedure()
 
         if lazy:
-            schema = pl.from_arrow(
-                self.limit(0).to_arrow(
-                    statement_params=statement_params, _emit_ast=False, **kwargs
-                )
-            ).schema
-
-            def _scan(with_columns, predicate, n_rows, batch_size):
-                """Custom IO source callback invoked by Polars' lazy engine.
-
-                Args (all optional, passed by Polars after query optimization):
-                - with_columns : list[str] | None
-                    Column projection — pushed to Snowflake as SQL SELECT.
-                - predicate    : pl.Expr | None
-                    Filter expression. Polars removes it from its own plan
-                    and expects the source to apply it. Applied in Python
-                    per batch here, can be later substituted for a Snowpark filter().
-                - n_rows       : int | None
-                    Row limit — pushed to Snowflake as SQL LIMIT.
-                - batch_size   : int | None
-                    Streaming hint. Ignored — Snowflake controls batch sizes.
-
-                TODO(SNOW-3472759): translate Polars Exprs into Snowpark
-                filter() calls so predicates prune rows at Snowflake instead
-                of client-side, for further performance gains.
-                """
-                scoped = self
-                if with_columns:
-                    # Quote each name to preserve case for mixed-case / quoted
-                    # Snowflake identifiers (unquoted names are always uppercase
-                    # in Arrow, so quoting them is safe too).
-                    scoped = scoped.select(
-                        *[quote_name(c, keep_case=True) for c in with_columns]
-                    )
-                if n_rows is not None:
-                    scoped = scoped.limit(n_rows)
-                for batch in scoped.to_arrow_batches(
-                    statement_params=statement_params, _emit_ast=False, **kwargs
-                ):
-                    df = pl.from_arrow(batch)
-                    yield df.filter(predicate) if predicate is not None else df
-
-            return pl.io.plugins.register_io_source(_scan, schema=schema)
-
-        parts = [
-            pl.from_arrow(batch)
-            for batch in self.to_arrow_batches(
-                statement_params=statement_params, _emit_ast=False, **kwargs
+            return _parquet_lazy(
+                self,
+                is_sproc=is_sproc,
+                statement_params=statement_params,
             )
-        ]
-        if not parts:
-            # No batches returned: run a 0-row fetch to get the schema so the
-            # returned DataFrame has correct column names and types.
-            return pl.from_arrow(
-                self.limit(0).to_arrow(
-                    statement_params=statement_params, _emit_ast=False, **kwargs
-                )
+        if use_parquet:
+            return _parquet_eager(
+                self,
+                is_sproc=is_sproc,
+                statement_params=statement_params,
             )
-        return pl.concat(parts) if len(parts) > 1 else parts[0]
+        return _arrow_eager(
+            self,
+            statement_params=statement_params,
+        )
 
     @df_api_usage
     @publicapi

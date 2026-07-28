@@ -1486,8 +1486,17 @@ class Column:
             return Literal(expr)
 
     @classmethod
-    def _expr(cls, e: str, ast: Optional[proto.Expr] = None) -> "Column":
-        return cls(UnresolvedAttribute(e, is_sql_text=True), _ast=ast)
+    def _expr(
+        cls,
+        e: str,
+        ast: Optional[proto.Expr] = None,
+        *,
+        is_constant: bool = False,
+    ) -> "Column":
+        return cls(
+            UnresolvedAttribute(e, is_sql_text=True, is_constant=is_constant),
+            _ast=ast,
+        )
 
     # Add these alias for user code migration
     isin = in_
