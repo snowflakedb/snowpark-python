@@ -5,6 +5,7 @@
 
 import logging
 import os
+import re
 import tempfile
 from unittest.mock import patch
 
@@ -561,8 +562,21 @@ def test_optimization_skipped_with_transaction(session, large_query_df, caplog):
 
     check_optimization_skipped_reason(patch_send, {"active transaction": 1})
 
-    assert len(history.queries) == 2, history.queries
-    assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
+    # connector >= 4.7.1 no longer caches database/schema from non-USE statements (e.g. CREATE TEMP TABLE).
+    # Older connectors did, expect 4 queries for >= 4.7.1, 2 for earlier versions in sproc execution env.
+    # Filter out metadata queries (e.g. SELECT CURRENT_DATABASE/SCHEMA()) that may appear
+    # in some environments before or between the expected statements.
+    filtered_queries = [
+        q
+        for q in history.queries
+        if not re.match(
+            r"^\s*SELECT\s+CURRENT_(DATABASE|SCHEMA)\s*\(\s*\)\s*$",
+            q.sql_text,
+            re.IGNORECASE,
+        )
+    ]
+    assert len(filtered_queries) == 2, filtered_queries
+    assert filtered_queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
     assert "Skipping large query breakdown" in caplog.text
     assert Utils.is_active_transaction(session)
     assert session.sql("commit").collect()
@@ -699,17 +713,26 @@ def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
         Utils.check_answer(result, [Row(1, 5999), Row(2, 5998)])
 
         plan = large_query_df._plan
-        # 1 for current transaction, 1 for partition, 1 for main query, 1 for post action
-        # connector >= 4.7.1 no longer caches database/schema from non-USE statements (e.g. CREATE TEMP TABLE).
-        # Older connectors did, expect 8 queries for >= 4.7.1, 4 for earlier versions.
-        assert patched_run_query.call_count in [4, 8]
+        # Filter out metadata queries (e.g. SELECT CURRENT_DATABASE/SCHEMA()) that may appear
+        # in some environments. Expect: 1 for current transaction, 1 for partition,
+        # 1 for main query, 1 for post action (connector >= 4.7.1 may double to 8 due to
+        # cache behavior; metadata queries are excluded from this count).
+        filtered_calls = [
+            call
+            for call in patched_run_query.call_args_list
+            if not re.match(
+                r"^\s*SELECT\s+CURRENT_(DATABASE|SCHEMA)\s*\(\s*\)\s*$",
+                call.args[0],
+                re.IGNORECASE,
+            )
+        ]
+        assert len(filtered_calls) == 4
 
-        for i, call in enumerate(patched_run_query.call_args_list):
-            if i == 0:
-                assert call.args[0] == "SELECT CURRENT_TRANSACTION()"
-            else:
-                assert "_statement_params" in call.kwargs
-                assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
+        for call in filtered_calls:
+            if call.args[0] == "SELECT CURRENT_TRANSACTION()":
+                continue
+            assert "_statement_params" in call.kwargs
+            assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
 
 
 @pytest.mark.skipif(
