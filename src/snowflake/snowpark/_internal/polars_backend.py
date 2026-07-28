@@ -15,11 +15,6 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 
-# Maximum concurrent workers for parallel I/O (stage-file opens and Arrow
-# chunk downloads).
-_MAX_WORKERS = 16
-
-
 def _empty_frame_from_schema(
     df: DataFrame, statement_params: dict[str, str] | None
 ) -> pl.DataFrame:
@@ -34,7 +29,9 @@ def _empty_frame_from_schema(
     )
 
 
-def _open_stage_files_parallel(session, paths: list[str], is_sproc: bool) -> list:
+def _open_stage_files_parallel(
+    session, paths: list[str], is_sproc: bool, max_workers: int | None = None
+) -> list:
     """Open stage files concurrently and return file-like objects.
 
     Uses ``SnowflakeFile.open`` inside a stored procedure (no local /tmp
@@ -53,13 +50,15 @@ def _open_stage_files_parallel(session, paths: list[str], is_sproc: bool) -> lis
 
     if not paths:
         return []
-    workers = min(_MAX_WORKERS, max(2, len(paths)))
-    with ThreadPoolExecutor(max_workers=workers) as ex:
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
         return list(ex.map(_open, paths))
 
 
 def _open_and_read_parquet_parallel(
-    session, paths: list[str], is_sproc: bool
+    session,
+    paths: list[str],
+    is_sproc: bool,
+    max_workers: int | None = None,
 ) -> list[pl.DataFrame]:
     """Open and read each stage Parquet file in a thread pool.
 
@@ -96,8 +95,7 @@ def _open_and_read_parquet_parallel(
 
     if not paths:
         return []
-    workers = min(_MAX_WORKERS, max(2, len(paths)))
-    with ThreadPoolExecutor(max_workers=workers) as ex:
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
         return list(ex.map(_open_read, paths))
 
 
@@ -132,58 +130,11 @@ def arrow_eager(
     df: DataFrame,
     statement_params: dict[str, str] | None = None,
 ) -> pl.DataFrame:
-    """Fetch the result as Arrow batches in parallel and return a polars DataFrame.
+    """Fetch the result as Arrow batches and return a polars DataFrame.
 
     Backs the default ``to_polars()`` path (``lazy=False, use_parquet=False``).
     Preserves full Snowflake type fidelity.
-
-    Fast path (single-query plan): drives the raw cursor and uses
-    ``cursor.get_result_batches()`` to download result chunks in parallel.
-    Fallback path (multi-query plan — e.g. ``create_dataframe`` requires
-    ``CREATE TEMP TABLE`` + ``BatchInsert`` + ``SELECT``): delegates to
-    ``DataFrame.to_arrow_batches`` so placeholder substitution and batch
-    inserts are handled by Snowpark's execution machinery.
     """
-    import polars as pl
-
-    if len(df._plan.queries) > 1:
-        return _arrow_eager_fallback(df, statement_params)
-
-    # Execute via Snowpark's server_connection so query listeners fire, but
-    # keep the returned cursor so we can call get_result_batches() for the
-    # parallel fetch. statement_params flows through the same `_statement_params`
-    # kwarg run_query uses.
-    server_conn = df._session._conn
-    main_query = df._plan.queries[-1]
-    cur = server_conn.execute_and_notify_query_listener(
-        main_query.sql,
-        params=(main_query.params if getattr(main_query, "params", None) else None),
-        _statement_params=statement_params,
-    )
-
-    batches = cur.get_result_batches() or []
-    if not batches:
-        return _empty_frame_from_schema(df, statement_params)
-
-    workers = min(_MAX_WORKERS, max(2, len(batches)))
-    conn = server_conn._conn
-
-    def _fetch(b):
-        return b.to_arrow(connection=conn)
-
-    with ThreadPoolExecutor(max_workers=workers) as ex:
-        tables = list(ex.map(_fetch, batches))
-
-    parts = [pl.from_arrow(t) for t in tables if t is not None and t.num_rows > 0]
-    if not parts:
-        return _empty_frame_from_schema(df, statement_params)
-    return pl.concat(parts) if len(parts) > 1 else parts[0]
-
-
-def _arrow_eager_fallback(
-    df: DataFrame, statement_params: dict[str, str] | None
-) -> pl.DataFrame:
-    """Serial-iterator fallback used when the plan has multiple queries."""
     import polars as pl
 
     parts = [
@@ -201,6 +152,7 @@ def parquet_eager(
     df: DataFrame,
     is_sproc: bool = False,
     statement_params: dict[str, str] | None = None,
+    max_workers: int | None = None,
 ) -> pl.DataFrame:
     """COPY INTO Parquet, read the staged files in parallel, return a polars DataFrame.
 
@@ -212,7 +164,9 @@ def parquet_eager(
     paths = _copy_df_to_stage(df, "to_polars_parquet_eager", statement_params)
     if not paths:
         return _empty_frame_from_schema(df, statement_params)
-    frames = _open_and_read_parquet_parallel(df._session, paths, is_sproc)
+    frames = _open_and_read_parquet_parallel(
+        df._session, paths, is_sproc, max_workers=max_workers
+    )
     if not frames:
         return _empty_frame_from_schema(df, statement_params)
     return pl.concat(frames) if len(frames) > 1 else frames[0]
@@ -222,6 +176,7 @@ def parquet_lazy(
     df: DataFrame,
     is_sproc: bool = False,
     statement_params: dict[str, str] | None = None,
+    max_workers: int | None = None,
 ) -> pl.LazyFrame:
     """COPY INTO Parquet, open the staged files, return a ``pl.scan_parquet`` LazyFrame.
 
@@ -238,5 +193,7 @@ def parquet_lazy(
         )
     # The stream objects are owned by the returned LazyFrame; Polars closes them
     # when the scan is materialized (or if the LazyFrame is discarded).
-    streams = _open_stage_files_parallel(df._session, paths, is_sproc)
+    streams = _open_stage_files_parallel(
+        df._session, paths, is_sproc, max_workers=max_workers
+    )
     return pl.scan_parquet(streams)

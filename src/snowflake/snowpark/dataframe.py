@@ -1380,6 +1380,7 @@ class DataFrame:
         *,
         lazy: bool = False,
         use_parquet: bool = False,
+        max_workers: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
         _emit_ast: bool = False,
     ) -> "polars.DataFrame":
@@ -1392,6 +1393,7 @@ class DataFrame:
         *,
         lazy: bool = True,
         use_parquet: bool = False,
+        max_workers: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
         _emit_ast: bool = False,
     ) -> "polars.LazyFrame":
@@ -1405,6 +1407,7 @@ class DataFrame:
         *,
         lazy: bool = False,
         use_parquet: bool = False,
+        max_workers: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
         _emit_ast: bool = False,
     ) -> Union["polars.DataFrame", "polars.LazyFrame"]:
@@ -1414,23 +1417,48 @@ class DataFrame:
         or a `polars LazyFrame <https://docs.pola.rs/py-polars/html/reference/lazyframe/index.html>`_
         when ``lazy=True``.
 
-        The transport chosen for the fetch depends on both flags:
+        The transport is selected by ``(lazy, use_parquet)``:
 
         =====  ============  ============================================
         lazy   use_parquet   Transport
         =====  ============  ============================================
         False  False         Arrow (default; full Snowflake type fidelity)
-        False  True          Parquet unload + eager read
+        False  True          Parquet unload + eager parallel read
         True   False         Parquet unload + lazy scan
         True   True          Parquet unload + lazy scan
         =====  ============  ============================================
 
-        The Arrow path streams result chunks from the cursor and preserves
-        all Snowflake types. The Parquet paths ``COPY INTO`` a temporary
-        stage and can be faster for large data-transfer-dominated workloads,
-        but drop some type detail (see Note). When ``lazy=True`` the transport
-        is always Parquet since Arrow has no lazy equivalent that supports
-        scan-time pushdown, so ``use_parquet`` has no effect in that case.
+        Usage Notes:
+            - **Transport selection**:
+                - **Parquet** (``use_parquet=True`` or ``lazy=True``):
+                  Recommended when the result set is large and the type-fidelity
+                  caveats are acceptable. Snowflake's ``COPY INTO`` splits the
+                  result into multiple Parquet files that are opened and read
+                  concurrently. In server-side environments such as stored
+                  procedures, each file open is a parallelizable I/O operation,
+                  so the concurrent access substantially reduces wall-clock time
+                  compared to the Arrow path. On a local client, connection
+                  bandwidth is the primary constraint, and the benefit is more
+                  modest; for small or medium result sets the ``COPY INTO``
+                  setup cost may outweigh the gain, making Arrow the more
+                  efficient choice.
+                - **Arrow** (default, ``lazy=False, use_parquet=False``):
+                  Streams result batches directly from the cursor without
+                  staging to disk. Preserves full Snowflake type fidelity.
+                  Use when type accuracy is required, or when the result set is
+                  small enough that the Parquet paths' ``COPY INTO`` overhead
+                  is not justified.
+            - **Lazy evaluation** (``lazy=True``): ``COPY INTO`` runs
+              synchronously at call time; the Parquet scan and any downstream
+              Polars operations are deferred to ``.collect()``. Use when
+              Polars plan optimization — such as column projection or row-group
+              filtering — is desired. The ``use_parquet`` argument has no
+              effect when ``lazy=True``; the Parquet transport is always used.
+            - **Parallelism tuning**: ``max_workers`` controls the thread pool
+              for opening and reading staged Parquet files. Only applies to
+              the Parquet paths; ignored for the Arrow path. The default
+              (``None``) defers to
+              :class:`~concurrent.futures.ThreadPoolExecutor`.
 
         Example::
 
@@ -1443,12 +1471,17 @@ class DataFrame:
 
         Args:
             lazy: When ``True``, return a ``polars.LazyFrame`` and defer the
-                scan/decode until ``.collect()``. The result is still staged
-                to Parquet at call time; only the read is lazy.
-            use_parquet: When ``True``, unload the result to Parquet on the
-                session stage and read it back into Polars. Faster for large
-                results dominated by data transfer, but subject to the
-                type-fidelity limits below. Has no effect when ``lazy=True``.
+                Parquet scan and downstream Polars operations until
+                ``.collect()``. Defaults to ``False``.
+            use_parquet: When ``True`` (and ``lazy=False``), unload the result
+                to Parquet on the session stage and read the files back in
+                parallel. Can be faster than the Arrow path for large,
+                data-transfer-dominated workloads — especially in a stored
+                procedure — but subject to the type-fidelity limits below. Has
+                no effect when ``lazy=True``. Defaults to ``False``.
+            max_workers: Maximum number of threads for parallel stage-file
+                opens and reads. Only applies to the Parquet paths
+                (``use_parquet=True`` or ``lazy=True``). Defaults to ``None``.
             statement_params: Dictionary of statement level parameters to be
                 set while executing this action.
 
@@ -1483,12 +1516,14 @@ class DataFrame:
                 self,
                 is_sproc=is_sproc,
                 statement_params=statement_params,
+                max_workers=max_workers,
             )
         if use_parquet:
             return _parquet_eager(
                 self,
                 is_sproc=is_sproc,
                 statement_params=statement_params,
+                max_workers=max_workers,
             )
         return _arrow_eager(
             self,

@@ -819,54 +819,11 @@ def test_open_and_read_parquet_parallel_sproc_close_error_is_logged(caplog):
     assert "failed to close stage file" in caplog.text
 
 
-def test_arrow_eager_empty_batches_returns_schema_frame():
-    """When cursor.get_result_batches returns [], we fall back to a schema fetch."""
+def test_arrow_eager_empty_result_returns_schema_frame():
+    """When to_arrow_batches yields nothing, we fall back to a schema fetch."""
     from snowflake.snowpark._internal import polars_backend
 
     df = mock.MagicMock()
-    df._plan.queries = [mock.MagicMock(sql="SELECT 1", params=None)]
-    fake_cursor = mock.MagicMock()
-    fake_cursor.get_result_batches.return_value = []
-    df._session._conn.execute_and_notify_query_listener.return_value = fake_cursor
-    empty = mock.MagicMock(name="empty_pl_df")
-    with mock.patch.object(
-        polars_backend, "_empty_frame_from_schema", return_value=empty
-    ) as m:
-        result = polars_backend.arrow_eager(df, statement_params=None)
-    assert result is empty
-    m.assert_called_once()
-
-
-def test_arrow_eager_all_batches_empty_returns_schema_frame():
-    """Batches exist but each has 0 rows → schema-preserving empty frame."""
-    from snowflake.snowpark._internal import polars_backend
-
-    df = mock.MagicMock()
-    df._plan.queries = [mock.MagicMock(sql="SELECT 1", params=None)]
-    fake_batch = mock.MagicMock()
-    fake_table = mock.MagicMock()
-    fake_table.num_rows = 0
-    fake_batch.to_arrow.return_value = fake_table
-    fake_cursor = mock.MagicMock()
-    fake_cursor.get_result_batches.return_value = [fake_batch]
-    df._session._conn.execute_and_notify_query_listener.return_value = fake_cursor
-    empty = mock.MagicMock(name="empty_pl_df")
-    with mock.patch.object(
-        polars_backend, "_empty_frame_from_schema", return_value=empty
-    ) as m:
-        result = polars_backend.arrow_eager(df, statement_params=None)
-    assert result is empty
-    assert (
-        m.call_count == 1
-    )  # only the all-empty branch, not the get_result_batches branch
-
-
-def test_arrow_eager_fallback_no_batches_returns_schema_frame():
-    """Multi-query plan whose to_arrow_batches yields nothing → schema frame."""
-    from snowflake.snowpark._internal import polars_backend
-
-    df = mock.MagicMock()
-    df._plan.queries = [mock.MagicMock(), mock.MagicMock()]  # forces fallback
     df.to_arrow_batches.return_value = iter([])
     empty = mock.MagicMock(name="empty_pl_df")
     with mock.patch.object(
@@ -875,6 +832,19 @@ def test_arrow_eager_fallback_no_batches_returns_schema_frame():
         result = polars_backend.arrow_eager(df, statement_params=None)
     assert result is empty
     m.assert_called_once()
+
+
+def test_arrow_eager_uses_to_arrow_batches():
+    """arrow_eager delegates entirely to to_arrow_batches (no raw cursor)."""
+    import pyarrow as pa
+    from snowflake.snowpark._internal import polars_backend
+
+    batch = pa.RecordBatch.from_pydict({"A": [1, 2], "B": [3, 4]})
+    df = mock.MagicMock()
+    df.to_arrow_batches.return_value = iter([batch])
+    result = polars_backend.arrow_eager(df, statement_params=None)
+    df.to_arrow_batches.assert_called_once()
+    assert result.shape == (2, 2)
 
 
 def test_parquet_eager_no_paths_returns_schema_frame():
@@ -926,3 +896,45 @@ def test_parquet_lazy_no_paths_returns_empty_lazyframe():
         result = polars_backend.parquet_lazy(df)
     assert isinstance(result, pl.LazyFrame)
     assert result.collect_schema().names() == ["A"]
+
+
+def test_max_workers_forwarded_to_open_helpers():
+    """max_workers passed to parquet_eager / parquet_lazy reaches the open helpers."""
+    from snowflake.snowpark._internal import polars_backend
+
+    df = mock.MagicMock()
+    fake_frame = mock.MagicMock()
+
+    # parquet_eager: verify max_workers reaches _open_and_read_parquet_parallel
+    with mock.patch.object(
+        polars_backend, "_copy_df_to_stage", return_value=["@a.parquet"]
+    ), mock.patch.object(
+        polars_backend,
+        "_open_and_read_parquet_parallel",
+        return_value=[fake_frame],
+    ) as mock_read:
+        polars_backend.parquet_eager(df, max_workers=4)
+    mock_read.assert_called_once()
+    assert mock_read.call_args.kwargs.get("max_workers") == 4
+
+    # parquet_lazy: verify max_workers reaches _open_stage_files_parallel
+    with mock.patch.object(
+        polars_backend, "_copy_df_to_stage", return_value=["@a.parquet"]
+    ), mock.patch.object(
+        polars_backend, "_open_stage_files_parallel", return_value=[mock.MagicMock()]
+    ) as mock_open, mock.patch(
+        "polars.scan_parquet", return_value=mock.MagicMock()
+    ):
+        polars_backend.parquet_lazy(df, max_workers=4)
+    mock_open.assert_called_once()
+    assert mock_open.call_args.kwargs.get("max_workers") == 4
+
+
+@_skip_local
+def test_to_polars_max_workers_param(session):
+    """max_workers is accepted and produces correct results on the parquet paths."""
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
+    pq = df.to_polars(use_parquet=True, max_workers=2)
+    assert isinstance(pq, pl.DataFrame) and pq.height == 2
+    lf = df.to_polars(lazy=True, max_workers=2)
+    assert isinstance(lf, pl.LazyFrame) and lf.collect().height == 2
