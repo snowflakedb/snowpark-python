@@ -2815,6 +2815,7 @@ message WritePandas {
   bool auto_create_table = 1;
   google.protobuf.Int64Value chunk_size = 2;
   string compression = 3;
+  // Deprecated: use table_type instead.
   bool create_temp_table = 4;
   DataframeData df = 5;
   repeated Tuple_String_Expr kwargs = 6;
@@ -2869,6 +2870,7 @@ message WriteTable {
   string column_order = 4;
   google.protobuf.StringValue comment = 5;
   bool copy_grants = 6;
+  // Deprecated: use table_type instead.
   bool create_temp_table = 7;
   google.protobuf.Int64Value data_retention_time = 8;
   google.protobuf.BoolValue enable_schema_evolution = 9;
