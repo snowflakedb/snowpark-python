@@ -6,7 +6,7 @@ import datetime
 import json
 import pytest
 from snowflake.snowpark.functions import ai_complete, ai_extract, col, lit, to_file
-from tests.utils import TestFiles, Utils
+from tests.utils import RUNNING_ON_JENKINS, TestFiles, Utils
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
 pytestmark = [
@@ -2003,6 +2003,11 @@ def test_ai_redact_return_error_details(session):
     assert "value" in parsed and "error" in parsed
 
 
+@pytest.mark.xfail(
+    RUNNING_ON_JENKINS,
+    reason="AI_FILTER return_error_details overload not yet rolled out on this deployment",
+    strict=False,
+)
 def test_ai_filter_return_error_details(session):
     """AI_FILTER (text overload) with return_error_details=True returns OBJECT with value/error."""
     from snowflake.snowpark.functions import ai_filter
