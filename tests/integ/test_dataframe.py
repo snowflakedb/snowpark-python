@@ -1679,7 +1679,9 @@ def test_cache_result_query(session):
     with session.query_history() as history:
         df.cache_result()
 
-    assert len(history.queries) == 2
+    # connector >= 4.7.1 no longer caches database/schema from non-USE statements (e.g. CREATE TEMP TABLE).
+    # Older connectors did, expect 4 queries for >= 4.7.1, 2 for earlier versions.
+    assert len(history.queries) in [2, 4]
     assert "CREATE  SCOPED TEMPORARY  TABLE" in history.queries[0].sql_text
     assert (
         "INSERT  INTO" in history.queries[1].sql_text

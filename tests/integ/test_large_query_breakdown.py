@@ -700,7 +700,9 @@ def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
 
         plan = large_query_df._plan
         # 1 for current transaction, 1 for partition, 1 for main query, 1 for post action
-        assert patched_run_query.call_count == 4
+        # connector >= 4.7.1 no longer caches database/schema from non-USE statements (e.g. CREATE TEMP TABLE).
+        # Older connectors did, expect 8 queries for >= 4.7.1, 4 for earlier versions.
+        assert patched_run_query.call_count in [4, 8]
 
         for i, call in enumerate(patched_run_query.call_args_list):
             if i == 0:
