@@ -9,9 +9,21 @@ branches that encode return_error_details / scores / config / options and the
 new multi_embed / redact / translate methods need explicit unit coverage.
 """
 
+import pytest
+
 from snowflake.snowpark._internal.utils import AstFlagSource, set_ast_state
 
+try:
+    import pandas  # noqa: F401
 
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
+
+@pytest.mark.skipif(
+    not is_pandas_available, reason="requires pandas for Local Testing session"
+)
 def test_dataframe_ai_ast_optional_params(session):
     """Exercise DataFrame.ai AST paths that are otherwise skipped when AST is off."""
     from snowflake.snowpark.functions import col, to_file
