@@ -123,7 +123,8 @@ def _copy_df_to_stage(
         statement_params=statement_params,
     )
     rows = df._session.sql(f"LIST '{sub}'").collect(statement_params=statement_params)
-    return [r["name"] if r["name"].startswith("@") else "@" + r["name"] for r in rows]
+    # `sub` is fully qualified; LIST returns stage-relative names. Construct fully-qualified paths.
+    return [sub + row["name"].rsplit("/", 1)[-1] for row in rows]
 
 
 def arrow_eager(
