@@ -9,6 +9,7 @@ import decimal
 import json
 import logging
 import math
+import re
 import time
 from array import array
 from collections import namedtuple
@@ -1679,12 +1680,25 @@ def test_cache_result_query(session):
     with session.query_history() as history:
         df.cache_result()
 
-    assert len(history.queries) == 2
-    assert "CREATE  SCOPED TEMPORARY  TABLE" in history.queries[0].sql_text
+    # connector >= 4.7.1 no longer caches database/schema from non-USE statements (e.g. CREATE TEMP TABLE).
+    # Older connectors did, expect 4 queries for >= 4.7.1, 2 for earlier versions in sproc execution env.
+    # Filter out metadata queries (e.g. SELECT CURRENT_DATABASE()) that may appear
+    # in some environments before or between the expected DDL/DML statements.
+    filtered_queries = [
+        q
+        for q in history.queries
+        if not re.match(
+            r"^\s*SELECT\s+CURRENT_(DATABASE|SCHEMA)\s*\(\s*\)\s*$",
+            q.sql_text,
+            re.IGNORECASE,
+        )
+    ]
+    assert len(filtered_queries) == 2
+    assert "CREATE  SCOPED TEMPORARY  TABLE" in filtered_queries[0].sql_text
     assert (
-        "INSERT  INTO" in history.queries[1].sql_text
+        "INSERT  INTO" in filtered_queries[1].sql_text
         and 'SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, 2 :: INT)'
-        in history.queries[1].sql_text
+        in filtered_queries[1].sql_text
     )
 
 

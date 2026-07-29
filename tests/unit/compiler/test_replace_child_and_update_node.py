@@ -70,7 +70,6 @@ def mock_snowflake_plan() -> SnowflakePlan:
     fake_snowflake_plan.referenced_ctes = {with_query_block: 1}
     fake_snowflake_plan._cumulative_node_complexity = {}
     fake_snowflake_plan._is_valid_for_replacement = True
-    fake_snowflake_plan._is_join_output = False
     fake_snowflake_plan._metadata = mock.create_autospec(PlanMetadata)
     fake_snowflake_plan._metadata.attributes = {}
     fake_snowflake_plan.query_line_intervals = []

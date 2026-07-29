@@ -295,13 +295,22 @@ class Star(Expression):
 
 class UnresolvedAttribute(Expression, NamedExpression):
     def __init__(
-        self, name: str, is_sql_text: bool = False, df_alias: Optional[str] = None
+        self,
+        name: str,
+        is_sql_text: bool = False,
+        df_alias: Optional[str] = None,
+        is_constant: bool = False,
     ) -> None:
         super().__init__()
         self.df_alias = df_alias
         self.name = name
         self.is_sql_text = is_sql_text
-        if "$" in name:
+        self.is_constant = is_constant
+        if is_constant:
+            # Constant SQL text (e.g. object/array literals) does not reference
+            # any columns from the input relation.
+            self._dependent_column_names = COLUMN_DEPENDENCY_EMPTY
+        elif "$" in name:
             # $n refers to a column by index. We don't consider column index yet.
             # even though "$" isn't necessarily used to refer to a column by index. We're conservative here.
             self._dependent_column_names = COLUMN_DEPENDENCY_DOLLAR
