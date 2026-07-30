@@ -717,21 +717,18 @@ def test_open_stage_files_parallel_empty_paths_returns_empty():
         _open_stage_files_parallel,
     )
 
-    assert _open_stage_files_parallel(mock.MagicMock(), [], is_sproc=False) == []
-    assert _open_stage_files_parallel(mock.MagicMock(), [], is_sproc=True) == []
+    for is_sproc in (False, True):
+        for is_lazy in (False, True):
+            assert (
+                _open_stage_files_parallel(
+                    mock.MagicMock(), [], is_sproc=is_sproc, is_lazy=is_lazy
+                )
+                == []
+            )
 
 
-def test_open_and_read_parquet_parallel_empty_paths_returns_empty():
-    from snowflake.snowpark._internal.polars_backend import (
-        _open_and_read_parquet_parallel,
-    )
-
-    assert _open_and_read_parquet_parallel(mock.MagicMock(), [], is_sproc=False) == []
-    assert _open_and_read_parquet_parallel(mock.MagicMock(), [], is_sproc=True) == []
-
-
-def test_open_stage_files_parallel_sproc_uses_snowflake_file():
-    """is_sproc=True routes through SnowflakeFile.open."""
+def test_open_stage_files_parallel_lazy_sproc_returns_handles():
+    """is_lazy=True + is_sproc=True: returns SnowflakeFile handles without reading."""
     from snowflake.snowpark._internal.polars_backend import (
         _open_stage_files_parallel,
     )
@@ -741,7 +738,10 @@ def test_open_stage_files_parallel_sproc_uses_snowflake_file():
     mock_module.SnowflakeFile.open.return_value = fake_file
     with mock.patch.dict("sys.modules", {"snowflake.snowpark.files": mock_module}):
         result = _open_stage_files_parallel(
-            None, ["@stg/a.parquet", "@stg/b.parquet"], is_sproc=True
+            None,
+            ["@stg/a.parquet", "@stg/b.parquet"],
+            is_sproc=True,
+            is_lazy=True,
         )
 
     assert result == [fake_file, fake_file]
@@ -751,72 +751,29 @@ def test_open_stage_files_parallel_sproc_uses_snowflake_file():
     )
 
 
-def test_open_and_read_parquet_parallel_sproc_uses_snowflake_file():
-    """is_sproc=True routes reads through SnowflakeFile.open and closes files."""
+def test_open_stage_files_parallel_eager_sproc_reads_and_closes():
+    """is_lazy=False + is_sproc=True: reads via pl.read_parquet inside a
+    ``with`` block so the file handle is closed after decode."""
     from snowflake.snowpark._internal.polars_backend import (
-        _open_and_read_parquet_parallel,
+        _open_stage_files_parallel,
     )
 
     fake_file = mock.MagicMock()
+    fake_file.__enter__.return_value = fake_file  # `with f as x: x is f`
     fake_frame = mock.MagicMock()
     mock_files_module = mock.MagicMock()
     mock_files_module.SnowflakeFile.open.return_value = fake_file
     with mock.patch.dict(
         "sys.modules", {"snowflake.snowpark.files": mock_files_module}
     ), mock.patch("polars.read_parquet", return_value=fake_frame) as mock_read:
-        result = _open_and_read_parquet_parallel(
-            None, ["@stg/a.parquet"], is_sproc=True
+        result = _open_stage_files_parallel(
+            None, ["@stg/a.parquet"], is_sproc=True, is_lazy=False
         )
 
     assert result == [fake_frame]
     mock_read.assert_called_once_with(fake_file)
-    fake_file.close.assert_called_once()
-
-
-def test_open_and_read_parquet_parallel_local_close_error_is_logged(caplog):
-    """Close failures on the client (get_stream) path emit a warning, not an exception."""
-    from snowflake.snowpark._internal.polars_backend import (
-        _open_and_read_parquet_parallel,
-    )
-
-    fake_file = mock.MagicMock()
-    fake_file.close.side_effect = OSError("close boom")
-    fake_frame = mock.MagicMock()
-    session = mock.MagicMock()
-    session.file.get_stream.return_value = fake_file
-    with mock.patch("polars.read_parquet", return_value=fake_frame), caplog.at_level(
-        "WARNING", logger="snowflake.snowpark._internal.polars_backend"
-    ):
-        result = _open_and_read_parquet_parallel(
-            session, ["@stg/x.parquet"], is_sproc=False
-        )
-
-    assert result == [fake_frame]
-    assert "failed to close stage file" in caplog.text
-
-
-def test_open_and_read_parquet_parallel_sproc_close_error_is_logged(caplog):
-    """Close failures on the sproc (SnowflakeFile) path emit a warning too."""
-    from snowflake.snowpark._internal.polars_backend import (
-        _open_and_read_parquet_parallel,
-    )
-
-    fake_file = mock.MagicMock()
-    fake_file.close.side_effect = OSError("close boom")
-    fake_frame = mock.MagicMock()
-    mock_files_module = mock.MagicMock()
-    mock_files_module.SnowflakeFile.open.return_value = fake_file
-    with mock.patch.dict(
-        "sys.modules", {"snowflake.snowpark.files": mock_files_module}
-    ), mock.patch("polars.read_parquet", return_value=fake_frame), caplog.at_level(
-        "WARNING", logger="snowflake.snowpark._internal.polars_backend"
-    ):
-        result = _open_and_read_parquet_parallel(
-            None, ["@stg/x.parquet"], is_sproc=True
-        )
-
-    assert result == [fake_frame]
-    assert "failed to close stage file" in caplog.text
+    fake_file.__enter__.assert_called_once()
+    fake_file.__exit__.assert_called_once()
 
 
 def test_arrow_eager_empty_result_returns_schema_frame():
@@ -872,7 +829,7 @@ def test_parquet_eager_no_frames_returns_schema_frame():
     with mock.patch.object(
         polars_backend, "_copy_df_to_stage", return_value=["@a.parquet"]
     ), mock.patch.object(
-        polars_backend, "_open_and_read_parquet_parallel", return_value=[]
+        polars_backend, "_open_stage_files_parallel", return_value=[]
     ), mock.patch.object(
         polars_backend, "_empty_frame_from_schema", return_value=empty
     ) as m:
@@ -898,26 +855,28 @@ def test_parquet_lazy_no_paths_returns_empty_lazyframe():
     assert result.collect_schema().names() == ["A"]
 
 
-def test_max_workers_forwarded_to_open_helpers():
-    """max_workers passed to parquet_eager / parquet_lazy reaches the open helpers."""
+def test_max_workers_forwarded_to_open_helper():
+    """max_workers passed to parquet_eager / parquet_lazy reaches _open_stage_files_parallel
+    with the correct is_lazy flag."""
     from snowflake.snowpark._internal import polars_backend
 
     df = mock.MagicMock()
     fake_frame = mock.MagicMock()
 
-    # parquet_eager: verify max_workers reaches _open_and_read_parquet_parallel
+    # parquet_eager: is_lazy=False, max_workers forwarded
     with mock.patch.object(
         polars_backend, "_copy_df_to_stage", return_value=["@a.parquet"]
     ), mock.patch.object(
         polars_backend,
-        "_open_and_read_parquet_parallel",
+        "_open_stage_files_parallel",
         return_value=[fake_frame],
-    ) as mock_read:
+    ) as mock_open:
         polars_backend.parquet_eager(df, max_workers=4)
-    mock_read.assert_called_once()
-    assert mock_read.call_args.kwargs.get("max_workers") == 4
+    mock_open.assert_called_once()
+    assert mock_open.call_args.kwargs.get("max_workers") == 4
+    assert mock_open.call_args.kwargs.get("is_lazy") is False
 
-    # parquet_lazy: verify max_workers reaches _open_stage_files_parallel
+    # parquet_lazy: is_lazy=True, max_workers forwarded
     with mock.patch.object(
         polars_backend, "_copy_df_to_stage", return_value=["@a.parquet"]
     ), mock.patch.object(
@@ -927,6 +886,8 @@ def test_max_workers_forwarded_to_open_helpers():
     ):
         polars_backend.parquet_lazy(df, max_workers=4)
     mock_open.assert_called_once()
+    assert mock_open.call_args.kwargs.get("max_workers") == 4
+    assert mock_open.call_args.kwargs.get("is_lazy") is True
     assert mock_open.call_args.kwargs.get("max_workers") == 4
 
 

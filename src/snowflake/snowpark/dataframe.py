@@ -20,6 +20,7 @@ from typing import (
     Dict,
     Iterator,
     List,
+    Literal as TypeLiteral,
     Optional,
     Set,
     Tuple,
@@ -1378,7 +1379,7 @@ class DataFrame:
     def to_polars(
         self,
         *,
-        lazy: bool = False,
+        lazy: TypeLiteral[False] = False,
         use_parquet: bool = False,
         max_workers: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
@@ -1391,7 +1392,7 @@ class DataFrame:
     def to_polars(
         self,
         *,
-        lazy: bool = True,
+        lazy: TypeLiteral[True],
         use_parquet: bool = False,
         max_workers: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,

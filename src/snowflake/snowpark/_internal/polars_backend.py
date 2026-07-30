@@ -3,7 +3,6 @@
 #
 from __future__ import annotations
 
-import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
@@ -11,8 +10,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import polars as pl
     from snowflake.snowpark.dataframe import DataFrame
-
-_logger = logging.getLogger(__name__)
 
 
 def _empty_frame_from_schema(
@@ -30,73 +27,45 @@ def _empty_frame_from_schema(
 
 
 def _open_stage_files_parallel(
-    session, paths: list[str], is_sproc: bool, max_workers: int | None = None
-) -> list:
-    """Open stage files concurrently and return file-like objects.
-
-    Uses ``SnowflakeFile.open`` inside a stored procedure (no local /tmp
-    materialization) and ``session.file.get_stream`` on the client.
-    """
-    if is_sproc:
-        from snowflake.snowpark.files import SnowflakeFile
-
-        def _open(p: str):
-            return SnowflakeFile.open(p, "rb", require_scoped_url=False)
-
-    else:
-
-        def _open(p: str):
-            return session.file.get_stream(p)
-
-    if not paths:
-        return []
-    with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        return list(ex.map(_open, paths))
-
-
-def _open_and_read_parquet_parallel(
     session,
     paths: list[str],
     is_sproc: bool,
+    is_lazy: bool,
     max_workers: int | None = None,
-) -> list[pl.DataFrame]:
-    """Open and read each stage Parquet file in a thread pool.
+) -> list:
+    """Open stage files concurrently.
 
-    Opens and decodes run together per file so the read step is not serialized
-    after a parallel open — the decode releases the GIL for I/O and native
-    Arrow work.
+    * ``is_lazy=True``: return the raw file-like objects for
+      ``pl.scan_parquet`` to consume (Polars owns the handles from that point
+      on and closes them itself).
+    * ``is_lazy=False``: read each file with ``pl.read_parquet`` and return
+      the resulting ``pl.DataFrame`` (``with`` closes the handle after read).
+
+    Uses ``SnowflakeFile.open`` inside a stored procedure and
+    ``session.file.get_stream`` on the client.
     """
+    if not paths:
+        return []
+
     import polars as pl
 
     if is_sproc:
         from snowflake.snowpark.files import SnowflakeFile
 
-        def _open_read(p: str):
-            f = SnowflakeFile.open(p, "rb", require_scoped_url=False)
-            try:
-                return pl.read_parquet(f)
-            finally:
-                try:
-                    f.close()
-                except Exception as e:
-                    _logger.warning("failed to close stage file %s: %s", p, e)
+        def opener(p: str):
+            return SnowflakeFile.open(p, "rb", require_scoped_url=False)
 
     else:
+        opener = session.file.get_stream
 
-        def _open_read(p: str):
-            f = session.file.get_stream(p)
-            try:
-                return pl.read_parquet(f)
-            finally:
-                try:
-                    f.close()
-                except Exception as e:
-                    _logger.warning("failed to close stage file %s: %s", p, e)
+    def _work(p: str):
+        if is_lazy:
+            return opener(p)
+        with opener(p) as f:
+            return pl.read_parquet(f)
 
-    if not paths:
-        return []
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        return list(ex.map(_open_read, paths))
+        return list(ex.map(_work, paths))
 
 
 def _copy_df_to_stage(
@@ -165,8 +134,8 @@ def parquet_eager(
     paths = _copy_df_to_stage(df, "to_polars_parquet_eager", statement_params)
     if not paths:
         return _empty_frame_from_schema(df, statement_params)
-    frames = _open_and_read_parquet_parallel(
-        df._session, paths, is_sproc, max_workers=max_workers
+    frames = _open_stage_files_parallel(
+        df._session, paths, is_sproc, is_lazy=False, max_workers=max_workers
     )
     if not frames:
         return _empty_frame_from_schema(df, statement_params)
@@ -195,6 +164,6 @@ def parquet_lazy(
     # The stream objects are owned by the returned LazyFrame; Polars closes them
     # when the scan is materialized (or if the LazyFrame is discarded).
     streams = _open_stage_files_parallel(
-        df._session, paths, is_sproc, max_workers=max_workers
+        df._session, paths, is_sproc, is_lazy=True, max_workers=max_workers
     )
     return pl.scan_parquet(streams)
