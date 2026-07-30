@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added `DataFrame.to_polars()` to convert a Snowpark DataFrame to a Polars DataFrame or LazyFrame when `lazy=True`. Supports an optional `use_parquet=True` mode for large data-transfer-dominated workloads.
+
 ## 1.54.0 (2026-07-29)
 
 ### Snowpark Python API updates
