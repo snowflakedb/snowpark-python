@@ -1399,7 +1399,7 @@ class DataFrame:
     ) -> "polars.LazyFrame":
         ...  # pragma: no cover
 
-    @experimental(version="1.54.0")
+    @experimental(version="1.55.0")
     @df_collect_api_telemetry
     @publicapi
     def to_polars(

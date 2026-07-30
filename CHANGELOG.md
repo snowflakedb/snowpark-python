@@ -1,12 +1,19 @@
 # Release History
 
-## 1.54.0 (TBD)
+## 1.55.0 (TBD)
 
 ### Snowpark Python API updates
 
 #### New Features
 
 - Added `DataFrame.to_polars()` to convert a Snowpark DataFrame to a Polars DataFrame or LazyFrame when `lazy=True`. Supports an optional `use_parquet=True` mode for large data-transfer-dominated workloads.
+
+## 1.54.0 (TBD)
+
+### Snowpark Python API updates
+
+#### New Features
+
 - Added `ai_count_tokens` function to `snowflake.snowpark.functions` to estimate token counts for AI function calls.
 - Added `ai_multi_embed` function to `snowflake.snowpark.functions` to generate multimodal embeddings from text, images, audio, or video files.
 - Added `ai_redact` function to `snowflake.snowpark.functions` to detect and redact personally identifiable information (PII) from text.
