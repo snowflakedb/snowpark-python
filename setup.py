@@ -73,6 +73,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "psutil",  # testing for telemetry
     "lxml",  # used in XML reader unit tests
     "pyarrow",  # used in dataframe reader tests
+    "polars>=1.0",  # used in test_df_to_polars integration tests
 ]
 MODIN_DEVELOPMENT_REQUIREMENTS = [
     # Snowpark pandas 3rd party library testing. Cap the scipy version because
