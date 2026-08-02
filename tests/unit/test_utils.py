@@ -1300,6 +1300,60 @@ def test_extract_time_travel_branch_and_version_ref_options():
         )
 
 
+@pytest.mark.parametrize(
+    "incremental_key",
+    [
+        "start-snapshot-id",
+        "START-SNAPSHOT-ID",
+        "start_snapshot_id",
+        "START_SNAPSHOT_ID",
+        "end-snapshot-id",
+        "END_SNAPSHOT_ID",
+    ],
+)
+@pytest.mark.parametrize(
+    "conflicting_key",
+    [
+        "time_travel_mode",
+        "statement",
+        "offset",
+        "timestamp",
+        "timestamp_type",
+        "stream",
+        "snapshot-id",
+        "as-of-timestamp",
+        "version-tag",
+        "version_ref",
+        "branch",
+        "tag",
+    ],
+)
+def test_reader_options_conflict_with_incremental_read(
+    incremental_key, conflicting_key
+):
+    from snowflake.snowpark.dataframe_reader import (
+        _reader_options_conflict_with_incremental_read,
+    )
+
+    options = {incremental_key: 1, conflicting_key: "value"}
+
+    assert _reader_options_conflict_with_incremental_read(options) == [conflicting_key]
+
+
+def test_reader_options_conflict_with_incremental_read_ignores_unrelated_options():
+    from snowflake.snowpark.dataframe_reader import (
+        _reader_options_conflict_with_incremental_read,
+    )
+
+    options = {
+        "START_SNAPSHOT_ID": 1,
+        "END-SNAPSHOT-ID": 2,
+        "compression": "gzip",
+    }
+
+    assert _reader_options_conflict_with_incremental_read(options) == []
+
+
 def test_time_travel_version_ref_validation():
     with pytest.raises(ValueError, match="'version_ref' must be a non-empty"):
         TimeTravelConfig.validate_and_normalize_params(
