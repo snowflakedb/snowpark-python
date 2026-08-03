@@ -2760,19 +2760,9 @@ def test_sproc_runtime_313_cloudpickle_ge_spec_compiles_and_executes(session):
 # ── Interval type stored procedures (SNOW-3746506) ───────────────────────────
 
 
-def _interval_udf_flag_enabled(session: Session) -> bool:
-    """Return True when ENABLE_INTERVAL_TYPES_IN_UDF is set to TRUE on this account."""
-    rows = session.sql(
-        "SHOW PARAMETERS LIKE 'ENABLE_INTERVAL_TYPES_IN_UDF' IN ACCOUNT"
-    ).collect()
-    return bool(rows) and rows[0]["value"].upper() == "TRUE"
-
-
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_sproc_daytime_interval(session):
+def test_sproc_daytime_interval(session, interval_udf_enabled):
     """DayTimeIntervalType sproc: timedelta arg/return round-trips correctly."""
-    if not _interval_udf_flag_enabled(session):
-        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not enabled on this account")
 
     def double_interval(session: Session, d: datetime.timedelta) -> datetime.timedelta:
         return d * 2
@@ -2787,10 +2777,8 @@ def test_sproc_daytime_interval(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_sproc_yearmonth_interval(session):
+def test_sproc_yearmonth_interval(session, interval_udf_enabled):
     """YearMonthIntervalType sproc: int (total months) arg/return round-trips correctly."""
-    if not _interval_udf_flag_enabled(session):
-        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not enabled on this account")
 
     from snowflake.snowpark.types import YearMonthInterval
 
