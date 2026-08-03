@@ -515,7 +515,7 @@ def to_sql(
         s = total_us // 1_000_000
         us = total_us % 1_000_000
         interval_str = f"{sign}{d} {h:02d}:{m:02d}:{s:02d}.{us:06d}"
-        return f"INTERVAL '{interval_str}' DAY TO SECOND"
+        return f"INTERVAL '{interval_str}' DAY TO SECOND :: {convert_sp_to_sf_type(datatype)}"
 
     if isinstance(value, int) and isinstance(datatype, YearMonthIntervalType):
         # Serialize int (total months) as an INTERVAL YEAR TO MONTH literal.
@@ -524,7 +524,7 @@ def to_sql(
         years = abs_months // 12
         months = abs_months % 12
         interval_str = f"{sign}{years}-{months:02d}"
-        return f"INTERVAL '{interval_str}' YEAR TO MONTH"
+        return f"INTERVAL '{interval_str}' YEAR TO MONTH :: {convert_sp_to_sf_type(datatype)}"
 
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 
