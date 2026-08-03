@@ -1152,6 +1152,11 @@ def test_interval_types_in_udf_context():
     dt_str_snow, _ = python_type_to_snow_type("timedelta")
     assert dt_str_snow == DayTimeIntervalType()
 
+    # The string "YearMonthInterval" (register_from_file) maps to YearMonthIntervalType.
+    ym_str_snow, ym_str_nullable = python_type_to_snow_type("YearMonthInterval")
+    assert ym_str_snow == YearMonthIntervalType()
+    assert ym_str_nullable is False
+
     # DayTimeInterval (the Snowpark marker class) also maps to DayTimeIntervalType.
     assert python_type_to_snow_type(DayTimeInterval) == (DayTimeIntervalType(), False)
 

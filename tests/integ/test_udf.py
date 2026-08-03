@@ -3368,3 +3368,21 @@ def test_udf_yearmonth_interval_null(session):
         session.sql("SELECT NULL::INTERVAL YEAR TO MONTH AS m").select(f("m")).collect()
     )
     assert result[0][0] is None
+
+
+def test_udf_yearmonth_interval_negative(session):
+    """YearMonth interval UDF returning a negative value displays with leading '-'."""
+    if not _interval_udf_flag_enabled(session):
+        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not enabled on this account")
+
+    def negate(m: YearMonthInterval) -> YearMonthInterval:
+        return -m
+
+    f = session.udf.register(
+        negate,
+        return_type=YearMonthIntervalType(),
+        input_types=[YearMonthIntervalType()],
+    )
+    # negate(1yr 2mo) = -(14 months) → '-1-02'
+    result = session.sql(f"SELECT {f.name}(INTERVAL '1-2' YEAR TO MONTH)").collect()
+    assert result[0][0] == "-1-02"
