@@ -825,6 +825,8 @@ def python_type_str_to_object(
         return datetime.datetime
     elif tp_str == "timedelta":
         return datetime.timedelta
+    elif tp_str == "YearMonthInterval":
+        return YearMonthInterval
     # This check is to handle special case when stored procs are registered using
     # register_from_file where type hints are read as strings and we don't know if
     # the DataFrame is a snowflake.snowpark.DataFrame or not. Here, the assumption

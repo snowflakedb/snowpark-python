@@ -310,9 +310,14 @@ def test_schema(connection, local_testing_mode) -> None:
             cursor.execute(
                 f"GRANT ALL PRIVILEGES ON SCHEMA {TEST_SCHEMA} TO ROLE PUBLIC"
             )
-            cursor.execute(
-                f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
-            )
+            try:
+                cursor.execute(
+                    f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
+                )
+            except Exception:
+                # Some accounts (e.g. temptest) do not support
+                # DEFAULT_PYTHON_ARTIFACT_REPOSITORY; skip silently.
+                pass
             yield
             cursor.execute(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}")
 
