@@ -3260,18 +3260,8 @@ def test_use_default_artifact_repository(db_parameters):
 # ── Interval type UDFs (SNOW-3746497) ────────────────────────────────────────
 
 
-def _interval_udf_flag_enabled(session: Session) -> bool:
-    """Return True when ENABLE_INTERVAL_TYPES_IN_UDF is set to TRUE on this account."""
-    rows = session.sql(
-        "SHOW PARAMETERS LIKE 'ENABLE_INTERVAL_TYPES_IN_UDF' IN ACCOUNT"
-    ).collect()
-    return bool(rows) and rows[0]["value"].upper() == "TRUE"
-
-
-def test_udf_daytime_interval_timedelta_annotation(session):
+def test_udf_daytime_interval_timedelta_annotation(session, interval_udf_enabled):
     """timedelta type annotation maps to DayTimeIntervalType; round-trip through a UDF."""
-    if not _interval_udf_flag_enabled(session):
-        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not enabled on this account")
 
     def add_day(d: datetime.timedelta) -> datetime.timedelta:
         return d + datetime.timedelta(days=1)
@@ -3284,10 +3274,8 @@ def test_udf_daytime_interval_timedelta_annotation(session):
     assert result[0][0] == datetime.timedelta(days=6)
 
 
-def test_udf_daytime_interval_explicit_type(session):
+def test_udf_daytime_interval_explicit_type(session, interval_udf_enabled):
     """Explicit DayTimeIntervalType input/return; multiplication round-trip."""
-    if not _interval_udf_flag_enabled(session):
-        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not enabled on this account")
 
     def triple(d: datetime.timedelta) -> datetime.timedelta:
         return d * 3
@@ -3303,10 +3291,8 @@ def test_udf_daytime_interval_explicit_type(session):
     assert result[0][0] == datetime.timedelta(days=7, hours=12)
 
 
-def test_udf_daytime_interval_null(session):
+def test_udf_daytime_interval_null(session, interval_udf_enabled):
     """Null DayTime interval input propagates as None."""
-    if not _interval_udf_flag_enabled(session):
-        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not enabled on this account")
 
     def identity(d: datetime.timedelta) -> datetime.timedelta:
         return d
@@ -3318,10 +3304,8 @@ def test_udf_daytime_interval_null(session):
     assert result[0][0] is None
 
 
-def test_udf_daytime_interval_negative(session):
+def test_udf_daytime_interval_negative(session, interval_udf_enabled):
     """Negative DayTime intervals round-trip correctly."""
-    if not _interval_udf_flag_enabled(session):
-        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not enabled on this account")
 
     def negate(d: datetime.timedelta) -> datetime.timedelta:
         return -d
@@ -3331,11 +3315,8 @@ def test_udf_daytime_interval_negative(session):
     assert result[0][0] == datetime.timedelta(days=-3)
 
 
-def test_udf_yearmonth_interval(session):
+def test_udf_yearmonth_interval(session, interval_udf_enabled):
     """YearMonthInterval UDF: value arrives as int (total months) inside handler."""
-    if not _interval_udf_flag_enabled(session):
-        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not enabled on this account")
-
     # YearMonthInterval is a TypeVar used for annotation only; the coprocessor
     # surfaces the value as a plain int (total months) inside the UDF body.
     def add_year(m: YearMonthInterval) -> YearMonthInterval:
@@ -3351,10 +3332,8 @@ def test_udf_yearmonth_interval(session):
     assert result[0][0] == "+2-02"
 
 
-def test_udf_yearmonth_interval_null(session):
+def test_udf_yearmonth_interval_null(session, interval_udf_enabled):
     """Null YearMonth interval input propagates as None."""
-    if not _interval_udf_flag_enabled(session):
-        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not enabled on this account")
 
     def identity(m: YearMonthInterval) -> YearMonthInterval:
         return m
@@ -3370,10 +3349,8 @@ def test_udf_yearmonth_interval_null(session):
     assert result[0][0] is None
 
 
-def test_udf_yearmonth_interval_negative(session):
+def test_udf_yearmonth_interval_negative(session, interval_udf_enabled):
     """YearMonth interval UDF returning a negative value displays with leading '-'."""
-    if not _interval_udf_flag_enabled(session):
-        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not enabled on this account")
 
     def negate(m: YearMonthInterval) -> YearMonthInterval:
         return -m
