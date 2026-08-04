@@ -1,11 +1,5 @@
-# Nightly regression of snowpark-python against the connector's UNRELEASED main branch.
-# Replaces the Jenkins job SnowparkPythonSnowflakePythonClientRegressRunner (SNOW-3859269).
-#
-# Two choices below are deliberate -- please do not "fix" them:
-#   * the connector is BUILT FROM MAIN, not installed from PyPI. Testing the released
-#     connector would just duplicate daily_precommit.yml and lose the early warning.
-#   * the tests run against the public/prod account, like every other workflow here,
-#     rather than the preprod account the Jenkins job used. That is the point of SNOW-3859269.
+# Nightly regression of snowpark-python against the connector's unreleased main branch,
+# replacing the Jenkins job SnowparkPythonSnowflakePythonClientRegressRunner (SNOW-3859269).
 
 name: Daily connector-main regress
 on:
@@ -23,13 +17,11 @@ jobs:
   regress:
     runs-on: ubuntu-latest-64-cores
     steps:
-      # snowpark must be checked out FIRST: a checkout without `path:` wipes
-      # $GITHUB_WORKSPACE, which would delete an already-cloned connector.
+      # Must be first: a checkout without `path:` wipes $GITHUB_WORKSPACE.
       - name: Checkout snowpark-python
         uses: actions/checkout@v4
 
-      # `|| 'main'` is required, not cosmetic: on a `schedule` run there is no
-      # `inputs` context at all, so the declared default never materialises.
+      # A schedule run has no `inputs` context, so the default above never applies.
       - name: Checkout snowflake-connector-python
         uses: actions/checkout@v4
         with:
@@ -53,15 +45,13 @@ jobs:
       - name: Upgrade setuptools, pip and wheel
         run: uv pip install -U setuptools pip wheel --system
 
-      # connector main reports the same version as the latest PyPI release, so the
-      # commit is the only way to tell two nightly runs apart or to bisect a break.
+      # main reports the released version number, so only the commit identifies a run.
       - name: Record connector commit
         run: |
           echo "connector ref=\`${{ inputs.connector_ref || 'main' }}\` sha=\`$(git -C connector-src rev-parse HEAD)\`" \
             >> $GITHUB_STEP_SUMMARY
 
-      # Do NOT add --no-build-isolation: isolation is what guarantees Cython is
-      # present. Without it the build silently emits a pure-python wheel, exit 0.
+      # No --no-build-isolation: without Cython the build silently goes pure-python, exit 0.
       - name: Build connector wheel
         run: |
           python -m pip wheel -v --no-deps -w "$RUNNER_TEMP/connector-wheels" ./connector-src
@@ -71,22 +61,17 @@ jobs:
         shell: bash
         run: |
           ls -1 "$RUNNER_TEMP"/connector-wheels/snowflake_connector_python*cp310*.whl \
-            || { echo "::error::no cp310 wheel -- built a pure-python wheel; tox's glob would miss it"; exit 1; }
+            || { echo "::error::no cp310 wheel: the build fell back to pure python"; exit 1; }
 
-      # Static check on the wheel -- no install, so no deps and no network. Note that
-      # importing ArrowResultBatch would NOT prove anything: result_batch.py imports the
-      # extension lazily, inside _create_nanoarrow_iterator(). Inspecting the wheel does.
-      # `grep` runs without -q on purpose: GitHub's bash sets -o pipefail, so a grep that
-      # exits early would SIGPIPE unzip and fail this step even on a good wheel.
+      # result_batch imports the extension lazily; grep avoids -q because of -o pipefail.
       - name: Assert the wheel contains the Arrow extension
         shell: bash
         run: |
           unzip -l "$RUNNER_TEMP"/connector-wheels/snowflake_connector_python*cp310*.whl \
             | grep 'nanoarrow_arrow_iterator.*\.so' \
-            || { echo "::error::wheel has no nanoarrow_arrow_iterator .so -- the Arrow extension was not built"; exit 1; }
+            || { echo "::error::wheel has no nanoarrow_arrow_iterator .so"; exit 1; }
 
-      # CLOUD_PROVIDER (upper case) selects the encrypted parameters file, and
-      # therefore which Snowflake account the tests land on.
+      # CLOUD_PROVIDER selects the parameters file, and so the account under test.
       - name: Decrypt parameters.py
         shell: bash
         run: .github/scripts/decrypt_parameters.sh
@@ -101,11 +86,8 @@ jobs:
       - name: Install tox
         run: uv pip install tox --system
 
-      # The env name must stay byte-identical to the one scripts/jenkins_regress.sh
-      # runs -- it is the single thing that keeps coverage equal to the Jenkins job.
-      # snowflake_path is what makes tox install the connector we just built instead
-      # of the one from PyPI; note cloud_provider (lower case) is a different variable
-      # from CLOUD_PROVIDER above and only affects the junit filename.
+      # The env name must match scripts/jenkins_regress.sh exactly; that is what keeps
+      # coverage equal to the Jenkins job. Lower-case cloud_provider is not CLOUD_PROVIDER.
       - name: Run connector-main regression
         id: regress
         run: python -m tox -e notdoctest-pandascap-pyarrowcap
@@ -118,23 +100,14 @@ jobs:
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
 
-      # Runs whether the suite passed or failed, but only once tox actually built its
-      # env -- otherwise a dep-resolution failure would add a second, unrelated red step
-      # pointing at a python that never existed.
+      # tox installs the other deps after our wheel, so it can put the PyPI connector back.
+      # direct_url.json exists only for a local-path install; tag and version cannot tell.
       - name: Assert the tests used the locally built connector
         if: ${{ steps.regress.outcome == 'success' || steps.regress.outcome == 'failure' }}
         shell: bash
         run: |
           PY=.tox/notdoctest-pandascap-pyarrowcap/bin/python
-          # The extension must load in the interpreter that actually ran the tests. A
-          # broken .so still lets `import snowflake.connector` succeed with a warning,
-          # after which the whole suite quietly falls back to the JSON path.
           "$PY" -c "import snowflake.connector.nanoarrow_arrow_iterator; print('arrow extension loads')"
           SITE=$("$PY" -c "import snowflake.connector as c, pathlib; print(pathlib.Path(c.__file__).parents[2])")
-          # tox installs our wheel first and the remaining deps second, so the second
-          # install can quietly put the PyPI connector back. direct_url.json (PEP 610)
-          # is written only for a local-path install; an index install has none. The
-          # wheel tag cannot tell us this -- an sdist rebuilt from PyPI is also tagged
-          # linux_x86_64. Version cannot either: main reports the released version.
           ls "$SITE"/snowflake_connector_python-*.dist-info/direct_url.json \
             || { echo "::error::connector came from an index, not the local main build"; exit 1; }
