@@ -100,7 +100,7 @@ jobs:
           cat results.txt
         env:
           cloud_provider: ${{ env.CLOUD_PROVIDER }}
-          ud_connector_path: "git+https://github.com/snowflakedb/universal-driver@${{ env.UD_BRANCH }}#subdirectory=python"
+          ud_connector_path: "git+https://github.com/snowflakedb/drivers@${{ env.UD_BRANCH }}#subdirectory=python"
           GH_TOKEN: ${{ secrets.SNOWFLAKE_GITHUB_TOKEN }}
           PYTEST_ADDOPTS: --color=yes --tb=short ${{ env.EXTRA_PYTEST_ADDOPTS }}
           TOX_PARALLEL_NO_SPINNER: 1
