@@ -4,6 +4,7 @@
 
 import os
 import sys
+from datetime import timedelta
 
 import pytest
 
@@ -12,7 +13,14 @@ from snowflake.snowpark.functions import call_udf, col, lit
 from snowflake.snowpark.mock._udf import MockUDFRegistration
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.session import Session
-from snowflake.snowpark.types import IntegerType
+from snowflake.snowpark.types import (
+    DayTimeIntervalType,
+    IntegerType,
+    StructField,
+    StructType,
+    YearMonthInterval,
+    YearMonthIntervalType,
+)
 
 
 def test_udf_cleanup_on_err(session):
@@ -95,3 +103,44 @@ def test_get_udf_negative(session):
 def test_get_udf_imports_negative(session):
     reg = MockUDFRegistration(session)
     assert reg.get_udf_imports("does_not_exist") == set()
+
+
+def test_udf_daytime_interval_local(session):
+    """DayTimeIntervalType UDF: timedelta in, timedelta out in local testing mode."""
+
+    def add_day(d: timedelta) -> timedelta:
+        return d + timedelta(days=1)
+
+    f = session.udf.register(add_day, strict=True)
+    assert f._return_type == DayTimeIntervalType()
+    assert f._input_types == [DayTimeIntervalType()]
+
+    df = session.create_dataframe(
+        [[timedelta(days=5)], [None]],
+        schema=StructType([StructField("d", DayTimeIntervalType())]),
+    )
+    result = df.select(f("d")).collect()
+    assert result[0][0] == timedelta(days=6)
+    assert result[1][0] is None
+
+
+def test_udf_yearmonth_interval_local(session):
+    """YearMonthIntervalType UDF: int (total months) in/out in local testing mode."""
+
+    def add_year(m: YearMonthInterval) -> YearMonthInterval:
+        return m + 12
+
+    f = session.udf.register(
+        add_year,
+        return_type=YearMonthIntervalType(),
+        input_types=[YearMonthIntervalType()],
+        strict=True,
+    )
+
+    df = session.create_dataframe(
+        [[14], [None]],
+        schema=StructType([StructField("m", YearMonthIntervalType())]),
+    )
+    result = df.select(f("m")).collect()
+    assert result[0][0] == 26  # 14 + 12
+    assert result[1][0] is None

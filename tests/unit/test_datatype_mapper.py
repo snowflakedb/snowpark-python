@@ -360,6 +360,57 @@ def test_to_sql():
     )
 
 
+def test_to_sql_interval_types():
+    td = datetime.timedelta
+
+    # DayTimeInterval: positive values
+    assert (
+        to_sql(td(days=5), DayTimeIntervalType())
+        == "INTERVAL '+5 00:00:00.000000' DAY TO SECOND :: INTERVAL DAY TO SECOND"
+    )
+    assert (
+        to_sql(
+            td(days=2, hours=3, minutes=4, seconds=5, microseconds=6),
+            DayTimeIntervalType(),
+        )
+        == "INTERVAL '+2 03:04:05.000006' DAY TO SECOND :: INTERVAL DAY TO SECOND"
+    )
+    assert (
+        to_sql(td(seconds=30, microseconds=500000), DayTimeIntervalType())
+        == "INTERVAL '+0 00:00:30.500000' DAY TO SECOND :: INTERVAL DAY TO SECOND"
+    )
+
+    # DayTimeInterval: zero and negative
+    assert (
+        to_sql(td(0), DayTimeIntervalType())
+        == "INTERVAL '+0 00:00:00.000000' DAY TO SECOND :: INTERVAL DAY TO SECOND"
+    )
+    assert (
+        to_sql(td(days=-3), DayTimeIntervalType())
+        == "INTERVAL '-3 00:00:00.000000' DAY TO SECOND :: INTERVAL DAY TO SECOND"
+    )
+
+    # YearMonthInterval: positive values
+    assert (
+        to_sql(14, YearMonthIntervalType())
+        == "INTERVAL '+1-02' YEAR TO MONTH :: INTERVAL YEAR TO MONTH"
+    )
+    assert (
+        to_sql(6, YearMonthIntervalType())
+        == "INTERVAL '+0-06' YEAR TO MONTH :: INTERVAL YEAR TO MONTH"
+    )
+
+    # YearMonthInterval: zero and negative
+    assert (
+        to_sql(0, YearMonthIntervalType())
+        == "INTERVAL '+0-00' YEAR TO MONTH :: INTERVAL YEAR TO MONTH"
+    )
+    assert (
+        to_sql(-18, YearMonthIntervalType())
+        == "INTERVAL '-1-06' YEAR TO MONTH :: INTERVAL YEAR TO MONTH"
+    )
+
+
 def test_to_sql_system_function():
     # Test nulls
     assert to_sql_no_cast(None, NullType()) == "NULL"

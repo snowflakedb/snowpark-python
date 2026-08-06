@@ -310,9 +310,14 @@ def test_schema(connection, local_testing_mode) -> None:
             cursor.execute(
                 f"GRANT ALL PRIVILEGES ON SCHEMA {TEST_SCHEMA} TO ROLE PUBLIC"
             )
-            cursor.execute(
-                f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
-            )
+            try:
+                cursor.execute(
+                    f"ALTER SCHEMA SET DEFAULT_PYTHON_ARTIFACT_REPOSITORY = {_DEFAULT_ARTIFACT_REPOSITORY}"
+                )
+            except Exception:
+                # Some accounts (e.g. temptest) do not support
+                # DEFAULT_PYTHON_ARTIFACT_REPOSITORY; skip silently.
+                pass
             yield
             cursor.execute(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}")
 
@@ -488,6 +493,17 @@ def temp_stage(session, resources_path, local_testing_mode):
     yield tmp_stage_name
     if not local_testing_mode:
         Utils.drop_stage(session, tmp_stage_name)
+
+
+@pytest.fixture(scope="module")
+def interval_udf_enabled(session, local_testing_mode):
+    if local_testing_mode:
+        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not supported in local testing")
+    rows = session.sql(
+        "SHOW PARAMETERS LIKE 'ENABLE_INTERVAL_TYPES_IN_UDF' IN ACCOUNT"
+    ).collect()
+    if not (bool(rows) and rows[0]["value"].upper() == "TRUE"):
+        pytest.skip("ENABLE_INTERVAL_TYPES_IN_UDF not enabled on this account")
 
 
 @pytest.fixture(scope="function", autouse=True)
