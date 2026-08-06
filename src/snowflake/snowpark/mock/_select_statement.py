@@ -107,6 +107,29 @@ class MockSelectable(LogicalPlan, ABC):
         return self._execution_plan
 
     @property
+    def snowflake_plan(self):
+        """Alias for execution_plan to provide API compatibility with SelectStatement.
+
+        Why this alias is safe:
+        -----------------------
+        The non-mock SelectStatement.snowflake_plan returns a SnowflakePlan with an
+        `output` property (List[Attribute]) used for schema inference. Our
+        MockExecutionPlan already provides this same `output` property with identical
+        semantics (see MockExecutionPlan.output in _plan.py).
+
+        This alias exists specifically to support table_function.py line 327:
+            plan = select_statement.select([...]).snowflake_plan
+            explode_col_type = plan.output[0].datatype
+
+        If SelectStatement.snowflake_plan gains additional functionality in the future
+        (lazy evaluation, metadata wrapping, etc.), this alias may need to be updated
+        to maintain parity. The mock test suite should catch such divergence.
+
+        See also: GitHub issue #3565 (SNOW-2213161)
+        """
+        return self.execution_plan
+
+    @property
     def attributes(self):
         return self._attributes or self.execution_plan.attributes
 
