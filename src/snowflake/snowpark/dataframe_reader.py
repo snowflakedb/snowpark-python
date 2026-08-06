@@ -833,12 +833,19 @@ class DataFrameReader:
                 start_snapshot_id=start_snapshot_id,
                 end_snapshot_id=end_snapshot_id,
             )
-        elif (
-            time_travel_mode is not None
-            or version is not None
-            or version_tag is not None
-            or version_ref is not None
-            or branch is not None
+        elif any(
+            value is not None
+            for value in (
+                time_travel_mode,
+                statement,
+                offset,
+                timestamp,
+                stream,
+                version,
+                version_tag,
+                version_ref,
+                branch,
+            )
         ):
             # If version / named-ref params are provided without mode,
             # default to 'at'.
