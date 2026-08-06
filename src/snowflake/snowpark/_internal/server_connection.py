@@ -25,7 +25,7 @@ from typing import (
 )
 
 from snowflake.connector import SnowflakeConnection, connect
-from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
+from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import Error, NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
@@ -81,6 +81,9 @@ if TYPE_CHECKING:
         ResultMetadataV2 = ResultMetadata
 
 logger = getLogger(__name__)
+
+# backward compatibility constant
+ENV_VAR_PARTNER = "SF_PARTNER"
 
 # parameters needed for usage tracking
 PARAM_APPLICATION = "application"
