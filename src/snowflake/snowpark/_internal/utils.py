@@ -367,6 +367,8 @@ def is_interactive() -> bool:
     return hasattr(sys, "ps1") or sys.flags.interactive or "snowbook" in sys.modules
 
 
+IS_V5_DRIVER: bool = connector_version[0] >= 5
+
 @lru_cache
 def get_connector_version() -> str:
     return ".".join([str(d) for d in connector_version if d is not None])
