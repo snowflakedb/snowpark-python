@@ -1831,7 +1831,7 @@ class SnowflakePlanBuilder:
         """
         Creates a DataFrame from a UserDefinedTableFunction that reads XML files.
         """
-        from snowflake.snowpark.functions import lit, col, seq8, flatten
+        from snowflake.snowpark.functions import lit, col
         from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
 
         schema_string = (
@@ -1861,19 +1861,109 @@ class SnowflakePlanBuilder:
                 f"Invalid mode: {mode}. Must be one of PERMISSIVE, DROPMALFORMED, FAILFAST."
             )
 
-        # TODO SNOW-1983360: make it an configurable option once the UDTF scalability issue is resolved.
-        # Currently it's capped at 16.
+        # NUMWORKERS option lets callers override the worker cap (default 16).
+        # TODO SNOW-1983360: expose this publicly once UDTF scalability is resolved.
         try:
             file_size = int(self.session.sql(f"ls {file_path}", _emit_ast=False).collect(_emit_ast=False)[0]["size"])  # type: ignore
         except IndexError:
             raise ValueError(f"{file_path} does not exist")
-        num_workers = min(16, file_size // DEFAULT_CHUNK_SIZE + 1)
+        max_workers = int(options.get("NUMWORKERS", 16))
+        num_workers = min(max_workers, file_size // DEFAULT_CHUNK_SIZE + 1)
 
         # Create a range from 0 to N-1
         df = self.session.range(num_workers).to_df(worker_column_name)
 
-        # Apply UDTF to the XML file and get each XML record as a Variant data,
-        # and append a unique row number to each record.
+        use_variant_projection = True
+        # use_variant_projection = context._is_snowpark_connect_compatible_mode or bool(
+        #     options.get("_VARIANT_PROJECTION", False)
+        # )
+
+        if use_variant_projection and schema is not None:
+            # Schema-aware fast path: project directly from VARIANT, skipping M×N
+            # flatten + dynamic pivot explosion.
+            df = df.select(
+                xml_reader_udtf(
+                    lit(file_path),
+                    lit(num_workers),
+                    lit(row_tag),
+                    col(worker_column_name),
+                    lit(mode),
+                    lit(column_name_of_corrupt_record),
+                    lit(ignore_namespace),
+                    lit(attribute_prefix),
+                    lit(exclude_attributes),
+                    lit(value_tag),
+                    lit(null_value),
+                    lit(charset),
+                    lit(ignore_surrounding_whitespace),
+                    lit(row_validation_xsd_path),
+                    lit(schema_string),
+                    lit(context._is_snowpark_connect_compatible_mode),
+                )
+            )
+            projections = []
+            for attr in schema:
+                col_name = attr.name  # quoted identifier, e.g. '"field_name"'
+                if col_name.startswith('"') and col_name.endswith('"'):
+                    path_name = col_name[1:-1].replace('""', '"')
+                else:
+                    path_name = col_name
+                # Use "'path_name'" alias convention to match Snowflake PIVOT column naming
+                # (PIVOT wraps key values in single quotes, e.g. 'abs_model').
+                # _apply_xml_schema looks up columns via single_quote(field._name).
+                sq_alias = f"\"'{path_name}'\""
+                # Colon in name (XML namespace prefix) breaks path notation — use GET()
+                if ":" in path_name:
+                    safe_path = path_name.replace("'", "''")
+                    projections.append(
+                        f"GET(\"{XML_ROW_DATA_COLUMN_NAME}\", '{safe_path}') AS {sq_alias}"
+                    )
+                else:
+                    projections.append(
+                        f'"{XML_ROW_DATA_COLUMN_NAME}":"{path_name}" AS {sq_alias}'
+                    )
+            # Always project the corrupt-record column in PERMISSIVE mode so that
+            # _apply_xml_schema can check whether any rows are actually corrupt.
+            # _apply_xml_schema then omits the column from output when it's all-NULL
+            # (clean data), exactly matching the dynamic PIVOT behavior.
+            if mode == "PERMISSIVE":
+                safe_cr = column_name_of_corrupt_record.replace("'", "''")
+                cr_alias = f"\"'{column_name_of_corrupt_record}'\""
+                projections.append(
+                    f'"{XML_ROW_DATA_COLUMN_NAME}":"{safe_cr}" AS {cr_alias}'
+                )
+            inner_sql = df.queries["queries"][-1]
+            return f"SELECT {', '.join(projections)} FROM ({inner_sql})"
+
+        if use_variant_projection:
+            # Schema-unknown path: emit raw ROW_DATA VARIANT per record.
+            # dataframe_reader.py will discover column names from the cached result
+            # and project them — one file read, no M×N flatten/pivot explosion.
+            df = df.select(
+                xml_reader_udtf(
+                    lit(file_path),
+                    lit(num_workers),
+                    lit(row_tag),
+                    col(worker_column_name),
+                    lit(mode),
+                    lit(column_name_of_corrupt_record),
+                    lit(ignore_namespace),
+                    lit(attribute_prefix),
+                    lit(exclude_attributes),
+                    lit(value_tag),
+                    lit(null_value),
+                    lit(charset),
+                    lit(ignore_surrounding_whitespace),
+                    lit(row_validation_xsd_path),
+                    lit(schema_string),
+                    lit(context._is_snowpark_connect_compatible_mode),
+                )
+            )
+            return df.queries["queries"][-1]
+
+        # Default path: M×N flatten + dynamic pivot (original behavior).
+        from snowflake.snowpark.functions import seq8, flatten
+
         df = df.select(
             worker_column_name,
             seq8().as_(xml_row_number_column_name),
@@ -1896,18 +1986,12 @@ class SnowflakePlanBuilder:
                 lit(context._is_snowpark_connect_compatible_mode),
             ),
         )
-
-        # Flatten the Variant data to get the key-value pairs
         df = df.select(
             worker_column_name,
             xml_row_number_column_name,
             flatten(XML_ROW_DATA_COLUMN_NAME),
         ).select(worker_column_name, xml_row_number_column_name, "key", "value")
-
-        # Apply dynamic pivot to get the flat table with dynamic schema
         df = df.pivot("key").max("value")
-
-        # Exclude the worker and row number columns
         return f"SELECT * EXCLUDE ({worker_column_name}, {xml_row_number_column_name}) FROM ({df.queries['queries'][-1]})"
 
     def read_file(

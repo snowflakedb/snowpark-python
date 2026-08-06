@@ -1356,7 +1356,10 @@ class DataFrameReader:
                 )
 
         # In PERMISSIVE mode, append the StringType column for the corrupt record if it
-        # exists in the DataFrame emitted by the UDTF on malformed or corrupted records.
+        # exists in the DataFrame AND has at least one non-NULL value (i.e. the data
+        # actually contains corrupt records).  Checking for non-NULL matches the dynamic
+        # PIVOT behavior: PIVOT only creates a _corrupt_record column when the UDTF writes
+        # that key into at least one row's ROW_DATA VARIANT.
         mode = self._cur_options.get("MODE", "PERMISSIVE").upper()
         corrupt_col_name = self._cur_options.get(
             "COLUMNNAMEOFCORRUPTRECORD", "_corrupt_record"
@@ -1365,17 +1368,66 @@ class DataFrameReader:
             df_columns = {c.strip('"').strip("'") for c in df.columns}
             if corrupt_col_name in df_columns:
                 corrupt_ref = df[single_quote(corrupt_col_name)]
-                cols.append(
-                    corrupt_ref.cast(StringType()).alias(
-                        quote_name_without_upper_casing(corrupt_col_name)
+                has_corrupt = df.filter(corrupt_ref.is_not_null()).limit(1).count() > 0
+                if has_corrupt:
+                    cols.append(
+                        corrupt_ref.cast(StringType()).alias(
+                            quote_name_without_upper_casing(corrupt_col_name)
+                        )
                     )
-                )
-                if self._xml_inferred_schema is not None:
-                    self._xml_inferred_schema.fields.append(
-                        StructField(corrupt_col_name, StringType())
-                    )
+                    if self._xml_inferred_schema is not None:
+                        self._xml_inferred_schema.fields.append(
+                            StructField(corrupt_col_name, StringType())
+                        )
 
         result = df.select(cols)
+        return result
+
+    def _xml_project_from_variant_cache(
+        self, df: "DataFrame", *, discovery_df: "Optional[DataFrame]" = None
+    ) -> "DataFrame":
+        """Project top-level XML element names from a ROW_DATA VARIANT DataFrame.
+
+        Discovers all distinct top-level keys via OBJECT_KEYS on *discovery_df*
+        (defaults to *df* itself when cacheResult=True), then projects each key
+        directly from *df* — avoiding M×N flatten+pivot explosion.
+
+        For cacheResult=False callers, pass discovery_df=df.limit(N) so only a
+        small sample is scanned for key discovery while *df* stays uncached.
+        """
+        from snowflake.snowpark.functions import flatten, object_keys, col as sf_col
+
+        scan_df = discovery_df if discovery_df is not None else df
+        keys_rows = (
+            scan_df.select(flatten(object_keys(sf_col(XML_ROW_DATA_COLUMN_NAME))))
+            .select(sf_col("value").cast("string"))
+            .distinct()
+            .collect()
+        )
+        keys = sorted(row[0] for row in keys_rows)
+
+        if not keys:
+            row_tag = self._cur_options.get(XML_ROW_TAG_STRING, "")
+            raise SnowparkDataframeReaderException(
+                f"Cannot find the row tag '{row_tag}' in the XML file. "
+                "Verify that the rowTag option matches an element name in the file."
+            )
+
+        from snowflake.snowpark.functions import sql_expr
+
+        projections = []
+        for key in keys:
+            if ":" in key:
+                safe_key = key.replace("'", "''")
+                expr_sql = f"GET(\"{XML_ROW_DATA_COLUMN_NAME}\", '{safe_key}')"
+            else:
+                expr_sql = f'"{XML_ROW_DATA_COLUMN_NAME}":"{key}"'
+            projections.append(sql_expr(expr_sql).alias(f"'{key}'"))
+
+        result = df.select(*projections)
+        # Preserve _all_variant_cols so callers can still use VARIANT path notation
+        # (e.g. df.select("'nested_field'.sub_key")) on the projected DataFrame.
+        result._all_variant_cols = True
         return result
 
     @publicapi
@@ -1778,6 +1830,8 @@ class DataFrameReader:
             f"SNOWPARK_TEMP_TABLE_FUNCTION_{handler_name.upper()}"
         )
 
+        from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
+
         return self._session.udtf.register_from_file(
             python_file_path,
             handler_name,
@@ -1785,6 +1839,7 @@ class DataFrameReader:
             output_schema=output_schema,
             input_types=input_types,
             packages=["snowflake-snowpark-python", "lxml<7"],
+            artifact_repository=_DEFAULT_ARTIFACT_REPOSITORY,
             if_not_exists=True,
             skip_upload_on_content_match=True,
             _suppress_local_package_warnings=True,
@@ -2063,12 +2118,34 @@ class DataFrameReader:
         df._reader = self
         if xml_reader_udtf:
             set_api_call_source(df, XML_READER_API_SIGNATURE)
+            use_variant_projection = True
+            # use_variant_projection = (
+            #     context._is_snowpark_connect_compatible_mode
+            #     or bool(self._cur_options.get("_VARIANT_PROJECTION", False))
+            # )
             if self._cur_options.get("CACHERESULT", True):
                 df = df.cache_result()
-                # When schema is inferred or user-provided, columns are typed
-                # (not all VARIANT), so don't enable the all-variant dot-notation mode.
-                if xml_inferred_schema is None and not self._user_schema:
-                    df._all_variant_cols = True
+                if (
+                    use_variant_projection
+                    and xml_inferred_schema is None
+                    and not self._user_schema
+                ):
+                    # Cache-first: ROW_DATA is now materialized; discover top-level
+                    # element names from the cache and project directly — no M×N
+                    # flatten/pivot, no separate schema-inference file read.
+                    df = self._xml_project_from_variant_cache(df)
+            elif (
+                use_variant_projection
+                and xml_inferred_schema is None
+                and not self._user_schema
+            ):
+                # cacheResult=False without a schema: do a lightweight key-discovery
+                # scan on a small sample so we can project columns directly.  The
+                # full DataFrame stays uncached and lazy; only the sample scan runs
+                # eagerly here (much cheaper than the old M×N PIVOT approach).
+                df = self._xml_project_from_variant_cache(
+                    df, discovery_df=df.limit(1000)
+                )
         else:
             set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df

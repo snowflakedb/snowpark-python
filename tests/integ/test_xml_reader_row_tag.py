@@ -14,7 +14,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import col, lit
+from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import (
     StructType,
     StructField,
@@ -323,21 +323,12 @@ def test_read_xml_row_tag_not_found(session):
             f"@{tmp_stage_name}/{test_file_books_xml}"
         )
 
-    df = (
-        session.read.option("cacheResult", False)
-        .option("rowTag", row_tag)
-        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
-    )
-
     with pytest.raises(
         SnowparkDataframeReaderException, match="Cannot find the row tag"
     ):
-        df.collect()
-
-    with pytest.raises(
-        SnowparkDataframeReaderException, match="Cannot find the row tag"
-    ):
-        df.filter(lit(True)).collect()
+        session.read.option("cacheResult", False).option("rowTag", row_tag).xml(
+            f"@{tmp_stage_name}/{test_file_books_xml}"
+        )
 
 
 def test_read_xml_declared_namespace(session):
@@ -405,17 +396,21 @@ def test_read_xml_undeclared_attr_namespace(session, ignore_namespace):
     # File has attribute prefixes (e.g., diffgr:id, msdata:rowOrder) declared only on ancestors.
     # Reader extracts <Results> ... </Results> records without the declarations; parsing must still succeed.
     row_tag = "Results"
-    df = (
-        session.read.option("rowTag", row_tag)
-        .option("cacheResult", False)
-        .option("mode", "failfast")
-        .option("ignoreNamespace", ignore_namespace)
-        .xml(f"@{tmp_stage_name}/undeclared_attr_namespace.xml")
-    )
     if not ignore_namespace:
         with pytest.raises(SnowparkSQLException, match="XMLSyntaxError"):
-            df.collect()
+            session.read.option("rowTag", row_tag).option("cacheResult", False).option(
+                "mode", "failfast"
+            ).option("ignoreNamespace", ignore_namespace).xml(
+                f"@{tmp_stage_name}/undeclared_attr_namespace.xml"
+            )
     else:
+        df = (
+            session.read.option("rowTag", row_tag)
+            .option("cacheResult", False)
+            .option("mode", "failfast")
+            .option("ignoreNamespace", ignore_namespace)
+            .xml(f"@{tmp_stage_name}/undeclared_attr_namespace.xml")
+        )
         result = df.collect()
         assert len(result) == 3
         noms = {result[0]["'NOM'"], result[1]["'NOM'"], result[2]["'NOM'"]}
