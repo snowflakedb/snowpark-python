@@ -5,6 +5,7 @@ import atexit
 import json
 import logging
 import os
+import queue as _queue
 import threading
 import uuid
 from datetime import datetime
@@ -13,7 +14,6 @@ from http.client import OK
 from typing import Optional
 
 from snowflake.connector.secret_detector import SecretDetector
-from snowflake.connector.telemetry_oob import TelemetryService
 from snowflake.snowpark._internal.utils import (
     get_os_name,
     get_python_version,
@@ -83,17 +83,29 @@ class LocalTestTelemetryEventType(Enum):
     SESSION_CONNECTION = "session"
 
 
-class LocalTestOOBTelemetryService(TelemetryService):
+class LocalTestOOBTelemetryService:
     PROD = "https://client-telemetry.snowflakecomputing.com/enqueue"
 
+    _instance: "LocalTestOOBTelemetryService | None" = None
+    _instance_lock: threading.Lock = threading.Lock()
+
+    @classmethod
+    def get_instance(cls) -> "LocalTestOOBTelemetryService":
+        if cls._instance is None:
+            with cls._instance_lock:
+                if cls._instance is None:
+                    cls._instance = cls()
+        return cls._instance
+
     def __init__(self) -> None:
-        super().__init__()
         self._is_internal_usage = bool(
             os.getenv("SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY", False)
         )
         self._deployment_url = self.PROD
-        self._enable = True
+        self._enabled = True
         self._lock = threading.RLock()
+        self.queue: _queue.Queue = _queue.Queue()
+        self.batch_size: int = 100
 
     def _upload_payload(self, payload) -> None:
         if not REQUESTS_AVAILABLE:
@@ -188,6 +200,9 @@ class LocalTestOOBTelemetryService(TelemetryService):
             payload = None
         _, masked_text, _ = SecretDetector.mask_secrets(payload)
         return masked_text
+
+    def close(self) -> None:
+        self.flush()
 
     def log_session_creation(self, connection_uuid: Optional[str] = None):
         try:
