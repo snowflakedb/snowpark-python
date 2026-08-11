@@ -43,8 +43,9 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.10"
 
 PANDAS_REQUIREMENTS = [
-    f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
-    "pandas<3.0.0",
+    f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
+    "pandas<4.0.0",
+    "pyarrow",
 ]
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
