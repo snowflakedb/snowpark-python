@@ -192,9 +192,11 @@ class SnowflakePlan(LogicalPlan):
 
                     debug_context_arr = []
                     try:
+                        # Covers "SQL compilation error", "SQL execution error" and the
+                        # "syntax error line N at position M" phrasing alike; the regex in
+                        # get_python_source_from_sql_error decides whether it can be parsed.
                         if (
-                            "SQL compilation error:" in e.msg
-                            and "error line" in e.msg
+                            "error line" in e.msg
                             and top_plan is not None
                             and _enable_trace_sql_errors_to_dataframe
                         ):
@@ -230,12 +232,20 @@ class SnowflakePlan(LogicalPlan):
                             ):
                                 debug_context_arr.append(existing_object_context)
                     except Exception as trace_error:
-                        # If we encounter an error when getting the df_transform_debug_trace,
-                        # we will ignore the error and not add the debug trace to the error message.
-                        _logger.info(
+                        # Diagnostics must never mask the real error, so this is always
+                        # swallowed. Log at warning rather than info, and tell the user the
+                        # mapping was attempted and failed, so that "could not map" is
+                        # distinguishable from "feature disabled".
+                        _logger.warning(
                             f"Error when getting the df_transform_debug_trace: {trace_error}"
                         )
-                        pass
+                        if (
+                            _enable_trace_sql_errors_to_dataframe
+                            and "error line" in e.msg
+                        ):
+                            debug_context_arr.append(
+                                f"\nCould not map this SQL error back to Python source: {trace_error}\n"
+                            )
 
                     if debug_context_arr:
                         debug_header = "\n\n--- Additional Debug Information ---\n"
@@ -328,7 +338,7 @@ class SnowflakePlan(LogicalPlan):
                             # No context available to enhance error message
                             if not quoted_identifiers:
                                 ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                    e
+                                    e, debug_context=debug_context
                                 )
                                 raise ne.with_traceback(tb) from None
 

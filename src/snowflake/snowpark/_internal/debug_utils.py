@@ -3,9 +3,10 @@
 #
 
 from functools import cached_property
+import logging
 import os
 import sys
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 import itertools
 import re
 from typing import TYPE_CHECKING
@@ -23,6 +24,14 @@ UNKNOWN_FILE = "__UNKNOWN_FILE__"
 SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH = (
     "SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH"
 )
+
+_logger = logging.getLogger(__name__)
+
+# Matches the line/position Snowflake reports for an error in the generated SQL. This is
+# deliberately unanchored: the surrounding text varies ("SQL compilation error:",
+# "SQL execution error:", ...) and syntax errors read "syntax error line N at position M",
+# which still contains "error line N at position M".
+SQL_ERROR_LINE_REGEX = re.compile(r"error line (\d+) at position (\d+)")
 
 
 class DataFrameTraceNode:
@@ -222,12 +231,15 @@ def _format_source_location(src: Optional[proto.SrcPosition]) -> str:
     return lines_info
 
 
-def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
+def _extract_source_locations_from_plan(
+    plan: "SnowflakePlan", ast_ids: Optional[List[int]] = None
+) -> List[str]:
     """
     Extract source locations from a SnowflakePlan's AST IDs.
 
     Args:
         plan: The SnowflakePlan object to extract source locations from
+        ast_ids: Restrict extraction to these AST IDs. Defaults to all of the plan's IDs.
 
     Returns:
         List of unique source location strings (e.g., "file.py: line 42")
@@ -235,8 +247,11 @@ def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
     source_locations = []
     found_locations = set()
 
-    if plan.df_ast_ids is not None:
-        for ast_id in plan.df_ast_ids:
+    if ast_ids is None:
+        ast_ids = plan.df_ast_ids
+
+    if ast_ids is not None:
+        for ast_id in ast_ids:
             bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
             if bind_stmt is not None:
                 src = extract_src_from_expr(bind_stmt.bind.expr)
@@ -248,43 +263,134 @@ def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
     return source_locations
 
 
+def _flatten_and_conjuncts(expression: Any) -> List[Any]:
+    """Flatten a left-deep And tree into its top-level conjuncts, in application order."""
+    from snowflake.snowpark._internal.analyzer.binary_expression import And
+
+    if isinstance(expression, And):
+        return _flatten_and_conjuncts(expression.left) + _flatten_and_conjuncts(
+            expression.right
+        )
+    return [expression]
+
+
+def _ast_ids_for_variant(plan: "SnowflakePlan", variant: str) -> List[int]:
+    """The plan's df_ast_ids whose bind statement is the given dataframe operation, in order."""
+    ast_ids = []
+    for ast_id in plan.df_ast_ids or []:
+        bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
+        if bind_stmt is not None and bind_stmt.bind.expr.WhichOneof("variant") == variant:
+            ast_ids.append(ast_id)
+    return ast_ids
+
+
+def _narrow_source_locations_by_position(
+    top_plan: "SnowflakePlan",
+    plan: "SnowflakePlan",
+    sql_line_number: int,
+    sql_position: int,
+) -> Optional[List[str]]:
+    """
+    Pick the single dataframe operation responsible for a column position on a SQL line.
+
+    The SQL simplifier merges consecutive filters into one WHERE clause rendered on a single
+    line, so a line number alone maps to every operation that was flattened into it. The
+    position Snowflake reports alongside the line number distinguishes them: each top-level
+    conjunct occupies a known column span within the rendered clause.
+
+    Returns a single-element list of source locations, or None when narrowing is not
+    possible (not a filter merge, ambiguous alignment, or the SQL text does not match).
+    """
+    source_plan = getattr(plan, "source_plan", None)
+    where = getattr(source_plan, "where", None)
+    if where is None:
+        return None
+
+    conjuncts = _flatten_and_conjuncts(where)
+    if len(conjuncts) < 2:
+        # Nothing was merged, so there is nothing to disambiguate.
+        return None
+
+    # Filters merge left-deep as And(previous, new), so conjuncts and the filter ast_ids
+    # recorded on the plan are both in application order and can be zipped. Bail out unless
+    # they line up exactly, since a mismatch means we cannot trust the correspondence.
+    filter_ast_ids = _ast_ids_for_variant(plan, "dataframe_filter")
+    if len(filter_ast_ids) != len(conjuncts):
+        return None
+
+    try:
+        sql_line = top_plan.queries[-1].sql.split("\n")[sql_line_number]
+    except IndexError:
+        return None
+
+    analyzer = source_plan.analyzer
+    alias_map = source_plan.df_aliased_col_name_to_real_col_name
+    # Snowflake reports 1-based column positions.
+    offset = sql_position - 1
+
+    for conjunct, ast_id in zip(conjuncts, filter_ast_ids):
+        rendered = analyzer.analyze(conjunct, alias_map)
+        if not rendered:
+            continue
+        start = sql_line.find(rendered)
+        while start >= 0:
+            if start <= offset < start + len(rendered):
+                return _extract_source_locations_from_plan(plan, [ast_id])
+            start = sql_line.find(rendered, start + 1)
+
+    return None
+
+
 def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) -> str:
     """
     Extract SQL error line number and map it back to Python source code. We use the
     helper function get_plan_from_line_numbers to get the plan from the line number
-    found in the SQL compilation error message. We then extract the source lines
+    found in the SQL error message. We then extract the source lines
     and columns using the ast_id associated with the plan. We return a message with
     the affected Python lines if found, otherwise an empty string.
 
     Args:
-        plan: The top level SnowflakePlan object that contains the SQL compilation error.
-        error_msg: The error message from the SQL compilation error.
+        top_plan: The top level SnowflakePlan object that contains the SQL error.
+        error_msg: The error message from the SQL error.
 
     Returns:
         Error message with the affected Python lines numbers if found, otherwise an empty string.
     """
-    sql_compilation_error_regex = re.compile(
-        r""".*SQL compilation error:\s*error line (\d+) at position (\d+).*""",
-    )
-    match = sql_compilation_error_regex.match(error_msg)
+    match = SQL_ERROR_LINE_REGEX.search(error_msg)
     if not match:
         return ""
 
+    # Snowflake reports 1-based line numbers, query line intervals are 0-based.
     sql_line_number = int(match.group(1)) - 1
+    sql_position = int(match.group(2))
 
     from snowflake.snowpark._internal.utils import (
         get_plan_from_line_numbers,
     )
 
     plan = get_plan_from_line_numbers(top_plan, sql_line_number)
-    source_locations = _extract_source_locations_from_plan(plan)
+
+    # Several dataframe operations can be flattened onto one SQL line. Prefer the single
+    # operation the reported column position falls inside; fall back to reporting them all.
+    # Narrowing is best effort, so never let it lose the locations we already have.
+    source_locations = None
+    try:
+        source_locations = _narrow_source_locations_by_position(
+            top_plan, plan, sql_line_number, sql_position
+        )
+    except Exception as narrow_error:
+        _logger.debug(
+            f"Could not narrow SQL error to a single dataframe operation: {narrow_error}"
+        )
+    if not source_locations:
+        source_locations = _extract_source_locations_from_plan(plan)
 
     if source_locations:
         if len(source_locations) == 1:
-            return f"\nSQL compilation error corresponds to Python source at {source_locations[0]}.\n"
+            return f"\nSQL error corresponds to Python source at {source_locations[0]}.\n"
         else:
             locations_str = "\n  - ".join(source_locations)
-            return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
+            return f"\nSQL error corresponds to Python sources at:\n  - {locations_str}\n"
     return ""
 
 

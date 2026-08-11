@@ -58,11 +58,26 @@ FAIL_ON_MISSING_AST = True
 
 # The path to the snowpark package.
 SNOWPARK_LIB_PATH = Path(__file__).parent.parent.parent.resolve()
+# frame.f_code.co_filename is not symlink-resolved, so in a virtualenv where lib64 is a
+# symlink to lib (Amazon Linux, RHEL, Fedora) it never matches the resolved path above and
+# every snowpark frame looks like user code. Keep the unresolved form as well and test
+# against both, which avoids resolving each frame's filename during the stack walk.
+_SNOWPARK_LIB_PATH_UNRESOLVED = Path(__file__).parent.parent.parent
 
 # Test mode. In test mode, the source filename is ignored.
 SRC_POSITION_TEST_MODE = False
 
 _logger = getLogger(__name__)
+
+
+def _is_snowpark_lib_file(filename: str) -> bool:
+    """Whether a frame's code filename belongs to the snowpark package itself.
+
+    Checks both the resolved and unresolved package paths, since frame filenames are not
+    symlink-resolved and a virtualenv may reach the package through a symlinked lib dir.
+    """
+    parents = Path(filename).parents
+    return SNOWPARK_LIB_PATH in parents or _SNOWPARK_LIB_PATH_UNRESOLVED in parents
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
@@ -720,9 +735,8 @@ def with_src_position(
             # frame contains the code of interest from the user if they are using a simple public API with no further
             # nesting or indirection. This is the most common case.
             frame, prev_frame = frame.f_back.f_back, frame.f_back  # type: ignore[union-attr] # TODO(SNOW-1491199) # Item "None" of "Optional[FrameType]" has no attribute "f_back", Item "None" of "Union[FrameType, Any, None]" has no attribute "f_back"
-            while (
-                frame is not None
-                and SNOWPARK_LIB_PATH in Path(frame.f_code.co_filename).parents
+            while frame is not None and _is_snowpark_lib_file(
+                frame.f_code.co_filename
             ):
                 frame, prev_frame = frame.f_back, frame
         else:
@@ -735,9 +749,9 @@ def with_src_position(
 
         if debug:
             last_snowpark_file = prev_frame.f_code.co_filename  # type: ignore[union-attr] # TODO(SNOW-1491199) # Item "None" of "Union[FrameType, Any, None]" has no attribute "f_code"
-            assert SNOWPARK_LIB_PATH in Path(last_snowpark_file).parents
+            assert _is_snowpark_lib_file(last_snowpark_file)
             first_non_snowpark_file = frame.f_code.co_filename  # type: ignore[union-attr] # TODO(SNOW-1491199) # Item "None" of "Optional[FrameType]" has no attribute "f_code"
-            assert SNOWPARK_LIB_PATH not in Path(first_non_snowpark_file).parents
+            assert not _is_snowpark_lib_file(first_non_snowpark_file)
 
         # Once we've stepped out of the snowpark package, we should be in the code of interest.
         # However, the code of interest may execute in an environment that is not accessible via the filesystem.
