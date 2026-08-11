@@ -192,11 +192,12 @@ class SnowflakePlan(LogicalPlan):
 
                     debug_context_arr = []
                     try:
-                        # Covers "SQL compilation error", "SQL execution error" and the
-                        # "syntax error line N at position M" phrasing alike; the regex in
+                        # Covers "SQL compilation error", "SQL execution error", the
+                        # "syntax error line N at position M" phrasing and the execution-time
+                        # "Error line N position M" phrasing alike; the regex in
                         # get_python_source_from_sql_error decides whether it can be parsed.
                         if (
-                            "error line" in e.msg
+                            "error line" in e.msg.lower()
                             and top_plan is not None
                             and _enable_trace_sql_errors_to_dataframe
                         ):
@@ -241,7 +242,7 @@ class SnowflakePlan(LogicalPlan):
                         )
                         if (
                             _enable_trace_sql_errors_to_dataframe
-                            and "error line" in e.msg
+                            and "error line" in e.msg.lower()
                         ):
                             debug_context_arr.append(
                                 f"\nCould not map this SQL error back to Python source: {trace_error}\n"

@@ -28,10 +28,15 @@ SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH = (
 _logger = logging.getLogger(__name__)
 
 # Matches the line/position Snowflake reports for an error in the generated SQL. This is
-# deliberately unanchored: the surrounding text varies ("SQL compilation error:",
-# "SQL execution error:", ...) and syntax errors read "syntax error line N at position M",
-# which still contains "error line N at position M".
-SQL_ERROR_LINE_REGEX = re.compile(r"error line (\d+) at position (\d+)")
+# deliberately loose, because the phrasing varies by error kind:
+#   compilation: "SQL compilation error:\nerror line 3 at position 8"
+#   syntax:      "syntax error line 2 at position 7 unexpected 'FROM'"
+#   execution:   "Error line 13 position 10: Division by zero"   (capital E, no "at";
+#                only emitted when ANNOTATE_SQL_TEXT_POSITION_FOR_EXPRESSIONS_IN_SDL is set)
+# Requiring "error line <n>" adjacent to "position <n>" keeps it from firing on other prose.
+SQL_ERROR_LINE_REGEX = re.compile(
+    r"error line (\d+)\s*(?:at\s+)?position (\d+)", re.IGNORECASE
+)
 
 
 class DataFrameTraceNode:
@@ -386,11 +391,18 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
         source_locations = _extract_source_locations_from_plan(plan)
 
     if source_locations:
+        # Name the error after what the server actually reported. "SQL compilation error"
+        # would misdescribe a runtime failure such as "Division by zero".
+        error_kind = (
+            "SQL compilation error"
+            if "SQL compilation error" in error_msg
+            else "SQL error"
+        )
         if len(source_locations) == 1:
-            return f"\nSQL error corresponds to Python source at {source_locations[0]}.\n"
+            return f"\n{error_kind} corresponds to Python source at {source_locations[0]}.\n"
         else:
             locations_str = "\n  - ".join(source_locations)
-            return f"\nSQL error corresponds to Python sources at:\n  - {locations_str}\n"
+            return f"\n{error_kind} corresponds to Python sources at:\n  - {locations_str}\n"
     return ""
 
 
