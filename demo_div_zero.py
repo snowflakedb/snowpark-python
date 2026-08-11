@@ -38,7 +38,7 @@ df2 = df.select(col("NAME"), col("DEPT"))
 df_threshold = session.sql("SELECT 28 AS MIN_AGE, 'Marketing' AS TARGET_DEPT")
 
 # Continue on Pipeline 1.
-df3 = df2.filter(10 / (col("AGE") % 5) >= 1)
+df3 = df2.filter(10 / (col("AGE") % 5) >= 1)  # Let's trigger div by zero error here
 df4 = df3.filter(col("DEPT") == "Engineering")
 
 
