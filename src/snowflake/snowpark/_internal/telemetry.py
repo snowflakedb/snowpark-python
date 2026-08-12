@@ -14,7 +14,6 @@ from typing import Any, Dict, List, Optional
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.telemetry import (
     TelemetryClient as PCTelemetryClient,
-    TelemetryData as PCTelemetryData,
     TelemetryField as PCTelemetryField,
 )
 from snowflake.connector.time_util import get_time_millis
@@ -30,6 +29,7 @@ from snowflake.snowpark._internal.analyzer.metadata_utils import (
     DescribeQueryTelemetryField,
 )
 from snowflake.snowpark._internal.utils import (
+    IS_V5_DRIVER,
     get_application_name,
     get_os_name,
     get_python_version,
@@ -38,6 +38,20 @@ from snowflake.snowpark._internal.utils import (
     is_interactive,
     generate_random_alphanumeric,
 )
+
+if IS_V5_DRIVER:
+    # The v5 (Universal Driver) public ``snowflake.connector.telemetry`` shim does
+    # not always expose ``TelemetryData.TRUE`` / ``.FALSE``; on some UD builds those
+    # constants live on the ``_internal.telemetry`` module instead. Prefer that
+    # module and fall back to the public shim (later UD builds restore them there).
+    try:
+        from snowflake.connector._internal.telemetry import (
+            TelemetryData as PCTelemetryData,
+        )
+    except ImportError:  # pragma: no cover
+        from snowflake.connector.telemetry import TelemetryData as PCTelemetryData
+else:
+    from snowflake.connector.telemetry import TelemetryData as PCTelemetryData
 
 try:
     import psutil
