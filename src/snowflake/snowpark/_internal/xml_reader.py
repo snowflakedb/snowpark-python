@@ -769,6 +769,7 @@ class XMLReader:
         row_validation_xsd_path: str,
         custom_schema: str,
         is_snowpark_connect_compatible: bool,
+        chunk_size: int,
     ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
@@ -793,6 +794,9 @@ class XMLReader:
             row_validation_xsd_path (str): Path to XSD file for row validation.
             custom_schema: User input schema for xml, must be used together with row tag.
             is_snowpark_connect_compatible (bool): context._is_snowpark_connect_compatible_mode
+            chunk_size (int): I/O read buffer size in bytes for tag-scanning reads.
+                Larger values reduce read() call overhead on network-backed stage files.
+                Try 65536 or 262144 for large files (default supplied by caller is 1024).
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
@@ -816,6 +820,7 @@ class XMLReader:
             charset,
             ignore_surrounding_whitespace,
             row_validation_xsd_path=row_validation_xsd_path,
+            chunk_size=chunk_size,
             result_template=result_template,
             schema_type=schema_type,
             is_snowpark_connect_compatible=is_snowpark_connect_compatible,

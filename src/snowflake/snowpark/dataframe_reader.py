@@ -2139,13 +2139,15 @@ class DataFrameReader:
                 and xml_inferred_schema is None
                 and not self._user_schema
             ):
-                # cacheResult=False without a schema: do a lightweight key-discovery
-                # scan on a small sample so we can project columns directly.  The
-                # full DataFrame stays uncached and lazy; only the sample scan runs
-                # eagerly here (much cheaper than the old M×N PIVOT approach).
-                df = self._xml_project_from_variant_cache(
-                    df, discovery_df=df.limit(1000)
-                )
+                # cacheResult=False without a schema: we must still discover all
+                # column names before projecting.  A sample (limit(1000)) would miss
+                # fields that only appear in later records — silently dropping columns.
+                # Instead, materialize the full result now so key discovery is complete,
+                # then project from the cache.  This is equivalent to cacheResult=True
+                # for this path; users who want truly lazy execution should supply a
+                # schema (via .schema() or inferSchema) to skip key discovery entirely.
+                df = df.cache_result()
+                df = self._xml_project_from_variant_cache(df)
         else:
             set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df

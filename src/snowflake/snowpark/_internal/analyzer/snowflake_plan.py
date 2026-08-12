@@ -1862,13 +1862,17 @@ class SnowflakePlanBuilder:
             )
 
         # NUMWORKERS option lets callers override the worker cap (default 16).
-        # TODO SNOW-1983360: expose this publicly once UDTF scalability is resolved.
+        # CHUNKSIZE option controls the I/O read buffer (bytes) inside the UDTF's
+        # tag-scanning loops. The default of 1024 is intentionally small; raising it
+        # to 65536 or 262144 significantly reduces read() call overhead on
+        # network-backed stage files at the cost of slightly higher peak memory.
         try:
             file_size = int(self.session.sql(f"ls {file_path}", _emit_ast=False).collect(_emit_ast=False)[0]["size"])  # type: ignore
         except IndexError:
             raise ValueError(f"{file_path} does not exist")
         max_workers = int(options.get("NUMWORKERS", 16))
         num_workers = min(max_workers, file_size // DEFAULT_CHUNK_SIZE + 1)
+        chunk_size = int(options.get("CHUNKSIZE", DEFAULT_CHUNK_SIZE))
 
         # Create a range from 0 to N-1
         df = self.session.range(num_workers).to_df(worker_column_name)
@@ -1899,6 +1903,7 @@ class SnowflakePlanBuilder:
                     lit(row_validation_xsd_path),
                     lit(schema_string),
                     lit(context._is_snowpark_connect_compatible_mode),
+                    lit(chunk_size),
                 )
             )
             projections = []
@@ -1957,6 +1962,7 @@ class SnowflakePlanBuilder:
                     lit(row_validation_xsd_path),
                     lit(schema_string),
                     lit(context._is_snowpark_connect_compatible_mode),
+                    lit(chunk_size),
                 )
             )
             return df.queries["queries"][-1]
@@ -1984,6 +1990,7 @@ class SnowflakePlanBuilder:
                 lit(row_validation_xsd_path),
                 lit(schema_string),
                 lit(context._is_snowpark_connect_compatible_mode),
+                lit(chunk_size),
             ),
         )
         df = df.select(
