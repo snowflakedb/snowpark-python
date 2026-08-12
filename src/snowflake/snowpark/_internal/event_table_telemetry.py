@@ -8,11 +8,14 @@ import time
 from abc import ABC
 from logging import getLogger
 from typing import Dict, Optional, Tuple
-from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 import snowflake.snowpark
 import requests
 
-from snowflake.snowpark._internal.utils import parse_table_name
+from snowflake.snowpark._internal.utils import (
+    MissingOptionalDependency,
+    ModuleLikeObject,
+    parse_table_name,
+)
 
 _logger = getLogger(__name__)
 

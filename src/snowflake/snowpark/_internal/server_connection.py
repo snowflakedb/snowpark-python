@@ -29,7 +29,7 @@ from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import Error, NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
-from snowflake.connector.options import pandas
+from snowflake.snowpark._internal.utils import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
