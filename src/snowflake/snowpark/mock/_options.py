@@ -4,7 +4,7 @@
 
 import importlib
 
-from snowflake.connector.options import MissingOptionalDependency, MissingPandas
+from snowflake.snowpark._internal.utils import MissingOptionalDependency, MissingPandas
 
 try:
     import pandas

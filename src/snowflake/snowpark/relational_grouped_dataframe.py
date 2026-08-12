@@ -8,7 +8,7 @@ import inspect
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
-from snowflake.connector.options import pandas
+from snowflake.snowpark._internal.utils import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
