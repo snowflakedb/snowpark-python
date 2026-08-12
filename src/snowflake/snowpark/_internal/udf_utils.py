@@ -29,7 +29,7 @@ import cloudpickle
 from packaging.requirements import Requirement
 
 import snowflake.snowpark
-from snowflake.connector.options import installed_pandas, pandas
+from snowflake.snowpark._internal.utils import installed_pandas, pandas
 from snowflake.snowpark._internal import code_generation, type_utils
 from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql, to_sql_no_cast
 from snowflake.snowpark._internal.telemetry import TelemetryField

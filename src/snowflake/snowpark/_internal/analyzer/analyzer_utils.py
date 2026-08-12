@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union, Literal, S
 
 from snowflake.connector import ProgrammingError
 from snowflake.connector.cursor import SnowflakeCursor
-from snowflake.connector.options import pyarrow
+from snowflake.snowpark._internal.utils import pyarrow
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Except,
