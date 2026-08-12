@@ -13,12 +13,17 @@ from enum import Enum
 from http.client import OK
 from typing import Optional
 
-from snowflake.connector.secret_detector import SecretDetector
 from snowflake.snowpark._internal.utils import (
+    IS_V5_DRIVER,
     get_os_name,
     get_python_version,
     get_version,
 )
+
+if IS_V5_DRIVER:
+    from snowflake.connector._common.secret_detector import SecretDetector
+else:
+    from snowflake.connector.secret_detector import SecretDetector  # type: ignore[no-redef]
 
 from .exceptions import SnowparkLocalTestingException
 
