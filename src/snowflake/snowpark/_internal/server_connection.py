@@ -54,6 +54,7 @@ from snowflake.snowpark._internal.telemetry import (
     get_plan_telemetry_metrics,
 )
 from snowflake.snowpark._internal.utils import (
+    IS_V5_DRIVER,
     create_rlock,
     create_thread_local,
     escape_quotes,
@@ -462,7 +463,9 @@ class ServerConnection:
             )
             raise ex
 
-        notify_kwargs["requestId"] = str(results_cursor._request_id)
+        notify_kwargs["requestId"] = str(
+            results_cursor.request_id if IS_V5_DRIVER else results_cursor._request_id
+        )
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query), **notify_kwargs
         )
