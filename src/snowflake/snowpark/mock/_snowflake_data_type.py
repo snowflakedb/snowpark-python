@@ -446,7 +446,39 @@ class TableEmulator(PandasDataframeType):
             self.sf_types[key] = value.sf_type
             self._null_rows_idxs_map[key] = value._null_rows_idxs
 
+    def _object_dtype_sort_key(self, key, by):
+        """Wrap a ``sort_values(key=...)`` callable so it sees the untouched column.
+
+        pandas re-wraps each sort column as ``pandas.Series(ndarray)``, which under
+        pandas 3 infers ``str`` dtype, whose NA sentinel is ``nan`` -- so a NULL
+        stored as ``None`` reaches the comparator as ``nan``. Restore ``object``
+        dtype here rather than in the comparator: ``NaN`` sorts largest while NULL
+        obeys ``nulls_first``.
+        """
+        labels = list(by) if isinstance(by, (list, tuple)) else [by]
+
+        def wrapper(series):
+            # One sort column means we know the label outright; only a multi-column
+            # sort has to fall back on the name pandas set on the re-wrapped Series.
+            label = labels[0] if len(labels) == 1 else getattr(series, "name", None)
+            if label is not None:
+                try:
+                    original = PandasDataframeType.__getitem__(self, label)
+                except (KeyError, IndexError):
+                    original = None
+                if isinstance(original, PandasSeriesType) and len(original) == len(
+                    series
+                ):
+                    series = pd.Series(
+                        original.to_numpy(dtype=object), name=label, dtype=object
+                    )
+            return key(series)
+
+        return wrapper
+
     def sort_values(self, by, **kwargs):
+        if kwargs.get("key") is not None and kwargs.get("axis", 0) in (0, "index"):
+            kwargs["key"] = self._object_dtype_sort_key(kwargs["key"], by)
         result = super().sort_values(by, **kwargs)
         result.sf_types = self.sf_types
         return result
