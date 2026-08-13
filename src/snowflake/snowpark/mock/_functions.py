@@ -1301,7 +1301,11 @@ def mock_to_char(
                 raise_error=NotImplementedError,
             )
 
-    res = column.combine(fmt, convert_char)
+    res = ColumnEmulator(
+        [convert_char(v, f) for v, f in zip(column, fmt)],
+        index=column.index,
+        dtype=object,
+    ).__finalize__(column)
     res.sf_type = ColumnType(StringType(), column.sf_type.nullable)
     return res
 
@@ -1551,11 +1555,14 @@ def mock_parse_json(expr: ColumnEmulator):
     from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
 
     if isinstance(expr.sf_type.datatype, StringType):
-        res = expr.apply(
-            lambda x: try_convert(
-                partial(json.loads, cls=CUSTOM_JSON_DECODER), False, x
-            )
-        )
+        res = ColumnEmulator(
+            [
+                try_convert(partial(json.loads, cls=CUSTOM_JSON_DECODER), False, x)
+                for x in expr
+            ],
+            index=expr.index,
+            dtype=object,
+        ).__finalize__(expr)
     else:
         res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
@@ -1595,6 +1602,8 @@ def mock_to_array(expr: ColumnEmulator):
 def mock_strip_null_value(expr: ColumnEmulator):
     return ColumnEmulator(
         [None if x == "null" else x for x in expr],
+        index=expr.index,
+        dtype=object,
         sf_type=ColumnType(expr.sf_type.datatype, True),
     )
 
@@ -2147,8 +2156,14 @@ def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
             ValueError("concat expects one or more column(s) to be passed in.")
         )
     pdf = pandas.concat(columns, axis=1)
-    result = pdf.T.apply(
-        lambda c: None if c.isnull().values.any() else c.astype(str).str.cat()
+    transposed = pdf.T
+    result = ColumnEmulator(
+        [
+            None if c.isnull().values.any() else c.astype(str).str.cat()
+            for _, c in transposed.items()
+        ],
+        index=transposed.columns,
+        dtype=object,
     )
     result.sf_type = ColumnType(StringType(), result.hasnans)
     return result
@@ -2163,10 +2178,14 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
             )
         )
     pdf = pandas.concat(columns, axis=1)
-    result = pdf.T.apply(
-        lambda c: None
-        if c.isnull().values.any()
-        else c[1:].astype(str).str.cat(sep=c[0])
+    transposed = pdf.T
+    result = ColumnEmulator(
+        [
+            None if c.isnull().values.any() else c[1:].astype(str).str.cat(sep=c[0])
+            for _, c in transposed.items()
+        ],
+        index=transposed.columns,
+        dtype=object,
     )
     result.sf_type = ColumnType(StringType(), result.hasnans)
     return result
