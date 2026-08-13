@@ -506,7 +506,7 @@ def broadcast_value(value: Any, len: int) -> "ColumnEmulator":
 
 
 class ColumnEmulator(PandasSeriesType):
-    _metadata = ["sf_type", "_null_rows_idxs"]
+    _metadata = ["_name", "sf_type", "_null_rows_idxs"]
 
     @property
     def _constructor(self):
