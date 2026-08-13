@@ -2005,9 +2005,9 @@ def execute_mock_plan(
                         for unspecified_col in set(rows_to_insert.columns).difference(
                             inserted_columns
                         ):
-                            rows_to_insert[unspecified_col].replace(
-                                np.nan, None, inplace=True
-                            )
+                            rows_to_insert[unspecified_col] = rows_to_insert[
+                                unspecified_col
+                            ].replace(np.nan, None)
 
                     else:
                         if len(clause.values) != len(rows_to_insert.columns):
