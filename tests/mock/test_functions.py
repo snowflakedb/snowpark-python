@@ -36,6 +36,7 @@ from snowflake.snowpark.functions import (
     sum,
     to_char,
     to_date,
+    udf,
 )
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry, patch
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
@@ -884,3 +885,21 @@ def test_save_as_table_column_order_name_array_type(session):
     assert len(result) == 1
     assert result[0]["ID"] == 1
     assert result[0]["TAGS"] is None
+
+
+def test_concat_null_does_not_reach_strict_udf(session):
+    # SNOW-3923354: pandas 3 re-inference leaked the NULL into the UDF as nan.
+    seen = []
+
+    @udf(strict=True, return_type=StringType(), input_types=[StringType()])
+    def probe(s):
+        seen.append(s)
+        return "CALLED"
+
+    df = session.create_dataframe([["a"], [None], ["c"]], schema=["v"])
+    assert df.select(probe(concat(col("v"), col("v")))).collect() == [
+        Row("CALLED"),
+        Row(None),
+        Row("CALLED"),
+    ]
+    assert sorted(seen) == ["aa", "cc"]

@@ -2966,14 +2966,20 @@ def calculate_expression(
             and field in col[index]
             and col[index][field] is None
         ]
-        res = col.apply(lambda x: None if x is None or field not in x else x[field])
+        res = ColumnEmulator(
+            [None if x is None or field not in x else x[field] for x in col],
+            index=col.index,
+            dtype=object,
+        ).__finalize__(col)
         res.sf_type = ColumnType(VariantType(), col.sf_type.nullable)
         return res
     elif isinstance(exp, SubfieldInt):
         col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
-        res = col.apply(
-            lambda x: None if x is None or exp.field >= len(x) else x[exp.field]
-        )
+        res = ColumnEmulator(
+            [None if x is None or exp.field >= len(x) else x[exp.field] for x in col],
+            index=col.index,
+            dtype=object,
+        ).__finalize__(col)
         res.sf_type = ColumnType(VariantType(), col.sf_type.nullable)
         return res
     elif isinstance(exp, SnowflakeUDF):
