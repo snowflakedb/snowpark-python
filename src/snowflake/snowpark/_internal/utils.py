@@ -25,7 +25,6 @@ import threading
 import traceback
 import uuid
 import zipfile
-from types import ModuleType
 from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache, wraps
 from itertools import count
@@ -55,23 +54,30 @@ import snowflake.snowpark
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
-from snowflake.connector.errors import MissingDependencyError
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
+IS_V5_DRIVER: bool = connector_version[0] >= 5
 
-class MissingOptionalDependency:
-    _dep_name = "not set"
+if IS_V5_DRIVER:
+    from snowflake.connector._common.extras import (
+        MissingOptionalDependency,
+        MissingPandas,
+        ModuleLikeObject,
+        pyarrow,
+    )
+else:
+    from snowflake.connector.options import (
+        MissingOptionalDependency,
+        MissingPandas,
+        ModuleLikeObject,
+        pyarrow,
+    )
 
-    def __getattr__(self, item: str) -> None:
-        raise MissingDependencyError(self._dep_name)
-
-
-class MissingPandas(MissingOptionalDependency):
-    _dep_name = "pandas"
-
-
-ModuleLikeObject = Union[ModuleType, MissingOptionalDependency]
+# connector.options (v4) never exported installed_pyarrow as its own name -- pyarrow's
+# availability is only implicit in the pandas/pyarrow import tuple -- so this is derived
+# locally the same way for both driver generations rather than assuming the name exists.
+installed_pyarrow: bool = not isinstance(pyarrow, MissingOptionalDependency)
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
@@ -271,18 +277,6 @@ pandas = _pandas_importer()
 installed_pandas = not isinstance(pandas, MissingOptionalDependency)
 
 
-class MissingPyarrow(MissingOptionalDependency):
-    _dep_name = "pyarrow"
-
-
-try:
-    pyarrow = importlib.import_module("pyarrow")
-except ImportError:  # pragma: no cover
-    pyarrow = MissingPyarrow()  # type: ignore[assignment]
-
-installed_pyarrow: bool = not isinstance(pyarrow, MissingOptionalDependency)
-
-
 class TempObjectType(Enum):
     TABLE = "TABLE"
     VIEW = "VIEW"
@@ -390,8 +384,6 @@ def get_python_version() -> str:
 def is_interactive() -> bool:
     return hasattr(sys, "ps1") or sys.flags.interactive or "snowbook" in sys.modules
 
-
-IS_V5_DRIVER: bool = connector_version[0] >= 5
 
 @lru_cache
 def get_connector_version() -> str:
