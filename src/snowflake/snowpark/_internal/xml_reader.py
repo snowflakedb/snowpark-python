@@ -554,7 +554,8 @@ def process_xml_range(
     result_template: Optional[dict] = None,
     schema_type: Optional[StructType] = None,
     is_snowpark_connect_compatible: bool = False,
-) -> Iterator[Optional[Dict[str, Any]]]:
+    skip_children: bool = False,
+) -> Iterator[tuple]:
     """
     Processes an XML file within a given approximate byte range.
     It locates complete records by:
@@ -565,6 +566,10 @@ def process_xml_range(
          reads the complete record, parses it via ElementTree,
          converts it to a dictionary, and yields the result.
       4. The process repeats from the end of the current record.
+
+    Always yields (element_dict, record_start_byte_pos) tuples.
+    XMLReader unpacks and emits only element_dict (1-column UDTF).
+    XMLReaderWithPos emits both (2-column UDTF with _SOURCE_BYTE_POS).
 
     Args:
         file_path (str): Path to the XML file.
@@ -586,10 +591,14 @@ def process_xml_range(
         result_template(dict): a result template generate from user input schema
         schema_type(StructType): the parsed StructType for row validation
         is_snowpark_connect_compatible(bool): context._is_snowpark_connect_compatible_mode
+        skip_children (bool): When True, emit only the opening-tag XML attributes of
+            tag_name and skip parsing child elements entirely.  Each worker scans its
+            byte range for openings; after yielding a row it advances past the opening
+            tag and continues looking for more.  Used with rowTag set to a parent/wrapper
+            element (e.g. "INSTRUMENTS") to extract file-level metadata efficiently.
 
     Yields:
-        Optional[Dict[str, Any]]: Dictionary representation of the parsed XML element.
-                                  Yields None if parsing fails.
+        tuple: (element_dict, record_start_byte_pos)
     """
     tag_start_1 = f"<{tag_name}>".encode()
     tag_start_2 = f"<{tag_name} ".encode()
@@ -626,6 +635,31 @@ def process_xml_range(
             record_start = open_pos
             f.seek(record_start)
 
+            # skipChildren mode: emit only opening-tag attributes, skip child content.
+            # Reads just the opening tag bytes (up to ">"), extracts XML attributes,
+            # yields them, advances past the ">" and continues scanning for more.
+            if skip_children:
+                tag_bytes = f.read(max(chunk_size, 512)).decode(
+                    charset, errors="replace"
+                )
+                close_idx = tag_bytes.find(">")
+                attrs: Dict[str, Any] = {}
+                if close_idx >= 0:
+                    tag_content = tag_bytes[:close_idx]
+                    prefix = f"<{tag_name}"
+                    if tag_content.startswith(prefix):
+                        attrs_str = (
+                            tag_content[len(prefix) :].lstrip().rstrip("/").strip()
+                        )
+                        for m in re.finditer(r'([\w][\w.-]*)="([^"]*)"', attrs_str):
+                            attrs[attribute_prefix + m.group(1)] = m.group(2)
+                yield (attrs, record_start)
+                next_pos = record_start + (close_idx + 1 if close_idx >= 0 else 1)
+                if next_pos >= approx_end:
+                    break
+                f.seek(next_pos)
+                continue
+
             # decide whether the row element is self‑closing
             try:
                 is_self_close, tag_end = tag_is_self_closing(f)
@@ -637,7 +671,7 @@ def process_xml_range(
                     record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
                     record_str = record_bytes.decode(charset, errors="replace")
                     record_str = re.sub(r"&(\w+);", replace_entity, record_str)
-                    yield {column_name_of_corrupt_record: record_str}
+                    yield ({column_name_of_corrupt_record: record_str}, record_start)
                 elif mode == "FAILFAST":
                     raise EOFError(
                         f"Malformed XML record at bytes {record_start}-EOF: {e}"
@@ -658,7 +692,10 @@ def process_xml_range(
                         record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
                         record_str = record_bytes.decode(charset, errors="replace")
                         record_str = re.sub(r"&(\w+);", replace_entity, record_str)
-                        yield {column_name_of_corrupt_record: record_str}
+                        yield (
+                            {column_name_of_corrupt_record: record_str},
+                            record_start,
+                        )
                     elif mode == "FAILFAST":
                         raise EOFError(
                             f"Malformed XML record at bytes {record_start}-EOF: {e}"
@@ -732,11 +769,11 @@ def process_xml_range(
                     )
 
                 if row is not None:
-                    yield row
+                    yield (row, record_start)
             # Mode handling for malformed XML records that fail to parse.
             except ET.ParseError as e:
                 if mode == "PERMISSIVE":
-                    yield {column_name_of_corrupt_record: record_str}
+                    yield ({column_name_of_corrupt_record: record_str}, record_start)
                 elif mode == "FAILFAST":
                     raise RuntimeError(
                         f"Malformed XML record at bytes {record_start}-{record_end}: {e}\n"
@@ -746,7 +783,6 @@ def process_xml_range(
             if record_end > approx_end:
                 break
 
-            # Move the file pointer to the end of the record to continue.
             f.seek(record_end)
 
 
@@ -770,6 +806,7 @@ class XMLReader:
         custom_schema: str,
         is_snowpark_connect_compatible: bool,
         chunk_size: int,
+        skip_children: bool,  # required, no default — avoids ambiguous overloading with 17-arg version
     ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
@@ -797,6 +834,8 @@ class XMLReader:
             chunk_size (int): I/O read buffer size in bytes for tag-scanning reads.
                 Larger values reduce read() call overhead on network-backed stage files.
                 Try 65536 or 262144 for large files (default supplied by caller is 1024).
+            skip_children (bool): When True, emit only opening-tag attributes and skip
+                parsing child elements.  Used with skipChildren=True option.
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
@@ -805,7 +844,7 @@ class XMLReader:
         result_template, schema_type = schema_string_to_result_dict_and_struct_type(
             custom_schema
         )
-        for element in process_xml_range(
+        for element_and_pos in process_xml_range(
             filename,
             row_tag,
             approx_start,
@@ -824,5 +863,73 @@ class XMLReader:
             result_template=result_template,
             schema_type=schema_type,
             is_snowpark_connect_compatible=is_snowpark_connect_compatible,
+            skip_children=skip_children,
         ):
+            element, _pos = element_and_pos
             yield (element,)
+
+
+class XMLReaderWithPos:
+    """
+    Identical to XMLReader but emits a second output column _SOURCE_BYTE_POS (LongType)
+    containing the byte offset of each element's opening tag.  Keeping _source_byte_pos
+    as a separate typed column (not inside ROW_DATA) means the variant-cache projection
+    path sees unchanged 800+-field VARIANTs with no performance impact.
+
+    Used with includeSourcePos=True to support the range JOIN approach:
+      Pass 1  rowTag=parent_elem, skipChildren=True  → N rows × (attrs + _source_byte_pos)
+      Pass 2  rowTag=child_elem,  includeSourcePos=True → M rows × (fields + _source_byte_pos)
+      JOIN    ASOF range join on _source_byte_pos: each child maps to its enclosing parent.
+    """
+
+    def process(
+        self,
+        filename: str,
+        num_workers: int,
+        row_tag: str,
+        i: int,
+        mode: str,
+        column_name_of_corrupt_record: str,
+        ignore_namespace: bool,
+        attribute_prefix: str,
+        exclude_attributes: bool,
+        value_tag: str,
+        null_value: str,
+        charset: str,
+        ignore_surrounding_whitespace: bool,
+        row_validation_xsd_path: str,
+        custom_schema: str,
+        is_snowpark_connect_compatible: bool,
+        chunk_size: int,
+        skip_children: bool,
+    ):
+        file_size = get_file_size(filename)
+        approx_chunk_size = file_size // num_workers
+        approx_start = approx_chunk_size * i
+        approx_end = approx_chunk_size * (i + 1) if i < num_workers - 1 else file_size
+        result_template, schema_type = schema_string_to_result_dict_and_struct_type(
+            custom_schema
+        )
+        for element_and_pos in process_xml_range(
+            filename,
+            row_tag,
+            approx_start,
+            approx_end,
+            mode,
+            column_name_of_corrupt_record,
+            ignore_namespace,
+            attribute_prefix,
+            exclude_attributes,
+            value_tag,
+            null_value,
+            charset,
+            ignore_surrounding_whitespace,
+            row_validation_xsd_path=row_validation_xsd_path,
+            chunk_size=chunk_size,
+            result_template=result_template,
+            schema_type=schema_type,
+            is_snowpark_connect_compatible=is_snowpark_connect_compatible,
+            skip_children=skip_children,
+        ):
+            element, pos = element_and_pos
+            yield (element, pos)

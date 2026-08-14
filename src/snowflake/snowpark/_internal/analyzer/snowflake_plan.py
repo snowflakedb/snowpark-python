@@ -1855,6 +1855,7 @@ class SnowflakePlanBuilder:
             "IGNORESURROUNDINGWHITESPACE", False
         )
         row_validation_xsd_path = options.get("ROWVALIDATIONXSDPATH", "")
+        skip_children = bool(options.get("SKIPCHILDREN", False))
 
         if mode not in {"PERMISSIVE", "DROPMALFORMED", "FAILFAST"}:
             raise ValueError(
@@ -1904,6 +1905,7 @@ class SnowflakePlanBuilder:
                     lit(schema_string),
                     lit(context._is_snowpark_connect_compatible_mode),
                     lit(chunk_size),
+                    lit(skip_children),
                 )
             )
             projections = []
@@ -1963,6 +1965,7 @@ class SnowflakePlanBuilder:
                     lit(schema_string),
                     lit(context._is_snowpark_connect_compatible_mode),
                     lit(chunk_size),
+                    lit(skip_children),
                 )
             )
             return df.queries["queries"][-1]
@@ -1991,6 +1994,7 @@ class SnowflakePlanBuilder:
                 lit(schema_string),
                 lit(context._is_snowpark_connect_compatible_mode),
                 lit(chunk_size),
+                lit(skip_children),
             ),
         )
         df = df.select(

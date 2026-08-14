@@ -32,6 +32,8 @@ from snowflake.snowpark._internal.xml_reader import (
     _validate_row_for_type_mismatch,
     XMLReader,
 )
+
+
 from snowflake.snowpark.types import (
     StructType,
     StructField,
@@ -44,6 +46,11 @@ from snowflake.snowpark.types import (
     BooleanType,
     TimestampType,
 )
+
+
+def _rows(gen):
+    """Unpack (element_dict, byte_pos) tuples from process_xml_range."""
+    return [element for element, _pos in gen]
 
 
 def test_replace_entity_predefined():
@@ -528,7 +535,7 @@ def test_process_xml_range_charset(charset):
             "snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file
         ):
             # Process the XML with the specified charset
-            results = list(
+            results = _rows(
                 process_xml_range(
                     file_path="test.xml",
                     tag_name="record",
@@ -571,7 +578,7 @@ def test_process_xml_range_charset_decode_error():
     mock_file = io.BytesIO(xml_bytes)
     with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
         # Process the XML with ASCII charset (should use errors='replace')
-        results = list(
+        results = _rows(
             process_xml_range(
                 file_path="test.xml",
                 tag_name="record",
@@ -1289,7 +1296,7 @@ def test_process_xml_range_scos_permissive_type_validation():
     schema = _make_schema(("name", StringType()), ("value", LongType()))
     mock_file = io.BytesIO(xml_bytes)
     with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
-        results = list(
+        results = _rows(
             process_xml_range(
                 file_path="test.xml",
                 tag_name="ROW",
@@ -1343,6 +1350,8 @@ def test_xml_reader_process_with_scos_compatible_param():
                 "",
                 "",
                 True,
+                1024,
+                False,  # skip_children: False for normal row parsing
             )
         )
     assert len(results) == 1

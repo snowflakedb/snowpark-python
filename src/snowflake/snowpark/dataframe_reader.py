@@ -1424,6 +1424,14 @@ class DataFrameReader:
                 expr_sql = f'"{XML_ROW_DATA_COLUMN_NAME}":"{key}"'
             projections.append(sql_expr(expr_sql).alias(f"'{key}'"))
 
+        # If XMLReaderWithPos was used, carry _SOURCE_BYTE_POS through as a typed
+        # integer column alongside the ROW_DATA projections so the range JOIN can
+        # reference it without it ever touching the VARIANT path.
+        if "_SOURCE_BYTE_POS" in df.columns:
+            from snowflake.snowpark.functions import col as _col
+
+            projections.append(_col("_SOURCE_BYTE_POS").alias("'_source_byte_pos'"))
+
         result = df.select(*projections)
         # Preserve _all_variant_cols so callers can still use VARIANT path notation
         # (e.g. df.select("'nested_field'.sub_key")) on the projected DataFrame.
@@ -2065,13 +2073,27 @@ class DataFrameReader:
                     ]
                     use_user_schema = True
 
-            xml_reader_udtf = self._register_xml_udtf(
-                XML_READER_FILE_PATH,
-                "XMLReader",
-                StructType(
-                    [StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True)]
-                ),
-            )
+            if self._cur_options.get("INCLUDESOURCEPOS", False):
+                from snowflake.snowpark.types import LongType
+
+                xml_reader_udtf = self._register_xml_udtf(
+                    XML_READER_FILE_PATH,
+                    "XMLReaderWithPos",
+                    StructType(
+                        [
+                            StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True),
+                            StructField("_SOURCE_BYTE_POS", LongType(), True),
+                        ]
+                    ),
+                )
+            else:
+                xml_reader_udtf = self._register_xml_udtf(
+                    XML_READER_FILE_PATH,
+                    "XMLReader",
+                    StructType(
+                        [StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True)]
+                    ),
+                )
         else:
             xml_reader_udtf = None
 
