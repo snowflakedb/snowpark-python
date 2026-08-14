@@ -104,9 +104,10 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
     assert (
         str(pandas_df.dtypes.iloc[4]) == "int64"
     )  # When limits are not explicitly defined, rely on metadata information from GS.
-    assert (
-        str(pandas_df.dtypes.iloc[5]) == "object"
-    )  # No cast so it's a string. dtype is "object".
+    assert str(pandas_df.dtypes.iloc[5]) in (
+        "object",
+        "str",
+    )  # No cast so it's a string: object on pandas 2, str on pandas 3.
     assert (
         str(pandas_df.dtypes.iloc[6]) == "float64"
     )  # A 20-digit number is over int64 max. Convert to float64 in pandas.
@@ -134,7 +135,11 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         assert str(timestamp_pandas_df.dtypes.iloc[0]) == expected_dtype
     else:
         # TODO: mock the non-nanosecond unit pyarrow+pandas behavior in local test
-        assert str(timestamp_pandas_df.dtypes.iloc[0]) == "datetime64[ns]"
+        # The mock layer follows pandas' own default resolution: ns on pandas 2, us on 3.
+        assert str(timestamp_pandas_df.dtypes.iloc[0]) in (
+            "datetime64[ns]",
+            "datetime64[us]",
+        )
 
 
 def test_to_pandas_precision_for_number_38_0(session):
