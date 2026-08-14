@@ -504,13 +504,19 @@ def test_structured_dtypes_select(
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
 def test_structured_dtypes_pandas(structured_type_session, structured_type_support):
+    import pandas as pd
+
     pdf = _create_test_dataframe(
         structured_type_session, structured_type_support
     ).to_pandas()
     if structured_type_support:
-        assert (
-            pdf.to_json()
-            == '{"MAP":{"0":[["k1",1.0]]},"OBJ":{"0":{"A":"foo","b":0.05}},"ARR":{"0":[1.0,3.1,4.5]}}'
+        # The MAP value arrives as a decimal.Decimal on every pandas version, and
+        # pandas 3 serializes Decimal to a JSON string where pandas 2 emitted a number.
+        map_value = '"1"' if int(pd.__version__.split(".")[0]) >= 3 else "1.0"
+        assert pdf.to_json() == (
+            '{"MAP":{"0":[["k1",' + map_value + "]]},"
+            '"OBJ":{"0":{"A":"foo","b":0.05}},'
+            '"ARR":{"0":[1.0,3.1,4.5]}}'
         )
     else:
         assert (
