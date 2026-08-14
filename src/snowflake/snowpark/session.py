@@ -3614,15 +3614,15 @@ class Session:
                     # no unit. Normalize to ns so pandas 3's us default does
                     # not shrink values 1000x versus existing tables.
                     timedelta_columns = [
-                        col
-                        for col in df.columns
-                        if pandas.api.types.is_timedelta64_dtype(df[col].dtype)
-                        and str(df[col].dtype) != "timedelta64[ns]"
+                        td_col
+                        for td_col in df.columns
+                        if pandas.api.types.is_timedelta64_dtype(df[td_col].dtype)
+                        and str(df[td_col].dtype) != "timedelta64[ns]"
                     ]
                     if timedelta_columns:
                         df = df.copy(deep=False)
-                        for col in timedelta_columns:
-                            df[col] = df[col].astype("timedelta64[ns]")
+                        for td_col in timedelta_columns:
+                            df[td_col] = df[td_col].astype("timedelta64[ns]")
                     success, _, _, ci_output = write_pandas(
                         self._conn._conn,
                         df,
