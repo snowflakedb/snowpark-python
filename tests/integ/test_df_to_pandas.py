@@ -27,7 +27,7 @@ import math
 import pytest
 from unittest import mock
 
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, pandas_major_version
 from snowflake.snowpark.session import write_pandas, WRITE_PANDAS_CHUNK_SIZE
 from snowflake.snowpark.functions import col, div0, round, to_timestamp
 from snowflake.snowpark.types import (
@@ -126,7 +126,6 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         # Starting from pyarrow 13, pyarrow no longer coerces non-nanosecond to nanosecond for pandas >=2.0
         # https://arrow.apache.org/release/13.0.0.html and https://github.com/apache/arrow/issues/33321
         pyarrow_major_version = int(pa.__version__.split(".")[0])
-        pandas_major_version = int(pd.__version__.split(".")[0])
         expected_dtype = (
             "datetime64[s]"
             if pyarrow_major_version >= 13 and pandas_major_version >= 2
@@ -286,7 +285,7 @@ def test_df_to_pandas_df(session, local_testing_mode):
     # live path. The local testing emulator never goes through pyarrow.
     null_dtype = (
         object
-        if local_testing_mode or int(pd.__version__.split(".")[0]) < 3
+        if local_testing_mode or pandas_major_version < 3
         else pd.Series([None], dtype="str").dtype
     )
 
