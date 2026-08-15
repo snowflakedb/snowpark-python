@@ -4,11 +4,9 @@
 import concurrent.futures
 import random
 import pytest
-from snowflake.connector.options import MissingPandas
 
 from snowflake.snowpark._internal import utils
 from snowflake.snowpark._internal.utils import (
-    _pandas_importer,
     generate_random_alphanumeric,
     split_snowflake_identifier_with_dot,
 )
@@ -146,16 +144,6 @@ def test_normalize_path_escapes_backslash_and_quote(raw_path, is_local):
     assert decoded.endswith(
         expected_tail
     ), f"decoded={decoded!r} does not end with {expected_tail!r}"
-
-
-def test__pandas_importer():
-    imported_pandas = _pandas_importer()
-    try:
-        import pandas
-
-        assert imported_pandas == pandas
-    except ImportError:
-        assert isinstance(imported_pandas, MissingPandas)
 
 
 def test_generate_random_alphanumeric():
