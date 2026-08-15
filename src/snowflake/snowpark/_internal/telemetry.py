@@ -40,16 +40,9 @@ from snowflake.snowpark._internal.utils import (
 )
 
 if IS_V5_DRIVER:
-    # The v5 (Universal Driver) public ``snowflake.connector.telemetry`` shim does
-    # not always expose ``TelemetryData.TRUE`` / ``.FALSE``; on some UD builds those
-    # constants live on the ``_internal.telemetry`` module instead. Prefer that
-    # module and fall back to the public shim (later UD builds restore them there).
-    try:
-        from snowflake.connector._internal.telemetry import (
-            TelemetryData as PCTelemetryData,
-        )
-    except ImportError:  # pragma: no cover
-        from snowflake.connector.telemetry import TelemetryData as PCTelemetryData
+    from snowflake.connector._internal.telemetry import (
+        TelemetryData as PCTelemetryData,
+    )
 else:
     from snowflake.connector.telemetry import TelemetryData as PCTelemetryData
 
