@@ -63,7 +63,9 @@ if IS_V5_DRIVER:
     from snowflake.connector._common.extras import (
         MissingOptionalDependency,
         ModuleLikeObject,
+        pandas,
         pyarrow,
+        installed_pandas,
         installed_pyarrow,
     )
 else:
@@ -71,7 +73,9 @@ else:
         MissingOptionalDependency,
         MissingPandas,
         ModuleLikeObject,
+        pandas,
         pyarrow,
+        installed_pandas,
     )
 
     # connector.options (v4) never exported installed_pyarrow as its own name.
@@ -268,22 +272,6 @@ TEMPORARY_STRING = "TEMPORARY"
 SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
-
-def _pandas_importer():  # noqa: E302
-    """Helper function to lazily import pandas and return MissingPandas if not installed."""
-    result = _missing_pandas()
-    try:
-        result = importlib.import_module("pandas")
-        # since we enable relative imports without dots this import gives us an issues when ran from test directory
-        from pandas import DataFrame  # NOQA
-    except ImportError:  # pragma: no cover
-        pass  # pragma: no cover
-    return result
-
-
-pandas = _pandas_importer()
-installed_pandas = not isinstance(pandas, MissingOptionalDependency)
-
 
 class TempObjectType(Enum):
     TABLE = "TABLE"
