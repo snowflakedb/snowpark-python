@@ -4,7 +4,11 @@
 
 import importlib
 
-from snowflake.snowpark._internal.utils import MissingOptionalDependency, _missing_pandas
+from snowflake.snowpark._internal.utils import (
+    IS_V5_DRIVER,
+    MissingOptionalDependency,
+    _missing_pandas,
+)
 
 try:
     import pandas
@@ -15,15 +19,20 @@ except ImportError:
     installed_pandas = False
 
 
-class MissingNumpy(MissingOptionalDependency):
-    """The class is specifically for numpy optional dependency."""
+if IS_V5_DRIVER:
+    from snowflake.connector._common.extras import numpy
 
-    _dep_name = "numpy"
+    installed_numpy = not isinstance(numpy, MissingOptionalDependency)
+else:
 
+    class MissingNumpy(MissingOptionalDependency):
+        """The class is specifically for numpy optional dependency."""
 
-try:
-    numpy = importlib.import_module("numpy")
-    installed_numpy = True
-except ImportError:
-    numpy = MissingNumpy()
-    installed_numpy = False
+        _dep_name = "numpy"
+
+    try:
+        numpy = importlib.import_module("numpy")
+        installed_numpy = True
+    except ImportError:
+        numpy = MissingNumpy()
+        installed_numpy = False
