@@ -62,9 +62,9 @@ IS_V5_DRIVER: bool = connector_version[0] >= 5
 if IS_V5_DRIVER:
     from snowflake.connector._common.extras import (
         MissingOptionalDependency,
-        MissingPandas,
         ModuleLikeObject,
         pyarrow,
+        installed_pyarrow,
     )
 else:
     from snowflake.connector.options import (
@@ -74,10 +74,18 @@ else:
         pyarrow,
     )
 
-# connector.options (v4) never exported installed_pyarrow as its own name -- pyarrow's
-# availability is only implicit in the pandas/pyarrow import tuple -- so this is derived
-# locally the same way for both driver generations rather than assuming the name exists.
-installed_pyarrow: bool = not isinstance(pyarrow, MissingOptionalDependency)
+    # connector.options (v4) never exported installed_pyarrow as its own name.
+    installed_pyarrow: bool = not isinstance(pyarrow, MissingOptionalDependency)
+
+
+def _missing_pandas() -> MissingOptionalDependency:
+    # v4 has no __init__ override (no-arg-subclass only); v5 deleted
+    # MissingPandas in favor of the positional-arg form.
+    if IS_V5_DRIVER:
+        return MissingOptionalDependency("pandas")
+    return MissingPandas()
+
+
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
@@ -263,7 +271,7 @@ SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
 def _pandas_importer():  # noqa: E302
     """Helper function to lazily import pandas and return MissingPandas if not installed."""
-    result = MissingPandas()
+    result = _missing_pandas()
     try:
         result = importlib.import_module("pandas")
         # since we enable relative imports without dots this import gives us an issues when ran from test directory

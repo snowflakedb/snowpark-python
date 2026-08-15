@@ -4,14 +4,14 @@
 
 import importlib
 
-from snowflake.snowpark._internal.utils import MissingOptionalDependency, MissingPandas
+from snowflake.snowpark._internal.utils import MissingOptionalDependency, _missing_pandas
 
 try:
     import pandas
 
     installed_pandas = True
 except ImportError:
-    pandas = MissingPandas()
+    pandas = _missing_pandas()
     installed_pandas = False
 
 
