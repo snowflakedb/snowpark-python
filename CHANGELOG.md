@@ -20,9 +20,11 @@
 
 #### Bug Fixes
 
-- Fixed a bug where `Session.write_pandas` and `Session.create_dataframe` stored a `timedelta` 1000 times too small when running with pandas 3. Snowflake stores a timedelta as a raw integer tick count, and parquet does not carry the resolution, so a column left at pandas 3's default microsecond resolution was written as microseconds. `timedelta64` columns are now normalized to nanoseconds before writing, so the stored integer matches pandas 2 even if the caller picked another resolution.
+- Fixed a bug where `Session.write_pandas`, `Session.write_arrow`, and `Session.create_dataframe` stored a `timedelta` 1000 times too small when running with pandas 3. Snowflake stores a timedelta as a raw integer tick count, and parquet does not carry the resolution, so a column left at pandas 3's default microsecond resolution was written as microseconds. Duration columns are now normalized to nanoseconds before writing, so the stored integer matches pandas 2 even if the caller picked another resolution.
+- Fixed a local testing bug where a SQL NULL became `nan` instead of `None` after a column was rebuilt through pandas. `IS NULL` then evaluated to `False`, `collect()` no longer returned `None` for those NULLs, and `strict=True` UDF handlers received `nan`. This affected `parse_json`, `to_char`, `concat`, `concat_ws`, `strip_null_value`, and VARIANT/OBJECT/ARRAY/MAP subfield access. The leak existed on pandas 2 as well (a missing key collected as the string `'NaN'`, and a numeric `1` collected as `'1.0'`); pandas 3 additionally did this for string values.
 - The following local testing bugs appeared only when running with pandas 3:
-  - Fixed a bug where a SQL NULL became `nan` instead of `None`. `IS NULL` then evaluated to `False`, `collect()` no longer returned `None` for those NULLs, and `strict=True` UDF handlers received `nan`. This affected `parse_json`, `to_char`, `concat`, `concat_ws`, `strip_null_value`, subfield access, `ORDER BY`, and the default values of columns omitted from a MERGE insert.
+  - Fixed a bug where `ORDER BY` treated SQL NULL as `nan`.
+  - Fixed a bug where columns omitted from a MERGE insert kept `nan` instead of NULL under Copy-on-Write.
   - Fixed a bug where `group_by` and `pivot` results lost their column and index names.
   - Fixed a bug where `create_dataframe` raised `TypeError` for `VARIANT` columns.
 

@@ -3234,6 +3234,26 @@ class Session:
                 self._session_stage = full_qualified_stage_name
         return f"{STAGE_PREFIX}{self._session_stage}"
 
+    @staticmethod
+    def _normalize_arrow_duration_to_ns(table: "pyarrow.Table") -> "pyarrow.Table":
+        # Snowflake stores duration as an integer with no unit. Cast to ns
+        # so a us column is not written 1000x too small.
+        arrays = []
+        fields = []
+        changed = False
+        for i in range(table.num_columns):
+            field = table.schema.field(i)
+            column = table.column(i)
+            if pyarrow.types.is_duration(field.type) and field.type.unit != "ns":
+                column = column.cast(pyarrow.duration("ns"))
+                field = field.with_type(pyarrow.duration("ns"))
+                changed = True
+            arrays.append(column)
+            fields.append(field)
+        if not changed:
+            return table
+        return pyarrow.Table.from_arrays(arrays, schema=pyarrow.schema(fields))
+
     @experimental(version="1.28.0")
     @publicapi
     def write_arrow(
@@ -3295,6 +3315,7 @@ class Session:
                 set use_logical_type as True. Set to None to use Snowflakes default. For more information, see:
                 https://docs.snowflake.com/en/sql-reference/sql/create-file-format
         """
+        table = self._normalize_arrow_duration_to_ns(table)
         cursor = self._conn._conn.cursor()
 
         if quote_identifiers:
