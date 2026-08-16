@@ -22,6 +22,13 @@ try:
 except ImportError:
     is_pandas_available = False
 
+try:
+    import pyarrow as pa
+
+    is_pyarrow_available = True
+except ImportError:
+    is_pyarrow_available = False
+
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.utils import parse_table_name
@@ -370,6 +377,25 @@ def test_resolve_packages_optional_artifact_repository(mock_server_connection):
         "numpy==1.0.0",
         "snowflake-snowpark-python==1.0.0",
     ]
+
+
+@pytest.mark.skipif(not is_pyarrow_available, reason="requires pyarrow")
+def test_normalize_arrow_duration_to_ns():
+    one_second = 1_000_000_000
+    table = pa.table(
+        {
+            "s": pa.array([1], type=pa.duration("s")),
+            "ms": pa.array([1_000], type=pa.duration("ms")),
+            "us": pa.array([1_000_000], type=pa.duration("us")),
+            "ns": pa.array([one_second], type=pa.duration("ns")),
+            "id": pa.array([1], type=pa.int64()),
+        }
+    )
+    out = Session._normalize_arrow_duration_to_ns(table)
+    assert out.schema.field("id").type == pa.int64()
+    for name in ("s", "ms", "us", "ns"):
+        assert out.schema.field(name).type == pa.duration("ns")
+        assert out.column(name).cast(pa.int64())[0].as_py() == one_second
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
