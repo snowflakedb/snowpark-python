@@ -1988,14 +1988,22 @@ def _greatest(x: CompareType, y: Any) -> Union[CompareType, float]:
 
 @patch("greatest")
 def mock_greatest(*exprs: ColumnEmulator):
-    result = reduce(lambda x, y: x.combine(y, _greatest), exprs)
+    result = ColumnEmulator(
+        [reduce(_greatest, row) for row in zip(*exprs)],
+        index=exprs[0].index,
+        dtype=object,
+    ).__finalize__(exprs[0])
     result.sf_type = exprs[0].sf_type
     return result
 
 
 @patch("least")
 def mock_least(*exprs: ColumnEmulator):
-    result = reduce(lambda x, y: x.combine(y, _least), exprs)
+    result = ColumnEmulator(
+        [reduce(_least, row) for row in zip(*exprs)],
+        index=exprs[0].index,
+        dtype=object,
+    ).__finalize__(exprs[0])
     result.sf_type = exprs[0].sf_type
     return result
 
@@ -2039,8 +2047,16 @@ def _initcap(value: Optional[str], delimiters: Optional[str]) -> str:
 
 
 @patch("initcap")
-def mock_initcap(values: ColumnEmulator, delimiters: ColumnEmulator):
-    result = values.combine(delimiters, _initcap)
+def mock_initcap(values: ColumnEmulator, delimiters: ColumnEmulator = None):
+    if delimiters is None:
+        data = [_initcap(v, None) for v in values]
+    else:
+        data = [_initcap(v, d) for v, d in zip(values, delimiters)]
+    result = ColumnEmulator(
+        data,
+        index=values.index,
+        dtype=object,
+    ).__finalize__(values)
     result.sf_type = values.sf_type
     return result
 
