@@ -16,7 +16,7 @@
 
 #### Behavior Changes
 
-- When running with pandas 3, `DataFrame.to_pandas()` and `DataFrame.to_pandas_batches()` return pandas' `str` dtype for string columns (`VARCHAR`, `VARIANT`, `ARRAY`) instead of `object`. NULLs in those columns arrive as `nan` rather than `None`, so `value is None` no longer matches; use `pandas.isna(value)` instead. This is pandas 3's default for string data in both live sessions and local testing, and it cannot be disabled. `DataFrame.collect()` still returns `None` for NULL.
+- When running with pandas 3, `DataFrame.to_pandas()` and `DataFrame.to_pandas_batches()` return pandas' `str` dtype for string columns (`VARCHAR`, `VARIANT`, `ARRAY`, `OBJECT`, `MAP`, `GEOGRAPHY`, `GEOMETRY`) instead of `object`. NULLs in those columns arrive as `nan` rather than `None`, so `value is None` no longer matches; use `pandas.isna(value)` instead. The Arrow conversion does this by default, and `pd.set_option("future.infer_string", False)` does not change that path. The JSON result-format fallback still honors the option. `DataFrame.collect()` still returns `None` for NULL.
 
 #### Bug Fixes
 
