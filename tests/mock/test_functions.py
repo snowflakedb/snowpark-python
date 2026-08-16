@@ -27,7 +27,10 @@ from snowflake.snowpark.functions import (
     dense_rank,
     desc,
     get,
+    greatest,
+    initcap,
     is_null,
+    least,
     lit,
     max,
     min,
@@ -67,6 +70,24 @@ def test_col(session):
     assert origin_df.select(col("m")).collect() == [Row(1), Row(6), Row(None)]
     assert origin_df.select(col("n")).collect() == [Row("a"), Row("c"), Row(None)]
     assert origin_df.select(col("o")).collect() == [Row(True), Row(False), Row(None)]
+
+
+def test_initcap_greatest_least_keep_null(session):
+    df = session.create_dataframe(
+        [["hello", "a", "b"], [None, None, "b"]],
+        schema=["name", "a", "b"],
+    )
+    initcap_out = df.select(initcap(col("name")).alias("R"))
+    assert initcap_out.collect() == [Row("Hello"), Row(None)]
+    assert initcap_out.filter(col("R").is_null()).count() == 1
+
+    greatest_out = df.select(greatest(col("a"), col("b")).alias("R"))
+    assert greatest_out.collect() == [Row("b"), Row(None)]
+    assert greatest_out.filter(col("R").is_null()).count() == 1
+
+    least_out = df.select(least(col("a"), col("b")).alias("R"))
+    assert least_out.collect() == [Row("a"), Row(None)]
+    assert least_out.filter(col("R").is_null()).count() == 1
 
 
 def test_max(session):
