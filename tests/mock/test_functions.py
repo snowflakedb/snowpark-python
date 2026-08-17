@@ -89,6 +89,11 @@ def test_initcap_greatest_least_keep_null(session):
     assert least_out.collect() == [Row("a"), Row(None)]
     assert least_out.filter(col("R").is_null()).count() == 1
 
+    delim_df = session.create_dataframe([["hello-world"], [None]], schema=["name"])
+    delim_out = delim_df.select(initcap(col("name"), lit("-")).alias("R"))
+    assert delim_out.collect() == [Row("Hello-World"), Row(None)]
+    assert delim_out.filter(col("R").is_null()).count() == 1
+
 
 def test_max(session):
     origin_df: DataFrame = session.create_dataframe(

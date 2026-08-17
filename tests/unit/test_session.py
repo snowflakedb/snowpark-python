@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import datetime
 import json
 import logging
 import os
@@ -396,6 +397,67 @@ def test_normalize_arrow_duration_to_ns():
     for name in ("s", "ms", "us", "ns"):
         assert out.schema.field(name).type == pa.duration("ns")
         assert out.column(name).cast(pa.int64())[0].as_py() == one_second
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
+@pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+def test_write_pandas_normalizes_timedelta_to_ns(mock_server_connection, unit):
+    session = Session(mock_server_connection)
+    one_day = datetime.timedelta(days=1)
+    df = pandas.DataFrame(
+        {
+            "D": pandas.Series([one_day]).astype(f"timedelta64[{unit}]"),
+            "N": [1],
+        }
+    )
+    captured = {}
+
+    def fake_write_pandas(_conn, frame, *args, **kwargs):
+        captured["frame"] = frame
+        return True, 1, 1, []
+
+    with mock.patch.object(
+        snowflake.snowpark.session, "write_pandas", side_effect=fake_write_pandas
+    ):
+        session.write_pandas(df, table_name="t")
+
+    frame = captured["frame"]
+    assert str(frame["D"].dtype) == "timedelta64[ns]"
+    # Snowflake stores the raw tick count with no unit, so ns is the contract.
+    assert frame["D"].to_numpy().astype("int64")[0] == 86_400_000_000_000
+    assert str(frame["N"].dtype) == "int64"
+    assert str(df["D"].dtype) == f"timedelta64[{unit}]"
+
+
+@pytest.mark.skipif(not is_pyarrow_available, reason="requires pyarrow")
+@pytest.mark.parametrize(
+    "unit,ticks",
+    [("s", 1), ("ms", 1_000), ("us", 1_000_000), ("ns", 1_000_000_000)],
+)
+def test_write_arrow_normalizes_duration_to_ns(mock_server_connection, unit, ticks):
+    session = Session(mock_server_connection)
+    table = pa.table(
+        {
+            "D": pa.array([ticks], type=pa.duration(unit)),
+            "N": pa.array([1], type=pa.int64()),
+        }
+    )
+    captured = {}
+
+    def fake_write_arrow(*args, **kwargs):
+        captured["table"] = kwargs["table"]
+        return True, 1, 1, []
+
+    with mock.patch.object(
+        snowflake.snowpark.session, "write_arrow", side_effect=fake_write_arrow
+    ):
+        session.write_arrow(table, table_name="t")
+
+    out = captured["table"]
+    assert out.schema.field("D").type == pa.duration("ns")
+    assert out.column("D").cast(pa.int64())[0].as_py() == 1_000_000_000
+    assert out.schema.field("N").type == pa.int64()
+    assert table.schema.field("D").type == pa.duration(unit)
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
