@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import datetime
 import json
 import pytest
 from snowflake.snowpark.functions import ai_complete, ai_extract, col, lit, to_file
@@ -14,14 +13,17 @@ pytestmark = [
         "config.getoption('local_testing_mode', default=False)",
         reason="AI functions are not yet supported in local testing mode.",
     ),
-    pytest.mark.xfail(
-        datetime.date.today() <= datetime.date(2026, 6, 4),
-        reason="AI tests flaky due to infrastructure issues",
-        strict=False,
-    ),
 ]
 
 
+@pytest.mark.xfail(
+    reason=(
+        "AI_COMPLETE returns NULL for this named-placeholder prompt in daily CI "
+        "(26/26 jobs on 2026-08-17). Client SQL generation is correct; sibling "
+        "llama3.1-8b complete tests pass. Keep this test running so XPASS is visible."
+    ),
+    strict=False,
+)
 def test_dataframe_ai_complete_with_named_placeholders(session):
     """Test DataFrame.ai.complete with named placeholders."""
     # Create a DataFrame with review data
