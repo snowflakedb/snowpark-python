@@ -318,10 +318,8 @@ def test_schema(connection, local_testing_mode) -> None:
             cursor.execute(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}")
 
 
-@pytest.fixture(scope="module")
-def session(
+def _build_session(
     db_parameters,
-    resources_path,
     sql_simplifier_enabled,
     local_testing_mode,
     cte_optimization_enabled,
@@ -332,6 +330,9 @@ def session(
     validate_ast,
     unparser_jar,
 ):
+    """Shared Session construction/teardown for the `session` fixture and any
+    fixture that needs the same fully-configured session but different
+    db_parameters (e.g. proxy-routed for wire-capture tests)."""
     set_ast_state(AstFlagSource.TEST, ast_enabled)
     rule1 = "snowpark_python_test_rule1"
     rule2 = "snowpark_python_test_rule2"
@@ -399,6 +400,34 @@ def session(
             close_full_ast_validation_mode(full_ast_validation_listener)
 
 
+@pytest.fixture(scope="module")
+def session(
+    db_parameters,
+    resources_path,
+    sql_simplifier_enabled,
+    local_testing_mode,
+    cte_optimization_enabled,
+    join_alias_fix,
+    ast_enabled,
+    dataframe_processor_pkg_version,
+    dataframe_processor_location,
+    validate_ast,
+    unparser_jar,
+):
+    yield from _build_session(
+        db_parameters,
+        sql_simplifier_enabled,
+        local_testing_mode,
+        cte_optimization_enabled,
+        join_alias_fix,
+        ast_enabled,
+        dataframe_processor_pkg_version,
+        dataframe_processor_location,
+        validate_ast,
+        unparser_jar,
+    )
+
+
 @pytest.fixture(scope="session")
 def _mitmproxy_session():
     """Start one mitmdump process per xdist worker and reuse it across tests."""
@@ -421,11 +450,29 @@ def mitmproxy(_mitmproxy_session):
 
 
 @pytest.fixture
-def mitmproxy_session(db_parameters, local_testing_mode, mitmproxy, monkeypatch):
-    """A Session whose traffic is routed through the mitmproxy fixture.
+def mitmproxy_session(
+    db_parameters,
+    sql_simplifier_enabled,
+    local_testing_mode,
+    cte_optimization_enabled,
+    join_alias_fix,
+    ast_enabled,
+    dataframe_processor_pkg_version,
+    dataframe_processor_location,
+    validate_ast,
+    unparser_jar,
+    mitmproxy,
+    monkeypatch,
+):
+    """A fully-configured, dedicated Session whose traffic is routed through
+    the mitmproxy fixture.
 
     Login/query/telemetry all reach the real account untouched -- the proxy
     only observes traffic in transit, so no backend response is faked here.
+    Dedicated (not the shared module-scoped `session`) so a test can close it
+    to force an immediate telemetry flush without disrupting other tests.
+    monkeypatch.setenv is function-scoped, so REQUESTS_CA_BUNDLE never leaks
+    into other tests that make unrelated, non-proxied HTTPS calls.
     """
     if local_testing_mode:
         pytest.skip("mitmproxy capture requires a real network connection")
@@ -433,15 +480,27 @@ def mitmproxy_session(db_parameters, local_testing_mode, mitmproxy, monkeypatch)
     params = dict(db_parameters)
     params["proxy_host"] = mitmproxy.proxy_host
     params["proxy_port"] = mitmproxy.proxy_port
-    proxied_session = Session.builder.configs(params).create()
+    session_gen = _build_session(
+        params,
+        sql_simplifier_enabled,
+        local_testing_mode,
+        cte_optimization_enabled,
+        join_alias_fix,
+        ast_enabled,
+        dataframe_processor_pkg_version,
+        dataframe_processor_location,
+        validate_ast,
+        unparser_jar,
+    )
+    proxied_session = next(session_gen)
     try:
         yield proxied_session
     finally:
+        # Close the Session first (this is the flush-forcing step tests rely
+        # on); then let _build_session's own generator finish its cleanup
+        # (e.g. AST validation teardown) by advancing past its yield.
         proxied_session.close()
-
-        if (RUNNING_ON_GH or RUNNING_ON_JENKINS) and not local_testing_mode:
-            clean_up_external_access_integration_resources()
-        session.close()
+        session_gen.close()
 
 
 @pytest.fixture(scope="function")
