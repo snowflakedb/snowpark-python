@@ -5,6 +5,7 @@
 import json
 import pytest
 from snowflake.snowpark.functions import ai_complete, ai_extract, col, lit, to_file
+from snowflake.snowpark.types import StringType
 from tests.utils import RUNNING_ON_JENKINS, TestFiles, Utils
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
@@ -16,15 +17,6 @@ pytestmark = [
 ]
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Server-side PROMPT() rejects non-string arguments: the integer 'rating' "
-        "column is embedded in the prompt object as a number, which fails with "
-        "'unsupported argument type' and surfaces as a NULL completion. Casting "
-        "the column to VARCHAR makes it pass, so this needs a server-side fix."
-    ),
-    strict=False,
-)
 def test_dataframe_ai_complete_with_named_placeholders(session):
     """Test DataFrame.ai.complete with named placeholders."""
     # Create a DataFrame with review data
@@ -42,7 +34,9 @@ def test_dataframe_ai_complete_with_named_placeholders(session):
         prompt="Analyze this {category} product review: '{review}' with rating {rating}/5. What is the sentiment?",
         input_columns={
             "review": col("review"),
-            "rating": col("rating"),
+            # PROMPT() only accepts string arguments; a numeric column reaches the
+            # server as a number and fails with "unsupported argument type".
+            "rating": col("rating").cast(StringType()),
             "category": col("category"),
         },
         output_column="sentiment_analysis",
