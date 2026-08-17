@@ -18,9 +18,10 @@ pytestmark = [
 
 @pytest.mark.xfail(
     reason=(
-        "AI_COMPLETE returns NULL for this named-placeholder prompt in daily CI "
-        "(26/26 jobs on 2026-08-17). Client SQL generation is correct; sibling "
-        "llama3.1-8b complete tests pass. Keep this test running so XPASS is visible."
+        "Server-side PROMPT() rejects non-string arguments: the integer 'rating' "
+        "column is embedded in the prompt object as a number, which fails with "
+        "'unsupported argument type' and surfaces as a NULL completion. Casting "
+        "the column to VARCHAR makes it pass, so this needs a server-side fix."
     ),
     strict=False,
 )
