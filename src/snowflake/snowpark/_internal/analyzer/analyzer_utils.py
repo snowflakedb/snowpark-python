@@ -2213,7 +2213,11 @@ def cte_statement(queries: List[str], table_names: List[str]) -> str:
 # (ported from snowflake.connector.pandas_tools so Snowpark owns the impl)
 # ---------------------------------------------------------------------------
 
-_PANDAS_COMPRESSION_MAP: Dict[str, str] = {"gzip": "auto", "snappy": "snappy", "none": "none"}
+_PANDAS_COMPRESSION_MAP: Dict[str, str] = {
+    "gzip": "auto",
+    "snappy": "snappy",
+    "none": "none",
+}
 
 
 def _pandas_quote_identifier(name: str) -> str:
@@ -2247,11 +2251,13 @@ def _pandas_create_temp_object(
 ) -> str:
     sql, params = sql_builder(qualified_name)
     try:
-        cursor.execute(sql, params=params, _force_qmark_paramstyle=True)
+        # _force_qmark_paramstyle is only on execute()'s real signature, not its
+        # @overload stubs, so pyright can't match any overload for this call.
+        cursor.execute(sql, params=params, _force_qmark_paramstyle=True)  # type: ignore[call-overload]
         return qualified_name
     except ProgrammingError:
         sql, params = sql_builder(bare_name)
-        cursor.execute(sql, params=params, _force_qmark_paramstyle=True)
+        cursor.execute(sql, params=params, _force_qmark_paramstyle=True)  # type: ignore[call-overload]
         return bare_name
 
 
@@ -2266,7 +2272,10 @@ def _stage_sql(
     fmt_opts = [f"TYPE=PARQUET COMPRESSION={mapped}"]
     if binary_as_text_false:
         fmt_opts.append("BINARY_AS_TEXT=FALSE")
-    return (f"CREATE {temp_type} STAGE IDENTIFIER(?) FILE_FORMAT=({' '.join(fmt_opts)})", (name,))
+    return (
+        f"CREATE {temp_type} STAGE IDENTIFIER(?) FILE_FORMAT=({' '.join(fmt_opts)})",
+        (name,),
+    )
 
 
 def _file_format_sql(
@@ -2297,7 +2306,9 @@ def _create_temp_stage(
     qualified = _qualify_name(database, schema, name, quote_identifiers)
     return _pandas_create_temp_object(
         cursor,
-        lambda n: _stage_sql(n, compression, auto_create_table or overwrite, use_scoped_temp_object),
+        lambda n: _stage_sql(
+            n, compression, auto_create_table or overwrite, use_scoped_temp_object
+        ),
         qualified,
         name,
     )
@@ -2316,7 +2327,9 @@ def _create_temp_file_format(
     qualified = _qualify_name(database, schema, name, quote_identifiers)
     return _pandas_create_temp_object(
         cursor,
-        lambda n: _file_format_sql(n, compression, sql_use_logical_type, use_scoped_temp_object),
+        lambda n: _file_format_sql(
+            n, compression, sql_use_logical_type, use_scoped_temp_object
+        ),
         qualified,
         name,
     )
