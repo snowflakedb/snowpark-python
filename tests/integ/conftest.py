@@ -19,6 +19,7 @@ from tests.ast.ast_test_utils import (
     setup_full_ast_validation_mode,
 )
 from tests.integ.session_parameters import set_up_test_session_parameters
+from tests.mitmproxy_client import MitmproxyClient
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import (
     TEST_SCHEMA,
@@ -401,6 +402,47 @@ def session(
     finally:
         if validate_ast:
             close_full_ast_validation_mode(full_ast_validation_listener)
+
+
+@pytest.fixture(scope="session")
+def _mitmproxy_session():
+    """Start one mitmdump process per xdist worker and reuse it across tests."""
+    client = MitmproxyClient().start()
+    try:
+        yield client
+    finally:
+        client.stop()
+
+
+@pytest.fixture
+def mitmproxy(_mitmproxy_session):
+    """Per-test mitmproxy handle backed by a session-scoped mitmdump process.
+
+    Captured requests are cleared before each test; the process itself stays
+    up, saving the mitmdump startup cost per test.
+    """
+    _mitmproxy_session.reset()
+    return _mitmproxy_session
+
+
+@pytest.fixture
+def mitmproxy_session(db_parameters, local_testing_mode, mitmproxy, monkeypatch):
+    """A Session whose traffic is routed through the mitmproxy fixture.
+
+    Login/query/telemetry all reach the real account untouched -- the proxy
+    only observes traffic in transit, so no backend response is faked here.
+    """
+    if local_testing_mode:
+        pytest.skip("mitmproxy capture requires a real network connection")
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", str(mitmproxy.ca_cert_path))
+    params = dict(db_parameters)
+    params["proxy_host"] = mitmproxy.proxy_host
+    params["proxy_port"] = mitmproxy.proxy_port
+    proxied_session = Session.builder.configs(params).create()
+    try:
+        yield proxied_session
+    finally:
+        proxied_session.close()
 
         if (RUNNING_ON_GH or RUNNING_ON_JENKINS) and not local_testing_mode:
             clean_up_external_access_integration_resources()
