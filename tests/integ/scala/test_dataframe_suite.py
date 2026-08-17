@@ -1005,6 +1005,7 @@ def test_sample_with_seed(session):
         Utils.drop_table(session, temp_table_name)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_sample_with_sampling_method(session):
     """sampling method actually has no impact on result. It has impact on performance."""
     row_count = 10000
