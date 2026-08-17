@@ -64,6 +64,18 @@ jobs:
             });
             console.log('Triggered daily_jupyter_nb_test.yml on branch: ${{ inputs.branch }}');
 
+      - name: Trigger daily_connector_regress.yml
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'daily_connector_regress.yml',
+              ref: '${{ inputs.branch }}',
+            });
+            console.log('Triggered daily_connector_regress.yml on branch: ${{ inputs.branch }}');
+
       - name: Summary
         run: |
           echo "## Triggered Workflows" >> $GITHUB_STEP_SUMMARY
@@ -74,3 +86,4 @@ jobs:
           echo "- daily_modin_precommit_py310.yml" >> $GITHUB_STEP_SUMMARY
           echo "- daily_modin_precommit_py311_py312.yml" >> $GITHUB_STEP_SUMMARY
           echo "- daily_jupyter_nb_test.yml" >> $GITHUB_STEP_SUMMARY
+          echo "- daily_connector_regress.yml" >> $GITHUB_STEP_SUMMARY
