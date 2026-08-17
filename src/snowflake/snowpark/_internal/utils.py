@@ -56,24 +56,26 @@ from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.version import VERSION as snowpark_version
 
 IS_V5_DRIVER: bool = connector_version[0] >= 5
 
 if IS_V5_DRIVER:
+    from snowflake.connector._common.extras import pandas  # noqa: F401
     from snowflake.connector._common.extras import (
         MissingOptionalDependency,
         ModuleLikeObject,
-        pandas,
         pyarrow,
         installed_pandas,
         installed_pyarrow,
     )
 else:
+    from snowflake.connector.options import pandas  # noqa: F401
     from snowflake.connector.options import (
         MissingOptionalDependency,
         MissingPandas,
         ModuleLikeObject,
-        pandas,
         pyarrow,
         installed_pandas,
     )
@@ -89,9 +91,6 @@ def _missing_pandas() -> MissingOptionalDependency:
         return MissingOptionalDependency("pandas")
     return MissingPandas()
 
-
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.version import VERSION as snowpark_version
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import (
