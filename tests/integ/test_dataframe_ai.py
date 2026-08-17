@@ -2,10 +2,10 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import datetime
 import json
 import pytest
 from snowflake.snowpark.functions import ai_complete, ai_extract, col, lit, to_file
+from snowflake.snowpark.types import StringType
 from tests.utils import RUNNING_ON_JENKINS, TestFiles, Utils
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
@@ -13,11 +13,6 @@ pytestmark = [
     pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
         reason="AI functions are not yet supported in local testing mode.",
-    ),
-    pytest.mark.xfail(
-        datetime.date.today() <= datetime.date(2026, 6, 4),
-        reason="AI tests flaky due to infrastructure issues",
-        strict=False,
     ),
 ]
 
@@ -39,7 +34,9 @@ def test_dataframe_ai_complete_with_named_placeholders(session):
         prompt="Analyze this {category} product review: '{review}' with rating {rating}/5. What is the sentiment?",
         input_columns={
             "review": col("review"),
-            "rating": col("rating"),
+            # Docs allow NUMBER prompt args; runtime currently rejects them with
+            # "unsupported argument type". Cast until the server-side bug is fixed.
+            "rating": col("rating").cast(StringType()),
             "category": col("category"),
         },
         output_column="sentiment_analysis",
