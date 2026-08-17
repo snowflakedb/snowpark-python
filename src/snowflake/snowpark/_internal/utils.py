@@ -273,6 +273,7 @@ SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
+
 class TempObjectType(Enum):
     TABLE = "TABLE"
     VIEW = "VIEW"
