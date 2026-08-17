@@ -34,8 +34,8 @@ def test_dataframe_ai_complete_with_named_placeholders(session):
         prompt="Analyze this {category} product review: '{review}' with rating {rating}/5. What is the sentiment?",
         input_columns={
             "review": col("review"),
-            # PROMPT() only accepts string arguments; a numeric column reaches the
-            # server as a number and fails with "unsupported argument type".
+            # Docs allow NUMBER prompt args; runtime currently rejects them with
+            # "unsupported argument type". Cast until the server-side bug is fixed.
             "rating": col("rating").cast(StringType()),
             "category": col("category"),
         },
