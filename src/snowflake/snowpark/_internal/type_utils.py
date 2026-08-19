@@ -423,7 +423,6 @@ PYTHON_TO_SNOW_TYPE_MAPPINGS = {
     datetime.datetime: TimestampType,
     datetime.time: TimeType,
     bytes: BinaryType,
-    datetime.timedelta: DayTimeIntervalType,
 }
 if installed_pandas:
     import numpy
@@ -856,6 +855,8 @@ def python_type_to_snow_type(
 
     if tp is decimal.Decimal:
         return DecimalType(38, 18), False
+    elif tp is datetime.timedelta:
+        return DayTimeIntervalType(), False
     elif tp in PYTHON_TO_SNOW_TYPE_MAPPINGS:
         return PYTHON_TO_SNOW_TYPE_MAPPINGS[tp](), False
 
