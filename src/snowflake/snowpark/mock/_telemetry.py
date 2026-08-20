@@ -170,6 +170,10 @@ class LocalTestOOBTelemetryService:
                     return
                 self._upload_payload(payload)
 
+    def size(self) -> int:
+        """Returns the size of the queue."""
+        return self.queue.qsize()
+
     @property
     def enabled(self) -> bool:
         """Whether the Telemetry service is enabled or not."""
