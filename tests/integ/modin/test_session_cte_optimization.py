@@ -15,6 +15,10 @@ from snowflake.snowpark.session import _get_active_session
 
 from tests.integ.utils.sql_counter import sql_count_checker
 
+_MULTITHREAD_SESSION_WARNING = (
+    "You might have more than one threads sharing the Session object trying to update"
+)
+
 
 @contextmanager
 def session_parameter_override(
@@ -37,12 +41,14 @@ def test_cte_optimization_for_snowpark_pandas(caplog):
 
     # The multithreading warning is emitted only while another thread is alive.
     stop = threading.Event()
-    extra_thread = threading.Thread(
-        target=stop.wait, name="cte-opt-warning-probe", daemon=True
-    )
+    extra_thread = threading.Thread(target=stop.wait, name="cte-opt-warning-probe")
     extra_thread.start()
     try:
         assert len(threading.enumerate()) > 1
+
+        caplog.clear()
+        session.cte_optimization_enabled = session.cte_optimization_enabled
+        assert _MULTITHREAD_SESSION_WARNING in caplog.text
 
         with session_parameter_override(session, "cte_optimization_enabled", False):
             assert session.cte_optimization_enabled is False
@@ -52,10 +58,8 @@ def test_cte_optimization_for_snowpark_pandas(caplog):
             assert pd.session == session
             assert pd.session.cte_optimization_enabled is True
 
-            assert (
-                "You might have more than one threads sharing the Session object trying to update"
-                not in caplog.text
-            )
+            assert _MULTITHREAD_SESSION_WARNING not in caplog.text
     finally:
         stop.set()
-        extra_thread.join()
+        extra_thread.join(timeout=5)
+        assert not extra_thread.is_alive()
