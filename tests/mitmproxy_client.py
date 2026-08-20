@@ -20,7 +20,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional  # noqa: F401
+from typing import Any
 
 
 class MitmproxyClient:
@@ -28,13 +28,13 @@ class MitmproxyClient:
 
     def __init__(self) -> None:
         self.host = "127.0.0.1"
-        self.port: Optional[int] = None
-        self._process: Optional[subprocess.Popen] = None
+        self.port: int | None = None
+        self._process: subprocess.Popen | None = None
         fd, path = tempfile.mkstemp(prefix="mitmproxy_capture_", suffix=".jsonl")
         os.close(fd)
         self._output_path = Path(path)
 
-    def start(self) -> "MitmproxyClient":
+    def start(self) -> MitmproxyClient:
         if shutil.which("mitmdump") is None:
             raise RuntimeError(
                 "mitmdump not found on PATH. Install with: pip install mitmproxy"
@@ -104,7 +104,7 @@ class MitmproxyClient:
     def reset(self) -> None:
         self._output_path.write_text("")
 
-    def get_requests(self, url_path_pattern: str) -> List[Dict[str, Any]]:
+    def get_requests(self, url_path_pattern: str) -> list[dict[str, Any]]:
         if not self._output_path.exists():
             return []
         matches = []
@@ -122,13 +122,13 @@ class MitmproxyClient:
         min_count: int = 1,
         timeout: float = 2.0,
         poll_interval: float = 0.1,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Poll until at least `min_count` requests matching the pattern arrive.
 
         Useful for asserting on requests sent asynchronously (e.g. telemetry).
         """
         deadline = time.time() + timeout
-        result: List[Dict[str, Any]] = []
+        result: list[dict[str, Any]] = []
         while time.time() < deadline:
             result = self.get_requests(url_path_pattern)
             if len(result) >= min_count:
@@ -148,7 +148,7 @@ class MitmproxyClient:
         if self._output_path.exists():
             self._output_path.unlink()
 
-    def __enter__(self) -> "MitmproxyClient":
+    def __enter__(self) -> MitmproxyClient:
         return self.start()
 
     def __exit__(self, *exc_info: Any) -> None:
