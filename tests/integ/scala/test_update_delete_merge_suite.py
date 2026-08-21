@@ -8,7 +8,7 @@ import datetime
 
 import pytest
 
-from snowflake.connector.options import installed_pandas
+from snowflake.snowpark._internal.utils import installed_pandas
 from snowflake.snowpark import (
     DeleteResult,
     MergeResult,

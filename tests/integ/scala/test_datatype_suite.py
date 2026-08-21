@@ -12,7 +12,7 @@ import pytest
 from unittest import mock
 
 import snowflake.snowpark.context as context
-from snowflake.connector.options import installed_pandas
+from snowflake.snowpark._internal.utils import installed_pandas
 from snowflake.snowpark import Row
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import SnowparkSQLException

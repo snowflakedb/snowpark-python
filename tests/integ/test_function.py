@@ -165,7 +165,7 @@ from snowflake.snowpark.functions import (
     year,
 )
 import functools
-from snowflake.connector.options import installed_pandas
+from snowflake.snowpark._internal.utils import installed_pandas
 from snowflake.snowpark.functions import udf, vectorized
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.types import (
