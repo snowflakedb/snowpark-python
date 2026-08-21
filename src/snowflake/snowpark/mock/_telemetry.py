@@ -13,13 +13,13 @@ from enum import Enum
 from http.client import OK
 from typing import Optional
 
-from snowflake.connector.secret_detector import SecretDetector
 from snowflake.snowpark._internal.utils import (
     get_os_name,
     get_python_version,
     get_version,
 )
 
+from ._secret_detector import mask_secrets
 from .exceptions import SnowparkLocalTestingException
 
 REQUESTS_AVAILABLE = True
@@ -202,7 +202,7 @@ class LocalTestOOBTelemetryService:
                 exc_info=True,
             )
             payload = None
-        _, masked_text, _ = SecretDetector.mask_secrets(payload)
+        masked_text = mask_secrets(payload)
         return masked_text
 
     def close(self) -> None:
