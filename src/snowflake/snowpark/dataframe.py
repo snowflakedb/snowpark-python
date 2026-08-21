@@ -31,7 +31,7 @@ from zoneinfo import ZoneInfo
 import snowflake.snowpark
 import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.connector.options import installed_pandas, pandas, pyarrow
+from snowflake.snowpark._internal.options import installed_pandas, pandas, pyarrow
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,

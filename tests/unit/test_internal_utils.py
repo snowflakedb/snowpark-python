@@ -4,11 +4,9 @@
 import concurrent.futures
 import random
 import pytest
-from snowflake.connector.options import MissingPandas
 
-from snowflake.snowpark._internal import utils
+from snowflake.snowpark._internal import options, utils
 from snowflake.snowpark._internal.utils import (
-    _pandas_importer,
     generate_random_alphanumeric,
     split_snowflake_identifier_with_dot,
 )
@@ -148,16 +146,6 @@ def test_normalize_path_escapes_backslash_and_quote(raw_path, is_local):
     ), f"decoded={decoded!r} does not end with {expected_tail!r}"
 
 
-def test__pandas_importer():
-    imported_pandas = _pandas_importer()
-    try:
-        import pandas
-
-        assert imported_pandas == pandas
-    except ImportError:
-        assert isinstance(imported_pandas, MissingPandas)
-
-
 def test_generate_random_alphanumeric():
     random.seed(42)
     random_string1 = generate_random_alphanumeric()
@@ -210,3 +198,9 @@ def test_generate_random_alphanumeric():
 )
 def test_split_snowflake_identifier_with_dot(string, expected_result):
     assert split_snowflake_identifier_with_dot(string) == expected_result
+
+
+def test_missing_pandas():
+    result = options._missing_pandas()
+    assert isinstance(result, options.MissingOptionalDependency)
+    assert result._dep_name == "pandas"
