@@ -13,15 +13,14 @@ their real destination.
 import json
 import os
 
-_OUTPUT_PATH = os.environ["MITMPROXY_CAPTURE_OUTPUT_PATH"]
-
 
 def request(flow) -> None:
+    output_path = os.environ["MITMPROXY_CAPTURE_OUTPUT_PATH"]
     record = {
         "method": flow.request.method,
         "url": flow.request.pretty_url,
         "headers": dict(flow.request.headers),
         "body": flow.request.text,
     }
-    with open(_OUTPUT_PATH, "a") as f:
+    with open(output_path, "a") as f:
         f.write(json.dumps(record) + "\n")
