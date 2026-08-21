@@ -398,6 +398,10 @@ def session(
         if validate_ast:
             close_full_ast_validation_mode(full_ast_validation_listener)
 
+        if (RUNNING_ON_GH or RUNNING_ON_JENKINS) and not local_testing_mode:
+            clean_up_external_access_integration_resources()
+        session.close()
+
 
 @pytest.fixture(scope="session")
 def _mitmproxy_session():
