@@ -70,7 +70,6 @@ class MockedSnowflakeConnection(SnowflakeConnection):
 
         self._disable_query_context_cache = True
 
-
     if IS_V5_DRIVER:
         # UD Connection.__init__ calls _connect(); legacy called connect().
         def _connect(self, **kwargs) -> None:
@@ -91,7 +90,6 @@ class MockedSnowflakeConnection(SnowflakeConnection):
                 }
             }
             self._rest = Mock(**attrs)
-
 
     def close(self, retry: bool = True) -> None:
         self._rest = None
