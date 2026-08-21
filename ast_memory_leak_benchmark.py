@@ -114,7 +114,9 @@ def read_rss_bytes() -> int:
         with open("/proc/self/status") as f:
             for line in f:
                 if line.startswith("VmRSS:"):
-                    return int(line.split()[1]) * 1024
+                    _, value, unit = line.split()
+                    assert unit == "kB", f"expected VmRSS in kB, got {unit!r}"
+                    return int(value) * 1024
     except OSError:
         pass
 
