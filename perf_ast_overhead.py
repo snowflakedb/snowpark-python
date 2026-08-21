@@ -1,13 +1,12 @@
 """
-Benchmark: enable_trace_sql_errors_to_dataframe AST overhead
+Benchmark: enable_trace_sql_errors_to_dataframe overhead
 
-Full cross-product: feature (OFF/ON) × ops (2/20/200) × query weight (~1s/~10s/~20s)
-= 18 runs total.
+Two-pass measurement:
+  Pass 1 — Pure client-side: plan build + compilation via df.queries (no server)
+  Pass 2 — End-to-end: full .collect() including server execution
 
-Measures:
-  - Client time: DataFrame plan build (where UUID comment injection lives)
-  - Server time: .collect() execution
-  - Overhead: % increase in client time with feature ON vs OFF
+Cross-product: feature (OFF/ON) × ops (2/20/200) × query weight (~1s/~10s/~20s)
+= 18 combinations per pass.
 
 Usage:
     python perf_ast_overhead.py
@@ -140,19 +139,20 @@ if __name__ == "__main__":
     ]
     ops_levels = [2, 20, 200]
 
-    # Print header
-    print(f"\n{'=' * 80}")  # noqa: T201
+    # ==================================================================
+    # PASS 1: Pure client-side overhead (plan build + compilation)
+    # Uses df.queries to force PlanCompiler.compile() without server trip.
+    # ==================================================================
     print(  # noqa: T201
-        "Feature (OFF/ON) × Ops (2/20/200) × Query Weight (~1s/~10s/~20s)"
-    )
-    print(f"{'=' * 80}")  # noqa: T201
-    print(  # noqa: T201
-        f"| {'Query':<6} | {'Ops':<4} | {'Feature':<7} | {'Client(s)':>9} "
-        f"| {'Server(s)':>9} | {'Total(s)':>9} | {'Client OH':>10} |"
+        f"\n{'=' * 72}\n"
+        "PASS 1: Pure client-side overhead (plan build + compile, no server)\n"
+        f"{'=' * 72}"
     )
     print(  # noqa: T201
-        f"|{'-' * 8}|{'-' * 6}|{'-' * 9}|{'-' * 11}|{'-' * 11}|{'-' * 11}|{'-' * 12}|"
+        f"| {'Query':<6} | {'Ops':<4} | {'Feature':<7} "
+        f"| {'Client(s)':>9} | {'Overhead':>10} |"
     )
+    print(f"|{'-' * 8}|{'-' * 6}|{'-' * 9}|{'-' * 11}|{'-' * 12}|")  # noqa: T201
 
     for label, base_fn in bases:
         for n_ops in ops_levels:
@@ -162,28 +162,68 @@ if __name__ == "__main__":
                 t0 = time.perf_counter()
                 df = base_fn(session)
                 df = add_ops(df, n_ops)
+                _ = df.queries
                 t1 = time.perf_counter()
-                df.collect()
-                t2 = time.perf_counter()
                 tag = "ON" if enabled else "OFF"
-                results[tag] = {"client": t1 - t0, "server": t2 - t1, "total": t2 - t0}
+                results[tag] = t1 - t0
 
-            # Print OFF row
             r_off = results["OFF"]
-            print(  # noqa: T201
-                f"| {label:<6} | {n_ops:<4} | {'OFF':<7} | {r_off['client']:>9.4f} "
-                f"| {r_off['server']:>9.3f} | {r_off['total']:>9.3f} | {'':>10} |"
-            )
-            # Print ON row with overhead
             r_on = results["ON"]
-            if r_off["client"] > 0:
-                pct = (r_on["client"] - r_off["client"]) / r_off["client"] * 100
+            print(  # noqa: T201
+                f"| {label:<6} | {n_ops:<4} | {'OFF':<7} "
+                f"| {r_off:>9.4f} | {'':>10} |"
+            )
+            if r_off > 0:
+                pct = (r_on - r_off) / r_off * 100
                 overhead_str = f"+{pct:.1f}%"
             else:
                 overhead_str = "N/A"
             print(  # noqa: T201
-                f"| {label:<6} | {n_ops:<4} | {'ON':<7} | {r_on['client']:>9.4f} "
-                f"| {r_on['server']:>9.3f} | {r_on['total']:>9.3f} | {overhead_str:>10} |"
+                f"| {label:<6} | {n_ops:<4} | {'ON':<7} "
+                f"| {r_on:>9.4f} | {overhead_str:>10} |"
+            )
+
+    # ==================================================================
+    # PASS 2: End-to-end overhead (with server execution)
+    # ==================================================================
+    print(  # noqa: T201
+        f"\n{'=' * 72}\n"
+        "PASS 2: End-to-end overhead (plan build + compile + server)\n"
+        f"{'=' * 72}"
+    )
+    print(  # noqa: T201
+        f"| {'Query':<6} | {'Ops':<4} | {'Feature':<7} "
+        f"| {'Total(s)':>9} | {'Overhead':>10} |"
+    )
+    print(f"|{'-' * 8}|{'-' * 6}|{'-' * 9}|{'-' * 11}|{'-' * 12}|")  # noqa: T201
+
+    for label, base_fn in bases:
+        for n_ops in ops_levels:
+            results = {}
+            for enabled in [False, True]:
+                set_feature(enabled)
+                t0 = time.perf_counter()
+                df = base_fn(session)
+                df = add_ops(df, n_ops)
+                df.collect()
+                t1 = time.perf_counter()
+                tag = "ON" if enabled else "OFF"
+                results[tag] = t1 - t0
+
+            r_off = results["OFF"]
+            r_on = results["ON"]
+            print(  # noqa: T201
+                f"| {label:<6} | {n_ops:<4} | {'OFF':<7} "
+                f"| {r_off:>9.3f} | {'':>10} |"
+            )
+            if r_off > 0:
+                pct = (r_on - r_off) / r_off * 100
+                overhead_str = f"+{pct:.1f}%"
+            else:
+                overhead_str = "N/A"
+            print(  # noqa: T201
+                f"| {label:<6} | {n_ops:<4} | {'ON':<7} "
+                f"| {r_on:>9.3f} | {overhead_str:>10} |"
             )
 
     session.close()
