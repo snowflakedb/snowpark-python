@@ -198,3 +198,9 @@ def test_generate_random_alphanumeric():
 )
 def test_split_snowflake_identifier_with_dot(string, expected_result):
     assert split_snowflake_identifier_with_dot(string) == expected_result
+
+
+def test_missing_pandas():
+    result = utils._missing_pandas()
+    assert isinstance(result, utils.MissingOptionalDependency)
+    assert result._dep_name == "pandas"

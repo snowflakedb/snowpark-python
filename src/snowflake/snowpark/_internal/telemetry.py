@@ -12,10 +12,6 @@ import time
 from typing import Any, Dict, List, Optional
 
 from snowflake.connector import SnowflakeConnection
-from snowflake.connector.telemetry import (
-    TelemetryClient as PCTelemetryClient,
-    TelemetryField as PCTelemetryField,
-)
 from snowflake.connector.time_util import get_time_millis
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanState,
@@ -40,11 +36,17 @@ from snowflake.snowpark._internal.utils import (
 )
 
 if IS_V5_DRIVER:
-    from snowflake.connector._internal.telemetry import (
+    from snowflake.connector._common.telemetry import (
+        TelemetryClient as PCTelemetryClient,
         TelemetryData as PCTelemetryData,
+        TelemetryField as PCTelemetryField,
     )
 else:
-    from snowflake.connector.telemetry import TelemetryData as PCTelemetryData
+    from snowflake.connector.telemetry import (
+        TelemetryClient as PCTelemetryClient,
+        TelemetryData as PCTelemetryData,
+        TelemetryField as PCTelemetryField,
+    )
 
 try:
     import psutil

@@ -28,7 +28,6 @@ from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import Error, NotSupportedError, ProgrammingError
-from snowflake.connector.network import ReauthenticationRequest
 from snowflake.snowpark._internal.utils import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
@@ -54,6 +53,7 @@ from snowflake.snowpark._internal.telemetry import (
     get_plan_telemetry_metrics,
 )
 from snowflake.snowpark._internal.utils import (
+    IS_V5_DRIVER,
     create_rlock,
     create_thread_local,
     escape_quotes,
@@ -69,6 +69,11 @@ from snowflake.snowpark._internal.utils import (
     result_set_to_rows,
     unwrap_stage_location_single_quote,
 )
+
+if IS_V5_DRIVER:
+    from snowflake.connector.errors import ReauthenticationRequest
+else:
+    from snowflake.connector.network import ReauthenticationRequest
 from snowflake.snowpark import context
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.query_history import QueryListener, QueryRecord
