@@ -453,10 +453,6 @@ def mitmproxy_session(db_parameters, local_testing_mode, mitmproxy, monkeypatch)
     finally:
         proxied_session.close()
 
-        if (RUNNING_ON_GH or RUNNING_ON_JENKINS) and not local_testing_mode:
-            clean_up_external_access_integration_resources()
-        session.close()
-
 
 @pytest.fixture(scope="function")
 def profiler_session(
