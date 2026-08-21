@@ -1,22 +1,26 @@
 """
 Benchmark: enable_trace_sql_errors_to_dataframe overhead
 
-Two-pass measurement:
+Two-pass measurement with repetitions for statistical robustness:
   Pass 1 — Pure client-side: plan build + compilation via df.queries (no server)
   Pass 2 — End-to-end: full .collect() including server execution
 
 Cross-product: feature (OFF/ON) × ops (2/20/200) × query weight (~1s/~10s/~20s)
-= 18 combinations per pass.
+= 18 combinations per pass, each repeated REPEATS times.
+Reports median and ±spread (half of max-min).
 
 Usage:
     python perf_ast_overhead.py
 """
 
+import statistics
 import time
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.context import configure_development_features
 from snowflake.snowpark.functions import avg, col, count, sum as sum_
+
+REPEATS = 5
 
 
 # ============================================================
@@ -125,9 +129,15 @@ def set_feature(enabled):
     )
 
 
+def spread(samples):
+    """Half of max-min range."""
+    return (max(samples) - min(samples)) / 2
+
+
 if __name__ == "__main__":
     session = Session.builder.config("connection_name", "zyao_ent_preprod9").create()
     print(f"Connected. Warehouse: {session.get_current_warehouse()}")  # noqa: T201
+    print(f"Repeats per combination: {REPEATS}")  # noqa: T201
 
     # Warmup
     session.sql("SELECT 1").collect()
@@ -144,86 +154,98 @@ if __name__ == "__main__":
     # Uses df.queries to force PlanCompiler.compile() without server trip.
     # ==================================================================
     print(  # noqa: T201
-        f"\n{'=' * 72}\n"
+        f"\n{'=' * 78}\n"
         "PASS 1: Pure client-side overhead (plan build + compile, no server)\n"
-        f"{'=' * 72}"
+        f"{'=' * 78}"
     )
     print(  # noqa: T201
         f"| {'Query':<6} | {'Ops':<4} | {'Feature':<7} "
-        f"| {'Client(s)':>9} | {'Overhead':>10} |"
+        f"| {'Median(s)':>9} | {'±Spread':>8} | {'Overhead':>10} |"
     )
-    print(f"|{'-' * 8}|{'-' * 6}|{'-' * 9}|{'-' * 11}|{'-' * 12}|")  # noqa: T201
+    print(  # noqa: T201
+        f"|{'-' * 8}|{'-' * 6}|{'-' * 9}" f"|{'-' * 11}|{'-' * 10}|{'-' * 12}|"
+    )
 
     for label, base_fn in bases:
         for n_ops in ops_levels:
-            results = {}
+            times = {"OFF": [], "ON": []}
             for enabled in [False, True]:
                 set_feature(enabled)
-                t0 = time.perf_counter()
-                df = base_fn(session)
-                df = add_ops(df, n_ops)
-                _ = df.queries
-                t1 = time.perf_counter()
                 tag = "ON" if enabled else "OFF"
-                results[tag] = t1 - t0
+                for _ in range(REPEATS):
+                    t0 = time.perf_counter()
+                    df = base_fn(session)
+                    df = add_ops(df, n_ops)
+                    _ = df.queries
+                    t1 = time.perf_counter()
+                    times[tag].append(t1 - t0)
 
-            r_off = results["OFF"]
-            r_on = results["ON"]
+            med_off = statistics.median(times["OFF"])
+            med_on = statistics.median(times["ON"])
+            spr_off = spread(times["OFF"])
+            spr_on = spread(times["ON"])
+
             print(  # noqa: T201
                 f"| {label:<6} | {n_ops:<4} | {'OFF':<7} "
-                f"| {r_off:>9.4f} | {'':>10} |"
+                f"| {med_off:>9.4f} | {spr_off:>8.4f} | {'':>10} |"
             )
-            if r_off > 0:
-                pct = (r_on - r_off) / r_off * 100
+            if med_off > 0:
+                pct = (med_on - med_off) / med_off * 100
                 overhead_str = f"+{pct:.1f}%"
             else:
                 overhead_str = "N/A"
             print(  # noqa: T201
                 f"| {label:<6} | {n_ops:<4} | {'ON':<7} "
-                f"| {r_on:>9.4f} | {overhead_str:>10} |"
+                f"| {med_on:>9.4f} | {spr_on:>8.4f} | {overhead_str:>10} |"
             )
 
     # ==================================================================
     # PASS 2: End-to-end overhead (with server execution)
     # ==================================================================
     print(  # noqa: T201
-        f"\n{'=' * 72}\n"
+        f"\n{'=' * 78}\n"
         "PASS 2: End-to-end overhead (plan build + compile + server)\n"
-        f"{'=' * 72}"
+        f"{'=' * 78}"
     )
     print(  # noqa: T201
         f"| {'Query':<6} | {'Ops':<4} | {'Feature':<7} "
-        f"| {'Total(s)':>9} | {'Overhead':>10} |"
+        f"| {'Median(s)':>9} | {'±Spread':>8} | {'Overhead':>10} |"
     )
-    print(f"|{'-' * 8}|{'-' * 6}|{'-' * 9}|{'-' * 11}|{'-' * 12}|")  # noqa: T201
+    print(  # noqa: T201
+        f"|{'-' * 8}|{'-' * 6}|{'-' * 9}" f"|{'-' * 11}|{'-' * 10}|{'-' * 12}|"
+    )
 
     for label, base_fn in bases:
         for n_ops in ops_levels:
-            results = {}
+            times = {"OFF": [], "ON": []}
             for enabled in [False, True]:
                 set_feature(enabled)
-                t0 = time.perf_counter()
-                df = base_fn(session)
-                df = add_ops(df, n_ops)
-                df.collect()
-                t1 = time.perf_counter()
                 tag = "ON" if enabled else "OFF"
-                results[tag] = t1 - t0
+                for _ in range(REPEATS):
+                    t0 = time.perf_counter()
+                    df = base_fn(session)
+                    df = add_ops(df, n_ops)
+                    df.collect()
+                    t1 = time.perf_counter()
+                    times[tag].append(t1 - t0)
 
-            r_off = results["OFF"]
-            r_on = results["ON"]
+            med_off = statistics.median(times["OFF"])
+            med_on = statistics.median(times["ON"])
+            spr_off = spread(times["OFF"])
+            spr_on = spread(times["ON"])
+
             print(  # noqa: T201
                 f"| {label:<6} | {n_ops:<4} | {'OFF':<7} "
-                f"| {r_off:>9.3f} | {'':>10} |"
+                f"| {med_off:>9.3f} | {spr_off:>8.3f} | {'':>10} |"
             )
-            if r_off > 0:
-                pct = (r_on - r_off) / r_off * 100
+            if med_off > 0:
+                pct = (med_on - med_off) / med_off * 100
                 overhead_str = f"+{pct:.1f}%"
             else:
                 overhead_str = "N/A"
             print(  # noqa: T201
                 f"| {label:<6} | {n_ops:<4} | {'ON':<7} "
-                f"| {r_on:>9.3f} | {overhead_str:>10} |"
+                f"| {med_on:>9.3f} | {spr_on:>8.3f} | {overhead_str:>10} |"
             )
 
     session.close()
