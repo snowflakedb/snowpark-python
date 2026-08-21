@@ -238,15 +238,21 @@ jobs:
             .tox/coverage.xml
 
   test-local-testing:
-    name: Test Local Testing Module py-${{ matrix.os }}-${{ matrix.python-version }}
+    name: Test Local Testing Module py-${{ matrix.os }}-${{ matrix.python-version }}-pandas${{ matrix.pandas-major }}
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.14"]
-        cloud-provider: [azure]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.14"
+            cloud-provider: azure
+            pandas-major: "2"
+          - os: ubuntu-latest
+            python-version: "3.14"
+            cloud-provider: azure
+            pandas-major: "3"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -286,7 +292,7 @@ jobs:
       - name: Install tox
         run: uv pip install tox --system
       - name: Run tests
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-local"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-local-pandas${{ matrix.pandas-major }}"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -302,7 +308,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           include-hidden-files: true
-          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-local-testing
+          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-pandas${{ matrix.pandas-major }}-local-testing
           path: |
             .tox/.coverage
             .tox/coverage.xml

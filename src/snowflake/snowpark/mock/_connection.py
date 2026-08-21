@@ -38,7 +38,11 @@ from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.mock._options import pandas
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
-from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, TableEmulator
+from snowflake.snowpark.mock._snowflake_data_type import (
+    ColumnEmulator,
+    TableEmulator,
+    isna_helper,
+)
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock._util import get_fully_qualified_name
@@ -653,7 +657,7 @@ class MockServerConnection:
                     from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 
                     for idx, row in res.iterrows():
-                        if row[col] is not None:
+                        if not isna_helper(row[col]):
                             # Snowflake sorts maps by key before serializing
                             if isinstance(row[col], dict):
                                 row[col] = dict(sorted(row[col].items()))

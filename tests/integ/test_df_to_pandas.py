@@ -27,7 +27,7 @@ import math
 import pytest
 from unittest import mock
 
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, pandas_major_version
 from snowflake.snowpark.session import write_pandas, WRITE_PANDAS_CHUNK_SIZE
 from snowflake.snowpark.functions import col, div0, round, to_timestamp
 from snowflake.snowpark.types import (
@@ -104,9 +104,10 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
     assert (
         str(pandas_df.dtypes.iloc[4]) == "int64"
     )  # When limits are not explicitly defined, rely on metadata information from GS.
-    assert (
-        str(pandas_df.dtypes.iloc[5]) == "object"
-    )  # No cast so it's a string. dtype is "object".
+    assert str(pandas_df.dtypes.iloc[5]) in (
+        "object",
+        "str",
+    )  # No cast so it's a string: object on pandas 2, str on pandas 3.
     assert (
         str(pandas_df.dtypes.iloc[6]) == "float64"
     )  # A 20-digit number is over int64 max. Convert to float64 in pandas.
@@ -125,7 +126,6 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         # Starting from pyarrow 13, pyarrow no longer coerces non-nanosecond to nanosecond for pandas >=2.0
         # https://arrow.apache.org/release/13.0.0.html and https://github.com/apache/arrow/issues/33321
         pyarrow_major_version = int(pa.__version__.split(".")[0])
-        pandas_major_version = int(pd.__version__.split(".")[0])
         expected_dtype = (
             "datetime64[s]"
             if pyarrow_major_version >= 13 and pandas_major_version >= 2
@@ -134,7 +134,11 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         assert str(timestamp_pandas_df.dtypes.iloc[0]) == expected_dtype
     else:
         # TODO: mock the non-nanosecond unit pyarrow+pandas behavior in local test
-        assert str(timestamp_pandas_df.dtypes.iloc[0]) == "datetime64[ns]"
+        # The mock layer follows pandas' own default resolution: ns on pandas 2, us on 3.
+        assert str(timestamp_pandas_df.dtypes.iloc[0]) in (
+            "datetime64[ns]",
+            "datetime64[us]",
+        )
 
 
 def test_to_pandas_precision_for_number_38_0(session):
@@ -270,7 +274,21 @@ def test_to_pandas_batches(session, local_testing_mode):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-1362480, backend optimization in different reg env"
 )
-def test_df_to_pandas_df(session):
+def test_df_to_pandas_df(session, local_testing_mode):
+    # The live path builds the frame through pyarrow, which pins a TIMESTAMP_NTZ
+    # column to datetime64[ns]. The local testing emulator returns pandas' own
+    # default resolution instead, and that default moved from ns to us in pandas
+    # 3, so only the live expectation can be pinned.
+    timestamp_dtype = None if local_testing_mode else "datetime64[ns]"
+    # From pandas 3 on, pyarrow maps an Arrow string column onto the dedicated
+    # str dtype, so an all-NULL column arrives as str rather than object on the
+    # live path. The local testing emulator never goes through pyarrow.
+    null_dtype = (
+        object
+        if local_testing_mode or pandas_major_version < 3
+        else pd.Series([None], dtype="str").dtype
+    )
+
     df = session.create_dataframe(
         [
             [
@@ -319,7 +337,8 @@ def test_df_to_pandas_df(session):
                         minute=12,
                         second=12,
                     )
-                ]
+                ],
+                dtype=timestamp_dtype,
             ),
         }
     )
@@ -376,7 +395,7 @@ def test_df_to_pandas_df(session):
 
     pandas_df = pd.DataFrame(
         {
-            "A": pd.Series(["[\n  1,\n  2,\n  3,\n  4\n]"], dtype=object),
+            "A": pd.Series(["[\n  1,\n  2,\n  3,\n  4\n]"]),
             "B": pd.Series([b"123"], dtype=object),
             "C": pd.Series([True], dtype=bool),
             "D": pd.Series(
@@ -392,17 +411,17 @@ def test_df_to_pandas_df(session):
             "J": pd.Series(
                 [100], dtype=np.int64
             ),  # in reg env, there can be backend optimization resulting in np.int8
-            "K": pd.Series([None], dtype=object),
+            "K": pd.Series([None], dtype=null_dtype),
             "L": pd.Series(
                 [100], dtype=np.int64
             ),  # in reg env, there can be backend optimization resulting in np.int8
-            "M": pd.Series(["abc"], dtype=object),
+            "M": pd.Series(["abc"]),
             "N": pd.Series(
-                [datetime.datetime(2023, 10, 30, 12, 12, 12)], dtype="datetime64[ns]"
+                [datetime.datetime(2023, 10, 30, 12, 12, 12)], dtype=timestamp_dtype
             ),
             "O": pd.Series([datetime.time(12, 12, 12)], dtype=object),
-            "P": pd.Series(['{\n  "a": "b"\n}'], dtype=object),
-            "Q": pd.Series(['{\n  "a": "b"\n}'], dtype=object),
+            "P": pd.Series(['{\n  "a": "b"\n}']),
+            "Q": pd.Series(['{\n  "a": "b"\n}']),
         }
     )
     assert_frame_equal(df.to_pandas(), pandas_df)

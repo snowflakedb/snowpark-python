@@ -4,6 +4,26 @@
 
 ### Snowpark Python API Updates
 
+#### Dependency Updates
+
+- Added support for pandas 3, lifting the `pandas<3.0.0` cap added to the `[pandas]` extra in 1.53.0. `snowflake-snowpark-python[pandas]` now declares its own `pandas<4.0.0` and `pyarrow` requirements instead of depending on `snowflake-connector-python[pandas]`. pandas 2 remains fully supported. Upgrading Snowpark does not upgrade an existing pandas 2 install:
+  - pandas 3 requires Python 3.11 or later, so Python 3.10 environments continue to resolve pandas 2.
+  - `snowflake-snowpark-python[modin]` continues to resolve pandas 2, because the `[modin]` extra declares `pandas<=2.4`.
+
+#### Behavior Changes
+
+- On pandas 3, `DataFrame.to_pandas()` and `DataFrame.to_pandas_batches()` return the `str` dtype instead of `object` for text columns, including `VARIANT`, `OBJECT`, `ARRAY`, `MAP` and the geospatial types. NULLs in those columns come back as `nan` instead of `None`, so test them with `pandas.isna(value)` rather than `value is None`. Setting `future.infer_string` to `False` does not turn this off. `DataFrame.collect()` is unchanged and still returns `None`.
+
+#### Bug Fixes
+
+- Fixed a bug where `Session.write_pandas`, `Session.write_arrow`, and `Session.create_dataframe` stored a `timedelta` at the column's own resolution instead of nanoseconds, so a microsecond column stored a value 1000 times too small. Duration columns are now converted to nanoseconds before writing. pandas 3 defaults to microseconds and is much more likely to hit this, but a non-nanosecond column on pandas 2 was affected too. Rows an earlier release wrote from such a column are too small and need correcting.
+- Fixed a local testing bug where a SQL NULL became `nan` instead of `None` after a column was rebuilt through pandas. `IS NULL` then evaluated to `False`, `collect()` no longer returned `None` for those NULLs, and `strict=True` UDF handlers received `nan`. This affected `parse_json`, `to_char`, `concat`, `concat_ws`, `strip_null_value`, `initcap`, `greatest`, `least`, and VARIANT/OBJECT/ARRAY/MAP subfield access. This happened on pandas 2 too: a missing key collected as the string `'NaN'`, and a numeric `1` as `'1.0'`. pandas 3 also did it for string values.
+- The following local testing bugs appeared only when running with pandas 3:
+  - Fixed a bug where `ORDER BY` treated SQL NULL as `nan`.
+  - Fixed a bug where columns omitted from a MERGE insert kept `nan` instead of NULL under Copy-on-Write.
+  - Fixed a bug where `group_by` and `pivot` results lost their column and index names.
+  - Fixed a bug where `create_dataframe` raised `TypeError` for `VARIANT` columns.
+
 ## 1.54.0 (2026-07-29)
 
 ### Snowpark Python API updates
