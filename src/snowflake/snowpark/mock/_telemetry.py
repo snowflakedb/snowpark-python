@@ -19,7 +19,7 @@ from snowflake.snowpark._internal.utils import (
     get_version,
 )
 
-from ._secret_detector import mask_secrets
+from ._secret_detector import SecretDetector
 from .exceptions import SnowparkLocalTestingException
 
 REQUESTS_AVAILABLE = True
@@ -202,7 +202,7 @@ class LocalTestOOBTelemetryService:
                 exc_info=True,
             )
             payload = None
-        masked_text = mask_secrets(payload)
+        _, masked_text, _ = SecretDetector.mask_secrets(payload)
         return masked_text
 
     def close(self) -> None:
