@@ -73,6 +73,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "psutil",  # testing for telemetry
     "lxml",  # used in XML reader unit tests
     "pyarrow",  # used in dataframe reader tests
+    "mitmproxy",  # wire-level telemetry capture in tests/mitmproxy_client.py
 ]
 MODIN_DEVELOPMENT_REQUIREMENTS = [
     # Snowpark pandas 3rd party library testing. Cap the scipy version because
