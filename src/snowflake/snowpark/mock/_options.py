@@ -4,11 +4,11 @@
 
 import importlib
 
-from snowflake.snowpark._internal.utils import (
-    IS_V5_DRIVER,
+from snowflake.snowpark._internal.options import (
     MissingOptionalDependency,
     _missing_pandas,
 )
+from snowflake.snowpark._internal.utils import IS_V5_DRIVER
 
 try:
     import pandas

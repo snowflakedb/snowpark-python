@@ -42,7 +42,7 @@ from packaging.version import parse as parse_version
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
-from snowflake.snowpark._internal.utils import installed_pandas, pandas, pyarrow
+from snowflake.snowpark._internal.options import installed_pandas, pandas, pyarrow
 from snowflake.connector.pandas_tools import write_pandas
 
 from snowflake.snowpark import UDFProfiler

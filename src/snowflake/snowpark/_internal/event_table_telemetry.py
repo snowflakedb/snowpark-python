@@ -11,11 +11,11 @@ from typing import Dict, Optional, Tuple
 import snowflake.snowpark
 import requests
 
-from snowflake.snowpark._internal.utils import (
+from snowflake.snowpark._internal.options import (
     MissingOptionalDependency,
     ModuleLikeObject,
-    parse_table_name,
 )
+from snowflake.snowpark._internal.utils import parse_table_name
 
 _logger = getLogger(__name__)
 
