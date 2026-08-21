@@ -4,7 +4,7 @@
 from enum import Enum
 import datetime
 from typing import Dict, List, Callable, Any, Optional, TYPE_CHECKING
-from snowflake.snowpark._internal.utils import pandas as pd
+from snowflake.snowpark._internal.options import pandas as pd
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.data_source.datasource_typing import (

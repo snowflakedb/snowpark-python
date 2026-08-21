@@ -5,7 +5,7 @@ import concurrent.futures
 import random
 import pytest
 
-from snowflake.snowpark._internal import utils
+from snowflake.snowpark._internal import options, utils
 from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     split_snowflake_identifier_with_dot,
@@ -201,6 +201,6 @@ def test_split_snowflake_identifier_with_dot(string, expected_result):
 
 
 def test_missing_pandas():
-    result = utils._missing_pandas()
-    assert isinstance(result, utils.MissingOptionalDependency)
+    result = options._missing_pandas()
+    assert isinstance(result, options.MissingOptionalDependency)
     assert result._dep_name == "pandas"
