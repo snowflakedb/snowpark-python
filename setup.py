@@ -32,6 +32,9 @@ INSTALL_REQ_LIST = [
     # transitively via the connector; the universal driver (5.x) does not depend on
     # requests, so declare it explicitly.
     "requests",
+    # Likewise: session.py imports packaging.requirements/packaging.version at
+    # module scope, so it is needed on the plain `import snowflake.snowpark` path.
+    "packaging",
     "cloudpickle>=1.6.0,<=3.1.1,!=2.1.0,!=2.2.0",
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
     "protobuf>=3.20, <6.34; python_version < '3.14'",  # Snowpark IR

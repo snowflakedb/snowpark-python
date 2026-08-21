@@ -67,6 +67,9 @@ requirements:
     # through the connector; the universal driver (5.x) drops requests, so it has
     # to be declared here.
     - requests
+    # Likewise: session.py imports packaging.requirements/packaging.version at
+    # module scope.
+    - packaging
     # Snowpark IR
     - protobuf >=3.20,<6.34    # [py<314]
     - protobuf >=5.29.3,<6.34  # [py>=314]
