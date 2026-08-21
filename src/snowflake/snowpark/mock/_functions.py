@@ -42,6 +42,7 @@ from snowflake.snowpark.types import (
     BinaryType,
     BooleanType,
     DateType,
+    DayTimeIntervalType,
     DecimalType,
     DoubleType,
     DecFloatType,
@@ -54,6 +55,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    YearMonthIntervalType,
     _FractionalType,
     _IntegralType,
     _NumericType,
@@ -2221,6 +2223,10 @@ def cast_column_to(
         return mock_to_array(col)
     if isinstance(target_data_type, VariantType):
         return mock_to_variant(col)
+    if isinstance(target_data_type, (DayTimeIntervalType, YearMonthIntervalType)):
+        res = col.copy()
+        res.sf_type = target_column_type
+        return res
     return None
 
 

@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import collections.abc
+import datetime
 import inspect
 import io
 import os
@@ -57,7 +58,12 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     warning,
 )
-from snowflake.snowpark.types import DataType, StructField, StructType
+from snowflake.snowpark.types import (
+    DataType,
+    DayTimeIntervalType,
+    StructField,
+    StructType,
+)
 from snowflake.snowpark.version import VERSION
 from snowflake.snowpark.context import (
     _ANACONDA_SHARED_REPOSITORY,
@@ -1728,6 +1734,8 @@ def generate_call_python_sp_sql(
             sql_args.append(session._analyzer.analyze(arg._expression, {}))
         elif "system$" in sproc_name.lower():
             sql_args.append(to_sql_no_cast(arg, infer_type(arg)))
+        elif isinstance(arg, datetime.timedelta):
+            sql_args.append(to_sql(arg, DayTimeIntervalType()))
         else:
             sql_args.append(to_sql(arg, infer_type(arg)))
     return f"CALL {sproc_name}({', '.join(sql_args)})"
