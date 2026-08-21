@@ -70,18 +70,28 @@ class MockedSnowflakeConnection(SnowflakeConnection):
 
         self._disable_query_context_cache = True
 
-    def connect(self, **kwargs) -> None:
-        attrs = {
-            "request.return_value": {
-                "success": False,
-                "message": "Not implemented in MockConnection",
-            }
-        }
-        self._rest = Mock(**attrs)
 
     if IS_V5_DRIVER:
         # UD Connection.__init__ calls _connect(); legacy called connect().
-        _connect = connect
+        def _connect(self, **kwargs) -> None:
+            attrs = {
+                "request.return_value": {
+                    "success": False,
+                    "message": "Not implemented in MockConnection",
+                }
+            }
+            self._rest = Mock(**attrs)
+
+    else:
+        def connect(self, **kwargs) -> None:
+            attrs = {
+                "request.return_value": {
+                    "success": False,
+                    "message": "Not implemented in MockConnection",
+                }
+            }
+            self._rest = Mock(**attrs)
+
 
     def close(self, retry: bool = True) -> None:
         self._rest = None
