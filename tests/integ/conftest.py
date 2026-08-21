@@ -437,6 +437,11 @@ def mitmproxy_session(db_parameters, local_testing_mode, mitmproxy, monkeypatch)
     params = dict(db_parameters)
     params["proxy_host"] = mitmproxy.proxy_host
     params["proxy_port"] = mitmproxy.proxy_port
+    # mitmproxy re-signs TLS traffic with its own CA-issued leaf cert, which
+    # has no real OCSP/CRL revocation record -- disable revocation checking
+    # rather than relying on ocsp_fail_open, since mitmproxy's cert triggers
+    # a hard "revoked" failure, not a soft "responder unreachable" one.
+    params["disable_ocsp_checks"] = True
     proxied_session = Session.builder.configs(params).create()
     try:
         yield proxied_session
