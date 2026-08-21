@@ -11,7 +11,7 @@ from unittest import mock
 import pytest
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.connector.options import installed_pandas
+from snowflake.snowpark._internal.utils import installed_pandas
 from snowflake.snowpark import Window
 from snowflake.snowpark._internal.analyzer import analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType, Query
