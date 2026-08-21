@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     create_table_as_select_statement,
     create_table_statement,
     file_operation_statement,
+    iceberg_table_properties_clause,
     join_statement,
     project_statement,
     table_function_statement,
@@ -491,6 +492,67 @@ def test_create_iceberg_table_as_select_statement():
         " EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = "
         "'example_catalog'  BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  "
         "STORAGE_SERIALIZATION_POLICY  = 'OPTIMIZED'   AS  SELECT  * \n"
+        " FROM (\nselect * from foo\n)"
+    )
+
+
+def test_iceberg_table_properties_clause():
+    # Absent / empty / no table_properties key -> nothing emitted.
+    assert iceberg_table_properties_clause(None) == ""
+    assert iceberg_table_properties_clause({}) == ""
+    assert iceberg_table_properties_clause({"catalog": "SNOWFLAKE"}) == ""
+    assert iceberg_table_properties_clause({"table_properties": {}}) == ""
+
+    # Keys are preserved verbatim (not lowercased); the top-level config key
+    # is matched case-insensitively; keys/values are escaped single-quoted
+    # literals.
+    assert (
+        iceberg_table_properties_clause(
+            {
+                "table_properties": {
+                    "write.metadata.compression-codec": "gzip",
+                    "custom": "it's ok",
+                }
+            }
+        )
+        == "  TABLE_PROPERTIES = ('write.metadata.compression-codec'='gzip', 'custom'='it''s ok')"
+    )
+    assert (
+        iceberg_table_properties_clause({"TABLE_PROPERTIES": {"a": "b"}})
+        == "  TABLE_PROPERTIES = ('a'='b')"
+    )
+
+
+def test_create_iceberg_table_statement_with_table_properties():
+    assert create_table_statement(
+        table_name="test_table",
+        schema="test_col varchar",
+        iceberg_config={
+            "catalog": "SNOWFLAKE",
+            "base_location": "/root",
+            "table_properties": {
+                "read.split.target-size": "134217728",
+                "comment": "hi",
+            },
+        },
+    ) == (
+        " CREATE    ICEBERG  TABLE test_table(test_col varchar)  CATALOG  = 'SNOWFLAKE' "
+        " BASE_LOCATION  = '/root'   TABLE_PROPERTIES = ('read.split.target-size'='134217728', 'comment'='hi')"
+    )
+
+
+def test_create_iceberg_table_as_select_statement_with_table_properties():
+    assert create_table_as_select_statement(
+        table_name="test_table",
+        child="select * from foo",
+        column_definition=None,
+        iceberg_config={
+            "catalog": "SNOWFLAKE",
+            "table_properties": {"read.split.target-size": "134217728"},
+        },
+    ) == (
+        " CREATE    ICEBERG  TABLE  test_table  CATALOG  = 'SNOWFLAKE' "
+        "  TABLE_PROPERTIES = ('read.split.target-size'='134217728')  AS  SELECT  * \n"
         " FROM (\nselect * from foo\n)"
     )
 
