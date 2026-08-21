@@ -1,3 +1,6 @@
+#
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
 """Behavioral tests for the ``SecretDetector`` shim, ported from the Universal
 Driver's backward-compat test suite (drivers#598), which itself ports the full
 legacy ``snowflake-connector-python`` masking-behavior suite
