@@ -213,7 +213,6 @@ def cache_sizes(session: Session) -> tuple[int, int]:
 def set_feature(enabled: bool) -> None:
     configure_development_features(
         enable_trace_sql_errors_to_dataframe=enabled,
-        enable_dataframe_trace_on_error=False,
     )
 
 
