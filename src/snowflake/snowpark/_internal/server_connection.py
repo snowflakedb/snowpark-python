@@ -25,11 +25,31 @@ from typing import (
 )
 
 from snowflake.connector import SnowflakeConnection, connect
-from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
+from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import Error, NotSupportedError, ProgrammingError
-from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
+
+try:
+    from snowflake.connector.constants import ENV_VAR_PARTNER
+except ImportError:
+    # Not exported by the universal driver (5.x). It is only the name of the env
+    # var carrying the partner/application tag, so define it locally.
+    ENV_VAR_PARTNER = "SF_PARTNER"
+
+try:
+    from snowflake.connector.network import ReauthenticationRequest
+except ImportError:
+    # The universal driver (5.x) has no Python `network` module at all -- its
+    # Rust core owns transport -- so it never raises this. Define a stand-in
+    # purely to keep the `except ReauthenticationRequest` below well-formed.
+    # Nothing raises it against such a connector, so session-expiry surfaces
+    # through the generic Exception branch instead.
+    class ReauthenticationRequest(Exception):
+        def __init__(self, cause=None):
+            super().__init__(str(cause))
+            self.cause = cause
+
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )

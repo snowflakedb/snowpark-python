@@ -62,6 +62,11 @@ requirements:
     - snowflake-connector-python >=3.17.0,<6.0.0
     - typing-extensions >=4.1.0,<5.0.0
     - pyyaml
+    # Imported at module scope by _internal/event_table_telemetry.py, which also
+    # subclasses requests.adapters.HTTPAdapter. Previously satisfied transitively
+    # through the connector; the universal driver (5.x) drops requests, so it has
+    # to be declared here.
+    - requests
     # Snowpark IR
     - protobuf >=3.20,<6.34    # [py<314]
     - protobuf >=5.29.3,<6.34  # [py>=314]

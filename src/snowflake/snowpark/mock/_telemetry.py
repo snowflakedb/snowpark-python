@@ -5,15 +5,57 @@ import atexit
 import json
 import logging
 import os
+import queue
 import threading
 import uuid
 from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from snowflake.connector.compat import OK
-from snowflake.connector.secret_detector import SecretDetector
-from snowflake.connector.telemetry_oob import TelemetryService
+CONNECTOR_OOB_AVAILABLE = True
+try:
+    from snowflake.connector.compat import OK
+    from snowflake.connector.secret_detector import SecretDetector
+    from snowflake.connector.telemetry_oob import TelemetryService
+except ImportError:
+    # The connector's out-of-band telemetry plumbing is not present in every
+    # connector distribution: the universal driver (5.x) has no compat /
+    # secret_detector / telemetry_oob modules, because its Rust core owns
+    # transport. This module only backs *local testing* telemetry, and these
+    # imports run on the plain `import snowflake.snowpark` path (via
+    # mock/_snowflake_data_type.py), so a hard import here breaks snowpark
+    # outright against such a connector -- including inside stored procedures,
+    # where local-testing telemetry is meaningless anyway. Degrade to inert
+    # stand-ins instead. Mirrors the REQUESTS_AVAILABLE handling below.
+    CONNECTOR_OOB_AVAILABLE = False
+
+    OK = 200
+
+    class SecretDetector:
+        @staticmethod
+        def mask_secrets(text):
+            return (False, text, None)
+
+    class TelemetryService:
+        # Only the surface LocalTestOOBTelemetryService actually relies on.
+        PROD = ""
+        _instance = None
+
+        def __init__(self) -> None:
+            self.queue = queue.Queue()
+            self.batch_size = 10
+            self._enabled = False
+
+        @classmethod
+        def get_instance(cls) -> "TelemetryService":
+            if cls._instance is None:
+                cls._instance = cls()
+            return cls._instance
+
+        def close(self, *args, **kwargs) -> None:
+            pass
+
+
 from snowflake.snowpark._internal.utils import (
     get_os_name,
     get_python_version,

@@ -13,11 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence
 from snowflake.connector import ProgrammingError
 from snowflake.connector.cursor import SnowflakeCursor
 from snowflake.connector.options import pyarrow
-from snowflake.connector.pandas_tools import (
-    _create_temp_stage,
-    _create_temp_file_format,
-    build_location_helper,
-)
+from snowflake.connector.pandas_tools import build_location_helper
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Except,
@@ -2288,6 +2284,16 @@ def write_arrow(
     # SNOW-1904593: This function mostly copies the functionality of snowflake.connector.pandas_utils.write_pandas.
     # It should be pushed down into the connector, but would require a minimum required version bump.
     import pyarrow.parquet  # type: ignore
+
+    # Imported here rather than at module scope: these are *private* connector
+    # helpers, and the universal driver (5.x) does not expose them. Keeping them
+    # out of module scope means `import snowflake.snowpark` still succeeds against
+    # such a connector, and the ImportError only surfaces if write_arrow is
+    # actually called.
+    from snowflake.connector.pandas_tools import (
+        _create_temp_file_format,
+        _create_temp_stage,
+    )
 
     if database is not None and schema is None:
         raise ProgrammingError(

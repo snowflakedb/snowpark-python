@@ -26,6 +26,12 @@ INSTALL_REQ_LIST = [
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
     "pyyaml",
+    # Same reasoning: _internal/event_table_telemetry.py imports requests at module
+    # scope, and subclasses requests.adapters.HTTPAdapter there, so it is a hard
+    # dependency of the plain `import snowflake.snowpark` path. It used to arrive
+    # transitively via the connector; the universal driver (5.x) does not depend on
+    # requests, so declare it explicitly.
+    "requests",
     "cloudpickle>=1.6.0,<=3.1.1,!=2.1.0,!=2.2.0",
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
     "protobuf>=3.20, <6.34; python_version < '3.14'",  # Snowpark IR
