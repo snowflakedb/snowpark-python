@@ -31,6 +31,7 @@ from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
+    IS_V5_DRIVER,
     is_in_stored_procedure,
     result_set_to_rows,
 )
@@ -69,14 +70,26 @@ class MockedSnowflakeConnection(SnowflakeConnection):
 
         self._disable_query_context_cache = True
 
-    def connect(self, **kwargs) -> None:
-        attrs = {
-            "request.return_value": {
-                "success": False,
-                "message": "Not implemented in MockConnection",
+    if IS_V5_DRIVER:
+        # UD Connection.__init__ calls _connect(); legacy called connect().
+        def _connect(self, **kwargs) -> None:
+            attrs = {
+                "request.return_value": {
+                    "success": False,
+                    "message": "Not implemented in MockConnection",
+                }
             }
-        }
-        self._rest = Mock(**attrs)
+            self._rest = Mock(**attrs)
+
+    else:
+        def connect(self, **kwargs) -> None:
+            attrs = {
+                "request.return_value": {
+                    "success": False,
+                    "message": "Not implemented in MockConnection",
+                }
+            }
+            self._rest = Mock(**attrs)
 
     def close(self, retry: bool = True) -> None:
         self._rest = None
