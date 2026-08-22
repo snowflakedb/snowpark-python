@@ -1,0 +1,54 @@
+CALL CENTER TRANSCRIPT
+Call ID: CC-4408
+Date: 2024-09-05
+Duration: 5:22
+Customer ID: CUST-15509
+Representative ID: REP-033
+Category: Billing Inquiry
+Status: Resolved
+
+================================================================================
+TRANSCRIPT
+================================================================================
+
+[2024-09-05-15-10-04] REP: Meridian Utilities, this is Fiona speaking, how can I help you today?
+
+[2024-09-05-15-10-19] CUSTOMER: Hi there. I just got my bill and I have a quick question about one of the line items on it. I'm not disputing it or anything, I just don't know what it is.
+
+[2024-09-05-15-10-32] REP: Of course, happy to explain. Can I get your name and account number?
+
+[2024-09-05-15-10-40] CUSTOMER: James Whitmore. Account is CUST-15509.
+
+[2024-09-05-15-10-50] REP: And can you verify your service address for me?
+
+[2024-09-05-15-10-57] CUSTOMER: 308 Eastfield Road, Tucson, Arizona 85710.
+
+[2024-09-05-15-11-07] REP: Perfect. Got your account up. What's the line item you're asking about?
+
+[2024-09-05-15-11-35] CUSTOMER: It says "DSM Rider - Res" and it's $4.17. I've seen it before on past bills but I never knew what it was. I was cleaning up my files today and I figured I'd finally just call and ask.
+
+[2024-09-05-15-12-07] REP: Oh, good question. DSM stands for Demand Side Management. It's a state-mandated program charge — basically it funds energy efficiency programs that the utility is required to offer and maintain. Things like rebates if you purchase energy-efficient appliances, insulation assistance programs, that kind of thing.
+
+[2024-09-05-15-12-19] CUSTOMER: Oh, interesting. So it's like a fund for those programs?
+
+[2024-09-05-15-12-56] REP: Exactly. All regulated utilities in Arizona are required to collect it from residential customers. The "Res" just means residential — as opposed to commercial accounts which have a slightly different structure. The rate is set by the Arizona Corporation Commission, not by us, so it doesn't change based on your usage — it's a fixed amount based on your service tier.
+
+[2024-09-05-15-13-07] CUSTOMER: So everybody's paying $4.17?
+
+[2024-09-05-15-13-40] REP: The rate is standardized, though the exact amount can vary slightly based on your service tier — single-family residential versus multi-family, that sort of thing. But for a standard single-family residential account like yours, yes, it's a consistent flat amount.
+
+[2024-09-05-15-14-01] CUSTOMER: Huh. Okay. That actually makes sense. I've just been seeing it for years and always meant to ask. It's not a huge amount so it never felt urgent, you know?
+
+[2024-09-05-15-14-14] REP: Totally understandable. It's one of those charges that's just... there, on every bill. But it does go toward real programs.
+
+[2024-09-05-15-14-24] CUSTOMER: Good to know. Okay, that's all I needed! Thanks for clearing that up.
+
+[2024-09-05-15-14-37] REP: Of course. Is there anything else on your bill or with your account I can help you with?
+
+[2024-09-05-15-14-46] CUSTOMER: Nope, that's it. Pretty quick call today.
+
+[2024-09-05-15-14-57] REP: The best kind! Have a great day, Mr. Whitmore.
+
+[2024-09-05-15-15-05] CUSTOMER: You too! Bye-bye.
+
+[2024-09-05-15-15-12] REP: Bye now.

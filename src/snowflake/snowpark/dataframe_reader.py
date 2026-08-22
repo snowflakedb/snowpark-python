@@ -91,7 +91,16 @@ from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
     SnowparkDataframeReaderException,
 )
-from snowflake.snowpark.functions import sql_expr, col, concat, lit, to_file
+from snowflake.snowpark.functions import (
+    sql_expr,
+    col,
+    concat,
+    lit,
+    to_file,
+    parse_json,
+    ai_complete,
+    table_function,
+)
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
@@ -2065,8 +2074,6 @@ class DataFrameReader:
             set_api_call_source(df, XML_READER_API_SIGNATURE)
             if self._cur_options.get("CACHERESULT", True):
                 df = df.cache_result()
-                # When schema is inferred or user-provided, columns are typed
-                # (not all VARIANT), so don't enable the all-variant dot-notation mode.
                 if xml_inferred_schema is None and not self._user_schema:
                     df._all_variant_cols = True
         else:
@@ -2752,3 +2759,590 @@ class DataFrameReader:
             dataframe._ast_id = stmt.uid
 
         return dataframe
+
+    # -----------------------------------------------------------------------
+    # Unstructured document reader
+    # -----------------------------------------------------------------------
+
+    @publicapi
+    @experimental(version="1.40.0")
+    def documents(
+        self,
+        path: str,
+        schema: Optional[Dict[str, Any]] = None,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """Parse unstructured documents (PDF, DOCX, images, …) from a stage into
+        a structured :class:`DataFrame`.
+
+        Output columns depend on ``split_by_page``:
+
+        * **split_by_page=True** (default) — one row per page:
+          ``SOURCE_FILE``, ``PAGE_INDEX``, ``TOTAL_PAGES``, ``PAGE_TEXT``,
+          one column per *schema* field, ``CONFIDENCE``
+        * **split_by_page=False** — one row per document:
+          ``SOURCE_FILE``, ``TOTAL_PAGES``, ``DOC_TEXT``,
+          one column per *schema* field, ``CONFIDENCE``
+
+        Options (set via :meth:`option`):
+
+        * ``document_mode``   — ``"layout"`` (default) | ``"ocr"`` | ``"text"``
+
+          * ``"layout"``  uses ``AI_PARSE_DOCUMENT(mode=>'LAYOUT')`` — structure-aware
+            (markdown tables, headings, figure refs).  Best for complex PDFs.
+          * ``"ocr"``     uses ``AI_PARSE_DOCUMENT(mode=>'OCR')`` — fast plain-text
+            extraction, ~35× faster than layout.  Best for simple single-column docs.
+          * ``"text"``    uses ``pdfminer`` client-side (eager, no Snowflake AI cost).
+            Best for born-digital PDFs where deterministic extraction suffices and
+            you want to run the schema extraction later or separately.
+
+        * ``split_by_page``   — ``True`` (default) | ``False``.
+          When ``False``, all pages of a document are concatenated and extraction
+          runs at document level.  Use when schema fields span multiple pages
+          (e.g. contract start date on page 1, termination clause on page 3).
+        * ``model``           — AI model for schema extraction (default: ``"claude-4-sonnet"``).
+          Only applies when *schema* is provided.
+        * ``prompt``          — Optional free-text guidance injected into the extraction
+          prompt alongside the schema field descriptions.
+
+        Args:
+            path: Stage location — a single file (``@stage/a.pdf``) or a prefix
+                (``@stage/contracts/``).  Must start with ``@`` or ``snow://``.
+            schema: Optional extraction schema in Snowflake ``AI_COMPLETE``
+                ``response_format`` shape::
+
+                    {
+                        "type": "json",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "vendor_name": {"type": "string"},
+                                "start_date":  {"type": "string",
+                                                "description": "YYYY-MM-DD"},
+                                ...
+                            }
+                        }
+                    }
+
+                When provided, one column is added per property.  A ``confidence``
+                property is injected automatically if absent.  When *schema* is
+                ``None`` the DataFrame contains only the fixed provenance/text columns.
+
+        Returns:
+            :class:`DataFrame` with one row per page.
+
+        Example::
+
+            invoice_schema = {
+                "type": "json",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "vendor_name":  {"type": "string"},
+                        "total_amount": {"type": "string",
+                                         "description": "number only"},
+                    },
+                },
+            }
+
+            df = (session.read
+                    .option("document_mode", "layout")
+                    .option("model",         "claude-4-sonnet")
+                    .option("prompt",        "Focus on financial terms")
+                    .documents("@my_stage/invoices/", schema=invoice_schema))
+
+        .. note::
+            ``document_mode="text"`` triggers *eager* client-side PDF extraction via
+            ``pdfminer`` and requires ``pdfminer.six`` to be installed.  The other
+            modes are lazy (pure Snowflake SQL plan).
+
+        .. note::
+            ``AI_PARSE_DOCUMENT`` is subject to Snowflake's Cortex AI usage limits.
+            Use ``document_mode="ocr"`` or ``document_mode="text"`` for high-volume
+            pipelines where cost matters more than layout fidelity.
+        """
+        path = _validate_stage_path(path)
+
+        document_mode = str(self._cur_options.get("DOCUMENT_MODE", "layout")).lower()
+        model = str(self._cur_options.get("MODEL", "claude-4-sonnet"))
+        prompt = str(self._cur_options.get("PROMPT", ""))
+        split_by_page = (
+            str(self._cur_options.get("SPLIT_BY_PAGE", "true")).lower() != "false"
+        )
+        extract_images = (
+            str(self._cur_options.get("EXTRACT_IMAGES", "false")).lower() == "true"
+        )
+
+        if document_mode == "text":
+            return self._documents_text_mode(path, schema, model, prompt, split_by_page)
+        else:
+            parse_mode = "OCR" if document_mode == "ocr" else "LAYOUT"
+            return self._documents_ai_mode(
+                path, schema, model, prompt, parse_mode, split_by_page, extract_images
+            )
+
+    # -- extension routing ---------------------------------------------------
+
+    # page_split=True is supported only for these formats (Snowflake constraint).
+    _DOCS_PAGE_SPLIT_EXTS = frozenset({".pdf", ".pptx", ".docx"})
+
+    # All formats AI_PARSE_DOCUMENT accepts.
+    _DOCS_AI_PARSE_EXTS = frozenset(
+        {
+            ".pdf",
+            ".png",
+            ".pptx",
+            ".ppt",
+            ".eml",
+            ".doc",
+            ".docx",
+            ".jpeg",
+            ".jpg",
+            ".htm",
+            ".html",
+            ".text",
+            ".txt",
+            ".tif",
+            ".tiff",
+            ".bmp",
+            ".gif",
+            ".webp",
+            ".md",
+        }
+    )
+
+    # Formats handled by text-mode (pdfminer / python-docx / direct read).
+    _DOCS_TEXT_MODE_EXTS = frozenset(
+        {
+            ".pdf",
+            ".docx",
+            ".doc",
+            ".txt",
+            ".text",
+            ".md",
+            ".html",
+            ".htm",
+        }
+    )
+
+    # -- helpers -------------------------------------------------------------
+
+    def _documents_build_response_format(
+        self, schema: Optional[Dict[str, Any]], split_by_page: bool = True
+    ) -> Optional[Dict[str, Any]]:
+        """Clone schema and inject a numeric confidence field if absent."""
+        if schema is None:
+            return None
+        import copy
+
+        fmt = copy.deepcopy(schema)
+        props: Dict = (
+            fmt["schema"]["properties"]
+            if "schema" in fmt and "properties" in fmt["schema"]
+            else fmt.get("properties", {})
+        )
+        if "confidence" not in props:
+            scope = "this page" if split_by_page else "this document"
+            props["confidence"] = {
+                "type": "number",
+                "description": (
+                    f"0.0 to 1.0 — how completely the above fields could be "
+                    f"extracted from {scope}"
+                ),
+            }
+        return fmt
+
+    def _documents_build_prompt(
+        self,
+        schema: Optional[Dict[str, Any]],
+        user_prompt: str,
+        split_by_page: bool = True,
+    ) -> str:
+        """Build the extraction prompt from schema field descriptions."""
+        scope = "this document page" if split_by_page else "this document"
+        lines = [
+            f"Extract the following fields from {scope}.",
+            "Write null for fields not present.",
+        ]
+        if schema is not None:
+            props: Dict = (
+                schema["schema"]["properties"]
+                if "schema" in schema and "properties" in schema["schema"]
+                else schema.get("properties", {})
+            )
+            for field, defn in props.items():
+                if field == "confidence":
+                    continue
+                desc = defn.get("description", f"Extract {field}")
+                lines.append(f"- {field}: {desc}")
+        if user_prompt:
+            lines.append(f"\nAdditional guidance: {user_prompt}")
+        lines.append("\nPAGE CONTENT:\n")
+        return "\n".join(lines)
+
+    def _documents_schema_columns(self, schema: Optional[Dict[str, Any]]) -> List:
+        """Return select expressions for each schema field + confidence."""
+        if schema is None:
+            return []
+        props: Dict = (
+            schema["schema"]["properties"]
+            if "schema" in schema and "properties" in schema["schema"]
+            else schema.get("properties", {})
+        )
+        cols = [
+            col("_EXTRACTED_JSON")[k].cast("string").alias(k.upper())
+            for k in props
+            if k != "confidence"
+        ]
+        cols.append(
+            col("_EXTRACTED_JSON")["confidence"].cast("float").alias("CONFIDENCE")
+        )
+        return cols
+
+    def _documents_ai_mode(
+        self,
+        path: str,
+        schema: Optional[Dict[str, Any]],
+        model: str,
+        user_prompt: str,
+        parse_mode: str,  # "OCR" or "LAYOUT"
+        split_by_page: bool = True,
+        extract_images: bool = False,
+    ) -> DataFrame:
+        """Server-side path: AI_PARSE_DOCUMENT → normalize to per-page rows → AI_COMPLETE.
+
+        File-type routing:
+          PDF / DOCX / PPTX  — page_split=True supported → one row per page
+          TXT / HTML / MD / images — page_split not supported → one row per document
+              (treated as PAGE_INDEX=0, TOTAL_PAGES=1)
+
+        extract_images=True (LAYOUT mode only) — adds IMAGES_JSON column containing
+          the ``images`` array from AI_PARSE_DOCUMENT with base64-encoded figure crops.
+        """
+        from snowflake.snowpark.functions import listagg, lower as sf_lower
+
+        flatten = table_function("flatten")
+
+        # FILE type cannot be cast to string — get string SOURCE_FILE from LIST.
+        all_files = self._session.sql(f"LIST {path}").select(
+            concat(lit("@"), col('"name"')).alias("_source_file"),
+            to_file(concat(lit("@"), col('"name"'))).alias("FILE"),
+        )
+
+        # Partition by whether the format supports page_split.
+        # page_split=True: PDF, DOCX, PPTX  — returns {"pages": [...]}
+        # page_split=False: TXT, HTML, MD, images — returns {"content": "..."}
+        def _ends_with_any(exts):
+            """Build OR filter for a set of extensions."""
+            from functools import reduce
+            from snowflake.snowpark.functions import col as _col
+
+            conds = [sf_lower(_col("_source_file")).endswith(ext) for ext in exts]
+            return reduce(lambda a, b: a | b, conds)
+
+        page_split_files = all_files.filter(_ends_with_any(self._DOCS_PAGE_SPLIT_EXTS))
+        flat_files = all_files.filter(
+            ~_ends_with_any(self._DOCS_PAGE_SPLIT_EXTS)
+            & _ends_with_any(self._DOCS_AI_PARSE_EXTS)
+        )
+
+        parse_kwargs: Dict[str, Any] = {"mode": parse_mode}
+        if extract_images and parse_mode == "LAYOUT":
+            parse_kwargs["extract_images"] = True
+
+        parts = []
+
+        # ── page-splittable formats (PDF / DOCX / PPTX) ──────────────────
+        paged_parsed = page_split_files.ai.parse_document(
+            "FILE", output_column="_parsed_json", page_split=True, **parse_kwargs
+        ).drop("FILE")
+        paged_rows = (
+            paged_parsed.join_table_function(
+                flatten(parse_json(col("_PARSED_JSON")["pages"]))
+            ).select(
+                col("_source_file").alias("SOURCE_FILE"),
+                col("VALUE")["index"].cast("int").alias("PAGE_INDEX"),
+                parse_json(col("_PARSED_JSON")["metadata"])["pageCount"]
+                .cast("int")
+                .alias("TOTAL_PAGES"),
+                col("VALUE")["content"].cast("string").alias("PAGE_TEXT"),
+                *(
+                    [col("_PARSED_JSON")["images"].alias("IMAGES_JSON")]
+                    if extract_images
+                    else []
+                ),
+            )
+            # Materialize BEFORE union: two ai_parse_document calls sharing a CTE in a
+            # single UNION ALL SQL causes Snowflake to drop rows from one branch.
+            # cache_result() forces each path to execute independently as a temp table.
+            .cache_result()
+        )
+        parts.append(paged_rows)
+
+        # ── non-page-split formats (TXT / HTML / MD / images) ────────────
+        flat_parsed = flat_files.ai.parse_document(
+            "FILE", output_column="_parsed_json", **parse_kwargs
+        ).drop("FILE")
+        flat_rows = flat_parsed.select(
+            col("_source_file").alias("SOURCE_FILE"),
+            lit(0).cast("int").alias("PAGE_INDEX"),
+            lit(1).cast("int").alias("TOTAL_PAGES"),
+            col("_PARSED_JSON")["content"].cast("string").alias("PAGE_TEXT"),
+            *(
+                [col("_PARSED_JSON")["images"].alias("IMAGES_JSON")]
+                if extract_images
+                else []
+            ),
+        ).cache_result()  # see note on paged_rows above
+        parts.append(flat_rows)
+
+        pages_df = parts[0].union_all(parts[1]).cache_result()
+
+        # ── split_by_page=False: aggregate per document ───────────────────
+        if not split_by_page:
+            from snowflake.snowpark.functions import max as sf_max
+
+            agg_cols = [
+                sf_max("TOTAL_PAGES").alias("TOTAL_PAGES"),
+                listagg(col("PAGE_TEXT"), "\n\n---\n\n")
+                .within_group(col("PAGE_INDEX").asc())
+                .alias("DOC_TEXT"),
+            ]
+            doc_df = pages_df.group_by("SOURCE_FILE").agg(*agg_cols)
+            if schema is None:
+                return doc_df
+            extraction_prompt = self._documents_build_prompt(schema, user_prompt, False)
+            response_format = self._documents_build_response_format(schema, False)
+            extracted_df = doc_df.with_column(
+                "_EXTRACTED_JSON",
+                ai_complete(
+                    model,
+                    concat(lit(extraction_prompt), col("DOC_TEXT")),
+                    response_format=response_format,
+                ),
+            )
+            return extracted_df.select(
+                "SOURCE_FILE",
+                "TOTAL_PAGES",
+                "DOC_TEXT",
+                *self._documents_schema_columns(schema),
+            )
+
+        # ── split_by_page=True (default) ──────────────────────────────────
+        if schema is None:
+            return pages_df
+
+        extraction_prompt = self._documents_build_prompt(schema, user_prompt, True)
+        response_format = self._documents_build_response_format(schema, True)
+        extracted_df = pages_df.with_column(
+            "_EXTRACTED_JSON",
+            ai_complete(
+                model,
+                concat(lit(extraction_prompt), col("PAGE_TEXT")),
+                response_format=response_format,
+            ),
+        )
+        base_cols = ["SOURCE_FILE", "PAGE_INDEX", "TOTAL_PAGES", "PAGE_TEXT"]
+        if extract_images:
+            base_cols.append("IMAGES_JSON")
+        return extracted_df.select(*base_cols, *self._documents_schema_columns(schema))
+
+    # How many lines of a TXT/MD file constitute one "page" in text mode.
+    _DOCS_TEXT_LINES_PER_PAGE = 100
+
+    def _documents_extract_pdf_pages(self, local_path: str):
+        """Extract (page_idx, total_pages, text) tuples from a PDF via pdfminer."""
+        from pdfminer.high_level import extract_pages
+        from pdfminer.layout import LTTextContainer
+
+        all_pages = list(extract_pages(local_path))
+        total = len(all_pages)
+        for page_layout in all_pages:
+            parts = [
+                el.get_text() for el in page_layout if isinstance(el, LTTextContainer)
+            ]
+            yield page_layout.pageid - 1, total, "".join(parts).strip()
+
+    def _documents_extract_docx_pages(self, local_path: str, split_by_page: bool):
+        """Extract sections from a DOCX via python-docx.
+
+        Mimics Unstructured's partition_docx: groups paragraphs between headings.
+        Each heading-delimited section becomes one "page" (split_by_page=True),
+        or the whole doc is one unit (split_by_page=False).
+        """
+        try:
+            import docx
+        except ImportError:
+            raise ImportError(
+                "Parsing DOCX in text mode requires python-docx. "
+                "Install it with: pip install python-docx"
+            )
+        doc = docx.Document(local_path)
+        if not split_by_page:
+            text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            yield 0, 1, text
+            return
+
+        # Group by headings — each section becomes one page (like Unstructured chunk_by_title)
+        sections: list = []
+        current: list = []
+        for para in doc.paragraphs:
+            if not para.text.strip():
+                continue
+            if para.style.name.startswith("Heading"):
+                if current:
+                    sections.append("\n".join(current))
+                current = [para.text]
+            else:
+                current.append(para.text)
+        if current:
+            sections.append("\n".join(current))
+        total = len(sections) or 1
+        for i, section_text in enumerate(sections):
+            yield i, total, section_text
+
+    def _documents_extract_text_pages(self, local_path: str, split_by_page: bool):
+        """Extract text from TXT / MD files, splitting every N lines."""
+        with open(local_path, encoding="utf-8", errors="replace") as fh:
+            all_lines = fh.readlines()
+        if not split_by_page:
+            yield 0, 1, "".join(all_lines).strip()
+            return
+        n = self._DOCS_TEXT_LINES_PER_PAGE
+        chunks = [all_lines[i : i + n] for i in range(0, max(len(all_lines), 1), n)]
+        total = len(chunks)
+        for i, chunk in enumerate(chunks):
+            yield i, total, "".join(chunk).strip()
+
+    def _documents_text_mode(
+        self,
+        path: str,
+        schema: Optional[Dict[str, Any]],
+        model: str,
+        user_prompt: str,
+        split_by_page: bool = True,
+    ) -> DataFrame:
+        """Client-side extraction → in-memory DataFrame → AI_COMPLETE.
+
+        Format routing (mirrors Unstructured's per-type partitioners):
+          PDF   → pdfminer  (requires ``pdfminer.six``)
+          DOCX  → python-docx, split by headings  (requires ``python-docx``)
+          TXT / MD → direct read, split every 100 lines
+
+        This mode is *eager* — files are downloaded locally and processed before
+        a Snowpark DataFrame is created from the results.
+        """
+        import tempfile
+
+        rows = []
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Download all supported file types in one GET call per extension group.
+            # pdfminer.six needed for PDF; python-docx for DOCX; built-in for TXT/MD.
+            get_results = self._session.file.get(
+                path,
+                tmpdir,
+                pattern=r".*\.(pdf|docx|doc|txt|text|md)$",
+            )
+            for gr in get_results:
+                local_path = os.path.join(tmpdir, gr.file)
+                ext = os.path.splitext(gr.file)[1].lower()
+                source_file = (
+                    f"{path.rstrip('/')}/{gr.file}"
+                    if not path.endswith(gr.file)
+                    else path
+                )
+                try:
+                    if ext == ".pdf":
+                        pages = list(self._documents_extract_pdf_pages(local_path))
+                    elif ext in (".docx", ".doc"):
+                        pages = list(
+                            self._documents_extract_docx_pages(
+                                local_path, split_by_page
+                            )
+                        )
+                    elif ext in (".txt", ".text", ".md"):
+                        pages = list(
+                            self._documents_extract_text_pages(
+                                local_path, split_by_page
+                            )
+                        )
+                    else:
+                        continue
+                except Exception:
+                    continue
+                for page_idx, total_pages, page_text in pages:
+                    rows.append((source_file, page_idx, total_pages, page_text))
+
+        if not rows:
+            empty_schema = StructType(
+                [
+                    StructField("SOURCE_FILE", StringType()),
+                    StructField("PAGE_INDEX", StringType()),
+                    StructField("TOTAL_PAGES", StringType()),
+                    StructField("PAGE_TEXT", StringType()),
+                ]
+            )
+            return self._session.create_dataframe([], schema=empty_schema)
+
+        pages_df = self._session.create_dataframe(
+            rows,
+            schema=["SOURCE_FILE", "PAGE_INDEX", "TOTAL_PAGES", "PAGE_TEXT"],
+        ).cache_result()
+
+        if not split_by_page:
+            # Aggregate rows to one-row-per-doc before returning / extracting.
+            from snowflake.snowpark.functions import max as sf_max, listagg
+
+            doc_df = pages_df.group_by("SOURCE_FILE").agg(
+                sf_max("TOTAL_PAGES").alias("TOTAL_PAGES"),
+                listagg(col("PAGE_TEXT"), "\n\n---\n\n")
+                .within_group(col("PAGE_INDEX").asc())
+                .alias("DOC_TEXT"),
+            )
+            if schema is None:
+                return doc_df
+
+            extraction_prompt = self._documents_build_prompt(
+                schema, user_prompt, split_by_page=False
+            )
+            response_format = self._documents_build_response_format(
+                schema, split_by_page=False
+            )
+            extracted_df = doc_df.with_column(
+                "_EXTRACTED_JSON",
+                ai_complete(
+                    model,
+                    concat(lit(extraction_prompt), col("DOC_TEXT")),
+                    response_format=response_format,
+                ),
+            )
+            schema_cols = self._documents_schema_columns(schema)
+            return extracted_df.select(
+                "SOURCE_FILE", "TOTAL_PAGES", "DOC_TEXT", *schema_cols
+            )
+
+        if schema is None:
+            return pages_df
+
+        extraction_prompt = self._documents_build_prompt(
+            schema, user_prompt, split_by_page=True
+        )
+        response_format = self._documents_build_response_format(
+            schema, split_by_page=True
+        )
+        extracted_df = pages_df.with_column(
+            "_EXTRACTED_JSON",
+            ai_complete(
+                model,
+                concat(lit(extraction_prompt), col("PAGE_TEXT")),
+                response_format=response_format,
+            ),
+        )
+        schema_cols = self._documents_schema_columns(schema)
+        return extracted_df.select(
+            "SOURCE_FILE",
+            "PAGE_INDEX",
+            "TOTAL_PAGES",
+            "PAGE_TEXT",
+            *schema_cols,
+        )
