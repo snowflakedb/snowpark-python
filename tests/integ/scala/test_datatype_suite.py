@@ -14,7 +14,6 @@ from unittest import mock
 import snowflake.snowpark.context as context
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.utils import pandas_major_version
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
@@ -505,6 +504,11 @@ def test_structured_dtypes_select(
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
 def test_structured_dtypes_pandas(structured_type_session, structured_type_support):
+    # Not imported from _internal.utils: stored procs run the server's released snowpark.
+    import pandas
+
+    pandas_major_version = int(pandas.__version__.split(".")[0])
+
     pdf = _create_test_dataframe(
         structured_type_session, structured_type_support
     ).to_pandas()

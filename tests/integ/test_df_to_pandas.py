@@ -27,7 +27,7 @@ import math
 import pytest
 from unittest import mock
 
-from snowflake.snowpark._internal.utils import TempObjectType, pandas_major_version
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.session import write_pandas, WRITE_PANDAS_CHUNK_SIZE
 from snowflake.snowpark.functions import col, div0, round, to_timestamp
 from snowflake.snowpark.types import (
@@ -52,6 +52,9 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 from tests.utils import IS_IN_STORED_PROC, Utils
+
+# Not imported from _internal.utils: stored procs run the server's released snowpark.
+pandas_major_version = int(pd.__version__.split(".")[0])
 
 
 def test_to_pandas_new_df_from_range(session):
