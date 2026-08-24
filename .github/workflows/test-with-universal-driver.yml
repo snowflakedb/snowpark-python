@@ -1,0 +1,148 @@
+name: Run UD tests (manual)
+
+on:
+  #  TODO: remove when sure its passing - to be kept as manually run
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      universal_driver_ref:
+        description: 'universal-driver branch/tag/SHA'
+        required: false
+        default: 'main'
+        type: string
+      python-version:
+        description: 'Python version'
+        required: false
+        default: '3.10'
+        type: choice
+        options:
+          - '3.10'
+          - '3.11'
+          - '3.12'
+          - '3.13'
+      cloud-provider:
+        description: 'Cloud provider'
+        required: false
+        default: 'aws'
+        type: choice
+        options:
+          - 'aws'
+          - 'azure'
+          - 'gcp'
+
+permissions:
+  contents: read
+
+jobs:
+  build-universal-driver:
+    name: Build UD wheel (${{ inputs.universal_driver_ref || 'main' }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Checkout universal-driver ref
+        if: ${{ inputs.universal_driver_ref != '' && inputs.universal_driver_ref != 'main' }}
+        run: |
+          git -C universal-driver fetch origin
+          git -C universal-driver checkout origin/${{ inputs.universal_driver_ref }}
+
+      - name: Install Rust 1.89.0
+        run: |
+          rustup toolchain install 1.89.0 --component clippy,rustfmt --profile minimal
+          rustup default 1.89.0
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            universal-driver/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('universal-driver/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version || '3.10' }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Build UD wheel
+        working-directory: universal-driver/python
+        run: |
+          uv run --with hatch --with cython --with setuptools \
+            --with "virtualenv<21.0.0" hatch build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: universal-driver-wheel
+          path: universal-driver/python/dist/*.whl
+
+  test:
+    name: UD Test py${{ inputs.python-version || '3.10' }}-${{ inputs.cloud-provider || 'aws' }} (${{ inputs.universal_driver_ref || 'main' }})
+    needs: build-universal-driver
+    runs-on: ubuntu-latest-64-cores
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version || '3.10' }}
+
+      - run: python -c "import sys; print(sys.version)"
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Decrypt parameters.py
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: ${{ inputs.cloud-provider || 'aws' }}
+
+      - name: Install protoc
+        run: .github/scripts/install_protoc.sh
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: universal-driver-wheel
+          path: ud-dist
+
+      - name: Resolve UD wheel path
+        id: ud-wheel
+        run: |
+          WHEEL=$(ls ud-dist/*.whl | head -1)
+          echo "path=${WHEEL}" >> "$GITHUB_OUTPUT"
+          echo "Using UD wheel: ${WHEEL}"
+
+      - name: Install tox
+        run: uv pip install tox --system
+
+      - name: Install MS ODBC Driver
+        run: |
+          curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+          curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list \
+            | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+
+      - name: Run integration tests
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        env:
+          PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
+          cloud_provider: ${{ inputs.cloud-provider || 'aws' }}
+          ud_connector_path: ${{ steps.ud-wheel.outputs.path }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+
+      - name: Run datasource tests
+        run: python -m tox -e datasource
+        env:
+          PYTHON_VERSION: ${{ inputs.python-version || '3.10' }}
+          cloud_provider: ${{ inputs.cloud-provider || 'aws' }}
+          ud_connector_path: ${{ steps.ud-wheel.outputs.path }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
