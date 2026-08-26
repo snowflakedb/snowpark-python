@@ -8,6 +8,26 @@
 
 - Added interval type support for Python UDFs and stored procedures. Use `datetime.timedelta` as the type annotation for day-time interval (`DayTimeIntervalType`) parameters and return values, and `YearMonthInterval` (a type annotation sentinel from `snowflake.snowpark.types`) for year-month interval (`YearMonthIntervalType`) parameters and return values.
 
+#### Dependency Updates
+
+- Added support for pandas 3, lifting the `pandas<3.0.0` cap added to the `[pandas]` extra in 1.53.0. `snowflake-snowpark-python[pandas]` now declares its own `pandas<4.0.0` and `pyarrow` requirements instead of depending on `snowflake-connector-python[pandas]`. pandas 2 remains fully supported. Upgrading Snowpark does not upgrade an existing pandas 2 install:
+  - pandas 3 requires Python 3.11 or later, so Python 3.10 environments continue to resolve pandas 2.
+  - `snowflake-snowpark-python[modin]` continues to resolve pandas 2, because the `[modin]` extra declares `pandas<=2.4`.
+
+#### Behavior Changes
+
+- On pandas 3, `DataFrame.to_pandas()` and `DataFrame.to_pandas_batches()` return text columns as the `str` dtype instead of `object`, so a SQL NULL in them arrives as `nan` instead of `None`. Test for NULL with `pandas.isna(value)`, not `value is None`. This also covers `VARIANT`, `OBJECT`, `ARRAY`, `MAP` and the geospatial types, and the `future.infer_string` option does not opt out of it.
+
+#### Bug Fixes
+
+- Fixed a bug where `Session.write_pandas`, `Session.write_arrow`, and `Session.create_dataframe` stored a `timedelta` at the column's own resolution instead of nanoseconds, so a microsecond column was written 1000 times too small. Duration columns are now converted to nanoseconds first. pandas 2 was affected too, and rows written by an earlier release need correcting.
+- Fixed a local testing bug where a SQL NULL became `nan` instead of `None` after a column was rebuilt through pandas, so `IS NULL` evaluated to `False` and `strict=True` UDF handlers received `nan`. This affected `parse_json`, `to_char`, `concat`, `concat_ws`, `strip_null_value`, `initcap`, `greatest`, `least`, and VARIANT/OBJECT/ARRAY/MAP subfield access, on pandas 2 as well as pandas 3.
+- The following local testing bugs appeared only when running with pandas 3:
+  - Fixed a bug where `ORDER BY` treated SQL NULL as `nan`.
+  - Fixed a bug where columns omitted from a MERGE insert kept `nan` instead of NULL under Copy-on-Write.
+  - Fixed a bug where `group_by` and `pivot` results lost their column and index names.
+  - Fixed a bug where `create_dataframe` raised `TypeError` for `VARIANT` columns.
+
 ## 1.54.0 (2026-07-29)
 
 ### Snowpark Python API updates

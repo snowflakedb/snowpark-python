@@ -3234,6 +3234,29 @@ class Session:
                 self._session_stage = full_qualified_stage_name
         return f"{STAGE_PREFIX}{self._session_stage}"
 
+    @staticmethod
+    def _normalize_arrow_duration_to_ns(table: "pyarrow.Table") -> "pyarrow.Table":
+        # Snowflake stores duration as an integer with no unit. Cast to ns
+        # so a us column is not written 1000x too small.
+        arrays = []
+        fields = []
+        changed = False
+        for i in range(table.num_columns):
+            field = table.schema.field(i)
+            column = table.column(i)
+            if pyarrow.types.is_duration(field.type) and field.type.unit != "ns":
+                column = column.cast(pyarrow.duration("ns"))
+                field = field.with_type(pyarrow.duration("ns"))
+                changed = True
+            arrays.append(column)
+            fields.append(field)
+        if not changed:
+            return table
+        # Carry the original schema metadata over: pyarrow.schema() drops it otherwise.
+        return pyarrow.Table.from_arrays(
+            arrays, schema=pyarrow.schema(fields, metadata=table.schema.metadata)
+        )
+
     @experimental(version="1.28.0")
     @publicapi
     def write_arrow(
@@ -3295,6 +3318,7 @@ class Session:
                 set use_logical_type as True. Set to None to use Snowflakes default. For more information, see:
                 https://docs.snowflake.com/en/sql-reference/sql/create-file-format
         """
+        table = self._normalize_arrow_duration_to_ns(table)
         cursor = self._conn._conn.cursor()
 
         if quote_identifiers:
@@ -3610,6 +3634,19 @@ class Session:
                     # TODO: Implement here write_pandas correctly.
                     success, ci_output = True, []
                 else:
+                    # write_pandas stores timedelta as a NUMBER of ticks with
+                    # no unit. Normalize to ns so pandas 3's us default does
+                    # not shrink values 1000x versus existing tables.
+                    timedelta_columns = [
+                        td_col
+                        for td_col in df.columns
+                        if pandas.api.types.is_timedelta64_dtype(df[td_col].dtype)
+                        and str(df[td_col].dtype) != "timedelta64[ns]"
+                    ]
+                    if timedelta_columns:
+                        df = df.copy(deep=False)
+                        for td_col in timedelta_columns:
+                            df[td_col] = df[td_col].astype("timedelta64[ns]")
                     success, _, _, ci_output = write_pandas(
                         self._conn._conn,
                         df,
