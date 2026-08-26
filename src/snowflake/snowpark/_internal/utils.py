@@ -1937,12 +1937,6 @@ def get_sorted_key_for_version(version_str):
     )
 
 
-# Use this for pandas 2 vs 3 branches instead of parsing __version__ inline.
-pandas_major_version = (
-    get_sorted_key_for_version(str(pandas.__version__))[0] if installed_pandas else 0
-)
-
-
 def ttl_cache(ttl_seconds: float):
     """
     A decorator that caches function results with a time-to-live (TTL) expiration.
