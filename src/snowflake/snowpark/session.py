@@ -3252,7 +3252,10 @@ class Session:
             fields.append(field)
         if not changed:
             return table
-        return pyarrow.Table.from_arrays(arrays, schema=pyarrow.schema(fields))
+        # Carry the original schema metadata over: pyarrow.schema() drops it otherwise.
+        return pyarrow.Table.from_arrays(
+            arrays, schema=pyarrow.schema(fields, metadata=table.schema.metadata)
+        )
 
     @experimental(version="1.28.0")
     @publicapi
