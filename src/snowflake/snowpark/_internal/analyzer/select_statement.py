@@ -592,8 +592,10 @@ class SelectableEntity(Selectable):
         self._attributes: Optional[List[Attribute]] = None
         self.table_reference = self.entity.name
         if self.entity.iceberg_changes_config is not None:
-            self.table_reference += (
-                self.entity.iceberg_changes_config.generate_sql_clause()
+            self.table_reference = (
+                self.entity.iceberg_changes_config.generate_table_reference(
+                    self.entity.name
+                )
             )
         elif self.entity.time_travel_config is not None:
             self.table_reference += self.entity.time_travel_config.generate_sql_clause()

@@ -1194,19 +1194,27 @@ def test_extract_time_travel_version_tag_option():
         )
 
 
-def test_iceberg_changes_config_generate_sql_with_end():
+def test_iceberg_changes_config_generate_table_reference_with_end():
     config = IcebergChangesConfig(start_version=111, end_version=222)
     assert (
-        config.generate_sql_clause()
-        == " CHANGES (INFORMATION => APPEND_ONLY) AT (VERSION => 111) END (VERSION => 222)"
+        config.generate_table_reference("db.schema.t")
+        == "TABLE(SPARK_INCREMENTAL_READ('db.schema.t', 111, 222))"
     )
 
 
-def test_iceberg_changes_config_generate_sql_without_end():
+def test_iceberg_changes_config_generate_table_reference_without_end():
     config = IcebergChangesConfig(start_version=111)
     assert (
-        config.generate_sql_clause()
-        == " CHANGES (INFORMATION => APPEND_ONLY) AT (VERSION => 111)"
+        config.generate_table_reference("db.schema.t")
+        == "TABLE(SPARK_INCREMENTAL_READ('db.schema.t', 111))"
+    )
+
+
+def test_iceberg_changes_config_generate_table_reference_escapes_table_name():
+    config = IcebergChangesConfig(start_version=1, end_version=2)
+    assert (
+        config.generate_table_reference("db.schema.t'inject")
+        == "TABLE(SPARK_INCREMENTAL_READ('db.schema.t''inject', 1, 2))"
     )
 
 
