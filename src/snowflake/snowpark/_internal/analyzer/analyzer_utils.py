@@ -345,9 +345,20 @@ def iceberg_table_properties_clause(iceberg_config: Optional[dict]) -> str:
     table_properties = normalized.get("table_properties")
     if not table_properties:
         return EMPTY_STRING
+
+    # Always quote and double embedded quotes here rather than reusing
+    # ``single_quote``: that helper skips escaping when the value merely starts
+    # and ends with a quote, which would let a crafted property value inject
+    # extra SQL into the clause (e.g. "'x', 'injected'='surprise'").
+    def _escape(value: object) -> str:
+        return (
+            SINGLE_QUOTE
+            + str(value).replace(SINGLE_QUOTE, SINGLE_QUOTE * 2)
+            + SINGLE_QUOTE
+        )
+
     pairs = COMMA.join(
-        f"{single_quote(str(k))}={single_quote(str(v))}"
-        for k, v in table_properties.items()
+        f"{_escape(k)}={_escape(v)}" for k, v in table_properties.items()
     )
     return (
         SPACE + TABLE_PROPERTIES + EQUALS + LEFT_PARENTHESIS + pairs + RIGHT_PARENTHESIS

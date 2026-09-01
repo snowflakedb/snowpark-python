@@ -522,6 +522,20 @@ def test_iceberg_table_properties_clause():
         == "  TABLE_PROPERTIES = ('a'='b')"
     )
 
+    # Values/keys cannot inject additional SQL: a crafted value that starts and
+    # ends with a quote is still fully escaped into a single literal (it must
+    # not add a second property to the clause).
+    assert (
+        iceberg_table_properties_clause(
+            {"table_properties": {"k": "'x', 'injected'='surprise'"}}
+        )
+        == "  TABLE_PROPERTIES = ('k'='''x'', ''injected''=''surprise''')"
+    )
+    assert (
+        iceberg_table_properties_clause({"table_properties": {"k')=(": "v"}})
+        == "  TABLE_PROPERTIES = ('k'')=('='v')"
+    )
+
 
 def test_create_iceberg_table_statement_with_table_properties():
     assert create_table_statement(
