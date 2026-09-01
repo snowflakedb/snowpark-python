@@ -1218,6 +1218,15 @@ def test_iceberg_changes_config_generate_table_reference_escapes_table_name():
     )
 
 
+def test_iceberg_changes_config_generate_table_reference_unqualified_name():
+    """Unqualified names are passed through as a VARCHAR arg; Snowflake resolves them."""
+    config = IcebergChangesConfig(start_version=111)
+    assert (
+        config.generate_table_reference("my_table")
+        == "TABLE(SPARK_INCREMENTAL_READ('my_table', 111))"
+    )
+
+
 def test_iceberg_changes_config_validate_requires_start():
     with pytest.raises(ValueError, match="requires 'start-snapshot-id'"):
         IcebergChangesConfig.validate_and_normalize_params(end_snapshot_id=42)

@@ -2326,7 +2326,17 @@ class IcebergChangesConfig(NamedTuple):
         )
 
     def generate_table_reference(self, table_name: str) -> str:
-        """Return a ``TABLE(SPARK_INCREMENTAL_READ(...))`` source for *table_name*."""
+        """Return a ``TABLE(SPARK_INCREMENTAL_READ(...))`` source for *table_name*.
+
+        ``SPARK_INCREMENTAL_READ`` takes the table as its first **VARCHAR**
+        argument (not a SQL identifier), so we quote *table_name* with
+        :func:`~snowflake.snowpark._internal.analyzer.datatype_mapper.str_to_sql`.
+        The string is passed through unchanged from the Spark read path
+        (``session.table(...)`` / ``DataFrameReader.load(...)``); callers that
+        need a catalog-linked or multi-part name should supply the same FQN
+        they would use in a ``CHANGES`` read (e.g. ``db.schema.table``).
+        Snowflake resolves partial names inside the TVF using session context.
+        """
         from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 
         args = f"{str_to_sql(table_name)}, {self.start_version}"
