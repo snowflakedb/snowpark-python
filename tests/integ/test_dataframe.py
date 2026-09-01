@@ -551,8 +551,9 @@ def test_select_table_function(session):
 )
 def test_generator_table_function(session):
     # works with rowcount
-    # seq1() is a non-deterministic global sequence — exact values vary across environments.
-    # Verify structure: 3 rows, uniform column deterministic with seed=2, ascending order.
+    # SEQ* is a non-deterministic global sequence: values can repeat under
+    # parallel generation (and wrap). After ORDER BY they are non-decreasing,
+    # not strictly increasing. uniform(..., seed=2) is deterministic.
     df = (
         session.generator(seq1(1), uniform(1, 10, 2), rowcount=150)
         .order_by(seq1(1))
@@ -561,10 +562,11 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row[1] == 3 for row in result)
-    assert result[0][0] < result[1][0] < result[2][0]
+    assert result[0][0] <= result[1][0] <= result[2][0]
 
     # works with timelimit
-    # seq2() is also non-deterministic — apply same structural check
+    # seq2(0) commonly yields 0 for the first rows after ORDER BY (the
+    # historical expected result was [Row(0, 3), Row(0, 3), Row(0, 3)]).
     df = (
         session.generator(seq2(0), uniform(1, 10, 2), timelimit=1)
         .order_by(seq2(0))
@@ -573,7 +575,7 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row[1] == 3 for row in result)
-    assert result[0][0] < result[1][0] < result[2][0]
+    assert result[0][0] <= result[1][0] <= result[2][0]
 
     # works with combination of both
     df = (
@@ -584,7 +586,7 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row[1] == 3 for row in result)
-    assert result[0][0] < result[1][0] < result[2][0]
+    assert result[0][0] <= result[1][0] <= result[2][0]
 
     # works without both
     df = session.generator(seq4(1), uniform(1, 10, 2))
@@ -601,7 +603,7 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row["UNICORN"] == 3 for row in result)
-    assert result[0]["PIXEL"] < result[1]["PIXEL"] < result[2]["PIXEL"]
+    assert result[0]["PIXEL"] <= result[1]["PIXEL"] <= result[2]["PIXEL"]
 
     # aggregation works
     df = session.generator(count(seq1(0)).as_("rows"), rowcount=150)
