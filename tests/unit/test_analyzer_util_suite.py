@@ -535,6 +535,14 @@ def test_iceberg_table_properties_clause():
         iceberg_table_properties_clause({"table_properties": {"k')=(": "v"}})
         == "  TABLE_PROPERTIES = ('k'')=('='v')"
     )
+    # Backslash must also be escaped: a bare backslash can escape the quote that
+    # follows and break out of the literal, so it is doubled too.
+    assert (
+        iceberg_table_properties_clause(
+            {"table_properties": {"k": r"x\') COPY GRANTS --"}}
+        )
+        == r"  TABLE_PROPERTIES = ('k'='x\\'') COPY GRANTS --')"
+    )
 
 
 def test_create_iceberg_table_statement_with_table_properties():
