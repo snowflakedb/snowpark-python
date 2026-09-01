@@ -8,7 +8,8 @@ import re
 import html.entities
 import struct
 import copy
-from typing import Optional, Dict, Any, Iterator, BinaryIO, Union, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional, Dict, Any, Iterator, BinaryIO, List, Union, Tuple
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
@@ -39,6 +40,46 @@ except ImportError:
 
 DEFAULT_CHUNK_SIZE: int = 1024
 VARIANT_COLUMN_SIZE_LIMIT: int = 16 * 1024 * 1024
+
+# Control characters used to pack multiple (file_path, start, end) work items into
+# a single worker-assignment-table row, so one UDTF invocation can scan several
+# small files instead of paying a fixed per-invocation overhead (task dispatch,
+# stage file open, parser init) once per file. Real stage paths cannot contain
+# these bytes, so the encoding is unambiguous.
+BATCH_FILE_SEP: str = "\x02"
+BATCH_FIELD_SEP: str = "\x01"
+
+# Upper bound on threads spawned to process one batched worker-assignment row's
+# files concurrently. Batches are small-file groupings assembled by the SQL
+# planner, so this only needs to cover the (small) number of files packed per
+# row -- not overall UDTF/warehouse parallelism.
+MAX_BATCH_WORKERS: int = 8
+
+# Temporary benchmarking toggle: when False, batched rows are processed
+# sequentially (pre-threadpool behavior) instead of via _process_batch_concurrently.
+# Lets us measure a clean before/after comparison without reverting this file.
+ENABLE_BATCH_THREADPOOL: bool = True
+
+
+def decode_batch_or_single(
+    filename: str, approx_start: int, approx_end: int
+) -> "list[Tuple[str, int, int]]":
+    """
+    Decode a worker-assignment row into one or more (file_path, start, end) work items.
+
+    Ordinary rows (single file, unbatched) simply pass `filename`/`approx_start`/
+    `approx_end` straight through. Batched rows encode several files' worth of
+    (path, start, end) triples into `filename` using BATCH_FILE_SEP/BATCH_FIELD_SEP;
+    `approx_start`/`approx_end` are ignored for those since every entry carries its
+    own range.
+    """
+    if BATCH_FILE_SEP not in filename:
+        return [(filename, approx_start, approx_end)]
+    entries = []
+    for entry in filename.split(BATCH_FILE_SEP):
+        fp, start, end = entry.split(BATCH_FIELD_SEP)
+        entries.append((fp, int(start), int(end)))
+    return entries
 
 
 def replace_entity(match: re.Match) -> str:
@@ -786,108 +827,92 @@ def process_xml_range(
             f.seek(record_end)
 
 
+def _process_batch_concurrently(
+    batch: "List[Tuple[str, int, int]]",
+    tag_name: str,
+    mode: str,
+    column_name_of_corrupt_record: str,
+    ignore_namespace: bool,
+    attribute_prefix: str,
+    exclude_attributes: bool,
+    value_tag: str,
+    null_value: str,
+    charset: str,
+    ignore_surrounding_whitespace: bool,
+    row_validation_xsd_path: str,
+    chunk_size: int,
+    result_template: Optional[dict],
+    schema_type: Optional[StructType],
+    is_snowpark_connect_compatible: bool,
+    skip_children: bool,
+) -> "Iterator[Tuple[str, dict, int]]":
+    """
+    Run process_xml_range() for every (file_path, start, end) entry in `batch`
+    concurrently via a thread pool, yielding (file_path, element_dict,
+    record_start_byte_pos) tuples as each file's results become available.
+
+    This is only used when a decoded batch has more than one entry (several
+    small files packed into one worker-assignment row). Each entry's
+    process_xml_range() call opens its own SnowflakeFile and spends most of its
+    time waiting on stage I/O, so running them in separate threads lets that
+    I/O-wait overlap across files instead of serializing it. The single-entry
+    (including large, byte-range-split) path never calls this function and pays
+    no thread-pool overhead.
+
+    result_template/schema_type are shared read-only across the worker threads.
+    This is safe because process_xml_range() never mutates them directly: it
+    only reads schema_type.fields (in _validate_row_for_type_mismatch, which
+    mutates the per-record `row` dict, not the schema) and passes
+    copy.deepcopy(result_template) into element_to_dict_or_str for each record,
+    so every thread/record works off its own independent copy of the template.
+
+    Row order across files within the batch is not preserved (results are
+    yielded as each file completes); this is fine because each output row is an
+    independent record and no downstream consumer relies on intra-batch
+    ordering.
+    """
+    max_workers = min(len(batch), MAX_BATCH_WORKERS)
+
+    def _run(fp: str, start: int, end: int) -> Tuple[str, list]:
+        return fp, list(
+            process_xml_range(
+                fp,
+                tag_name,
+                start,
+                end,
+                mode,
+                column_name_of_corrupt_record,
+                ignore_namespace,
+                attribute_prefix,
+                exclude_attributes,
+                value_tag,
+                null_value,
+                charset,
+                ignore_surrounding_whitespace,
+                row_validation_xsd_path=row_validation_xsd_path,
+                chunk_size=chunk_size,
+                result_template=result_template,
+                schema_type=schema_type,
+                is_snowpark_connect_compatible=is_snowpark_connect_compatible,
+                skip_children=skip_children,
+            )
+        )
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(_run, fp, start, end) for fp, start, end in batch]
+        for future in as_completed(futures):
+            fp, rows = future.result()
+            for element, pos in rows:
+                yield fp, element, pos
+
+
 class XMLReader:
     def process(
         self,
         filename: str,
-        num_workers: int,
+        approx_start: int,  # byte offset this worker starts at (pre-computed by SQL planner)
         row_tag: str,
-        i: int,
-        mode: str,
-        column_name_of_corrupt_record: str,
-        ignore_namespace: bool,
-        attribute_prefix: str,
-        exclude_attributes: bool,
-        value_tag: str,
-        null_value: str,
-        charset: str,
-        ignore_surrounding_whitespace: bool,
-        row_validation_xsd_path: str,
-        custom_schema: str,
-        is_snowpark_connect_compatible: bool,
-        chunk_size: int,
-        skip_children: bool,  # required, no default — avoids ambiguous overloading with 17-arg version
-    ):
-        """
-        Splits the file into byte ranges—one per worker—by starting with an even
-        file size division and then moving each boundary to the end of a record,
-        as indicated by the closing tag.
-
-        Args:
-            filename (str): Path to the XML file.
-            num_workers (int): Number of workers/chunks.
-            row_tag (str): The tag name that delimits records (e.g., "row").
-            i (int): The worker id.
-            mode (str): The mode for dealing with corrupt records.
-                "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
-            column_name_of_corrupt_record (str): The name of the column for corrupt records.
-            ignore_namespace (bool): Whether to strip namespaces from the XML element.
-            attribute_prefix (str): The prefix to add to the attribute names.
-            exclude_attributes (bool): Whether to exclude attributes from the XML element.
-            value_tag (str): The tag name for the value column.
-            null_value (str): The value to treat as a null value.
-            charset (str): The character encoding of the XML file.
-            ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
-            row_validation_xsd_path (str): Path to XSD file for row validation.
-            custom_schema: User input schema for xml, must be used together with row tag.
-            is_snowpark_connect_compatible (bool): context._is_snowpark_connect_compatible_mode
-            chunk_size (int): I/O read buffer size in bytes for tag-scanning reads.
-                Larger values reduce read() call overhead on network-backed stage files.
-                Try 65536 or 262144 for large files (default supplied by caller is 1024).
-            skip_children (bool): When True, emit only opening-tag attributes and skip
-                parsing child elements.  Used with skipChildren=True option.
-        """
-        file_size = get_file_size(filename)
-        approx_chunk_size = file_size // num_workers
-        approx_start = approx_chunk_size * i
-        approx_end = approx_chunk_size * (i + 1) if i < num_workers - 1 else file_size
-        result_template, schema_type = schema_string_to_result_dict_and_struct_type(
-            custom_schema
-        )
-        for element_and_pos in process_xml_range(
-            filename,
-            row_tag,
-            approx_start,
-            approx_end,
-            mode,
-            column_name_of_corrupt_record,
-            ignore_namespace,
-            attribute_prefix,
-            exclude_attributes,
-            value_tag,
-            null_value,
-            charset,
-            ignore_surrounding_whitespace,
-            row_validation_xsd_path=row_validation_xsd_path,
-            chunk_size=chunk_size,
-            result_template=result_template,
-            schema_type=schema_type,
-            is_snowpark_connect_compatible=is_snowpark_connect_compatible,
-            skip_children=skip_children,
-        ):
-            element, _pos = element_and_pos
-            yield (element,)
-
-
-class XMLReaderWithPos:
-    """
-    Identical to XMLReader but emits a second output column _SOURCE_BYTE_POS (LongType)
-    containing the byte offset of each element's opening tag.  Keeping _source_byte_pos
-    as a separate typed column (not inside ROW_DATA) means the variant-cache projection
-    path sees unchanged 800+-field VARIANTs with no performance impact.
-
-    Used with includeSourcePos=True to support the range JOIN approach:
-      Pass 1  rowTag=parent_elem, skipChildren=True  → N rows × (attrs + _source_byte_pos)
-      Pass 2  rowTag=child_elem,  includeSourcePos=True → M rows × (fields + _source_byte_pos)
-      JOIN    ASOF range join on _source_byte_pos: each child maps to its enclosing parent.
-    """
-
-    def process(
-        self,
-        filename: str,
-        num_workers: int,
-        row_tag: str,
-        i: int,
+        approx_end: int,  # byte offset this worker ends at   (pre-computed by SQL planner)
         mode: str,
         column_name_of_corrupt_record: str,
         ignore_namespace: bool,
@@ -903,33 +928,181 @@ class XMLReaderWithPos:
         chunk_size: int,
         skip_children: bool,
     ):
-        file_size = get_file_size(filename)
-        approx_chunk_size = file_size // num_workers
-        approx_start = approx_chunk_size * i
-        approx_end = approx_chunk_size * (i + 1) if i < num_workers - 1 else file_size
+        """
+        Process one or more pre-assigned byte ranges of XML file(s).
+
+        The SQL planner computes (filename, approx_start, approx_end) for every
+        worker across every file and passes them as column values.  This enables
+        a single UDTF call to handle any number of files concurrently: the worker
+        assignment table has one row per (file × worker-within-file), and Snowflake's
+        execution engine dispatches all rows in parallel across warehouse compute.
+
+        Small files (a single worker covering the whole file) may additionally be
+        packed several-per-row by the planner to amortize the fixed per-invocation
+        overhead across multiple files; `filename` decodes to >1 (path, start, end)
+        entry in that case. See `decode_batch_or_single`.
+
+        Args:
+            filename (str): Path to the XML file, or a batch-encoded multi-file value.
+            approx_start (int): Byte offset where this worker starts scanning.
+            row_tag (str): The tag that delimits records (e.g., "INSTRUMENT").
+            approx_end (int): Byte offset where this worker stops scanning.
+            ... (remaining args unchanged)
+        """
         result_template, schema_type = schema_string_to_result_dict_and_struct_type(
             custom_schema
         )
-        for element_and_pos in process_xml_range(
-            filename,
-            row_tag,
-            approx_start,
-            approx_end,
-            mode,
-            column_name_of_corrupt_record,
-            ignore_namespace,
-            attribute_prefix,
-            exclude_attributes,
-            value_tag,
-            null_value,
-            charset,
-            ignore_surrounding_whitespace,
-            row_validation_xsd_path=row_validation_xsd_path,
-            chunk_size=chunk_size,
-            result_template=result_template,
-            schema_type=schema_type,
-            is_snowpark_connect_compatible=is_snowpark_connect_compatible,
-            skip_children=skip_children,
-        ):
-            element, pos = element_and_pos
-            yield (element, pos)
+        batch = decode_batch_or_single(filename, approx_start, approx_end)
+
+        if len(batch) > 1 and ENABLE_BATCH_THREADPOOL:
+            # Batched row covering multiple small files: process them concurrently
+            # so I/O-wait on each file's SnowflakeFile read overlaps.
+            for _fp, element, _pos in _process_batch_concurrently(
+                batch,
+                row_tag,
+                mode,
+                column_name_of_corrupt_record,
+                ignore_namespace,
+                attribute_prefix,
+                exclude_attributes,
+                value_tag,
+                null_value,
+                charset,
+                ignore_surrounding_whitespace,
+                row_validation_xsd_path,
+                chunk_size,
+                result_template,
+                schema_type,
+                is_snowpark_connect_compatible,
+                skip_children,
+            ):
+                yield (element,)
+            return
+
+        # Fast path: single (unbatched) file/byte-range -- stream results directly
+        # with no thread-pool overhead. This also covers large files split into
+        # multiple byte-range workers (nw>1), which are never batched.
+        for fp, start, end in batch:
+            for element_and_pos in process_xml_range(
+                fp,
+                row_tag,
+                start,
+                end,
+                mode,
+                column_name_of_corrupt_record,
+                ignore_namespace,
+                attribute_prefix,
+                exclude_attributes,
+                value_tag,
+                null_value,
+                charset,
+                ignore_surrounding_whitespace,
+                row_validation_xsd_path=row_validation_xsd_path,
+                chunk_size=chunk_size,
+                result_template=result_template,
+                schema_type=schema_type,
+                is_snowpark_connect_compatible=is_snowpark_connect_compatible,
+                skip_children=skip_children,
+            ):
+                element, _pos = element_and_pos
+                yield (element,)
+
+
+class XMLReaderWithPos:
+    """
+    Identical to XMLReader but emits two extra output columns: _SOURCE_BYTE_POS
+    (LongType), the byte offset of each element's opening tag, and _SOURCE_FILE_PATH
+    (StringType), the true file this specific record came from.  Keeping both as
+    separate typed columns (not inside ROW_DATA) means the variant-cache projection
+    path sees unchanged 800+-field VARIANTs with no performance impact.
+
+    _SOURCE_FILE_PATH is emitted by the UDTF itself (rather than read from the outer
+    worker-assignment row's FILE_PATH column) because that outer column may be a
+    batch-encoded value covering several files at once -- see decode_batch_or_single.
+    Only the UDTF, which decodes each entry individually, knows which file a given
+    record actually came from.
+
+    Used with includeSourcePos=True to support the range JOIN approach:
+      Pass 1  rowTag=parent_elem, skipChildren=True  → N rows × (attrs + _source_byte_pos)
+      Pass 2  rowTag=child_elem,  includeSourcePos=True → M rows × (fields + _source_byte_pos)
+      JOIN    ASOF range join on _source_byte_pos, partitioned by _source_file_path.
+    """
+
+    def process(
+        self,
+        filename: str,
+        approx_start: int,
+        row_tag: str,
+        approx_end: int,
+        mode: str,
+        column_name_of_corrupt_record: str,
+        ignore_namespace: bool,
+        attribute_prefix: str,
+        exclude_attributes: bool,
+        value_tag: str,
+        null_value: str,
+        charset: str,
+        ignore_surrounding_whitespace: bool,
+        row_validation_xsd_path: str,
+        custom_schema: str,
+        is_snowpark_connect_compatible: bool,
+        chunk_size: int,
+        skip_children: bool,
+    ):
+        result_template, schema_type = schema_string_to_result_dict_and_struct_type(
+            custom_schema
+        )
+        batch = decode_batch_or_single(filename, approx_start, approx_end)
+
+        if len(batch) > 1 and ENABLE_BATCH_THREADPOOL:
+            # Batched row covering multiple small files: process them concurrently
+            # so I/O-wait on each file's SnowflakeFile read overlaps.
+            for fp, element, pos in _process_batch_concurrently(
+                batch,
+                row_tag,
+                mode,
+                column_name_of_corrupt_record,
+                ignore_namespace,
+                attribute_prefix,
+                exclude_attributes,
+                value_tag,
+                null_value,
+                charset,
+                ignore_surrounding_whitespace,
+                row_validation_xsd_path,
+                chunk_size,
+                result_template,
+                schema_type,
+                is_snowpark_connect_compatible,
+                skip_children,
+            ):
+                yield (element, pos, fp)
+            return
+
+        # Fast path: single (unbatched) file/byte-range -- stream results directly
+        # with no thread-pool overhead. This also covers large files split into
+        # multiple byte-range workers (nw>1), which are never batched.
+        for fp, start, end in batch:
+            for element_and_pos in process_xml_range(
+                fp,
+                row_tag,
+                start,
+                end,
+                mode,
+                column_name_of_corrupt_record,
+                ignore_namespace,
+                attribute_prefix,
+                exclude_attributes,
+                value_tag,
+                null_value,
+                charset,
+                ignore_surrounding_whitespace,
+                row_validation_xsd_path=row_validation_xsd_path,
+                chunk_size=chunk_size,
+                result_template=result_template,
+                schema_type=schema_type,
+                is_snowpark_connect_compatible=is_snowpark_connect_compatible,
+                skip_children=skip_children,
+            ):
+                element, pos = element_and_pos
+                yield (element, pos, fp)

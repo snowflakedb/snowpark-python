@@ -1249,11 +1249,13 @@ class DataFrameReader:
         return df
 
     @publicapi
-    def xml(self, path: str, _emit_ast: bool = True) -> DataFrame:
+    def xml(self, path, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the XML file(s) to load.
 
         Args:
-            path: The stage location of an XML file, or a stage location that has XML files.
+            path: The stage location of an XML file, a stage location that has XML files,
+                or a list of stage file paths.  Pass a list to read multiple files in a
+                single parallel operation (one SQL plan, all files dispatched concurrently).
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
@@ -1431,6 +1433,22 @@ class DataFrameReader:
             from snowflake.snowpark.functions import col as _col
 
             projections.append(_col("_SOURCE_BYTE_POS").alias("'_source_byte_pos'"))
+
+        # _SOURCE_FILE_PATH is _source_byte_pos's disambiguator: position is file-local
+        # (resets near 0 for every file), so two different files' positions can
+        # collide/interleave. Only surface it alongside _SOURCE_BYTE_POS -- that's
+        # the includeSourcePos/range-JOIN flow where it's actually needed; plain
+        # reads (no source pos) keep their original output schema.
+        #
+        # This must come from the UDTF's own _SOURCE_FILE_PATH output column, not the
+        # outer worker-assignment row's FILE_PATH column: the planner may pack several
+        # small files into one FILE_PATH value (batch-encoded) to amortize per-invocation
+        # overhead, so only the UDTF -- which decodes each entry individually -- knows
+        # which file a given record actually came from.
+        if "_SOURCE_BYTE_POS" in df.columns and "_SOURCE_FILE_PATH" in df.columns:
+            from snowflake.snowpark.functions import col as _col
+
+            projections.append(_col("_SOURCE_FILE_PATH").alias("'_file_path'"))
 
         result = df.select(*projections)
         # Preserve _all_variant_cols so callers can still use VARIANT path notation
@@ -2005,8 +2023,14 @@ class DataFrameReader:
             and XML_ROW_TAG_STRING not in self._cur_options
         ):
             raise ValueError("When reading XML with user schema, rowtag must be set.")
-        path = _validate_stage_path(path)
-        self._file_path = path
+        # Accept a list of stage paths for multi-file parallel reads.
+        if isinstance(path, list):
+            for p in path:
+                _validate_stage_path(p)
+            self._file_path = path[0]  # use first path for metadata/logging
+        else:
+            path = _validate_stage_path(path)
+            self._file_path = path
         self._file_type = format
 
         schema = [Attribute('"$1"', VariantType())]
@@ -2083,6 +2107,7 @@ class DataFrameReader:
                         [
                             StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True),
                             StructField("_SOURCE_BYTE_POS", LongType(), True),
+                            StructField("_SOURCE_FILE_PATH", StringType(), True),
                         ]
                     ),
                 )

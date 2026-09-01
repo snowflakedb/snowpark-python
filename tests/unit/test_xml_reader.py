@@ -1328,16 +1328,13 @@ def test_xml_reader_process_with_scos_compatible_param():
     xml_content = "<root><record><a>1</a></record></root>"
     xml_bytes = xml_content.encode("utf-8")
     mock_file = io.BytesIO(xml_bytes)
-    with patch(
-        "snowflake.snowpark._internal.xml_reader.get_file_size",
-        return_value=len(xml_bytes),
-    ), patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
         results = list(
             XMLReader().process(
                 "test.xml",
-                1,
+                0,  # approx_start
                 "record",
-                0,
+                len(xml_bytes),  # approx_end
                 "PERMISSIVE",
                 "_corrupt_record",
                 True,
@@ -1351,7 +1348,7 @@ def test_xml_reader_process_with_scos_compatible_param():
                 "",
                 True,
                 1024,
-                False,  # skip_children: False for normal row parsing
+                False,  # skip_children
             )
         )
     assert len(results) == 1

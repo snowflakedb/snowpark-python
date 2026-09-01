@@ -1824,20 +1824,31 @@ class SnowflakePlanBuilder:
     def _create_xml_query(
         self,
         xml_reader_udtf: "UserDefinedTableFunction",
-        file_path: str,
+        file_path,  # str or List[str]
         options: Dict[str, str],
         schema: Optional[List[Attribute]] = None,
     ) -> str:
         """
         Creates a DataFrame from a UserDefinedTableFunction that reads XML files.
+
+        Accepts either a single file path (str) or a list of file paths (List[str]).
+        For multiple files the SQL planner builds a worker-assignment table that covers
+        ALL files in a single UDTF call — one SQL plan regardless of file count.
+
+        Worker assignment table: (FILE_PATH VARCHAR, APPROX_START BIGINT, APPROX_END BIGINT)
+        Each row is one (file, byte-range) unit of work.  Snowflake's execution engine
+        dispatches all rows across warehouse compute in parallel.
         """
         from snowflake.snowpark.functions import lit, col
-        from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
+        from snowflake.snowpark._internal.xml_reader import (
+            DEFAULT_CHUNK_SIZE,
+            BATCH_FILE_SEP,
+            BATCH_FIELD_SEP,
+        )
 
         schema_string = (
             attribute_to_schema_string_deep(schema) if schema is not None else ""
         )
-        worker_column_name = "WORKER"
         xml_row_number_column_name = "XML_ROW_NUMBER"
         row_tag = options[XML_ROW_TAG_STRING]
         mode = options.get("MODE", "PERMISSIVE").upper()
@@ -1862,21 +1873,115 @@ class SnowflakePlanBuilder:
                 f"Invalid mode: {mode}. Must be one of PERMISSIVE, DROPMALFORMED, FAILFAST."
             )
 
-        # NUMWORKERS option lets callers override the worker cap (default 16).
-        # CHUNKSIZE option controls the I/O read buffer (bytes) inside the UDTF's
-        # tag-scanning loops. The default of 1024 is intentionally small; raising it
-        # to 65536 or 262144 significantly reduces read() call overhead on
-        # network-backed stage files at the cost of slightly higher peak memory.
-        try:
-            file_size = int(self.session.sql(f"ls {file_path}", _emit_ast=False).collect(_emit_ast=False)[0]["size"])  # type: ignore
-        except IndexError:
-            raise ValueError(f"{file_path} does not exist")
         max_workers = int(options.get("NUMWORKERS", 16))
-        num_workers = min(max_workers, file_size // DEFAULT_CHUNK_SIZE + 1)
         chunk_size = int(options.get("CHUNKSIZE", DEFAULT_CHUNK_SIZE))
 
-        # Create a range from 0 to N-1
-        df = self.session.range(num_workers).to_df(worker_column_name)
+        # Normalise to a list so single-file and multi-file paths share one code path.
+        file_paths = file_path if isinstance(file_path, list) else [file_path]
+
+        # Resolve file sizes via ONE `ls` call per distinct directory (not one per
+        # file). At 50K+ files, issuing a separate `ls` query per file would mean
+        # 50K sequential SQL round-trips just to build the worker-assignment table
+        # -- tens of minutes before the UDTF read even starts. `ls <dir>` lists every
+        # object under a prefix in a single call, so files sharing a folder (the
+        # common case) collapse to exactly 1 metadata query regardless of file count.
+        def _stage_dirname(fp: str) -> str:
+            return fp.rsplit("/", 1)[0] if "/" in fp else fp
+
+        def _stage_relative_name(fp: str) -> str:
+            # `ls` returns names as "stage_name/sub/dir/file.xml" -- i.e. the
+            # @db.schema. qualifier is stripped but the stage name itself is kept.
+            # Snowflake's LIST always lowercases the stage-name segment of the
+            # returned path (even for quoted/mixed-case stage identifiers), while
+            # preserving the original case of the file path portion -- so the
+            # stage name must be lowercased (and unquoted) here to match.
+            body = fp.lstrip("@")
+            if "/" in body:
+                qualifier, rest = body.split("/", 1)
+            else:
+                qualifier, rest = body, ""
+            stage_name = qualifier.rsplit(".", 1)[-1].strip('"').lower()
+            return f"{stage_name}/{rest}" if rest else stage_name
+
+        dirs_to_files: Dict[str, list] = {}
+        for fp in file_paths:
+            dirs_to_files.setdefault(_stage_dirname(fp), []).append(fp)
+
+        file_sizes: Dict[str, int] = {}
+        for directory in dirs_to_files:
+            for row in self.session.sql(f"ls {directory}", _emit_ast=False).collect(
+                _emit_ast=False
+            ):
+                file_sizes[row["name"]] = int(row["size"])  # type: ignore
+
+        # Build the worker-assignment table: one row per (file × worker-within-file),
+        # EXCEPT that small files (nw == 1, i.e. no internal byte-range splitting
+        # needed) are additionally packed several-per-row via batch encoding. With
+        # thousands of small files, one UDTF invocation per file makes a largely
+        # fixed per-invocation cost (task dispatch, stage file open, parser init)
+        # dominate total runtime -- batching amortizes that cost across many files
+        # per invocation instead. Large files (nw > 1) keep one row per chunk,
+        # unbatched, since mixing huge byte-ranges with tiny whole-files in one
+        # encoded batch would make no sense and isn't where the overhead lives.
+        BATCH_TARGET_BYTES = 50 * 1024 * 1024  # ~1 worker-chunk's worth, per batch
+        BATCH_MAX_FILES = 500  # safety cap independent of file size
+
+        assignments = []  # [(file_path_str_or_batch_encoded, approx_start, approx_end)]
+        pending: list = []  # [(fp, start, end)] accumulating small (nw==1) files
+        pending_bytes = 0
+
+        def _flush_pending() -> None:
+            nonlocal pending, pending_bytes
+            if not pending:
+                return
+            if len(pending) == 1:
+                assignments.append(pending[0])
+            else:
+                encoded = BATCH_FILE_SEP.join(
+                    f"{fp}{BATCH_FIELD_SEP}{start}{BATCH_FIELD_SEP}{end}"
+                    for fp, start, end in pending
+                )
+                assignments.append((encoded, 0, 0))
+            pending = []
+            pending_bytes = 0
+
+        for fp in file_paths:
+            rel_name = _stage_relative_name(fp)
+            if rel_name not in file_sizes:
+                raise ValueError(f"{fp} does not exist")
+            fs = file_sizes[rel_name]
+            nw = min(max_workers, fs // DEFAULT_CHUNK_SIZE + 1)
+            if nw == 1:
+                if pending and (
+                    pending_bytes + fs > BATCH_TARGET_BYTES
+                    or len(pending) >= BATCH_MAX_FILES
+                ):
+                    _flush_pending()
+                pending.append((fp, 0, fs))
+                pending_bytes += fs
+            else:
+                _flush_pending()
+                chunk = fs // nw
+                for i in range(nw):
+                    start = chunk * i
+                    end = chunk * (i + 1) if i < nw - 1 else fs
+                    assignments.append((fp, start, end))
+        _flush_pending()
+
+        # Build worker-assignment DataFrame via inline SQL VALUES — no temp table,
+        # no lazy creation, no schema-resolution failures.
+        def _esc(s):
+            return s.replace("'", "''")  # SQL single-quote escape
+
+        rows_sql = ", ".join(
+            "('%s'::STRING, %d::BIGINT, %d::BIGINT)" % (_esc(fp), start, end)
+            for fp, start, end in assignments
+        )
+        df = self.session.sql(
+            "SELECT $1 AS FILE_PATH, $2 AS APPROX_START, $3 AS APPROX_END "
+            "FROM (VALUES %s)" % rows_sql,
+            _emit_ast=False,
+        )
 
         use_variant_projection = True
         # use_variant_projection = context._is_snowpark_connect_compatible_mode or bool(
@@ -1888,10 +1993,10 @@ class SnowflakePlanBuilder:
             # flatten + dynamic pivot explosion.
             df = df.select(
                 xml_reader_udtf(
-                    lit(file_path),
-                    lit(num_workers),
+                    col("FILE_PATH"),
+                    col("APPROX_START"),
                     lit(row_tag),
-                    col(worker_column_name),
+                    col("APPROX_END"),
                     lit(mode),
                     lit(column_name_of_corrupt_record),
                     lit(ignore_namespace),
@@ -1946,12 +2051,22 @@ class SnowflakePlanBuilder:
             # Schema-unknown path: emit raw ROW_DATA VARIANT per record.
             # dataframe_reader.py will discover column names from the cached result
             # and project them — one file read, no M×N flatten/pivot explosion.
+            #
+            # FILE_PATH is passed as a UDTF input arg regardless (it's the file to
+            # read, or a batch-encoded set of files -- see BATCH_FILE_SEP above), but
+            # it is NOT relied on here to label output rows: when includeSourcePos is
+            # set, XMLReaderWithPos emits its own _SOURCE_FILE_PATH output column with
+            # the true per-record file, since one worker-assignment row's outer
+            # FILE_PATH may cover several batched files at once. See dataframe_reader.py
+            # _xml_project_from_variant_cache for how the two source-pos columns are
+            # threaded through to support the file-partitioned range JOIN.
             df = df.select(
+                col("FILE_PATH"),
                 xml_reader_udtf(
-                    lit(file_path),
-                    lit(num_workers),
+                    col("FILE_PATH"),
+                    col("APPROX_START"),
                     lit(row_tag),
-                    col(worker_column_name),
+                    col("APPROX_END"),
                     lit(mode),
                     lit(column_name_of_corrupt_record),
                     lit(ignore_namespace),
@@ -1966,7 +2081,7 @@ class SnowflakePlanBuilder:
                     lit(context._is_snowpark_connect_compatible_mode),
                     lit(chunk_size),
                     lit(skip_children),
-                )
+                ),
             )
             return df.queries["queries"][-1]
 
@@ -1974,13 +2089,13 @@ class SnowflakePlanBuilder:
         from snowflake.snowpark.functions import seq8, flatten
 
         df = df.select(
-            worker_column_name,
+            col("FILE_PATH"),
             seq8().as_(xml_row_number_column_name),
             xml_reader_udtf(
-                lit(file_path),
-                lit(num_workers),
+                col("FILE_PATH"),
+                col("APPROX_START"),
                 lit(row_tag),
-                col(worker_column_name),
+                col("APPROX_END"),
                 lit(mode),
                 lit(column_name_of_corrupt_record),
                 lit(ignore_namespace),
@@ -1998,12 +2113,12 @@ class SnowflakePlanBuilder:
             ),
         )
         df = df.select(
-            worker_column_name,
+            "FILE_PATH",
             xml_row_number_column_name,
             flatten(XML_ROW_DATA_COLUMN_NAME),
-        ).select(worker_column_name, xml_row_number_column_name, "key", "value")
+        ).select("FILE_PATH", xml_row_number_column_name, "key", "value")
         df = df.pivot("key").max("value")
-        return f"SELECT * EXCLUDE ({worker_column_name}, {xml_row_number_column_name}) FROM ({df.queries['queries'][-1]})"
+        return f"SELECT * EXCLUDE (FILE_PATH, {xml_row_number_column_name}) FROM ({df.queries['queries'][-1]})"
 
     def read_file(
         self,
