@@ -1378,6 +1378,42 @@ class DataFrameReader:
         result = df.select(cols)
         return result
 
+    def _xml_project_from_variant_cache(
+        self, df: "snowflake.snowpark.DataFrame"
+    ) -> "snowflake.snowpark.DataFrame":
+        """Projects a raw ROW_DATA VARIANT DataFrame (schema unknown) into one
+        column per top-level key actually present in the data, replacing the
+        flatten()+pivot() dynamic-schema mechanism. OBJECT_KEYS avoids
+        exploding rows the way flatten() does, so discovering the key set stays
+        cheap even though it still requires one full pass over the data -- the
+        same up-front cost the old dynamic pivot() already paid to resolve its
+        column list before it could even build its query.
+        """
+        base_query = df.queries["queries"][-1]
+        keys_sql = (
+            "SELECT ARRAY_DISTINCT(ARRAY_FLATTEN(ARRAY_AGG("
+            f"OBJECT_KEYS({XML_ROW_DATA_COLUMN_NAME})))) AS KEYS "
+            f"FROM ({base_query})"
+        )
+        rows = self._session.sql(keys_sql, _emit_ast=False).collect(_emit_ast=False)
+        raw_keys = json.loads(rows[0]["KEYS"]) if rows and rows[0]["KEYS"] else []
+
+        if not raw_keys:
+            return df
+
+        cols = []
+        for raw_key in raw_keys:
+            alias = quote_name_without_upper_casing(raw_key)
+            if ":" in raw_key:
+                escaped = raw_key.replace("'", "''")
+                expr = f"GET({XML_ROW_DATA_COLUMN_NAME}, '{escaped}')"
+            else:
+                escaped = raw_key.replace('"', '""')
+                expr = f'{XML_ROW_DATA_COLUMN_NAME}:"{escaped}"'
+            cols.append(sql_expr(expr).alias(alias))
+
+        return df.select(cols)
+
     @publicapi
     def option(self, key: str, value: Any, _emit_ast: bool = True) -> "DataFrameReader":
         """Sets the specified option in the DataFrameReader.
@@ -2063,12 +2099,21 @@ class DataFrameReader:
         df._reader = self
         if xml_reader_udtf:
             set_api_call_source(df, XML_READER_API_SIGNATURE)
+            # When schema is unknown, _create_xml_query hands back the raw
+            # ROW_DATA VARIANT column; discover its actual top-level keys and
+            # project them now. When schema is inferred or user-provided,
+            # _create_xml_query already projected typed columns directly.
+            schema_unknown = xml_inferred_schema is None and not self._user_schema
+            if schema_unknown:
+                df = self._xml_project_from_variant_cache(df)
             if self._cur_options.get("CACHERESULT", True):
                 df = df.cache_result()
-                # When schema is inferred or user-provided, columns are typed
-                # (not all VARIANT), so don't enable the all-variant dot-notation mode.
-                if xml_inferred_schema is None and not self._user_schema:
-                    df._all_variant_cols = True
+            # cache_result() returns a fresh Table DataFrame backed by a temp
+            # table rather than the ReadFileNode plan, so the all-variant flag
+            # (set automatically for ReadFileNode-backed DataFrames) must be
+            # re-applied here regardless of whether caching happened.
+            if schema_unknown:
+                df._all_variant_cols = True
         else:
             set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df

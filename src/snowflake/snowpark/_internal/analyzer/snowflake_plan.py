@@ -1831,7 +1831,7 @@ class SnowflakePlanBuilder:
         """
         Creates a DataFrame from a UserDefinedTableFunction that reads XML files.
         """
-        from snowflake.snowpark.functions import lit, col, seq8, flatten
+        from snowflake.snowpark.functions import lit, col, seq8
         from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
 
         schema_string = (
@@ -1897,18 +1897,79 @@ class SnowflakePlanBuilder:
             ),
         )
 
-        # Flatten the Variant data to get the key-value pairs
-        df = df.select(
-            worker_column_name,
-            xml_row_number_column_name,
-            flatten(XML_ROW_DATA_COLUMN_NAME),
-        ).select(worker_column_name, xml_row_number_column_name, "key", "value")
+        base_query = df.queries["queries"][-1]
 
-        # Apply dynamic pivot to get the flat table with dynamic schema
-        df = df.pivot("key").max("value")
+        if schema:
+            # Schema is known (user-provided or inferred): project each field
+            # directly out of the VARIANT instead of flatten()+pivot(), which
+            # avoids the M-records x N-keys explosion that pivot causes.
+            return self._project_xml_variant_by_schema(
+                base_query, schema, mode, column_name_of_corrupt_record
+            )
 
-        # Exclude the worker and row number columns
-        return f"SELECT * EXCLUDE ({worker_column_name}, {xml_row_number_column_name}) FROM ({df.queries['queries'][-1]})"
+        # Schema is unknown: hand back the raw VARIANT column. The caller
+        # discovers the actual top-level keys from the cached result and
+        # projects them (see DataFrameReader._xml_project_from_variant_cache),
+        # instead of pivoting on a dynamic key set here.
+        return f"SELECT {XML_ROW_DATA_COLUMN_NAME} FROM ({base_query})"
+
+    @staticmethod
+    def _unquote_identifier(name: str) -> str:
+        if len(name) >= 2 and name[0] == '"' and name[-1] == '"':
+            return name[1:-1].replace('""', '"')
+        return name
+
+    def _project_xml_variant_key(self, raw_key: str, alias: str) -> str:
+        # GET() is used for namespace-prefixed keys (e.g. "ns:field") because
+        # the `col:"key"` path syntax treats ':' as a path separator even
+        # inside the quoted identifier, so it can't address such keys.
+        if ":" in raw_key:
+            escaped = raw_key.replace("'", "''")
+            return f"GET({XML_ROW_DATA_COLUMN_NAME}, '{escaped}') AS {alias}"
+        escaped = raw_key.replace('"', '""')
+        return f'{XML_ROW_DATA_COLUMN_NAME}:"{escaped}" AS {alias}'
+
+    def _project_xml_variant_by_schema(
+        self,
+        base_query: str,
+        schema: List[Attribute],
+        mode: str,
+        column_name_of_corrupt_record: str,
+    ) -> str:
+        projections = [
+            self._project_xml_variant_key(
+                self._unquote_identifier(attr.name), attr.name
+            )
+            for attr in schema
+        ]
+
+        if mode == "PERMISSIVE":
+            # Only materialize the corrupt-record column if some record
+            # actually populated it, matching the old pivot()'s behavior of
+            # only creating columns for keys the UDTF actually wrote.
+            escaped = column_name_of_corrupt_record.replace('"', '""')
+            corrupt_check_sql = (
+                f"SELECT COUNT(*) AS CNT FROM ({base_query}) "
+                f'WHERE {XML_ROW_DATA_COLUMN_NAME}:"{escaped}" IS NOT NULL'
+            )
+            has_corrupt_records = (
+                self.session.sql(corrupt_check_sql, _emit_ast=False).collect(
+                    _emit_ast=False
+                )[0]["CNT"]
+                > 0
+            )
+            if has_corrupt_records:
+                corrupt_alias = quote_name_without_upper_casing(
+                    column_name_of_corrupt_record
+                )
+                projections.append(
+                    self._project_xml_variant_key(
+                        column_name_of_corrupt_record, corrupt_alias
+                    )
+                )
+
+        select_list = ", ".join(projections)
+        return f"SELECT {select_list} FROM ({base_query})"
 
     def read_file(
         self,
