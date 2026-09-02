@@ -51,19 +51,22 @@ from typing import (
 )
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.options as snowpark_options
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.options import (  # noqa: F401
-    IS_V5_DRIVER,  # re-exported for MockedSnowflakeConnection and other callers
+from snowflake.snowpark._internal.options import (
     MissingOptionalDependency,
     ModuleLikeObject,
     installed_pandas,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
+
+# Re-exported for MockedSnowflakeConnection and other existing callers.
+IS_V5_DRIVER = snowpark_options.IS_V5_DRIVER
 
 
 if TYPE_CHECKING:
