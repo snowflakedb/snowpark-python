@@ -615,6 +615,32 @@ def test_generator_table_function(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="Session.generator is not supported in Local Testing",
 )
+def test_generator_seq2_timelimit_accepts_duplicate_seq_after_order_by(session):
+    """Regression for merge-gate ``assert 0 < 0``.
+
+    ``seq2(0)`` + ``generator(timelimit => 1)`` + ``ORDER BY`` + ``LIMIT 3``
+    commonly returns ``(0, 3), (0, 3), (0, 3)`` (also the historical expected
+    result before #4306). Strict ``<`` rejects that valid ORDER BY output.
+    """
+    df = (
+        session.generator(seq2(0), uniform(1, 10, 2), timelimit=1)
+        .order_by(seq2(0))
+        .limit(3)
+    )
+    result = df.collect()
+    seqs = [row[0] for row in result]
+    uniforms = [row[1] for row in result]
+    assert len(result) == 3
+    assert uniforms == [3, 3, 3]
+    assert seqs == sorted(seqs)
+    # The CI failure mode: equal leading SEQ values must be accepted.
+    assert seqs[0] <= seqs[1] <= seqs[2]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Session.generator is not supported in Local Testing",
+)
 def test_generator_table_function_negative(session):
     # fails when no operators added
     with pytest.raises(ValueError) as ex_info:
