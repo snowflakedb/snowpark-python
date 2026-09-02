@@ -550,6 +550,8 @@ def test_select_table_function(session):
     reason="Session.generator is not supported in Local Testing",
 )
 def test_generator_table_function(session):
+    from tests.generator_seq_asserts import assert_ordered_uniform_sample
+
     # works with rowcount
     # SEQ* is a non-deterministic global sequence: values can repeat under
     # parallel generation (and wrap). After ORDER BY they are non-decreasing,
@@ -559,10 +561,7 @@ def test_generator_table_function(session):
         .order_by(seq1(1))
         .limit(3, offset=20)
     )
-    result = df.collect()
-    assert len(result) == 3
-    assert all(row[1] == 3 for row in result)
-    assert result[0][0] <= result[1][0] <= result[2][0]
+    assert_ordered_uniform_sample(df.collect())
 
     # works with timelimit
     # seq2(0) commonly yields 0 for the first rows after ORDER BY (the
@@ -572,10 +571,7 @@ def test_generator_table_function(session):
         .order_by(seq2(0))
         .limit(3)
     )
-    result = df.collect()
-    assert len(result) == 3
-    assert all(row[1] == 3 for row in result)
-    assert result[0][0] <= result[1][0] <= result[2][0]
+    assert_ordered_uniform_sample(df.collect())
 
     # works with combination of both
     df = (
@@ -583,10 +579,7 @@ def test_generator_table_function(session):
         .order_by(seq1(1))
         .limit(3, offset=20)
     )
-    result = df.collect()
-    assert len(result) == 3
-    assert all(row[1] == 3 for row in result)
-    assert result[0][0] <= result[1][0] <= result[2][0]
+    assert_ordered_uniform_sample(df.collect())
 
     # works without both
     df = session.generator(seq4(1), uniform(1, 10, 2))
@@ -600,10 +593,11 @@ def test_generator_table_function(session):
         .order_by("pixel")
         .limit(3, offset=20)
     )
-    result = df.collect()
-    assert len(result) == 3
-    assert all(row["UNICORN"] == 3 for row in result)
-    assert result[0]["PIXEL"] <= result[1]["PIXEL"] <= result[2]["PIXEL"]
+    assert_ordered_uniform_sample(
+        df.collect(),
+        seq_getter=lambda row: row["PIXEL"],
+        uniform_getter=lambda row: row["UNICORN"],
+    )
 
     # aggregation works
     df = session.generator(count(seq1(0)).as_("rows"), rowcount=150)
@@ -622,19 +616,66 @@ def test_generator_seq2_timelimit_accepts_duplicate_seq_after_order_by(session):
     commonly returns ``(0, 3), (0, 3), (0, 3)`` (also the historical expected
     result before #4306). Strict ``<`` rejects that valid ORDER BY output.
     """
+    from tests.generator_seq_asserts import assert_ordered_uniform_sample
+
     df = (
         session.generator(seq2(0), uniform(1, 10, 2), timelimit=1)
         .order_by(seq2(0))
         .limit(3)
     )
     result = df.collect()
-    seqs = [row[0] for row in result]
-    uniforms = [row[1] for row in result]
-    assert len(result) == 3
-    assert uniforms == [3, 3, 3]
-    assert seqs == sorted(seqs)
-    # The CI failure mode: equal leading SEQ values must be accepted.
-    assert seqs[0] <= seqs[1] <= seqs[2]
+    assert_ordered_uniform_sample(result)
+    sql = df.queries["queries"][0].upper()
+    assert "GENERATOR" in sql
+    assert "TIMELIMIT" in sql
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Session.generator is not supported in Local Testing",
+)
+@pytest.mark.parametrize(
+    "seq_fn,sign",
+    [
+        (seq1, 0),
+        (seq1, 1),
+        (seq2, 0),
+        (seq2, 1),
+        (seq4, 0),
+        (seq8, 0),
+    ],
+)
+def test_generator_rowcount_seq_variants_are_nondecreasing(session, seq_fn, sign):
+    from tests.generator_seq_asserts import assert_ordered_uniform_sample
+
+    df = (
+        session.generator(seq_fn(sign), uniform(1, 10, 2), rowcount=150)
+        .order_by(seq_fn(sign))
+        .limit(3, offset=20)
+    )
+    assert_ordered_uniform_sample(df.collect())
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Session.generator is not supported in Local Testing",
+)
+def test_generator_sql_emits_generator_table_function(session):
+    df = session.generator(seq1(1), uniform(1, 10, 2), rowcount=150)
+    sql = df.queries["queries"][0].upper()
+    assert "TABLE" in sql
+    assert "GENERATOR" in sql
+    assert "ROWCOUNT" in sql
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Session.generator is not supported in Local Testing",
+)
+def test_generator_rowcount_full_collect_has_requested_rows(session):
+    df = session.generator(seq1(0), rowcount=25)
+    rows = df.collect()
+    assert len(rows) == 25
 
 
 @pytest.mark.skipif(

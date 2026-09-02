@@ -7,21 +7,31 @@ import sys
 from typing import Any, Dict, Iterator
 
 from snowflake.snowpark import Session
+from snowflake.snowpark.exceptions import SnowparkSQLException
+
+
+def _try_alter_session(session: Session, sql: str) -> None:
+    """Some accounts reject optional session parameters; skip those."""
+    try:
+        session.sql(sql).collect()
+    except SnowparkSQLException:
+        pass
 
 
 def set_up_test_session_parameters(session: Session, local_testing_mode: bool) -> None:
     if local_testing_mode:
         return
 
-    session.sql(
-        "ALTER SESSION SET ENABLE_DEFAULT_PYTHON_ARTIFACT_REPOSITORY = true"
-    ).collect()
-    session.sql(
-        "alter session set ENABLE_EXTRACTION_PUSHDOWN_EXTERNAL_PARQUET_FOR_COPY_PHASE_I='Track';"
-    ).collect()
-    session.sql("alter session set ENABLE_ROW_ACCESS_POLICY=true").collect()
+    _try_alter_session(
+        session, "ALTER SESSION SET ENABLE_DEFAULT_PYTHON_ARTIFACT_REPOSITORY = true"
+    )
+    _try_alter_session(
+        session,
+        "alter session set ENABLE_EXTRACTION_PUSHDOWN_EXTERNAL_PARQUET_FOR_COPY_PHASE_I='Track';",
+    )
+    _try_alter_session(session, "alter session set ENABLE_ROW_ACCESS_POLICY=true")
     if sys.version_info.major == 3 and sys.version_info.minor == 14:
-        session.sql("alter session set ENABLE_PYTHON_3_14=true").collect()
+        _try_alter_session(session, "alter session set ENABLE_PYTHON_3_14=true")
 
 
 @contextmanager
