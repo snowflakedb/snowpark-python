@@ -550,8 +550,6 @@ def test_select_table_function(session):
     reason="Session.generator is not supported in Local Testing",
 )
 def test_generator_table_function(session):
-    # seq1()/seq2() restart per parallel generator worker, so values repeat and
-    # are only non-decreasing once ordered — never assert strict increase.
     # works with rowcount
     # seq1() is a non-deterministic global sequence — exact values vary across environments.
     # Verify structure: 3 rows, uniform column deterministic with seed=2, ascending order.
@@ -563,7 +561,7 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row[1] == 3 for row in result)
-    assert result[0][0] <= result[1][0] <= result[2][0]
+    assert result[0][0] < result[1][0] < result[2][0]
 
     # works with timelimit
     # seq2() is also non-deterministic — apply same structural check
@@ -575,7 +573,7 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row[1] == 3 for row in result)
-    assert result[0][0] <= result[1][0] <= result[2][0]
+    assert result[0][0] < result[1][0] < result[2][0]
 
     # works with combination of both
     df = (
@@ -586,7 +584,7 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row[1] == 3 for row in result)
-    assert result[0][0] <= result[1][0] <= result[2][0]
+    assert result[0][0] < result[1][0] < result[2][0]
 
     # works without both
     df = session.generator(seq4(1), uniform(1, 10, 2))
@@ -603,7 +601,7 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row["UNICORN"] == 3 for row in result)
-    assert result[0]["PIXEL"] <= result[1]["PIXEL"] <= result[2]["PIXEL"]
+    assert result[0]["PIXEL"] < result[1]["PIXEL"] < result[2]["PIXEL"]
 
     # aggregation works
     df = session.generator(count(seq1(0)).as_("rows"), rowcount=150)
