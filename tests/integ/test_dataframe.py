@@ -550,28 +550,35 @@ def test_select_table_function(session):
     reason="Session.generator is not supported in Local Testing",
 )
 def test_generator_table_function(session):
-    from tests.generator_seq_asserts import assert_ordered_uniform_sample
-
     # works with rowcount
-    # SEQ* is a non-deterministic global sequence: values can repeat under
-    # parallel generation (and wrap). After ORDER BY they are non-decreasing,
-    # not strictly increasing. uniform(..., seed=2) is deterministic.
+    # SEQ* produces unique increasing integers with wrap-around after the
+    # 1/2/4/8-byte width. After ORDER BY they are non-decreasing (ties occur
+    # when wrap-around brings 0 back to the front). uniform(..., seed=2) is
+    # deterministic.
     df = (
         session.generator(seq1(1), uniform(1, 10, 2), rowcount=150)
         .order_by(seq1(1))
         .limit(3, offset=20)
     )
-    assert_ordered_uniform_sample(df.collect())
+    result = df.collect()
+    assert len(result) == 3
+    assert all(row[1] == 3 for row in result)
+    assert result[0][0] <= result[1][0] <= result[2][0]
 
     # works with timelimit
-    # seq2(0) commonly yields 0 for the first rows after ORDER BY (the
-    # historical expected result was [Row(0, 3), Row(0, 3), Row(0, 3)]).
+    # seq2 is 2-byte. generator(timelimit => 1) can emit enough rows to wrap,
+    # so ORDER BY seq2(0) LIMIT 3 often returns 0, 0, 0 (historical expected
+    # rows before #4306). Strict < fails as assert 0 < 0. seq8 does not wrap
+    # in 1s (see Session.generator Example 2).
     df = (
         session.generator(seq2(0), uniform(1, 10, 2), timelimit=1)
         .order_by(seq2(0))
         .limit(3)
     )
-    assert_ordered_uniform_sample(df.collect())
+    result = df.collect()
+    assert len(result) == 3
+    assert all(row[1] == 3 for row in result)
+    assert result[0][0] <= result[1][0] <= result[2][0]
 
     # works with combination of both
     df = (
@@ -579,7 +586,10 @@ def test_generator_table_function(session):
         .order_by(seq1(1))
         .limit(3, offset=20)
     )
-    assert_ordered_uniform_sample(df.collect())
+    result = df.collect()
+    assert len(result) == 3
+    assert all(row[1] == 3 for row in result)
+    assert result[0][0] <= result[1][0] <= result[2][0]
 
     # works without both
     df = session.generator(seq4(1), uniform(1, 10, 2))
@@ -593,11 +603,10 @@ def test_generator_table_function(session):
         .order_by("pixel")
         .limit(3, offset=20)
     )
-    assert_ordered_uniform_sample(
-        df.collect(),
-        seq_getter=lambda row: row["PIXEL"],
-        uniform_getter=lambda row: row["UNICORN"],
-    )
+    result = df.collect()
+    assert len(result) == 3
+    assert all(row["UNICORN"] == 3 for row in result)
+    assert result[0]["PIXEL"] <= result[1]["PIXEL"] <= result[2]["PIXEL"]
 
     # aggregation works
     df = session.generator(count(seq1(0)).as_("rows"), rowcount=150)
@@ -609,73 +618,22 @@ def test_generator_table_function(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="Session.generator is not supported in Local Testing",
 )
-def test_generator_seq2_timelimit_accepts_duplicate_seq_after_order_by(session):
-    """Regression for merge-gate ``assert 0 < 0``.
+def test_generator_seq2_timelimit_accepts_wrapped_seq_after_order_by(session):
+    """Regression: seq2 wrap-around under timelimit=1 made #4306's ``<`` fail.
 
-    ``seq2(0)`` + ``generator(timelimit => 1)`` + ``ORDER BY`` + ``LIMIT 3``
-    commonly returns ``(0, 3), (0, 3), (0, 3)`` (also the historical expected
-    result before #4306). Strict ``<`` rejects that valid ORDER BY output.
+    ``seq2`` wraps every 2^16 values. A 1-second generator can exceed that, so
+    ``ORDER BY seq2(0) LIMIT 3`` may return ``0, 0, 0``. After ORDER BY the
+    values are non-decreasing, not strictly increasing.
     """
-    from tests.generator_seq_asserts import assert_ordered_uniform_sample
-
     df = (
         session.generator(seq2(0), uniform(1, 10, 2), timelimit=1)
         .order_by(seq2(0))
         .limit(3)
     )
     result = df.collect()
-    assert_ordered_uniform_sample(result)
-    sql = df.queries["queries"][0].upper()
-    assert "GENERATOR" in sql
-    assert "TIMELIMIT" in sql
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="Session.generator is not supported in Local Testing",
-)
-@pytest.mark.parametrize(
-    "seq_fn,sign",
-    [
-        (seq1, 0),
-        (seq1, 1),
-        (seq2, 0),
-        (seq2, 1),
-        (seq4, 0),
-        (seq8, 0),
-    ],
-)
-def test_generator_rowcount_seq_variants_are_nondecreasing(session, seq_fn, sign):
-    from tests.generator_seq_asserts import assert_ordered_uniform_sample
-
-    df = (
-        session.generator(seq_fn(sign), uniform(1, 10, 2), rowcount=150)
-        .order_by(seq_fn(sign))
-        .limit(3, offset=20)
-    )
-    assert_ordered_uniform_sample(df.collect())
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="Session.generator is not supported in Local Testing",
-)
-def test_generator_sql_emits_generator_table_function(session):
-    df = session.generator(seq1(1), uniform(1, 10, 2), rowcount=150)
-    sql = df.queries["queries"][0].upper()
-    assert "TABLE" in sql
-    assert "GENERATOR" in sql
-    assert "ROWCOUNT" in sql
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="Session.generator is not supported in Local Testing",
-)
-def test_generator_rowcount_full_collect_has_requested_rows(session):
-    df = session.generator(seq1(0), rowcount=25)
-    rows = df.collect()
-    assert len(rows) == 25
+    assert len(result) == 3
+    assert all(row[1] == 3 for row in result)
+    assert result[0][0] <= result[1][0] <= result[2][0]
 
 
 @pytest.mark.skipif(

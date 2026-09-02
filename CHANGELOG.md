@@ -8,10 +8,6 @@
 
 - Added interval type support for Python UDFs and stored procedures. Use `datetime.timedelta` as the type annotation for day-time interval (`DayTimeIntervalType`) parameters and return values, and `YearMonthInterval` (a type annotation sentinel from `snowflake.snowpark.types`) for year-month interval (`YearMonthIntervalType`) parameters and return values.
 
-#### Bug Fixes
-
-- Fixed a flaky `session.generator` integration test that required unique `SEQ*` values after `ORDER BY`. Snowflake sequence functions may emit duplicates under parallel generation.
-
 ## 1.54.0 (2026-07-29)
 
 ### Snowpark Python API updates
