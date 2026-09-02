@@ -551,10 +551,9 @@ def test_select_table_function(session):
 )
 def test_generator_table_function(session):
     # works with rowcount
-    # SEQ* produces unique increasing integers with wrap-around after the
-    # 1/2/4/8-byte width. After ORDER BY they are non-decreasing (ties occur
-    # when wrap-around brings 0 back to the front). uniform(..., seed=2) is
-    # deterministic.
+    # seq1(1) passes sign=1, so it continues at the smallest 1-byte int (-128)
+    # after 127. 150 rows stay within one 256-value cycle, so the values are
+    # distinct and ORDER BY makes them strictly increasing.
     df = (
         session.generator(seq1(1), uniform(1, 10, 2), rowcount=150)
         .order_by(seq1(1))
@@ -563,13 +562,15 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row[1] == 3 for row in result)
-    assert result[0][0] <= result[1][0] <= result[2][0]
+    assert result[0][0] < result[1][0] < result[2][0]
 
     # works with timelimit
-    # seq2 is 2-byte. generator(timelimit => 1) can emit enough rows to wrap,
-    # so ORDER BY seq2(0) LIMIT 3 often returns 0, 0, 0 (historical expected
-    # rows before #4306). Strict < fails as assert 0 < 0. seq8 does not wrap
-    # in 1s (see Session.generator Example 2).
+    # seq2(0) passes sign=0, so it continues at 0 (never negative) after 32767.
+    # generator(timelimit => 1) emits as many rows as the warehouse manages in
+    # a second, which is usually far more than the 32768-value cycle, so 0
+    # repeats and ORDER BY seq2(0) LIMIT 3 returns 0, 0, 0. Slower warehouses
+    # stay inside one cycle and return 0, 1, 2, so only the ordering and the
+    # sign=0 value range can be asserted here.
     df = (
         session.generator(seq2(0), uniform(1, 10, 2), timelimit=1)
         .order_by(seq2(0))
@@ -579,8 +580,11 @@ def test_generator_table_function(session):
     assert len(result) == 3
     assert all(row[1] == 3 for row in result)
     assert result[0][0] <= result[1][0] <= result[2][0]
+    assert all(0 <= row[0] <= 32767 for row in result)
 
     # works with combination of both
+    # rowcount is reached long before the timelimit, so this behaves like the
+    # rowcount case above: 150 distinct seq1(1) values.
     df = (
         session.generator(seq1(1), uniform(1, 10, 2), timelimit=1, rowcount=150)
         .order_by(seq1(1))
@@ -589,7 +593,7 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row[1] == 3 for row in result)
-    assert result[0][0] <= result[1][0] <= result[2][0]
+    assert result[0][0] < result[1][0] < result[2][0]
 
     # works without both
     df = session.generator(seq4(1), uniform(1, 10, 2))
@@ -606,7 +610,7 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row["UNICORN"] == 3 for row in result)
-    assert result[0]["PIXEL"] <= result[1]["PIXEL"] <= result[2]["PIXEL"]
+    assert result[0]["PIXEL"] < result[1]["PIXEL"] < result[2]["PIXEL"]
 
     # aggregation works
     df = session.generator(count(seq1(0)).as_("rows"), rowcount=150)

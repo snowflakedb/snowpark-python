@@ -10,7 +10,7 @@
 
 #### Other Changes
 
-- Test-only: `test_generator_table_function` now accepts non-decreasing `SEQ*` values after `ORDER BY` (`<=` instead of `<`). `seq2` can wrap under `generator(timelimit => 1)`, so `ORDER BY seq2(0) LIMIT 3` may return `0, 0, 0`.
+- Test-only: fixed `test_generator_table_function` failing as `assert 0 < 0` on the `seq2(0)` + `generator(timelimit => 1)` case. `seq2(0)` passes sign=0, so it continues at 0 after 32767, and a one-second generator run usually emits far more than one 32768-value cycle, making `ORDER BY seq2(0) LIMIT 3` return `0, 0, 0`. That assertion now allows equal values; the `seq1(1)` + `rowcount` assertions stay strictly increasing.
 
 ## 1.54.0 (2026-07-29)
 
