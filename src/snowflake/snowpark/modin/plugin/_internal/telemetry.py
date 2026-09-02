@@ -21,8 +21,13 @@ from snowflake.snowpark.modin.config.envvars import (
     SnowflakeModinTelemetryFlushInterval,
 )
 import snowflake.snowpark.session
-from snowflake.connector.telemetry import TelemetryField as PCTelemetryField
 from snowflake.snowpark._internal.telemetry import TelemetryField, safe_telemetry
+from snowflake.snowpark._internal.utils import IS_V5_DRIVER
+
+if IS_V5_DRIVER:
+    from snowflake.connector._common.telemetry import TelemetryField as PCTelemetryField
+else:
+    from snowflake.connector.telemetry import TelemetryField as PCTelemetryField
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.modin.plugin._internal.utils import (
     is_snowpark_pandas_dataframe_or_series_type,
