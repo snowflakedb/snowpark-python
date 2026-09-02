@@ -56,8 +56,8 @@ from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.options import (
-    IS_V5_DRIVER,  # noqa: F401 - re-exported for existing callers
+from snowflake.snowpark._internal.options import (  # noqa: F401
+    IS_V5_DRIVER,  # re-exported for MockedSnowflakeConnection and other callers
     MissingOptionalDependency,
     ModuleLikeObject,
     installed_pandas,
