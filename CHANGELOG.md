@@ -8,6 +8,10 @@
 
 - Added interval type support for Python UDFs and stored procedures. Use `datetime.timedelta` as the type annotation for day-time interval (`DayTimeIntervalType`) parameters and return values, and `YearMonthInterval` (a type annotation sentinel from `snowflake.snowpark.types`) for year-month interval (`YearMonthIntervalType`) parameters and return values.
 
+#### Bug Fixes
+
+- Fixed registering a UDF, UDTF, or stored procedure with an integer optional argument failing with `SQL compilation error: invalid default argument expression`. Integer defaults were emitted as `DEFAULT <value> :: INT`, and a parameter default only accepts a constant expression. The redundant cast is no longer generated.
+
 ## 1.54.0 (2026-07-29)
 
 ### Snowpark Python API updates
