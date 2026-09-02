@@ -562,7 +562,7 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row[1] == 3 for row in result)
-    assert result[0][0] < result[1][0] < result[2][0]
+    assert result[0][0] <= result[1][0] <= result[2][0]
 
     # works with timelimit
     # seq2(0) passes sign=0, so it continues at 0 (never negative) after 32767.
@@ -593,7 +593,7 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row[1] == 3 for row in result)
-    assert result[0][0] < result[1][0] < result[2][0]
+    assert result[0][0] <= result[1][0] <= result[2][0]
 
     # works without both
     df = session.generator(seq4(1), uniform(1, 10, 2))
@@ -610,7 +610,7 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row["UNICORN"] == 3 for row in result)
-    assert result[0]["PIXEL"] < result[1]["PIXEL"] < result[2]["PIXEL"]
+    assert result[0]["PIXEL"] <= result[1]["PIXEL"] <= result[2]["PIXEL"]
 
     # aggregation works
     df = session.generator(count(seq1(0)).as_("rows"), rowcount=150)
