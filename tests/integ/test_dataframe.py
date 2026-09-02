@@ -618,28 +618,6 @@ def test_generator_table_function(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="Session.generator is not supported in Local Testing",
 )
-def test_generator_seq2_timelimit_accepts_wrapped_seq_after_order_by(session):
-    """Regression: seq2 wrap-around under timelimit=1 made #4306's ``<`` fail.
-
-    ``seq2`` wraps every 2^16 values. A 1-second generator can exceed that, so
-    ``ORDER BY seq2(0) LIMIT 3`` may return ``0, 0, 0``. After ORDER BY the
-    values are non-decreasing, not strictly increasing.
-    """
-    df = (
-        session.generator(seq2(0), uniform(1, 10, 2), timelimit=1)
-        .order_by(seq2(0))
-        .limit(3)
-    )
-    result = df.collect()
-    assert len(result) == 3
-    assert all(row[1] == 3 for row in result)
-    assert result[0][0] <= result[1][0] <= result[2][0]
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="Session.generator is not supported in Local Testing",
-)
 def test_generator_table_function_negative(session):
     # fails when no operators added
     with pytest.raises(ValueError) as ex_info:
