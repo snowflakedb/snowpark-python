@@ -10,9 +10,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from snowflake.connector.network import ReauthenticationRequest
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
+from snowflake.snowpark._internal.utils import IS_V5_DRIVER
+
+if IS_V5_DRIVER:
+    from snowflake.connector.errors import ReauthenticationRequest
+else:
+    from snowflake.connector.network import ReauthenticationRequest
 from snowflake.snowpark.exceptions import (
     SnowparkFetchDataException,
     SnowparkQueryCancelledException,

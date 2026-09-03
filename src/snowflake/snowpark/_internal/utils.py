@@ -51,14 +51,23 @@ from typing import (
 )
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.options as snowpark_options
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
-from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.options import (
+    MissingOptionalDependency,
+    ModuleLikeObject,
+    installed_pandas,
+)
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
+
+# Re-exported for MockedSnowflakeConnection and other existing callers.
+IS_V5_DRIVER = snowpark_options.IS_V5_DRIVER
+
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -239,24 +248,6 @@ TEMPORARY_STRING = "TEMPORARY"
 SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
-
-# TODO: merge fixed pandas importer changes to connector.
-def _pandas_importer():  # noqa: E302
-    """Helper function to lazily import pandas and return MissingPandas if not installed."""
-    from snowflake.connector.options import MissingPandas
-
-    pandas = MissingPandas()
-    try:
-        pandas = importlib.import_module("pandas")
-        # since we enable relative imports without dots this import gives us an issues when ran from test directory
-        from pandas import DataFrame  # NOQA
-    except ImportError:  # pragma: no cover
-        pass  # pragma: no cover
-    return pandas
-
-
-pandas = _pandas_importer()
-installed_pandas = not isinstance(pandas, MissingOptionalDependency)
 
 
 class TempObjectType(Enum):
