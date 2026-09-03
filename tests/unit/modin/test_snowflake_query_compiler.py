@@ -14,6 +14,7 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
 )
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
+    _is_missing_snowpark_or_modin_error,
 )
 from snowflake.snowpark.types import ColumnIdentifier, IntegerType, StructField
 
@@ -64,3 +65,40 @@ def test_copy(test_query_compiler) -> None:
     copy_qc.snowpark_pandas_api_calls.append({"key2": "value2"})
     # Verify original query compiler remains unchanged.
     assert test_query_compiler.snowpark_pandas_api_calls == [{"key1": "value1"}]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        # Sandbox with no snowflake package at all.
+        "100357 (P0000): Python Interpreter Error:\n"
+        "ModuleNotFoundError: No module named 'snowflake' in function "
+        "SNOWPARK_TEMP_TABLE_FUNCTION_ABC with handler udf_py_1.compute",
+        # Sandbox carrying some other snowflake.* distribution, so the missing
+        # submodule is named instead.
+        "100357 (P0000): Python Interpreter Error:\n"
+        "ModuleNotFoundError: No module named 'snowflake.snowpark' in function "
+        "SNOWPARK_TEMP_TABLE_FUNCTION_ABC with handler udf_py_1.compute",
+        "ModuleNotFoundError: No module named 'snowflake.snowpark.modin'",
+        "ModuleNotFoundError: No module named 'modin'",
+        "ModuleNotFoundError: No module named 'modin.pandas'",
+        "Modin is not installed.",
+    ],
+)
+def test_is_missing_snowpark_or_modin_error(message) -> None:
+    assert _is_missing_snowpark_or_modin_error(message)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "000904 (42000): SQL compilation error: invalid identifier 'FOO'",
+        "100357 (P0000): Python Interpreter Error:\n"
+        "ValueError: could not convert string to float",
+        # A different missing package must not be mistaken for this case.
+        "ModuleNotFoundError: No module named 'scipy'",
+        "",
+    ],
+)
+def test_is_missing_snowpark_or_modin_error_negative(message) -> None:
+    assert not _is_missing_snowpark_or_modin_error(message)
