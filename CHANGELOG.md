@@ -8,6 +8,14 @@
 
 - Added interval type support for Python UDFs and stored procedures. Use `datetime.timedelta` as the type annotation for day-time interval (`DayTimeIntervalType`) parameters and return values, and `YearMonthInterval` (a type annotation sentinel from `snowflake.snowpark.types`) for year-month interval (`YearMonthIntervalType`) parameters and return values.
 
+#### Improvements
+
+- Improved the performance of `DataFrameReader.xml` when `rowTag` is specified by projecting each XML element or attribute directly out of the reader's VARIANT output instead of expanding every record into one row per key with `flatten()` and then reassembling it with a dynamic `pivot()`. This removes an M×N intermediate (records × keys per record) from the query plan. The previous projection is still used when `cacheResult` is `False` and no schema is available, so that `.xml()` stays lazy.
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.xml` where the `columnNameOfCorruptRecord` column (default `_corrupt_record`) was added to the output in `PERMISSIVE` mode based on the reader's declared output schema rather than on whether any record was actually corrupt. The column is now added only when at least one record failed to parse, matching the behavior the dynamic `pivot()` projection produced (it only ever materialized keys the reader actually wrote).
+
 ## 1.54.0 (2026-07-29)
 
 ### Snowpark Python API updates
