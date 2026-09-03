@@ -787,30 +787,6 @@ def _apply_func_has_snowpark_function(func: Any) -> bool:
     )
 
 
-def _is_missing_snowpark_or_modin_error(message: str) -> bool:
-    """
-    Check whether a server error means the UDF sandbox could not import Snowpark or Modin.
-
-    Referencing ``modin.pandas`` inside ``apply()`` makes the generated handler
-    import a package the sandbox does not have. Which name appears in the error
-    depends on the image: sandboxes carrying no ``snowflake`` package at all
-    report ``snowflake``, while those carrying some other ``snowflake.*``
-    distribution report the missing submodule, e.g. ``snowflake.snowpark``.
-    Match on the prefix so both forms are recognized.
-
-    Args:
-        message: The server error message.
-
-    Returns:
-        True if the error is a missing Snowpark/Modin import, False otherwise.
-    """
-    return (
-        "No module named 'snowflake" in message
-        or "No module named 'modin" in message
-        or "Modin is not installed" in message
-    )
-
-
 @_propagate_attrs_on_methods
 class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
@@ -10489,7 +10465,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         try:
             ordered_dataframe = cache_result(udtf_dataframe)
         except SnowparkSQLException as e:
-            if _is_missing_snowpark_or_modin_error(str(e)):
+            # The sandbox names either the top-level package or the missing
+            # submodule, e.g. "snowflake" or "snowflake.snowpark", depending on
+            # which other snowflake.* packages the image carries, so match the
+            # prefix rather than an exact name.
+            message = str(e)
+            if (
+                "No module named 'snowflake" in message
+                or "No module named 'modin" in message
+                or "Modin is not installed" in message
+            ):
                 raise SnowparkSQLException(
                     "modin.pandas cannot be referenced within a Snowpark pandas apply() function. "
                     "You can only use native pandas inside apply(). Please check developer guide for details "

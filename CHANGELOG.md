@@ -20,7 +20,7 @@
 
 #### Bug Fixes
 
-- Fixed referencing `modin.pandas` inside a Snowpark pandas `apply()` raising a raw `ModuleNotFoundError` about an internal temporary function instead of the message explaining that only native pandas may be used inside `apply()`. The error was only recognized when the sandbox reported the missing package as `snowflake`, not when it reported a submodule such as `snowflake.snowpark`.
+- Fixed a bug where referencing `modin.pandas` inside a Snowpark pandas `apply()` function raised a `ModuleNotFoundError`.
 
 ## 1.54.0 (2026-07-29)
 
