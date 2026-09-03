@@ -1067,8 +1067,10 @@ class SnowflakePlanBuilder:
         table_reference = table_name
         if isinstance(source_plan, SnowflakeTable):
             if source_plan.iceberg_changes_config:
-                table_reference += (
-                    source_plan.iceberg_changes_config.generate_sql_clause()
+                table_reference = (
+                    source_plan.iceberg_changes_config.generate_table_reference(
+                        table_name
+                    )
                 )
             elif source_plan.time_travel_config:
                 table_reference += source_plan.time_travel_config.generate_sql_clause()
