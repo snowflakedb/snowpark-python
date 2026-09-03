@@ -564,7 +564,8 @@ def test_generator_table_function(session):
     assert result[0][0] < result[1][0] < result[2][0]
 
     # works with timelimit
-    # seq2() is also non-deterministic — apply same structural check
+    # Unlike the rowcount cases, timelimit leaves the row count unbounded, so the
+    # 2-byte seq2() wraps back to 0 and repeats values. Only assert non-decreasing.
     df = (
         session.generator(seq2(0), uniform(1, 10, 2), timelimit=1)
         .order_by(seq2(0))
@@ -573,7 +574,7 @@ def test_generator_table_function(session):
     result = df.collect()
     assert len(result) == 3
     assert all(row[1] == 3 for row in result)
-    assert result[0][0] < result[1][0] < result[2][0]
+    assert result[0][0] <= result[1][0] <= result[2][0]
 
     # works with combination of both
     df = (
