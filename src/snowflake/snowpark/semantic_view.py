@@ -155,21 +155,21 @@ class SemanticView:
         """The fully qualified name (``database.schema.name``) of this semantic view."""
         return self._fqn
 
-    def facts(self, *facts: str) -> SemanticViewQuery:
+    def facts(self, *facts: MemberRef) -> SemanticViewQuery:
         """Starts a query on this semantic view with a ``FACTS`` clause."""
-        raise NotImplementedError("SemanticView.facts is not implemented yet.")
+        return SemanticViewQuery(self._session, self._fqn).facts(*facts)
 
-    def metrics(self, *metrics: str) -> SemanticViewQuery:
+    def metrics(self, *metrics: MemberRef) -> SemanticViewQuery:
         """Starts a query on this semantic view with a ``METRICS`` clause."""
-        raise NotImplementedError("SemanticView.metrics is not implemented yet.")
+        return SemanticViewQuery(self._session, self._fqn).metrics(*metrics)
 
-    def dimensions(self, *dimensions: str) -> SemanticViewQuery:
+    def dimensions(self, *dimensions: MemberRef) -> SemanticViewQuery:
         """Starts a query on this semantic view with a ``DIMENSIONS`` clause."""
-        raise NotImplementedError("SemanticView.dimensions is not implemented yet.")
+        return SemanticViewQuery(self._session, self._fqn).dimensions(*dimensions)
 
     def where(self, condition: str) -> SemanticViewQuery:
         """Starts a query on this semantic view with a ``WHERE`` clause."""
-        raise NotImplementedError("SemanticView.where is not implemented yet.")
+        return SemanticViewQuery(self._session, self._fqn).where(condition)
 
     def ddl(self) -> str:
         """Returns the ``CREATE SEMANTIC VIEW`` statement for this semantic view."""

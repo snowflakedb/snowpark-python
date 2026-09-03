@@ -21,19 +21,31 @@ def test_semantic_view_fqn(fake_session):
     assert sv.fqn == "DB.SC.SV"
 
 
-@pytest.mark.parametrize(
-    "method_name,args",
-    [
-        ("facts", ("f1",)),
-        ("metrics", ("m1",)),
-        ("dimensions", ("d1",)),
-        ("where", ("d1 = 1",)),
-    ],
-)
-def test_semantic_view_stubs_not_implemented(fake_session, method_name, args):
+def test_handle_metrics_starts_query(fake_session):
     sv = SemanticView(fake_session, "DB.SC.SV")
-    with pytest.raises(NotImplementedError):
-        getattr(sv, method_name)(*args)
+    q = sv.metrics("m1")
+    assert isinstance(q, SemanticViewQuery)
+    assert q._metrics == ("m1",)
+    assert q._fqn == "DB.SC.SV"
+    assert q._session is fake_session
+
+
+def test_handle_can_chain_to_df(fake_session):
+    sv = SemanticView(fake_session, "DB.SC.SV")
+    sv.metrics("m1").dimensions("d1").to_df()
+    fake_session.sql.assert_called_once_with(
+        "SELECT * FROM SEMANTIC_VIEW(DB.SC.SV METRICS m1 DIMENSIONS d1)"
+    )
+
+
+def test_two_chains_from_one_handle_are_isolated(fake_session):
+    sv = SemanticView(fake_session, "DB.SC.SV")
+    a = sv.metrics("revenue")
+    b = sv.dimensions("day")
+    assert a._metrics == ("revenue",)
+    assert a._dimensions == ()
+    assert b._metrics == ()
+    assert b._dimensions == ("day",)
 
 
 def test_query_clause_defaults_are_empty_tuples(fake_session):
