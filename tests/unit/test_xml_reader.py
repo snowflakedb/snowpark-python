@@ -1414,23 +1414,50 @@ def test_xml_variant_projection_alias_matches_pivot_naming():
 @pytest.mark.parametrize(
     "options,schema_known,expected",
     [
-        # Default (cacheResult=True): projection applies whether or not a schema is known.
-        ({}, True, True),
-        ({}, False, True),
-        # cacheResult=False leaves nothing materialized: no keys to discover, and no cheap
-        # way to test for corrupt records, so flatten+pivot keeps .xml() lazy.
+        # Unset: an unconfigured read keeps the flatten+pivot output it always produced,
+        # whatever else is set.
+        ({}, True, False),
+        ({}, False, False),
+        ({"CACHERESULT": True}, True, False),
         ({"CACHERESULT": False}, False, False),
-        ({"CACHERESULT": False}, True, False),
+        ({"MODE": "FAILFAST"}, True, False),
+        # Explicitly off is the same as unset.
+        ({"USEVARIANTPROJECTION": False}, True, False),
+        ({"USEVARIANTPROJECTION": False}, False, False),
+        # Opted in with cacheResult at its default: applies whether or not a schema is known.
+        ({"USEVARIANTPROJECTION": True}, True, True),
+        ({"USEVARIANTPROJECTION": True}, False, True),
+        ({"USEVARIANTPROJECTION": True, "CACHERESULT": True}, True, True),
+        # Opted in, but cacheResult=False leaves nothing materialized: no keys to discover,
+        # and no cheap way to test for corrupt records, so flatten+pivot keeps .xml() lazy.
+        ({"USEVARIANTPROJECTION": True, "CACHERESULT": False}, False, False),
+        ({"USEVARIANTPROJECTION": True, "CACHERESULT": False}, True, False),
         # ... except when no corrupt-record probe is needed, i.e. outside PERMISSIVE mode.
-        ({"CACHERESULT": False, "MODE": "FAILFAST"}, True, True),
-        ({"CACHERESULT": False, "MODE": "DROPMALFORMED"}, True, True),
-        ({"CACHERESULT": False, "MODE": "failfast"}, True, True),
+        (
+            {"USEVARIANTPROJECTION": True, "CACHERESULT": False, "MODE": "FAILFAST"},
+            True,
+            True,
+        ),
+        (
+            {
+                "USEVARIANTPROJECTION": True,
+                "CACHERESULT": False,
+                "MODE": "DROPMALFORMED",
+            },
+            True,
+            True,
+        ),
+        (
+            {"USEVARIANTPROJECTION": True, "CACHERESULT": False, "MODE": "failfast"},
+            True,
+            True,
+        ),
         # Without a schema there are still no keys to discover, whatever the mode.
-        ({"CACHERESULT": False, "MODE": "FAILFAST"}, False, False),
-        # The rollback lever wins over everything else.
-        ({"_LEGACY_XML_PIVOT": True}, True, False),
-        ({"_LEGACY_XML_PIVOT": True}, False, False),
-        ({"_LEGACY_XML_PIVOT": True, "CACHERESULT": True}, True, False),
+        (
+            {"USEVARIANTPROJECTION": True, "CACHERESULT": False, "MODE": "FAILFAST"},
+            False,
+            False,
+        ),
     ],
 )
 def test_use_xml_variant_projection(options, schema_known, expected):

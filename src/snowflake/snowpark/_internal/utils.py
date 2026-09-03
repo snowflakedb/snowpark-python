@@ -464,15 +464,16 @@ def escape_subfield_key(field: str) -> str:
 def use_xml_variant_projection(options: Dict[str, Any], schema_known: bool) -> bool:
     """Whether the XML reader may project ROW_DATA keys directly instead of flatten+pivot.
 
-    Direct projection needs a materialized result -- to discover the keys when no schema
-    is known, and to probe cheaply whether any record was corrupt in PERMISSIVE mode. With
-    ``cacheResult=False`` and neither available, flatten+pivot is what keeps ``.xml()``
-    lazy: discovering keys or probing for corrupt records there would re-read the file
-    once at ``.xml()`` time and again on ``collect()``.
+    Off unless ``useVariantProjection`` is set, so an unconfigured read keeps the
+    flatten+pivot output it has always produced.
 
-    ``_LEGACY_XML_PIVOT`` forces flatten+pivot unconditionally as a rollback lever.
+    Once opted in, direct projection still needs a materialized result -- to discover the
+    keys when no schema is known, and to probe cheaply whether any record was corrupt in
+    PERMISSIVE mode. With ``cacheResult=False`` and neither available, flatten+pivot is what
+    keeps ``.xml()`` lazy: discovering keys or probing for corrupt records there would
+    re-read the file once at ``.xml()`` time and again on ``collect()``.
     """
-    if options.get("_LEGACY_XML_PIVOT", False):
+    if not options.get("USEVARIANTPROJECTION", False):
         return False
     if options.get("CACHERESULT", True):
         return True

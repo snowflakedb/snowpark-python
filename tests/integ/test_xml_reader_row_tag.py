@@ -1186,45 +1186,51 @@ def _read_xml_content(session, file_name, row_tag, **options):
         (test_file_malformed_not_self_closing_xml, "record"),
     ],
 )
-def test_read_xml_variant_projection_matches_legacy_pivot(session, file_name, row_tag):
-    """Direct VARIANT projection must be output-equivalent to the flatten+pivot it replaces."""
-    columns, content = _read_xml_content(session, file_name, row_tag)
-    legacy_columns, legacy_content = _read_xml_content(
-        session, file_name, row_tag, _LEGACY_XML_PIVOT=True
+def test_read_xml_variant_projection_matches_default_pivot(session, file_name, row_tag):
+    """Opting into VARIANT projection must not change what is read.
+
+    The default is flatten+pivot, so that is the reference side here.
+    """
+    default_columns, default_content = _read_xml_content(session, file_name, row_tag)
+    columns, content = _read_xml_content(
+        session, file_name, row_tag, useVariantProjection=True
     )
 
-    assert content == legacy_content
-    assert sorted(columns) == sorted(legacy_columns)
-    # Column order is only a contract for the new path; pivot's ordering is incidental.
+    assert content == default_content
+    assert sorted(columns) == sorted(default_columns)
+    # Alphabetical order is a contract of the projection path only; pivot's is incidental.
     assert columns == sorted(columns)
 
 
-def test_read_xml_variant_projection_replaces_pivot_in_generated_sql(session):
-    """The rollback lever must actually switch query plans, not just produce equal output."""
+def test_read_xml_use_variant_projection_switches_the_query_plan(session):
+    """The option must actually switch query plans, not just produce equal output."""
     path = f"@{tmp_stage_name}/{test_file_books_xml}"
 
-    with session.query_history() as projection_history:
+    with session.query_history() as default_history:
         session.read.option("rowTag", "book").xml(path)
-    with session.query_history() as pivot_history:
-        session.read.option("rowTag", "book").option("_LEGACY_XML_PIVOT", True).xml(
+    with session.query_history() as projection_history:
+        session.read.option("rowTag", "book").option("useVariantProjection", True).xml(
             path
         )
 
+    default_sql = " ".join(q.sql_text.upper() for q in default_history.queries)
     projection_sql = " ".join(q.sql_text.upper() for q in projection_history.queries)
-    pivot_sql = " ".join(q.sql_text.upper() for q in pivot_history.queries)
 
-    assert "PIVOT" in pivot_sql
-    assert "OBJECT_KEYS" not in pivot_sql
+    assert "PIVOT" in default_sql
+    assert "OBJECT_KEYS" not in default_sql
     assert "OBJECT_KEYS" in projection_sql
     assert "PIVOT" not in projection_sql
 
 
-def test_read_xml_legacy_pivot_option_preserves_column_names(session):
-    """The lever restores the previous output, including the single-quoted column names."""
-    clean = (
-        session.read.option("rowTag", "book")
-        .option("_LEGACY_XML_PIVOT", True)
-        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+def test_read_xml_default_options_preserve_pivot_output(session):
+    """A read with no options set must produce the flatten+pivot output unchanged.
+
+    This is the regression guarantee behind useVariantProjection defaulting to False: the
+    column count, row count, and single-quoted column naming all have to match what this
+    reader produced before the projection path existed.
+    """
+    clean = session.read.option("rowTag", "book").xml(
+        f"@{tmp_stage_name}/{test_file_books_xml}"
     )
     assert len(clean.columns) == 7
     result = clean.collect()
@@ -1232,14 +1238,46 @@ def test_read_xml_legacy_pivot_option_preserves_column_names(session):
     # Records are read by parallel workers, so row order is not deterministic.
     assert '"Gambardella, Matthew"' in {row["'author'"] for row in result}
 
-    malformed = (
-        session.read.option("rowTag", "record")
-        .option("_LEGACY_XML_PIVOT", True)
-        .xml(f"@{tmp_stage_name}/{test_file_malformed_no_closing_tag_xml}")
+    malformed = session.read.option("rowTag", "record").xml(
+        f"@{tmp_stage_name}/{test_file_malformed_no_closing_tag_xml}"
     )
     malformed_result = malformed.collect()
     assert len(malformed_result[0]) == 4
     assert any(row["'_corrupt_record'"] is not None for row in malformed_result)
+
+
+@pytest.mark.parametrize(
+    "file_name,row_tag,expected_row_count,expected_column_count",
+    [
+        (test_file_books_xml, "book", 12, 7),
+        (test_file_books2_xml, "book", 2, 6),
+        (test_file_dblp_xml, "mastersthesis", 6, 8),
+        (test_file_books_attr_val_xml, "book", 5, 6),
+    ],
+)
+def test_read_xml_default_options_match_pre_projection_shape(
+    session, file_name, row_tag, expected_row_count, expected_column_count
+):
+    """A read with no options set must produce the shape it produced before the projection
+    path existed, and must not reach that path at all.
+
+    The expected counts are the ones this reader produced prior to useVariantProjection,
+    so a change of default would show up here rather than only in the differential test.
+    """
+    with session.query_history() as history:
+        df = session.read.option("rowTag", row_tag).xml(
+            f"@{tmp_stage_name}/{file_name}"
+        )
+    result = df.collect()
+
+    assert len(df.columns) == expected_column_count
+    assert len(result) == expected_row_count
+    # Column names keep the single-quoted form dynamic pivot produced.
+    assert all(c.startswith("\"'") and c.endswith("'\"") for c in df.columns)
+
+    executed_sql = " ".join(q.sql_text.upper() for q in history.queries)
+    assert "PIVOT" in executed_sql
+    assert "OBJECT_KEYS" not in executed_sql
 
 
 def test_read_xml_corrupt_record_column_omitted_when_no_corrupt_record(session):

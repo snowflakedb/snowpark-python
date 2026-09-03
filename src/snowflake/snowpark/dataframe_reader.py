@@ -1324,10 +1324,13 @@ class DataFrameReader:
                 This means the actual computation occurs before :meth:`DataFrame.collect` is called.
                 When set to ``False``, the DataFrame is computed lazily and the actual computation occurs when :meth:`DataFrame.collect` is called.
 
-            - ``_LEGACY_XML_PIVOT`` is an internal, unsupported escape hatch that restores the
-              previous ``flatten()`` + dynamic ``pivot()`` output projection. It exists only to
-              roll back a regression in the direct VARIANT projection and may be removed at any
-              time; it is not part of the public API.
+              + ``useVariantProjection``: Whether to build the output by projecting each XML element or
+                attribute directly out of the reader's VARIANT output. The default value is ``False``, which
+                expands every record into one row per key with ``flatten()`` and reassembles it with a
+                dynamic ``pivot()``. Setting this to ``True`` removes that intermediate, which is
+                substantially faster on wide records, and makes the column order of a read without a schema
+                alphabetical. It has no effect when ``cacheResult`` is ``False`` and no schema is available,
+                since the keys cannot be discovered without materializing the result first.
         """
         df = self._read_semi_structured_file(path, "XML")
         # AST.
