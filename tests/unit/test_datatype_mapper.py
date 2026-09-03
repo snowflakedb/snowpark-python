@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     numeric_to_sql_without_cast,
     schema_expression,
     to_sql,
+    to_sql_for_default_arg,
     to_sql_no_cast,
 )
 from snowflake.snowpark._internal.type_utils import (
@@ -765,6 +766,33 @@ def test_numeric_to_sql_without_cast():
     assert numeric_to_sql_without_cast(float("inf"), DoubleType()) == "'INF' :: FLOAT"
 
     assert numeric_to_sql_without_cast(Decimal(0.5), DecFloatType()) == "0.5"
+
+
+def test_to_sql_for_default_arg():
+    # Integral defaults must not carry a cast: a DEFAULT only accepts a constant
+    # expression and Snowflake rejects `<value> :: INT` there on some versions.
+    for datatype in (ByteType(), ShortType(), IntegerType(), LongType()):
+        assert to_sql(0, datatype) == "0 :: INT"
+        assert to_sql_for_default_arg(0, datatype) == "0"
+        assert to_sql_for_default_arg(-5, datatype) == "-5"
+        assert to_sql_for_default_arg(None, datatype) == "NULL"
+
+    # bool is a subclass of int, so it normalizes to 0/1 for integral parameters
+    assert to_sql_for_default_arg(True, LongType()) == "1"
+    assert to_sql_for_default_arg(False, LongType()) == "0"
+
+    # every other type keeps its to_sql rendering, which Snowflake accepts
+    for value, datatype in (
+        (1.0, DoubleType()),
+        ("one", StringType()),
+        (True, BooleanType()),
+        (Decimal(1), DecimalType(38, 0)),
+        ([4], ArrayType()),
+        ({"s": 1}, MapType()),
+        (datetime.date(2021, 1, 1), DateType()),
+        (b"123", BinaryType()),
+    ):
+        assert to_sql_for_default_arg(value, datatype) == to_sql(value, datatype)
 
 
 def test_schema_expression():
