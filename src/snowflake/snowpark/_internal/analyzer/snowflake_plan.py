@@ -53,6 +53,7 @@ import snowflake.connector
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
+    unquote_if_quoted,
     TEMPORARY_STRING_SET,
     aggregate_statement,
     attribute_to_schema_string,
@@ -128,6 +129,8 @@ from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     XML_ROW_TAG_STRING,
     XML_ROW_DATA_COLUMN_NAME,
+    xml_variant_projection,
+    use_xml_variant_projection,
     TempObjectType,
     generate_random_alphanumeric,
     get_copy_into_table_options,
@@ -1872,29 +1875,47 @@ class SnowflakePlanBuilder:
         # Create a range from 0 to N-1
         df = self.session.range(num_workers).to_df(worker_column_name)
 
+        udtf_args = (
+            lit(file_path),
+            lit(num_workers),
+            lit(row_tag),
+            col(worker_column_name),
+            lit(mode),
+            lit(column_name_of_corrupt_record),
+            lit(ignore_namespace),
+            lit(attribute_prefix),
+            lit(exclude_attributes),
+            lit(value_tag),
+            lit(null_value),
+            lit(charset),
+            lit(ignore_surrounding_whitespace),
+            lit(row_validation_xsd_path),
+            lit(schema_string),
+            lit(context._is_snowpark_connect_compatible_mode),
+        )
+
+        if use_xml_variant_projection(options, schema is not None):
+            df = df.select(xml_reader_udtf(*udtf_args))
+
+            if schema is None:
+                # Emit raw ROW_DATA; DataFrameReader._xml_project_from_variant_cache
+                # discovers the top-level keys from the cached result and projects them.
+                return df.queries["queries"][-1]
+
+            keys = [unquote_if_quoted(attr.name) for attr in schema]
+            # Project the corrupt-record column unconditionally so _apply_xml_schema can
+            # test whether any row is actually corrupt; it drops the column when none is.
+            if mode == "PERMISSIVE":
+                keys.append(column_name_of_corrupt_record)
+            df = df.select(*(xml_variant_projection(key) for key in keys))
+            return df.queries["queries"][-1]
+
         # Apply UDTF to the XML file and get each XML record as a Variant data,
         # and append a unique row number to each record.
         df = df.select(
             worker_column_name,
             seq8().as_(xml_row_number_column_name),
-            xml_reader_udtf(
-                lit(file_path),
-                lit(num_workers),
-                lit(row_tag),
-                col(worker_column_name),
-                lit(mode),
-                lit(column_name_of_corrupt_record),
-                lit(ignore_namespace),
-                lit(attribute_prefix),
-                lit(exclude_attributes),
-                lit(value_tag),
-                lit(null_value),
-                lit(charset),
-                lit(ignore_surrounding_whitespace),
-                lit(row_validation_xsd_path),
-                lit(schema_string),
-                lit(context._is_snowpark_connect_compatible_mode),
-            ),
+            xml_reader_udtf(*udtf_args),
         )
 
         # Flatten the Variant data to get the key-value pairs

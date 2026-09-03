@@ -67,6 +67,8 @@ from snowflake.snowpark._internal.utils import (
     STAGE_PREFIX,
     XML_ROW_TAG_STRING,
     XML_ROW_DATA_COLUMN_NAME,
+    xml_variant_projection,
+    use_xml_variant_projection,
     XML_READER_FILE_PATH,
     XML_SCHEMA_INFERENCE_FILE_PATH,
     XML_READER_API_SIGNATURE,
@@ -1321,6 +1323,11 @@ class DataFrameReader:
                 When set to ``True`` (default), the result is cached and all subsequent operations on the DataFrame are performed on the cached data.
                 This means the actual computation occurs before :meth:`DataFrame.collect` is called.
                 When set to ``False``, the DataFrame is computed lazily and the actual computation occurs when :meth:`DataFrame.collect` is called.
+
+            - ``_LEGACY_XML_PIVOT`` is an internal, unsupported escape hatch that restores the
+              previous ``flatten()`` + dynamic ``pivot()`` output projection. It exists only to
+              roll back a regression in the direct VARIANT projection and may be removed at any
+              time; it is not part of the public API.
         """
         df = self._read_semi_structured_file(path, "XML")
         # AST.
@@ -1365,17 +1372,57 @@ class DataFrameReader:
             df_columns = {c.strip('"').strip("'") for c in df.columns}
             if corrupt_col_name in df_columns:
                 corrupt_ref = df[single_quote(corrupt_col_name)]
-                cols.append(
-                    corrupt_ref.cast(StringType()).alias(
-                        quote_name_without_upper_casing(corrupt_col_name)
-                    )
+                # The VARIANT-projection path always projects this column, so presence in
+                # df.columns no longer implies any record was corrupt -- probe for a
+                # non-NULL value instead. Under PIVOT the column only materialized when
+                # the UDTF wrote the key (which it does only for corrupt records), so
+                # both paths end up omitting the column for clean data.
+                has_corrupt_record = (
+                    df.filter(corrupt_ref.is_not_null()).limit(1).count() > 0
+                    if use_xml_variant_projection(self._cur_options, True)
+                    else True
                 )
-                if self._xml_inferred_schema is not None:
-                    self._xml_inferred_schema.fields.append(
-                        StructField(corrupt_col_name, StringType())
+                if has_corrupt_record:
+                    cols.append(
+                        corrupt_ref.cast(StringType()).alias(
+                            quote_name_without_upper_casing(corrupt_col_name)
+                        )
                     )
+                    if self._xml_inferred_schema is not None:
+                        self._xml_inferred_schema.fields.append(
+                            StructField(corrupt_col_name, StringType())
+                        )
 
         result = df.select(cols)
+        return result
+
+    def _xml_project_from_variant_cache(self, df: DataFrame) -> DataFrame:
+        """Project the XML reader's raw ROW_DATA VARIANT into one column per XML key.
+
+        Discovers the union of top-level element and attribute names across every
+        record of the already-materialized ``df``, then projects each one directly.
+        This replaces the flatten + dynamic pivot that built an M x N intermediate,
+        and reuses the cached result so the file is still only read once.
+        """
+        from snowflake.snowpark.functions import flatten, object_keys
+
+        keys = sorted(
+            row[0]
+            for row in df.select(flatten(object_keys(col(XML_ROW_DATA_COLUMN_NAME))))
+            .select(col("VALUE").cast(StringType()))
+            .distinct()
+            .collect()
+        )
+        if not keys:
+            # The UDTF produced no records at all, so the row tag matched nothing.
+            # Under PIVOT this surfaced as a "SELECT with no columns" SQL error that
+            # snowflake_plan translated into this same exception.
+            raise SnowparkClientExceptionMessages.DF_XML_ROW_TAG_NOT_FOUND(
+                self._cur_options.get(XML_ROW_TAG_STRING), self._file_path
+            )
+
+        result = df.select(*(xml_variant_projection(key) for key in keys))
+        result._all_variant_cols = True
         return result
 
     @publicapi
@@ -2068,7 +2115,12 @@ class DataFrameReader:
                 # When schema is inferred or user-provided, columns are typed
                 # (not all VARIANT), so don't enable the all-variant dot-notation mode.
                 if xml_inferred_schema is None and not self._user_schema:
-                    df._all_variant_cols = True
+                    if use_xml_variant_projection(self._cur_options, False):
+                        # ROW_DATA is materialized now, so the keys can be discovered
+                        # from the cache instead of via flatten + pivot.
+                        df = self._xml_project_from_variant_cache(df)
+                    else:
+                        df._all_variant_cols = True
         else:
             set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df

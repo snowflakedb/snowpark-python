@@ -461,6 +461,40 @@ def escape_subfield_key(field: str) -> str:
     return escape_quotes_and_backslashes(field)
 
 
+def use_xml_variant_projection(options: Dict[str, Any], schema_known: bool) -> bool:
+    """Whether the XML reader may project ROW_DATA keys directly instead of flatten+pivot.
+
+    Direct projection needs a materialized result -- to discover the keys when no schema
+    is known, and to probe cheaply whether any record was corrupt in PERMISSIVE mode. With
+    ``cacheResult=False`` and neither available, flatten+pivot is what keeps ``.xml()``
+    lazy: discovering keys or probing for corrupt records there would re-read the file
+    once at ``.xml()`` time and again on ``collect()``.
+
+    ``_LEGACY_XML_PIVOT`` forces flatten+pivot unconditionally as a rollback lever.
+    """
+    if options.get("_LEGACY_XML_PIVOT", False):
+        return False
+    if options.get("CACHERESULT", True):
+        return True
+    return schema_known and options.get("MODE", "PERMISSIVE").upper() != "PERMISSIVE"
+
+
+def xml_variant_projection(key: str) -> "snowflake.snowpark.Column":  # type: ignore[name-defined] # noqa: F821
+    """Project a single top-level key out of the XML reader's ROW_DATA VARIANT column.
+
+    Subfield (bracket) notation is used rather than ``ROW_DATA:key`` path notation
+    because a namespace-prefixed XML name such as ``px:name`` would otherwise be
+    parsed as a further path segment instead of a literal key.
+
+    The single-quoted alias reproduces the column names that dynamic PIVOT produced,
+    which the XML reader's output contract still depends on (see SNOW-2923003).
+    """
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import single_quote
+    from snowflake.snowpark.functions import col
+
+    return col(XML_ROW_DATA_COLUMN_NAME)[key].alias(single_quote(key))
+
+
 def is_sql_select_statement(sql: str) -> bool:
     return (
         SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None
