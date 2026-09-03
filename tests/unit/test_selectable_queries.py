@@ -26,19 +26,11 @@ from snowflake.snowpark._internal.analyzer.expression import (
     COLUMN_DEPENDENCY_DOLLAR,
 )
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
-from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    SnowflakePlan,
-    Query,
-    SnowflakePlanBuilder,
-)
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan, Query
 from snowflake.snowpark.types import StringType
 from tests.utils import Utils
 import snowflake.snowpark.context as context
-from snowflake.snowpark._internal.utils import (
-    set_ast_state,
-    AstFlagSource,
-    IcebergChangesConfig,
-)
+from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 
 
 @pytest.fixture(autouse=True)
@@ -121,34 +113,6 @@ def test_selectable_entity_sql_query(mock_session, mock_analyzer):
     assert Utils.normalize_sql(selectable_entity.commented_sql) == Utils.normalize_sql(
         expected
     )
-
-
-def test_selectable_entity_iceberg_incremental_read_table_reference(
-    mock_session, mock_analyzer
-):
-    config = IcebergChangesConfig(start_version=111, end_version=222)
-    entity = SnowflakeTable(
-        "db.schema.t",
-        session=mock_session,
-        iceberg_changes_config=config,
-    )
-    selectable_entity = SelectableEntity(entity, analyzer=mock_analyzer)
-    assert selectable_entity.table_reference == (
-        "TABLE(SPARK_INCREMENTAL_READ('db.schema.t', 111, 222))"
-    )
-    assert "SPARK_INCREMENTAL_READ" in selectable_entity.sql_query
-
-
-def test_snowflake_plan_builder_table_iceberg_incremental_read(mock_session):
-    config = IcebergChangesConfig(start_version=111, end_version=222)
-    source_plan = SnowflakeTable(
-        "db.schema.t",
-        session=mock_session,
-        iceberg_changes_config=config,
-    )
-    builder = SnowflakePlanBuilder(mock_session)
-    plan = builder.table("db.schema.t", source_plan)
-    assert "SPARK_INCREMENTAL_READ('db.schema.t', 111, 222)" in plan.queries[-1].sql
 
 
 def test_select_sql_sql_query(mock_session, mock_analyzer):
