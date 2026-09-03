@@ -3628,7 +3628,8 @@ class Session:
                         **kwargs,
                     )
         except ProgrammingError as pe:
-            if pe.msg.endswith("does not exist"):
+            msg = getattr(pe, "raw_msg", pe.msg)
+            if msg.endswith("does not exist"):
                 raise SnowparkClientExceptionMessages.DF_PANDAS_TABLE_DOES_NOT_EXIST_EXCEPTION(
                     location
                 ) from pe
