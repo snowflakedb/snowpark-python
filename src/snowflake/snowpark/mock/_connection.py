@@ -31,6 +31,7 @@ from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
+    IS_V5_DRIVER,
     is_in_stored_procedure,
     result_set_to_rows,
 )
@@ -77,6 +78,10 @@ class MockedSnowflakeConnection(SnowflakeConnection):
             }
         }
         self._rest = Mock(**attrs)
+
+    if IS_V5_DRIVER:
+        # UD Connection.__init__ calls _connect(); legacy called connect().
+        _connect = connect
 
     def close(self, retry: bool = True) -> None:
         self._rest = None
