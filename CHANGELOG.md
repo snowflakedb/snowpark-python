@@ -4,6 +4,12 @@
 
 ### Snowpark Python API Updates
 
+### Snowpark pandas API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where referencing `modin.pandas` inside a Snowpark pandas `apply()` function raised a raw `ModuleNotFoundError` instead of the intended guidance message. The detection now also matches the server-side `No module named 'snowflake.snowpark'` error.
+
 ## 1.54.0 (2026-07-29)
 
 ### Snowpark Python API updates
