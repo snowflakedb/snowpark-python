@@ -32,7 +32,11 @@ from packaging.requirements import Requirement
 import snowflake.snowpark
 from snowflake.snowpark._internal.options import installed_pandas, pandas
 from snowflake.snowpark._internal import code_generation, type_utils
-from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql, to_sql_no_cast
+from snowflake.snowpark._internal.analyzer.datatype_mapper import (
+    to_sql,
+    to_sql_for_default_arg,
+    to_sql_no_cast,
+)
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     NoneType,
@@ -448,7 +452,7 @@ def get_opt_arg_defaults(
 
         if num_optional_args != 0:
             default_values_to_sql_str = [
-                to_sql(value, datatype)
+                to_sql_for_default_arg(value, datatype)
                 for value, datatype in zip(default_values, input_types_for_default_args)
             ]
         else:
