@@ -1222,6 +1222,17 @@ def test_read_xml_use_variant_projection_switches_the_query_plan(session):
     assert "PIVOT" not in projection_sql
 
 
+def test_read_xml_variant_projection_row_tag_not_found(session):
+    """The projection path's own key-discovery step must raise the same error as pivot's
+    when the row tag matches nothing, not just when pivot's SELECT-with-no-columns fires."""
+    with pytest.raises(
+        SnowparkDataframeReaderException, match="Cannot find the row tag"
+    ):
+        session.read.option("rowTag", "non-existing-tag").option(
+            "useVariantProjection", True
+        ).xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+
+
 def test_read_xml_default_options_preserve_pivot_output(session):
     """A read with no options set must produce the flatten+pivot output unchanged.
 
@@ -1310,3 +1321,62 @@ def test_read_xml_corrupt_record_column_omitted_when_no_corrupt_record(session):
         "_corrupt_record",
     ]
     assert any(row["_corrupt_record"] is not None for row in corrupt.collect())
+
+
+def test_read_xml_corrupt_record_column_with_variant_projection_and_schema(session):
+    """Same guarantee as the pivot case above, but with useVariantProjection=True and a
+    user-provided schema, which drives a different code path in both the reader's query
+    construction and the corrupt-record column probe."""
+    schema = StructType(
+        [StructField("_id", StringType()), StructField("author", StringType())]
+    )
+    clean = (
+        session.read.schema(schema)
+        .option("rowTag", "book")
+        .option("useVariantProjection", True)
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+    assert [c.strip('"') for c in clean.columns] == ["_id", "author"]
+    assert len(clean.collect()[0]) == 2
+
+    corrupt_schema = StructType(
+        [StructField("_key", StringType()), StructField("title", StringType())]
+    )
+    corrupt = (
+        session.read.schema(corrupt_schema)
+        .option("rowTag", "incollection")
+        .option("useVariantProjection", True)
+        .xml(f"@{tmp_stage_name}/{test_file_dblp_xml}")
+    )
+    assert [c.strip('"') for c in corrupt.columns] == [
+        "_key",
+        "title",
+        "_corrupt_record",
+    ]
+    assert any(row["_corrupt_record"] is not None for row in corrupt.collect())
+
+
+def test_read_xml_variant_projection_with_schema_and_dropmalformed(
+    session, enable_scos_compatible_mode
+):
+    """DROPMALFORMED with a schema and useVariantProjection=True must still drop
+    mismatched rows; this mode never adds a corrupt-record key, unlike PERMISSIVE."""
+    narrow_schema = StructType(
+        [
+            StructField("name", StringType()),
+            StructField("value", LongType()),
+        ]
+    )
+    df = (
+        session.read.option("rowTag", "ROW")
+        .option("mode", "DROPMALFORMED")
+        .option("useVariantProjection", True)
+        .schema(narrow_schema)
+        .xml(f"@{tmp_stage_name}/{_staged_files['sampling_mismatch']}")
+    )
+    result = df.order_by('"name"').collect()
+    assert len(result) == 5
+    names = [r["name"] for r in result]
+    assert "Frank" not in names
+    for r in result:
+        assert r["value"] is not None

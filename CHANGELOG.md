@@ -8,7 +8,7 @@
 
 - Added interval type support for Python UDFs and stored procedures. Use `datetime.timedelta` as the type annotation for day-time interval (`DayTimeIntervalType`) parameters and return values, and `YearMonthInterval` (a type annotation sentinel from `snowflake.snowpark.types`) for year-month interval (`YearMonthIntervalType`) parameters and return values.
 
-- Added a `useVariantProjection` option to `DataFrameReader.xml` for reads that specify `rowTag`. The default, `False`, builds the output as before: every record is expanded into one row per key with `flatten()` and reassembled with a dynamic `pivot()`. Setting it to `True` instead projects each XML element or attribute directly out of the reader's VARIANT output, removing that M×N intermediate (records × keys per record) from the query plan, which is substantially faster on wide records. Under this option the column order of a read without a schema is alphabetical, and the `columnNameOfCorruptRecord` column is included only when at least one record actually failed to parse. It has no effect when `cacheResult` is `False` and no schema is available, since the keys cannot be discovered without materializing the result first.
+- Added a `useVariantProjection` option to `DataFrameReader.xml` that speeds up XML ingestion. The default is `False`; setting it to `True` requires `cacheResult` to also be `True` (the default).
 
 ## 1.54.0 (2026-07-29)
 

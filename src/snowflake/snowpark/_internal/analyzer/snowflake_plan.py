@@ -1898,13 +1898,12 @@ class SnowflakePlanBuilder:
             df = df.select(xml_reader_udtf(*udtf_args))
 
             if schema is None:
-                # Emit raw ROW_DATA; DataFrameReader._xml_project_from_variant_cache
-                # discovers the top-level keys from the cached result and projects them.
+                # Keys are discovered later from the cached result; see
+                # DataFrameReader._xml_project_from_variant_cache.
                 return df.queries["queries"][-1]
 
             keys = [unquote_if_quoted(attr.name) for attr in schema]
-            # Project the corrupt-record column unconditionally so _apply_xml_schema can
-            # test whether any row is actually corrupt; it drops the column when none is.
+            # Always projected so _apply_xml_schema can detect whether any row is corrupt.
             if mode == "PERMISSIVE":
                 keys.append(column_name_of_corrupt_record)
             df = df.select(*(xml_variant_projection(key) for key in keys))

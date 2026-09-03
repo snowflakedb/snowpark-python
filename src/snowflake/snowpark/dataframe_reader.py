@@ -1324,13 +1324,9 @@ class DataFrameReader:
                 This means the actual computation occurs before :meth:`DataFrame.collect` is called.
                 When set to ``False``, the DataFrame is computed lazily and the actual computation occurs when :meth:`DataFrame.collect` is called.
 
-              + ``useVariantProjection``: Whether to build the output by projecting each XML element or
-                attribute directly out of the reader's VARIANT output. The default value is ``False``, which
-                expands every record into one row per key with ``flatten()`` and reassembles it with a
-                dynamic ``pivot()``. Setting this to ``True`` removes that intermediate, which is
-                substantially faster on wide records, and makes the column order of a read without a schema
-                alphabetical. It has no effect when ``cacheResult`` is ``False`` and no schema is available,
-                since the keys cannot be discovered without materializing the result first.
+              + ``useVariantProjection``: A performance optimization that speeds up XML ingestion. The
+                default value is ``False``. Setting this to ``True`` requires ``cacheResult`` to also be
+                ``True`` (the default).
         """
         df = self._read_semi_structured_file(path, "XML")
         # AST.
@@ -1375,11 +1371,8 @@ class DataFrameReader:
             df_columns = {c.strip('"').strip("'") for c in df.columns}
             if corrupt_col_name in df_columns:
                 corrupt_ref = df[single_quote(corrupt_col_name)]
-                # The VARIANT-projection path always projects this column, so presence in
-                # df.columns no longer implies any record was corrupt -- probe for a
-                # non-NULL value instead. Under PIVOT the column only materialized when
-                # the UDTF wrote the key (which it does only for corrupt records), so
-                # both paths end up omitting the column for clean data.
+                # Under variant projection the column is always present, so its presence
+                # alone doesn't mean a row was corrupt -- probe for a non-NULL value instead.
                 has_corrupt_record = (
                     df.filter(corrupt_ref.is_not_null()).limit(1).count() > 0
                     if use_xml_variant_projection(self._cur_options, True)
@@ -1400,13 +1393,8 @@ class DataFrameReader:
         return result
 
     def _xml_project_from_variant_cache(self, df: DataFrame) -> DataFrame:
-        """Project the XML reader's raw ROW_DATA VARIANT into one column per XML key.
-
-        Discovers the union of top-level element and attribute names across every
-        record of the already-materialized ``df``, then projects each one directly.
-        This replaces the flatten + dynamic pivot that built an M x N intermediate,
-        and reuses the cached result so the file is still only read once.
-        """
+        """Project the XML reader's raw ROW_DATA VARIANT into one column per XML key,
+        discovered from the already-materialized ``df``."""
         from snowflake.snowpark.functions import flatten, object_keys
 
         keys = sorted(
@@ -1417,9 +1405,7 @@ class DataFrameReader:
             .collect()
         )
         if not keys:
-            # The UDTF produced no records at all, so the row tag matched nothing.
-            # Under PIVOT this surfaced as a "SELECT with no columns" SQL error that
-            # snowflake_plan translated into this same exception.
+            # No keys means the row tag matched nothing.
             raise SnowparkClientExceptionMessages.DF_XML_ROW_TAG_NOT_FOUND(
                 self._cur_options.get(XML_ROW_TAG_STRING), self._file_path
             )
@@ -2119,8 +2105,6 @@ class DataFrameReader:
                 # (not all VARIANT), so don't enable the all-variant dot-notation mode.
                 if xml_inferred_schema is None and not self._user_schema:
                     if use_xml_variant_projection(self._cur_options, False):
-                        # ROW_DATA is materialized now, so the keys can be discovered
-                        # from the cache instead of via flatten + pivot.
                         df = self._xml_project_from_variant_cache(df)
                     else:
                         df._all_variant_cols = True
