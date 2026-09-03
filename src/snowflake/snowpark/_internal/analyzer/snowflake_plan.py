@@ -1318,6 +1318,8 @@ class SnowflakePlanBuilder:
                 catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
                 storage_serialization_policy: specifies the storage serialization policy for the table
                 iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
+                table_properties: optional mapping of Iceberg property names to values, emitted
+                    verbatim as a ``TABLE_PROPERTIES = ('k'='v', ...)`` clause on CREATE / CTAS.
             table_exists: whether the table already exists in the database.
                 Only used for APPEND and TRUNCATE mode.
         """
