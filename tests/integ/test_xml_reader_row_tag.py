@@ -1148,3 +1148,127 @@ def test_dropmalformed_multifield_drops_any_bad_field(
     assert result[0]["int_col"] == 42
     assert result[0]["bool_col"] is True
     assert abs(result[0]["dbl_col"] - 3.14) < 0.001
+
+
+#
+# Output projection: direct VARIANT key projection instead of flatten + dynamic pivot.
+#
+
+
+def _read_xml_content(session, file_name, row_tag, **options):
+    """Read an XML file and return (columns, row content keyed by column name).
+
+    Row content is keyed rather than positional so it can be compared across
+    projections without depending on column order.
+    """
+    reader = session.read.option("rowTag", row_tag)
+    for key, value in options.items():
+        reader = reader.option(key, value)
+    df = reader.xml(f"@{tmp_stage_name}/{file_name}")
+    names = [c.strip('"').strip("'") for c in df.columns]
+    content = sorted(
+        tuple(sorted(zip(names, (str(v) for v in row)))) for row in df.collect()
+    )
+    return df.columns, content
+
+
+@pytest.mark.parametrize(
+    "file_name,row_tag",
+    [
+        (test_file_books_xml, "book"),
+        (test_file_books2_xml, "book"),
+        (test_file_nested_xml, "tag"),
+        (test_file_null_value_xml, "test"),
+        (test_file_books_attr_val_xml, "book"),
+        # Heterogeneous records: the corrupt-record key exists on some rows only, so this
+        # also covers discovery taking the union of keys rather than sampling one record.
+        (test_file_malformed_no_closing_tag_xml, "record"),
+        (test_file_malformed_not_self_closing_xml, "record"),
+    ],
+)
+def test_read_xml_variant_projection_matches_legacy_pivot(session, file_name, row_tag):
+    """Direct VARIANT projection must be output-equivalent to the flatten+pivot it replaces."""
+    columns, content = _read_xml_content(session, file_name, row_tag)
+    legacy_columns, legacy_content = _read_xml_content(
+        session, file_name, row_tag, _LEGACY_XML_PIVOT=True
+    )
+
+    assert content == legacy_content
+    assert sorted(columns) == sorted(legacy_columns)
+    # Column order is only a contract for the new path; pivot's ordering is incidental.
+    assert columns == sorted(columns)
+
+
+def test_read_xml_variant_projection_replaces_pivot_in_generated_sql(session):
+    """The rollback lever must actually switch query plans, not just produce equal output."""
+    path = f"@{tmp_stage_name}/{test_file_books_xml}"
+
+    with session.query_history() as projection_history:
+        session.read.option("rowTag", "book").xml(path)
+    with session.query_history() as pivot_history:
+        session.read.option("rowTag", "book").option("_LEGACY_XML_PIVOT", True).xml(
+            path
+        )
+
+    projection_sql = " ".join(q.sql_text.upper() for q in projection_history.queries)
+    pivot_sql = " ".join(q.sql_text.upper() for q in pivot_history.queries)
+
+    assert "PIVOT" in pivot_sql
+    assert "OBJECT_KEYS" not in pivot_sql
+    assert "OBJECT_KEYS" in projection_sql
+    assert "PIVOT" not in projection_sql
+
+
+def test_read_xml_legacy_pivot_option_preserves_column_names(session):
+    """The lever restores the previous output, including the single-quoted column names."""
+    clean = (
+        session.read.option("rowTag", "book")
+        .option("_LEGACY_XML_PIVOT", True)
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+    assert len(clean.columns) == 7
+    result = clean.collect()
+    assert len(result) == 12
+    # Records are read by parallel workers, so row order is not deterministic.
+    assert '"Gambardella, Matthew"' in {row["'author'"] for row in result}
+
+    malformed = (
+        session.read.option("rowTag", "record")
+        .option("_LEGACY_XML_PIVOT", True)
+        .xml(f"@{tmp_stage_name}/{test_file_malformed_no_closing_tag_xml}")
+    )
+    malformed_result = malformed.collect()
+    assert len(malformed_result[0]) == 4
+    assert any(row["'_corrupt_record'"] is not None for row in malformed_result)
+
+
+def test_read_xml_corrupt_record_column_omitted_when_no_corrupt_record(session):
+    """In PERMISSIVE mode the corrupt-record column is added only when a record actually
+    failed to parse -- matching what pivot produced, since the reader only ever writes
+    that key for corrupt records."""
+    schema = StructType(
+        [StructField("_id", StringType()), StructField("author", StringType())]
+    )
+    clean = (
+        session.read.schema(schema)
+        .option("rowTag", "book")
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+    assert [c.strip('"') for c in clean.columns] == ["_id", "author"]
+    assert len(clean.collect()[0]) == 2
+
+    corrupt_schema = StructType(
+        [StructField("_key", StringType()), StructField("title", StringType())]
+    )
+    # dblp_6kb.xml is truncated mid-record, so its last record cannot be parsed.
+    corrupt = (
+        session.read.schema(corrupt_schema)
+        .option("rowTag", "incollection")
+        .xml(f"@{tmp_stage_name}/{test_file_dblp_xml}")
+    )
+    assert [c.strip('"') for c in corrupt.columns] == [
+        "_key",
+        "title",
+        "_corrupt_record",
+    ]
+    assert any(row["_corrupt_record"] is not None for row in corrupt.collect())

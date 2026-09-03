@@ -8,12 +8,22 @@ import tempfile
 import os
 import lxml.etree as ET
 import html.entities
+from unittest import mock
 from unittest.mock import patch
 import pytest
 
+from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     attribute_to_schema_string_deep,
+    single_quote,
 )
+from snowflake.snowpark._internal.utils import (
+    quote_name,
+    use_xml_variant_projection,
+    xml_variant_projection,
+)
+from snowflake.snowpark.dataframe_reader import DataFrameReader
+from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark._internal.xml_reader import (
     replace_entity,
     element_to_dict_or_str,
@@ -1347,3 +1357,147 @@ def test_xml_reader_process_with_scos_compatible_param():
         )
     assert len(results) == 1
     assert results[0][0]["a"] == "1"
+
+
+#
+# Output projection: direct VARIANT key projection instead of flatten + dynamic pivot.
+#
+
+
+def _render(column) -> str:
+    """Render a Column to SQL without needing a Snowflake connection.
+
+    A real Analyzer is used rather than a mocked one so the assertions below pin the
+    SQL that actually reaches the server, including identifier/literal escaping.
+    """
+    return Analyzer(mock.MagicMock()).analyze(column._expression, {})
+
+
+def _reader(**options) -> DataFrameReader:
+    reader = DataFrameReader.__new__(DataFrameReader)
+    reader._cur_options = {k.upper(): v for k, v in options.items()}
+    reader._file_path = "@stage/test.xml"
+    return reader
+
+
+@pytest.mark.parametrize(
+    "key,expected",
+    [
+        ("author", "\"ROW_DATA\"['author'] AS \"'author'\""),
+        # A namespace prefix must stay part of the key: ROW_DATA:px:name would parse the
+        # colon as a further path segment, so subfield notation is used instead.
+        ("px:name", "\"ROW_DATA\"['px:name'] AS \"'px:name'\""),
+        (
+            "{http://example.com/px}item",
+            "\"ROW_DATA\"['{http://example.com/px}item'] "
+            "AS \"'{http://example.com/px}item'\"",
+        ),
+        ("_corrupt_record", "\"ROW_DATA\"['_corrupt_record'] AS \"'_corrupt_record'\""),
+        ("_VALUE", "\"ROW_DATA\"['_VALUE'] AS \"'_VALUE'\""),
+        # A quote in the key must not terminate the literal or the alias early.
+        ("a'b", "\"ROW_DATA\"['a''b'] AS \"'a''b'\""),
+        ('a"b', '"ROW_DATA"[\'a"b\'] AS "\'a""b\'"'),
+    ],
+)
+def test_xml_variant_projection_sql(key, expected):
+    assert _render(xml_variant_projection(key)) == expected
+
+
+def test_xml_variant_projection_alias_matches_pivot_naming():
+    """The alias must keep the single-quoted names dynamic pivot produced, since
+    _apply_xml_schema looks columns up via single_quote(field name)."""
+    assert _render(xml_variant_projection("author")).endswith(
+        f"AS {quote_name(single_quote('author'))}"
+    )
+
+
+@pytest.mark.parametrize(
+    "options,schema_known,expected",
+    [
+        # Default (cacheResult=True): projection applies whether or not a schema is known.
+        ({}, True, True),
+        ({}, False, True),
+        # cacheResult=False leaves nothing materialized: no keys to discover, and no cheap
+        # way to test for corrupt records, so flatten+pivot keeps .xml() lazy.
+        ({"CACHERESULT": False}, False, False),
+        ({"CACHERESULT": False}, True, False),
+        # ... except when no corrupt-record probe is needed, i.e. outside PERMISSIVE mode.
+        ({"CACHERESULT": False, "MODE": "FAILFAST"}, True, True),
+        ({"CACHERESULT": False, "MODE": "DROPMALFORMED"}, True, True),
+        ({"CACHERESULT": False, "MODE": "failfast"}, True, True),
+        # Without a schema there are still no keys to discover, whatever the mode.
+        ({"CACHERESULT": False, "MODE": "FAILFAST"}, False, False),
+        # The rollback lever wins over everything else.
+        ({"_LEGACY_XML_PIVOT": True}, True, False),
+        ({"_LEGACY_XML_PIVOT": True}, False, False),
+        ({"_LEGACY_XML_PIVOT": True, "CACHERESULT": True}, True, False),
+    ],
+)
+def test_use_xml_variant_projection(options, schema_known, expected):
+    assert use_xml_variant_projection(options, schema_known) is expected
+
+
+def _project_from_keys(keys, **options):
+    """Drive _xml_project_from_variant_cache over a DataFrame whose key discovery
+    returns *keys*, and return (rendered projections, projected DataFrame)."""
+    discovery = mock.MagicMock()
+    discovery.select.return_value.distinct.return_value.collect.return_value = [
+        (k,) for k in keys
+    ]
+    projected = mock.MagicMock()
+    df = mock.MagicMock()
+    df.select.side_effect = [discovery, projected]
+
+    result = _reader(rowtag="record", **options)._xml_project_from_variant_cache(df)
+
+    assert result is projected
+    projections = [_render(c) for c in df.select.call_args_list[1].args]
+    return projections, projected
+
+
+def test_xml_project_from_variant_cache_projects_discovered_keys():
+    projections, projected = _project_from_keys(["title", "_id", "author"])
+    # Discovered keys are projected in sorted order for a deterministic column order.
+    assert projections == [
+        "\"ROW_DATA\"['_id'] AS \"'_id'\"",
+        "\"ROW_DATA\"['author'] AS \"'author'\"",
+        "\"ROW_DATA\"['title'] AS \"'title'\"",
+    ]
+    # Preserved so dot-notation (df.select("'nested'.child")) keeps working.
+    assert projected._all_variant_cols is True
+
+
+def test_xml_project_from_variant_cache_deduplicates_and_sorts():
+    projections, _ = _project_from_keys(["b", "a", "b"])
+    assert projections == [
+        "\"ROW_DATA\"['a'] AS \"'a'\"",
+        "\"ROW_DATA\"['b'] AS \"'b'\"",
+        "\"ROW_DATA\"['b'] AS \"'b'\"",
+    ]
+
+
+def test_xml_project_from_variant_cache_projects_namespaced_key():
+    projections, _ = _project_from_keys(["px:name"])
+    assert projections == ["\"ROW_DATA\"['px:name'] AS \"'px:name'\""]
+
+
+def test_xml_project_from_variant_cache_projects_corrupt_record_when_discovered():
+    """Without a schema the corrupt-record column needs no gating: the reader only
+    writes that key for records that fail to parse, so discovering it at all means
+    the data really contains a corrupt record."""
+    projections, _ = _project_from_keys(["id", "_corrupt_record"])
+    assert "\"ROW_DATA\"['_corrupt_record'] AS \"'_corrupt_record'\"" in projections
+
+
+def test_xml_project_from_variant_cache_omits_corrupt_record_when_absent():
+    projections, _ = _project_from_keys(["id", "name"])
+    assert not any("_corrupt_record" in p for p in projections)
+
+
+def test_xml_project_from_variant_cache_no_keys_raises_row_tag_not_found():
+    """An empty result means the row tag matched nothing. Under pivot this surfaced as
+    a "SELECT with no columns" SQL error that was translated into this exception."""
+    with pytest.raises(
+        SnowparkDataframeReaderException, match="Cannot find the row tag"
+    ):
+        _project_from_keys([])
