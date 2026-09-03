@@ -100,7 +100,10 @@ def test_run_query_exceptions(mock_server_connection, caplog):
     mock_server_connection._cursor.execute.return_value = mock_server_connection._cursor
     mock_server_connection._cursor.sfqid = "fake id"
     mock_server_connection._cursor.query = "fake query"
-    mock_server_connection._cursor._request_id = "1234"
+    if IS_V5_DRIVER:
+        mock_server_connection._cursor.request_id = "1234"
+    else:
+        mock_server_connection._cursor._request_id = "1234"
     with mock.patch.object(
         mock_server_connection._cursor,
         "fetch_pandas_all",
