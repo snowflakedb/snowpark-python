@@ -425,6 +425,9 @@ class DataFrameWriter:
 
             if column_order is not None:
                 expr.column_order = column_order
+            # Still emitted alongside table_type: IR consumers built against the
+            # pre-deprecation contract read create_temp_table.
+            expr.create_temp_table = create_temp_table
             expr.table_type = table_type
 
             if clustering_keys is not None:
