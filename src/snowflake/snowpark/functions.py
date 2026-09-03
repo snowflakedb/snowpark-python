@@ -12950,6 +12950,34 @@ def ai_extract(
               ``[['name', 'What is the last name of the employee?'], ['address', 'What is the address of the employee?']]``
             - Array of strings with colon-separated feature names and extraction prompts:
               ``['name: What is the last name of the employee?', 'address: What is the address of the employee?']``
+            - JSON Schema format: a dict with a top-level ``schema`` key whose value is a JSON
+              Schema object (``'type': 'object'``). Each entry under ``properties`` describes one
+              field to extract, where ``description`` is the extraction prompt and ``type`` is
+              one of ``'string'`` (a single value), ``'array'`` (a list), or ``'object'`` (a table,
+              which must also specify ``column_ordering`` and its own ``properties``), e.g.::
+
+                  {
+                      "schema": {
+                          "type": "object",
+                          "properties": {
+                              "name": {"description": "What is the last name of the employee?", "type": "string"},
+                              "skills": {"description": "What skills are listed?", "type": "array"},
+                              "salary_table": {
+                                  "description": "Salary by year",
+                                  "type": "object",
+                                  "column_ordering": ["year", "salary"],
+                                  "properties": {
+                                      "year": {"description": "Year", "type": "array"},
+                                      "salary": {"description": "Salary", "type": "array"},
+                                  },
+                              },
+                          },
+                      }
+                  }
+
+              You can't combine the JSON Schema format with the other formats above: if
+              ``response_format`` contains a ``schema`` key, every field to extract must be
+              defined within that JSON Schema.
 
         scores: Optional boolean. When ``True``, the returned JSON includes a ``scoring`` object
             alongside ``response``. Each extracted field gets a ``score`` between 0 and 1 indicating
@@ -13055,6 +13083,39 @@ def ai_extract(
         |  }                 |
         |}                   |
         ----------------------
+        <BLANKLINE>
+
+        >>> # Extract using JSON Schema format (required for combining entities, lists, and tables
+        >>> # in a single call; can't be combined with the other response_format shapes)
+        >>> df = session.range(1).select(
+        ...     ai_extract(
+        ...         'John Smith lives in San Francisco and lists Python and SQL as skills',
+        ...         {
+        ...             "schema": {
+        ...                 "type": "object",
+        ...                 "properties": {
+        ...                     "name": {"description": "What is the first name?", "type": "string"},
+        ...                     "skills": {"description": "What skills are listed?", "type": "array"},
+        ...                 },
+        ...             }
+        ...         }
+        ...     ).alias("extracted")
+        ... )
+        >>> df.show()
+        -----------------------
+        |"EXTRACTED"          |
+        -----------------------
+        |{                    |
+        |  "error": null,     |
+        |  "response": {      |
+        |    "name": "John",  |
+        |    "skills": [      |
+        |      "Python",      |
+        |      "SQL"          |
+        |    ]                |
+        |  }                  |
+        |}                    |
+        -----------------------
         <BLANKLINE>
 
         >>> # Extract from file
