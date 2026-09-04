@@ -1,0 +1,102 @@
+CALL CENTER TRANSCRIPT
+Call ID: CC-8203
+Date: 2024-08-19
+Duration: 11:42
+Customer ID: CUST-91057
+Representative ID: REP-108
+Category: New Service Activation
+Status: Resolved
+
+================================================================================
+TRANSCRIPT
+================================================================================
+
+[2024-08-19-09-15-03] REP: Meridian Utilities, this is David speaking, how can I help you today?
+
+[2024-08-19-09-15-12] CUSTOMER: Hi! Yeah, I'm calling to set up new service. I'm moving into an apartment at the end of the month and I need to get electricity and gas set up.
+
+[2024-08-19-09-15-28] REP: Congratulations on the new place! I can definitely help you get that set up. Are you moving somewhere within our service area?
+
+[2024-08-19-09-15-40] CUSTOMER: Yeah, it's in Portland — well, Beaverton actually. 4419 Sycamore Drive, Apartment 2B, Beaverton, Oregon 97005.
+
+[2024-08-19-09-16-02] REP: Perfect, that is within our service area. Let me just confirm that address is active in our system. [pause] Yes, I'm showing 4419 Sycamore Drive — looks like the previous tenant had service there, so the meters are already connected. That'll make things a little simpler.
+
+[2024-08-19-09-16-22] CUSTOMER: Oh nice! That's good.
+
+[2024-08-19-09-16-33] REP: It is. So let me get some information from you to open the account. Can I get your full name?
+
+[2024-08-19-09-16-43] CUSTOMER: It's Priya Nair. P-R-I-Y-A, Nair, N-A-I-R.
+
+[2024-08-19-09-16-55] REP: Great. And your date of birth?
+
+[2024-08-19-09-17-03] CUSTOMER: September 11th, 1993.
+
+[2024-08-19-09-17-11] REP: Phone number?
+
+[2024-08-19-09-17-17] CUSTOMER: 503-874-2219.
+
+[2024-08-19-09-17-24] REP: Email address?
+
+[2024-08-19-09-17-30] CUSTOMER: priya.nair93@outlook.com.
+
+[2024-08-19-09-17-38] REP: And for billing — will this be the same address as the service address?
+
+[2024-08-19-09-17-49] CUSTOMER: Yes, same address. I mean once I'm moved in. Right now I'm still at my current place but the billing should just go to the new apartment.
+
+[2024-08-19-09-18-08] REP: Got it, no problem. I'll use the service address for billing. Now I do need to run a soft credit check as part of the new account process — that won't affect your credit score, it's just how we determine if a security deposit is required. Is that okay?
+
+[2024-08-19-09-18-28] CUSTOMER: Yeah, that's fine.
+
+[2024-08-19-09-18-36] REP: Great. I'll also need your Social Security number for that verification.
+
+[2024-08-19-09-18-45] CUSTOMER: It's 522-61-4890.
+
+[2024-08-19-09-19-12] REP: Thank you. [pause, typing] Okay, I'm running that now... alright, the check came back and you qualify for our standard account — no deposit required.
+
+[2024-08-19-09-19-28] CUSTOMER: Oh great!
+
+[2024-08-19-09-19-36] REP: Now for start date — when exactly did you want service to begin?
+
+[2024-08-19-09-19-47] CUSTOMER: I get the keys on August 30th, so... could we do August 30th?
+
+[2024-08-19-09-20-08] REP: Absolutely. I can schedule the activation for August 30th. Now since the meters are already in place and no physical work is needed, the activation is just remote and takes effect by midnight of that date. So you'll have power when you walk in the door.
+
+[2024-08-19-09-20-24] CUSTOMER: Perfect. That's exactly what I was hoping for.
+
+[2024-08-19-09-20-33] REP: And for gas — same start date?
+
+[2024-08-19-09-20-40] CUSTOMER: Yes please. I just want everything on the same bill if possible.
+
+[2024-08-19-09-20-52] REP: That's our standard setup — electricity and gas will both be on one monthly statement from us. Much easier to keep track of.
+
+[2024-08-19-09-21-04] CUSTOMER: Yeah, I had two separate bills at my last place and it was kind of a pain.
+
+[2024-08-19-09-21-40] REP: I hear that. Okay, so I'm setting up the account now. You'll get a welcome email at the address you gave me — that'll have your new account number, your Customer ID, and information about setting up your online account if you want to manage things that way.
+
+[2024-08-19-09-21-55] CUSTOMER: Yeah I'll definitely do the online portal. Is there an app too?
+
+[2024-08-19-09-22-13] REP: There is! It's the Meridian MyAccount app, it's in both the App Store and Google Play. You can pay bills, track usage, even set up alerts if your usage spikes unexpectedly.
+
+[2024-08-19-09-22-26] CUSTOMER: Ooh the usage alerts sound useful. Good to know.
+
+[2024-08-19-09-22-57] REP: It's a popular feature. Okay, I'm looking at your setup — electricity and gas service starting August 30th at 4419 Sycamore Drive, Apartment 2B, Beaverton. Your estimated monthly bill for a one-bedroom apartment in that area is typically somewhere between $80 and $120 depending on usage and the season.
+
+[2024-08-19-09-23-11] CUSTOMER: That's pretty much what I was expecting. My last place was about $100.
+
+[2024-08-19-09-23-29] REP: Sounds about right. Your first bill will arrive in mid-September and will cover the prorated amount from August 30th through your first full billing cycle.
+
+[2024-08-19-09-23-42] CUSTOMER: Okay, so it might be a little lower than usual?
+
+[2024-08-19-09-23-53] REP: Exactly, just for that first one since it's prorated. After that it'll be a full monthly cycle.
+
+[2024-08-19-09-24-07] CUSTOMER: Got it. This was way easier than I thought it was going to be. Thank you!
+
+[2024-08-19-09-24-18] REP: Of course! Is there anything else I can help you with before we wrap up?
+
+[2024-08-19-09-24-27] CUSTOMER: No, I think that's everything. Thank you David!
+
+[2024-08-19-09-24-38] REP: My pleasure. Congratulations again on the new apartment, Ms. Nair. Have a great rest of your day.
+
+[2024-08-19-09-24-50] CUSTOMER: You too, thanks! Bye!
+
+[2024-08-19-09-24-57] REP: Take care. Goodbye!

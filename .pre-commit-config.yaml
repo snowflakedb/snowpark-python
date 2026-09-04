@@ -82,6 +82,7 @@ repos:
           - flake8-print
         args:
           - --per-file-ignores=tests/*.py:T201 # prints are allowed in test files
+          - --per-file-ignores=demo/*.py:T201 # prints are allowed in demo scripts
           # Ignore errors for generated protocol buffer stubs
           - --exclude=src/snowflake/snowpark/_internal/proto/generated/ast_pb2.py
           - --exclude=scripts/release/prepare_release_branch.py

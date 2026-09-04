@@ -1,0 +1,257 @@
+CALL CENTER TRANSCRIPT
+Call ID: CC-8852
+Date: 2024-10-17
+Duration: 38:15
+Customer ID: CUST-39217
+Representative ID: REP-088
+Category: Payment Arrangement
+Status: Resolved
+
+================================================================================
+TRANSCRIPT
+================================================================================
+
+[2024-10-17-14-05-00] REP: Meridian Utilities, my name is Michelle, how can I help you today?
+
+[2024-10-17-14-05-06] CUSTOMER: Hi. Um. [pause] I'm calling about my account. I got a notice that says my service might be disconnected and I just... I can't have that happen. I need to talk to someone.
+
+[2024-10-17-14-05-19] REP: Of course. I'm here and we're going to work through this together. Can I get your name and account number?
+
+[2024-10-17-14-05-26] CUSTOMER: It's Robert. Robert Tanner. My account number is CUST-39217.
+
+[2024-10-17-14-05-35] REP: Thank you, Robert. And your service address?
+
+[2024-10-17-14-05-38] CUSTOMER: 7718 Delmar Street, St. Louis, Missouri 63130.
+
+[2024-10-17-14-05-44] REP: And the last four of your Social or your PIN?
+
+[2024-10-17-14-05-48] CUSTOMER: Social is 4862.
+
+[2024-10-17-14-05-52] REP: Thank you, Robert. Hold on just one moment while I bring up your account. [pause]
+
+[2024-10-17-14-06-02] REP: Okay, I have your account here. I want to understand what's going on before I walk through anything, so take your time. What's happening on your end?
+
+[2024-10-17-14-06-12] CUSTOMER: [long pause] I mean — I lost my job. In August. I was doing warehouse work over at a distribution center near the airport and they did a big round of layoffs — took out about a third of the staff and I was one of them. And I've been looking, I've been putting in applications every week, but it's — it's taking a lot longer than I thought it would. And I've been trying to keep the most important bills paid, the rent and the car and food, and this one just — it got away from me. The electric bill got away from me.
+
+[2024-10-17-14-07-00] REP: Robert, I'm really sorry. Losing a job — and then doing everything you can to hold things together while you're looking — that's incredibly hard. I want you to know that calling us was absolutely the right thing to do, and I'm glad you did.
+
+[2024-10-17-14-07-14] CUSTOMER: [voice slightly unsteady] Yeah. I know I should have called sooner but I kept thinking I'd get something lined up and I could just catch it up. And then I got the disconnection notice and I realized I was out of time.
+
+[2024-10-17-14-07-27] REP: You're not out of time. You called, you're here, and we have options. Let me look at the specifics so I can tell you exactly where things stand.
+
+[2024-10-17-14-07-36] CUSTOMER: Okay.
+
+[2024-10-17-14-07-38] REP: [pause] So I'm seeing a total balance of $680.14, of which $552.18 is past due. The disconnection notice was sent October 10th — it gives a 10-day window, which means we're right inside that window today. I want to be upfront about that so we understand the urgency.
+
+[2024-10-17-14-07-58] CUSTOMER: Yeah. I know. That's why I called today. I've been putting it off and I finally just — I picked up the phone.
+
+[2024-10-17-14-08-08] REP: I'm glad you did. Okay — let me tell you what's available to you, because there's actually more here than most people realize. Can I walk you through a few different programs?
+
+[2024-10-17-14-08-17] CUSTOMER: Please.
+
+[2024-10-17-14-08-19] REP: First thing I want to mention — something a lot of customers don't know about — is LIHEAP. The Low Income Home Energy Assistance Program. It's a federal program that provides direct bill assistance to households struggling with energy costs. Based on what you've described, you may well qualify.
+
+[2024-10-17-14-08-44] CUSTOMER: I've heard of it. But I thought it was only for gas or heating fuel.
+
+[2024-10-17-14-08-52] REP: Common misconception. LIHEAP covers electricity too — it covers whatever your primary home energy source is. In Missouri, eligible customers can receive anywhere from a couple hundred dollars up to over a thousand, depending on income and household size. The money goes directly to the utility, so it would apply straight to your Meridian balance.
+
+[2024-10-17-14-09-22] CUSTOMER: That could make a real dent in what I owe.
+
+[2024-10-17-14-09-25] REP: It could. There are two ways to apply. Online through the Missouri Department of Social Services website — the LIHEAP section — or in person through your local Community Action Agency, which is a nonprofit that administers the program locally. The Community Action Agency can help you fill out the paperwork and can flag urgency if your situation qualifies.
+
+[2024-10-17-14-09-55] CUSTOMER: How do I find the one for my area?
+
+[2024-10-17-14-10-01] REP: Go to communityactionpartnership.com and search by zip code. For the St. Louis 63130 area, it's Community Action Agency of St. Louis County on South Hanley Road. They can sometimes submit the application directly to us on your behalf.
+
+[2024-10-17-14-10-22] CUSTOMER: What do I need to bring?
+
+[2024-10-17-14-10-28] REP: Your unemployment benefit letter or payment statement, a copy of your most recent Meridian bill, and a photo ID. Having documentation for any kids in the household can also increase your benefit amount.
+
+[2024-10-17-14-10-52] CUSTOMER: I have two kids. Eight and eleven.
+
+[2024-10-17-14-10-57] REP: Good — household size factors into eligibility, and dependents generally work in your favor. A household of three at your income level has a solid chance of qualifying.
+
+[2024-10-17-14-11-08] CUSTOMER: [pause] I didn't — I really didn't know any of this existed. Nobody told me. I just thought I had to figure it out myself.
+
+[2024-10-17-14-11-18] REP: That's exactly why I'm telling you. It doesn't get advertised well. There's also a separate program — our own internal Customer Care Fund. That's funded by Meridian and by voluntary customer donations, and it provides one-time bill assistance to customers who are facing hardship. It works alongside LIHEAP, not instead of it. You can pursue both.
+
+[2024-10-17-14-11-40] CUSTOMER: Okay. So there's potentially two sources of help on the bill itself.
+
+[2024-10-17-14-11-45] REP: Exactly. And separate from both of those, we can set up a payment arrangement on the past-due balance. I'll walk you through that too, because all of these can layer together.
+
+[2024-10-17-14-11-55] CUSTOMER: Okay. Let's talk about that.
+
+[2024-10-17-14-12-00] REP: A payment arrangement spreads your past-due balance over a set number of months added on top of your regular bill. Your usage history puts your monthly charge at about $130. For hardship accounts we can extend to 12 months, which makes the extra amount about $46 per month — so roughly $176 total.
+
+[2024-10-17-14-12-28] CUSTOMER: That's more than I've been managing, but — if LIHEAP or the other fund brings the balance down, does the monthly amount change too?
+
+[2024-10-17-14-12-41] REP: Yes. If a program covers, say, $300 of the $552.18, we recalculate on the remaining $252. Over 12 months that's only about $21 extra per month — closer to $151 total. The two options can really compound.
+
+[2024-10-17-14-13-03] CUSTOMER: Okay. That's something I could actually manage.
+
+[2024-10-17-14-13-08] REP: Good. One more option I want to tell you about — have you heard of budget billing?
+
+[2024-10-17-14-13-19] CUSTOMER: I don't think so. What is that?
+
+[2024-10-17-14-13-22] REP: A standard electricity bill fluctuates a lot — $90 in the fall, $160 in summer when the AC runs. That makes budgeting hard. Budget billing smooths it out: we calculate your average usage over the last 12 months and charge you that same amount every month, regardless of season.
+
+[2024-10-17-14-13-52] CUSTOMER: What if I use more or less than the average?
+
+[2024-10-17-14-14-00] REP: Once a year we do a reconciliation. More usage than average means a small true-up charge; less means a credit. Most customers find the annual adjustment is small because the average is built from their own history. The big benefit is monthly predictability.
+
+[2024-10-17-14-14-20] CUSTOMER: Yeah, that predictability would actually help a lot. When I'm trying to figure out what I can pay, having a fixed number is better than guessing.
+
+[2024-10-17-14-14-30] REP: Exactly. And for your account, your 12-month average comes out to about $127 a month. So that's what your budget billing amount would be — $127 every month, same amount, no surprises, year-round. Want me to enroll you in that today?
+
+[2024-10-17-14-14-45] CUSTOMER: Yeah. Yes, please do that.
+
+[2024-10-17-14-14-48] REP: [typing] Done. Budget billing is now active on your account starting with your next billing cycle. Your monthly amount is $127. I'll note that the arrangement payment — the $46 or whatever it recalculates to after any assistance — would be in addition to that $127 base.
+
+[2024-10-17-14-15-04] CUSTOMER: Okay, that's clear. That makes sense.
+
+[2024-10-17-14-15-08] REP: One more thing — we can't reduce your base electricity rate, that's regulated. But we can help you use less, which lowers your bill naturally. For hardship-flagged accounts we offer a free home energy audit.
+
+[2024-10-17-14-15-30] CUSTOMER: What does that involve?
+
+[2024-10-17-14-15-33] REP: A scheduled visit — they call ahead, nothing like a surprise check — where an efficiency specialist walks through your home and identifies where you're losing energy. Drafty windows, inefficient appliances, HVAC settings. They give you a recommendations report, and for hardship accounts some of the low-cost upgrades — LED bulbs, weather stripping, faucet aerators — are provided and installed free. Customers typically see 10 to 20 percent reductions just from those fixes.
+
+[2024-10-17-14-16-02] CUSTOMER: That could genuinely lower my bill over time.
+
+[2024-10-17-14-16-07] REP: It often does. I can flag your account and someone will reach out to schedule within two to three weeks.
+
+[2024-10-17-14-16-20] CUSTOMER: Please do that.
+
+[2024-10-17-14-16-23] REP: [typing] Done. Audit referral logged. They'll contact you by phone to schedule. [pause] I also want to make sure you know what happens if — and I hope it doesn't happen — but if you miss an arrangement payment. I want to be transparent about the policy because it's better to know it upfront.
+
+[2024-10-17-14-16-40] CUSTOMER: Yeah, tell me. I want to know.
+
+[2024-10-17-14-16-43] REP: First missed payment: you get a warning notice but the arrangement stays active. If you know a payment will be late, call us before the due date — we may be able to adjust the timing. Second missed payment: the arrangement is voided, the full remaining balance becomes due, and disconnection re-triggers. We'd have to start over, and terms are less flexible the second time.
+
+[2024-10-17-14-17-06] CUSTOMER: So one miss gets a warning, two misses and I'm back to square one.
+
+[2024-10-17-14-17-36] REP: That's it. Most important rule: call before a payment is late, not after. We have a lot more options when you reach out ahead of time.
+
+[2024-10-17-14-17-50] CUSTOMER: That makes sense. I wish I'd known that rule earlier — basically what happened here is I kept telling myself I'd catch it up next month.
+
+[2024-10-17-14-18-04] REP: I hear you. And for what it's worth — you called. That counts.
+
+[2024-10-17-14-18-11] CUSTOMER: Can you set up bill reminders? Texts when my bill is posted and when it's due?
+
+[2024-10-17-14-18-22] REP: Absolutely. I can set that up right now. I'll enable two alerts: one that fires when your new statement is generated — so you know the bill is ready — and one that fires three days before the due date as a payment reminder. Do you want those by text, email, or both?
+
+[2024-10-17-14-18-36] CUSTOMER: Both. I'd rather have too many reminders than too few.
+
+[2024-10-17-14-18-40] REP: Smart. [typing] Let me confirm the contact details I have on file. I see rtanner.314@gmail.com for email and the phone number I have is 314-555-0192 — is that still current?
+
+[2024-10-17-14-18-54] CUSTOMER: Yes, that's right.
+
+[2024-10-17-14-18-57] REP: [typing] Done. Bill-ready alert and payment-due reminder are now active for both email and text. You'll start seeing those from the next billing cycle.
+
+[2024-10-17-14-19-07] CUSTOMER: Good. Thank you. [pause] You know, my kids — my son is eight and my daughter is eleven — and I've just been trying to hold everything together and not let them see how stressed I am. We had a couple nights last month where I thought... I don't know. I just couldn't stop thinking about what happens if the lights go out. They'd be so scared. My daughter would blame herself, you know how kids are.
+
+[2024-10-17-14-19-43] REP: [pause] Robert. I hear you. That weight — wanting to protect your kids from something they shouldn't have to worry about — that's real. I want you to know that calling us today means they won't have to know about any of this. We're going to make sure the lights stay on. That starts today.
+
+[2024-10-17-14-20-01] CUSTOMER: [exhales slowly] Yeah. Okay. Sorry, I don't mean to —
+
+[2024-10-17-14-20-06] REP: Don't apologize. Don't. You're a parent doing everything you can in a hard situation. That's what this call is for.
+
+[2024-10-17-14-20-13] CUSTOMER: [quietly] Thank you.
+
+[2024-10-17-14-20-16] REP: Let me run through everything we've set up today.
+
+[2024-10-17-14-20-23] CUSTOMER: Please.
+
+[2024-10-17-14-20-25] REP: One — disconnection hold active as of today. Two — 12-month payment arrangement on $552.18, about $46/month added to your bill. If LIHEAP or the Customer Care Fund reduces the balance, that amount recalculates down. Three — budget billing at $127/month. Four — Customer Care Fund application going to rtanner.314@gmail.com within the hour; fill it out when you can with your unemployment letter. Review is 48 to 72 hours. Five — LIHEAP: apply online at dss.mo.gov or in person at Community Action Agency of St. Louis County on South Hanley Road.
+
+[2024-10-17-14-21-43] CUSTOMER: Okay. Writing all of this down.
+
+[2024-10-17-14-21-47] REP: Six — energy audit flagged, scheduling team contacts you within two to three weeks. Seven — bill-ready and payment-due alerts active for email and text. Eight — a $50 good-faith payment today locks in the arrangement and the hold. Can I process that?
+
+[2024-10-17-14-22-08] CUSTOMER: Yeah. I have a prepaid Visa. Go ahead.
+
+[2024-10-17-14-22-12] REP: Ready when you are.
+
+[2024-10-17-14-22-15] CUSTOMER: Okay — it's 4716-0022-8853-9401.
+
+[2024-10-17-14-22-28] REP: And the expiration?
+
+[2024-10-17-14-22-31] CUSTOMER: 05/26.
+
+[2024-10-17-14-22-34] REP: And the security code on the back?
+
+[2024-10-17-14-22-37] CUSTOMER: 309.
+
+[2024-10-17-14-22-40] REP: [typing] Processing... and that's approved. $50 good-faith payment is posted. Confirmation email is on its way to your Gmail.
+
+[2024-10-17-14-22-51] CUSTOMER: Good. When the LIHEAP payment comes in — does it automatically reduce the arrangement, or do I need to call in?
+
+[2024-10-17-14-23-05] REP: It goes directly to your account and the arrangement auto-recalculates. You'll get a notification when it posts. If a few weeks pass after applying and you haven't heard anything, call in and ask about any LIHEAP payment on the account — they'll see it immediately.
+
+[2024-10-17-14-23-30] CUSTOMER: Same for the Customer Care Fund?
+
+[2024-10-17-14-23-34] REP: Same process. The timing differs — LIHEAP can take a few weeks after approval; the Customer Care Fund usually applies within five to seven business days.
+
+[2024-10-17-14-23-48] CUSTOMER: Good to know. I'll try online first through dss.mo.gov — if I get stuck I'll go see them in person.
+
+[2024-10-17-14-24-24] REP: That's the right plan. And honestly, Robert — you've done everything right today. You called, you engaged, you've set up every available safeguard. People who do that tend to get through the hard patch.
+
+[2024-10-17-14-24-41] CUSTOMER: I appreciate that. I wasn't sure what this call would be like. I was bracing for someone to just read me a list of rules.
+
+[2024-10-17-14-24-53] REP: We're not going to read you rules when you're going through something real. Is there anything else before I let you go?
+
+[2024-10-17-14-25-03] CUSTOMER: No. I came in hoping for a few extra days and maybe a payment plan. I'm leaving with a hold, a plan, an energy audit, two assistance programs I didn't know existed, and a fixed monthly bill amount. That's a lot. Way more than I expected.
+
+[2024-10-17-14-25-24] REP: [warmly] That's what we're here for. Keep an eye on your Gmail — the Customer Care Fund application will be there within the hour. Apply today if you can, while the momentum's there.
+
+[2024-10-17-14-25-35] CUSTOMER: I will. My kids go to bed at eight-thirty, I'll do it when the house is quiet.
+
+[2024-10-17-14-25-44] REP: Perfect. Good luck with the job search, Robert. I hope something comes through soon.
+
+[2024-10-17-14-25-51] CUSTOMER: Thank you, Michelle. Really. This call made a real difference. I can actually breathe a little.
+
+[2024-10-17-14-25-59] REP: I'm glad. Take care of yourself and those kids.
+
+[2024-10-17-14-26-05] CUSTOMER: I will. Thank you. Bye.
+
+[2024-10-17-14-26-08] REP: Goodbye, Robert.
+
+================================================================================
+POST-CALL NOTES (REP-088)
+================================================================================
+Customer experiencing severe financial hardship — job loss August 2024 (warehouse
+layoff). Single parent, two dependents (ages 8 and 11). Unemployment currently active.
+Past due: $552.18. Total balance: $680.14. Disconnection notice issued 10/10.
+Customer visibly distressed during call; emotional at mention of children. Handled
+with full empathy protocol.
+
+ACTIONS TAKEN (10/17/2024):
+1. Disconnection hold placed — active through arrangement period and assistance
+   application review.
+2. 12-month payment arrangement established for $552.18 past-due balance.
+   (~$46/mo added to budget bill amount). Arrangement payments begin November cycle.
+3. Budget billing enrolled — fixed monthly rate: $127 (based on 12-mo average).
+4. Customer Care Fund application sent to rtanner.314@gmail.com. Customer has
+   unemployment documentation available. 48-72 hr review window.
+5. LIHEAP assistance discussed in detail:
+   - Online: dss.mo.gov (energy assistance section)
+   - In-person: Community Action Agency of St. Louis County, South Hanley Rd
+   - Required docs: unemployment letter, recent Meridian bill, photo ID, info on
+     dependents
+   - Customer instructed to attempt online application first tonight
+6. Free home energy audit flagged for hardship account. Scheduling team to contact
+   within 2-3 weeks.
+7. Bill-ready and payment-due reminder alerts activated — email (rtanner.314@gmail.com)
+   AND text (314-555-0192).
+8. $50 good-faith payment collected via prepaid Visa (approved). Confirmation emailed.
+
+ARRANGEMENT POLICY EXPLAINED: First missed payment = warning, arrangement stays
+active. Second missed payment = arrangement voided, disconnection re-triggered.
+Customer advised to call BEFORE a payment is late if issues arise.
+
+LIHEAP/Customer Care Fund payment process explained: both pay directly to account,
+auto-recalculates arrangement. Customer to call in to verify if no notification after
+3-4 weeks post-application.
+
+Flagged as hardship account. Follow up in 30 days per standard protocol.
+Customer distressed but cooperative and engaged. High likelihood of full compliance
+if assistance programs deliver any partial benefit. No retention risk.
