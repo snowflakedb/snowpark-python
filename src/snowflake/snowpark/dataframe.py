@@ -1382,7 +1382,6 @@ class DataFrame:
         use_parquet: bool = False,
         max_workers: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
-        _emit_ast: bool = False,
     ) -> "polars.DataFrame":
         """
         Executes the query representing this DataFrame and returns the result
