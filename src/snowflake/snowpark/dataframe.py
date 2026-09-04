@@ -20,7 +20,6 @@ from typing import (
     Dict,
     Iterator,
     List,
-    Literal as TypeLiteral,
     Optional,
     Set,
     Tuple,
@@ -1374,64 +1373,33 @@ class DataFrame:
             **kwargs,
         )
 
-    @publicapi
-    @overload
-    def to_polars(
-        self,
-        *,
-        lazy: TypeLiteral[False] = False,
-        use_parquet: bool = False,
-        max_workers: Optional[int] = None,
-        statement_params: Optional[Dict[str, str]] = None,
-        _emit_ast: bool = False,
-    ) -> "polars.DataFrame":
-        ...  # pragma: no cover
-
-    @publicapi
-    @overload
-    def to_polars(
-        self,
-        *,
-        lazy: TypeLiteral[True],
-        use_parquet: bool = False,
-        max_workers: Optional[int] = None,
-        statement_params: Optional[Dict[str, str]] = None,
-        _emit_ast: bool = False,
-    ) -> "polars.LazyFrame":
-        ...  # pragma: no cover
-
     @experimental(version="1.55.0")
     @df_collect_api_telemetry
     @publicapi
     def to_polars(
         self,
         *,
-        lazy: bool = False,
         use_parquet: bool = False,
         max_workers: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
         _emit_ast: bool = False,
-    ) -> Union["polars.DataFrame", "polars.LazyFrame"]:
+    ) -> "polars.DataFrame":
         """
         Executes the query representing this DataFrame and returns the result
-        as a `polars DataFrame <https://docs.pola.rs/py-polars/html/reference/dataframe/index.html>`_,
-        or a `polars LazyFrame <https://docs.pola.rs/py-polars/html/reference/lazyframe/index.html>`_
-        when ``lazy=True``.
+        as a `Polars DataFrame <https://docs.pola.rs/py-polars/html/reference/dataframe/index.html>`_.
 
-        The transport is selected by ``(lazy, use_parquet)``:
+        The transport is selected by ``use_parquet``:
 
-        =====  ============  ============================================
-        lazy   use_parquet   Transport
-        =====  ============  ============================================
-        False  False         Arrow (default; full Snowflake type fidelity)
-        False  True          Parquet unload + eager parallel read
-        True   False         Parquet unload + lazy scan
-        True   True          Parquet unload + lazy scan
-        =====  ============  ============================================
+        ============  ============================================
+        use_parquet   Transport
+        ============  ============================================
+        False         Arrow (default; full Snowflake type fidelity)
+        True          Parquet unload + eager parallel read
+        ============  ============================================
 
         Usage Notes:
             - **Transport selection**:
-                - **Parquet** (``use_parquet=True`` or ``lazy=True``):
+                - **Parquet** (``use_parquet=True``):
                   Recommended when the result set is large and the type-fidelity
                   caveats are acceptable. Snowflake's ``COPY INTO`` splits the
                   result into multiple Parquet files that are opened and read
@@ -1443,21 +1411,15 @@ class DataFrame:
                   modest; for small or medium result sets the ``COPY INTO``
                   setup cost may outweigh the gain, making Arrow the more
                   efficient choice.
-                - **Arrow** (default, ``lazy=False, use_parquet=False``):
+                - **Arrow** (default, ``use_parquet=False``):
                   Streams result batches directly from the cursor without
                   staging to disk. Preserves full Snowflake type fidelity.
                   Use when type accuracy is required, or when the result set is
-                  small enough that the Parquet paths' ``COPY INTO`` overhead
+                  small enough that the Parquet path's ``COPY INTO`` overhead
                   is not justified.
-            - **Lazy evaluation** (``lazy=True``): ``COPY INTO`` runs
-              synchronously at call time; the Parquet scan and any downstream
-              Polars operations are deferred to ``.collect()``. Use when
-              Polars plan optimization — such as column projection or row-group
-              filtering — is desired. The ``use_parquet`` argument has no
-              effect when ``lazy=True``; the Parquet transport is always used.
             - **Parallelism tuning**: ``max_workers`` controls the thread pool
               for opening and reading staged Parquet files. Only applies to
-              the Parquet paths; ignored for the Arrow path. The default
+              the Parquet path; ignored for the Arrow path. The default
               (``None``) defers to
               :class:`~concurrent.futures.ThreadPoolExecutor`.
 
@@ -1466,31 +1428,25 @@ class DataFrame:
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
             >>> df.to_polars().shape  # doctest: +SKIP
             (2, 2)
-            >>> lf = df.to_polars(lazy=True)  # doctest: +SKIP
-            >>> lf.collect().sort("A").to_dicts()  # doctest: +SKIP
-            [{'A': 1, 'B': 2}, {'A': 3, 'B': 4}]
 
         Args:
-            lazy: When ``True``, return a ``polars.LazyFrame`` and defer the
-                Parquet scan and downstream Polars operations until
-                ``.collect()``. Defaults to ``False``.
-            use_parquet: When ``True`` (and ``lazy=False``), unload the result
+            use_parquet: When ``True``, unload the result
                 to Parquet on the session stage and read the files back in
                 parallel. Can be faster than the Arrow path for large,
                 data-transfer-dominated workloads — especially in a stored
-                procedure — but subject to the type-fidelity limits below. Has
-                no effect when ``lazy=True``. Defaults to ``False``.
+                procedure — but subject to the type-fidelity limits below.
+                Defaults to ``False``.
             max_workers: Maximum number of threads for parallel stage-file
-                opens and reads. Only applies to the Parquet paths
-                (``use_parquet=True`` or ``lazy=True``). Defaults to ``None``.
+                opens and reads. Only applies to the Parquet path
+                (``use_parquet=True``). Defaults to ``None``.
             statement_params: Dictionary of statement level parameters to be
                 set while executing this action.
 
         Note:
             1. Requires ``polars>=1.0``.
 
-            2. The Parquet paths (``use_parquet=True`` or ``lazy=True``)
-            do not fully preserve Snowflake types because ``COPY INTO``
+            2. The Parquet path (``use_parquet=True``)
+            does not fully preserve Snowflake types because ``COPY INTO``
             has restrictions on Parquet unload:
 
                - ``TIMESTAMP_LTZ`` and ``TIMESTAMP_TZ`` columns cause the
@@ -1507,18 +1463,10 @@ class DataFrame:
         from snowflake.snowpark._internal.polars_backend import (
             arrow_eager as _arrow_eager,
             parquet_eager as _parquet_eager,
-            parquet_lazy as _parquet_lazy,
         )
 
         is_sproc = is_in_stored_procedure()
 
-        if lazy:
-            return _parquet_lazy(
-                self,
-                is_sproc=is_sproc,
-                statement_params=statement_params,
-                max_workers=max_workers,
-            )
         if use_parquet:
             return _parquet_eager(
                 self,

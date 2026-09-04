@@ -30,16 +30,11 @@ def _open_stage_files_parallel(
     session,
     paths: list[str],
     is_sproc: bool,
-    is_lazy: bool,
     max_workers: int | None = None,
 ) -> list:
-    """Open stage files concurrently.
-
-    * ``is_lazy=True``: return the raw file-like objects for
-      ``pl.scan_parquet`` to consume (Polars owns the handles from that point
-      on and closes them itself).
-    * ``is_lazy=False``: read each file with ``pl.read_parquet`` and return
-      the resulting ``pl.DataFrame`` (``with`` closes the handle after read).
+    """Open stage files concurrently, reading each with ``pl.read_parquet``
+    and returning the resulting ``pl.DataFrame`` (``with`` closes the handle
+    after read).
 
     Uses ``SnowflakeFile.open`` inside a stored procedure and
     ``session.file.get_stream`` on the client.
@@ -59,8 +54,6 @@ def _open_stage_files_parallel(
         opener = session.file.get_stream
 
     def _work(p: str):
-        if is_lazy:
-            return opener(p)
         with opener(p) as f:
             return pl.read_parquet(f)
 
@@ -102,7 +95,7 @@ def arrow_eager(
 ) -> pl.DataFrame:
     """Fetch the result as Arrow batches and return a polars DataFrame.
 
-    Backs the default ``to_polars()`` path (``lazy=False, use_parquet=False``).
+    Backs the default ``to_polars()`` path (``use_parquet=False``).
     Preserves full Snowflake type fidelity.
     """
     import polars as pl
@@ -135,35 +128,8 @@ def parquet_eager(
     if not paths:
         return _empty_frame_from_schema(df, statement_params)
     frames = _open_stage_files_parallel(
-        df._session, paths, is_sproc, is_lazy=False, max_workers=max_workers
+        df._session, paths, is_sproc, max_workers=max_workers
     )
     if not frames:
         return _empty_frame_from_schema(df, statement_params)
     return pl.concat(frames) if len(frames) > 1 else frames[0]
-
-
-def parquet_lazy(
-    df: DataFrame,
-    is_sproc: bool = False,
-    statement_params: dict[str, str] | None = None,
-    max_workers: int | None = None,
-) -> pl.LazyFrame:
-    """COPY INTO Parquet, open the staged files, return a ``pl.scan_parquet`` LazyFrame.
-
-    Backs ``to_polars(lazy=True)``. COPY INTO runs synchronously; only the
-    scan/decode is deferred. Subject to the Parquet type-fidelity caveats
-    documented on ``DataFrame.to_polars``.
-    """
-    import polars as pl
-
-    paths = _copy_df_to_stage(df, "to_polars_parquet_lazy", statement_params)
-    if not paths:
-        return pl.LazyFrame(
-            schema=_empty_frame_from_schema(df, statement_params).schema
-        )
-    # The stream objects are owned by the returned LazyFrame; Polars closes them
-    # when the scan is materialized (or if the LazyFrame is discarded).
-    streams = _open_stage_files_parallel(
-        df._session, paths, is_sproc, is_lazy=True, max_workers=max_workers
-    )
-    return pl.scan_parquet(streams)
