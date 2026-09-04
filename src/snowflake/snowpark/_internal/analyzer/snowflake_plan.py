@@ -150,6 +150,28 @@ from collections.abc import Iterable
 
 _logger = getLogger(__name__)
 
+# Default for numWorkers.
+# TODO SNOW-1983360: revisit once the UDTF scalability issue is resolved.
+DEFAULT_MAX_WORKERS: int = 16
+
+
+def _positive_int_option(options: Dict[str, Any], name: str, default: int) -> int:
+    """Read a positive-integer reader option, rejecting values that would produce a
+    degenerate work split (no workers at all, or a division by zero)."""
+    if name not in options:
+        return default
+    try:
+        value = int(options[name])
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"Invalid value for option {name}: {options[name]!r}. Must be a positive integer."
+        )
+    if value < 1:
+        raise ValueError(
+            f"Invalid value for option {name}: {value}. Must be a positive integer."
+        )
+    return value
+
 
 class SnowflakePlan(LogicalPlan):
     class Decorator:
@@ -1864,13 +1886,12 @@ class SnowflakePlanBuilder:
                 f"Invalid mode: {mode}. Must be one of PERMISSIVE, DROPMALFORMED, FAILFAST."
             )
 
-        # TODO SNOW-1983360: make it an configurable option once the UDTF scalability issue is resolved.
-        # Currently it's capped at 16.
+        max_workers = _positive_int_option(options, "NUMWORKERS", DEFAULT_MAX_WORKERS)
         try:
             file_size = int(self.session.sql(f"ls {file_path}", _emit_ast=False).collect(_emit_ast=False)[0]["size"])  # type: ignore
         except IndexError:
             raise ValueError(f"{file_path} does not exist")
-        num_workers = min(16, file_size // DEFAULT_CHUNK_SIZE + 1)
+        num_workers = min(max_workers, file_size // DEFAULT_CHUNK_SIZE + 1)
 
         # Create a range from 0 to N-1
         df = self.session.range(num_workers).to_df(worker_column_name)
