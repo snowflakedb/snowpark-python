@@ -4205,15 +4205,6 @@ class Session:
         See also:
             :class:`AsyncJob`
         """
-        if (
-            is_in_stored_procedure()
-            and not self._conn._get_client_side_session_parameter(
-                "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
-            )
-        ):  # pragma: no cover
-            raise NotImplementedError(
-                "Async query is not supported in stored procedure yet"
-            )
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
                 external_feature_name="Session.create_async_job",

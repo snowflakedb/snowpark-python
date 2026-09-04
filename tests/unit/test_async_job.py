@@ -29,14 +29,6 @@ def _make_session_with_cursor() -> tuple[Session, mock.MagicMock]:
     mock_cursor = mock.MagicMock()
     inner_conn.cursor.return_value = mock_cursor
     server_conn._conn = inner_conn
-
-    # Return True for async feature flag.
-    def _param_side_effect(name, default_value):
-        if name and name.upper() == "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS":
-            return True
-        return default_value
-
-    server_conn._get_client_side_session_parameter.side_effect = _param_side_effect
     session = Session(server_conn)
     return session, mock_cursor
 
@@ -135,3 +127,16 @@ def test_async_job_cancel_in_sproc_failure_in_uuid_validation(monkeypatch):
     job = AsyncJob(query_id=qid, query=None, session=session)
     with pytest.raises(ValueError, match=f"Invalid UUID: '{qid}'"):
         job.cancel()
+
+
+def test_create_async_job_in_stored_procedure_does_not_raise(monkeypatch):
+    """Session.create_async_job supports stored-procedure sessions."""
+    session, _ = _make_session_with_cursor()
+    session._conn._get_client_side_session_parameter.return_value = False
+    monkeypatch.setattr(
+        "snowflake.snowpark.session.is_in_stored_procedure", lambda: True
+    )
+    qid = str(uuid.uuid4())
+    job = session.create_async_job(qid)
+    assert isinstance(job, AsyncJob)
+    assert job.query_id == qid

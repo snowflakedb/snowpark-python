@@ -237,3 +237,50 @@ def test_existing_application_param_not_overwritten(mock_server_connection):
             mock_server_connection._lower_case_parameters["application"]
             == "existing_app"
         )
+
+
+def test_execute_non_blocking_in_stored_procedure_does_not_raise(
+    mock_server_connection, monkeypatch
+):
+    """Non-blocking execution supports stored-procedure sessions."""
+    monkeypatch.setattr(
+        mock_server_connection,
+        "_get_client_side_session_parameter",
+        lambda *_: False,
+    )
+    monkeypatch.setattr(
+        "snowflake.snowpark._internal.server_connection.is_in_stored_procedure",
+        lambda: True,
+    )
+    fake_plan = mock.MagicMock()
+    sentinel = {"sfqid": "fake-qid"}
+    with mock.patch.object(
+        mock_server_connection, "get_result_set", return_value=(sentinel, [])
+    ):
+        result = mock_server_connection.execute(fake_plan, block=False)
+    assert result is sentinel
+
+
+def test_temp_table_auto_cleaner_proceeds_in_stored_procedure(monkeypatch):
+    """Temp-table cleanup supports stored-procedure sessions."""
+    from snowflake.snowpark._internal import temp_table_auto_cleaner
+
+    fake_session = mock.MagicMock()
+    fake_session.auto_clean_up_temp_table_enabled = True
+    fake_session._conn.is_closed.return_value = False
+    fake_session._conn._thread_safe_session_enabled = False
+    fake_session._conn._get_client_side_session_parameter.return_value = False
+    monkeypatch.setattr(
+        temp_table_auto_cleaner,
+        "is_in_stored_procedure",
+        lambda: True,
+        raising=False,
+    )
+
+    cleaner = temp_table_auto_cleaner.TempTableAutoCleaner(fake_session)
+    cleaner.ref_count_map["test_table"] = 1
+
+    with mock.patch.object(cleaner, "drop_table") as mock_drop:
+        cleaner._delete_ref_count("test_table")
+
+    mock_drop.assert_called_once_with("test_table")

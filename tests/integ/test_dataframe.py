@@ -4268,9 +4268,6 @@ def test_dataframe_duplicated_column_names(session, local_testing_mode):
         assert "duplicate column name 'A'" in str(ex_info.value)
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Async query is not supported in stored procedure yet"
-)
 def test_case_insensitive_collect(session, local_testing_mode):
     df = session.create_dataframe(
         [["Gordon", 153]], schema=["firstname", "matches_won"]

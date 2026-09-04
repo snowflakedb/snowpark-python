@@ -278,12 +278,7 @@ class AsyncJob:
     def cancel(self) -> None:
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
-        if (
-            is_in_stored_procedure()
-            and self._session._conn._get_client_side_session_parameter(
-                "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
-            )
-        ):
+        if is_in_stored_procedure():
             import _snowflake
             import json
             import uuid

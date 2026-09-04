@@ -74,10 +74,6 @@ def test_statement_params(session):
     )
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Async job is not supported in stored proc today",
-)
 def test_async(session, resources_path):
     # Test single query
     df = session.sql(
