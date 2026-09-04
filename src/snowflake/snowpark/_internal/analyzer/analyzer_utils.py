@@ -150,6 +150,7 @@ BASE_LOCATION = " BASE_LOCATION "
 TARGET_FILE_SIZE = " TARGET_FILE_SIZE "
 CATALOG_SYNC = " CATALOG_SYNC "
 STORAGE_SERIALIZATION_POLICY = " STORAGE_SERIALIZATION_POLICY "
+TABLE_PROPERTIES = " TABLE_PROPERTIES"
 REG_EXP = " REGEXP "
 COLLATE = " COLLATE "
 RESULT_SCAN = " RESULT_SCAN"
@@ -331,6 +332,30 @@ def iceberg_partition_clause(partition_exprs: List[str]) -> str:
         )
         if partition_exprs
         else EMPTY_STRING
+    )
+
+
+def iceberg_table_properties_clause(iceberg_config: Optional[dict]) -> str:
+    """Emit ``TABLE_PROPERTIES = ('k'='v', ...)`` from an ``iceberg_config``'s
+    ``table_properties`` map (keys kept verbatim, keys/values escaped); empty
+    when absent."""
+    if not iceberg_config:
+        return EMPTY_STRING
+    normalized = {k.lower(): v for k, v in iceberg_config.items()}
+    table_properties = normalized.get("table_properties")
+    if not table_properties:
+        return EMPTY_STRING
+
+    # Escape via ``escape_quotes_and_backslashes`` (not ``single_quote``): it
+    # escapes backslashes as well as quotes and never skips escaping, so a
+    # crafted key/value cannot break out of its literal and inject extra SQL
+    # (e.g. "'x', 'injected'='surprise'" or "x\\') COPY GRANTS --").
+    def _quote(value: object) -> str:
+        return SINGLE_QUOTE + escape_quotes_and_backslashes(str(value)) + SINGLE_QUOTE
+
+    pairs = COMMA.join(f"{_quote(k)}={_quote(v)}" for k, v in table_properties.items())
+    return (
+        SPACE + TABLE_PROPERTIES + EQUALS + LEFT_PARENTHESIS + pairs + RIGHT_PARENTHESIS
     )
 
 
@@ -1168,13 +1193,14 @@ def create_table_statement(
     options_statement = get_options_statement(options)
 
     partition_by_clause = iceberg_partition_clause(partition_exprs)
+    table_properties_clause = iceberg_table_properties_clause(iceberg_config)
 
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{ICEBERG if iceberg_options else EMPTY_STRING}{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}{partition_by_clause}{cluster_by_clause}"
-        f"{options_statement}{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql}"
+        f"{options_statement}{table_properties_clause}{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql}"
     )
 
 
@@ -1259,13 +1285,14 @@ def create_table_as_select_statement(
     options_statement = get_options_statement(options)
 
     partition_by_clause = iceberg_partition_clause(partition_exprs)
+    table_properties_clause = iceberg_table_properties_clause(iceberg_config)
 
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{ICEBERG if iceberg_options else EMPTY_STRING}{TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
-        f"{table_name}{column_definition_sql}{partition_by_clause}{cluster_by_clause}{options_statement}"
+        f"{table_name}{column_definition_sql}{partition_by_clause}{cluster_by_clause}{options_statement}{table_properties_clause}"
         f"{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql} {AS}{project_statement([], child)}"
     )
 
