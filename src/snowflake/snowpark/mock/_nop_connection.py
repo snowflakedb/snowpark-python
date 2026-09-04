@@ -99,7 +99,6 @@ class NopConnection(MockServerConnection):
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         super().__init__(options)
         self._conn._session_parameters = {
-            "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
             "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": False,
             "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": False,
             "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES": True,

@@ -71,6 +71,10 @@ No user-facing changes in this release.
 
 - Reduced the size of generated query text for repeated join operations.
 
+#### Improvements
+
+- Enabled asynchronous queries in Python stored procedures without requiring the `ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS` session parameter.
+
 #### Dependency Updates
 
 - Lifted `protobuf` restriction for Python 3.14 from `==5.29.3` to `>=5.29.3,<6.34`.
