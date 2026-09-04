@@ -9,6 +9,7 @@
 - Added interval type support for Python UDFs and stored procedures. Use `datetime.timedelta` as the type annotation for day-time interval (`DayTimeIntervalType`) parameters and return values, and `YearMonthInterval` (a type annotation sentinel from `snowflake.snowpark.types`) for year-month interval (`YearMonthIntervalType`) parameters and return values.
 
 - Added a `useVariantProjection` option to `DataFrameReader.xml` that speeds up XML ingestion. The default is `False`; setting it to `True` requires `cacheResult` to also be `True` (the default).
+- Added a `numWorkers` option to `DataFrameReader.xml` for reads that specify `rowTag`, capping how many parallel workers a file is split across (per file, not in total; default `16`, previously a hardcoded cap of `16`).
 
 ## 1.54.0 (2026-07-29)
 
