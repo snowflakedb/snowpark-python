@@ -461,6 +461,28 @@ def escape_subfield_key(field: str) -> str:
     return escape_quotes_and_backslashes(field)
 
 
+def use_xml_variant_projection(options: Dict[str, Any], schema_known: bool) -> bool:
+    """Whether the XML reader may project ROW_DATA keys directly instead of flatten+pivot."""
+    if not options.get("USEVARIANTPROJECTION", False):
+        return False
+    if options.get("CACHERESULT", True):
+        return True
+    # No materialized result means keys can't be discovered, and PERMISSIVE mode's
+    # corrupt-record column can't be probed, without re-reading the file -- so this path
+    # is only safe with a known schema and a mode that has no such column.
+    return schema_known and options.get("MODE", "PERMISSIVE").upper() != "PERMISSIVE"
+
+
+def xml_variant_projection(key: str) -> "snowflake.snowpark.Column":  # type: ignore[name-defined] # noqa: F821
+    """Project a single top-level key out of the XML reader's ROW_DATA VARIANT column."""
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import single_quote
+    from snowflake.snowpark.functions import col
+
+    # Bracket notation, not ROW_DATA:key path notation, so a namespace-prefixed name like
+    # "px:name" is treated as a literal key rather than a further path segment.
+    return col(XML_ROW_DATA_COLUMN_NAME)[key].alias(single_quote(key))
+
+
 def is_sql_select_statement(sql: str) -> bool:
     return (
         SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None

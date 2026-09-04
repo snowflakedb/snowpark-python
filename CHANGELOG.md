@@ -21,6 +21,8 @@
 
 - Test-only: fixed `test_generator_table_function` failing as `assert 0 < 0` on the `seq2(0)` + `generator(timelimit => 1)` case. `seq2(0)` passes sign=0, so it continues at 0 after 32767, and a one-second generator run usually emits far more than one 32768-value cycle, making `ORDER BY seq2(0) LIMIT 3` return `0, 0, 0`. That assertion now allows equal values; the `seq1(1)` + `rowcount` assertions stay strictly increasing.
 
+- Added a `useVariantProjection` option to `DataFrameReader.xml` that speeds up XML ingestion. The default is `False`; setting it to `True` requires `cacheResult` to also be `True` (the default).
+
 ## 1.54.0 (2026-07-29)
 
 ### Snowpark Python API updates
