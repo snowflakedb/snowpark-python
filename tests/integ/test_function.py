@@ -167,6 +167,7 @@ from snowflake.snowpark.functions import (
 import functools
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark.functions import udf, vectorized
+from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.types import (
     ArrayType,
     BooleanType,
@@ -2710,3 +2711,28 @@ def test_udf_with_vectorized_nested_decorators_series(session):
     )
     res = df.select(add_series("a", "b").alias("result")).collect()
     assert [row.RESULT for row in res] == [3, 30, 300, 15]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="UDF init_once is not supported in Local Testing",
+)
+def test_udf_init_once_register_from_file(session):
+    """A handler file using @udf_init_once registers successfully via register_from_file.
+
+    ``@udf_init_once`` is a client-side API-parity shim: it validates the target
+    and returns it unchanged, mirroring the ``_snowflake.udf_init_once`` signature
+    so handler files import cleanly both locally and on the server. Server-side
+    pre-fork execution of the decorated init function is not yet GA, so this test
+    only verifies that a handler file importing ``udf_init_once`` can be registered
+    via ``register_from_file``; it intentionally does not invoke the UDF to assert
+    the init function's effect.
+    """
+    multiply_udf = session.udf.register_from_file(
+        file_path="tests/resources/test_udf_dir/test_udf_init_once_file.py",
+        func_name="multiply",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+    assert isinstance(multiply_udf, UserDefinedFunction)
+    assert multiply_udf.name

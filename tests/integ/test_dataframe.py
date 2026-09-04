@@ -9,6 +9,7 @@ import decimal
 import json
 import logging
 import math
+import re
 import time
 from array import array
 from collections import namedtuple
@@ -550,31 +551,49 @@ def test_select_table_function(session):
 )
 def test_generator_table_function(session):
     # works with rowcount
-    expected_result = [Row(-108, 3), Row(-107, 3), Row(0, 3)]
+    # seq1(1) passes sign=1, so it continues at the smallest 1-byte int (-128)
+    # after 127. 150 rows stay within one 256-value cycle, so the values are
+    # distinct and ORDER BY makes them strictly increasing.
     df = (
         session.generator(seq1(1), uniform(1, 10, 2), rowcount=150)
         .order_by(seq1(1))
         .limit(3, offset=20)
     )
-    Utils.check_answer(df, expected_result)
+    result = df.collect()
+    assert len(result) == 3
+    assert all(row[1] == 3 for row in result)
+    assert result[0][0] < result[1][0] < result[2][0]
 
     # works with timelimit
-    expected_result = [Row(0, 3), Row(0, 3), Row(0, 3)]
+    # seq2(0) passes sign=0, so it continues at 0 (never negative) after 32767.
+    # generator(timelimit => 1) emits as many rows as the warehouse manages in
+    # a second, which is usually far more than the 32768-value cycle, so 0
+    # repeats and ORDER BY seq2(0) LIMIT 3 returns 0, 0, 0. Slower warehouses
+    # stay inside one cycle and return 0, 1, 2, so only the ordering and the
+    # sign=0 value range can be asserted here.
     df = (
         session.generator(seq2(0), uniform(1, 10, 2), timelimit=1)
         .order_by(seq2(0))
         .limit(3)
     )
-    Utils.check_answer(df, expected_result)
+    result = df.collect()
+    assert len(result) == 3
+    assert all(row[1] == 3 for row in result)
+    assert result[0][0] <= result[1][0] <= result[2][0]
+    assert all(0 <= row[0] <= 32767 for row in result)
 
     # works with combination of both
-    expected_result = [Row(-108, 3), Row(-107, 3), Row(0, 3)]
+    # rowcount is reached long before the timelimit, so this behaves like the
+    # rowcount case above: 150 distinct seq1(1) values.
     df = (
         session.generator(seq1(1), uniform(1, 10, 2), timelimit=1, rowcount=150)
         .order_by(seq1(1))
         .limit(3, offset=20)
     )
-    Utils.check_answer(df, expected_result)
+    result = df.collect()
+    assert len(result) == 3
+    assert all(row[1] == 3 for row in result)
+    assert result[0][0] < result[1][0] < result[2][0]
 
     # works without both
     df = session.generator(seq4(1), uniform(1, 10, 2))
@@ -588,12 +607,10 @@ def test_generator_table_function(session):
         .order_by("pixel")
         .limit(3, offset=20)
     )
-    expected_result = [
-        Row(pixel=-108, unicorn=3),
-        Row(pixel=-107, unicorn=3),
-        Row(pixel=0, unicorn=3),
-    ]
-    Utils.check_answer(df, expected_result)
+    result = df.collect()
+    assert len(result) == 3
+    assert all(row["UNICORN"] == 3 for row in result)
+    assert result[0]["PIXEL"] < result[1]["PIXEL"] < result[2]["PIXEL"]
 
     # aggregation works
     df = session.generator(count(seq1(0)).as_("rows"), rowcount=150)
@@ -1679,12 +1696,25 @@ def test_cache_result_query(session):
     with session.query_history() as history:
         df.cache_result()
 
-    assert len(history.queries) == 2
-    assert "CREATE  SCOPED TEMPORARY  TABLE" in history.queries[0].sql_text
+    # connector >= 4.7.1 no longer caches database/schema from non-USE statements (e.g. CREATE TEMP TABLE).
+    # Older connectors did, expect 4 queries for >= 4.7.1, 2 for earlier versions in sproc execution env.
+    # Filter out metadata queries (e.g. SELECT CURRENT_DATABASE()) that may appear
+    # in some environments before or between the expected DDL/DML statements.
+    filtered_queries = [
+        q
+        for q in history.queries
+        if not re.match(
+            r"^\s*SELECT\s+CURRENT_(DATABASE|SCHEMA)\s*\(\s*\)\s*$",
+            q.sql_text,
+            re.IGNORECASE,
+        )
+    ]
+    assert len(filtered_queries) == 2
+    assert "CREATE  SCOPED TEMPORARY  TABLE" in filtered_queries[0].sql_text
     assert (
-        "INSERT  INTO" in history.queries[1].sql_text
+        "INSERT  INTO" in filtered_queries[1].sql_text
         and 'SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, 2 :: INT)'
-        in history.queries[1].sql_text
+        in filtered_queries[1].sql_text
     )
 
 
@@ -5958,6 +5988,117 @@ def test_write_copy_into_location_options(session):
         Utils.drop_stage(session, temp_stage)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.copy_into_location is not supported in Local Testing",
+)
+@pytest.mark.parametrize(
+    "quote_mode,prefix,should_succeed",
+    [
+        ("unquoted", "quote_mode_unquoted", True),
+        ("single", "quote_mode_single", True),
+        ("double", "quote_mode_double", False),
+    ],
+)
+def test_write_copy_into_location_stage_location_quote_modes(
+    session, quote_mode, prefix, should_succeed
+):
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+    try:
+        df = session.create_dataframe(
+            [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+
+        base_stage_location = f"@{temp_stage}/{prefix}/"
+        if quote_mode == "single":
+            stage_location = f"'{base_stage_location}'"
+        elif quote_mode == "double":
+            stage_location = f'"{base_stage_location}"'
+        else:
+            stage_location = base_stage_location
+
+        if should_succeed:
+            ret = df.write.copy_into_location(
+                stage_location,
+                file_format_type="csv",
+                overwrite=True,
+                single=True,
+            )
+            assert len(ret) == 1 and ret[0].rows_unloaded == 3
+
+            copied_files = session.sql(f"list @{temp_stage}/{prefix}/").collect()
+            assert len(copied_files) == 1
+        else:
+            with pytest.raises(SnowparkSQLException, match="does not exist"):
+                df.write.copy_into_location(
+                    stage_location,
+                    file_format_type="csv",
+                    overwrite=True,
+                    single=True,
+                )
+    finally:
+        Utils.drop_stage(session, temp_stage)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.copy_into_location is not supported in Local Testing",
+)
+def test_stage_location_embedded_single_quote_raw_and_preescaped_forms(session):
+    source_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    target_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, source_stage, is_temporary=True)
+    Utils.create_stage(session, target_stage, is_temporary=True)
+    try:
+        df = session.create_dataframe(
+            [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+
+        # Raw form with embedded apostrophe.
+        raw_source_location = f"@{source_stage}/o'clock/raw/"
+        # Equivalent pre-escaped single-quoted form.
+        escaped_source_location = f"'@{source_stage}/o''clock/escaped/'"
+
+        raw_copy_result = df.write.copy_into_location(
+            raw_source_location,
+            file_format_type="csv",
+            overwrite=True,
+            single=True,
+        )
+        escaped_copy_result = df.write.copy_into_location(
+            escaped_source_location,
+            file_format_type="csv",
+            overwrite=True,
+            single=True,
+        )
+        assert len(raw_copy_result) == 1 and raw_copy_result[0].rows_unloaded == 3
+        assert (
+            len(escaped_copy_result) == 1 and escaped_copy_result[0].rows_unloaded == 3
+        )
+
+        raw_target_location = f"@{target_stage}/o'clock/raw/"
+        escaped_target_location = f"'@{target_stage}/o''clock/escaped/'"
+
+        raw_files_copied = session.file.copy_files(
+            raw_source_location,
+            raw_target_location,
+            detailed_output=False,
+        )
+        escaped_files_copied = session.file.copy_files(
+            escaped_source_location,
+            escaped_target_location,
+            detailed_output=False,
+        )
+        assert raw_files_copied == 1
+        assert escaped_files_copied == 1
+    finally:
+        Utils.drop_stage(session, source_stage)
+        Utils.drop_stage(session, target_stage)
+
+
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="This is testing SQL generation",
@@ -8487,3 +8628,163 @@ def test_iceberg_version_tag_time_travel_dataframe_reader_option(session):
         session.read.option("version-tag", tag_name).table(table_fqn).collect()
     )
     assert via_kwarg == via_option == via_hyphen_option
+
+
+# ----------------------------------------------------------------------
+# Iceberg incremental read (``start-snapshot-id`` / ``end-snapshot-id``).
+#
+# TODO(SNOW-XXXXXX): Wire these up to a CI test account that has:
+#   * a Catalog-Linked Database (CLD) such as cldUnity / cldglue, AND
+#   * an unmanaged Iceberg table inside it with at least two snapshots
+#     readable through ``INFORMATION_SCHEMA.GET_TABLE_VERSIONS(...)``.
+#
+# Snowflake expresses incremental reads as::
+#
+#     SELECT * FROM TABLE(
+#         SPARK_INCREMENTAL_READ('<table>', <start> [, <end>])
+#     )
+#
+# Like the snapshot-id / tag surfaces above, this currently requires
+# ``FEATURE_ICEBERG_TIME_TRAVEL`` on the account and is scoped to
+# unmanaged Iceberg tables in CLDs, so these tests are skipped by default
+# and exercised manually against ``sfctest0`` (see the oss-iceberg-tests
+# ``query.incremental_read`` scenario in snowflake-eng/sas).
+# ----------------------------------------------------------------------
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with multiple "
+        "snapshots and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_incremental_read_session_table_kwargs(session):
+    """End-to-end: ``Session.table(..., start_snapshot_id=..., end_snapshot_id=...)``
+    returns append-only changes between two Iceberg snapshots."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+
+    snapshot_ids = [
+        row["SNAPSHOT_ID"]
+        for row in session.sql(
+            f"SELECT SNAPSHOT_ID FROM "
+            f"TABLE(INFORMATION_SCHEMA.GET_TABLE_VERSIONS('{table_fqn}')) "
+            "ORDER BY SNAPSHOT_TIMESTAMP"
+        ).collect()
+    ]
+    assert len(snapshot_ids) >= 2, "Demo table needs at least 2 snapshots"
+    start_id, end_id = snapshot_ids[0], snapshot_ids[1]
+
+    via_kwargs = session.table(
+        table_fqn,
+        start_snapshot_id=start_id,
+        end_snapshot_id=end_id,
+    ).collect()
+    via_sql = session.sql(
+        f"SELECT * FROM TABLE("
+        f"SPARK_INCREMENTAL_READ('{table_fqn}', {start_id}, {end_id}))"
+    ).collect()
+    assert via_kwargs == via_sql
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with multiple "
+        "snapshots and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_incremental_read_dataframe_reader_option(session):
+    """End-to-end: ``session.read.option('start-snapshot-id', S1)
+    .option('end-snapshot-id', S2).table(...)`` routes through the Spark
+    Iceberg-compat aliases and emits the ``SPARK_INCREMENTAL_READ`` SQL
+    surface."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+
+    snapshot_ids = [
+        row["SNAPSHOT_ID"]
+        for row in session.sql(
+            f"SELECT SNAPSHOT_ID FROM "
+            f"TABLE(INFORMATION_SCHEMA.GET_TABLE_VERSIONS('{table_fqn}')) "
+            "ORDER BY SNAPSHOT_TIMESTAMP"
+        ).collect()
+    ]
+    assert len(snapshot_ids) >= 2, "Demo table needs at least 2 snapshots"
+    start_id, end_id = snapshot_ids[0], snapshot_ids[1]
+
+    via_kwargs = session.table(
+        table_fqn,
+        start_snapshot_id=start_id,
+        end_snapshot_id=end_id,
+    ).collect()
+    via_option = (
+        session.read.option("start-snapshot-id", start_id)
+        .option("end-snapshot-id", end_id)
+        .table(table_fqn)
+        .collect()
+    )
+    assert via_kwargs == via_option
+
+    df = (
+        session.read.option("start-snapshot-id", start_id)
+        .option("end-snapshot-id", end_id)
+        .table(table_fqn)
+    )
+    df.collect()
+    sql = df.queries["queries"][0]
+    assert "SPARK_INCREMENTAL_READ" in sql
+    assert f"'{table_fqn}'" in sql
+    assert f", {start_id}, {end_id}" in sql
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a CLD-linked unmanaged Iceberg table with multiple "
+        "snapshots and FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. "
+        "Tested manually; see TODO above."
+    )
+)
+def test_iceberg_incremental_read_start_snapshot_only(session):
+    """End-to-end: ``start-snapshot-id`` without ``end-snapshot-id`` omits the
+    end snapshot argument and reads append-only changes through the current
+    snapshot."""
+    table_fqn = "CLDUNITY.scosschema.snapshot_demo"
+
+    start_id = session.sql(
+        f"SELECT SNAPSHOT_ID FROM "
+        f"TABLE(INFORMATION_SCHEMA.GET_TABLE_VERSIONS('{table_fqn}')) "
+        "ORDER BY SNAPSHOT_TIMESTAMP LIMIT 1"
+    ).collect()[0]["SNAPSHOT_ID"]
+
+    via_kwargs = session.table(
+        table_fqn,
+        start_snapshot_id=start_id,
+    ).collect()
+    via_option = (
+        session.read.option("start-snapshot-id", start_id).table(table_fqn).collect()
+    )
+    assert via_kwargs == via_option
+
+    df = session.read.option("start-snapshot-id", start_id).table(table_fqn)
+    df.collect()
+    sql = df.queries["queries"][0]
+    assert "SPARK_INCREMENTAL_READ" in sql
+    assert f"'{table_fqn}'" in sql
+    assert f", {start_id})" in sql
+    assert f", {start_id}, " not in sql
+
+
+@pytest.mark.skip(
+    reason=(
+        "Requires a Snowflake-managed Iceberg table with a WAP branch and "
+        "FEATURE_ICEBERG_TIME_TRAVEL enabled on the account. Tested manually."
+    )
+)
+def test_iceberg_branch_time_travel_dataframe_reader_option(session):
+    """End-to-end: Spark Iceberg ``branch`` option maps to VERSION_REF."""
+    table_fqn = "ICEBERG_GAP_TEST_HORIZON.TESTSCHEMA.snapshot_demo"
+    branch_name = "audit_branch"
+
+    via_branch = session.read.option("branch", branch_name).table(table_fqn).collect()
+    via_version_ref = (
+        session.read.option("version_ref", branch_name).table(table_fqn).collect()
+    )
+    assert via_branch == via_version_ref

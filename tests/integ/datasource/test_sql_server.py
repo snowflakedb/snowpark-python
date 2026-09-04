@@ -131,6 +131,33 @@ def test_sql_server_ingestion(
     verify_save_table_result(session, df, expected_data, expected_schema, apply_order)
 
 
+def test_embedded_quote_alias_has_no_side_effects_sql_server(session):
+    if "ODBC Driver 18 for SQL Server" not in pyodbc.drivers():
+        pytest.skip("Microsoft ODBC Driver 18 for SQL Server is not installed")
+
+    conn = create_connection_sql_server()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {SQL_SERVER_TABLE_NAME}")
+            before_count = cur.fetchone()[0]
+
+        embedded_quote_alias = (
+            f'y" FROM {SQL_SERVER_TABLE_NAME};DELETE FROM {SQL_SERVER_TABLE_NAME};--'
+        )
+        escaped_alias = embedded_quote_alias.replace('"', '""')
+        crafted_query = f'SELECT 1 AS "{escaped_alias}"'
+
+        df = session.read.dbapi(create_connection_sql_server, query=crafted_query)
+        assert len(df.collect()) == 1
+
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {SQL_SERVER_TABLE_NAME}")
+            after_count = cur.fetchone()[0]
+        assert after_count == before_count
+    finally:
+        conn.close()
+
+
 @pytest.mark.parametrize(
     "input_type, table_name, expected_data, expected_schema, apply_order",
     [

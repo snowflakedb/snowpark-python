@@ -331,6 +331,25 @@ def to_sql_no_cast(
     return f"{value}"
 
 
+def to_sql_for_default_arg(value: Any, datatype: DataType) -> str:
+    """Convert a value with DataType to SQL usable as a parameter's DEFAULT.
+
+    Identical to :func:`to_sql` except that integral values are emitted as bare
+    literals rather than ``<value> :: INT``. A DEFAULT only accepts a constant
+    expression, and the parameter already declares its own type, so the cast is
+    redundant. Snowflake rejects it outright on some server versions with
+    ``invalid default argument expression`` (SNOW-4013704).
+    """
+    if isinstance(datatype, _IntegralType):
+        if value is None:
+            return "NULL"
+        if isinstance(value, int):
+            # bool is a subclass of int, so normalize it to 0/1 for an
+            # integral parameter rather than emitting True/False.
+            return str(int(value))
+    return to_sql(value, datatype)
+
+
 def to_sql(
     value: Any,
     datatype: DataType,
@@ -500,6 +519,31 @@ def to_sql(
 
     if isinstance(value, str) and isinstance(datatype, DayTimeIntervalType):
         return f"{str_to_sql_for_day_time_interval(value, datatype)} :: {convert_sp_to_sf_type(datatype)}"
+
+    if isinstance(value, timedelta) and isinstance(datatype, DayTimeIntervalType):
+        # Serialize timedelta as an INTERVAL DAY TO SECOND literal.
+        # timedelta stores (days, seconds, microseconds) all non-negative after normalization.
+        sign = "-" if value < timedelta(0) else "+"
+        abs_val = abs(value)
+        d = abs_val.days
+        total_us = abs_val.seconds * 1_000_000 + abs_val.microseconds
+        h = total_us // 3_600_000_000
+        total_us %= 3_600_000_000
+        m = total_us // 60_000_000
+        total_us %= 60_000_000
+        s = total_us // 1_000_000
+        us = total_us % 1_000_000
+        interval_str = f"{sign}{d} {h:02d}:{m:02d}:{s:02d}.{us:06d}"
+        return f"INTERVAL '{interval_str}' DAY TO SECOND :: {convert_sp_to_sf_type(datatype)}"
+
+    if isinstance(value, int) and isinstance(datatype, YearMonthIntervalType):
+        # Serialize int (total months) as an INTERVAL YEAR TO MONTH literal.
+        sign = "-" if value < 0 else "+"
+        abs_months = abs(value)
+        years = abs_months // 12
+        months = abs_months % 12
+        interval_str = f"{sign}{years}-{months:02d}"
+        return f"INTERVAL '{interval_str}' YEAR TO MONTH :: {convert_sp_to_sf_type(datatype)}"
 
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 

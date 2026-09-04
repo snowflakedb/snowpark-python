@@ -822,6 +822,10 @@ def python_type_str_to_object(
         return datetime.time
     elif tp_str == "datetime":
         return datetime.datetime
+    elif tp_str == "timedelta":
+        return datetime.timedelta
+    elif tp_str == "YearMonthInterval":
+        return YearMonthInterval
     # This check is to handle special case when stored procs are registered using
     # register_from_file where type hints are read as strings and we don't know if
     # the DataFrame is a snowflake.snowpark.DataFrame or not. Here, the assumption
@@ -851,6 +855,8 @@ def python_type_to_snow_type(
 
     if tp is decimal.Decimal:
         return DecimalType(38, 18), False
+    elif tp is datetime.timedelta:
+        return DayTimeIntervalType(), False
     elif tp in PYTHON_TO_SNOW_TYPE_MAPPINGS:
         return PYTHON_TO_SNOW_TYPE_MAPPINGS[tp](), False
 

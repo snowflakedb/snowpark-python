@@ -11,6 +11,8 @@ which are already single-quoted are passed through unchanged.
 
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    copy_into_location,
+    escape_location_literal,
     infer_schema_statement,
     single_quote,
 )
@@ -107,6 +109,80 @@ class TestCopyFilesQuoting:
             file_name="@source/o'brien",
         )
         assert "'@source/o''brien'" in result
+
+
+class TestEscapeLocationLiteral:
+    """escape_location_literal() passes through well-formed literals and
+    fully escapes anything else (including look-alike quoted strings)."""
+
+    def test_plain_quoted_value_is_preserved(self):
+        assert escape_location_literal("'@stage/data'") == "'@stage/data'"
+
+    def test_value_with_spaces_is_preserved(self):
+        assert escape_location_literal("'@stage/my data'") == "'@stage/my data'"
+
+    def test_doubled_interior_quote_is_preserved(self):
+        assert escape_location_literal("'@stage/o''brien'") == "'@stage/o''brien'"
+
+    def test_backslash_escaped_interior_quote_is_preserved(self):
+        # Form produced by utils.normalize_path()
+        assert escape_location_literal("'@stage/o\\'brien'") == "'@stage/o\\'brien'"
+
+    def test_empty_literal_is_preserved(self):
+        assert escape_location_literal("''") == "''"
+
+    def test_literal_containing_single_quote_is_preserved(self):
+        assert escape_location_literal("''''") == "''''"
+
+    def test_unescaped_interior_quote_breakout_is_escaped(self):
+        # Starts and ends with a quote, but the interior quote terminates the
+        # literal early -- it must be treated as unquoted and fully escaped.
+        assert (
+            escape_location_literal("'@x' trailing text --'")
+            == "'''@x'' trailing text --'''"
+        )
+
+    def test_unterminated_literal_is_escaped(self):
+        # Trailing backslash escapes the final quote, so the literal never closes.
+        assert escape_location_literal("'abc\\'") == "'''abc\\'''"
+
+    def test_unquoted_value_is_escaped(self):
+        assert escape_location_literal("@stage/data") == "'@stage/data'"
+
+    def test_too_short_value_is_escaped(self):
+        assert escape_location_literal("'") == "''''"
+
+
+class TestCopyIntoLocationQuoting:
+    """stage_location in copy_into_location is quoted/escaped."""
+
+    def test_embedded_single_quote_is_doubled(self):
+        result = copy_into_location(
+            query="SELECT * FROM source_table",
+            stage_location="@stage/o'brien",
+        )
+        assert "'@stage/o''brien'" in result
+
+    def test_already_quoted_location_is_preserved(self):
+        result = copy_into_location(
+            query="SELECT * FROM source_table",
+            stage_location="'@stage/out/'",
+        )
+        assert " INTO '@stage/out/' FROM " in result
+
+    def test_quote_wrapped_breakout_is_neutralized(self):
+        """A location that would break out of the literal stays inside it."""
+        value = "'s3://bucket/out/' FROM (SELECT * FROM other_table) --'"
+        result = copy_into_location(
+            query="SELECT * FROM source_table",
+            stage_location=value,
+        )
+        # The whole value is wrapped into a single literal; the trailing
+        # FROM/comment never escapes to top-level SQL.
+        assert (
+            "INTO '''s3://bucket/out/'' FROM (SELECT * FROM other_table) --'''"
+            in result
+        )
 
 
 # Helper to call file_operation_statement for COPY FILES

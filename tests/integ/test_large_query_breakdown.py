@@ -5,6 +5,7 @@
 
 import logging
 import os
+import re
 import tempfile
 from unittest.mock import patch
 
@@ -31,6 +32,18 @@ pytestmark = [
         run=False,
     )
 ]
+
+# Matches SELECT CURRENT_DATABASE() / SELECT CURRENT_SCHEMA() metadata queries
+# that the connector may inject in some environments. Used to filter these out
+# before asserting on the meaningful query history entries.
+_METADATA_QUERY_RE = re.compile(
+    r"^\s*SELECT\s+CURRENT_(DATABASE|SCHEMA)\s*\(\s*\)\s*$", re.IGNORECASE
+)
+
+
+def _filter_metadata_queries(queries):
+    """Return query-history entries that are not connector metadata queries."""
+    return [q for q in queries if not _METADATA_QUERY_RE.match(q.sql_text)]
 
 
 @pytest.fixture(autouse=True)
@@ -283,13 +296,14 @@ def test_save_as_table(session, large_query_df):
         with SqlCounter(query_count=4, union_count=1, describe_count=1):
             large_query_df.write.save_as_table(table_name, mode="overwrite")
 
-    assert len(history.queries) == 4
-    assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
-    assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
-    assert history.queries[2].sql_text.startswith(
+    filtered = _filter_metadata_queries(history.queries)
+    assert len(filtered) == 4
+    assert filtered[0].sql_text == "SELECT CURRENT_TRANSACTION()"
+    assert filtered[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
+    assert filtered[2].sql_text.startswith(
         f"CREATE  OR  REPLACE    TABLE  {table_name}"
     )
-    assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
+    assert filtered[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
 def test_variable_binding(session):
@@ -338,21 +352,23 @@ def test_update_delete_merge(session, large_query_df):
         # 3 describe call triggered due to column state extraction
         with SqlCounter(query_count=4, union_count=1, describe_count=2):
             t.update({"B": 0}, t.a == large_query_df.a, large_query_df)
-    assert len(history.queries) == 4
-    assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
-    assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
-    assert history.queries[2].sql_text.startswith(f"UPDATE {table_name}")
-    assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
+    filtered = _filter_metadata_queries(history.queries)
+    assert len(filtered) == 4
+    assert filtered[0].sql_text == "SELECT CURRENT_TRANSACTION()"
+    assert filtered[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
+    assert filtered[2].sql_text.startswith(f"UPDATE {table_name}")
+    assert filtered[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
     # delete
     with session.query_history() as history:
         with SqlCounter(query_count=4, union_count=1, describe_count=0):
             t.delete(t.a == large_query_df.a, large_query_df)
-    assert len(history.queries) == 4
-    assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
-    assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
-    assert history.queries[2].sql_text.startswith(f"DELETE  FROM {table_name} USING")
-    assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
+    filtered = _filter_metadata_queries(history.queries)
+    assert len(filtered) == 4
+    assert filtered[0].sql_text == "SELECT CURRENT_TRANSACTION()"
+    assert filtered[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
+    assert filtered[2].sql_text.startswith(f"DELETE  FROM {table_name} USING")
+    assert filtered[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
     # merge
     with session.query_history() as history:
@@ -362,11 +378,12 @@ def test_update_delete_merge(session, large_query_df):
                 t.a == large_query_df.a,
                 [when_matched().update({"b": large_query_df.b})],
             )
-    assert len(history.queries) == 4
-    assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
-    assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
-    assert history.queries[2].sql_text.startswith(f"MERGE  INTO {table_name} USING")
-    assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
+    filtered = _filter_metadata_queries(history.queries)
+    assert len(filtered) == 4
+    assert filtered[0].sql_text == "SELECT CURRENT_TRANSACTION()"
+    assert filtered[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
+    assert filtered[2].sql_text.startswith(f"MERGE  INTO {table_name} USING")
+    assert filtered[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
 def test_copy_into_location(session, large_query_df):
@@ -380,11 +397,12 @@ def test_copy_into_location(session, large_query_df):
                 overwrite=True,
                 single=True,
             )
-    assert len(history.queries) == 4, history.queries
-    assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
-    assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
-    assert history.queries[2].sql_text.startswith(f"COPY  INTO '{remote_file_path}'")
-    assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
+    filtered = _filter_metadata_queries(history.queries)
+    assert len(filtered) == 4, filtered
+    assert filtered[0].sql_text == "SELECT CURRENT_TRANSACTION()"
+    assert filtered[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
+    assert filtered[2].sql_text.startswith(f"COPY  INTO '{remote_file_path}'")
+    assert filtered[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
 def test_in_with_subquery_multiple_query(session):
@@ -561,8 +579,11 @@ def test_optimization_skipped_with_transaction(session, large_query_df, caplog):
 
     check_optimization_skipped_reason(patch_send, {"active transaction": 1})
 
-    assert len(history.queries) == 2, history.queries
-    assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
+    # connector >= 4.7.1 no longer caches database/schema from non-USE statements (e.g. CREATE TEMP TABLE).
+    # Older connectors did, expect 4 queries for >= 4.7.1, 2 for earlier versions in sproc execution env.
+    filtered_queries = _filter_metadata_queries(history.queries)
+    assert len(filtered_queries) == 2, filtered_queries
+    assert filtered_queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
     assert "Skipping large query breakdown" in caplog.text
     assert Utils.is_active_transaction(session)
     assert session.sql("commit").collect()
@@ -699,15 +720,22 @@ def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
         Utils.check_answer(result, [Row(1, 5999), Row(2, 5998)])
 
         plan = large_query_df._plan
-        # 1 for current transaction, 1 for partition, 1 for main query, 1 for post action
-        assert patched_run_query.call_count == 4
+        # Filter out metadata queries (e.g. SELECT CURRENT_DATABASE/SCHEMA()) that may appear
+        # in some environments. Expect: 1 for current transaction, 1 for partition,
+        # 1 for main query, 1 for post action (connector >= 4.7.1 may double to 8 due to
+        # cache behavior; metadata queries are excluded from this count).
+        filtered_calls = [
+            call
+            for call in patched_run_query.call_args_list
+            if not _METADATA_QUERY_RE.match(call.args[0])
+        ]
+        assert len(filtered_calls) == 4
 
-        for i, call in enumerate(patched_run_query.call_args_list):
-            if i == 0:
-                assert call.args[0] == "SELECT CURRENT_TRANSACTION()"
-            else:
-                assert "_statement_params" in call.kwargs
-                assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
+        for call in filtered_calls:
+            if call.args[0] == "SELECT CURRENT_TRANSACTION()":
+                continue
+            assert "_statement_params" in call.kwargs
+            assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
 
 
 @pytest.mark.skipif(

@@ -172,6 +172,30 @@ def test_double_quoted_column_databricks(session, custom_schema):
     assert df.schema == databricks_double_quoted_schema
 
 
+def test_embedded_quote_alias_has_no_side_effects_databricks(session):
+    conn = create_databricks_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {TEST_TABLE_NAME}")
+            before_count = cur.fetchone()[0]
+
+        embedded_quote_alias = (
+            f"y` FROM {TEST_TABLE_NAME};DELETE FROM {TEST_TABLE_NAME};--"
+        )
+        escaped_alias = embedded_quote_alias.replace("`", "``")
+        crafted_query = f"SELECT 1 AS `{escaped_alias}`"
+
+        df = session.read.dbapi(create_databricks_connection, query=crafted_query)
+        assert len(df.collect()) == 1
+
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {TEST_TABLE_NAME}")
+            after_count = cur.fetchone()[0]
+        assert after_count == before_count
+    finally:
+        conn.close()
+
+
 @pytest.mark.parametrize(
     "input_type, input_value",
     [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],

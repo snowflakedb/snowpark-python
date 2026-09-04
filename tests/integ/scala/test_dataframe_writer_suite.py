@@ -991,6 +991,45 @@ def test_writer_csv(session, temp_stage, caplog):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
+    reason="COPY INTO <location> is not supported in Local Testing",
+)
+def test_writer_csv_stage_path_escapes_special_characters(session, temp_stage):
+    """``DataFrame.write.csv`` routes the destination through ``normalize_path``,
+    which must escape both backslashes and single quotes so that a path
+    containing a backslash immediately followed by a single quote stays inside
+    the stage-location string literal in the generated ``COPY INTO`` and the
+    SQL is always valid.
+
+    Each write below uses a path with characters that, before the fix, would
+    close the location string literal early and produce invalid SQL (a
+    backslash, a single quote, a ``\\'`` combination, parentheses, a comma and a
+    trailing ``--``). The writes must now succeed with the DataFrame's own rows
+    unloaded, which proves the path is escaped as literal data and not parsed as
+    SQL. Note: a literal backslash is not preserved as a directory separator by
+    stage storage, so we assert the write succeeds rather than a read-back
+    round-trip.
+    """
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+
+    special_paths = [
+        # Directory name containing a backslash.
+        f"{temp_stage}/back\\slash_dir/data.csv",
+        # Directory name containing a single quote.
+        f"{temp_stage}/o'clock/data.csv",
+        # Directory name containing a backslash immediately followed by a quote.
+        f"{temp_stage}/mix\\'both/data.csv",
+        # File name mixing a backslash-quote, parentheses, a comma and a
+        # trailing ``--`` -- all must be treated as literal path characters.
+        f"@{temp_stage}/out\\' , (note) -- draft",
+    ]
+    for path in special_paths:
+        result = df.write.csv(path, single=True)
+        # The DataFrame's own rows are unloaded; the path is not parsed as SQL.
+        assert result[0].rows_unloaded == 2, path
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte', FEAT: parquet support",
 )
 def test_writer_json(session, tmpdir_factory):

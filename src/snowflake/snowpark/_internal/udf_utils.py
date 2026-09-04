@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import collections.abc
+import datetime
 import inspect
 import io
 import os
@@ -31,7 +32,11 @@ from packaging.requirements import Requirement
 import snowflake.snowpark
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal import code_generation, type_utils
-from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql, to_sql_no_cast
+from snowflake.snowpark._internal.analyzer.datatype_mapper import (
+    to_sql,
+    to_sql_for_default_arg,
+    to_sql_no_cast,
+)
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     NoneType,
@@ -57,7 +62,12 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     warning,
 )
-from snowflake.snowpark.types import DataType, StructField, StructType
+from snowflake.snowpark.types import (
+    DataType,
+    DayTimeIntervalType,
+    StructField,
+    StructType,
+)
 from snowflake.snowpark.version import VERSION
 from snowflake.snowpark.context import (
     _ANACONDA_SHARED_REPOSITORY,
@@ -442,7 +452,7 @@ def get_opt_arg_defaults(
 
         if num_optional_args != 0:
             default_values_to_sql_str = [
-                to_sql(value, datatype)
+                to_sql_for_default_arg(value, datatype)
                 for value, datatype in zip(default_values, input_types_for_default_args)
             ]
         else:
@@ -1728,6 +1738,8 @@ def generate_call_python_sp_sql(
             sql_args.append(session._analyzer.analyze(arg._expression, {}))
         elif "system$" in sproc_name.lower():
             sql_args.append(to_sql_no_cast(arg, infer_type(arg)))
+        elif isinstance(arg, datetime.timedelta):
+            sql_args.append(to_sql(arg, DayTimeIntervalType()))
         else:
             sql_args.append(to_sql(arg, infer_type(arg)))
     return f"CALL {sproc_name}({', '.join(sql_args)})"

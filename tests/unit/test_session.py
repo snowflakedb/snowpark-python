@@ -1077,3 +1077,34 @@ def test_retrieve_agg_event_always_set_on_base_exception(monkeypatch):
             pass
 
     assert event_was_set, "fetch_event.set() was not called despite BaseException"
+
+
+def _fake_connection_for_session():
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection._thread_safe_session_enabled = True
+    return fake_connection
+
+
+def test_vsc_history_exporter_registered_when_env_var_set(tmp_path, monkeypatch):
+    from snowflake.snowpark.query_history import _VscHistoryExporter
+
+    monkeypatch.setenv("SNOWFLAKE_SNOWPARK_VSC_QUERY_HISTORY_DIR", str(tmp_path))
+    fake_connection = _fake_connection_for_session()
+
+    session = Session(fake_connection)
+
+    assert isinstance(session._vsc_history_exporter, _VscHistoryExporter)
+    fake_connection.add_query_listener.assert_called_once_with(
+        session._vsc_history_exporter
+    )
+
+
+def test_vsc_history_exporter_not_registered_when_env_var_unset(monkeypatch):
+    monkeypatch.delenv("SNOWFLAKE_SNOWPARK_VSC_QUERY_HISTORY_DIR", raising=False)
+    fake_connection = _fake_connection_for_session()
+
+    session = Session(fake_connection)
+
+    assert session._vsc_history_exporter is None
+    fake_connection.add_query_listener.assert_not_called()

@@ -2706,3 +2706,263 @@ def test_concurrent_retrieve_agg_event_set_after_context_published(
     assert snapshot_at_set[
         0
     ], "fetch_event fired before _aggregation_function_set was published"
+
+
+# ---------------------------------------------------------------------------
+# Tests for three scenarios in SCOS where leaving flattening enabled causes
+# semantic differences from SCOS.
+#
+# Scenario 1 — map_with_columns (SNOW-3489991):
+#   df.withColumn("new", lit(1)).select("c").filter(col("new") > 0)
+#   Without protection the select() incorrectly flattens and "new" goes
+#   out of scope for the subsequent filter.  SCOS fixes this by setting
+#   protect_dropped_new_columns=True on the SelectStatement produced by the
+#   withColumn path.
+#
+# Scenario 2 — _get_temporary_view column renaming:
+#   renamed.select("t2d").orderBy("t2c", "t2d")
+#   All renamed columns are NEW; dropping them before the orderBy loses the
+#   renamed names.  SCOS protects this with flatten_disabled=True.
+#
+# Scenario 3 — map_to_df:
+#   df.toDF("foo","bar","baz").select("foo").filter((col("bar")+col("foo"))<10)
+#   Same root cause as Scenario 2 but triggered by toDF renaming.
+# ---------------------------------------------------------------------------
+
+
+class TestProtectDroppedNewColumns:
+    """Scenario 1: map_with_columns.
+
+    Verify that protect_dropped_new_columns=True on a SelectStatement
+    prevents can_select_statement_be_flattened() from collapsing a subquery
+    that defines NEW columns which are dropped by the outer SELECT.
+    Without the flag the subquery would be flattened away, leaving any
+    future filter/sort with no subquery that exposes the dropped NEW column.
+    """
+
+    def test_filter_on_dropped_new_column_blocked(self, session):
+        """protect_dropped_new_columns=True: select(drop NEW col) must not
+        be flattened even when the dropped NEW column is NOT referenced by a
+        same-level column expression."""
+        df = session.create_dataframe([[1, 2, 3], [4, 5, 6]], schema=["a", "b", "c"])
+
+        # Simulate withColumn("new", lit(1)) — "new" becomes a NEW column.
+        wc = df.select(col("a"), col("b"), col("c"), lit(1).alias("new"))
+        # Mark the SelectStatement as protected, exactly as SCOS map_with_columns does.
+        wc._select_statement.protect_dropped_new_columns = True
+
+        # Outer select drops "new".  With the flag, can_select_statement_be_flattened
+        # must return False and the subquery must be preserved.
+        sel = wc.select(col("c"))
+        sql = sel.queries["queries"][0]
+
+        # The subquery that defines "new" must still be visible in the SQL.
+        # With create_dataframe the base is always a SELECT from VALUES (1 layer),
+        # wc adds a second SELECT layer, and the protect flag prevents sel from
+        # flattening into wc, producing a third layer — 3 SELECTs total.
+        assert (
+            sql.upper().count("SELECT") == 3
+        ), f"Expected 3 SELECT levels (subquery preserved), got:\n{sql}"
+        Utils.check_answer(sel, [Row(3), Row(6)], sort=True)
+
+    def test_without_flag_select_is_flattened(self, session):
+        """Control: without protect_dropped_new_columns the outer select IS
+        flattened into the subquery (normal Snowpark behaviour)."""
+        df = session.create_dataframe([[1, 2, 3], [4, 5, 6]], schema=["a", "b", "c"])
+
+        wc = df.select(col("a"), col("b"), col("c"), lit(1).alias("new"))
+        # No flag set — default False.
+        sel = wc.select(col("c"))
+        sql = sel.queries["queries"][0]
+
+        # "new" is DROPPED and not referenced; flattening is safe and expected.
+        # sel flattens into wc, but the base create_dataframe VALUES plan always
+        # contributes one SELECT — so the minimum is 2 SELECTs total.
+        assert (
+            sql.upper().count("SELECT") == 2
+        ), f"Expected 2 SELECT levels (flattened), got:\n{sql}"
+        Utils.check_answer(sel, [Row(3), Row(6)], sort=True)
+
+    def test_orderby_on_dropped_new_column_blocked(self, session):
+        """protect_dropped_new_columns=True also blocks flattening when the
+        dropped NEW column would be referenced by a subsequent order_by."""
+        df = session.create_dataframe([[1, 3], [2, 1], [3, 2]], schema=["a", "b"])
+
+        wc = df.select(col("a"), col("b").alias("sort_key"))
+        wc._select_statement.protect_dropped_new_columns = True
+
+        sel = wc.select(col("a")).order_by(col("sort_key"))
+        sql = sel.queries["queries"][0]
+
+        # Subquery preserved: outer ORDER BY can reference "sort_key".
+        # Same layering as the filter test: VALUES (1) + wc (2) + sel blocked by
+        # protect flag (3) = 3 SELECTs total.
+        assert (
+            sql.upper().count("SELECT") == 3
+        ), f"Expected 3 SELECT levels, got:\n{sql}"
+        # sort_key order: 1 (a=2), 2 (a=3), 3 (a=1)
+        Utils.check_answer(sel, [Row(2), Row(3), Row(1)], sort=False)
+
+    def test_chained_withcolumn_only_last_is_protected(self, session):
+        """The TPC-DS Q66 pattern: two consecutive withColumn calls followed by a
+        narrowing select that drops an UNCHANGED_EXP column (d_year).
+
+        This mirrors SCOS map_with_columns behaviour for chained calls:
+          wc1 = grouped.withColumn("ship_carriers", lit(...))   # ship_carriers is NEW
+          wc2 = wc1.withColumn("year", col("d_year"))           # year is NEW; d_year UNCHANGED_EXP
+          sel = wc2.select(*union_cols)   ← protect_dropped_new_columns=True here
+                                            drops d_year (UNCHANGED_EXP, not NEW)
+
+        The protect flag guards against DROPPED-NEW columns.  Since d_year is
+        UNCHANGED_EXP (not NEW) in wc2, the flag must NOT block flattening.
+        """
+        df = session.create_dataframe([[1, 2, 10]], schema=["a", "b", "d_year"])
+
+        def _build(protect: bool):
+            wc1 = df.select(
+                col("a"), col("b"), col("d_year"), lit("X").alias("ship_carriers")
+            )
+            wc2 = wc1.select(
+                col("a"),
+                col("b"),
+                col("d_year"),
+                col("ship_carriers"),
+                col("d_year").alias("year"),
+            )
+            if protect:
+                wc2._select_statement.protect_dropped_new_columns = True
+            # Drops "d_year" (UNCHANGED_EXP in wc2 — not NEW).
+            return wc2.select(col("a"), col("b"), col("ship_carriers"), col("year"))
+
+        sel_no_flag = _build(protect=False)
+        sel_with_flag = _build(protect=True)
+
+        sql_no_flag = sel_no_flag.queries["queries"][0]
+        sql_with_flag = sel_with_flag.queries["queries"][0]
+
+        # The protect flag must NOT add an extra SELECT layer for an
+        # UNCHANGED_EXP dropped column ("d_year").  Both should have the
+        # same number of SELECT clauses.
+        count_no_flag = sql_no_flag.upper().count("SELECT")
+        count_with_flag = sql_with_flag.upper().count("SELECT")
+        assert count_with_flag == count_no_flag, (
+            f"protect_dropped_new_columns added extra SELECT for UNCHANGED_EXP "
+            f"column: without={count_no_flag}, with={count_with_flag}\n"
+            f"SQL (with flag):\n{sql_with_flag}"
+        )
+
+        # Correctness check.
+        Utils.check_answer(sel_with_flag, [Row(1, 2, "X", 10)], sort=True)
+
+
+class TestFlattenDisabledGetTemporaryView:
+    """Scenario 2: _get_temporary_view.
+
+    All rename-target columns are NEW; when a subsequent select drops some
+    of them before an orderBy, flatten_disabled=True on the renaming
+    SelectStatement keeps the subquery that makes the renamed columns visible.
+    """
+
+    def test_orderby_dropped_new_column_with_flatten_disabled(self, session):
+        """Renamed columns (all NEW) are preserved when flatten_disabled=True.
+
+        Mirrors:
+          renamed = df.select(col("t2a").alias("t2a_renamed"), ...)
+          result  = renamed.select("t2d_renamed").orderBy("t2c_renamed", "t2d_renamed")
+        """
+        df = session.create_dataframe(
+            [[1, 2, 3, 4], [5, 6, 7, 8]], schema=["t2a", "t2b", "t2c", "t2d"]
+        )
+
+        renamed = df.select(
+            col("t2a").alias("t2a_renamed"),
+            col("t2b").alias("t2b_renamed"),
+            col("t2c").alias("t2c_renamed"),
+            col("t2d").alias("t2d_renamed"),
+        )
+        # Simulate _get_temporary_view protection.
+        renamed._select_statement.flatten_disabled = True
+
+        result = renamed.select("t2d_renamed").order_by("t2c_renamed", "t2d_renamed")
+        sql = result.queries["queries"][0]
+
+        # The renaming subquery must be preserved so that "t2c_renamed" is in
+        # scope for ORDER BY even though it was dropped by select("t2d_renamed").
+        assert (
+            sql.upper().count("SELECT") >= 2
+        ), f"Expected nested SELECT (flatten_disabled), got:\n{sql}"
+        assert "ORDER BY" in sql.upper(), f"Expected ORDER BY in SQL:\n{sql}"
+        Utils.check_answer(result, [Row(4), Row(8)], sort=False)
+
+    def test_without_flatten_disabled_select_flattens(self, session):
+        """Control: without flatten_disabled the renaming select is collapsed
+        away, so the subquery is gone and dropped columns would be inaccessible.
+
+        This uses a plain select with no order_by at the same level so that
+        is_referenced_by_same_level_column cannot block flattening — the only
+        thing that would preserve the subquery is flatten_disabled itself.
+        """
+        df = session.create_dataframe(
+            [[1, 2, 3, 4], [5, 6, 7, 8]], schema=["t2a", "t2b", "t2c", "t2d"]
+        )
+        renamed = df.select(
+            col("t2a").alias("t2a_renamed"),
+            col("t2b").alias("t2b_renamed"),
+            col("t2c").alias("t2c_renamed"),
+            col("t2d").alias("t2d_renamed"),
+        )
+        # No flatten_disabled — t2c_renamed is dropped and NOT referenced at
+        # the same level, so flattening proceeds and the subquery collapses.
+        result = renamed.select("t2d_renamed")
+        sql = result.queries["queries"][0]
+
+        # Without flatten_disabled the renaming subquery is collapsed into the
+        # VALUES plan's SELECT.  create_dataframe always wraps VALUES in a SELECT,
+        # so the minimum achievable is 2 SELECTs (outer projection + VALUES).
+        assert (
+            sql.upper().count("SELECT") == 2
+        ), f"Expected 2 SELECT levels (flattened), got:\n{sql}"
+        Utils.check_answer(result, [Row(4), Row(8)], sort=True)
+
+
+class TestFlattenDisabledMapToDf:
+    """Scenario 3: map_to_df / toDF.
+
+    toDF renames every column (all become NEW).  A subsequent select drops
+    some of those renamed columns before a filter that references them.
+    flatten_disabled=True on the toDF SelectStatement keeps them in scope.
+    """
+
+    def test_filter_on_dropped_todf_column_with_flatten_disabled(self, session):
+        """Mirrors:
+        renamed = df.toDF("foo", "bar", "baz")
+        result  = renamed.select("foo").filter((col("bar") + col("foo")) < 10)
+        """
+        df = session.create_dataframe([[1, 2, 3], [10, 20, 30]], schema=["x", "y", "z"])
+        renamed = df.to_df("foo", "bar", "baz")
+        renamed._select_statement.flatten_disabled = True
+
+        result = renamed.select("foo").filter((col("bar") + col("foo")) < 10)
+        sql = result.queries["queries"][0]
+
+        # Renaming subquery must be preserved so "bar" is in scope for filter.
+        assert (
+            sql.upper().count("SELECT") >= 2
+        ), f"Expected nested SELECT (flatten_disabled), got:\n{sql}"
+        assert "WHERE" in sql.upper(), f"Expected WHERE in SQL:\n{sql}"
+        Utils.check_answer(result, [Row(1)], sort=True)
+
+    def test_filter_and_orderby_on_dropped_todf_columns(self, session):
+        """Extend: filter AND orderBy both reference columns dropped by
+        the intermediate select.  The protecting subquery must cover both."""
+        df = session.create_dataframe(
+            [[3, 1, 100], [1, 3, 200], [2, 2, 300]], schema=["x", "y", "z"]
+        )
+        renamed = df.to_df("foo", "bar", "baz")
+        renamed._select_statement.flatten_disabled = True
+
+        result = renamed.select("foo").filter(col("bar") > 0).order_by(col("baz"))
+        sql = result.queries["queries"][0]
+
+        assert sql.upper().count("SELECT") >= 2, f"Expected nested SELECT, got:\n{sql}"
+        Utils.check_answer(result, [Row(3), Row(1), Row(2)], sort=False)

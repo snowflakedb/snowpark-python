@@ -6,6 +6,7 @@
 import json
 import math
 import os
+import re
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence
 
@@ -40,7 +41,8 @@ from snowflake.snowpark._internal.utils import (
     EMPTY_STRING,
     TempObjectType,
     escape_quotes,
-    escape_single_quotes,
+    escape_quotes_and_backslashes,
+    escape_subfield_key,
     get_temp_type_for_object,
     is_single_quoted,
     is_sql_select_statement,
@@ -148,6 +150,7 @@ BASE_LOCATION = " BASE_LOCATION "
 TARGET_FILE_SIZE = " TARGET_FILE_SIZE "
 CATALOG_SYNC = " CATALOG_SYNC "
 STORAGE_SERIALIZATION_POLICY = " STORAGE_SERIALIZATION_POLICY "
+TABLE_PROPERTIES = " TABLE_PROPERTIES"
 REG_EXP = " REGEXP "
 COLLATE = " COLLATE "
 RESULT_SCAN = " RESULT_SCAN"
@@ -332,6 +335,30 @@ def iceberg_partition_clause(partition_exprs: List[str]) -> str:
     )
 
 
+def iceberg_table_properties_clause(iceberg_config: Optional[dict]) -> str:
+    """Emit ``TABLE_PROPERTIES = ('k'='v', ...)`` from an ``iceberg_config``'s
+    ``table_properties`` map (keys kept verbatim, keys/values escaped); empty
+    when absent."""
+    if not iceberg_config:
+        return EMPTY_STRING
+    normalized = {k.lower(): v for k, v in iceberg_config.items()}
+    table_properties = normalized.get("table_properties")
+    if not table_properties:
+        return EMPTY_STRING
+
+    # Escape via ``escape_quotes_and_backslashes`` (not ``single_quote``): it
+    # escapes backslashes as well as quotes and never skips escaping, so a
+    # crafted key/value cannot break out of its literal and inject extra SQL
+    # (e.g. "'x', 'injected'='surprise'" or "x\\') COPY GRANTS --").
+    def _quote(value: object) -> str:
+        return SINGLE_QUOTE + escape_quotes_and_backslashes(str(value)) + SINGLE_QUOTE
+
+    pairs = COMMA.join(f"{_quote(k)}={_quote(v)}" for k, v in table_properties.items())
+    return (
+        SPACE + TABLE_PROPERTIES + EQUALS + LEFT_PARENTHESIS + pairs + RIGHT_PARENTHESIS
+    )
+
+
 def order_by_spec(col_exprs: List[str]) -> str:
     if not col_exprs:
         return EMPTY_STRING
@@ -402,7 +429,26 @@ def regexp_expression(expr: str, pattern: str, parameters: Optional[str] = None)
 
 
 def collate_expression(expr: str, collation_spec: str) -> str:
-    return expr + COLLATE + single_quote(collation_spec)
+    # Escape the collation spec so a value containing single quotes or
+    # backslashes does not terminate the single-quoted literal early and produce
+    # invalid SQL.
+    #
+    # Preserve the historical behavior of single_quote(): a spec that is already
+    # wrapped in single quotes (e.g. "'en_US'") is treated as pre-quoted, so we
+    # strip the outer quotes, escape the interior, and re-wrap. An unquoted spec
+    # is escaped and wrapped. Specs (quoted or unquoted) with no interior quotes
+    # or backslashes therefore produce identical SQL to before.
+    if is_single_quoted(collation_spec):
+        inner = collation_spec[1:-1]
+    else:
+        inner = collation_spec
+    return (
+        expr
+        + COLLATE
+        + SINGLE_QUOTE
+        + escape_quotes_and_backslashes(inner)
+        + SINGLE_QUOTE
+    )
 
 
 def subfield_expression(expr: str, field: Union[str, int]) -> str:
@@ -410,7 +456,12 @@ def subfield_expression(expr: str, field: Union[str, int]) -> str:
         expr
         + LEFT_BRACKET
         + (
-            SINGLE_QUOTE + field + SINGLE_QUOTE
+            # Escape the field so a VARIANT/OBJECT key containing single quotes
+            # or backslashes does not terminate the literal early. A key whose
+            # single quotes are already doubled is preserved unchanged (minus
+            # backslash normalization) to keep the historical "double your own
+            # quotes" contract non-breaking.
+            SINGLE_QUOTE + escape_subfield_key(field) + SINGLE_QUOTE
             if isinstance(field, str)
             else str(field)
         )
@@ -431,7 +482,10 @@ def flatten_expression(
         + PATH
         + RIGHT_ARROW
         + SINGLE_QUOTE
-        + (path or EMPTY_STRING)
+        # Escape the JSON path so a value containing single quotes or
+        # backslashes does not terminate the literal early and produce invalid
+        # SQL in the FLATTEN argument list.
+        + (escape_quotes_and_backslashes(path) if path else EMPTY_STRING)
         + SINGLE_QUOTE
         + COMMA
         + OUTER
@@ -961,33 +1015,6 @@ def lateral_join_statement(
     )
 
 
-_SELECT_STAR_FROM_PREFIX = SELECT + STAR + NEW_LINE + FROM + LEFT_PARENTHESIS + NEW_LINE
-_SELECT_STAR_FROM_SUFFIX = NEW_LINE + RIGHT_PARENTHESIS
-
-
-def _unwrap_select_star_from(sql: str) -> Optional[str]:
-    """If sql is a join-produced `SELECT * FROM (\n<join_source>\n)` (the
-    output of project_statement([], join_source)), return <join_source>.
-    Only unwraps when the inner content starts with '(' (possibly preceded
-    by UUID trace comments) which indicates a parenthesized join operand
-    rather than a wrapped SELECT statement."""
-    if sql.startswith(_SELECT_STAR_FROM_PREFIX) and sql.endswith(
-        _SELECT_STAR_FROM_SUFFIX
-    ):
-        inner = sql[len(_SELECT_STAR_FROM_PREFIX) : -len(_SELECT_STAR_FROM_SUFFIX)]
-        # In trace-SQL mode, UUID comments (\n-- <uuid>\n) may precede the
-        # opening parenthesis. Strip them before checking.
-        check = inner.lstrip("\n")
-        if check.startswith("--"):
-            # Skip the comment line and any trailing newline
-            newline_pos = check.find("\n")
-            if newline_pos != -1:
-                check = check[newline_pos + 1 :]
-        if check.startswith(LEFT_PARENTHESIS) or inner.startswith(LEFT_PARENTHESIS):
-            return inner
-    return None
-
-
 def snowflake_supported_join_statement(
     left: str,
     right: str,
@@ -998,30 +1025,17 @@ def snowflake_supported_join_statement(
     left_uuid: Optional[str] = None,
     right_uuid: Optional[str] = None,
     directed: bool = False,
-    left_is_join: bool = False,
 ) -> str:
     LEFT_UUID = format_uuid(left_uuid)
     RIGHT_UUID = format_uuid(right_uuid)
-
-    # If left is the output of a previous join, flatten into a multi-way join
-    # by unwrapping the SELECT * FROM (...) envelope and appending the new
-    # right operand directly to the existing join source. This avoids nested
-    # SELECT * layers that inflate query text without changing semantics.
-    #
-    # Though it is technically less efficient than constructing the join sub-queries
-    # without the SELECT in the first place, the structure of our SQL processing code
-    # needs top-level projections to be wrapped by a select to be well-formed, so we
-    # must strip it here instead.
-    #
-    # We only unwrap the left side because it is simpler to deal with than unwrapping
-    # both left and right, and left-deep chains are more common, as they're produced
-    # by calls like df1.join(df2).join(df3) etc.
-    unwrapped_left = _unwrap_select_star_from(left) if left_is_join else None
+    left_alias = (
+        "SNOWPARK_LEFT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
     right_alias = (
         "SNOWPARK_RIGHT"
-        if use_constant_subquery_alias and unwrapped_left is None
-        # Multi-way join: right alias must be unique to avoid collisions
-        # with aliases already present in the flattened join source.
+        if use_constant_subquery_alias
         else random_name_for_temp_object(TempObjectType.TABLE)
     )
 
@@ -1057,31 +1071,18 @@ def snowflake_supported_join_statement(
 
     maybe_directed_sql = DIRECTED_JOIN if directed else JOIN
 
-    if unwrapped_left is not None:
-        # No need for additional parentheses around the left expression here, since it
-        # should already be parenthesized
-        left_expr = LEFT_UUID + unwrapped_left + NEW_LINE + LEFT_UUID
-    else:
-        left_alias = (
-            "SNOWPARK_LEFT"
-            if use_constant_subquery_alias
-            else random_name_for_temp_object(TempObjectType.TABLE)
-        )
-        left_expr = (
-            LEFT_PARENTHESIS
-            + NEW_LINE
-            + LEFT_UUID
-            + left
-            + NEW_LINE
-            + LEFT_UUID
-            + RIGHT_PARENTHESIS
-            + AS
-            + left_alias
-            + SPACE
-            + NEW_LINE
-        )
     source = (
-        left_expr
+        LEFT_PARENTHESIS
+        + NEW_LINE
+        + LEFT_UUID
+        + left
+        + NEW_LINE
+        + LEFT_UUID
+        + RIGHT_PARENTHESIS
+        + AS
+        + left_alias
+        + SPACE
+        + NEW_LINE
         + join_sql
         + maybe_directed_sql
         + NEW_LINE
@@ -1113,7 +1114,6 @@ def join_statement(
     left_uuid: Optional[str] = None,
     right_uuid: Optional[str] = None,
     directed: bool = False,
-    left_is_join: bool = False,
 ) -> str:
     if isinstance(join_type, (LeftSemi, LeftAnti)):
         return left_semi_or_anti_join_statement(
@@ -1141,13 +1141,17 @@ def join_statement(
         left_uuid=left_uuid,
         right_uuid=right_uuid,
         directed=directed,
-        left_is_join=left_is_join,
     )
 
 
 def get_comment_sql(comment: Optional[str]) -> str:
     return (
-        COMMENT + EQUALS + SINGLE_QUOTE + escape_single_quotes(comment) + SINGLE_QUOTE
+        COMMENT + EQUALS + SINGLE_QUOTE
+        # Escape backslashes and single quotes so a comment containing those
+        # characters does not terminate the single-quoted literal early and
+        # produce invalid SQL. A comment with no backslash/quote is emitted
+        # unchanged.
+        + escape_quotes_and_backslashes(comment) + SINGLE_QUOTE
         if comment
         else EMPTY_STRING
     )
@@ -1189,13 +1193,14 @@ def create_table_statement(
     options_statement = get_options_statement(options)
 
     partition_by_clause = iceberg_partition_clause(partition_exprs)
+    table_properties_clause = iceberg_table_properties_clause(iceberg_config)
 
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{ICEBERG if iceberg_options else EMPTY_STRING}{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}{partition_by_clause}{cluster_by_clause}"
-        f"{options_statement}{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql}"
+        f"{options_statement}{table_properties_clause}{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql}"
     )
 
 
@@ -1280,13 +1285,14 @@ def create_table_as_select_statement(
     options_statement = get_options_statement(options)
 
     partition_by_clause = iceberg_partition_clause(partition_exprs)
+    table_properties_clause = iceberg_table_properties_clause(iceberg_config)
 
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{ICEBERG if iceberg_options else EMPTY_STRING}{TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
-        f"{table_name}{column_definition_sql}{partition_by_clause}{cluster_by_clause}{options_statement}"
+        f"{table_name}{column_definition_sql}{partition_by_clause}{cluster_by_clause}{options_statement}{table_properties_clause}"
         f"{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql} {AS}{project_statement([], child)}"
     )
 
@@ -1931,7 +1937,7 @@ def copy_into_location(
     return (
         COPY
         + INTO
-        + stage_location
+        + escape_location_literal(stage_location)
         + FROM
         + LEFT_PARENTHESIS
         + query
@@ -2145,6 +2151,39 @@ def single_quote(value: str) -> str:
         # Double any embedded single quotes so the value stays a single literal
         value = value.replace("'", "''")
         return SINGLE_QUOTE + value + SINGLE_QUOTE
+
+
+# Matches a complete, well-formed single-quoted SQL literal. The three body
+# alternatives each start with a different character (non-quote/non-backslash,
+# ', \), so every input character fits exactly one branch -- the engine never
+# backtracks, giving linear-time matching even on adversarial input.
+# Matches:     "'@stage/o''clock/'"    (interior quote is doubled -> one literal)
+# No match:    "'@x' UNION SELECT --'"  (bare interior quote ends the literal early)
+_WELL_FORMED_SINGLE_QUOTED_LITERAL = re.compile(
+    r"""
+    '                # opening single quote
+    (                # body: zero or more of...
+        [^'\\]       #   any char that is neither a quote nor a backslash
+        | ''         #   or a doubled (escaped) quote
+        | \\.        #   or a backslash followed by any char (backslash escape)
+    )*
+    '                # closing single quote
+    """,
+    re.VERBOSE | re.DOTALL,
+)
+
+
+def escape_location_literal(value: str) -> str:
+    """Return ``value`` as a single, well-formed single-quoted SQL literal.
+
+    Unlike :func:`single_quote`, a value that merely starts and ends with a
+    single quote but contains unescaped interior quotes is treated as unquoted
+    and fully escaped. This prevents a caller-controlled location from breaking
+    out of the string literal in the generated ``COPY INTO`` statement.
+    """
+    if _WELL_FORMED_SINGLE_QUOTED_LITERAL.fullmatch(value):
+        return value
+    return SINGLE_QUOTE + value.replace("'", "''") + SINGLE_QUOTE
 
 
 def quote_name_without_upper_casing(name: str) -> str:

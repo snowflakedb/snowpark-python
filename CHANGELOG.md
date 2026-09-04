@@ -1,14 +1,71 @@
 # Release History
 
-## 1.53.0 (TBD)
+## 1.55.0 (TBD)
 
 ### Snowpark Python API Updates
+
+#### New Features
+
+- Added interval type support for Python UDFs and stored procedures. Use `datetime.timedelta` as the type annotation for day-time interval (`DayTimeIntervalType`) parameters and return values, and `YearMonthInterval` (a type annotation sentinel from `snowflake.snowpark.types`) for year-month interval (`YearMonthIntervalType`) parameters and return values.
+- Added support for a `table_properties` key in the `iceberg_config` dictionary of `DataFrameWriter.save_as_table`, which emits a `TABLE_PROPERTIES = ('k'='v', ...)` clause on Iceberg table creation (CREATE / CTAS).
+
+#### Bug Fixes
+
+- Fixed registering a UDF, UDTF, or stored procedure with an integer optional argument failing with `SQL compilation error: invalid default argument expression`. Integer defaults were emitted as `DEFAULT <value> :: INT`, and a parameter default only accepts a constant expression. The redundant cast is no longer generated.
+
+#### Other Changes
+
+- Test-only: fixed `test_generator_table_function` failing as `assert 0 < 0` on the `seq2(0)` + `generator(timelimit => 1)` case. `seq2(0)` passes sign=0, so it continues at 0 after 32767, and a one-second generator run usually emits far more than one 32768-value cycle, making `ORDER BY seq2(0) LIMIT 3` return `0, 0, 0`. That assertion now allows equal values; the `seq1(1)` + `rowcount` assertions stay strictly increasing.
+
+## 1.54.0 (2026-07-29)
+
+### Snowpark Python API updates
+
+#### New Features
+
+- Added `ai_count_tokens` function to `snowflake.snowpark.functions` to estimate token counts for AI function calls.
+- Added `ai_multi_embed` function to `snowflake.snowpark.functions` to generate multimodal embeddings from text, images, audio, or video files.
+- Added `ai_redact` function to `snowflake.snowpark.functions` to detect and redact personally identifiable information (PII) from text.
+- Added `DataFrame.ai.multi_embed` method to generate multimodal embeddings via the DataFrame API.
+- Added `DataFrame.ai.redact` method to detect and redact PII from text columns via the DataFrame API.
+- Added `DataFrame.ai.translate` method to translate text columns between languages via the DataFrame API.
+
+#### Improvements
+
+- Removed the `experimental` tag from all AI SQL functions in `DataFrameAIFunctions` (`complete`, `filter`, `agg`, `classify`, `similarity`, `sentiment`, `embed`, `summarize_agg`, `transcribe`, `parse_document`, `extract`, `count_tokens`, `split_text_markdown_header`, `split_text_recursive_character`) and `RelationalGroupedDataFrame.ai_agg`.
+- Updated `DataFrame.ai.count_tokens` to match the standalone `ai_count_tokens` function: `function_name` is now the required first parameter, and `model` is optional. Also added `options` and `return_error_details` parameters.
+
+#### Bug Fixes
+
+- Fixed `DataFrame.ai.count_tokens` to call the `AI_COUNT_TOKENS` SQL function instead of the deprecated `SNOWFLAKE.CORTEX.COUNT_TOKENS`. Token counts may differ slightly due to the updated tokenizer.
+- Reverted the change introduced in 1.53.0 to eliminate unnecessary `SELECT *` from joins, which was causing performance regressions. This has no functional impact.
+
+## 1.53.1 (2026-07-14)
+
+No user-facing changes in this release.
+
+## 1.53.0 (2026-07-09)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added the `udf_init_once` decorator in `snowflake.snowpark.functions` for marking functions to be executed once during pre-fork initialization on Snowflake workers, matching the server-side `_snowflake.udf_init_once` API.
 
 #### Bug Fixes
 
 - Fixed a bug where stage paths and file format names that contain single quotes were not consistently escaped when generating SQL, which could produce malformed statements. This affects `INFER_SCHEMA` (used by `DataFrameReader.csv`/`json`/`parquet`/`orc`/`avro`) and `COPY FILES` (used by `FileOperation.copy_files`).
+- Fixed a bug where single quotes and backslashes in stage/file paths were not correctly escaped when generating `COPY INTO` / `PUT` / `GET` SQL, which could produce malformed statements. This affects `DataFrame.write.csv`/`copy_into_location` and the Snowpark-pandas `DataFrame.to_csv` stage path.
+- Fixed a bug where column names containing quote characters returned by an external database were not correctly escaped when generating the `SELECT` query for `DataFrameReader.dbapi`, which could produce malformed SQL. Embedded quote characters in identifiers are now doubled (backticks for Databricks/MySQL, double quotes for Oracle/PostgreSQL/SQL Server).
+- Fixed a bug where the destination passed to `DataFrameWriter.copy_into_location` (and `csv`/`json`/`parquet`/`save`) was embedded into the generated `COPY INTO` statement without quoting, which could produce malformed SQL for locations containing single quotes. The location is now consistently quoted and escaped, and a string that merely starts and ends with a single quote but contains unescaped interior quotes is no longer treated as an already-quoted literal; it is fully escaped so it stays a single SQL string literal.
 - Fixed a bug where UDF default argument values reconstructed from a source file in `register_from_file` were evaluated with `eval()`; they are now evaluated only against the documented set of supported default-value types, and unsupported expressions are ignored.
 - Fixed a bug where `object_name`, `object_domain`, or `object_version` values containing single quotes or backslashes in `session.lineage.trace()` caused incorrect SQL generation. These values are now properly escaped before being embedded in the `SYSTEM$DGQL` call.
+- Fixed a bug where single quotes and backslashes in `comment` (`create_or_replace_view` / dynamic table / `save_as_table`), collation specs (`Column.collate`), VARIANT/OBJECT subfield keys (`Column[...]`), and `DataFrame`/`Session.flatten` paths were not correctly escaped when generating SQL, which could produce malformed statements. Backslash sequences (e.g. `\t`, `\n`) in these values are now applied literally rather than interpreted.
+- Fixed a bug where string values in the AI functions (`ai_extract`, `ai_classify`, `ai_similarity`, `ai_parse_document`, `ai_transcribe`, `ai_complete`) configuration and `response_format` were not correctly escaped when generating the SQL object literal, which could produce malformed statements when a value contained single quotes or backslashes (for example, an apostrophe in a natural-language question).
+
+#### Improvements
+
+- Reduced the size of generated query text for repeated join operations.
 
 #### Improvements
 
@@ -17,6 +74,7 @@
 #### Dependency Updates
 
 - Lifted `protobuf` restriction for Python 3.14 from `==5.29.3` to `>=5.29.3,<6.34`.
+- Capped `pandas` to `<3.0.0` for the `[pandas]` install extra, as Snowpark Python pandas-related features may not be fully compatible with pandas 3.0 or later.
 
 ## 1.52.0 (2026-06-10)
 
@@ -35,7 +93,6 @@
 #### Improvements
 
 - Improved CTE optimization to deduplicate identical subtrees in self-joins, which were previously emitted as repeated subqueries.
-- Reduced the size of generated query text for repeated join operations.
 
 #### Deprecations
 

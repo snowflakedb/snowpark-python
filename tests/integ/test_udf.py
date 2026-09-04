@@ -63,6 +63,7 @@ from snowflake.snowpark.types import (
     BinaryType,
     BooleanType,
     DateType,
+    DayTimeIntervalType,
     DoubleType,
     FloatType,
     Geography,
@@ -81,6 +82,8 @@ from snowflake.snowpark.types import (
     TimeType,
     Variant,
     VariantType,
+    YearMonthInterval,
+    YearMonthIntervalType,
 )
 from tests.integ.session_parameters import create_session_for_test
 from tests.utils import (
@@ -3252,3 +3255,111 @@ def test_use_default_artifact_repository(db_parameters):
             session._run_query(f"drop function if exists {temp_func_name}(int)")
 
         session.sql(f"drop database {temp_database}").collect()
+
+
+# ── Interval type UDFs (SNOW-3746497) ────────────────────────────────────────
+
+
+def test_udf_daytime_interval_timedelta_annotation(session, interval_udf_enabled):
+    """timedelta type annotation maps to DayTimeIntervalType; round-trip through a UDF."""
+
+    def add_day(d: datetime.timedelta) -> datetime.timedelta:
+        return d + datetime.timedelta(days=1)
+
+    f = session.udf.register(add_day)
+    assert f._return_type == DayTimeIntervalType()
+    assert f._input_types == [DayTimeIntervalType()]
+
+    result = session.sql(f"SELECT {f.name}(INTERVAL '5' DAY)").collect()
+    assert result[0][0] == datetime.timedelta(days=6)
+
+
+def test_udf_daytime_interval_explicit_type(session, interval_udf_enabled):
+    """Explicit DayTimeIntervalType input/return; multiplication round-trip."""
+
+    def triple(d: datetime.timedelta) -> datetime.timedelta:
+        return d * 3
+
+    f = session.udf.register(
+        triple,
+        return_type=DayTimeIntervalType(),
+        input_types=[DayTimeIntervalType()],
+    )
+    result = session.sql(
+        f"SELECT {f.name}(INTERVAL '2 12:00:00' DAY TO SECOND)"
+    ).collect()
+    assert result[0][0] == datetime.timedelta(days=7, hours=12)
+
+
+def test_udf_daytime_interval_null(session, interval_udf_enabled):
+    """Null DayTime interval input propagates as None."""
+
+    def identity(d: datetime.timedelta) -> datetime.timedelta:
+        return d
+
+    f = session.udf.register(identity)
+    result = (
+        session.sql("SELECT NULL::INTERVAL DAY TO SECOND AS d").select(f("d")).collect()
+    )
+    assert result[0][0] is None
+
+
+def test_udf_daytime_interval_negative(session, interval_udf_enabled):
+    """Negative DayTime intervals round-trip correctly."""
+
+    def negate(d: datetime.timedelta) -> datetime.timedelta:
+        return -d
+
+    f = session.udf.register(negate)
+    result = session.sql(f"SELECT {f.name}(INTERVAL '3' DAY)").collect()
+    assert result[0][0] == datetime.timedelta(days=-3)
+
+
+def test_udf_yearmonth_interval(session, interval_udf_enabled):
+    """YearMonthInterval UDF: value arrives as int (total months) inside handler."""
+    # YearMonthInterval is a TypeVar used for annotation only; the coprocessor
+    # surfaces the value as a plain int (total months) inside the UDF body.
+    def add_year(m: YearMonthInterval) -> YearMonthInterval:
+        return m + 12
+
+    f = session.udf.register(
+        add_year,
+        return_type=YearMonthIntervalType(),
+        input_types=[YearMonthIntervalType()],
+    )
+    # 1yr 2mo (14 total months) + 12 = 26 months → '+2-02'
+    result = session.sql(f"SELECT {f.name}(INTERVAL '1-2' YEAR TO MONTH)").collect()
+    assert result[0][0] == "+2-02"
+
+
+def test_udf_yearmonth_interval_null(session, interval_udf_enabled):
+    """Null YearMonth interval input propagates as None."""
+
+    def identity(m: YearMonthInterval) -> YearMonthInterval:
+        return m
+
+    f = session.udf.register(
+        identity,
+        return_type=YearMonthIntervalType(),
+        input_types=[YearMonthIntervalType()],
+    )
+    result = (
+        session.sql("SELECT NULL::INTERVAL YEAR TO MONTH AS m").select(f("m")).collect()
+    )
+    assert result[0][0] is None
+
+
+def test_udf_yearmonth_interval_negative(session, interval_udf_enabled):
+    """YearMonth interval UDF returning a negative value displays with leading '-'."""
+
+    def negate(m: YearMonthInterval) -> YearMonthInterval:
+        return -m
+
+    f = session.udf.register(
+        negate,
+        return_type=YearMonthIntervalType(),
+        input_types=[YearMonthIntervalType()],
+    )
+    # negate(1yr 2mo) = -(14 months) → '-1-02'
+    result = session.sql(f"SELECT {f.name}(INTERVAL '1-2' YEAR TO MONTH)").collect()
+    assert result[0][0] == "-1-02"

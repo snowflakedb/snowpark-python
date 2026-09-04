@@ -458,7 +458,6 @@ class SnowflakePlan(LogicalPlan):
         self.session = session
         self.source_plan = source_plan
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
-        self._is_join_output = False
         # We need to copy this list since we don't want to change it for the
         # previous SnowflakePlan objects
         self.api_calls = api_calls.copy() if api_calls else []
@@ -770,7 +769,6 @@ class SnowflakePlan(LogicalPlan):
                 referenced_ctes=self.referenced_ctes,
             )
         plan.df_ast_ids = self.df_ast_ids
-        plan._is_join_output = self._is_join_output
         return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -810,7 +808,6 @@ class SnowflakePlan(LogicalPlan):
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
         copied_plan.df_ast_ids = self.df_ast_ids
-        copied_plan._is_join_output = self._is_join_output
 
         return copied_plan
 
@@ -1068,8 +1065,15 @@ class SnowflakePlanBuilder:
 
     def table(self, table_name: str, source_plan: LogicalPlan) -> SnowflakePlan:
         table_reference = table_name
-        if isinstance(source_plan, SnowflakeTable) and source_plan.time_travel_config:
-            table_reference += source_plan.time_travel_config.generate_sql_clause()
+        if isinstance(source_plan, SnowflakeTable):
+            if source_plan.iceberg_changes_config:
+                table_reference = (
+                    source_plan.iceberg_changes_config.generate_table_reference(
+                        table_name
+                    )
+                )
+            elif source_plan.time_travel_config:
+                table_reference += source_plan.time_travel_config.generate_sql_clause()
 
         return self.query(project_statement([], table_reference), source_plan)
 
@@ -1234,8 +1238,7 @@ class SnowflakePlanBuilder:
         use_constant_subquery_alias: bool,
         directed: bool = False,
     ):
-        left_is_join = left._is_join_output
-        result = self.build_binary(
+        return self.build_binary(
             lambda x, y: join_statement(
                 x,
                 y,
@@ -1252,14 +1255,11 @@ class SnowflakePlanBuilder:
                     else None
                 ),
                 directed=directed,
-                left_is_join=left_is_join,
             ),
             left,
             right,
             source_plan,
         )
-        result._is_join_output = True
-        return result
 
     def save_as_table(
         self,
@@ -1318,6 +1318,8 @@ class SnowflakePlanBuilder:
                 catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
                 storage_serialization_policy: specifies the storage serialization policy for the table
                 iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
+                table_properties: optional mapping of Iceberg property names to values, emitted
+                    verbatim as a ``TABLE_PROPERTIES = ('k'='v', ...)`` clause on CREATE / CTAS.
             table_exists: whether the table already exists in the database.
                 Only used for APPEND and TRUNCATE mode.
         """
