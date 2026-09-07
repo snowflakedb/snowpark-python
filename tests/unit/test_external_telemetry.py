@@ -4,9 +4,16 @@
 
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 
+import importlib
+import logging
+import sys
 import types
 
+import pytest
+
 from snowflake.snowpark._internal import event_table_telemetry as ett
+
+MODULE_NAME = "snowflake.snowpark._internal.event_table_telemetry"
 
 
 def test_import_or_missing_opentelemetry_imports_resources(monkeypatch):
@@ -101,3 +108,84 @@ def test_import_or_missing_opentelemetry_returns_missing_on_importerror(monkeypa
 
     assert installed is False
     assert isinstance(otel, ett.MissingOpenTelemetry)
+
+
+def test_import_or_missing_requests_imports_requests(monkeypatch):
+    requests_mod = types.ModuleType("requests")
+
+    def fake_import_module(name):
+        if name == "requests":
+            return requests_mod
+        raise ImportError(name)
+
+    monkeypatch.setattr(ett.importlib, "import_module", fake_import_module)
+
+    requests, installed = ett._import_or_missing_requests()
+
+    assert installed is True
+    assert requests is requests_mod
+
+
+def test_import_or_missing_requests_returns_missing_on_importerror(monkeypatch):
+    def always_fail(_name):
+        raise ImportError("missing")
+
+    monkeypatch.setattr(ett.importlib, "import_module", always_fail)
+
+    requests, installed = ett._import_or_missing_requests()
+
+    assert installed is False
+    assert isinstance(requests, ett.MissingRequests)
+
+
+def test_retry_adapter_requires_requests_extra(monkeypatch):
+    # requests is an optional dependency of the opentelemetry extra, so importing
+    # the module must succeed without it and only fail when the adapter is used.
+    original_module = sys.modules.get(MODULE_NAME)
+
+    real_import_module = importlib.import_module
+
+    def import_module_raising_for_requests(name, package=None):
+        if name == "requests" or name.startswith("requests."):
+            raise ImportError("forced ImportError for test coverage")
+        return real_import_module(name, package=package)
+
+    monkeypatch.setattr(importlib, "import_module", import_module_raising_for_requests)
+
+    sys.modules.pop(MODULE_NAME, None)
+    try:
+        event_table_telemetry = real_import_module(MODULE_NAME)
+        assert event_table_telemetry.installed_requests is False
+        assert isinstance(
+            event_table_telemetry.requests, event_table_telemetry.MissingRequests
+        )
+        with pytest.raises(
+            NotImplementedError,
+            match=r'opentelemetry extra from Snowpark is required, install with: pip install "snowflake-snowpark-python\[opentelemetry\]"',
+        ):
+            event_table_telemetry.RetryWithTokenRefreshAdapter(
+                session_instance=None, header={}
+            )
+    finally:
+        sys.modules.pop(MODULE_NAME, None)
+        if original_module is not None:
+            sys.modules[MODULE_NAME] = original_module
+
+
+def test_enable_event_table_telemetry_collection_skips_without_requests(
+    monkeypatch, caplog
+):
+    monkeypatch.setattr(ett, "installed_requests", False)
+    monkeypatch.setattr(ett, "installed_opentelemetry", True)
+
+    telemetry = ett.EventTableTelemetry(session=None)
+
+    with caplog.at_level(logging.DEBUG, logger=ett._logger.name):
+        telemetry.enable_event_table_telemetry_collection(
+            "db.sc.tb", logging.INFO, True
+        )
+
+    assert (
+        "Opentelemetry dependencies are missing, no telemetry export into event table: db.sc.tb"
+        in caplog.text
+    )
