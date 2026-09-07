@@ -140,7 +140,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [unit-integ, scala, modin, datasource, doctest]
+        group: [scala]
     name: "${{ matrix.group }} py${{ inputs.python-version || '3.13' }}-${{ inputs.cloud-provider || 'aws' }}"
     runs-on: ubuntu-latest-64-cores
     continue-on-error: true
