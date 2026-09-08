@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import re
+from enum import Enum
 from unittest import mock
 
 import pytest
@@ -69,6 +71,30 @@ def test_tuple_element_is_table_dot_attribute(fake_session):
     )
 
 
+def test_str_subclass_renders_as_its_value(fake_session):
+    """``class X(str, Enum)`` formats as its repr, so clause text is concatenated."""
+
+    class Member(str, Enum):
+        REGION = "customers.region"
+        TABLE = "customers"
+        COLUMN = "region"
+
+    class Condition(str, Enum):
+        EMEA = "customers.region = 'EMEA'"
+
+    call(
+        fake_session,
+        "V",
+        dimensions=Member.REGION,
+        metrics=[(Member.TABLE, Member.COLUMN)],
+        where=Condition.EMEA,
+    )
+    assert emitted(fake_session) == (
+        "SELECT * FROM SEMANTIC_VIEW(V DIMENSIONS customers.region "
+        "METRICS customers.region WHERE customers.region = 'EMEA')"
+    )
+
+
 def test_inline_alias_is_preserved(fake_session):
     call(fake_session, "V", metrics=["orders.revenue AS REV"])
     assert emitted(fake_session) == (
@@ -115,6 +141,53 @@ def test_where_alone_does_not_satisfy_the_rule(fake_session):
     fake_session.sql.assert_not_called()
 
 
+# --- empty values ----------------------------------------------------------
+# An empty value is not None, so it passes the at-least-one rule and renders to a
+# bare keyword: ``SEMANTIC_VIEW(V METRICS )`` is 001003.
+
+
+def test_empty_list_raises_and_sends_no_query(fake_session):
+    with pytest.raises(ValueError, match="metrics is an empty list"):
+        call(fake_session, "V", metrics=[])
+    fake_session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize("blank", ["", "   ", "\t\n"])
+def test_blank_clause_string_raises_and_sends_no_query(fake_session, blank):
+    with pytest.raises(ValueError, match="metrics is empty"):
+        call(fake_session, "V", metrics=blank)
+    fake_session.sql.assert_not_called()
+
+
+def test_blank_member_in_a_list_raises_with_its_index(fake_session):
+    with pytest.raises(ValueError, match=r"metrics\[1\] is an empty member name"):
+        call(fake_session, "V", metrics=["orders.revenue", ""])
+    fake_session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize("bad", [("", "region"), ("customers", ""), ("  ", " ")])
+def test_blank_tuple_part_raises_instead_of_emitting_a_dangling_dot(fake_session, bad):
+    """``DIMENSIONS .region`` is 001003; the plain-string path already rejects this."""
+    with pytest.raises(
+        ValueError, match=r"metrics\[0\] has an empty table or attribute"
+    ):
+        call(fake_session, "V", metrics=[bad])
+    fake_session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_where_raises_and_sends_no_query(fake_session, blank):
+    with pytest.raises(ValueError, match="where is empty"):
+        call(fake_session, "V", metrics="m", where=blank)
+    fake_session.sql.assert_not_called()
+
+
+def test_empty_clause_is_rejected_not_dropped(fake_session):
+    with pytest.raises(ValueError, match="metrics is an empty list"):
+        call(fake_session, "V", dimensions="customers.region", metrics=[])
+    fake_session.sql.assert_not_called()
+
+
 # --- rejected clause value types ------------------------------------------
 
 
@@ -129,13 +202,32 @@ def test_top_level_tuple_raises_type_error(fake_session):
     fake_session.sql.assert_not_called()
 
 
+@pytest.mark.parametrize("arity", [1, 3])
+def test_top_level_tuple_of_other_arity_does_not_claim_ambiguity(fake_session, arity):
+    with pytest.raises(TypeError) as exc:
+        call(fake_session, "V", metrics=tuple("abc"[:arity]))
+    message = str(exc.value)
+    assert "does not accept a tuple at the top level" in message
+    assert "ambiguous" not in message
+    assert "metrics=[...]" in message
+    fake_session.sql.assert_not_called()
+
+
 @pytest.mark.parametrize("bad", [("a",), ("a", "b", "c")])
 def test_tuple_element_of_wrong_arity_raises_type_error(fake_session, bad):
     with pytest.raises(TypeError) as exc:
         call(fake_session, "V", metrics=["ok", bad])
+    assert re.search(r"metrics\[1\]", str(exc.value))
+    fake_session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize("bad", [("a", 1), (1, "b"), ("a", None)])
+def test_tuple_element_contents_must_be_strings(fake_session, bad):
+    with pytest.raises(TypeError) as exc:
+        call(fake_session, "V", metrics=[bad])
     message = str(exc.value)
-    assert "metrics" in message
-    assert "1" in message  # the offending element's index
+    assert "metrics[0]" in message
+    assert "(table, attribute)" in message
     fake_session.sql.assert_not_called()
 
 
@@ -149,14 +241,21 @@ def test_set_is_rejected(fake_session):
 @pytest.mark.parametrize("bad", [b"revenue", bytearray(b"revenue")])
 def test_bytes_is_rejected(fake_session, bad):
     """bytes is Iterable, so an ``isinstance(x, str)`` guard alone would let it through."""
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="should be a string, or a list of members"):
         call(fake_session, "V", metrics=bad)
     fake_session.sql.assert_not_called()
 
 
 def test_int_is_rejected(fake_session):
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="should be a string, or a list of members"):
         call(fake_session, "V", metrics=1)
+    fake_session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize("bad", [123, ["x = 1"], ("x = 1",)])
+def test_non_string_where_is_rejected(fake_session, bad):
+    with pytest.raises(TypeError, match="where should be a string"):
+        call(fake_session, "V", metrics="m", where=bad)
     fake_session.sql.assert_not_called()
 
 
@@ -173,9 +272,31 @@ def test_fully_qualified_name(fake_session):
     assert "SEMANTIC_VIEW(DB.SC.SALES METRICS m)" in emitted(fake_session)
 
 
-def test_iterable_name_is_dot_joined(fake_session):
-    call(fake_session, ["DB", "SC", "SALES"], metrics="m")
+@pytest.mark.parametrize("parts", [["DB", "SC", "SALES"], ("DB", "SC", "SALES")])
+def test_sequence_name_is_dot_joined(fake_session, parts):
+    call(fake_session, parts, metrics="m")
     assert "SEMANTIC_VIEW(DB.SC.SALES METRICS m)" in emitted(fake_session)
+
+
+@pytest.mark.parametrize("bad", [{"DB", "SC", "SALES"}, frozenset({"DB"})])
+def test_set_name_is_rejected(fake_session, bad):
+    """A set would dot-join in an arbitrary order."""
+    with pytest.raises(TypeError, match="name should be a string"):
+        call(fake_session, bad, metrics="m")
+    fake_session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize("bad", [b"DB", bytearray(b"DB"), 1, None])
+def test_non_sequence_name_is_rejected(fake_session, bad):
+    with pytest.raises(TypeError, match="name should be a string"):
+        call(fake_session, bad, metrics="m")
+    fake_session.sql.assert_not_called()
+
+
+def test_non_string_name_part_is_rejected_with_its_index(fake_session):
+    with pytest.raises(TypeError, match=r"name\[1\] should be a string"):
+        call(fake_session, ["DB", 1, "SALES"], metrics="m")
+    fake_session.sql.assert_not_called()
 
 
 def test_quoted_name_is_not_altered(fake_session):
@@ -210,6 +331,21 @@ def test_api_call_source_is_attributed(fake_session):
     df = call(fake_session, "V", metrics="m")
     plan = df._select_statement or df._plan
     assert plan.api_calls == [{"name": "Session.semantic_view"}]
+
+
+@pytest.mark.parametrize("emit", [True, False])
+def test_emit_ast_is_forwarded_to_sql(fake_session, emit):
+    call(fake_session, "V", metrics="m", _emit_ast=emit)
+    assert fake_session.sql.call_args.kwargs["_emit_ast"] is emit
+
+
+def test_publicapi_injects_emit_ast_when_the_caller_omits_it(fake_session):
+    """Fails if ``@publicapi`` is dropped: the parameter default would win instead."""
+    with mock.patch(
+        "snowflake.snowpark._internal.utils.is_ast_enabled", return_value=False
+    ):
+        call(fake_session, "V", metrics="m")
+    assert fake_session.sql.call_args.kwargs["_emit_ast"] is False
 
 
 def test_local_testing_is_rejected(fake_session):

@@ -23,51 +23,62 @@ def semantic_view(session):
     orders = Utils.random_table_name()
     view = Utils.random_view_name()
 
-    Utils.create_table(
-        session, customers, "customer_id INT, customer_name STRING, region STRING"
-    )
-    session._run_query(
-        f"INSERT INTO {customers} VALUES "
-        "(1,'Ada','EMEA'),(2,'Blake','AMER'),(3,'Chen','APAC'),(4,'Dara','EMEA')"
-    )
-    Utils.create_table(
-        session, orders, "order_id INT, customer_id INT, order_date DATE, amount INT"
-    )
-    session._run_query(
-        f"INSERT INTO {orders} VALUES "
-        "(10,1,'2026-01-05',200),(11,1,'2026-02-11',150),(12,2,'2026-01-20',350),"
-        "(13,3,'2026-03-02',300),(14,3,'2026-03-09',350),(15,4,'2026-03-15',450)"
-    )
-    session._run_query(
-        f"""
-        CREATE OR REPLACE SEMANTIC VIEW {view}
-          TABLES (
-            customers AS {customers} PRIMARY KEY (customer_id),
-            orders    AS {orders}    PRIMARY KEY (order_id)
-          )
-          RELATIONSHIPS (
-            orders (customer_id) REFERENCES customers
-          )
-          FACTS (
-            orders.order_amount      AS amount,
-            customers.customer_total AS SUM(orders.order_amount)
-          )
-          DIMENSIONS (
-            customers.customer AS customer_name,
-            customers.region   AS region
-          )
-          METRICS (
-            orders.revenue           AS SUM(amount),
-            customers.customer_count AS COUNT(customer_id)
-          )
-        """
-    )
+    # The tables are permanent, so teardown must run even if the DDL below fails.
+    try:
+        Utils.create_table(
+            session, customers, "customer_id INT, customer_name STRING, region STRING"
+        )
+        session._run_query(
+            f"INSERT INTO {customers} VALUES "
+            "(1,'Ada','EMEA'),(2,'Blake','AMER'),(3,'Chen','APAC'),(4,'Dara','EMEA')"
+        )
+        Utils.create_table(
+            session,
+            orders,
+            "order_id INT, customer_id INT, order_date DATE, amount INT",
+        )
+        session._run_query(
+            f"INSERT INTO {orders} VALUES "
+            "(10,1,'2026-01-05',200),(11,1,'2026-02-11',150),(12,2,'2026-01-20',350),"
+            "(13,3,'2026-03-02',300),(14,3,'2026-03-09',350),(15,4,'2026-03-15',450)"
+        )
+        session._run_query(
+            f"""
+            CREATE OR REPLACE SEMANTIC VIEW {view}
+              TABLES (
+                customers AS {customers} PRIMARY KEY (customer_id),
+                orders    AS {orders}    PRIMARY KEY (order_id)
+              )
+              RELATIONSHIPS (
+                orders (customer_id) REFERENCES customers
+              )
+              FACTS (
+                orders.order_amount      AS amount,
+                customers.customer_total AS SUM(orders.order_amount)
+              )
+              DIMENSIONS (
+                customers.customer AS customer_name,
+                customers.region   AS region
+              )
+              METRICS (
+                orders.revenue           AS SUM(amount),
+                customers.customer_count AS COUNT(customer_id)
+              )
+            """
+        )
 
-    yield view
-
-    session._run_query(f"DROP SEMANTIC VIEW IF EXISTS {view}")
-    Utils.drop_table(session, orders)
-    Utils.drop_table(session, customers)
+        yield view
+    finally:
+        # Each drop is independent: a failing one must not strand the others.
+        for drop in (
+            lambda: session._run_query(f"DROP SEMANTIC VIEW IF EXISTS {view}"),
+            lambda: Utils.drop_table(session, orders),
+            lambda: Utils.drop_table(session, customers),
+        ):
+            try:
+                drop()
+            except Exception:  # noqa: BLE001 - teardown is best effort
+                pass
 
 
 def test_metrics_only(session, semantic_view):

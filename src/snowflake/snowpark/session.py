@@ -6,7 +6,6 @@
 import atexit
 import datetime
 import decimal
-import importlib.metadata
 import inspect
 import json
 import os
@@ -36,6 +35,7 @@ from typing import (
 )
 
 import cloudpickle
+import importlib.metadata
 from packaging.requirements import Requirement
 from packaging.version import parse as parse_version
 
@@ -44,11 +44,11 @@ import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
 from snowflake.connector.pandas_tools import write_pandas
+
 from snowflake.snowpark import UDFProfiler
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    quote_name_without_upper_casing,
     result_scan_statement,
     write_arrow,
 )
@@ -68,6 +68,9 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
     GeneratorTableFunction,
     TableFunctionRelation,
+)
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.ast.batch import AstBatch
@@ -111,10 +114,8 @@ from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
     SUPPORTED_TABLE_TYPES,
-    XPATH_HANDLER_MAP,
     XPATH_HANDLERS_FILE_PATH,
-    AstFlagSource,
-    AstMode,
+    XPATH_HANDLER_MAP,
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
@@ -132,17 +133,14 @@ from snowflake.snowpark._internal.utils import (
     get_temp_type_for_object,
     get_version,
     import_or_missing_modin_pandas,
-    is_ast_enabled,
     is_in_stored_procedure,
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
-    private_preview,
     publicapi,
     quote_name,
     random_name_for_temp_object,
-    set_ast_state,
     strip_double_quotes_in_like_statement_in_table_name,
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
@@ -150,17 +148,21 @@ from snowflake.snowpark._internal.utils import (
     warn_session_config_update_in_multithreaded_mode,
     warning,
     zip_file_or_directory_to_stream,
+    set_ast_state,
+    is_ast_enabled,
+    AstFlagSource,
+    AstMode,
+    private_preview,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
-    _ANACONDA_SHARED_REPOSITORY,
-    _DEFAULT_ARTIFACT_REPOSITORY,
     _is_execution_environment_sandboxed_for_client,
     _use_scoped_temp_objects,
+    _ANACONDA_SHARED_REPOSITORY,
+    _DEFAULT_ARTIFACT_REPOSITORY,
 )
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.dataframe_profiler import DataframeProfiler
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.exceptions import (
     SnowparkClientException,
@@ -168,6 +170,7 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
+    to_file,
     array_agg,
     col,
     column,
@@ -175,7 +178,6 @@ from snowflake.snowpark.functions import (
     parse_json,
     to_date,
     to_decimal,
-    to_file,
     to_geography,
     to_geometry,
     to_time,
@@ -203,6 +205,7 @@ from snowflake.snowpark.query_history import AstListener, QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
+from snowflake.snowpark.dataframe_profiler import DataframeProfiler
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -214,7 +217,6 @@ from snowflake.snowpark.types import (
     DateType,
     DayTimeIntervalType,
     DecimalType,
-    FileType,
     FloatType,
     GeographyType,
     GeometryType,
@@ -229,6 +231,7 @@ from snowflake.snowpark.types import (
     VariantType,
     VectorType,
     YearMonthIntervalType,
+    FileType,
     _AtomicType,
 )
 from snowflake.snowpark.udaf import UDAFRegistration
@@ -364,31 +367,41 @@ def _remove_session(session: "Session") -> None:
 
 
 def _render_semantic_view_clause(
-    keyword: str, param: str, value: Union[str, Iterable[MemberRef]]
+    keyword: str, value: Union[str, List[MemberRef]]
 ) -> str:
     """Renders one clause of a ``SEMANTIC_VIEW(...)`` call.
 
     A ``str`` is emitted verbatim: the clause grammar already accepts a comma list,
     and splitting would break a member such as ``TO_CHAR(d,'YY')``.
     """
+    param = keyword.lower()
     if isinstance(value, str):
-        return f"{keyword} {value}"
+        if not value.strip():
+            raise ValueError(f"{param} is empty; omit it instead.")
+        # Concatenated, not interpolated: a str subclass such as ``class X(str, Enum)``
+        # formats as its repr but concatenates as its value.
+        return keyword + " " + value
     if isinstance(value, tuple):
-        raise TypeError(
-            f"{param} does not accept a tuple at the top level, because "
-            f'{param}=("a", "b") is ambiguous. Pass a list for several members '
-            f'({param}=["a", "b"]), or wrap the pair to mean one dotted member '
-            f'({param}=[("a", "b")]).'
+        hint = (
+            f'Pass a list for several members ({param}=["a", "b"]), or wrap the pair '
+            f'to mean one dotted member ({param}=[("a", "b")]).'
+            if len(value) == 2
+            else f"Pass a list of members instead ({param}=[...])."
         )
+        raise TypeError(f"{param} does not accept a tuple at the top level. {hint}")
     if not isinstance(value, list):
         raise TypeError(
             f"{param} should be a string, or a list of members, not "
             f"{type(value).__name__}."
         )
+    if not value:
+        raise ValueError(f"{param} is an empty list; omit it instead.")
 
     members = []
     for i, member in enumerate(value):
         if isinstance(member, str):
+            if not member.strip():
+                raise ValueError(f"{param}[{i}] is an empty member name.")
             members.append(member)
         elif isinstance(member, tuple):
             if len(member) != 2:
@@ -396,13 +409,21 @@ def _render_semantic_view_clause(
                     f"{param}[{i}] is a {len(member)}-tuple; a tuple member must be "
                     f"(table, attribute)."
                 )
-            members.append(".".join(member))
+            table, attribute = member
+            if not isinstance(table, str) or not isinstance(attribute, str):
+                raise TypeError(
+                    f"{param}[{i}] must be a (table, attribute) tuple of two strings, "
+                    f"not ({type(table).__name__}, {type(attribute).__name__})."
+                )
+            if not table.strip() or not attribute.strip():
+                raise ValueError(f"{param}[{i}] has an empty table or attribute.")
+            members.append(".".join((table, attribute)))
         else:
             raise TypeError(
                 f"{param}[{i}] should be a string or a (table, attribute) tuple, "
                 f"not {type(member).__name__}."
             )
-    return f"{keyword} {', '.join(members)}"
+    return keyword + " " + ", ".join(members)
 
 
 class Session:
@@ -642,9 +663,9 @@ class Session:
         # due to server side accessing private session members, this cannot be merged with _artifact_repository_packages
         self._packages: Dict[str, str] = {}
         # map of artifact repository name -> packages that should be added to functions under that repository
-        self._artifact_repository_packages: DefaultDict[str, Dict[str, str]] = (
-            defaultdict(dict)
-        )
+        self._artifact_repository_packages: DefaultDict[
+            str, Dict[str, str]
+        ] = defaultdict(dict)
         # Single-entry cache for the default artifact repository value.
         # Stores a tuple of ((database, schema), cached_value).  Only one entry is
         # kept at a time – switching to a different database/schema will evict the old
@@ -800,8 +821,8 @@ class Session:
 
         # development features require AST to be enabled
         from snowflake.snowpark.context import (
-            _enable_dataframe_trace_on_error,
             _enable_trace_sql_errors_to_dataframe,
+            _enable_dataframe_trace_on_error,
         )
 
         if _enable_trace_sql_errors_to_dataframe or _enable_dataframe_trace_on_error:
@@ -834,10 +855,10 @@ class Session:
             try:
                 from modin.config import AutoSwitchBackend
 
-                pandas_hybrid_execution_enabled: Union[bool, None] = (
-                    self._conn._get_client_side_session_parameter(
-                        _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED, None
-                    )
+                pandas_hybrid_execution_enabled: Union[
+                    bool, None
+                ] = self._conn._get_client_side_session_parameter(
+                    _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED, None
                 )
                 # Only set AutoSwitchBackend if the session parameter was already set.
                 # snowflake.snowpark.modin.plugin sets AutoSwitchBackend to True if it was
@@ -1962,7 +1983,7 @@ class Session:
 
     @staticmethod
     def _parse_packages(
-        packages: List[Union[str, ModuleType]],
+        packages: List[Union[str, ModuleType]]
     ) -> Dict[str, Tuple[str, bool, Requirement]]:
         package_dict = dict()
         for package in packages:
@@ -2508,14 +2529,12 @@ class Session:
                 entity_selector_args = (
                     f"'schema', '{schema}'"
                     if schema
-                    else (
-                        f"'database', '{database}'"
-                        if database
-                        # self.get_current_account uses a cached connector field that may not be properly cased, so we need to
-                        # explicitly issue a query for it.
-                        # Since this issues a query, we should compute it only if database/schema are unset.
-                        else f"""'account', '{quote_name_without_upper_casing(self._conn._get_string_datum("SELECT CURRENT_ACCOUNT()"))}'"""
-                    )
+                    else f"'database', '{database}'"
+                    if database
+                    # self.get_current_account uses a cached connector field that may not be properly cased, so we need to
+                    # explicitly issue a query for it.
+                    # Since this issues a query, we should compute it only if database/schema are unset.
+                    else f"""'account', '{quote_name_without_upper_casing(self._conn._get_string_datum("SELECT CURRENT_ACCOUNT()"))}'"""
                 )
                 result = self._run_query(
                     f"SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('{python_version}', {entity_selector_args})"
@@ -3211,14 +3230,16 @@ class Session:
         return d
 
     @experimental(version="1.55.0")
+    @publicapi
     def semantic_view(
         self,
-        name: Union[str, Iterable[str]],
+        name: Union[str, List[str], Tuple[str, ...]],
         *,
-        dimensions: Optional[Union[str, Iterable[MemberRef]]] = None,
-        metrics: Optional[Union[str, Iterable[MemberRef]]] = None,
-        facts: Optional[Union[str, Iterable[MemberRef]]] = None,
+        dimensions: Optional[Union[str, List[MemberRef]]] = None,
+        metrics: Optional[Union[str, List[MemberRef]]] = None,
+        facts: Optional[Union[str, List[MemberRef]]] = None,
         where: Optional[str] = None,
+        _emit_ast: bool = True,
     ) -> DataFrame:
         """Returns a :class:`DataFrame` for a query against a semantic view.
 
@@ -3230,10 +3251,14 @@ class Session:
         order ``DIMENSIONS``, ``METRICS``, ``FACTS``, ``WHERE``, which sets the
         default column order; reorder with :meth:`DataFrame.select`.
 
+        Note:
+            Clause strings are not parameterized. Treat them as trusted SQL and do
+            not build them from untrusted input.
+
         Args:
-            name: A string or list of strings that specify the semantic view name
-                or fully-qualified object identifier (database name, schema name,
-                and semantic view name).
+            name: A string, or a list or tuple of strings, that specifies the
+                semantic view name or fully-qualified object identifier (database
+                name, schema name, and semantic view name).
             dimensions: Members to group by, as a verbatim clause string or a list
                 of members. A list element may be a string, or a
                 ``(table, attribute)`` tuple that is joined with a dot.
@@ -3243,6 +3268,23 @@ class Session:
             where: A condition applied *before* aggregation. It may reference
                 dimensions and facts, but not metrics. Filter on a metric with
                 :meth:`DataFrame.filter` on the returned DataFrame instead.
+
+        Examples::
+
+            >>> df = session.semantic_view(
+            ...     "my_semantic_view",
+            ...     dimensions="customers.region",
+            ...     metrics="orders.revenue",
+            ... )  # doctest: +SKIP
+
+            >>> df = session.semantic_view(
+            ...     "my_db.my_schema.my_semantic_view",
+            ...     dimensions=[("customers", "region"), "customers.customer"],
+            ...     metrics=["orders.revenue", "orders.order_count"],
+            ...     where="customers.region = 'EMEA'",
+            ... )  # doctest: +SKIP
+            >>> from snowflake.snowpark.functions import col  # doctest: +SKIP
+            >>> df.filter(col("REVENUE") > 400).sort(col("REGION")).show()  # doctest: +SKIP
         """
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
@@ -3256,22 +3298,41 @@ class Session:
                 "or facts. A where condition alone is not a valid query."
             )
 
-        if not isinstance(name, str) and isinstance(name, Iterable):
+        if not isinstance(name, str):
+            # Not any Iterable: a set would dot-join in an arbitrary order.
+            if not isinstance(name, (list, tuple)):
+                raise TypeError(
+                    "name should be a string, or a list or tuple of name parts, not "
+                    f"{type(name).__name__}."
+                )
+            for i, part in enumerate(name):
+                if not isinstance(part, str):
+                    raise TypeError(
+                        f"name[{i}] should be a string, not {type(part).__name__}."
+                    )
             name = ".".join(name)
         validate_object_name(name)
 
         parts = [name]
-        for keyword, param, value in (
-            ("DIMENSIONS", "dimensions", dimensions),
-            ("METRICS", "metrics", metrics),
-            ("FACTS", "facts", facts),
+        for keyword, value in (
+            ("DIMENSIONS", dimensions),
+            ("METRICS", metrics),
+            ("FACTS", facts),
         ):
             if value is not None:
-                parts.append(_render_semantic_view_clause(keyword, param, value))
+                parts.append(_render_semantic_view_clause(keyword, value))
         if where is not None:
-            parts.append(f"WHERE {where}")
+            if not isinstance(where, str):
+                raise TypeError(
+                    f"where should be a string, not {type(where).__name__}."
+                )
+            if not where.strip():
+                raise ValueError("where is empty; omit it instead.")
+            parts.append("WHERE " + where)
 
-        df = self.sql(f"SELECT * FROM SEMANTIC_VIEW({' '.join(parts)})")
+        df = self.sql(
+            f"SELECT * FROM SEMANTIC_VIEW({' '.join(parts)})", _emit_ast=_emit_ast
+        )
         set_api_call_source(df, "Session.semantic_view")
         return df
 

@@ -10,7 +10,6 @@
 - Added support for a `table_properties` key in the `iceberg_config` dictionary of `DataFrameWriter.save_as_table`, which emits a `TABLE_PROPERTIES = ('k'='v', ...)` clause on Iceberg table creation (CREATE / CTAS).
 - Added `Session.semantic_view()` to query a semantic view. Pass the semantic view name plus any of `dimensions`, `metrics`, `facts`, and `where`; it returns a `DataFrame`.
 
-
 #### Bug Fixes
 
 - Fixed registering a UDF, UDTF, or stored procedure with an integer optional argument failing with `SQL compilation error: invalid default argument expression`. Integer defaults were emitted as `DEFAULT <value> :: INT`, and a parameter default only accepts a constant expression. The redundant cast is no longer generated.
