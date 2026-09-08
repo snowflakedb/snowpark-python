@@ -7,6 +7,25 @@
 #### New Features
 
 - Added interval type support for Python UDFs and stored procedures. Use `datetime.timedelta` as the type annotation for day-time interval (`DayTimeIntervalType`) parameters and return values, and `YearMonthInterval` (a type annotation sentinel from `snowflake.snowpark.types`) for year-month interval (`YearMonthIntervalType`) parameters and return values.
+- Added support for a `table_properties` key in the `iceberg_config` dictionary of `DataFrameWriter.save_as_table`, which emits a `TABLE_PROPERTIES = ('k'='v', ...)` clause on Iceberg table creation (CREATE / CTAS).
+
+#### Bug Fixes
+
+- Fixed registering a UDF, UDTF, or stored procedure with an integer optional argument failing with `SQL compilation error: invalid default argument expression`. Integer defaults were emitted as `DEFAULT <value> :: INT`, and a parameter default only accepts a constant expression. The redundant cast is no longer generated.
+
+#### Documentation
+
+- Documented the JSON Schema `response_format` shape for `ai_extract` and `DataFrame.ai.extract`.
+
+#### Other Changes
+
+- Test-only: fixed `test_generator_table_function` failing as `assert 0 < 0` on the `seq2(0)` + `generator(timelimit => 1)` case. `seq2(0)` passes sign=0, so it continues at 0 after 32767, and a one-second generator run usually emits far more than one 32768-value cycle, making `ORDER BY seq2(0) LIMIT 3` return `0, 0, 0`. That assertion now allows equal values; the `seq1(1)` + `rowcount` assertions stay strictly increasing.
+
+### Snowpark pandas API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where referencing `modin.pandas` inside a Snowpark pandas `apply()` function raised a `ModuleNotFoundError`.
 
 - Added a `useVariantProjection` option to `DataFrameReader.xml` that speeds up XML ingestion. The default is `False`; setting it to `True` requires `cacheResult` to also be `True` (the default).
 - Added a `numWorkers` option to `DataFrameReader.xml` for reads that specify `rowTag`, capping how many parallel workers a file is split across (per file, not in total; default `16`, previously a hardcoded cap of `16`).

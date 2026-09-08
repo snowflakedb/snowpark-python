@@ -10465,9 +10465,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         try:
             ordered_dataframe = cache_result(udtf_dataframe)
         except SnowparkSQLException as e:
-            if "No module named 'snowflake'" in str(
-                e
-            ) or "Modin is not installed" in str(e):
+            # The sandbox names either the top-level package or the missing
+            # submodule, e.g. "snowflake" or "snowflake.snowpark", depending on
+            # which other snowflake.* packages the image carries, so match the
+            # prefix rather than an exact name.
+            message = str(e)
+            if (
+                "No module named 'snowflake" in message
+                or "No module named 'modin" in message
+                or "Modin is not installed" in message
+            ):
                 raise SnowparkSQLException(
                     "modin.pandas cannot be referenced within a Snowpark pandas apply() function. "
                     "You can only use native pandas inside apply(). Please check developer guide for details "
