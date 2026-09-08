@@ -407,9 +407,12 @@ def test_permissive_captures_a_parse_error_without_aborting(session, unsupported
     )
 
     assert len(rows) == 1
-    error = json.loads(rows[0]["_document_error"])
-    assert error["stage"] == "parse"
-    assert error["message"]
+    # _document_error is an array, one entry per phase that failed -- not a single
+    # struct -- so that a row failing in both Parse and Extract doesn't lose one.
+    errors = json.loads(rows[0]["_document_error"])
+    assert len(errors) == 1
+    assert errors[0]["stage"] == "parse"
+    assert errors[0]["message"]
 
 
 def test_permissive_uses_a_custom_corrupt_record_column(session, unsupported_stage):

@@ -39,9 +39,12 @@ _RESERVED_OUTPUT_COLUMNS = frozenset(
 @dataclass
 class ExtractionSpec:
     """A response_format option, normalized once: the output field names it implies
-    plus the per-engine call shape (AI_COMPLETE needs its own {"type": "json", "schema":
-    {...}} envelope -- see its docstring's "Structured output with response format"
-    example -- while AI_EXTRACT takes the value as given, in any shape it documents)."""
+    plus the per-engine call shape. A bare JSON-Schema dict (has a "properties" dict)
+    needs its own envelope for each engine -- AI_EXTRACT wants {"schema": {...}}, AI_COMPLETE
+    wants {"type": "json", "schema": {...}} (see its docstring's "Structured output with
+    response format" example) -- confirmed live against both engines, since neither's
+    own docstring documents this shape. Every other shape (AI_EXTRACT's own flat Q&A
+    dict/array forms) is passed to both engines exactly as given."""
 
     fields: List[str]
     field_columns: List[str]
@@ -60,28 +63,29 @@ class ExtractionSpec:
                 return item.split(":", 1)[0].strip()
             return item
 
-        if isinstance(response_format, dict):
-            properties = response_format.get("properties")
-            fields = (
-                list(properties)
-                if isinstance(properties, dict)
-                else list(response_format)
-            )
+        is_json_schema = isinstance(response_format, dict) and isinstance(
+            response_format.get("properties"), dict
+        )
+
+        if is_json_schema:
+            fields = list(response_format["properties"])
+        elif isinstance(response_format, dict):
+            fields = list(response_format)
         elif isinstance(response_format, list):
             fields = [field_name(item) for item in response_format]
         else:
             fields = []
 
+        ai_extract_format = response_format
         ai_complete_format = response_format
-        if isinstance(response_format, dict) and isinstance(
-            response_format.get("properties"), dict
-        ):
+        if is_json_schema:
+            ai_extract_format = {"schema": response_format}
             ai_complete_format = {"type": "json", "schema": response_format}
 
         return cls(
             fields=fields,
             field_columns=[field.upper() for field in fields],
-            ai_extract_format=response_format,
+            ai_extract_format=ai_extract_format,
             ai_complete_format=ai_complete_format,
         )
 

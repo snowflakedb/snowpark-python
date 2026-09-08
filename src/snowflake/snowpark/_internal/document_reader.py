@@ -33,6 +33,8 @@ from snowflake.snowpark.functions import (
     ai_extract,
     ai_parse_document,
     any_value,
+    array_compact,
+    array_construct,
     array_size,
     coalesce,
     col,
@@ -42,6 +44,7 @@ from snowflake.snowpark.functions import (
     lit,
     max as max_,
     object_construct_keep_null,
+    random,
     to_file,
     try_parse_json,
     when,
@@ -125,10 +128,17 @@ def access(session: "Session", path: str) -> "DataFrame":
     # The plain string path is kept as its own column because the PDF UDTF takes a
     # path string, not a FILE value.
     stage_path = concat(lit(STAGE_PREFIX), col('"name"'))
-    return session.sql(f"LIST {path}").select(
+    files_df = session.sql(f"LIST {path}").select(
         to_file(stage_path).alias(SOURCE_FILE_COLUMN),
         stage_path.alias(_STAGE_PATH_COLUMN),
     )
+    # LIST, like DIRECTORY(@stage), carries no cardinality statistics for the
+    # optimizer, which otherwise defaults every downstream AI_PARSE_DOCUMENT/
+    # AI_EXTRACT/AI_COMPLETE call in this plan to a single partition/thread
+    # regardless of warehouse size. sort(random()) forces a shuffle that
+    # redistributes rows -- and therefore the AI calls made per row -- across
+    # every thread the warehouse has.
+    return files_df.sort(random())
 
 
 def parse(
@@ -309,7 +319,11 @@ def extract_with_ai_complete(
 ) -> "DataFrame":
     model = options.model or _DEFAULT_EXTRACTION_MODEL
     call = build_ai_complete_call(model, input_col, options)
-    df = df.with_column(_EXTRACTED_COLUMN, as_variant(call))
+    # Unlike AI_PARSE_DOCUMENT/AI_EXTRACT, AI_COMPLETE(..., return_error_details=True)
+    # returns a native OBJECT rather than a JSON string -- CAST(... AS VARCHAR), which
+    # as_variant() always applies, fails to compile for it. Bracket access works
+    # directly on the raw result, so it skips as_variant() here.
+    df = df.with_column(_EXTRACTED_COLUMN, call)
     extracted = col(_EXTRACTED_COLUMN)
     value = extracted["value"]
     extraction = options.extraction
@@ -333,6 +347,10 @@ def finalize_errors(
         return df
 
     if options.mode == "PERMISSIVE":
+        # One entry per phase that actually failed, not just one overall verdict: a
+        # single AI SQL call's own error is scoped to that one call, but a row here
+        # can go through two independent calls (parse, then extract), so both can
+        # fail at once and neither should be dropped in favor of the other.
         tagged = [
             when(
                 col(name).is_not_null(),
@@ -342,9 +360,10 @@ def finalize_errors(
             )
             for stage, name in error_stages
         ]
+        errors = array_compact(array_construct(*tagged))
         return df.with_column(
             quote_name_without_upper_casing(options.corrupt_record_column),
-            coalesce(*tagged),
+            when(array_size(errors) > 0, errors),
         )
 
     # FAILFAST: every AI call captures its errors in-band, so aborting the read takes
@@ -354,8 +373,15 @@ def finalize_errors(
         CONTENT_COLUMN if options.parse_enabled else options.extraction.field_columns[0]
     )
     guard = register_error_guard_udf(session)
-    raw_error = coalesce(*[col(name) for _, name in error_stages])
+    raw_error = merge_error_expressions([col(name) for _, name in error_stages])
     return df.with_column(anchor, guard(raw_error, col(anchor)))
+
+
+def merge_error_expressions(expressions: List[Column]) -> Column:
+    # coalesce() requires at least two arguments on this account -- Parse or Extract
+    # alone (parse_mode="none", or no schema set) leaves only one error expression,
+    # which needs no merging at all.
+    return coalesce(*expressions) if len(expressions) > 1 else expressions[0]
 
 
 # ---------------------------------------------------------------------------

@@ -228,7 +228,10 @@ class TestSchemaPassesThroughUnrestricted:
 
     def test_properties_schema_passes(self):
         options = _build({"SCHEMA": PROPERTIES_SCHEMA})
-        assert options.extraction.ai_extract_format == PROPERTIES_SCHEMA
+        # AI_EXTRACT rejects a bare JSON-Schema dict outright ("invalid response
+        # format") -- confirmed live -- so it must be wrapped as {"schema": ...},
+        # not passed through as given the way AI_EXTRACT's own flat Q&A dicts are.
+        assert options.extraction.ai_extract_format == {"schema": PROPERTIES_SCHEMA}
         assert options.extraction.fields == ["invoice_number", "total"]
 
     def test_no_schema_means_extraction_is_disabled(self):
@@ -295,11 +298,35 @@ class TestAiCompleteFormat:
         options = _build(
             {"SCHEMA": PROPERTIES_SCHEMA, "EXTRACTION_ENGINE": "ai_complete"}
         )
-        assert options.extraction.ai_extract_format == PROPERTIES_SCHEMA
+        assert options.extraction.ai_extract_format == {"schema": PROPERTIES_SCHEMA}
         assert options.extraction.ai_complete_format == {
             "type": "json",
             "schema": PROPERTIES_SCHEMA,
         }
+
+
+# ---------------------------------------------------------------------------
+# ExtractionSpec.ai_extract_format -- AI_EXTRACT rejects a bare JSON-Schema
+# dict outright ("invalid response format", confirmed live); it needs
+# {"schema": {...}}. AI_EXTRACT's own flat Q&A dict/array shapes need no
+# wrapping at all -- confirmed live those work exactly as given.
+# ---------------------------------------------------------------------------
+
+
+def _ai_extract_format(response_format):
+    return ExtractionSpec.from_response_format(response_format).ai_extract_format
+
+
+class TestAiExtractFormat:
+    def test_properties_schema_gets_wrapped(self):
+        assert _ai_extract_format(PROPERTIES_SCHEMA) == {"schema": PROPERTIES_SCHEMA}
+
+    def test_flat_schema_is_not_wrapped(self):
+        assert _ai_extract_format(FLAT_SCHEMA) == FLAT_SCHEMA
+
+    def test_list_shapes_are_not_wrapped(self):
+        schema = [["name", "What is the name?"]]
+        assert _ai_extract_format(schema) == schema
 
 
 # ---------------------------------------------------------------------------
