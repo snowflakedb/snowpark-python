@@ -71,6 +71,7 @@ Snowpark Session
       Session.remove_package
       Session.replicate_local_environment
       Session.rollback
+      Session.semantic_view
       Session.sql
       Session.table
       Session.table_function
