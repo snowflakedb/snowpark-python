@@ -39,8 +39,7 @@ except ImportError:
 DEFAULT_CHUNK_SIZE: int = 1024
 VARIANT_COLUMN_SIZE_LIMIT: int = 16 * 1024 * 1024
 
-# Minimum bytes read when skip_children only needs an element's opening tag. chunk_size can
-# be small enough to truncate a tag mid-attribute, which would silently drop attributes.
+# Ensures skip_children doesn't truncate an opening tag mid-attribute.
 _SKIP_CHILDREN_MIN_READ: int = 512
 _XML_ATTRIBUTE_PATTERN = re.compile(r'([\w][\w.-]*)="([^"]*)"')
 
@@ -582,16 +581,11 @@ def process_xml_range(
         result_template(dict): a result template generate from user input schema
         schema_type(StructType): the parsed StructType for row validation
         is_snowpark_connect_compatible(bool): context._is_snowpark_connect_compatible_mode
-        skip_children (bool): When True, read only the attributes on ``tag_name``'s opening
-            tag and do not descend into its children. Used with a row tag naming a
-            parent/wrapper element to extract file-level metadata without paying to parse
-            everything nested under it.
+        skip_children (bool): When True, read only the row tag's own opening-tag attributes,
+            skipping its children.
 
     Yields:
-        Tuple[Optional[Dict[str, Any]], int]: the parsed XML element as a dictionary,
-            paired with the byte offset the record starts at. The offset is what
-            ``includeSourcePos`` surfaces as ``_SOURCE_BYTE_POS``; callers that don't need
-            it discard the second element.
+        Tuple[Optional[Dict[str, Any]], int]: the parsed element, paired with its start byte offset.
     """
     tag_start_1 = f"<{tag_name}>".encode()
     tag_start_2 = f"<{tag_name} ".encode()
@@ -629,8 +623,6 @@ def process_xml_range(
             f.seek(record_start)
 
             if skip_children:
-                # Read just far enough to cover the opening tag, take its attributes, and
-                # resume scanning immediately after it -- the children are never parsed.
                 tag_bytes = f.read(max(chunk_size, _SKIP_CHILDREN_MIN_READ)).decode(
                     charset, errors="replace"
                 )
@@ -648,8 +640,7 @@ def process_xml_range(
                                 2
                             )
                 yield (attributes, record_start)
-                # A malformed opening tag with no ">" would leave close_idx at -1; advance
-                # one byte so the scan still makes progress instead of looping forever.
+                # -1 close_idx means no ">" was found; advance one byte to avoid looping forever.
                 next_pos = record_start + (close_idx + 1 if close_idx >= 0 else 1)
                 if next_pos >= approx_end:
                     break
@@ -803,13 +794,9 @@ def _iter_xml_records(
     chunk_size,
     skip_children,
 ):
-    """Shared body of the XML reader UDTF handlers, yielding (record, byte_offset).
-
-    Both handlers below must repeat the full annotated argument list, because a UDTF's
-    input types are recovered by AST-scanning the named class's own ``process`` method --
-    an inherited one is not found. Only the argument list is duplicated; this holds the
-    logic.
-    """
+    """Shared body of the XML reader UDTF handlers. Handlers must repeat this argument
+    list since a UDTF's input types are recovered by AST-scanning its own ``process``
+    method."""
     result_template, schema_type = schema_string_to_result_dict_and_struct_type(
         custom_schema
     )
@@ -837,14 +824,8 @@ def _iter_xml_records(
 
 
 class XMLReader:
-    """UDTF handler emitting one VARIANT column per XML record.
-
-    Each invocation processes one pre-assigned byte range. The planner computes the
-    ranges and passes them as column values, one worker-assignment row per range.
-    Boundaries are approximate: a worker moves its own end boundary forward to the end of
-    the record it lands in, so a record straddling a boundary is claimed by exactly one
-    worker.
-    """
+    """UDTF handler emitting one VARIANT column per XML record, for one pre-assigned
+    byte range."""
 
     def process(
         self,
@@ -892,17 +873,8 @@ class XMLReader:
 
 
 class XMLReaderWithPos:
-    """UDTF handler that additionally emits where each record came from.
-
-    This is a separate handler rather than an option on :class:`XMLReader` because a
-    UDTF's output schema is fixed at registration time, so the extra columns cannot be
-    made conditional. Reads that leave ``includeSourcePos`` off keep the single-column
-    output they had before.
-
-    ``_SOURCE_FILE_PATH`` is emitted by the handler rather than taken from the
-    worker-assignment row's ``FILE_PATH`` column so that it stays correct once a single
-    row can cover more than one file.
-    """
+    """UDTF handler that also emits each record's source file and byte offset. Separate
+    from :class:`XMLReader` since a UDTF's output schema is fixed at registration."""
 
     def process(
         self,

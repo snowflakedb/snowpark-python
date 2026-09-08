@@ -211,9 +211,7 @@ NON_FORMAT_TYPE_OPTIONS = {
 
 XML_ROW_TAG_STRING = "ROWTAG"
 XML_ROW_DATA_COLUMN_NAME = "ROW_DATA"
-# Extra UDTF output columns emitted only when includeSourcePos is set, and the names they
-# are surfaced under. The byte offset is file-local, so the file path is what
-# disambiguates it once a read covers more than one file.
+# Extra UDTF output columns emitted only when includeSourcePos is set.
 XML_SOURCE_BYTE_POS_COLUMN_NAME = "_SOURCE_BYTE_POS"
 XML_SOURCE_FILE_PATH_COLUMN_NAME = "_SOURCE_FILE_PATH"
 XML_SOURCE_POSITION_OUTPUT_NAMES = {
@@ -471,12 +469,8 @@ def escape_subfield_key(field: str) -> str:
 
 
 def xml_source_position_projection(column_name: str, alias: str) -> "snowflake.snowpark.Column":  # type: ignore[name-defined] # noqa: F821
-    """Project a source-position column emitted by the XML reader UDTF.
-
-    These are already typed columns rather than VARIANT keys, so they are carried straight
-    through instead of going via :func:`xml_variant_projection`. The alias still follows the
-    single-quoted convention the reader's other output columns use.
-    """
+    """Project a source-position column emitted by the XML reader UDTF; already typed,
+    so it's carried through directly instead of via :func:`xml_variant_projection`."""
     from snowflake.snowpark._internal.analyzer.analyzer_utils import single_quote
     from snowflake.snowpark.functions import col
 

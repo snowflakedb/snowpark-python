@@ -1256,19 +1256,11 @@ class DataFrameReader:
         return df
 
     @publicapi
-    def xml(self, path: Union[str, List[str]], _emit_ast: bool = True) -> DataFrame:
+    def xml(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the XML file(s) to load.
 
         Args:
-            path: The stage location of an XML file, a stage location that has XML files,
-                or a list of stage file paths. When ``rowTag`` is set, passing a list reads
-                every file in one operation: all files' byte ranges share a single query
-                plan and are dispatched in parallel, rather than being read one at a time
-                and unioned afterwards. The plan carries one row per (file, byte range),
-                and Snowflake caps a ``VALUES`` list at 200,000 rows -- so with the default
-                ``numWorkers`` of 16 a list of more than about 12,000 files will fail to
-                compile. Lowering ``numWorkers`` (and raising ``chunkSize`` to match)
-                trades per-file parallelism for a higher file count.
+            path: The stage location of an XML file, or (with ``readDirectory``) a directory of XML files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
@@ -1337,17 +1329,16 @@ class DataFrameReader:
                 cap, not a total: when reading N files, the number of workers scales with N rather than being
                 limited to ``numWorkers`` overall.
 
+              + ``readDirectory``: Whether to treat ``path`` as a stage directory and read every file
+                directly under it in one operation instead of one file at a time. The default value
+                is ``False``.
+
               + ``skipChildren``: Whether to read only the attributes on the ``rowTag`` element's own
                 opening tag, without parsing anything nested inside it. The default value is ``False``.
-                Use this with a ``rowTag`` naming a parent or wrapper element to pull out file-level
-                metadata without paying to parse every record beneath it.
 
               + ``includeSourcePos``: Whether to add ``_source_byte_pos`` and ``_source_file_path``
-                columns recording the byte offset each record starts at and the file it came from.
-                The default value is ``False``. The offset is relative to its own file, so
-                ``_source_file_path`` is what distinguishes offsets when reading more than one file.
-                Requires that no schema be given, since the columns are not part of a user-supplied
-                or inferred schema, and is not supported together with ``_LEGACY_XML_PIVOT``.
+                columns recording where each record came from. The default value is ``False``, and it
+                requires ``useVariantProjection`` to be ``True`` with no schema given.
 
               + ``cacheResult``: Whether to cache the result DataFrame of the XML reader to a temporary table after calling :meth:`xml`.
                 When set to ``True`` (default), the result is cached and all subsequent operations on the DataFrame are performed on the cached data.
@@ -1361,15 +1352,6 @@ class DataFrameReader:
         df = self._read_semi_structured_file(path, "XML")
         # AST.
         if _emit_ast and self._ast is not None:
-            if isinstance(path, list):
-                # ReadXml.path is a scalar string in ast.proto, which is generated from a
-                # shared cross-language IR, so a list of paths has nowhere to go. Fail
-                # clearly instead of letting protobuf raise on the assignment.
-                raise NotImplementedError(
-                    "Reading a list of XML paths is not supported when AST collection is "
-                    "enabled. Read the files in separate xml() calls, or pass a single "
-                    "stage directory path."
-                )
             stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.read_xml, stmt)
             ast.path = path
@@ -1450,8 +1432,7 @@ class DataFrameReader:
             )
 
         projections = [xml_variant_projection(key) for key in keys]
-        # includeSourcePos adds already-typed columns rather than VARIANT keys, so they are
-        # carried through directly and never take part in key discovery above.
+        # includeSourcePos columns are already typed, not VARIANT keys.
         df_columns = {c.strip('"') for c in df.columns}
         for column_name, alias in XML_SOURCE_POSITION_OUTPUT_NAMES.items():
             if column_name in df_columns:
@@ -2002,9 +1983,7 @@ class DataFrameReader:
         inferred_schema = _clean_schema_field_names(canonical)
         return inferred_schema
 
-    def _read_semi_structured_file(
-        self, path: Union[str, List[str]], format: str
-    ) -> DataFrame:
+    def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         if isinstance(self._session._conn, MockServerConnection):
             if self._session._conn.is_closed():
                 raise SnowparkSessionException(
@@ -2027,20 +2006,15 @@ class DataFrameReader:
             and XML_ROW_TAG_STRING not in self._cur_options
         ):
             raise ValueError("When reading XML with user schema, rowtag must be set.")
-        if isinstance(path, list):
-            if format != "XML" or XML_ROW_TAG_STRING not in self._cur_options:
-                raise ValueError(
-                    "Reading a list of paths is only supported for XML with the rowTag "
-                    "option set."
-                )
-            if not path:
-                raise ValueError("The list of paths to read must not be empty.")
-            path = [_validate_stage_path(p) for p in path]
-            # Only used for metadata/logging; the full list drives the read itself.
-            self._file_path = path[0]
-        else:
-            path = _validate_stage_path(path)
-            self._file_path = path
+        if self._cur_options.get("READDIRECTORY", False) and (
+            format != "XML" or XML_ROW_TAG_STRING not in self._cur_options
+        ):
+            raise ValueError(
+                "The readDirectory option is only supported for XML with the rowTag "
+                "option set."
+            )
+        path = _validate_stage_path(path)
+        self._file_path = path
         self._file_type = format
 
         schema = [Attribute('"$1"', VariantType())]
@@ -2111,10 +2085,7 @@ class DataFrameReader:
                 schema_known = xml_inferred_schema is not None or bool(
                     self._user_schema
                 )
-                # The source-position columns are projected alongside the discovered
-                # VARIANT keys. A known schema projects a fixed field list instead and
-                # would drop them, and the legacy pivot path would fold them into its
-                # grouping keys -- so reject both rather than silently losing the columns.
+                # A known schema or the legacy pivot path would silently drop these columns.
                 if schema_known:
                     raise ValueError(
                         "The includeSourcePos option is not supported when a schema is "
@@ -2124,8 +2095,8 @@ class DataFrameReader:
                 if not use_xml_variant_projection(self._cur_options, False):
                     raise ValueError(
                         "The includeSourcePos option requires the VARIANT projection "
-                        "path; it is not supported with cacheResult=False or "
-                        "_LEGACY_XML_PIVOT=True."
+                        "path: set useVariantProjection=True, and note that the path is "
+                        "unavailable when cacheResult=False and no schema is known."
                     )
                 xml_reader_udtf = self._register_xml_udtf(
                     XML_READER_FILE_PATH,

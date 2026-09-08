@@ -152,21 +152,14 @@ from collections.abc import Iterable
 _logger = getLogger(__name__)
 
 # Default for numWorkers.
-# TODO SNOW-1983360: revisit once the UDTF scalability issue is resolved.
 DEFAULT_MAX_WORKERS: int = 16
 
 
 def _xml_worker_assignments(
     file_path: str, file_size: int, max_workers: int, chunk_size: int
 ) -> List[Tuple[str, int, int]]:
-    """Split a file into ``(path, approx_start, approx_end)`` byte ranges, one per worker.
-
-    How many workers are used is driven by ``chunk_size`` -- the number of bytes each
-    worker is responsible for -- capped at ``max_workers``. Boundaries are approximate:
-    each worker extends its own end boundary to the end of whichever record it lands in,
-    so a record straddling a boundary is read by exactly one worker. The ranges are
-    contiguous and together cover the whole file.
-    """
+    """Split a file into ``(path, approx_start, approx_end)`` byte ranges, one per worker,
+    each extended to the end of the record it lands in."""
     num_workers = min(max_workers, file_size // chunk_size + 1)
     approx_chunk = file_size // num_workers
     return [
@@ -185,17 +178,8 @@ def _stage_directory(file_path: str) -> str:
 
 
 def _stage_listing_basename(file_path: str) -> str:
-    """The final path segment of a requested file path, used to match it against LIST.
-
-    The rest of what LIST reports is stage-type-dependent: an internal stage's name drops
-    the db/schema qualifier and lowercases the stage-name segment (even for a quoted,
-    mixed-case identifier), while a *named external* stage reports the underlying cloud
-    URL instead (e.g. ``s3://bucket/prefix/file.xml``), unrelated to the stage's own name
-    or the qualified path used to read it. Neither of those leading portions is safe to
-    reconstruct and compare against. The trailing filename segment is not: it is the actual
-    object key on either kind of stage, so both the caller's path and LIST's reported name
-    end in the same basename.
-    """
+    """The final path segment of a path, used to match it against LIST -- the rest of what
+    LIST reports is stage-type-dependent and unsafe to reconstruct."""
     return file_path.rsplit("/", 1)[-1]
 
 
@@ -205,17 +189,8 @@ def _xml_worker_assignment_sql(
     approx_start_column: str,
     approx_end_column: str,
 ) -> str:
-    """Render worker assignments as a single inline ``VALUES`` query.
-
-    This deliberately does not go through ``Session.create_dataframe``, which switches from
-    an inline ``VALUES`` to ``CREATE TEMP TABLE`` + ``INSERT`` + ``SELECT`` past a couple
-    hundred rows. Only one query survives into the returned plan, so the setup statements
-    would be dropped and the surviving ``SELECT`` would reference a table that was never
-    created -- which only shows up once enough files are read to cross that threshold.
-
-    File paths are the one caller-controlled part and are escaped with ``str_to_sql``; the
-    offsets are integers this module computed.
-    """
+    """Render worker assignments as a single inline ``VALUES`` query, avoiding
+    ``Session.create_dataframe`` which drops setup statements past a couple hundred rows."""
     rows = ", ".join(
         f"({str_to_sql(path)}, {start}::BIGINT, {end}::BIGINT)"
         for path, start, end in assignments
@@ -1921,31 +1896,8 @@ class SnowflakePlanBuilder:
 
     def _resolve_stage_file_sizes(self, file_paths: List[str]) -> Dict[str, int]:
         """Map each requested file path to its byte size, one LIST per distinct directory.
-
-        A LIST per file would cost a round trip per file, which dominates planning time
-        well before the read starts. Listing each directory once collapses files that share
-        a directory -- the common case -- into a single call. A directory contributing
-        exactly one requested file is listed by that file's own path instead, so a
-        single-file read stays as cheap as it was rather than enumerating a directory that
-        may hold far more.
-
-        Each LIST row is matched to a requested path by basename (see
-        `_stage_listing_basename`) rather than by reconstructing the exact name LIST
-        reports for a path -- that format depends on the stage type, and guessing it wrong
-        silently drops files that actually exist (this once broke every read against a
-        named external stage).
-
-        LIST is recursive, so listing a directory also returns files in its
-        subdirectories -- which can share a basename with one of the directory's own
-        files. Rows are kept only at the shallowest nesting depth seen for that listing
-        call (measured in path separators, which is stage-type-independent: every row
-        from one LIST call shares the same root, so a deeper file always has strictly
-        more separators than a direct child, regardless of what that root looks like).
-        Every requested file in one directory is, by construction, a direct child of it,
-        so this reduces the candidates to exactly the directory's own files before
-        basename matching ever runs -- a deeper file can no longer collide with one of
-        the requested basenames no matter what it's named.
-        """
+        Matches by basename since LIST's reported name format is stage-type-dependent, and
+        filters to the shallowest depth since LIST is recursive."""
         directories: Dict[str, List[str]] = {}
         for path in file_paths:
             directories.setdefault(_stage_directory(path), []).append(path)
@@ -1964,7 +1916,7 @@ class SnowflakePlanBuilder:
             sizes_by_basename: Dict[str, int] = {}
             for row in rows:
                 if row["name"].count("/") != min_depth:
-                    continue  # a subdirectory LIST recursed into, not this directory's own file
+                    continue  # from a recursed subdirectory, not this directory
                 basename = _stage_listing_basename(row["name"])  # type: ignore
                 sizes_by_basename[basename] = int(row["size"])  # type: ignore
             for path in paths_in_directory:
@@ -1974,10 +1926,29 @@ class SnowflakePlanBuilder:
                 file_sizes[path] = sizes_by_basename[basename]
         return file_sizes
 
+    def _list_directory_file_sizes(self, directory: str) -> Dict[str, int]:
+        """Map every file directly under a stage directory to its byte size, via one LIST.
+        Filters to the shallowest depth the same way `_resolve_stage_file_sizes` does,
+        since LIST is recursive."""
+        rows = list(
+            self.session.sql(f"ls {directory}", _emit_ast=False).collect(
+                _emit_ast=False
+            )
+        )
+        if not rows:
+            raise ValueError(f"{directory} does not exist or contains no files")
+        min_depth = min(row["name"].count("/") for row in rows)  # type: ignore
+        directory_prefix = directory.rstrip("/")
+        return {
+            f"{directory_prefix}/{_stage_listing_basename(row['name'])}": int(row["size"])  # type: ignore
+            for row in rows
+            if row["name"].count("/") == min_depth  # type: ignore
+        }
+
     def _create_xml_query(
         self,
         xml_reader_udtf: "UserDefinedTableFunction",
-        file_path: Union[str, List[str]],
+        file_path: str,
         options: Dict[str, str],
         schema: Optional[List[Attribute]] = None,
     ) -> str:
@@ -2011,6 +1982,7 @@ class SnowflakePlanBuilder:
         )
         row_validation_xsd_path = options.get("ROWVALIDATIONXSDPATH", "")
         skip_children = bool(options.get("SKIPCHILDREN", False))
+        read_directory = bool(options.get("READDIRECTORY", False))
 
         if mode not in {"PERMISSIVE", "DROPMALFORMED", "FAILFAST"}:
             raise ValueError(
@@ -2018,15 +1990,17 @@ class SnowflakePlanBuilder:
             )
 
         max_workers = _positive_int_option(options, "NUMWORKERS", DEFAULT_MAX_WORKERS)
-        # chunk_size is an internal scan-buffer/worker-count knob, not user-facing --
-        # numWorkers is the only worker-sizing option exposed to callers.
+        # chunk_size is internal; numWorkers is the only worker-sizing option exposed.
         chunk_size = DEFAULT_CHUNK_SIZE
 
-        file_paths = file_path if isinstance(file_path, list) else [file_path]
-        file_sizes = self._resolve_stage_file_sizes(file_paths)
+        if read_directory:
+            file_sizes = self._list_directory_file_sizes(file_path)
+            file_paths = list(file_sizes.keys())
+        else:
+            file_paths = [file_path]
+            file_sizes = self._resolve_stage_file_sizes(file_paths)
 
-        # One worker-assignment row per (file, byte range), so every file's ranges share a
-        # single SQL plan and Snowflake dispatches them all in parallel.
+        # One row per (file, byte range); all files share a single SQL plan.
         assignments = []
         for path in file_paths:
             assignments.extend(

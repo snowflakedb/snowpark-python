@@ -64,8 +64,7 @@ test_file_books_xsd = "books.xsd"
 test_file_dk_trace_xml = "dk_trace_sample.xml"
 test_file_dblp_xml = "dblp_6kb.xml"
 test_file_books_attr_val_xml = "books_attribute_value.xml"
-# Multi-file fixtures: each has <PARENT> elements wrapping <CHILD> elements, so a
-# parent/child range JOIN on includeSourcePos output can be checked across files.
+# <PARENT> wraps <CHILD>, for parent/child range-JOIN testing.
 test_file_multifile_a_xml = "multifile_a.xml"
 test_file_multifile_b_xml = "multifile_b.xml"
 test_file_multifile_c_xml = "multifile_c.xml"
@@ -213,8 +212,7 @@ def setup(session, resources_path, local_testing_mode):
         compress=False,
     )
 
-    # Uploaded under a subdirectory of their own so the multi-file read exercises a
-    # single directory listing rather than one per file.
+    # In their own subdirectory so readDirectory has one directory to list.
     for local_path in (
         test_files.test_multifile_a_xml,
         test_files.test_multifile_b_xml,
@@ -1443,11 +1441,8 @@ def test_read_xml_rejects_degenerate_num_workers(session, value):
 #
 
 
-def _multifile_paths(file_names=None):
-    return [
-        f"@{tmp_stage_name}/{multifile_subdirectory}/{name}"
-        for name in (file_names or test_files_multifile)
-    ]
+def _multifile_directory():
+    return f"@{tmp_stage_name}/{multifile_subdirectory}"
 
 
 def _content_by_name(df):
@@ -1457,38 +1452,33 @@ def _content_by_name(df):
     )
 
 
-def _read_paths(session, paths, row_tag, **options):
-    reader = session.read.option("rowTag", row_tag)
+def _read_directory(session, row_tag, **options):
+    reader = session.read.option("rowTag", row_tag).option("readDirectory", True)
     for key, value in options.items():
         reader = reader.option(key, value)
-    return reader.xml(paths)
+    return reader.xml(_multifile_directory())
 
 
 def test_read_xml_multifile_matches_sum_of_single_file_reads(session):
-    """One list read must produce exactly what reading each file separately produces."""
-    paths = _multifile_paths()
-    combined = _read_paths(session, paths, "CHILD")
+    """A directory read must produce exactly what reading each file separately produces."""
+    combined = _read_directory(session, "CHILD")
 
     per_file = []
-    for path in paths:
-        per_file.extend(_content_by_name(_read_paths(session, path, "CHILD")))
+    for name in test_files_multifile:
+        path = f"{_multifile_directory()}/{name}"
+        per_file.extend(
+            _content_by_name(session.read.option("rowTag", "CHILD").xml(path))
+        )
 
     assert len(combined.collect()) == 9
     assert _content_by_name(combined) == sorted(per_file)
 
 
-def test_read_xml_multifile_reads_a_subset_of_a_directory(session):
-    """Only the listed files are read, not everything in their directory."""
-    subset = _multifile_paths([test_file_multifile_a_xml, test_file_multifile_b_xml])
-    assert len(_read_paths(session, subset, "CHILD").collect()) == 5
-    assert len(_read_paths(session, subset, "PARENT").collect()) == 3
-
-
-def test_read_xml_multifile_lists_each_directory_once(session):
-    """A LIST per file would be a round trip per file before the read starts; files
-    sharing a directory must resolve their sizes in a single LIST."""
+def test_read_xml_read_directory_lists_once(session):
+    """A LIST per file would be a round trip per file before the read starts;
+    readDirectory must resolve the whole directory with a single LIST."""
     with session.query_history() as history:
-        _read_paths(session, _multifile_paths(), "CHILD")
+        _read_directory(session, "CHILD")
 
     listings = [
         q.sql_text
@@ -1499,34 +1489,21 @@ def test_read_xml_multifile_lists_each_directory_once(session):
     assert len(listings) == 1
 
 
-def test_read_xml_multifile_missing_file_raises(session):
-    paths = _multifile_paths() + [
-        f"@{tmp_stage_name}/{multifile_subdirectory}/does_not_exist.xml"
-    ]
+def test_read_xml_read_directory_missing_directory_raises(session):
     with pytest.raises(ValueError, match="does not exist"):
-        _read_paths(session, paths, "CHILD")
+        session.read.option("rowTag", "CHILD").option("readDirectory", True).xml(
+            f"@{tmp_stage_name}/{multifile_subdirectory}_does_not_exist"
+        )
 
 
-@pytest.mark.parametrize(
-    "paths,match",
-    [
-        ([], "must not be empty"),
-        (["@stage/a.xml"], "only supported for XML with the rowTag"),
-    ],
-)
-def test_read_xml_list_path_validation(session, paths, match):
-    if match == "must not be empty":
-        with pytest.raises(ValueError, match=match):
-            session.read.option("rowTag", "CHILD").xml(paths)
-    else:
-        # A list without rowTag has no multi-file read path to use.
-        with pytest.raises(ValueError, match=match):
-            session.read.xml(paths)
+def test_read_xml_read_directory_requires_row_tag(session):
+    # readDirectory has no multi-file read path to use without rowTag.
+    with pytest.raises(ValueError, match="only supported for XML with the rowTag"):
+        session.read.option("readDirectory", True).xml(_multifile_directory())
 
 
 def test_read_xml_skip_children_reads_only_parent_attributes(session):
-    paths = _multifile_paths()
-    skipped = _read_paths(session, paths, "PARENT", skipChildren=True)
+    skipped = _read_directory(session, "PARENT", skipChildren=True)
     assert sorted(c.strip('"').strip("'") for c in skipped.columns) == [
         "_id",
         "_region",
@@ -1544,14 +1521,15 @@ def test_read_xml_skip_children_reads_only_parent_attributes(session):
     }
 
     # Without the option the same row tag also yields the nested CHILD content.
-    full = _read_paths(session, paths, "PARENT")
+    full = _read_directory(session, "PARENT")
     assert "CHILD" in {c.strip('"').strip("'") for c in full.columns}
     assert len(full.collect()) == 6
 
 
 def test_read_xml_include_source_pos_adds_position_columns(session):
-    paths = _multifile_paths()
-    df = _read_paths(session, paths, "CHILD", includeSourcePos=True)
+    df = _read_directory(
+        session, "CHILD", includeSourcePos=True, useVariantProjection=True
+    )
 
     names = [c.strip('"').strip("'") for c in df.columns]
     assert names[-2:] == ["_source_byte_pos", "_source_file_path"]
@@ -1566,19 +1544,23 @@ def test_read_xml_include_source_pos_adds_position_columns(session):
     assert all(row["'_source_byte_pos'"] > 0 for row in rows)
 
     # Without the option the columns are absent.
-    plain = _read_paths(session, paths, "CHILD")
+    plain = _read_directory(session, "CHILD")
     assert not any("_source" in c for c in plain.columns)
 
 
 def test_read_xml_include_source_pos_supports_parent_child_range_join(session):
-    """The point of the position columns: attribute each child to the parent whose byte
-    range contains it. Offsets restart per file, so the file path is what keeps children
-    from being matched to a parent in a different file."""
-    paths = _multifile_paths()
-    parents = _read_paths(
-        session, paths, "PARENT", skipChildren=True, includeSourcePos=True
+    """Attributes each child to the parent whose byte range contains it; offsets restart
+    per file, so file path disambiguates."""
+    parents = _read_directory(
+        session,
+        "PARENT",
+        skipChildren=True,
+        includeSourcePos=True,
+        useVariantProjection=True,
     )
-    children = _read_paths(session, paths, "CHILD", includeSourcePos=True)
+    children = _read_directory(
+        session, "CHILD", includeSourcePos=True, useVariantProjection=True
+    )
 
     parents = parents.select(
         col("'_id'").cast(StringType()).alias("PARENT_ID"),
@@ -1621,39 +1603,52 @@ def test_read_xml_include_source_pos_supports_parent_child_range_join(session):
     "options,match",
     [
         ({"cacheResult": False}, "requires the VARIANT projection"),
-        ({"_LEGACY_XML_PIVOT": True}, "requires the VARIANT projection"),
+        ({}, "requires the VARIANT projection"),
     ],
 )
 def test_read_xml_include_source_pos_rejects_unsupported_paths(session, options, match):
     """Rather than silently dropping the position columns on a path that cannot carry
     them, the option is rejected."""
-    reader = session.read.option("rowTag", "CHILD").option("includeSourcePos", True)
+    reader = (
+        session.read.option("rowTag", "CHILD")
+        .option("readDirectory", True)
+        .option("includeSourcePos", True)
+    )
     for key, value in options.items():
         reader = reader.option(key, value)
     with pytest.raises(ValueError, match=match):
-        reader.xml(_multifile_paths())
+        reader.xml(_multifile_directory())
 
 
 def test_read_xml_include_source_pos_rejects_user_schema(session):
     schema = StructType([StructField("_sku", StringType())])
     with pytest.raises(ValueError, match="not supported when a schema is"):
         session.read.schema(schema).option("rowTag", "CHILD").option(
-            "includeSourcePos", True
-        ).xml(_multifile_paths())
+            "readDirectory", True
+        ).option("includeSourcePos", True).xml(_multifile_directory())
 
 
-def test_read_xml_multifile_with_many_worker_rows(session):
-    """A read whose assignment table exceeds a couple hundred rows must still execute.
+# session.create_dataframe drops setup statements above this many rows.
+_CREATE_DATAFRAME_INLINE_VALUES_ROW_LIMIT = 200
 
-    Session.create_dataframe switches from an inline VALUES to CREATE TEMP TABLE + INSERT
-    + SELECT below 200 rows, and only one query survives into the reader's plan -- so
-    building the table that way silently produced a SELECT against a table that was never
-    created. chunkSize=1 forces each small file up to the numWorkers cap, putting the row
-    count well past the threshold on fixtures that are only a few hundred bytes each.
-    """
-    paths = _multifile_paths()
-    df = _read_paths(session, paths, "CHILD", numWorkers=100, chunkSize=1)
-    assert len(df.collect()) == 9
-    assert _content_by_name(df) == _content_by_name(
-        _read_paths(session, paths, "CHILD")
+
+def test_read_xml_read_directory_with_many_worker_rows(session):
+    """Generates enough small files, one worker row apiece, to clear
+    _CREATE_DATAFRAME_INLINE_VALUES_ROW_LIMIT."""
+    import tempfile
+
+    file_count = _CREATE_DATAFRAME_INLINE_VALUES_ROW_LIMIT + 50
+    directory = f"@{tmp_stage_name}/{multifile_subdirectory}_many"
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        for i in range(file_count):
+            local_path = os.path.join(tmp_dir, f"row_{i}.xml")
+            with open(local_path, "w") as f:
+                f.write(f"<ROOT><CHILD><id>{i}</id></CHILD></ROOT>")
+            Utils.upload_to_stage(session, directory, local_path, compress=False)
+
+    df = (
+        session.read.option("rowTag", "CHILD")
+        .option("readDirectory", True)
+        .xml(directory)
     )
+    assert len(df.collect()) == file_count

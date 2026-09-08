@@ -75,11 +75,7 @@ from snowflake.snowpark.types import (
 
 
 def _records_only(record_iter):
-    """Drop the byte-offset half of process_xml_range's (record, offset) tuples.
-
-    The offset is what includeSourcePos surfaces as _SOURCE_BYTE_POS; tests that predate
-    it assert on the record alone.
-    """
+    """Drop the byte-offset half of process_xml_range's (record, offset) tuples."""
     return [record for record, _ in record_iter]
 
 
@@ -1943,13 +1939,40 @@ def test_skip_children_handles_self_closing_and_attributeless_tags():
 
 
 def test_skip_children_ignores_bare_self_closing_tag_like_the_default_path():
-    """A "<TAG/>" with no space and no attributes is not recognized as an opening tag.
-
-    The scanner searches for "<TAG>" or "<TAG ", so this is missed on the ordinary read
-    path too -- asserted here only to pin that skipChildren does not diverge from it.
-    """
+    """A bare "<TAG/>" isn't recognized as an opening tag, same as the ordinary read path."""
     xml_bytes = b'<ROOT><PARENT/><PARENT x="1"/></ROOT>'
     assert [record for record, _ in _skip_children_records(xml_bytes)] == [{"_x": "1"}]
+
+
+def test_skip_children_stops_at_range_end_on_truncated_tag():
+    """A malformed opening tag with no ">" must not spin: it yields what it found and
+    stops once advancing reaches the range end."""
+    xml_bytes = b'<ROOT><PARENT id="p1"'
+    tag_start = xml_bytes.index(b"<PARENT")
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
+    ):
+        records = list(
+            process_xml_range(
+                "test.xml",
+                "PARENT",
+                0,
+                tag_start + 1,
+                "PERMISSIVE",
+                "_corrupt_record",
+                True,
+                "_",
+                False,
+                "_VALUE",
+                "",
+                "utf-8",
+                False,
+                "",
+                skip_children=True,
+            )
+        )
+    assert records == [({}, tag_start)]
 
 
 def test_skip_children_reads_past_a_small_chunk_size():
@@ -2040,8 +2063,7 @@ def test_xml_reader_with_pos_emits_byte_offset_and_file_path():
         xml_bytes.index(b"<record><a>1</a>"),
         xml_bytes.index(b"<record><a>2</a>"),
     ]
-    # The file path comes from the handler, so it stays right when one worker-assignment
-    # row covers more than one file.
+    # Comes from the handler, not the worker row, so it's correct if a row covers multiple files.
     assert {row[2] for row in rows} == {"test.xml"}
 
 
@@ -2078,7 +2100,7 @@ def test_xml_udtf_handler_input_types_are_recoverable_from_source(handler):
 
 
 #
-# AST emission for list input.
+# AST emission.
 #
 
 
@@ -2098,24 +2120,7 @@ def _reader_with_ast(ast_enabled):
     return reader
 
 
-def test_xml_ast_emission_rejects_list_input():
-    """ReadXml.path is a scalar string in the generated AST schema, so a list of paths has
-    nowhere to be recorded. It must fail with an explanation rather than surfacing as a
-    protobuf type error from the assignment.
-    """
-    reader = _reader_with_ast(ast_enabled=True)
-    with pytest.raises(NotImplementedError, match="list of XML paths"):
-        DataFrameReader.xml(reader, ["@stage/a.xml", "@stage/b.xml"], _emit_ast=True)
-
-
-def test_xml_list_input_is_allowed_when_ast_is_disabled():
-    reader = _reader_with_ast(ast_enabled=False)
-    paths = ["@stage/a.xml", "@stage/b.xml"]
-    DataFrameReader.xml(reader, paths, _emit_ast=False)
-    reader._read_semi_structured_file.assert_called_once_with(paths, "XML")
-
-
-def test_xml_ast_emission_still_records_a_single_path():
+def test_xml_ast_emission_records_the_path():
     reader = _reader_with_ast(ast_enabled=True)
     DataFrameReader.xml(reader, "@stage/a.xml", _emit_ast=True)
     reader._read_semi_structured_file.assert_called_once_with("@stage/a.xml", "XML")
