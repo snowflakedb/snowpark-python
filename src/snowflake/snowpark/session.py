@@ -319,6 +319,7 @@ DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
+# A tuple member is (table, attribute), dot-joined -- not (member, alias).
 MemberRef = Union[str, Tuple[str, str]]
 
 
@@ -3261,7 +3262,9 @@ class Session:
                 name, schema name, and semantic view name).
             dimensions: Members to group by, as a verbatim clause string or a list
                 of members. A list element may be a string, or a
-                ``(table, attribute)`` tuple that is joined with a dot.
+                ``(table, attribute)`` tuple that is joined with a dot — the tuple
+                splits one member's name, it is not a member-and-alias pair. Write
+                an alias in the string form, as ``"orders.revenue AS REV"``.
             metrics: Members to aggregate, in the same forms as ``dimensions``.
             facts: Row-level members, in the same forms as ``dimensions``. The
                 server rejects ``facts`` together with ``metrics``.

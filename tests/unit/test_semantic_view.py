@@ -221,6 +221,16 @@ def test_tuple_element_of_wrong_arity_raises_type_error(fake_session, bad):
     fake_session.sql.assert_not_called()
 
 
+@pytest.mark.parametrize("bad", [1, None, 1.5, ["nested"], {"k": "v"}])
+def test_member_that_is_neither_string_nor_tuple_is_rejected(fake_session, bad):
+    with pytest.raises(
+        TypeError,
+        match=r"metrics\[1\] should be a string or a \(table, attribute\) tuple",
+    ):
+        call(fake_session, "V", metrics=["ok", bad])
+    fake_session.sql.assert_not_called()
+
+
 @pytest.mark.parametrize("bad", [("a", 1), (1, "b"), ("a", None)])
 def test_tuple_element_contents_must_be_strings(fake_session, bad):
     with pytest.raises(TypeError) as exc:
