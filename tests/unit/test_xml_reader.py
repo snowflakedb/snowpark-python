@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     attribute_to_schema_string_deep,
     single_quote,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan import _positive_int_option
 from snowflake.snowpark._internal.utils import (
     quote_name,
     use_xml_variant_projection,
@@ -1528,3 +1529,22 @@ def test_xml_project_from_variant_cache_no_keys_raises_row_tag_not_found():
         SnowparkDataframeReaderException, match="Cannot find the row tag"
     ):
         _project_from_keys([])
+
+
+@pytest.mark.parametrize(
+    "options,expected",
+    [
+        ({}, 16),
+        ({"NUMWORKERS": 4}, 4),
+        ({"NUMWORKERS": "4"}, 4),
+        ({"NUMWORKERS": 1}, 1),
+    ],
+)
+def test_positive_int_option_accepts_valid_values(options, expected):
+    assert _positive_int_option(options, "NUMWORKERS", 16) == expected
+
+
+@pytest.mark.parametrize("value", [0, -1, "not-a-number"])
+def test_positive_int_option_rejects_degenerate_values(value):
+    with pytest.raises(ValueError, match="Must be a positive integer"):
+        _positive_int_option({"NUMWORKERS": value}, "NUMWORKERS", 16)

@@ -1319,6 +1319,11 @@ class DataFrameReader:
                 Rows that do not match the XSD schema will be considered corrupt records and handled according to
                 the specified ``mode`` option.
 
+              + ``numWorkers``: The maximum number of parallel workers used to read the file. The default value is ``16``.
+                The file is split into at most this many byte ranges, each read by one worker. This is a **per-file**
+                cap, not a total: when reading N files, the number of workers scales with N rather than being
+                limited to ``numWorkers`` overall.
+
               + ``cacheResult``: Whether to cache the result DataFrame of the XML reader to a temporary table after calling :meth:`xml`.
                 When set to ``True`` (default), the result is cached and all subsequent operations on the DataFrame are performed on the cached data.
                 This means the actual computation occurs before :meth:`DataFrame.collect` is called.

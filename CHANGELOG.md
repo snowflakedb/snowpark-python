@@ -28,6 +28,7 @@
 - Fixed a bug where referencing `modin.pandas` inside a Snowpark pandas `apply()` function raised a `ModuleNotFoundError`.
 
 - Added a `useVariantProjection` option to `DataFrameReader.xml` that speeds up XML ingestion. The default is `False`; setting it to `True` requires `cacheResult` to also be `True` (the default).
+- Added a `numWorkers` option to `DataFrameReader.xml` for reads that specify `rowTag`, capping how many parallel workers a file is split across (per file, not in total; default `16`, previously a hardcoded cap of `16`).
 
 ## 1.54.0 (2026-07-29)
 

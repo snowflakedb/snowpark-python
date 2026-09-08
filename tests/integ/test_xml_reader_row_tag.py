@@ -1380,3 +1380,33 @@ def test_read_xml_variant_projection_with_schema_and_dropmalformed(
     assert "Frank" not in names
     for r in result:
         assert r["value"] is not None
+
+
+#
+# Byte-range worker count: the numWorkers option.
+#
+
+
+@pytest.mark.parametrize("num_workers", [1, 16, 32])
+def test_read_xml_num_workers_parity(session, num_workers):
+    """How many workers a file is split across must not change what is read out of it.
+
+    fias_house.large.xml is ~352KB, so every value here splits it across more than
+    one worker except numWorkers=1.
+    """
+    default_columns, default_content = _read_xml_content(
+        session, test_file_house_large_xml, "House"
+    )
+    columns, content = _read_xml_content(
+        session, test_file_house_large_xml, "House", numWorkers=num_workers
+    )
+    assert columns == default_columns
+    assert content == default_content
+
+
+@pytest.mark.parametrize("value", [0, -1, "not-a-number"])
+def test_read_xml_rejects_degenerate_num_workers(session, value):
+    with pytest.raises(ValueError, match="Must be a positive integer"):
+        session.read.option("rowTag", "book").option("numWorkers", value).xml(
+            f"@{tmp_stage_name}/{test_file_books_xml}"
+        )
