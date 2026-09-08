@@ -331,6 +331,25 @@ def to_sql_no_cast(
     return f"{value}"
 
 
+def to_sql_for_default_arg(value: Any, datatype: DataType) -> str:
+    """Convert a value with DataType to SQL usable as a parameter's DEFAULT.
+
+    Identical to :func:`to_sql` except that integral values are emitted as bare
+    literals rather than ``<value> :: INT``. A DEFAULT only accepts a constant
+    expression, and the parameter already declares its own type, so the cast is
+    redundant. Snowflake rejects it outright on some server versions with
+    ``invalid default argument expression`` (SNOW-4013704).
+    """
+    if isinstance(datatype, _IntegralType):
+        if value is None:
+            return "NULL"
+        if isinstance(value, int):
+            # bool is a subclass of int, so normalize it to 0/1 for an
+            # integral parameter rather than emitting True/False.
+            return str(int(value))
+    return to_sql(value, datatype)
+
+
 def to_sql(
     value: Any,
     datatype: DataType,
