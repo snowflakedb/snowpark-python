@@ -8,6 +8,8 @@
 
 - Added interval type support for Python UDFs and stored procedures. Use `datetime.timedelta` as the type annotation for day-time interval (`DayTimeIntervalType`) parameters and return values, and `YearMonthInterval` (a type annotation sentinel from `snowflake.snowpark.types`) for year-month interval (`YearMonthIntervalType`) parameters and return values.
 - Added support for a `table_properties` key in the `iceberg_config` dictionary of `DataFrameWriter.save_as_table`, which emits a `TABLE_PROPERTIES = ('k'='v', ...)` clause on Iceberg table creation (CREATE / CTAS).
+- Added `Session.semantic_view()` to query a semantic view. Pass the semantic view name plus any of `dimensions`, `metrics`, `facts`, and `where`; it returns a `DataFrame`.
+
 
 #### Bug Fixes
 
