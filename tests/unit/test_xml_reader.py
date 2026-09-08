@@ -17,7 +17,23 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     attribute_to_schema_string_deep,
     single_quote,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import _positive_int_option
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    DEFAULT_MAX_WORKERS,
+    SnowflakePlanBuilder,
+    _positive_int_option,
+    _stage_directory,
+    _stage_listing_basename,
+    _xml_worker_assignment_sql,
+    _xml_worker_assignments,
+)
+from snowflake.snowpark._internal.udf_utils import (
+    retrieve_func_type_hints_from_source,
+)
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+from snowflake.snowpark._internal.utils import (
+    XML_READER_FILE_PATH,
+    XML_ROW_TAG_STRING,
+)
 from snowflake.snowpark._internal.utils import (
     quote_name,
     use_xml_variant_projection,
@@ -42,6 +58,7 @@ from snowflake.snowpark._internal.xml_reader import (
     _can_cast_to_type,
     _validate_row_for_type_mismatch,
     XMLReader,
+    XMLReaderWithPos,
 )
 from snowflake.snowpark.types import (
     StructType,
@@ -55,6 +72,15 @@ from snowflake.snowpark.types import (
     BooleanType,
     TimestampType,
 )
+
+
+def _records_only(record_iter):
+    """Drop the byte-offset half of process_xml_range's (record, offset) tuples.
+
+    The offset is what includeSourcePos surfaces as _SOURCE_BYTE_POS; tests that predate
+    it assert on the record alone.
+    """
+    return [record for record, _ in record_iter]
 
 
 def test_replace_entity_predefined():
@@ -539,7 +565,7 @@ def test_process_xml_range_charset(charset):
             "snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file
         ):
             # Process the XML with the specified charset
-            results = list(
+            results = _records_only(
                 process_xml_range(
                     file_path="test.xml",
                     tag_name="record",
@@ -582,7 +608,7 @@ def test_process_xml_range_charset_decode_error():
     mock_file = io.BytesIO(xml_bytes)
     with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
         # Process the XML with ASCII charset (should use errors='replace')
-        results = list(
+        results = _records_only(
             process_xml_range(
                 file_path="test.xml",
                 tag_name="record",
@@ -1300,7 +1326,7 @@ def test_process_xml_range_scos_permissive_type_validation():
     schema = _make_schema(("name", StringType()), ("value", LongType()))
     mock_file = io.BytesIO(xml_bytes)
     with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
-        results = list(
+        results = _records_only(
             process_xml_range(
                 file_path="test.xml",
                 tag_name="ROW",
@@ -1332,16 +1358,13 @@ def test_xml_reader_process_with_scos_compatible_param():
     xml_content = "<root><record><a>1</a></record></root>"
     xml_bytes = xml_content.encode("utf-8")
     mock_file = io.BytesIO(xml_bytes)
-    with patch(
-        "snowflake.snowpark._internal.xml_reader.get_file_size",
-        return_value=len(xml_bytes),
-    ), patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
         results = list(
             XMLReader().process(
                 "test.xml",
-                1,
-                "record",
                 0,
+                len(xml_bytes),
+                "record",
                 "PERMISSIVE",
                 "_corrupt_record",
                 True,
@@ -1354,6 +1377,8 @@ def test_xml_reader_process_with_scos_compatible_param():
                 "",
                 "",
                 True,
+                DEFAULT_CHUNK_SIZE,
+                False,
             )
         )
     assert len(results) == 1
@@ -1531,6 +1556,136 @@ def test_xml_project_from_variant_cache_no_keys_raises_row_tag_not_found():
         _project_from_keys([])
 
 
+#
+# Byte-range worker assignment: explicit (FILE_PATH, APPROX_START, APPROX_END) ranges.
+#
+
+
+def _ranges(file_size, max_workers=DEFAULT_MAX_WORKERS, chunk_size=DEFAULT_CHUNK_SIZE):
+    return [
+        (start, end)
+        for _, start, end in _xml_worker_assignments(
+            "@stage/f.xml", file_size, max_workers, chunk_size
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "file_size,max_workers,chunk_size,expected_count",
+    [
+        # Defaults reproduce the historical split: min(16, size // 1024 + 1).
+        (5533, 16, 1024, 6),
+        (1023, 16, 1024, 1),
+        (1024, 16, 1024, 2),
+        (0, 16, 1024, 1),
+        # numWorkers caps the count once the file is large enough to exceed it.
+        (10**6, 16, 1024, 16),
+        (10**6, 32, 1024, 32),
+        (10**6, 1, 1024, 1),
+        # chunkSize drives how many ways the file is divided. These are the cases that
+        # regress if the boundary math reverts to the fixed DEFAULT_CHUNK_SIZE constant:
+        # every one of them would collapse to the chunk_size=1024 count instead.
+        (5533, 16, 4096, 2),
+        (5533, 16, 65536, 1),
+        (10**6, 16, 65536, 16),
+        (10**6, 16, 10**6, 2),
+        (10**6, 16, 10**7, 1),
+    ],
+)
+def test_xml_worker_assignments_count(
+    file_size, max_workers, chunk_size, expected_count
+):
+    assert len(_ranges(file_size, max_workers, chunk_size)) == expected_count
+
+
+def test_xml_worker_assignments_chunk_size_is_not_hardcoded():
+    """chunkSize must change the work split, not just the UDTF's read buffer size.
+
+    The POC passed chunkSize to the UDTF but computed worker boundaries from the fixed
+    1024-byte constant, so raising chunkSize left the split unchanged.
+    """
+    file_size = 10**6
+    counts = {
+        chunk_size: len(_ranges(file_size, 16, chunk_size))
+        for chunk_size in (1024, 65536, 10**6)
+    }
+    assert counts == {1024: 16, 65536: 16, 10**6: 2}
+    # A chunk size at or above the file size means a single worker reads the whole file.
+    assert _ranges(file_size, 16, 10**7) == [(0, file_size)]
+
+
+@pytest.mark.parametrize(
+    "file_size,max_workers,chunk_size",
+    [
+        (5533, 16, 1024),
+        (10**6, 16, 1024),
+        (10**6, 32, 4096),
+        (10**6, 7, 1024),
+        (10**9 + 7, 16, 1024),
+        (1023, 16, 1024),
+        (0, 16, 1024),
+    ],
+)
+def test_xml_worker_assignments_cover_file_exactly(file_size, max_workers, chunk_size):
+    """Ranges must be contiguous, non-overlapping, and cover [0, file_size) exactly --
+    otherwise records would be dropped or read twice."""
+    ranges = _ranges(file_size, max_workers, chunk_size)
+    assert ranges[0][0] == 0
+    assert ranges[-1][1] == file_size
+    for (_, prev_end), (next_start, _) in zip(ranges, ranges[1:]):
+        assert prev_end == next_start
+
+
+def test_xml_worker_assignments_carries_file_path():
+    assignments = _xml_worker_assignments("@stage/dir/books.xml", 5533, 16, 1024)
+    assert {path for path, _, _ in assignments} == {"@stage/dir/books.xml"}
+
+
+@pytest.mark.parametrize("num_workers", [1, 2, 3, 5, 16])
+def test_process_xml_range_does_not_split_records_across_boundaries(num_workers):
+    """Reading a file as N byte ranges must yield exactly the same records as reading it
+    in one range -- no record dropped at a boundary, none read twice."""
+    records = "".join(
+        f"<record><id>{i}</id><name>name-{i}</name></record>" for i in range(40)
+    )
+    xml_bytes = f"<root>{records}</root>".encode()
+
+    def read_range(approx_start, approx_end):
+        with patch(
+            "snowflake.snowpark.files.SnowflakeFile.open",
+            side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
+        ):
+            return _records_only(
+                process_xml_range(
+                    "test.xml",
+                    "record",
+                    approx_start,
+                    approx_end,
+                    "PERMISSIVE",
+                    "_corrupt_record",
+                    True,
+                    "_",
+                    False,
+                    "_VALUE",
+                    "",
+                    "utf-8",
+                    False,
+                    "",
+                )
+            )
+
+    whole = read_range(0, len(xml_bytes))
+    assert len(whole) == 40
+
+    split = []
+    for _, start, end in _xml_worker_assignments(
+        "test.xml", len(xml_bytes), num_workers, 1
+    ):
+        split.extend(read_range(start, end))
+
+    assert [r["id"] for r in split] == [r["id"] for r in whole]
+
+
 @pytest.mark.parametrize(
     "options,expected",
     [
@@ -1548,3 +1703,480 @@ def test_positive_int_option_accepts_valid_values(options, expected):
 def test_positive_int_option_rejects_degenerate_values(value):
     with pytest.raises(ValueError, match="Must be a positive integer"):
         _positive_int_option({"NUMWORKERS": value}, "NUMWORKERS", 16)
+
+
+#
+# Multi-file reads: stage listing basename resolution and per-directory size lookup.
+#
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        # Internal stage: LIST drops the db/schema qualifier and lowercases the
+        # stage-name segment, but the basename is just the final path segment either way.
+        ("stage/dir/f.xml", "f.xml"),
+        ("mystage/SubDir/File.xml", "File.xml"),
+        # Named external stage: LIST reports the underlying cloud URL, unrelated to the
+        # stage's own name -- the basename is still the final segment.
+        ("s3://bucket/prefix/security_master_1.xml", "security_master_1.xml"),
+        ("azure://account.blob.core.windows.net/container/dir/f.xml", "f.xml"),
+        ("gcs://bucket/dir/f.xml", "f.xml"),
+        # A bare filename (no directory) is its own basename.
+        ("f.xml", "f.xml"),
+    ],
+)
+def test_stage_listing_basename(name, expected):
+    assert _stage_listing_basename(name) == expected
+
+
+@pytest.mark.parametrize(
+    "file_path,expected",
+    [
+        ("@stage/dir/f.xml", "@stage/dir"),
+        ("@stage/a/b/f.xml", "@stage/a/b"),
+        ("@stage/f.xml", "@stage"),
+        ("@stage", "@stage"),
+    ],
+)
+def test_stage_directory(file_path, expected):
+    assert _stage_directory(file_path) == expected
+
+
+def _fake_builder(listing):
+    """A SnowflakePlanBuilder whose session records `ls` targets and replays `listing`."""
+    builder = SnowflakePlanBuilder.__new__(SnowflakePlanBuilder)
+    listed = []
+
+    def fake_sql(sql, **kwargs):
+        listed.append(sql)
+        target = sql[len("ls ") :]
+        result = mock.MagicMock()
+        result.collect.return_value = listing.get(target, [])
+        return result
+
+    builder.session = mock.MagicMock()
+    builder.session.sql.side_effect = fake_sql
+    return builder, listed
+
+
+def test_resolve_stage_file_sizes_lists_each_directory_once():
+    """Files sharing a directory must cost one LIST between them, not one apiece --
+    a LIST per file would be a round trip per file before the read even starts."""
+    listing = {
+        "@stage/dir": [
+            {"name": "stage/dir/a.xml", "size": 10},
+            {"name": "stage/dir/b.xml", "size": 20},
+            {"name": "stage/dir/c.xml", "size": 30},
+        ],
+        # Listed by exact path, since this directory contributes only one file.
+        "@stage/other/d.xml": [{"name": "stage/other/d.xml", "size": 40}],
+    }
+    builder, listed = _fake_builder(listing)
+    sizes = builder._resolve_stage_file_sizes(
+        [
+            "@stage/dir/a.xml",
+            "@stage/dir/b.xml",
+            "@stage/dir/c.xml",
+            "@stage/other/d.xml",
+        ]
+    )
+    assert sizes["@stage/dir/a.xml"] == 10
+    assert sizes["@stage/other/d.xml"] == 40
+    # Two directories -> two LISTs, for four files.
+    assert len(listed) == 2
+
+
+def test_resolve_stage_file_sizes_lists_exact_path_for_lone_file():
+    """A directory contributing one file is listed by that file's path, so a single-file
+    read does not enumerate a directory that may hold far more."""
+    listing = {"@stage/dir/a.xml": [{"name": "stage/dir/a.xml", "size": 10}]}
+    builder, listed = _fake_builder(listing)
+    sizes = builder._resolve_stage_file_sizes(["@stage/dir/a.xml"])
+    assert sizes == {"@stage/dir/a.xml": 10}
+    assert listed == ["ls @stage/dir/a.xml"]
+
+
+def test_resolve_stage_file_sizes_matches_mixed_case_stage_listing():
+    """A mixed-case stage name resolves against LIST's lowercased form -- matching by
+    basename means the stage-name segment's case never has to be reconstructed at all."""
+    listing = {
+        "@db.schema.MyStage/SubDir": [
+            {"name": "mystage/SubDir/a.xml", "size": 11},
+            {"name": "mystage/SubDir/b.xml", "size": 22},
+        ]
+    }
+    builder, _ = _fake_builder(listing)
+    paths = ["@db.schema.MyStage/SubDir/a.xml", "@db.schema.MyStage/SubDir/b.xml"]
+    sizes = builder._resolve_stage_file_sizes(paths)
+    assert [sizes[p] for p in paths] == [11, 22]
+
+
+def test_resolve_stage_file_sizes_matches_named_external_stage_listing():
+    """A named external stage's LIST reports the underlying cloud URL, not
+    ``stage/path`` -- this is the bug this fix exists for: reconstructing an expected
+    listing name from the stage identifier missed every external-stage file, since the
+    URL has no relation to the stage's own name."""
+    listing = {
+        "@db.schema.ext_stage/dir": [
+            {
+                "name": "s3://ecosystem-sas/test_files_xml/security_master_1.xml",
+                "size": 123,
+            },
+            {
+                "name": "s3://ecosystem-sas/test_files_xml/security_master_2.xml",
+                "size": 456,
+            },
+        ]
+    }
+    builder, _ = _fake_builder(listing)
+    paths = [
+        "@db.schema.ext_stage/dir/security_master_1.xml",
+        "@db.schema.ext_stage/dir/security_master_2.xml",
+    ]
+    sizes = builder._resolve_stage_file_sizes(paths)
+    assert [sizes[p] for p in paths] == [123, 456]
+
+
+def test_resolve_stage_file_sizes_missing_file_raises():
+    listing = {"@stage/dir": [{"name": "stage/dir/a.xml", "size": 10}]}
+    builder, _ = _fake_builder(listing)
+    with pytest.raises(ValueError, match="does not exist"):
+        builder._resolve_stage_file_sizes(["@stage/dir/does_not_exist.xml"])
+
+
+def test_resolve_stage_file_sizes_ignores_recursively_listed_subdirectory_files():
+    """LIST recurses into subdirectories, so listing a directory with two requested
+    files can also return an unrequested file several levels down that happens to share
+    a basename with one of them. Depth-filtering must exclude it, or the wrong size gets
+    assigned and byte ranges silently cover only part of the real file."""
+    listing = {
+        "@stage/dir": [
+            {"name": "stage/dir/a.xml", "size": 32},
+            {"name": "stage/dir/b.xml", "size": 32},
+            # Same basename as dir/a.xml, one level deeper -- must not be matched.
+            {"name": "stage/dir/sub/a.xml", "size": 512},
+        ]
+    }
+    builder, _ = _fake_builder(listing)
+    sizes = builder._resolve_stage_file_sizes(["@stage/dir/a.xml", "@stage/dir/b.xml"])
+    assert sizes == {"@stage/dir/a.xml": 32, "@stage/dir/b.xml": 32}
+
+
+def test_resolve_stage_file_sizes_ignores_deeper_match_regardless_of_list_order():
+    """The shallower row must win even when LIST returns the deeper duplicate first."""
+    listing = {
+        "@stage/dir": [
+            {"name": "stage/dir/sub/a.xml", "size": 512},
+            {"name": "stage/dir/a.xml", "size": 32},
+            {"name": "stage/dir/b.xml", "size": 64},
+        ]
+    }
+    builder, _ = _fake_builder(listing)
+    sizes = builder._resolve_stage_file_sizes(["@stage/dir/a.xml", "@stage/dir/b.xml"])
+    assert sizes == {"@stage/dir/a.xml": 32, "@stage/dir/b.xml": 64}
+
+
+#
+# skipChildren: read only the row tag's own attributes.
+#
+
+
+def _skip_children_records(xml_bytes, tag_name="PARENT", **kwargs):
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
+    ):
+        return list(
+            process_xml_range(
+                "test.xml",
+                tag_name,
+                0,
+                len(xml_bytes),
+                "PERMISSIVE",
+                "_corrupt_record",
+                True,
+                "_",
+                False,
+                "_VALUE",
+                "",
+                "utf-8",
+                False,
+                "",
+                skip_children=True,
+                **kwargs,
+            )
+        )
+
+
+def test_skip_children_yields_only_opening_tag_attributes():
+    xml_bytes = (
+        b"<ROOT>"
+        b'<PARENT id="p1" region="north"><CHILD sku="x"><name>A</name></CHILD></PARENT>'
+        b'<PARENT id="p2" region="south"><CHILD sku="y"><name>B</name></CHILD></PARENT>'
+        b"</ROOT>"
+    )
+    records = _skip_children_records(xml_bytes)
+    assert [record for record, _ in records] == [
+        {"_id": "p1", "_region": "north"},
+        {"_id": "p2", "_region": "south"},
+    ]
+
+
+def test_skip_children_reports_record_start_offsets():
+    xml_bytes = b'<ROOT><PARENT id="p1"><CHILD/></PARENT><PARENT id="p2"><CHILD/></PARENT></ROOT>'
+    records = _skip_children_records(xml_bytes)
+    offsets = [offset for _, offset in records]
+    assert offsets == [
+        xml_bytes.index(b'<PARENT id="p1"'),
+        xml_bytes.index(b'<PARENT id="p2"'),
+    ]
+
+
+def test_skip_children_handles_self_closing_and_attributeless_tags():
+    xml_bytes = b'<ROOT><PARENT /><PARENT id="p2"/><PARENT></PARENT></ROOT>'
+    assert [record for record, _ in _skip_children_records(xml_bytes)] == [
+        {},
+        {"_id": "p2"},
+        {},
+    ]
+
+
+def test_skip_children_ignores_bare_self_closing_tag_like_the_default_path():
+    """A "<TAG/>" with no space and no attributes is not recognized as an opening tag.
+
+    The scanner searches for "<TAG>" or "<TAG ", so this is missed on the ordinary read
+    path too -- asserted here only to pin that skipChildren does not diverge from it.
+    """
+    xml_bytes = b'<ROOT><PARENT/><PARENT x="1"/></ROOT>'
+    assert [record for record, _ in _skip_children_records(xml_bytes)] == [{"_x": "1"}]
+
+
+def test_skip_children_reads_past_a_small_chunk_size():
+    """chunk_size can be smaller than the opening tag; skip_children must still read far
+    enough to capture every attribute rather than truncating mid-tag."""
+    xml_bytes = (
+        b"<ROOT>"
+        b'<PARENT alpha="1" beta="2" gamma="3" delta="4" epsilon="5"></PARENT>'
+        b"</ROOT>"
+    )
+    records = _skip_children_records(xml_bytes, chunk_size=8)
+    assert [record for record, _ in records] == [
+        {
+            "_alpha": "1",
+            "_beta": "2",
+            "_gamma": "3",
+            "_delta": "4",
+            "_epsilon": "5",
+        }
+    ]
+
+
+def test_skip_children_respects_attribute_prefix():
+    xml_bytes = b'<ROOT><PARENT id="p1"></PARENT></ROOT>'
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
+    ):
+        records = list(
+            process_xml_range(
+                "test.xml",
+                "PARENT",
+                0,
+                len(xml_bytes),
+                "PERMISSIVE",
+                "_corrupt_record",
+                True,
+                "",
+                False,
+                "_VALUE",
+                "",
+                "utf-8",
+                False,
+                "",
+                skip_children=True,
+            )
+        )
+    assert [record for record, _ in records] == [{"id": "p1"}]
+
+
+#
+# includeSourcePos: the XMLReaderWithPos handler.
+#
+
+
+def _process_args(xml_bytes, skip_children=False):
+    return (
+        "test.xml",
+        0,
+        len(xml_bytes),
+        "record",
+        "PERMISSIVE",
+        "_corrupt_record",
+        True,
+        "_",
+        False,
+        "_VALUE",
+        "",
+        "utf-8",
+        True,
+        "",
+        "",
+        False,
+        DEFAULT_CHUNK_SIZE,
+        skip_children,
+    )
+
+
+def test_xml_reader_with_pos_emits_byte_offset_and_file_path():
+    xml_bytes = b"<root><record><a>1</a></record><record><a>2</a></record></root>"
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
+    ):
+        rows = list(XMLReaderWithPos().process(*_process_args(xml_bytes)))
+    assert [row[0]["a"] for row in rows] == ["1", "2"]
+    assert [row[1] for row in rows] == [
+        xml_bytes.index(b"<record><a>1</a>"),
+        xml_bytes.index(b"<record><a>2</a>"),
+    ]
+    # The file path comes from the handler, so it stays right when one worker-assignment
+    # row covers more than one file.
+    assert {row[2] for row in rows} == {"test.xml"}
+
+
+def test_xml_reader_emits_only_the_record():
+    """The default handler's output shape is unchanged by includeSourcePos existing."""
+    xml_bytes = b"<root><record><a>1</a></record></root>"
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
+    ):
+        rows = list(XMLReader().process(*_process_args(xml_bytes)))
+    assert rows == [({"a": "1"},)]
+
+
+@pytest.mark.parametrize("handler", ["XMLReader", "XMLReaderWithPos"])
+def test_xml_udtf_handler_input_types_are_recoverable_from_source(handler):
+    """Both handlers must declare the full annotated signature on their own `process`.
+
+    UDTF registration recovers input types by AST-scanning the named class, which does not
+    follow inheritance -- a handler that delegated without repeating the annotations would
+    register with the wrong input types.
+    """
+    hints = retrieve_func_type_hints_from_source(
+        XML_READER_FILE_PATH, "process", class_name=handler
+    )
+    assert hints is not None
+    input_hints = {name: t for name, t in hints.items() if name != "return"}
+    assert len(input_hints) == 18
+    assert input_hints["filename"] == "str"
+    assert input_hints["approx_start"] == "int"
+    assert input_hints["approx_end"] == "int"
+    assert input_hints["chunk_size"] == "int"
+    assert input_hints["skip_children"] == "bool"
+
+
+#
+# AST emission for list input.
+#
+
+
+def _reader_with_ast(ast_enabled):
+    """A DataFrameReader wired up just enough to reach xml()'s AST-emission branch.
+
+    Callers must pass _emit_ast explicitly: the @publicapi decorator otherwise overwrites
+    it with the global AST flag, which is off under unit tests.
+    """
+    reader = DataFrameReader.__new__(DataFrameReader)
+    reader._cur_options = {XML_ROW_TAG_STRING: "record"}
+    reader._session = mock.MagicMock()
+    reader._ast = proto.Expr() if ast_enabled else None
+    reader._user_schema = None
+    reader._xml_inferred_schema = None
+    reader._read_semi_structured_file = mock.MagicMock(return_value=mock.MagicMock())
+    return reader
+
+
+def test_xml_ast_emission_rejects_list_input():
+    """ReadXml.path is a scalar string in the generated AST schema, so a list of paths has
+    nowhere to be recorded. It must fail with an explanation rather than surfacing as a
+    protobuf type error from the assignment.
+    """
+    reader = _reader_with_ast(ast_enabled=True)
+    with pytest.raises(NotImplementedError, match="list of XML paths"):
+        DataFrameReader.xml(reader, ["@stage/a.xml", "@stage/b.xml"], _emit_ast=True)
+
+
+def test_xml_list_input_is_allowed_when_ast_is_disabled():
+    reader = _reader_with_ast(ast_enabled=False)
+    paths = ["@stage/a.xml", "@stage/b.xml"]
+    DataFrameReader.xml(reader, paths, _emit_ast=False)
+    reader._read_semi_structured_file.assert_called_once_with(paths, "XML")
+
+
+def test_xml_ast_emission_still_records_a_single_path():
+    reader = _reader_with_ast(ast_enabled=True)
+    DataFrameReader.xml(reader, "@stage/a.xml", _emit_ast=True)
+    reader._read_semi_structured_file.assert_called_once_with("@stage/a.xml", "XML")
+
+
+#
+# Worker-assignment SQL: must stay a single statement at any file count.
+#
+
+
+def test_xml_worker_assignment_sql_shape():
+    sql = _xml_worker_assignment_sql(
+        [("@stage/a.xml", 0, 10), ("@stage/b.xml", 10, 25)],
+        "FILE_PATH",
+        "APPROX_START",
+        "APPROX_END",
+    )
+    assert sql == (
+        "SELECT $1 AS FILE_PATH, $2 AS APPROX_START, $3 AS APPROX_END FROM VALUES "
+        "('@stage/a.xml', 0::BIGINT, 10::BIGINT), "
+        "('@stage/b.xml', 10::BIGINT, 25::BIGINT)"
+    )
+
+
+@pytest.mark.parametrize("assignment_count", [1, 199, 200, 3200])
+def test_xml_worker_assignment_sql_is_one_statement_at_any_scale(assignment_count):
+    """The assignment table must be a single inline VALUES query no matter how many files
+    are read.
+
+    Session.create_dataframe would switch to CREATE TEMP TABLE + INSERT + SELECT somewhere
+    below 200 rows, and only one query survives into the reader's plan -- so the setup
+    statements would be dropped and the surviving SELECT would reference a table that was
+    never created. That failure only appears once enough files are read to cross the
+    threshold, which is why the row counts here straddle it.
+    """
+    assignments = [(f"@stage/f{i}.xml", i, i + 10) for i in range(assignment_count)]
+    sql = _xml_worker_assignment_sql(
+        assignments, "FILE_PATH", "APPROX_START", "APPROX_END"
+    )
+    assert sql.count("SELECT") == 1
+    assert "CREATE" not in sql.upper()
+    assert "INSERT" not in sql.upper()
+    assert ";" not in sql
+    assert sql.count("::BIGINT") == 2 * assignment_count
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "@stage/it's.xml",
+        "@stage/back\\slash.xml",
+        "@stage/new\nline.xml",
+        "@stage/'; DROP TABLE t; --",
+    ],
+)
+def test_xml_worker_assignment_sql_escapes_paths(path):
+    """Paths reach the statement as literals, so a quote or backslash must not be able to
+    terminate the literal early."""
+    sql = _xml_worker_assignment_sql([(path, 0, 1)], "F", "S", "E")
+    body = sql[sql.index("FROM VALUES ") + len("FROM VALUES ") :]
+    literal = body[body.index("(") + 1 : body.index(", 0::BIGINT")]
+    assert literal.startswith("'") and literal.endswith("'")
+    # No unescaped single quote can appear inside the literal body.
+    assert "'" not in literal[1:-1].replace("''", "")

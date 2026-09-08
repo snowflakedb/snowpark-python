@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CATALOG>
+  <PARENT id="a1" region="north">
+    <CHILD sku="a1-1"><name>Alpha One</name><qty>3</qty></CHILD>
+    <CHILD sku="a1-2"><name>Alpha Two</name><qty>5</qty></CHILD>
+  </PARENT>
+  <PARENT id="a2" region="south">
+    <CHILD sku="a2-1"><name>Alpha Three</name><qty>7</qty></CHILD>
+  </PARENT>
+</CATALOG>

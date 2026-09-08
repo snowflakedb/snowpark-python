@@ -10,6 +10,9 @@
 
 - Added a `useVariantProjection` option to `DataFrameReader.xml` that speeds up XML ingestion. The default is `False`; setting it to `True` requires `cacheResult` to also be `True` (the default).
 - Added a `numWorkers` option to `DataFrameReader.xml` for reads that specify `rowTag`, capping how many parallel workers a file is split across (per file, not in total; default `16`, previously a hardcoded cap of `16`).
+- Added support for passing a list of stage file paths to `DataFrameReader.xml` when `rowTag` is specified. All of the files' byte ranges share a single query plan and are dispatched in parallel, instead of the files being read one at a time and unioned afterwards. File sizes are resolved with one `LIST` per distinct stage directory rather than one per file.
+- Added a `skipChildren` option to `DataFrameReader.xml` for reads that specify `rowTag`, which reads only the attributes on the row tag's own opening tag without parsing anything nested inside it. Use it with a `rowTag` naming a parent or wrapper element to read file-level metadata without parsing the records beneath it.
+- Added an `includeSourcePos` option to `DataFrameReader.xml` for reads that specify `rowTag`, which adds `_source_byte_pos` and `_source_file_path` columns recording the byte offset each record starts at and the file it came from. Offsets are relative to their own file, so `_source_file_path` is what distinguishes them across files. Requires that no schema be given, and is not supported with `cacheResult=False`.
 
 ## 1.54.0 (2026-07-29)
 

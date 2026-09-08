@@ -14,7 +14,8 @@ from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import col, lit
+from snowflake.snowpark import Window
+from snowflake.snowpark.functions import col, lit, row_number
 from snowflake.snowpark.types import (
     StructType,
     StructField,
@@ -63,6 +64,17 @@ test_file_books_xsd = "books.xsd"
 test_file_dk_trace_xml = "dk_trace_sample.xml"
 test_file_dblp_xml = "dblp_6kb.xml"
 test_file_books_attr_val_xml = "books_attribute_value.xml"
+# Multi-file fixtures: each has <PARENT> elements wrapping <CHILD> elements, so a
+# parent/child range JOIN on includeSourcePos output can be checked across files.
+test_file_multifile_a_xml = "multifile_a.xml"
+test_file_multifile_b_xml = "multifile_b.xml"
+test_file_multifile_c_xml = "multifile_c.xml"
+multifile_subdirectory = "multifile"
+test_files_multifile = [
+    test_file_multifile_a_xml,
+    test_file_multifile_b_xml,
+    test_file_multifile_c_xml,
+]
 
 # Global stage name for uploading test files
 tmp_stage_name = Utils.random_stage_name()
@@ -200,6 +212,20 @@ def setup(session, resources_path, local_testing_mode):
         test_files.test_books_attribute_value_xml,
         compress=False,
     )
+
+    # Uploaded under a subdirectory of their own so the multi-file read exercises a
+    # single directory listing rather than one per file.
+    for local_path in (
+        test_files.test_multifile_a_xml,
+        test_files.test_multifile_b_xml,
+        test_files.test_multifile_c_xml,
+    ):
+        Utils.upload_to_stage(
+            session,
+            f"@{tmp_stage_name}/{multifile_subdirectory}",
+            local_path,
+            compress=False,
+        )
 
     # Upload inline XML strings for mode tests
     for name, xml_str in {
@@ -1410,3 +1436,224 @@ def test_read_xml_rejects_degenerate_num_workers(session, value):
         session.read.option("rowTag", "book").option("numWorkers", value).xml(
             f"@{tmp_stage_name}/{test_file_books_xml}"
         )
+
+
+#
+# Multi-file reads, skipChildren, and includeSourcePos.
+#
+
+
+def _multifile_paths(file_names=None):
+    return [
+        f"@{tmp_stage_name}/{multifile_subdirectory}/{name}"
+        for name in (file_names or test_files_multifile)
+    ]
+
+
+def _content_by_name(df):
+    names = [c.strip('"').strip("'") for c in df.columns]
+    return sorted(
+        tuple(sorted(zip(names, (str(v) for v in row)))) for row in df.collect()
+    )
+
+
+def _read_paths(session, paths, row_tag, **options):
+    reader = session.read.option("rowTag", row_tag)
+    for key, value in options.items():
+        reader = reader.option(key, value)
+    return reader.xml(paths)
+
+
+def test_read_xml_multifile_matches_sum_of_single_file_reads(session):
+    """One list read must produce exactly what reading each file separately produces."""
+    paths = _multifile_paths()
+    combined = _read_paths(session, paths, "CHILD")
+
+    per_file = []
+    for path in paths:
+        per_file.extend(_content_by_name(_read_paths(session, path, "CHILD")))
+
+    assert len(combined.collect()) == 9
+    assert _content_by_name(combined) == sorted(per_file)
+
+
+def test_read_xml_multifile_reads_a_subset_of_a_directory(session):
+    """Only the listed files are read, not everything in their directory."""
+    subset = _multifile_paths([test_file_multifile_a_xml, test_file_multifile_b_xml])
+    assert len(_read_paths(session, subset, "CHILD").collect()) == 5
+    assert len(_read_paths(session, subset, "PARENT").collect()) == 3
+
+
+def test_read_xml_multifile_lists_each_directory_once(session):
+    """A LIST per file would be a round trip per file before the read starts; files
+    sharing a directory must resolve their sizes in a single LIST."""
+    with session.query_history() as history:
+        _read_paths(session, _multifile_paths(), "CHILD")
+
+    listings = [
+        q.sql_text
+        for q in history.queries
+        if q.sql_text.strip().lower().startswith("ls ")
+        and multifile_subdirectory in q.sql_text
+    ]
+    assert len(listings) == 1
+
+
+def test_read_xml_multifile_missing_file_raises(session):
+    paths = _multifile_paths() + [
+        f"@{tmp_stage_name}/{multifile_subdirectory}/does_not_exist.xml"
+    ]
+    with pytest.raises(ValueError, match="does not exist"):
+        _read_paths(session, paths, "CHILD")
+
+
+@pytest.mark.parametrize(
+    "paths,match",
+    [
+        ([], "must not be empty"),
+        (["@stage/a.xml"], "only supported for XML with the rowTag"),
+    ],
+)
+def test_read_xml_list_path_validation(session, paths, match):
+    if match == "must not be empty":
+        with pytest.raises(ValueError, match=match):
+            session.read.option("rowTag", "CHILD").xml(paths)
+    else:
+        # A list without rowTag has no multi-file read path to use.
+        with pytest.raises(ValueError, match=match):
+            session.read.xml(paths)
+
+
+def test_read_xml_skip_children_reads_only_parent_attributes(session):
+    paths = _multifile_paths()
+    skipped = _read_paths(session, paths, "PARENT", skipChildren=True)
+    assert sorted(c.strip('"').strip("'") for c in skipped.columns) == [
+        "_id",
+        "_region",
+    ]
+
+    rows = skipped.collect()
+    assert len(rows) == 6
+    assert {row["'_id'"].strip('"') for row in rows} == {
+        "a1",
+        "a2",
+        "b1",
+        "c1",
+        "c2",
+        "c3",
+    }
+
+    # Without the option the same row tag also yields the nested CHILD content.
+    full = _read_paths(session, paths, "PARENT")
+    assert "CHILD" in {c.strip('"').strip("'") for c in full.columns}
+    assert len(full.collect()) == 6
+
+
+def test_read_xml_include_source_pos_adds_position_columns(session):
+    paths = _multifile_paths()
+    df = _read_paths(session, paths, "CHILD", includeSourcePos=True)
+
+    names = [c.strip('"').strip("'") for c in df.columns]
+    assert names[-2:] == ["_source_byte_pos", "_source_file_path"]
+
+    rows = df.collect()
+    assert len(rows) == 9
+    # Every file contributes, and offsets are plain integers rather than VARIANT.
+    assert {row["'_source_file_path'"].rsplit("/", 1)[-1] for row in rows} == set(
+        test_files_multifile
+    )
+    assert all(isinstance(row["'_source_byte_pos'"], int) for row in rows)
+    assert all(row["'_source_byte_pos'"] > 0 for row in rows)
+
+    # Without the option the columns are absent.
+    plain = _read_paths(session, paths, "CHILD")
+    assert not any("_source" in c for c in plain.columns)
+
+
+def test_read_xml_include_source_pos_supports_parent_child_range_join(session):
+    """The point of the position columns: attribute each child to the parent whose byte
+    range contains it. Offsets restart per file, so the file path is what keeps children
+    from being matched to a parent in a different file."""
+    paths = _multifile_paths()
+    parents = _read_paths(
+        session, paths, "PARENT", skipChildren=True, includeSourcePos=True
+    )
+    children = _read_paths(session, paths, "CHILD", includeSourcePos=True)
+
+    parents = parents.select(
+        col("'_id'").cast(StringType()).alias("PARENT_ID"),
+        col("'_source_file_path'").alias("PARENT_FILE"),
+        col("'_source_byte_pos'").alias("PARENT_POS"),
+    )
+    children = children.select(
+        col("'_sku'").cast(StringType()).alias("SKU"),
+        col("'_source_file_path'").alias("CHILD_FILE"),
+        col("'_source_byte_pos'").alias("CHILD_POS"),
+    )
+
+    joined = children.join(
+        parents,
+        (children["CHILD_FILE"] == parents["PARENT_FILE"])
+        & (parents["PARENT_POS"] <= children["CHILD_POS"]),
+    )
+    # Among all parents starting before a child, the closest one encloses it.
+    attributed = joined.select(
+        col("SKU"),
+        col("PARENT_ID"),
+        row_number()
+        .over(
+            Window.partition_by(col("CHILD_FILE"), col("CHILD_POS")).order_by(
+                col("PARENT_POS").desc()
+            )
+        )
+        .alias("RN"),
+    ).filter(col("RN") == 1)
+
+    rows = attributed.collect()
+    assert len(rows) == 9
+    for row in rows:
+        sku = row["SKU"].strip('"')
+        parent_id = row["PARENT_ID"].strip('"')
+        assert sku.startswith(parent_id), f"{sku} attributed to {parent_id}"
+
+
+@pytest.mark.parametrize(
+    "options,match",
+    [
+        ({"cacheResult": False}, "requires the VARIANT projection"),
+        ({"_LEGACY_XML_PIVOT": True}, "requires the VARIANT projection"),
+    ],
+)
+def test_read_xml_include_source_pos_rejects_unsupported_paths(session, options, match):
+    """Rather than silently dropping the position columns on a path that cannot carry
+    them, the option is rejected."""
+    reader = session.read.option("rowTag", "CHILD").option("includeSourcePos", True)
+    for key, value in options.items():
+        reader = reader.option(key, value)
+    with pytest.raises(ValueError, match=match):
+        reader.xml(_multifile_paths())
+
+
+def test_read_xml_include_source_pos_rejects_user_schema(session):
+    schema = StructType([StructField("_sku", StringType())])
+    with pytest.raises(ValueError, match="not supported when a schema is"):
+        session.read.schema(schema).option("rowTag", "CHILD").option(
+            "includeSourcePos", True
+        ).xml(_multifile_paths())
+
+
+def test_read_xml_multifile_with_many_worker_rows(session):
+    """A read whose assignment table exceeds a couple hundred rows must still execute.
+
+    Session.create_dataframe switches from an inline VALUES to CREATE TEMP TABLE + INSERT
+    + SELECT below 200 rows, and only one query survives into the reader's plan -- so
+    building the table that way silently produced a SELECT against a table that was never
+    created. chunkSize=1 forces each small file up to the numWorkers cap, putting the row
+    count well past the threshold on fixtures that are only a few hundred bytes each.
+    """
+    paths = _multifile_paths()
+    df = _read_paths(session, paths, "CHILD", numWorkers=100, chunkSize=1)
+    assert len(df.collect()) == 9
+    assert _content_by_name(df) == _content_by_name(
+        _read_paths(session, paths, "CHILD")
+    )
