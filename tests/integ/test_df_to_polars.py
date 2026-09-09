@@ -239,18 +239,18 @@ def test_to_polars_statement_params(session):
 
 
 # ---------------------------------------------------------------------------
-# use_parquet=True (eager parquet)
+# transport="parquet" (eager parquet)
 # ---------------------------------------------------------------------------
 
 
 @_skip_local
-def test_to_polars_use_parquet_basic_types(session):
+def test_to_polars_transport_parquet_basic_types(session):
     """Common primitive types round-trip through the eager Parquet path."""
     df = session.sql(
         "SELECT 42::INT AS i, 'hello'::VARCHAR AS s, TRUE AS b,"
         "       DATE '2024-01-01' AS d"
     )
-    pl_df = df.to_polars(use_parquet=True)
+    pl_df = df.to_polars(transport="parquet")
     assert isinstance(pl_df, pl.DataFrame)
     assert pl_df.height == 1
     row = pl_df.to_dicts()[0]
@@ -261,14 +261,14 @@ def test_to_polars_use_parquet_basic_types(session):
 
 
 @_skip_local
-def test_to_polars_use_parquet_matches_arrow_shape(session):
+def test_to_polars_transport_parquet_matches_arrow_shape(session):
     """Eager Parquet and eager Arrow return the same shape on a non-trivial
     dataset. Values are compared in a downcast-aware way: FLOAT is compared
     at float32 precision on both sides."""
     df = session.create_dataframe(
         [[i, str(i), i * 1.5] for i in range(500)], schema=["ID", "S", "F"]
     )
-    pq = df.to_polars(use_parquet=True)
+    pq = df.to_polars(transport="parquet")
     arrow = df.to_polars()
     assert pq.height == arrow.height == 500
     assert set(pq.columns) == set(arrow.columns)
@@ -282,21 +282,21 @@ def test_to_polars_use_parquet_matches_arrow_shape(session):
 
 
 @_skip_local
-def test_to_polars_use_parquet_timestamp_ltz_raises(session):
+def test_to_polars_transport_parquet_timestamp_ltz_raises(session):
     """TIMESTAMP_LTZ / TIMESTAMP_TZ can't be unloaded to Parquet — locks in
     the documented behavior so a future change to the doc or code is caught."""
     df = session.sql("SELECT TO_TIMESTAMP_LTZ('2024-01-15 12:00:00 -0800') AS ts_ltz")
     with pytest.raises(Exception, match="(?i)timestamp"):
-        df.to_polars(use_parquet=True)
+        df.to_polars(transport="parquet")
 
 
 @_skip_local
-def test_to_polars_use_parquet_empty(session):
+def test_to_polars_transport_parquet_empty(session):
     """Empty result from the Parquet path returns a schema-preserving DataFrame."""
     pl_df = (
         session.create_dataframe([[1, 2]], schema=["A", "B"])
         .filter(col("A") > 100)
-        .to_polars(use_parquet=True)
+        .to_polars(transport="parquet")
     )
     assert isinstance(pl_df, pl.DataFrame)
     assert pl_df.height == 0
@@ -341,7 +341,7 @@ def test_to_polars_column_identifier_casing(
     eager = df.to_polars()
     assert eager.columns == expected_columns
 
-    pq = df.to_polars(use_parquet=True)
+    pq = df.to_polars(transport="parquet")
     assert pq.columns == expected_columns
 
     # User selects by the Polars column name they see; that name must resolve
@@ -489,5 +489,5 @@ def test_max_workers_forwarded_to_open_helper():
 def test_to_polars_max_workers_param(session):
     """max_workers is accepted and produces correct results on the parquet path."""
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
-    pq = df.to_polars(use_parquet=True, max_workers=2)
+    pq = df.to_polars(transport="parquet", max_workers=2)
     assert isinstance(pq, pl.DataFrame) and pq.height == 2

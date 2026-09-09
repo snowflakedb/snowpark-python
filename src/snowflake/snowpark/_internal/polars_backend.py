@@ -95,7 +95,7 @@ def arrow_eager(
 ) -> pl.DataFrame:
     """Fetch the result as Arrow batches and return a polars DataFrame.
 
-    Backs the default ``to_polars()`` path (``use_parquet=False``).
+    Backs the default ``to_polars()`` path (``transport="arrow"``).
     Preserves full Snowflake type fidelity.
     """
     import polars as pl
@@ -119,7 +119,7 @@ def parquet_eager(
 ) -> pl.DataFrame:
     """COPY INTO Parquet, read the staged files in parallel, return a polars DataFrame.
 
-    Backs ``to_polars(use_parquet=True)``. Subject to the Parquet type-fidelity
+    Backs ``to_polars(transport="parquet")``. Subject to the Parquet type-fidelity
     caveats documented on ``DataFrame.to_polars``.
     """
     import polars as pl

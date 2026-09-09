@@ -8,6 +8,7 @@ import datetime
 import itertools
 import random
 import re
+import typing
 from collections import Counter
 from decimal import Decimal
 from functools import cached_property, reduce
@@ -1379,7 +1380,7 @@ class DataFrame:
     def to_polars(
         self,
         *,
-        use_parquet: bool = False,
+        transport: typing.Literal["arrow", "parquet"] = "arrow",
         max_workers: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> "polars.DataFrame":
@@ -1387,18 +1388,18 @@ class DataFrame:
         Executes the query representing this DataFrame and returns the result
         as a `Polars DataFrame <https://docs.pola.rs/py-polars/html/reference/dataframe/index.html>`_.
 
-        The transport is selected by ``use_parquet``:
+        The transport is selected by ``transport``:
 
-        ============  ============================================
-        use_parquet   Transport
-        ============  ============================================
-        False         Arrow (default; full Snowflake type fidelity)
-        True          Parquet unload + eager parallel read
-        ============  ============================================
+        ==========  ============================================
+        transport   Description
+        ==========  ============================================
+        "arrow"     Arrow (default; full Snowflake type fidelity)
+        "parquet"   Parquet unload + eager parallel read
+        ==========  ============================================
 
         Usage Notes:
             - **Transport selection**:
-                - **Parquet** (``use_parquet=True``):
+                - ``"parquet"``:
                   Recommended when the result set is large and the type-fidelity
                   caveats are acceptable. Snowflake's ``COPY INTO`` splits the
                   result into multiple Parquet files that are opened and read
@@ -1410,7 +1411,7 @@ class DataFrame:
                   modest; for small or medium result sets the ``COPY INTO``
                   setup cost may outweigh the gain, making Arrow the more
                   efficient choice.
-                - **Arrow** (default, ``use_parquet=False``):
+                - ``"arrow"`` (default):
                   Streams result batches directly from the cursor without
                   staging to disk. Preserves full Snowflake type fidelity.
                   Use when type accuracy is required, or when the result set is
@@ -1418,7 +1419,7 @@ class DataFrame:
                   is not justified.
             - **Parallelism tuning**: ``max_workers`` controls the thread pool
               for opening and reading staged Parquet files. Only applies to
-              the Parquet path; ignored for the Arrow path. The default
+              the ``"parquet"`` transport; ignored for ``"arrow"``. The default
               (``None``) defers to
               :class:`~concurrent.futures.ThreadPoolExecutor`.
 
@@ -1429,22 +1430,22 @@ class DataFrame:
             (2, 2)
 
         Args:
-            use_parquet: When ``True``, unload the result
-                to Parquet on the session stage and read the files back in
-                parallel. Can be faster than the Arrow path for large,
-                data-transfer-dominated workloads — especially in a stored
-                procedure — but subject to the type-fidelity limits below.
-                Defaults to ``False``.
+            transport: Either ``"arrow"`` (default) or ``"parquet"``. When
+                ``"parquet"``, unload the result to Parquet on the session
+                stage and read the files back in parallel. Can be faster than
+                the ``"arrow"`` transport for large, data-transfer-dominated
+                workloads — especially in a stored procedure — but subject to
+                the type-fidelity limits below.
             max_workers: Maximum number of threads for parallel stage-file
-                opens and reads. Only applies to the Parquet path
-                (``use_parquet=True``). Defaults to ``None``.
+                opens and reads. Only applies to the ``"parquet"`` transport
+                (``transport="parquet"``). Defaults to ``None``.
             statement_params: Dictionary of statement level parameters to be
                 set while executing this action.
 
         Note:
             1. Requires ``polars>=1.0``.
 
-            2. The Parquet path (``use_parquet=True``)
+            2. The ``"parquet"`` transport
             does not fully preserve Snowflake types because ``COPY INTO``
             has restrictions on Parquet unload:
 
@@ -1465,17 +1466,23 @@ class DataFrame:
         )
 
         is_sproc = is_in_stored_procedure()
+        normalized_transport = transport.strip().lower()
 
-        if use_parquet:
+        if normalized_transport == "parquet":
             return _parquet_eager(
                 self,
                 is_sproc=is_sproc,
                 statement_params=statement_params,
                 max_workers=max_workers,
             )
-        return _arrow_eager(
-            self,
-            statement_params=statement_params,
+        elif normalized_transport == "arrow":
+            return _arrow_eager(
+                self,
+                statement_params=statement_params,
+            )
+        raise ValueError(
+            f"Unsupported transport {transport!r} for to_polars(). "
+            'Expected "arrow" or "parquet".'
         )
 
     @df_api_usage
