@@ -467,7 +467,9 @@ class ServerConnection:
             )
             raise ex
 
-        notify_kwargs["requestId"] = str(results_cursor._request_id)
+        notify_kwargs["requestId"] = str(
+            results_cursor.request_id if IS_V5_DRIVER else results_cursor._request_id
+        )
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query), **notify_kwargs
         )
