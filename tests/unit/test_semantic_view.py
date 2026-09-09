@@ -146,9 +146,12 @@ def test_where_alone_does_not_satisfy_the_rule(fake_session):
 # bare keyword: ``SEMANTIC_VIEW(V METRICS )`` is 001003.
 
 
-def test_empty_list_raises_and_sends_no_query(fake_session):
-    with pytest.raises(ValueError, match="metrics is an empty list"):
-        call(fake_session, "V", metrics=[])
+@pytest.mark.parametrize("empty,kind", [([], "list"), ((), "tuple")])
+def test_empty_container_raises_and_sends_no_query(fake_session, empty, kind):
+    """The message names the container type. "Omit it" is wrong advice for a list that
+    came back empty from a comprehension, so the two cases stay distinguishable."""
+    with pytest.raises(ValueError, match=f"metrics is an empty {kind}"):
+        call(fake_session, "V", metrics=empty)
     fake_session.sql.assert_not_called()
 
 
@@ -191,26 +194,26 @@ def test_empty_clause_is_rejected_not_dropped(fake_session):
 # --- rejected clause value types ------------------------------------------
 
 
-def test_top_level_tuple_raises_type_error(fake_session):
-    """Two members and member-with-alias are both plausible, so refuse to guess."""
-    with pytest.raises(TypeError) as exc:
-        call(fake_session, "V", metrics=("a", "b"))
-    message = str(exc.value)
-    assert "metrics" in message
-    assert 'metrics=["a", "b"]' in message
-    assert 'metrics=[("a", "b")]' in message
-    fake_session.sql.assert_not_called()
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (("a", "b"), "a, b"),  # a bare pair is simply two members
+        (("a", "b", "c"), "a, b, c"),
+        (("a",), "a"),
+        ((("a", "b"),), "a.b"),  # tuple holding one (table, attribute) pair
+        ((("a", "b"), ("c", "d")), "a.b, c.d"),
+        (("a", ("b", "c")), "a, b.c"),  # mixed
+    ],
+)
+def test_tuple_container_is_accepted(fake_session, value, expected):
+    """A tuple is a container of members, exactly like a list.
 
-
-@pytest.mark.parametrize("arity", [1, 3])
-def test_top_level_tuple_of_other_arity_does_not_claim_ambiguity(fake_session, arity):
-    with pytest.raises(TypeError) as exc:
-        call(fake_session, "V", metrics=tuple("abc"[:arity]))
-    message = str(exc.value)
-    assert "does not accept a tuple at the top level" in message
-    assert "ambiguous" not in message
-    assert "metrics=[...]" in message
-    fake_session.sql.assert_not_called()
+    ``("a", "b")`` and ``[("a", "b")]`` are different objects, so there is nothing to
+    disambiguate, and ``RelationalGroupedDataFrame.agg`` accepts both spellings of its
+    own 2-tuple element for the same reason.
+    """
+    call(fake_session, "V", metrics=value)
+    assert emitted(fake_session) == f"SELECT * FROM SEMANTIC_VIEW(V METRICS {expected})"
 
 
 @pytest.mark.parametrize("bad", [("a",), ("a", "b", "c")])
@@ -251,21 +254,68 @@ def test_set_is_rejected(fake_session):
 @pytest.mark.parametrize("bad", [b"revenue", bytearray(b"revenue")])
 def test_bytes_is_rejected(fake_session, bad):
     """bytes is Iterable, so an ``isinstance(x, str)`` guard alone would let it through."""
-    with pytest.raises(TypeError, match="should be a string, or a list of members"):
+    with pytest.raises(TypeError, match="should be a string, or a sequence of members"):
         call(fake_session, "V", metrics=bad)
     fake_session.sql.assert_not_called()
 
 
 def test_int_is_rejected(fake_session):
-    with pytest.raises(TypeError, match="should be a string, or a list of members"):
+    with pytest.raises(TypeError, match="should be a string, or a sequence of members"):
         call(fake_session, "V", metrics=1)
     fake_session.sql.assert_not_called()
 
 
-@pytest.mark.parametrize("bad", [123, ["x = 1"], ("x = 1",)])
-def test_non_string_where_is_rejected(fake_session, bad):
-    with pytest.raises(TypeError, match="where should be a string"):
+@pytest.mark.parametrize("bad", [123, {"x = 1"}, (c for c in "ab")])
+def test_non_sequence_where_is_rejected(fake_session, bad):
+    with pytest.raises(
+        TypeError, match="where should be a string, or a sequence of conditions"
+    ):
         call(fake_session, "V", metrics="m", where=bad)
+    fake_session.sql.assert_not_called()
+
+
+def test_where_sequence_is_and_joined_with_each_element_parenthesized(fake_session):
+    """``WHERE`` takes one expression, so a sequence must be combined, not comma-joined.
+
+    The parentheses are load-bearing: verified on the server that without them an
+    element containing ``OR`` changes the result (3 rows became 1), because ``AND``
+    binds tighter. Wrapping is semantically neutral, also verified.
+    """
+    call(
+        fake_session,
+        "V",
+        metrics="m",
+        where=["region = 'EMEA' OR region = 'APAC'", "customer = 'Chen'"],
+    )
+    assert emitted(fake_session) == (
+        "SELECT * FROM SEMANTIC_VIEW(V METRICS m "
+        "WHERE (region = 'EMEA' OR region = 'APAC') AND (customer = 'Chen'))"
+    )
+
+
+def test_where_string_is_emitted_verbatim_without_parentheses(fake_session):
+    call(fake_session, "V", metrics="m", where="a = 1 AND b = 2")
+    assert emitted(fake_session) == (
+        "SELECT * FROM SEMANTIC_VIEW(V METRICS m WHERE a = 1 AND b = 2)"
+    )
+
+
+@pytest.mark.parametrize("empty,kind", [([], "list"), ((), "tuple")])
+def test_empty_where_container_is_rejected(fake_session, empty, kind):
+    with pytest.raises(ValueError, match=f"where is an empty {kind}"):
+        call(fake_session, "V", metrics="m", where=empty)
+    fake_session.sql.assert_not_called()
+
+
+def test_blank_condition_in_a_where_sequence_is_rejected(fake_session):
+    with pytest.raises(ValueError, match=r"where\[1\] is an empty condition"):
+        call(fake_session, "V", metrics="m", where=["a = 1", "  "])
+    fake_session.sql.assert_not_called()
+
+
+def test_non_string_condition_is_rejected_with_its_index(fake_session):
+    with pytest.raises(TypeError, match=r"where\[1\] should be a string"):
+        call(fake_session, "V", metrics="m", where=["a = 1", 2])
     fake_session.sql.assert_not_called()
 
 
@@ -294,6 +344,21 @@ def test_set_name_is_rejected(fake_session, bad):
     with pytest.raises(TypeError, match="name should be a string"):
         call(fake_session, bad, metrics="m")
     fake_session.sql.assert_not_called()
+
+
+def test_deque_is_accepted_because_the_annotation_says_sequence(fake_session):
+    """A deque is a Sequence, so the runtime must not reject what the signature allows."""
+    from collections import deque
+
+    call(fake_session, "V", metrics=deque(["a", "b"]))
+    assert emitted(fake_session) == "SELECT * FROM SEMANTIC_VIEW(V METRICS a, b)"
+
+
+def test_blank_name_part_is_passed_through(fake_session):
+    """``DB..V`` is valid Snowflake for ``DB.PUBLIC.V``, and ``Session.table`` passes it
+    through too. The signature is the contract; we do not second-guess a valid name."""
+    call(fake_session, ["DB", "", "V"], metrics="m")
+    assert emitted(fake_session) == "SELECT * FROM SEMANTIC_VIEW(DB..V METRICS m)"
 
 
 @pytest.mark.parametrize("bad", [b"DB", bytearray(b"DB"), 1, None])

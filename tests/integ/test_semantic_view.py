@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import logging
+
 import pytest
 
 from snowflake.snowpark import Row
@@ -69,16 +71,17 @@ def semantic_view(session):
 
         yield view
     finally:
-        # Each drop is independent: a failing one must not strand the others.
-        for drop in (
-            lambda: session._run_query(f"DROP SEMANTIC VIEW IF EXISTS {view}"),
-            lambda: Utils.drop_table(session, orders),
-            lambda: Utils.drop_table(session, customers),
+        # Each drop is independent: a failing one must not strand the others, and a
+        # silent failure would leave permanent tables behind with a green test run.
+        for what, drop in (
+            (view, lambda: session._run_query(f"DROP SEMANTIC VIEW IF EXISTS {view}")),
+            (orders, lambda: Utils.drop_table(session, orders)),
+            (customers, lambda: Utils.drop_table(session, customers)),
         ):
             try:
                 drop()
-            except Exception:  # noqa: BLE001 - teardown is best effort
-                pass
+            except Exception as e:  # noqa: BLE001 - teardown is best effort
+                logging.getLogger(__name__).warning("failed to drop %s: %s", what, e)
 
 
 def test_metrics_only(session, semantic_view):
@@ -106,6 +109,30 @@ def test_where_is_applied_before_aggregation(session, semantic_view):
         metrics="orders.revenue",
         where="customers.region = 'EMEA'",
     ).collect() == [Row(REGION="EMEA", REVENUE=800)]
+
+
+def test_where_sequence_parentheses_change_the_rows(session, semantic_view):
+    """The parentheses are a semantic guarantee, so pin it against the server.
+
+    Without them ``AND`` binds tighter than the ``OR`` inside the first element and
+    three rows come back instead of one.
+    """
+    assert session.semantic_view(
+        semantic_view,
+        dimensions=["customers.customer", "customers.region"],
+        where=[
+            "customers.region = 'EMEA' OR customers.region = 'APAC'",
+            "customers.customer = 'Chen'",
+        ],
+    ).collect() == [Row(CUSTOMER="Chen", REGION="APAC")]
+
+    unparenthesized = session.sql(
+        f"SELECT * FROM SEMANTIC_VIEW({semantic_view} "
+        "DIMENSIONS customers.customer, customers.region "
+        "WHERE customers.region = 'EMEA' OR customers.region = 'APAC' "
+        "AND customers.customer = 'Chen')"
+    )
+    assert unparenthesized.count() == 3
 
 
 def test_tuple_member_is_table_dot_attribute(session, semantic_view):
@@ -142,6 +169,7 @@ def test_facts_are_row_level(session, semantic_view):
     assert sorted(r[0] for r in rows.collect()) == [350, 350, 450, 650]
 
 
-def test_where_alone_raises_before_any_query(session, semantic_view):
+def test_where_alone_raises_before_any_query(session):
+    """No fixture: this raises client-side, so it must not create objects to prove it."""
     with pytest.raises(ValueError, match="at least one"):
-        session.semantic_view(semantic_view, where="customers.region = 'EMEA'")
+        session.semantic_view("NO_SUCH_VIEW", where="customers.region = 'EMEA'")
