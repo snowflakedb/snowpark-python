@@ -1170,16 +1170,17 @@ class DataFrame:
             )
 
         if block:
+            query = self._plan.queries[-1].sql.strip().lower()
+            is_select_statement = is_sql_select_statement(query)
+
             if not isinstance(result, pandas.DataFrame):
-                query = self._plan.queries[-1].sql.strip().lower()
-                is_select_statement = is_sql_select_statement(query)
                 if is_select_statement:
                     _logger.warning(
                         "The query result format is set to JSON. "
                         "The result of to_pandas() may not align with the result returned in the ARROW format. "
                         "For best compatibility with to_pandas(), set the query result format to ARROW."
                     )
-                return pandas.DataFrame(
+                result = pandas.DataFrame(
                     result,
                     columns=[
                         (
@@ -1190,6 +1191,25 @@ class DataFrame:
                         for attr in self._plan.attributes
                     ],
                 )
+            elif not is_select_statement:
+                # The driver already returned a real pandas DataFrame (e.g. the
+                # Universal Driver is Arrow-native and never raises NotSupportedError
+                # for non-SELECT/JSON result sets), but with its own bare column
+                # labels. Relabel to the query plan's (quoted) attribute names so
+                # non-SELECT to_pandas() output stays consistent regardless of driver.
+                attr_names = [attr.name for attr in self._plan.attributes]
+                if len(attr_names) == len(result.columns):
+                    result.columns = attr_names
+                else:
+                    _logger.warning(
+                        "Could not relabel to_pandas() columns for a non-SELECT "
+                        "statement: expected %d columns from the query plan but "
+                        "the driver returned %d.",
+                        len(attr_names),
+                        len(result.columns),
+                    )
+
+            return result
 
         return result
 
