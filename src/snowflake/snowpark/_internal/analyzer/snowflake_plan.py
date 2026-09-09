@@ -172,11 +172,6 @@ def _xml_worker_assignments(
     ]
 
 
-def _stage_directory(file_path: str) -> str:
-    """The stage directory to LIST in order to learn a file's size."""
-    return file_path.rsplit("/", 1)[0] if "/" in file_path else file_path
-
-
 def _stage_listing_basename(file_path: str) -> str:
     """The final path segment of a path, used to match it against LIST -- the rest of what
     LIST reports is stage-type-dependent and unsafe to reconstruct."""
@@ -1898,47 +1893,26 @@ class SnowflakePlanBuilder:
             )(setting["property_value"])
         return new_options
 
-    def _resolve_stage_file_sizes(self, file_paths: List[str]) -> Dict[str, int]:
-        """Map each requested file path to its byte size, one LIST per distinct directory.
-        Matches by basename since LIST's reported name format is stage-type-dependent, and
-        filters to the shallowest depth since LIST is recursive."""
-        directories: Dict[str, List[str]] = {}
-        for path in file_paths:
-            directories.setdefault(_stage_directory(path), []).append(path)
+    def _list_stage_path(self, path: str) -> List[Row]:
+        return list(
+            self.session.sql(f"ls {path}", _emit_ast=False).collect(_emit_ast=False)
+        )
 
-        file_sizes: Dict[str, int] = {}
-        for directory, paths_in_directory in directories.items():
-            target = (
-                paths_in_directory[0] if len(paths_in_directory) == 1 else directory
-            )
-            rows = list(
-                self.session.sql(f"ls {target}", _emit_ast=False).collect(
-                    _emit_ast=False
-                )
-            )
-            min_depth = min((row["name"].count("/") for row in rows), default=0)
-            sizes_by_basename: Dict[str, int] = {}
-            for row in rows:
-                if row["name"].count("/") != min_depth:
-                    continue  # from a recursed subdirectory, not this directory
-                basename = _stage_listing_basename(row["name"])  # type: ignore
-                sizes_by_basename[basename] = int(row["size"])  # type: ignore
-            for path in paths_in_directory:
-                basename = _stage_listing_basename(path)
-                if basename not in sizes_by_basename:
-                    raise ValueError(f"{path} does not exist")
-                file_sizes[path] = sizes_by_basename[basename]
-        return file_sizes
+    def _resolve_stage_file_size(self, file_path: str) -> int:
+        """Look up a single file's byte size via LIST, matched by basename since LIST's
+        reported name format is stage-type-dependent (e.g. a named external stage's LIST
+        reports the underlying cloud URL, unrelated to the stage's own name)."""
+        basename = _stage_listing_basename(file_path)
+        for row in self._list_stage_path(file_path):
+            if _stage_listing_basename(row["name"]) == basename:  # type: ignore
+                return int(row["size"])  # type: ignore
+        raise ValueError(f"{file_path} does not exist")
 
     def _list_directory_file_sizes(self, directory: str) -> Dict[str, int]:
         """Map every file directly under a stage directory to its byte size, via one LIST.
-        Filters to the shallowest depth the same way `_resolve_stage_file_sizes` does,
-        since LIST is recursive."""
-        rows = list(
-            self.session.sql(f"ls {directory}", _emit_ast=False).collect(
-                _emit_ast=False
-            )
-        )
+        Filters to the shallowest depth since LIST is recursive and would otherwise also
+        return files from recursed subdirectories."""
+        rows = self._list_stage_path(directory)
         if not rows:
             raise ValueError(f"{directory} does not exist or contains no files")
         min_depth = min(row["name"].count("/") for row in rows)  # type: ignore
@@ -2002,7 +1976,7 @@ class SnowflakePlanBuilder:
             file_paths = list(file_sizes.keys())
         else:
             file_paths = [file_path]
-            file_sizes = self._resolve_stage_file_sizes(file_paths)
+            file_sizes = {file_path: self._resolve_stage_file_size(file_path)}
 
         # One row per (file, byte range); all files share a single SQL plan.
         assignments = []
@@ -2074,7 +2048,7 @@ class SnowflakePlanBuilder:
         # Apply dynamic pivot to get the flat table with dynamic schema
         df = df.pivot("key").max("value")
 
-        # Exclude the worker and row number columns
+        # Exclude the file path and row number columns
         return f"SELECT * EXCLUDE ({file_path_column_name}, {xml_row_number_column_name}) FROM ({df.queries['queries'][-1]})"
 
     def read_file(

@@ -2007,7 +2007,7 @@ class DataFrameReader:
         ):
             raise ValueError("When reading XML with user schema, rowtag must be set.")
         if self._cur_options.get("READDIRECTORY", False) and (
-            format != "XML" or XML_ROW_TAG_STRING not in self._cur_options
+            format.lower() != "xml" or XML_ROW_TAG_STRING not in self._cur_options
         ):
             raise ValueError(
                 "The readDirectory option is only supported for XML with the rowTag "
@@ -2092,7 +2092,7 @@ class DataFrameReader:
                         "provided or inferred, because the source position columns are "
                         "not part of that schema."
                     )
-                if not use_xml_variant_projection(self._cur_options, False):
+                if not use_xml_variant_projection(self._cur_options, schema_known):
                     raise ValueError(
                         "The includeSourcePos option requires the VARIANT projection "
                         "path: set useVariantProjection=True, and note that the path is "

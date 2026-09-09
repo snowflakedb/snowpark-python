@@ -1175,25 +1175,35 @@ def test_dropmalformed_multifield_drops_any_bad_field(
 
 
 #
+# Shared read/compare helpers, used by the output-projection and multi-file sections below.
+#
+
+
+def _apply_options(reader, options):
+    for key, value in options.items():
+        reader = reader.option(key, value)
+    return reader
+
+
+def _content_by_name(df):
+    """Row content keyed by column name rather than positional, so it can be compared
+    across projections without depending on column order."""
+    names = [c.strip('"').strip("'") for c in df.columns]
+    return sorted(
+        tuple(sorted(zip(names, (str(v) for v in row)))) for row in df.collect()
+    )
+
+
+#
 # Output projection: direct VARIANT key projection instead of flatten + dynamic pivot.
 #
 
 
 def _read_xml_content(session, file_name, row_tag, **options):
-    """Read an XML file and return (columns, row content keyed by column name).
-
-    Row content is keyed rather than positional so it can be compared across
-    projections without depending on column order.
-    """
-    reader = session.read.option("rowTag", row_tag)
-    for key, value in options.items():
-        reader = reader.option(key, value)
+    """Read an XML file and return (columns, row content keyed by column name)."""
+    reader = _apply_options(session.read.option("rowTag", row_tag), options)
     df = reader.xml(f"@{tmp_stage_name}/{file_name}")
-    names = [c.strip('"').strip("'") for c in df.columns]
-    content = sorted(
-        tuple(sorted(zip(names, (str(v) for v in row)))) for row in df.collect()
-    )
-    return df.columns, content
+    return df.columns, _content_by_name(df)
 
 
 @pytest.mark.parametrize(
@@ -1445,17 +1455,10 @@ def _multifile_directory():
     return f"@{tmp_stage_name}/{multifile_subdirectory}"
 
 
-def _content_by_name(df):
-    names = [c.strip('"').strip("'") for c in df.columns]
-    return sorted(
-        tuple(sorted(zip(names, (str(v) for v in row)))) for row in df.collect()
-    )
-
-
 def _read_directory(session, row_tag, **options):
-    reader = session.read.option("rowTag", row_tag).option("readDirectory", True)
-    for key, value in options.items():
-        reader = reader.option(key, value)
+    reader = _apply_options(
+        session.read.option("rowTag", row_tag).option("readDirectory", True), options
+    )
     return reader.xml(_multifile_directory())
 
 
@@ -1602,13 +1605,20 @@ def test_read_xml_include_source_pos_supports_parent_child_range_join(session):
 @pytest.mark.parametrize(
     "options,match",
     [
-        ({"cacheResult": False}, "requires the VARIANT projection"),
+        # useVariantProjection unset: use_xml_variant_projection's own early return.
         ({}, "requires the VARIANT projection"),
+        # useVariantProjection set but cacheResult=False with no schema known:
+        # use_xml_variant_projection's cacheResult-dependent branch.
+        (
+            {"useVariantProjection": True, "cacheResult": False},
+            "requires the VARIANT projection",
+        ),
     ],
 )
 def test_read_xml_include_source_pos_rejects_unsupported_paths(session, options, match):
     """Rather than silently dropping the position columns on a path that cannot carry
-    them, the option is rejected."""
+    them, the option is rejected -- for either reason use_xml_variant_projection can
+    return False."""
     reader = (
         session.read.option("rowTag", "CHILD")
         .option("readDirectory", True)

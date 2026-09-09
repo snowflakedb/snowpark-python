@@ -39,9 +39,9 @@ except ImportError:
 DEFAULT_CHUNK_SIZE: int = 1024
 VARIANT_COLUMN_SIZE_LIMIT: int = 16 * 1024 * 1024
 
-# Ensures skip_children doesn't truncate an opening tag mid-attribute.
-_SKIP_CHILDREN_MIN_READ: int = 512
-_XML_ATTRIBUTE_PATTERN = re.compile(r'([\w][\w.-]*)="([^"]*)"')
+# Matches both quote styles: tag_is_self_closing (reused to find the tag's own closing
+# ">") treats both as valid, and XML legally allows either on an attribute value.
+_XML_ATTRIBUTE_PATTERN = re.compile(r'([\w][\w.-]*)=(?:"([^"]*)"|\'([^\']*)\')')
 
 
 def replace_entity(match: re.Match) -> str:
@@ -623,28 +623,49 @@ def process_xml_range(
             f.seek(record_start)
 
             if skip_children:
-                tag_bytes = f.read(max(chunk_size, _SKIP_CHILDREN_MIN_READ)).decode(
+                # Reuses the same quote-aware scan the non-skip_children path uses to find
+                # the row tag's own closing ">", so a ">" inside a quoted attribute value
+                # doesn't end the tag early, and an unclosed tag is handled like every
+                # other malformed record instead of always silently yielding {}.
+                try:
+                    _, tag_end = tag_is_self_closing(f)
+                except EOFError as e:
+                    if mode == "PERMISSIVE":
+                        f.seek(record_start)
+                        record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
+                        record_str = record_bytes.decode(charset, errors="replace")
+                        record_str = re.sub(r"&(\w+);", replace_entity, record_str)
+                        yield (
+                            {column_name_of_corrupt_record: record_str},
+                            record_start,
+                        )
+                    elif mode == "FAILFAST":
+                        raise EOFError(
+                            f"Malformed XML record at bytes {record_start}-EOF: {e}"
+                        ) from e
+                    break
+
+                f.seek(record_start)
+                tag_text = f.read(tag_end - record_start).decode(
                     charset, errors="replace"
                 )
-                close_idx = tag_bytes.find(">")
                 attributes: Dict[str, Any] = {}
-                if close_idx >= 0:
-                    tag_content = tag_bytes[:close_idx]
-                    prefix = f"<{tag_name}"
-                    if tag_content.startswith(prefix):
-                        attribute_text = (
-                            tag_content[len(prefix) :].lstrip().rstrip("/").strip()
+                prefix = f"<{tag_name}"
+                if tag_text.startswith(prefix):
+                    attribute_text = tag_text[len(prefix) : -1].rstrip("/").strip()
+                    for match in _XML_ATTRIBUTE_PATTERN.finditer(attribute_text):
+                        name, double_quoted, single_quoted = match.groups()
+                        value = (
+                            double_quoted
+                            if double_quoted is not None
+                            else single_quoted
                         )
-                        for match in _XML_ATTRIBUTE_PATTERN.finditer(attribute_text):
-                            attributes[attribute_prefix + match.group(1)] = match.group(
-                                2
-                            )
+                        attributes[attribute_prefix + name] = value
                 yield (attributes, record_start)
-                # -1 close_idx means no ">" was found; advance one byte to avoid looping forever.
-                next_pos = record_start + (close_idx + 1 if close_idx >= 0 else 1)
-                if next_pos >= approx_end:
+
+                if tag_end >= approx_end:
                     break
-                f.seek(next_pos)
+                f.seek(tag_end)
                 continue
 
             # decide whether the row element is self‑closing

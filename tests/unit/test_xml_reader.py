@@ -21,7 +21,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     DEFAULT_MAX_WORKERS,
     SnowflakePlanBuilder,
     _positive_int_option,
-    _stage_directory,
     _stage_listing_basename,
     _xml_worker_assignment_sql,
     _xml_worker_assignments,
@@ -1702,7 +1701,7 @@ def test_positive_int_option_rejects_degenerate_values(value):
 
 
 #
-# Multi-file reads: stage listing basename resolution and per-directory size lookup.
+# Single-file reads: stage listing basename resolution and per-file size lookup.
 #
 
 
@@ -1726,19 +1725,6 @@ def test_stage_listing_basename(name, expected):
     assert _stage_listing_basename(name) == expected
 
 
-@pytest.mark.parametrize(
-    "file_path,expected",
-    [
-        ("@stage/dir/f.xml", "@stage/dir"),
-        ("@stage/a/b/f.xml", "@stage/a/b"),
-        ("@stage/f.xml", "@stage"),
-        ("@stage", "@stage"),
-    ],
-)
-def test_stage_directory(file_path, expected):
-    assert _stage_directory(file_path) == expected
-
-
 def _fake_builder(listing):
     """A SnowflakePlanBuilder whose session records `ls` targets and replays `listing`."""
     builder = SnowflakePlanBuilder.__new__(SnowflakePlanBuilder)
@@ -1756,44 +1742,82 @@ def _fake_builder(listing):
     return builder, listed
 
 
-def test_resolve_stage_file_sizes_lists_each_directory_once():
-    """Files sharing a directory must cost one LIST between them, not one apiece --
-    a LIST per file would be a round trip per file before the read even starts."""
+def test_resolve_stage_file_size_lists_by_exact_path():
+    """A single-file read is listed by the file's own path, not its directory, so it
+    never has to enumerate a directory that may hold far more."""
+    listing = {"@stage/dir/a.xml": [{"name": "stage/dir/a.xml", "size": 10}]}
+    builder, listed = _fake_builder(listing)
+    assert builder._resolve_stage_file_size("@stage/dir/a.xml") == 10
+    assert listed == ["ls @stage/dir/a.xml"]
+
+
+def test_resolve_stage_file_size_matches_mixed_case_stage_listing():
+    """A mixed-case stage name resolves against LIST's lowercased form -- matching by
+    basename means the stage-name segment's case never has to be reconstructed at all."""
+    listing = {
+        "@db.schema.MyStage/SubDir/a.xml": [
+            {"name": "mystage/SubDir/a.xml", "size": 11},
+        ]
+    }
+    builder, _ = _fake_builder(listing)
+    assert builder._resolve_stage_file_size("@db.schema.MyStage/SubDir/a.xml") == 11
+
+
+def test_resolve_stage_file_size_matches_named_external_stage_listing():
+    """A named external stage's LIST reports the underlying cloud URL, not
+    ``stage/path`` -- this is the bug this fix exists for: reconstructing an expected
+    listing name from the stage identifier missed every external-stage file, since the
+    URL has no relation to the stage's own name."""
+    listing = {
+        "@db.schema.ext_stage/dir/security_master_1.xml": [
+            {
+                "name": "s3://ecosystem-sas/test_files_xml/security_master_1.xml",
+                "size": 123,
+            },
+        ]
+    }
+    builder, _ = _fake_builder(listing)
+    assert (
+        builder._resolve_stage_file_size(
+            "@db.schema.ext_stage/dir/security_master_1.xml"
+        )
+        == 123
+    )
+
+
+def test_resolve_stage_file_size_missing_file_raises():
+    listing = {"@stage/dir/does_not_exist.xml": []}
+    builder, _ = _fake_builder(listing)
+    with pytest.raises(ValueError, match="does not exist"):
+        builder._resolve_stage_file_size("@stage/dir/does_not_exist.xml")
+
+
+#
+# readDirectory: per-directory size lookup for every file under a stage directory.
+#
+
+
+def test_list_directory_file_sizes_lists_once_for_every_file():
+    """A directory read must cost one LIST for every file in it, not one apiece -- a
+    LIST per file would be a round trip per file before the read even starts."""
     listing = {
         "@stage/dir": [
             {"name": "stage/dir/a.xml", "size": 10},
             {"name": "stage/dir/b.xml", "size": 20},
             {"name": "stage/dir/c.xml", "size": 30},
         ],
-        # Listed by exact path, since this directory contributes only one file.
-        "@stage/other/d.xml": [{"name": "stage/other/d.xml", "size": 40}],
     }
     builder, listed = _fake_builder(listing)
-    sizes = builder._resolve_stage_file_sizes(
-        [
-            "@stage/dir/a.xml",
-            "@stage/dir/b.xml",
-            "@stage/dir/c.xml",
-            "@stage/other/d.xml",
-        ]
-    )
-    assert sizes["@stage/dir/a.xml"] == 10
-    assert sizes["@stage/other/d.xml"] == 40
-    # Two directories -> two LISTs, for four files.
-    assert len(listed) == 2
+    sizes = builder._list_directory_file_sizes("@stage/dir")
+    assert sizes == {
+        "@stage/dir/a.xml": 10,
+        "@stage/dir/b.xml": 20,
+        "@stage/dir/c.xml": 30,
+    }
+    assert listed == ["ls @stage/dir"]
 
 
-def test_resolve_stage_file_sizes_lists_exact_path_for_lone_file():
-    """A directory contributing one file is listed by that file's path, so a single-file
-    read does not enumerate a directory that may hold far more."""
-    listing = {"@stage/dir/a.xml": [{"name": "stage/dir/a.xml", "size": 10}]}
-    builder, listed = _fake_builder(listing)
-    sizes = builder._resolve_stage_file_sizes(["@stage/dir/a.xml"])
-    assert sizes == {"@stage/dir/a.xml": 10}
-    assert listed == ["ls @stage/dir/a.xml"]
-
-
-def test_resolve_stage_file_sizes_matches_mixed_case_stage_listing():
+def test_list_directory_file_sizes_matches_mixed_case_stage_listing():
     """A mixed-case stage name resolves against LIST's lowercased form -- matching by
     basename means the stage-name segment's case never has to be reconstructed at all."""
     listing = {
@@ -1803,12 +1827,14 @@ def test_resolve_stage_file_sizes_matches_mixed_case_stage_listing():
         ]
     }
     builder, _ = _fake_builder(listing)
-    paths = ["@db.schema.MyStage/SubDir/a.xml", "@db.schema.MyStage/SubDir/b.xml"]
-    sizes = builder._resolve_stage_file_sizes(paths)
-    assert [sizes[p] for p in paths] == [11, 22]
+    sizes = builder._list_directory_file_sizes("@db.schema.MyStage/SubDir")
+    assert sizes == {
+        "@db.schema.MyStage/SubDir/a.xml": 11,
+        "@db.schema.MyStage/SubDir/b.xml": 22,
+    }
 
 
-def test_resolve_stage_file_sizes_matches_named_external_stage_listing():
+def test_list_directory_file_sizes_matches_named_external_stage_listing():
     """A named external stage's LIST reports the underlying cloud URL, not
     ``stage/path`` -- this is the bug this fix exists for: reconstructing an expected
     listing name from the stage identifier missed every external-stage file, since the
@@ -1826,26 +1852,24 @@ def test_resolve_stage_file_sizes_matches_named_external_stage_listing():
         ]
     }
     builder, _ = _fake_builder(listing)
-    paths = [
-        "@db.schema.ext_stage/dir/security_master_1.xml",
-        "@db.schema.ext_stage/dir/security_master_2.xml",
-    ]
-    sizes = builder._resolve_stage_file_sizes(paths)
-    assert [sizes[p] for p in paths] == [123, 456]
+    sizes = builder._list_directory_file_sizes("@db.schema.ext_stage/dir")
+    assert sizes == {
+        "@db.schema.ext_stage/dir/security_master_1.xml": 123,
+        "@db.schema.ext_stage/dir/security_master_2.xml": 456,
+    }
 
 
-def test_resolve_stage_file_sizes_missing_file_raises():
-    listing = {"@stage/dir": [{"name": "stage/dir/a.xml", "size": 10}]}
-    builder, _ = _fake_builder(listing)
-    with pytest.raises(ValueError, match="does not exist"):
-        builder._resolve_stage_file_sizes(["@stage/dir/does_not_exist.xml"])
+def test_list_directory_file_sizes_missing_directory_raises():
+    builder, _ = _fake_builder({})
+    with pytest.raises(ValueError, match="does not exist or contains no files"):
+        builder._list_directory_file_sizes("@stage/does_not_exist")
 
 
-def test_resolve_stage_file_sizes_ignores_recursively_listed_subdirectory_files():
-    """LIST recurses into subdirectories, so listing a directory with two requested
-    files can also return an unrequested file several levels down that happens to share
-    a basename with one of them. Depth-filtering must exclude it, or the wrong size gets
-    assigned and byte ranges silently cover only part of the real file."""
+def test_list_directory_file_sizes_ignores_recursively_listed_subdirectory_files():
+    """LIST recurses into subdirectories, so listing a directory can also return a file
+    several levels down that happens to share a basename with a direct child. Depth-
+    filtering must exclude it, or the wrong size gets assigned and byte ranges silently
+    cover only part of the real file."""
     listing = {
         "@stage/dir": [
             {"name": "stage/dir/a.xml", "size": 32},
@@ -1855,11 +1879,11 @@ def test_resolve_stage_file_sizes_ignores_recursively_listed_subdirectory_files(
         ]
     }
     builder, _ = _fake_builder(listing)
-    sizes = builder._resolve_stage_file_sizes(["@stage/dir/a.xml", "@stage/dir/b.xml"])
+    sizes = builder._list_directory_file_sizes("@stage/dir")
     assert sizes == {"@stage/dir/a.xml": 32, "@stage/dir/b.xml": 32}
 
 
-def test_resolve_stage_file_sizes_ignores_deeper_match_regardless_of_list_order():
+def test_list_directory_file_sizes_ignores_deeper_match_regardless_of_list_order():
     """The shallower row must win even when LIST returns the deeper duplicate first."""
     listing = {
         "@stage/dir": [
@@ -1869,7 +1893,7 @@ def test_resolve_stage_file_sizes_ignores_deeper_match_regardless_of_list_order(
         ]
     }
     builder, _ = _fake_builder(listing)
-    sizes = builder._resolve_stage_file_sizes(["@stage/dir/a.xml", "@stage/dir/b.xml"])
+    sizes = builder._list_directory_file_sizes("@stage/dir")
     assert sizes == {"@stage/dir/a.xml": 32, "@stage/dir/b.xml": 64}
 
 
@@ -1878,31 +1902,30 @@ def test_resolve_stage_file_sizes_ignores_deeper_match_regardless_of_list_order(
 #
 
 
-def _skip_children_records(xml_bytes, tag_name="PARENT", **kwargs):
+def _skip_children_records(xml_bytes, **overrides):
+    kwargs = {
+        "file_path": "test.xml",
+        "tag_name": "PARENT",
+        "approx_start": 0,
+        "approx_end": len(xml_bytes),
+        "mode": "PERMISSIVE",
+        "column_name_of_corrupt_record": "_corrupt_record",
+        "ignore_namespace": True,
+        "attribute_prefix": "_",
+        "exclude_attributes": False,
+        "value_tag": "_VALUE",
+        "null_value": "",
+        "charset": "utf-8",
+        "ignore_surrounding_whitespace": False,
+        "row_validation_xsd_path": "",
+        "skip_children": True,
+        **overrides,
+    }
     with patch(
         "snowflake.snowpark.files.SnowflakeFile.open",
         side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
     ):
-        return list(
-            process_xml_range(
-                "test.xml",
-                tag_name,
-                0,
-                len(xml_bytes),
-                "PERMISSIVE",
-                "_corrupt_record",
-                True,
-                "_",
-                False,
-                "_VALUE",
-                "",
-                "utf-8",
-                False,
-                "",
-                skip_children=True,
-                **kwargs,
-            )
-        )
+        return list(process_xml_range(**kwargs))
 
 
 def test_skip_children_yields_only_opening_tag_attributes():
@@ -1917,6 +1940,23 @@ def test_skip_children_yields_only_opening_tag_attributes():
         {"_id": "p1", "_region": "north"},
         {"_id": "p2", "_region": "south"},
     ]
+
+
+def test_skip_children_ignores_gt_inside_quoted_attribute_value():
+    """A literal ">" inside a quoted attribute value must not be mistaken for the tag's
+    own terminating ">" -- same quote-awareness the non-skip_children path relies on."""
+    xml_bytes = b'<ROOT><PARENT note="a>b" x="1"><CHILD/></PARENT></ROOT>'
+    records = _skip_children_records(xml_bytes)
+    assert [record for record, _ in records] == [{"_note": "a>b", "_x": "1"}]
+
+
+def test_skip_children_handles_single_quoted_attributes():
+    """Single-quoted attribute values are as legal in XML as double-quoted ones, and
+    tag_is_self_closing treats both as quote characters -- attribute extraction must too,
+    or a single-quoted attribute is silently dropped."""
+    xml_bytes = b"<ROOT><PARENT id='p1' region=\"north\"><CHILD/></PARENT></ROOT>"
+    records = _skip_children_records(xml_bytes)
+    assert [record for record, _ in records] == [{"_id": "p1", "_region": "north"}]
 
 
 def test_skip_children_reports_record_start_offsets():
@@ -1944,9 +1984,7 @@ def test_skip_children_ignores_bare_self_closing_tag_like_the_default_path():
     assert [record for record, _ in _skip_children_records(xml_bytes)] == [{"_x": "1"}]
 
 
-def test_skip_children_stops_at_range_end_on_truncated_tag():
-    """A malformed opening tag with no ">" must not spin: it yields what it found and
-    stops once advancing reaches the range end."""
+def _skip_children_truncated_tag(mode):
     xml_bytes = b'<ROOT><PARENT id="p1"'
     tag_start = xml_bytes.index(b"<PARENT")
     with patch(
@@ -1959,7 +1997,7 @@ def test_skip_children_stops_at_range_end_on_truncated_tag():
                 "PARENT",
                 0,
                 tag_start + 1,
-                "PERMISSIVE",
+                mode,
                 "_corrupt_record",
                 True,
                 "_",
@@ -1972,7 +2010,25 @@ def test_skip_children_stops_at_range_end_on_truncated_tag():
                 skip_children=True,
             )
         )
-    assert records == [({}, tag_start)]
+    return records, tag_start
+
+
+def test_skip_children_on_truncated_tag_yields_corrupt_record_in_permissive_mode():
+    """A malformed opening tag with no ">" before EOF must go through the same
+    corrupt-record handling as every other malformed record here, not silently yield an
+    empty record regardless of mode."""
+    records, tag_start = _skip_children_truncated_tag("PERMISSIVE")
+    assert records == [({"_corrupt_record": '<PARENT id="p1"'}, tag_start)]
+
+
+def test_skip_children_on_truncated_tag_drops_record_in_dropmalformed_mode():
+    records, _ = _skip_children_truncated_tag("DROPMALFORMED")
+    assert records == []
+
+
+def test_skip_children_on_truncated_tag_raises_in_failfast_mode():
+    with pytest.raises(EOFError, match="Malformed XML record at bytes"):
+        _skip_children_truncated_tag("FAILFAST")
 
 
 def test_skip_children_reads_past_a_small_chunk_size():
@@ -1997,29 +2053,7 @@ def test_skip_children_reads_past_a_small_chunk_size():
 
 def test_skip_children_respects_attribute_prefix():
     xml_bytes = b'<ROOT><PARENT id="p1"></PARENT></ROOT>'
-    with patch(
-        "snowflake.snowpark.files.SnowflakeFile.open",
-        side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
-    ):
-        records = list(
-            process_xml_range(
-                "test.xml",
-                "PARENT",
-                0,
-                len(xml_bytes),
-                "PERMISSIVE",
-                "_corrupt_record",
-                True,
-                "",
-                False,
-                "_VALUE",
-                "",
-                "utf-8",
-                False,
-                "",
-                skip_children=True,
-            )
-        )
+    records = _skip_children_records(xml_bytes, attribute_prefix="")
     assert [record for record, _ in records] == [{"id": "p1"}]
 
 
