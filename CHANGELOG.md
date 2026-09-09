@@ -12,6 +12,7 @@
 #### Bug Fixes
 
 - Fixed registering a UDF, UDTF, or stored procedure with an integer optional argument failing with `SQL compilation error: invalid default argument expression`. Integer defaults were emitted as `DEFAULT <value> :: INT`, and a parameter default only accepts a constant expression. The redundant cast is no longer generated.
+- Fixed `DataFrame.to_pandas()` on non-SELECT statements (e.g. `SHOW`, `SET`, DDL) returning unquoted column names (e.g. `'status'`) instead of the historically-quoted names (e.g. `'"status"'`) when running on a Python Driver built on Universal Core (v5+). Column labels for non-SELECT statements are now relabeled to match the query plan's attribute names regardless of driver version.
 
 #### Documentation
 
