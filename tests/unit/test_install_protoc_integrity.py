@@ -231,7 +231,7 @@ def test_help_documents_the_digest_helper(run_script):
     result = run_script("--help")
     assert result.returncode == 0, result.stderr
     assert "--print-digests" in result.stdout
-    assert "is running" not in result.stdout, "--help took the install path"
+    assert "Downloading" not in result.stdout, "--help took the install path"
 
 
 def test_unknown_argument_fails_closed(run_script):
@@ -239,16 +239,17 @@ def test_unknown_argument_fails_closed(run_script):
     result = run_script("--not-a-real-flag")
     assert result.returncode != 0
     assert "unknown argument" in result.stderr
-    assert "is running" not in result.stdout, "install ran despite a bad argument"
+    assert "Downloading" not in result.stdout, "install ran despite a bad argument"
 
 
 def test_print_digests_never_installs(run_script):
     """--print-digests must only hash archives, never install or touch PATH.
 
     The ``curl`` shim fails, so this cannot reach the network; the point is that
-    the install path is not entered and ``GITHUB_PATH`` is left alone.
+    the install path is not entered and ``GITHUB_PATH`` is left alone. Only
+    ``downloadProtoc`` logs "Downloading", so its absence proves the mode split.
     """
     result = run_script("--print-digests")
     assert result.returncode != 0, "the failing curl shim should have aborted it"
-    assert "is running" not in result.stdout, "--print-digests took the install path"
+    assert "Downloading" not in result.stdout, "--print-digests took the install path"
     assert not result.github_path.exists(), "--print-digests wrote to GITHUB_PATH"

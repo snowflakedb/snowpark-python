@@ -12,6 +12,8 @@ set -eu
 
 SCRIPT_NAME="$(basename "$0")"
 
+echo "${SCRIPT_NAME} is running... "
+
 PROTOC_VERSION=3.20.1
 PROTOC_OS_ARCH=""
 PROTOC_ZIP=""
@@ -267,8 +269,6 @@ if [ "${BASH_SOURCE[0]:-$0}" = "$0" ]; then
       exit 1
       ;;
   esac
-
-  echo "${SCRIPT_NAME} is running... "
 
   install
 
