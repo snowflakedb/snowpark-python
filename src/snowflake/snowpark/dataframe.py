@@ -6512,7 +6512,7 @@ class DataFrame:
             ast_id = self._ast_id
             self._ast_id = None  # set the AST ID to None to prevent AST emission.
             self.write.save_as_table(
-                temp_table_name, create_temp_table=True, _emit_ast=False
+                temp_table_name, table_type="temp", _emit_ast=False
             )
             self._ast_id = ast_id  # restore the original AST ID.
         else:
