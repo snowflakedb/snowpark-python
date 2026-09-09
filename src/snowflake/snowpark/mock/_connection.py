@@ -312,7 +312,6 @@ class MockServerConnection:
         self.stage_registry = StageEntityRegistry(self)
         self._conn._session_parameters = session_params.update(
             {
-                "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
                 "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
                 "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
                 "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES": True,

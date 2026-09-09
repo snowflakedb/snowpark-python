@@ -7,7 +7,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Dict
 
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
-from snowflake.snowpark._internal.utils import create_rlock, is_in_stored_procedure
+from snowflake.snowpark._internal.utils import create_rlock
 
 _logger = logging.getLogger(__name__)
 
@@ -52,20 +52,6 @@ class TempTableAutoCleaner:
             self.ref_count_map[name] -= 1
             current_ref_count = self.ref_count_map[name]
         if current_ref_count == 0:
-            if (
-                is_in_stored_procedure()
-                and not self.session._conn._get_client_side_session_parameter(
-                    "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
-                )
-            ):
-                warning_message = "Drop table requires async query which is not supported in stored procedure yet"
-                _logger.warning(warning_message)
-                self.session._conn._telemetry_client.send_temp_table_cleanup_abnormal_exception_telemetry(
-                    self.session.session_id,
-                    name,
-                    warning_message,
-                )
-                return
             if (
                 self.session.auto_clean_up_temp_table_enabled
                 # if the session is already closed before garbage collection,

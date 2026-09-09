@@ -636,16 +636,6 @@ class ServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
-        if (
-            is_in_stored_procedure()
-            and not block
-            and not self._get_client_side_session_parameter(
-                "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
-            )
-        ):  # pragma: no cover
-            raise NotImplementedError(
-                "Async query is not supported in stored procedure yet"
-            )
         result_set, result_meta = self.get_result_set(
             plan,
             to_pandas,
