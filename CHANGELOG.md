@@ -1,5 +1,15 @@
 # Release History
 
+## 1.56.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+- Fixed `ai_extract` misrouting FILE-type inputs to the TEXT overload when `scores` or `config` were also supplied.
+
 ## 1.55.0 (TBD)
 
 ### Snowpark Python API Updates

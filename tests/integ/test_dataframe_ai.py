@@ -1224,6 +1224,44 @@ def test_dataframe_ai_extract_file(session, resources_path):
     assert data["response"]["amount"] == "USD $950.00"
 
 
+def test_dataframe_ai_extract_file_column_referenced_from_earlier_step_with_scores(
+    session, resources_path
+):
+    """A FILE column computed in an earlier step and merely referenced later
+    (by name, not as an inline to_file() call) must still route to AI_EXTRACT's
+    file input, even when scores forces named-argument SQL."""
+    stage_name = Utils.random_stage_name()
+    _ = session.sql(
+        f"CREATE OR REPLACE TEMP STAGE {stage_name} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
+    file_local = TestFiles(resources_path).test_invoice_pdf
+    _ = session.file.put(file_local, f"@{stage_name}", auto_compress=False)
+
+    df = session.create_dataframe(
+        [[f"@{stage_name}/invoice.pdf"]], schema=["file_path"]
+    )
+    # The FILE value is computed here, one step before ai.extract() is called --
+    # not passed as an inline to_file(...) expression at the call site.
+    file_df = df.select(to_file(col("file_path")).alias("F"))
+
+    result_df = file_df.ai.extract(
+        input_column="F",
+        response_format=[
+            ["date", "What is the invoice date?"],
+            ["amount", "What is the amount?"],
+        ],
+        scores=True,
+        output_column="info",
+    )
+
+    results = result_df.collect(_emit_ast=False)
+    data = json.loads(results[0]["INFO"]) if results[0]["INFO"] else {}
+    assert isinstance(data, dict) and isinstance(data.get("response", {}), dict)
+    assert data["response"]["date"] == "Nov 26, 2016"
+    assert data["response"]["amount"] == "USD $950.00"
+    assert "scoring" in data
+
+
 def test_dataframe_ai_extract_error_handling(session):
     """Test error handling in DataFrame.ai.extract."""
     df = session.create_dataframe([["text"]], schema=["col"])
