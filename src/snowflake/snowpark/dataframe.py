@@ -164,6 +164,7 @@ from snowflake.snowpark._internal.utils import (
     is_snowflake_quoted_id_case_insensitive,
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
+    is_v5_driver,
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
     parse_table_name,
@@ -1191,12 +1192,13 @@ class DataFrame:
                         for attr in self._plan.attributes
                     ],
                 )
-            elif not is_select_statement:
-                # The driver already returned a real pandas DataFrame (e.g. the
-                # Universal Driver is Arrow-native and never raises NotSupportedError
-                # for non-SELECT/JSON result sets), but with its own bare column
-                # labels. Relabel to the query plan's (quoted) attribute names so
-                # non-SELECT to_pandas() output stays consistent regardless of driver.
+            elif not is_select_statement and is_v5_driver():
+                # The Python Driver on Universal Core (v5+) already returns a
+                # real pandas DataFrame for non-SELECT/JSON result sets
+                # instead of raising NotSupportedError, but with its own bare
+                # column labels. Relabel to the query plan's (quoted)
+                # attribute names so non-SELECT to_pandas() output stays
+                # consistent across driver versions.
                 attr_names = [attr.name for attr in self._plan.attributes]
                 if len(attr_names) == len(result.columns):
                     result.columns = attr_names
