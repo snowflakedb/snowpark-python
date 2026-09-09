@@ -162,9 +162,11 @@ def test_blank_clause_string_raises_and_sends_no_query(fake_session, blank):
     fake_session.sql.assert_not_called()
 
 
-def test_blank_member_in_a_list_raises_with_its_index(fake_session):
-    with pytest.raises(ValueError, match=r"metrics\[1\] is an empty member name"):
-        call(fake_session, "V", metrics=["orders.revenue", ""])
+@pytest.mark.parametrize("param", ["dimensions", "metrics", "facts"])
+def test_blank_member_in_a_list_raises_with_its_index(fake_session, param):
+    """The message names the caller's parameter, not just the SQL keyword."""
+    with pytest.raises(ValueError, match=rf"{param}\[1\] is an empty member name"):
+        call(fake_session, "V", **{param: ["orders.revenue", ""]})
     fake_session.sql.assert_not_called()
 
 
@@ -206,12 +208,7 @@ def test_empty_clause_is_rejected_not_dropped(fake_session):
     ],
 )
 def test_tuple_container_is_accepted(fake_session, value, expected):
-    """A tuple is a container of members, exactly like a list.
-
-    ``("a", "b")`` and ``[("a", "b")]`` are different objects, so there is nothing to
-    disambiguate, and ``RelationalGroupedDataFrame.agg`` accepts both spellings of its
-    own 2-tuple element for the same reason.
-    """
+    """A tuple is a container of members, exactly like a list."""
     call(fake_session, "V", metrics=value)
     assert emitted(fake_session) == f"SELECT * FROM SEMANTIC_VIEW(V METRICS {expected})"
 
@@ -251,7 +248,9 @@ def test_set_is_rejected(fake_session):
     fake_session.sql.assert_not_called()
 
 
-@pytest.mark.parametrize("bad", [b"revenue", bytearray(b"revenue")])
+@pytest.mark.parametrize(
+    "bad", [b"revenue", bytearray(b"revenue"), memoryview(b"revenue")]
+)
 def test_bytes_is_rejected(fake_session, bad):
     """bytes is Iterable, so an ``isinstance(x, str)`` guard alone would let it through."""
     with pytest.raises(TypeError, match="should be a string, or a sequence of members"):
@@ -265,7 +264,9 @@ def test_int_is_rejected(fake_session):
     fake_session.sql.assert_not_called()
 
 
-@pytest.mark.parametrize("bad", [123, {"x = 1"}, (c for c in "ab")])
+@pytest.mark.parametrize(
+    "bad", [123, {"x = 1"}, (c for c in "ab"), b"x = 1", memoryview(b"x = 1")]
+)
 def test_non_sequence_where_is_rejected(fake_session, bad):
     with pytest.raises(
         TypeError, match="where should be a string, or a sequence of conditions"
@@ -275,12 +276,7 @@ def test_non_sequence_where_is_rejected(fake_session, bad):
 
 
 def test_where_sequence_is_and_joined_with_each_element_parenthesized(fake_session):
-    """``WHERE`` takes one expression, so a sequence must be combined, not comma-joined.
-
-    The parentheses are load-bearing: verified on the server that without them an
-    element containing ``OR`` changes the result (3 rows became 1), because ``AND``
-    binds tighter. Wrapping is semantically neutral, also verified.
-    """
+    """``AND``-joined, each element parenthesized so an inner ``OR`` still binds first."""
     call(
         fake_session,
         "V",
@@ -290,6 +286,13 @@ def test_where_sequence_is_and_joined_with_each_element_parenthesized(fake_sessi
     assert emitted(fake_session) == (
         "SELECT * FROM SEMANTIC_VIEW(V METRICS m "
         "WHERE (region = 'EMEA' OR region = 'APAC') AND (customer = 'Chen'))"
+    )
+
+
+def test_single_condition_sequence_is_still_parenthesized(fake_session):
+    call(fake_session, "V", metrics="m", where=["a = 1"])
+    assert emitted(fake_session) == (
+        "SELECT * FROM SEMANTIC_VIEW(V METRICS m WHERE (a = 1))"
     )
 
 
@@ -354,14 +357,20 @@ def test_deque_is_accepted_because_the_annotation_says_sequence(fake_session):
     assert emitted(fake_session) == "SELECT * FROM SEMANTIC_VIEW(V METRICS a, b)"
 
 
+def test_sequence_name_is_validated_after_joining(fake_session):
+    """The join happens first, so validation must see the joined name."""
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        call(fake_session, ["DB", "a-b", "V"], metrics="m")
+    fake_session.sql.assert_not_called()
+
+
 def test_blank_name_part_is_passed_through(fake_session):
-    """``DB..V`` is valid Snowflake for ``DB.PUBLIC.V``, and ``Session.table`` passes it
-    through too. The signature is the contract; we do not second-guess a valid name."""
+    """``DB..V`` is valid Snowflake for ``DB.PUBLIC.V``."""
     call(fake_session, ["DB", "", "V"], metrics="m")
     assert emitted(fake_session) == "SELECT * FROM SEMANTIC_VIEW(DB..V METRICS m)"
 
 
-@pytest.mark.parametrize("bad", [b"DB", bytearray(b"DB"), 1, None])
+@pytest.mark.parametrize("bad", [b"DB", bytearray(b"DB"), memoryview(b"DB"), 1, None])
 def test_non_sequence_name_is_rejected(fake_session, bad):
     with pytest.raises(TypeError, match="name should be a string"):
         call(fake_session, bad, metrics="m")

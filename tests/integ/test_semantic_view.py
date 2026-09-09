@@ -80,7 +80,7 @@ def semantic_view(session):
         ):
             try:
                 drop()
-            except Exception as e:  # noqa: BLE001 - teardown is best effort
+            except Exception as e:  # teardown is best effort
                 logging.getLogger(__name__).warning("failed to drop %s: %s", what, e)
 
 
@@ -103,12 +103,18 @@ def test_dimensions_and_metrics(session, semantic_view):
 
 
 def test_where_is_applied_before_aggregation(session, semantic_view):
+    """A fact predicate: EMEA is 450 only if the 200 and 150 orders were dropped
+    before ``SUM``. Filtering the aggregate would leave it at 800."""
     assert session.semantic_view(
         semantic_view,
         dimensions="customers.region",
         metrics="orders.revenue",
-        where="customers.region = 'EMEA'",
-    ).collect() == [Row(REGION="EMEA", REVENUE=800)]
+        where="orders.order_amount > 200",
+    ).sort(col("REGION")).collect() == [
+        Row(REGION="AMER", REVENUE=350),
+        Row(REGION="APAC", REVENUE=650),
+        Row(REGION="EMEA", REVENUE=450),
+    ]
 
 
 def test_where_sequence_parentheses_change_the_rows(session, semantic_view):
