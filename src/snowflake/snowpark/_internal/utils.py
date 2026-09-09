@@ -364,6 +364,14 @@ def get_connector_version() -> str:
 
 
 @lru_cache
+def is_v5_driver() -> bool:
+    # The Python Driver was rebuilt on Universal Core starting with major
+    # version 5; behavior that depends on that rewrite (e.g. Arrow-native
+    # result fetching) should gate on this rather than on incidental effects.
+    return connector_version[0] is not None and connector_version[0] >= 5
+
+
+@lru_cache
 def get_os_name() -> str:
     return platform.system()
 
