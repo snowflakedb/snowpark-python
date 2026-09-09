@@ -9,14 +9,27 @@ jobs:
   CLAssistant:
     runs-on: ubuntu-latest
     permissions:
-      actions: write
-      contents: write
+      # 'read' is sufficient: the action only lists/inspects workflow runs. The
+      # single write call (re-running a stale failed run) is best-effort and its
+      # failure is caught and logged, not fatal. 'write' would also allow
+      # deletion of workflow run records, so it is deliberately not granted.
+      actions: read
+      # 'read' is sufficient because the signature ledger lives in the remote
+      # repository (snowflake-eng/cla-db) and is written with
+      # PERSONAL_ACCESS_TOKEN, not GITHUB_TOKEN.
+      contents: read
+      # Required: the action creates and updates the CLA comment on the PR,
+      # lists comments to detect signatures, and locks merged PRs.
       pull-requests: write
       statuses: write
     steps:
       - name: "CLA Assistant"
         if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
-        uses: contributor-assistant/github-action/@master
+        # Pinned to an immutable commit SHA. A mutable ref such as @master lets
+        # an upstream compromise run arbitrary code in this repository's
+        # privileged pull_request_target context with both GITHUB_TOKEN and the
+        # CLA_BOT_TOKEN PAT in scope.
+        uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PERSONAL_ACCESS_TOKEN : ${{ secrets.CLA_BOT_TOKEN }}
