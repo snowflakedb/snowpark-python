@@ -27,6 +27,7 @@ import math
 import pytest
 from unittest import mock
 
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.session import write_pandas, WRITE_PANDAS_CHUNK_SIZE
 from snowflake.snowpark.functions import col, div0, round, to_timestamp
@@ -206,7 +207,7 @@ def test_to_pandas_non_select(session):
     def check_fetch_data_exception(query: str):
         df = session.sql(query)
         result = df.to_pandas()
-        assert df.columns == result.columns.to_list()
+        assert [unquote_if_quoted(c) for c in df.columns] == result.columns.to_list()
         assert isinstance(result, PandasDF)
         return result
 
@@ -214,12 +215,12 @@ def test_to_pandas_non_select(session):
     check_fetch_data_exception("show tables")
     res = check_fetch_data_exception(f"create temporary table {temp_table_name}(a int)")
     expected_res = pd.DataFrame(
-        [(f"Table {temp_table_name} successfully created.",)], columns=['"status"']
+        [(f"Table {temp_table_name} successfully created.",)], columns=["status"]
     )
     assert expected_res.equals(res)
     res = check_fetch_data_exception(f"drop table if exists {temp_table_name}")
     expected_res = pd.DataFrame(
-        [(f"{temp_table_name} successfully dropped.",)], columns=['"status"']
+        [(f"{temp_table_name} successfully dropped.",)], columns=["status"]
     )
     assert expected_res.equals(res)
 

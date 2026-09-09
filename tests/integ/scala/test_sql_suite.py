@@ -234,5 +234,5 @@ def test_sql_set_variable_to_pandas(session):
     # 000007 (0A000): Statement provided can not be prepared.
     uncollected = session.sql("set temp_snowpark_test_variable = 100")
     result = uncollected.to_pandas()
-    assert result['"status"'][0] == "Statement executed successfully."
+    assert result["status"][0] == "Statement executed successfully."
     assert session.sql("select $temp_snowpark_test_variable").collect() == [Row(100)]

@@ -1182,12 +1182,7 @@ class DataFrame:
                 return pandas.DataFrame(
                     result,
                     columns=[
-                        (
-                            unquote_if_quoted(attr.name)
-                            if is_select_statement
-                            else attr.name
-                        )
-                        for attr in self._plan.attributes
+                        unquote_if_quoted(attr.name) for attr in self._plan.attributes
                     ],
                 )
 
