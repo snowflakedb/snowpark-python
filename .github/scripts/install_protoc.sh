@@ -12,8 +12,6 @@ set -eu
 
 SCRIPT_NAME="$(basename "$0")"
 
-echo "${SCRIPT_NAME} is running... "
-
 PROTOC_VERSION=3.20.1
 PROTOC_OS_ARCH=""
 PROTOC_ZIP=""
@@ -39,8 +37,13 @@ EXPECTED_BIN_SHA256=""
 # extracted executable is then re-verified as a defence-in-depth check on the
 # unzip step itself.
 #
-# To bump PROTOC_VERSION, download each archive from the release URL below and
-# record `sha256` of the ZIP and of `bin/protoc` (`bin/protoc.exe` on Windows).
+# To bump PROTOC_VERSION, run
+#
+#     .github/scripts/install_protoc.sh --print-digests <new-version>
+#
+# and paste the emitted block over the constants below. The helper downloads
+# every supported platform archive and hashes both the ZIP and the executable
+# inside it, so the pins cannot drift out of sync with each other.
 PROTOC_ZIP_SHA256_linux_x86_64="3a0e900f9556fbcac4c3a913a00d07680f0fdf6b990a341462d822247b265562"
 PROTOC_ZIP_SHA256_osx_x86_64="b4f36b18202d54d343a66eebc9f8ae60809a2a96cc2d1b378137550bbe4cf33c"
 PROTOC_ZIP_SHA256_win64="897bf86b9c989f91c4171c7f99e3886fedfceb077a94dd150f1401cfe922cd46"
@@ -142,6 +145,70 @@ verifySha256() {
 }
 
 
+# printDigests [version]
+# Developer helper for bumping PROTOC_VERSION. Downloads every supported
+# platform archive for <version> (default: the pinned PROTOC_VERSION), hashes
+# both the ZIP and the executable inside it, and prints the constant block to
+# paste above. Installs nothing and touches neither PATH nor GITHUB_PATH.
+printDigests() {
+  local version="${1:-${PROTOC_VERSION}}"
+  local workdir
+  workdir="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '${workdir}'" EXIT
+
+  local zip_lines=""
+  local bin_lines=""
+  local entry os_arch bin_name suffix zip_name url zip_digest bin_digest
+
+  # "<os-arch> <executable-name> <constant-suffix>"
+  for entry in "linux-x86_64 protoc linux_x86_64" \
+               "osx-x86_64 protoc osx_x86_64" \
+               "win64 protoc.exe win64"; do
+    # shellcheck disable=SC2086
+    set -- ${entry}
+    os_arch="$1"
+    bin_name="$2"
+    suffix="$3"
+
+    zip_name="protoc-${version}-${os_arch}.zip"
+    url="https://github.com/protocolbuffers/protobuf/releases/download/v${version}/${zip_name}"
+    echo "Fetching ${url}" >&2
+
+    curl -fsSL -o "${workdir}/${zip_name}" "${url}"
+    zip_digest="$(computeSha256 "${workdir}/${zip_name}")"
+
+    rm -rf "${workdir}/x"
+    unzip -qo "${workdir}/${zip_name}" -d "${workdir}/x"
+    bin_digest="$(computeSha256 "${workdir}/x/bin/${bin_name}")"
+
+    zip_lines="${zip_lines}PROTOC_ZIP_SHA256_${suffix}=\"${zip_digest}\"
+"
+    bin_lines="${bin_lines}PROTOC_BIN_SHA256_${suffix}=\"${bin_digest}\"
+"
+  done
+
+  echo >&2
+  echo "# ---- paste over the digest constants in ${SCRIPT_NAME} (protoc ${version}) ----"
+  printf '%s' "${zip_lines}"
+  echo
+  printf '%s' "${bin_lines}"
+}
+
+
+usage() {
+  cat <<EOF
+Usage: ${SCRIPT_NAME} [--print-digests [version]]
+
+  (no arguments)              Install the pinned protoc ${PROTOC_VERSION} and
+                              mypy-protobuf. This is what CI invokes.
+  --print-digests [version]   Print the SHA-256 constant block for <version>
+                              (default ${PROTOC_VERSION}) and exit without
+                              installing anything. Use when bumping protoc.
+EOF
+}
+
+
 downloadProtoc() {
   URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP}"
 
@@ -182,6 +249,27 @@ install() {
 # verification helpers (for the security regression tests) without downloading
 # or installing anything.
 if [ "${BASH_SOURCE[0]:-$0}" = "$0" ]; then
+  # CI invokes this script with no arguments, which installs as before.
+  case "${1:-}" in
+    --print-digests)
+      printDigests "${2:-${PROTOC_VERSION}}"
+      exit 0
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    "")
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+
+  echo "${SCRIPT_NAME} is running... "
+
   install
 
   # mypy-protobuf is used to generated typed Python code from protobuf

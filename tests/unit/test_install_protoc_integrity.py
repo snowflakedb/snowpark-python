@@ -77,6 +77,44 @@ def run_sourced(tmp_path):
 
 
 @pytest.fixture
+def run_script(tmp_path):
+    """Execute the installer directly with ``args``, with a failing curl shim.
+
+    Unlike ``run_sourced`` this exercises the argument handling at the bottom of
+    the script, so it can assert which mode a given flag selects. The returned
+    object carries the ``GITHUB_PATH`` location so tests can check the installer
+    never wrote to it.
+    """
+    shim = tmp_path / "shim"
+    shim.mkdir()
+    curl = shim / "curl"
+    curl.write_text(FAILING_CURL)
+    curl.chmod(0o755)
+
+    home = tmp_path / "home"
+    home.mkdir()
+    github_path = tmp_path / "github_path"
+
+    def _run(*args):
+        result = subprocess.run(
+            ["bash", str(INSTALL_SCRIPT), *args],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+            env={
+                "PATH": f"{shim}:/usr/bin:/bin:/usr/sbin:/sbin",
+                "HOME": str(home),
+                "GITHUB_PATH": str(github_path),
+            },
+            timeout=120,
+        )
+        result.github_path = github_path
+        return result
+
+    return _run
+
+
+@pytest.fixture
 def payload(tmp_path):
     """A file plus the correct SHA-256 digest of its contents."""
     target = tmp_path / "payload.zip"
@@ -173,3 +211,44 @@ def test_digests_pinned_for_every_supported_platform(script_text, platform):
         match = re.search(rf'^{prefix}_{platform}="([0-9a-f]*)"$', script_text, re.M)
         assert match is not None, f"{prefix}_{platform} is not pinned"
         assert len(match.group(1)) == 64, f"{prefix}_{platform} is not a SHA-256"
+
+
+def test_digest_table_has_no_orphan_pins(script_text):
+    """Each platform must pin BOTH a zip and a binary digest.
+
+    ``--print-digests`` emits the two blocks separately, so a partial paste on a
+    protoc bump could leave one half stale. A stale-but-valid digest would fail
+    the build closed, but this catches the mistake at review time instead.
+    """
+    zips = set(re.findall(r"^PROTOC_ZIP_SHA256_(\w+)=", script_text, re.M))
+    bins = set(re.findall(r"^PROTOC_BIN_SHA256_(\w+)=", script_text, re.M))
+    assert zips == bins, f"zip/binary digest pins disagree: {zips ^ bins}"
+    assert zips == set(PLATFORMS), f"unexpected platform set: {zips}"
+
+
+def test_help_documents_the_digest_helper(run_script):
+    """--help must explain the bump workflow without installing anything."""
+    result = run_script("--help")
+    assert result.returncode == 0, result.stderr
+    assert "--print-digests" in result.stdout
+    assert "is running" not in result.stdout, "--help took the install path"
+
+
+def test_unknown_argument_fails_closed(run_script):
+    """An unrecognised flag must abort rather than silently installing."""
+    result = run_script("--not-a-real-flag")
+    assert result.returncode != 0
+    assert "unknown argument" in result.stderr
+    assert "is running" not in result.stdout, "install ran despite a bad argument"
+
+
+def test_print_digests_never_installs(run_script):
+    """--print-digests must only hash archives, never install or touch PATH.
+
+    The ``curl`` shim fails, so this cannot reach the network; the point is that
+    the install path is not entered and ``GITHUB_PATH`` is left alone.
+    """
+    result = run_script("--print-digests")
+    assert result.returncode != 0, "the failing curl shim should have aborted it"
+    assert "is running" not in result.stdout, "--print-digests took the install path"
+    assert not result.github_path.exists(), "--print-digests wrote to GITHUB_PATH"
