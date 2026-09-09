@@ -1067,8 +1067,10 @@ class SnowflakePlanBuilder:
         table_reference = table_name
         if isinstance(source_plan, SnowflakeTable):
             if source_plan.iceberg_changes_config:
-                table_reference += (
-                    source_plan.iceberg_changes_config.generate_sql_clause()
+                table_reference = (
+                    source_plan.iceberg_changes_config.generate_table_reference(
+                        table_name
+                    )
                 )
             elif source_plan.time_travel_config:
                 table_reference += source_plan.time_travel_config.generate_sql_clause()
@@ -1316,6 +1318,8 @@ class SnowflakePlanBuilder:
                 catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
                 storage_serialization_policy: specifies the storage serialization policy for the table
                 iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
+                table_properties: optional mapping of Iceberg property names to values, emitted
+                    verbatim as a ``TABLE_PROPERTIES = ('k'='v', ...)`` clause on CREATE / CTAS.
             table_exists: whether the table already exists in the database.
                 Only used for APPEND and TRUNCATE mode.
         """

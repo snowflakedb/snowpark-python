@@ -323,6 +323,8 @@ class DataFrameWriter:
                 * storage_serialization_policy: specifies the storage serialization policy for the table
 
                 * iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
+                * table_properties: an optional mapping of Iceberg table property names to values,
+                  emitted verbatim as a ``TABLE_PROPERTIES = ('k'='v', ...)`` clause on table creation.
             table_exists: Optional parameter to specify if the table is known to exist or not.
                 Set to ``True`` if table exists, ``False`` if it doesn't, or ``None`` (default) for automatic detection.
                 Primarily useful for "append", "truncate", and "overwrite" with overwrite_condition modes to avoid running query for automatic detection.

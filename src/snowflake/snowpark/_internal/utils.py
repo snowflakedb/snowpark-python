@@ -2255,7 +2255,7 @@ class TimeTravelConfig(NamedTuple):
 
 
 class IcebergChangesConfig(NamedTuple):
-    """Configuration for Iceberg incremental reads via Snowflake ``CHANGES``.
+    """Configuration for Iceberg incremental reads via ``SPARK_INCREMENTAL_READ``.
 
     Spark Iceberg exposes incremental reads through::
 
@@ -2266,14 +2266,12 @@ class IcebergChangesConfig(NamedTuple):
 
     Snowflake translates this to::
 
-        SELECT * FROM table
-          CHANGES (INFORMATION => APPEND_ONLY)
-          AT (VERSION => S1)
-          [ END (VERSION => S2) ]
+        SELECT * FROM TABLE(
+            SPARK_INCREMENTAL_READ('<table>', S1 [, S2])
+        )
 
-    When ``end_version`` is omitted, Snowflake uses the current snapshot as
-    the end of the change interval (same semantics as omitting ``END`` on
-    generic ``CHANGES`` queries).
+    When ``end_version`` is omitted, the third argument is omitted and
+    Snowflake reads append-only changes through the current snapshot.
     """
 
     start_version: int
@@ -2327,14 +2325,24 @@ class IcebergChangesConfig(NamedTuple):
             start_version=start, end_version=end, information=info
         )
 
-    def generate_sql_clause(self) -> str:
-        clause = (
-            f" CHANGES (INFORMATION => {self.information}) "
-            f"AT (VERSION => {self.start_version})"
-        )
+    def generate_table_reference(self, table_name: str) -> str:
+        """Return a ``TABLE(SPARK_INCREMENTAL_READ(...))`` source for *table_name*.
+
+        ``SPARK_INCREMENTAL_READ`` takes the table as its first **VARCHAR**
+        argument (not a SQL identifier), so we quote *table_name* with
+        :func:`~snowflake.snowpark._internal.analyzer.datatype_mapper.str_to_sql`.
+        The string is passed through unchanged from the Spark read path
+        (``session.table(...)`` / ``DataFrameReader.load(...)``); callers that
+        need a catalog-linked or multi-part name should supply the same FQN
+        they would use in a ``CHANGES`` read (e.g. ``db.schema.table``).
+        Snowflake resolves partial names inside the TVF using session context.
+        """
+        from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
+
+        args = f"{str_to_sql(table_name)}, {self.start_version}"
         if self.end_version is not None:
-            clause += f" END (VERSION => {self.end_version})"
-        return clause
+            args += f", {self.end_version}"
+        return f"TABLE(SPARK_INCREMENTAL_READ({args}))"
 
 
 def get_line_numbers(
