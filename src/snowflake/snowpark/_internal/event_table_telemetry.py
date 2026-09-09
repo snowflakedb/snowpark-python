@@ -10,7 +10,6 @@ from logging import getLogger
 from typing import Dict, Optional, Tuple
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 import snowflake.snowpark
-import requests
 
 from snowflake.snowpark._internal.utils import parse_table_name
 
@@ -22,6 +21,10 @@ SERVICE_NAME = "snow.snowpark.client"
 
 class MissingOpenTelemetry(MissingOptionalDependency):
     _dep_name = "opentelemetry"
+
+
+class MissingRequests(MissingOptionalDependency):
+    _dep_name = "requests"
 
 
 def _import_or_missing_opentelemetry() -> Tuple[ModuleLikeObject, bool]:
@@ -39,7 +42,15 @@ def _import_or_missing_opentelemetry() -> Tuple[ModuleLikeObject, bool]:
         return MissingOpenTelemetry(), False
 
 
+def _import_or_missing_requests() -> Tuple[ModuleLikeObject, bool]:
+    try:
+        return importlib.import_module("requests"), True
+    except ImportError:
+        return MissingRequests(), False
+
+
 opentelemetry, installed_opentelemetry = _import_or_missing_opentelemetry()
+requests, installed_requests = _import_or_missing_requests()
 
 BaseLogProvider = opentelemetry._logs.LoggerProvider if installed_opentelemetry else ABC
 BaseTraceProvider = (
@@ -77,48 +88,58 @@ else:
             )
 
 
-class RetryWithTokenRefreshAdapter(requests.adapters.HTTPAdapter):
-    def __init__(
-        self,
-        session_instance: "snowflake.snowpark.Session",
-        header: Dict,
-        max_retries: int = 3,
-    ) -> None:
-        super().__init__()
-        self.snowpark_session = session_instance
-        self.max_retries = max_retries
-        self.header = header
-        self.retryable_status_code = [401]
+if installed_requests:
 
-    def send(self, request, **kwargs):
-        """Send request with retry logic and token refresh on failure"""
-        for attempt in range(self.max_retries + 1):
-            try:
-                request.headers.update(self.header)
+    class RetryWithTokenRefreshAdapter(requests.adapters.HTTPAdapter):
+        def __init__(
+            self,
+            session_instance: "snowflake.snowpark.Session",
+            header: Dict,
+            max_retries: int = 3,
+        ) -> None:
+            super().__init__()
+            self.snowpark_session = session_instance
+            self.max_retries = max_retries
+            self.header = header
+            self.retryable_status_code = [401]
 
-                response = super().send(request, **kwargs)
+        def send(self, request, **kwargs):
+            """Send request with retry logic and token refresh on failure"""
+            for attempt in range(self.max_retries + 1):
+                try:
+                    request.headers.update(self.header)
 
-                # If successful, return the response
-                if (
-                    response.status_code in self.retryable_status_code
-                    and attempt < self.max_retries
-                ):
-                    self.header = (
-                        self.snowpark_session._get_external_telemetry_auth_token()
-                    )
-                    continue
-                else:
-                    return response
+                    response = super().send(request, **kwargs)
 
-            except (requests.exceptions.RequestException, Exception) as e:
-                if attempt < self.max_retries:
-                    self.header = (
-                        self.snowpark_session._get_external_telemetry_auth_token()
-                    )
-                    continue
-                else:
-                    # Re-raise the exception if we've exhausted retries
-                    raise e
+                    # If successful, return the response
+                    if (
+                        response.status_code in self.retryable_status_code
+                        and attempt < self.max_retries
+                    ):
+                        self.header = (
+                            self.snowpark_session._get_external_telemetry_auth_token()
+                        )
+                        continue
+                    else:
+                        return response
+
+                except (requests.exceptions.RequestException, Exception) as e:
+                    if attempt < self.max_retries:
+                        self.header = (
+                            self.snowpark_session._get_external_telemetry_auth_token()
+                        )
+                        continue
+                    else:
+                        # Re-raise the exception if we've exhausted retries
+                        raise e
+
+else:
+
+    class RetryWithTokenRefreshAdapter:
+        def __init__(self, *args, **kwargs) -> None:
+            raise NotImplementedError(
+                'opentelemetry extra from Snowpark is required, install with: pip install "snowflake-snowpark-python[opentelemetry]" '
+            )
 
 
 class ProxyTracerProvider(BaseTraceProvider):
@@ -286,7 +307,7 @@ class EventTableTelemetry:
             ext.disable_event_table_telemetry_collection()
 
         """
-        if not installed_opentelemetry:
+        if not installed_opentelemetry or not installed_requests:
             _logger.debug(
                 f"Opentelemetry dependencies are missing, no telemetry export into event table: {event_table}"
             )
