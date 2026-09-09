@@ -9,11 +9,11 @@ import threading
 import uuid
 from datetime import datetime
 from enum import Enum
+from queue import Queue
 from typing import Optional
 
 from snowflake.connector.compat import OK
 from snowflake.connector.secret_detector import SecretDetector
-from snowflake.connector.telemetry_oob import TelemetryService
 from snowflake.snowpark._internal.utils import (
     get_os_name,
     get_python_version,
@@ -32,6 +32,10 @@ except ImportError:
 # 3 seconds setting in the connector oob could be too short that the oob service is unable to handle the request,
 # 5 seconds is more tolerant
 REQUEST_TIMEOUT = 5
+
+# Default number of events to accumulate in the queue before proactively
+# flushing them to the telemetry backend (mirrors the connector OOB default).
+DEFAULT_BATCH_SIZE = 10
 
 logger = logging.getLogger(__name__)
 
@@ -83,17 +87,63 @@ class LocalTestTelemetryEventType(Enum):
     SESSION_CONNECTION = "session"
 
 
-class LocalTestOOBTelemetryService(TelemetryService):
+class LocalTestOOBTelemetryService:
+    """Singleton service that batches and sends out-of-band (OOB) telemetry
+    events for Snowpark's local testing framework.
+
+    Events are queued and flushed either when the queue exceeds
+    ``batch_size`` or when :meth:`flush`/:meth:`close` is called explicitly.
+    """
+
     PROD = "https://client-telemetry.snowflakecomputing.com/enqueue"
 
+    __instance: Optional["LocalTestOOBTelemetryService"] = None
+    __instance_lock = threading.Lock()
+
+    @classmethod
+    def get_instance(cls) -> "LocalTestOOBTelemetryService":
+        """Static access method for the telemetry service singleton."""
+        with cls.__instance_lock:
+            if cls.__instance is None:
+                cls.__instance = cls()
+        return cls.__instance
+
     def __init__(self) -> None:
-        super().__init__()
         self._is_internal_usage = bool(
             os.getenv("SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY", False)
         )
         self._deployment_url = self.PROD
+        # NOTE: preserved as-is from the connector's telemetry_oob.TelemetryService
+        # based implementation for 1:1 behavior parity. This sets an attribute that
+        # is never read (the `enabled` property reads `self._enabled`, which
+        # defaults to `False`), so the service is effectively always disabled
+        # unless something else calls `.enable()`. See follow-up PR for a fix.
         self._enable = True
+        self._enabled = False
+        self._queue: "Queue" = Queue()
+        self.batch_size = DEFAULT_BATCH_SIZE
         self._lock = threading.RLock()
+
+    def __del__(self) -> None:
+        """Tries to flush all events left in the queue. Ignores all exceptions."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    @property
+    def queue(self) -> "Queue":
+        """Returns the queue that holds all of the telemetry events."""
+        return self._queue
+
+    def size(self) -> int:
+        """Returns the number of events currently queued."""
+        return self.queue.qsize()
+
+    def close(self) -> None:
+        """Flushes any remaining events and disables the service."""
+        self.flush()
+        self.disable()
 
     def _upload_payload(self, payload) -> None:
         if not REQUESTS_AVAILABLE:
