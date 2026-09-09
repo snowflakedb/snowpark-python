@@ -16,11 +16,8 @@ import snowflake.snowpark._internal.analyzer.expression as expression
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 # Use correct version from here:
-from snowflake.snowpark._internal.utils import (
-    installed_pandas,
-    pandas,
-    quote_name,
-)
+from snowflake.snowpark._internal.options import installed_pandas, pandas
+from snowflake.snowpark._internal.utils import quote_name
 
 # TODO: connector installed_pandas is broken. If pyarrow is not installed, but pandas is this function returns the wrong answer.
 # The core issue is that in the connector detection of both pandas/arrow are mixed, which is wrong.
