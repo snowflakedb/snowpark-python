@@ -325,31 +325,30 @@ def _extract_iceberg_changes_from_options(options: dict) -> dict:
 
 def _reader_options_conflict_with_incremental_read(options: dict) -> list[str]:
     """Return reader option keys that cannot coexist with incremental read."""
-    incremental_keys = {
-        "start-snapshot-id",
-        "start_snapshot_id",
-        "end-snapshot-id",
-        "end_snapshot_id",
-    }
-    if not any(
-        k.upper().replace("_", "-") in {x.replace("_", "-") for x in incremental_keys}
-        for k in options
-    ):
+
+    def normalize(key: str) -> str:
+        return key.upper().replace("_", "-")
+
+    incremental_keys = {"START-SNAPSHOT-ID", "END-SNAPSHOT-ID"}
+    normalized_keys = {normalize(key) for key in options}
+    if not normalized_keys.intersection(incremental_keys):
         return []
+
+    time_travel_keys = {
+        *(normalize(key) for key in _TIME_TRAVEL_OPTIONS_PARAMS_MAP),
+        "SNAPSHOT-ID",
+        "AS-OF-TIMESTAMP",
+        "VERSION-TAG",
+        "VERSION-REF",
+        "BRANCH",
+        "TAG",
+    }
     blocked = []
     for key in options:
-        upper = key.upper()
-        if upper in incremental_keys or upper.replace("_", "-") in {
-            x.replace("_", "-") for x in incremental_keys
-        }:
+        normalized_key = normalize(key)
+        if normalized_key in incremental_keys:
             continue
-        if upper in _TIME_TRAVEL_OPTIONS_PARAMS_MAP or upper in (
-            "SNAPSHOT-ID",
-            "SNAPSHOT_ID",
-            "AS-OF-TIMESTAMP",
-            "VERSION_TAG",
-            "VERSION-TAG",
-        ):
+        if normalized_key in time_travel_keys:
             blocked.append(key)
     return blocked
 
