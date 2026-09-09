@@ -36,7 +36,7 @@ import snowflake.snowpark.context as context
 import snowflake.snowpark.types  # type: ignore
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
-from snowflake.connector.options import installed_pandas, pandas
+from snowflake.snowpark._internal.options import installed_pandas, pandas
 from snowflake.snowpark._internal.utils import quote_name
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
