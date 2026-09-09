@@ -4,11 +4,13 @@
 #
 
 import decimal
+import json
 import threading
+import time
 from unittest.mock import patch
 import uuid
 from functools import partial
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 import pytest
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
@@ -96,6 +98,65 @@ class TelemetryDataTracker:
         # we search for messages in reverse until we hit
         for message in message_log[: -(size + 1) : -1]:
             data = message.to_dict()["message"].get(TelemetryField.KEY_DATA.value, {})
+            if data == expected_data:
+                return True
+        return False
+
+
+class WireTelemetryChecker:
+    """Verifies telemetry against the actual `/telemetry/send` wire payload,
+    captured by the mitmproxy fixture, instead of the connector's in-process
+    buffer (removed on the Universal Driver, drivers#1104/BD#58).
+
+    `Session.close()` is the only lever that reliably forces an immediate
+    flush on both drivers (BD#60; `send_log_batch`/`send_batch` are no-ops on
+    the Universal Driver, where flush is core-owned). This checker closes
+    `session` as part of each check -- callers must use a dedicated session
+    (e.g. the `mitmproxy_session` fixture) that nothing else still needs.
+    """
+
+    def __init__(self, session: Session, mitmproxy) -> None:
+        self.session = session
+        self._mitmproxy = mitmproxy
+
+    def _flattened_logs(self, min_count: int, timeout: float = 10.0) -> List[Dict]:
+        self.session.close()
+        requests = self._mitmproxy.wait_for_requests(
+            r"/telemetry/send", min_count=1, timeout=timeout
+        )
+        entries = [
+            entry
+            for request in requests
+            for entry in json.loads(request["body"] or "{}").get("logs", [])
+        ]
+        if len(entries) < min_count:
+            # Rare: give a slow last flush a little more room before giving up.
+            time.sleep(0.5)
+            requests = self._mitmproxy.get_requests(r"/telemetry/send")
+            entries = [
+                entry
+                for request in requests
+                for entry in json.loads(request["body"] or "{}").get("logs", [])
+            ]
+        return entries
+
+    def extract_telemetry_log_data(self, index, partial_func) -> Tuple[Dict, str, Any]:
+        """Extracts telemetry data, telemetry type from the wire payload and result of running partial_func."""
+        result = partial_func()
+        message_log = self._flattened_logs(min_count=abs(index))
+
+        message = message_log[index]["message"]
+        data = message.get(TelemetryField.KEY_DATA.value, None)
+        type_ = message.get("type", None)
+        return data, type_, result
+
+    def find_message_in_log_data(self, size, partial_func, expected_data) -> bool:
+        partial_func()
+        message_log = self._flattened_logs(min_count=size)
+
+        # we search for messages in reverse until we hit
+        for message in message_log[: -(size + 1) : -1]:
+            data = message["message"].get(TelemetryField.KEY_DATA.value, {})
             if data == expected_data:
                 return True
         return False
@@ -635,8 +696,9 @@ def test_distinct_api_calls(session, use_simplified_query_generation):
 
 
 @pytest.mark.parametrize("n", [None, 2, -1])
-def test_first_api_calls(session, n):
-    telemetry_tracker = TelemetryDataTracker(session)
+def test_first_api_calls(mitmproxy_session, mitmproxy, n):
+    session = mitmproxy_session
+    telemetry_tracker = WireTelemetryChecker(session, mitmproxy)
 
     df = session.create_dataframe([[1, 2], [4, 5]]).to_df("a", "b")
 
@@ -663,8 +725,9 @@ def test_first_api_calls(session, n):
     assert type_ == "snowpark_function_usage"
 
 
-def test_count_api_calls(session):
-    telemetry_tracker = TelemetryDataTracker(session)
+def test_count_api_calls(mitmproxy_session, mitmproxy):
+    session = mitmproxy_session
+    telemetry_tracker = WireTelemetryChecker(session, mitmproxy)
 
     df = session.create_dataframe([[1, 2], [4, 5]], schema="a int, b int")
     count_partial = partial(df.count)
@@ -1237,6 +1300,10 @@ def test_dataframe_na_functions_api_calls(session, local_testing_mode):
 )
 @pytest.mark.udf
 def test_udf_call_and_invoke(session, resources_path):
+    # Stays on TelemetryDataTracker (mock-patch, not wire capture): this test
+    # calls the tracker many times against one session, but WireTelemetryChecker
+    # must close the session to force a flush -- incompatible with checks
+    # interleaved across a single session's lifetime.
     telemetry_tracker = TelemetryDataTracker(session)
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
 
@@ -1324,6 +1391,8 @@ def test_udf_call_and_invoke(session, resources_path):
 
 @pytest.mark.udf
 def test_sproc_call_and_invoke(session, resources_path):
+    # See test_udf_call_and_invoke: multiple checks per session, incompatible
+    # with WireTelemetryChecker's close-to-flush requirement.
     telemetry_tracker = TelemetryDataTracker(session)
 
     # sproc register
@@ -1380,6 +1449,8 @@ def test_sproc_call_and_invoke(session, resources_path):
 
 @pytest.mark.udf
 def test_udtf_call_and_invoke(session, resources_path):
+    # See test_udf_call_and_invoke: multiple checks per session, incompatible
+    # with WireTelemetryChecker's close-to-flush requirement.
     telemetry_tracker = TelemetryDataTracker(session)
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
 
@@ -1456,8 +1527,9 @@ def test_udtf_call_and_invoke(session, resources_path):
 @pytest.mark.skip(
     "This is broken because server doesn't have parameter PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER yet. Enable it after server releases it."
 )
-def test_sql_simplifier_enabled(session):
-    telemetry_tracker = TelemetryDataTracker(session)
+def test_sql_simplifier_enabled(mitmproxy_session, mitmproxy):
+    session = mitmproxy_session
+    telemetry_tracker = WireTelemetryChecker(session, mitmproxy)
     original_value = session.sql_simplifier_enabled
     try:
 
@@ -1475,7 +1547,8 @@ def test_sql_simplifier_enabled(session):
         session.sql_simplifier_enabled = original_value
 
 
-def test_post_compilation_stage_telemetry(session):
+def test_post_compilation_stage_telemetry(mitmproxy_session, mitmproxy):
+    session = mitmproxy_session
     client = session._conn._telemetry_client
     uuid_str = str(uuid.uuid4())
 
@@ -1499,7 +1572,7 @@ def test_post_compilation_stage_telemetry(session):
             compilation_stage_summary=summary_value,
         )
 
-    telemetry_tracker = TelemetryDataTracker(session)
+    telemetry_tracker = WireTelemetryChecker(session, mitmproxy)
 
     expected_data = {
         "session_id": session.session_id,
@@ -1523,7 +1596,8 @@ def test_post_compilation_stage_telemetry(session):
     assert type_ == "snowpark_compilation_stage_statistics"
 
 
-def test_temp_table_cleanup(session):
+def test_temp_table_cleanup(mitmproxy_session, mitmproxy):
+    session = mitmproxy_session
     client = session._conn._telemetry_client
 
     def send_telemetry():
@@ -1534,7 +1608,7 @@ def test_temp_table_cleanup(session):
             num_temp_tables_created=5,
         )
 
-    telemetry_tracker = TelemetryDataTracker(session)
+    telemetry_tracker = WireTelemetryChecker(session, mitmproxy)
 
     expected_data = {
         "session_id": session.session_id,
@@ -1548,7 +1622,8 @@ def test_temp_table_cleanup(session):
     assert type_ == "snowpark_temp_table_cleanup"
 
 
-def test_temp_table_cleanup_exception(session):
+def test_temp_table_cleanup_exception(mitmproxy_session, mitmproxy):
+    session = mitmproxy_session
     client = session._conn._telemetry_client
 
     def send_telemetry():
@@ -1558,7 +1633,7 @@ def test_temp_table_cleanup_exception(session):
             exception_message="exception_message_placeholder",
         )
 
-    telemetry_tracker = TelemetryDataTracker(session)
+    telemetry_tracker = WireTelemetryChecker(session, mitmproxy)
 
     expected_data = {
         "session_id": session.session_id,
@@ -1571,9 +1646,10 @@ def test_temp_table_cleanup_exception(session):
     assert type_ == "snowpark_temp_table_cleanup"
 
 
-def test_cursor_created_telemetry(session):
+def test_cursor_created_telemetry(mitmproxy_session, mitmproxy):
+    session = mitmproxy_session
     client = session._conn._telemetry_client
-    telemetry_tracker = TelemetryDataTracker(session)
+    telemetry_tracker = WireTelemetryChecker(session, mitmproxy)
 
     def send_telemetry():
         client.send_cursor_created_telemetry(session_id=session.session_id, thread_id=1)
@@ -1587,7 +1663,8 @@ def test_cursor_created_telemetry(session):
     assert type_ == "snowpark_cursor_created"
 
 
-def test_describe_query_details(session):
+def test_describe_query_details(mitmproxy_session, mitmproxy):
+    session = mitmproxy_session
     client = session._conn._telemetry_client
 
     def send_telemetry():
@@ -1598,7 +1675,7 @@ def test_describe_query_details(session):
             stack_trace=["line1", "line2"],
         )
 
-    telemetry_tracker = TelemetryDataTracker(session)
+    telemetry_tracker = WireTelemetryChecker(session, mitmproxy)
 
     expected_data = {
         "session_id": session.session_id,
@@ -1612,7 +1689,8 @@ def test_describe_query_details(session):
     assert type_ == "snowpark_describe_query_details"
 
 
-def test_plan_metrics_telemetry(session):
+def test_plan_metrics_telemetry(mitmproxy_session, mitmproxy):
+    session = mitmproxy_session
     client = session._conn._telemetry_client
     telemetry_data = {
         "plan_uuid": "plan_uuid_placeholder",
@@ -1635,7 +1713,7 @@ def test_plan_metrics_telemetry(session):
     def send_telemetry():
         client.send_plan_metrics_telemetry(session.session_id, data=telemetry_data)
 
-    telemetry_tracker = TelemetryDataTracker(session)
+    telemetry_tracker = WireTelemetryChecker(session, mitmproxy)
 
     expected_data = {"session_id": session.session_id, **telemetry_data}
 
@@ -1711,12 +1789,15 @@ def test_snowflake_plan_telemetry_sent_at_critical_path(session, enabled):
         ),
     ],
 )
-def test_dataframe_writer_save_as_table_api_calls(session, send_telemetry_func):
+def test_dataframe_writer_save_as_table_api_calls(
+    mitmproxy_session, mitmproxy, send_telemetry_func
+):
+    session = mitmproxy_session
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
     table_name = f"test_table_{generate_random_alphanumeric()}"
 
-    telemetry_tracker = TelemetryDataTracker(session)
+    telemetry_tracker = WireTelemetryChecker(session, mitmproxy)
 
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(
         -1, partial(send_telemetry_func, df, table_name)
