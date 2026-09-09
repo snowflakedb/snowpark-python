@@ -152,7 +152,10 @@ def parse(
 def parse_ai(files_df: "DataFrame", options: DocumentReaderOptions) -> "DataFrame":
     parse_kwargs: Dict[str, Any] = {
         "mode": options.parse_mode.upper(),
-        "page_split": options.row_boundary == "page",
+        # AI_PARSE_DOCUMENT rejects page_filter unless page_split is also true,
+        # even when the document boundary (row_boundary="document") is what
+        # collapses the pages back down afterwards in aggregate_pages().
+        "page_split": options.row_boundary == "page" or options.page_filter is not None,
     }
     if options.page_filter is not None:
         parse_kwargs["page_filter"] = options.page_filter
@@ -259,8 +262,58 @@ def extract(df: "DataFrame", options: DocumentReaderOptions) -> "DataFrame":
         col(CONTENT_COLUMN) if options.parse_enabled else col(SOURCE_FILE_COLUMN)
     )
     if options.extraction_engine == "ai_complete":
+        if options.parse_enabled:
+            # AI_PARSE_DOCUMENT chained into AI_COMPLETE in one compiled query hits a
+            # Snowflake compiler bug: AI_PARSE_DOCUMENT gets rewritten into a private,
+            # 4-argument preview function, but that rewrite ends up passing 5 arguments
+            # whenever AI_COMPLETE is also present in the same plan (AI_EXTRACT in that
+            # same position does not trigger it). Collecting the parse result and
+            # re-issuing AI_COMPLETE as a separate query splits the two calls into
+            # separate compiled plans, which avoids the buggy rewrite entirely -- this
+            # was confirmed by reproducing both the failure and the workaround directly
+            # against the account. The tradeoff: this forces read_documents() to execute
+            # immediately for this one combination, rather than staying lazy until the
+            # caller's own collect().
+            df = materialize_parsed_content(df, options)
+            input_col = col(CONTENT_COLUMN)
         return extract_with_ai_complete(df, input_col, options)
     return extract_with_ai_extract(df, input_col, options)
+
+
+def materialize_parsed_content(
+    df: "DataFrame", options: DocumentReaderOptions
+) -> "DataFrame":
+    columns = [_STAGE_PATH_COLUMN, TOTAL_PAGES_COLUMN, CONTENT_COLUMN]
+    fields = [
+        StructField(_STAGE_PATH_COLUMN, StringType()),
+        StructField(TOTAL_PAGES_COLUMN, IntegerType()),
+        StructField(CONTENT_COLUMN, StringType()),
+    ]
+    if options.page_rows:
+        columns.append(PAGE_INDEX_COLUMN)
+        fields.append(StructField(PAGE_INDEX_COLUMN, IntegerType()))
+    if options.extract_images:
+        columns.append(IMAGES_COLUMN)
+        fields.append(StructField(IMAGES_COLUMN, StringType()))
+    columns.append(_PARSE_ERROR_COLUMN)
+    fields.append(StructField(_PARSE_ERROR_COLUMN, StringType()))
+
+    rows = [[row[name] for name in columns] for row in df.collect()]
+    materialized = df._session.create_dataframe(rows, schema=StructType(fields))
+    # SOURCE_FILE (a FILE value) can't round-trip through create_dataframe as a
+    # literal, so it is rebuilt from the stage path -- the same trick
+    # aggregate_pages() already relies on for the same reason.
+    materialized = materialized.with_column(
+        SOURCE_FILE_COLUMN, to_file(col(_STAGE_PATH_COLUMN))
+    )
+    if options.extract_images:
+        materialized = materialized.with_column(
+            IMAGES_COLUMN, try_parse_json(col(IMAGES_COLUMN))
+        )
+    # Re-applies the same warehouse-parallelism fix as access(): a literal VALUES
+    # source generally carries real cardinality, but shuffle regardless so this
+    # doesn't silently regress if that ever isn't true.
+    return materialized.sort(random())
 
 
 def extract_with_ai_extract(

@@ -425,7 +425,11 @@ def test_permissive_uses_a_custom_corrupt_record_column(session, unsupported_sta
     assert _unquoted(df)[-1] == "docError"
     rows = df.collect()
     assert len(rows) == 1
-    assert json.loads(rows[0]["docError"])["stage"] == "parse"
+    # docError is an array, one entry per phase that failed -- see
+    # test_permissive_captures_a_parse_error_without_aborting.
+    errors = json.loads(rows[0]["docError"])
+    assert len(errors) == 1
+    assert errors[0]["stage"] == "parse"
 
 
 def test_permissive_leaves_the_error_column_null_for_a_good_file(session, invoice_path):
