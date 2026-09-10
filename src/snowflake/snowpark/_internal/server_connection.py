@@ -594,13 +594,9 @@ class ServerConnection:
             new_cursor.get_results_from_sfqid(qid)
             results_cursor = new_cursor
 
-        # The Python Driver on Universal Core (v5+) is Arrow-native and
-        # succeeds at fetch_pandas_all() even for JSON-format result sets
-        # (e.g. SHOW/SET/DDL), where a pre-v5 driver always raised
-        # NotSupportedError and fell back to a plain row fetch. Force the
-        # same fallback on v5+ for non-Arrow result sets so to_pandas()
-        # behaves identically across driver generations instead of
-        # depending on which driver generation happens to be installed.
+        # Python Driver v5+ supports pandas conversion from JSON-format result
+        # sets, but results slightly differ from output of Snowpark's custom
+        # fallback. Enforce Snowpark's fallback for backwards compatibility.
         force_json_fallback = (
             to_pandas
             and IS_V5_DRIVER
