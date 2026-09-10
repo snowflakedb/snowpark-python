@@ -1,5 +1,23 @@
 # Release History
 
+## 1.56.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Improvements
+
+#### Bug Fixes
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+
+#### Bug Fixes
+
 ## 1.55.0 (2026-09-10)
 
 ### Snowpark Python API Updates
