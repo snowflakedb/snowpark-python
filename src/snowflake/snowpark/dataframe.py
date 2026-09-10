@@ -149,7 +149,6 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.udf_utils import add_package_to_existing_packages
 from snowflake.snowpark._internal.utils import (
-    IS_V5_DRIVER,
     SKIP_LEVELS_THREE,
     SKIP_LEVELS_TWO,
     TempObjectType,
@@ -1171,17 +1170,16 @@ class DataFrame:
             )
 
         if block:
-            query = self._plan.queries[-1].sql.strip().lower()
-            is_select_statement = is_sql_select_statement(query)
-
             if not isinstance(result, pandas.DataFrame):
+                query = self._plan.queries[-1].sql.strip().lower()
+                is_select_statement = is_sql_select_statement(query)
                 if is_select_statement:
                     _logger.warning(
                         "The query result format is set to JSON. "
                         "The result of to_pandas() may not align with the result returned in the ARROW format. "
                         "For best compatibility with to_pandas(), set the query result format to ARROW."
                     )
-                result = pandas.DataFrame(
+                return pandas.DataFrame(
                     result,
                     columns=[
                         (
@@ -1192,26 +1190,6 @@ class DataFrame:
                         for attr in self._plan.attributes
                     ],
                 )
-            elif not is_select_statement and IS_V5_DRIVER:
-                # The Python Driver on Universal Core (v5+) already returns a
-                # real pandas DataFrame for non-SELECT/JSON result sets
-                # instead of raising NotSupportedError, but with its own bare
-                # column labels. Relabel to the query plan's (quoted)
-                # attribute names so non-SELECT to_pandas() output stays
-                # consistent across driver versions.
-                attr_names = [attr.name for attr in self._plan.attributes]
-                if len(attr_names) == len(result.columns):
-                    result.columns = attr_names
-                else:
-                    _logger.warning(
-                        "Could not relabel to_pandas() columns for a non-SELECT "
-                        "statement: expected %d columns from the query plan but "
-                        "the driver returned %d.",
-                        len(attr_names),
-                        len(result.columns),
-                    )
-
-            return result
 
         return result
 
