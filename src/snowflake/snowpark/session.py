@@ -3649,6 +3649,9 @@ class Session:
                 if chunk_size is not None and chunk_size != WRITE_PANDAS_CHUNK_SIZE:
                     ast.chunk_size.value = chunk_size
                 ast.compression = compression
+                # Still emitted alongside table_type: IR consumers built against
+                # the pre-deprecation contract read create_temp_table.
+                ast.create_temp_table = create_temp_table
                 if isinstance(df, pandas.DataFrame):
                     build_table_name(
                         ast.df.dataframe_data__pandas.v.temp_table, table.table_name
