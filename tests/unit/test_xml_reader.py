@@ -1348,6 +1348,45 @@ def test_process_xml_range_scos_permissive_type_validation():
     assert "_corrupt_record" in frank
 
 
+def test_process_xml_range_scos_dropmalformed_type_validation_skips_row():
+    """When is_snowpark_connect_compatible=True and DROPMALFORMED encounters a value
+    that can't cast to the schema type, _validate_row_for_type_mismatch returns None --
+    process_xml_range must skip yielding that row entirely, not yield None."""
+    xml_content = (
+        "<root>"
+        "<ROW><name>Alice</name><value>100</value></ROW>"
+        "<ROW><name>Frank</name><value>hello</value></ROW>"
+        "</root>"
+    )
+    xml_bytes = xml_content.encode("utf-8")
+    schema = _make_schema(("name", StringType()), ("value", LongType()))
+    mock_file = io.BytesIO(xml_bytes)
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+        results = _records_only(
+            process_xml_range(
+                file_path="test.xml",
+                tag_name="ROW",
+                approx_start=0,
+                approx_end=len(xml_bytes),
+                mode="DROPMALFORMED",
+                column_name_of_corrupt_record="_corrupt_record",
+                ignore_namespace=True,
+                attribute_prefix="_",
+                exclude_attributes=False,
+                value_tag="_VALUE",
+                null_value="",
+                charset="utf-8",
+                ignore_surrounding_whitespace=True,
+                row_validation_xsd_path="",
+                result_template={"name": None, "value": None},
+                schema_type=schema,
+                is_snowpark_connect_compatible=True,
+            )
+        )
+    assert len(results) == 1
+    assert results[0]["name"] == "Alice"
+
+
 def test_xml_reader_process_with_scos_compatible_param():
     """XMLReader.process passes is_snowpark_connect_compatible through"""
     xml_content = "<root><record><a>1</a></record></root>"
@@ -1549,6 +1588,169 @@ def test_xml_project_from_variant_cache_no_keys_raises_row_tag_not_found():
         SnowparkDataframeReaderException, match="Cannot find the row tag"
     ):
         _project_from_keys([])
+
+
+#
+# Malformed records: FAILFAST must raise on every EOF path, not just PERMISSIVE.
+#
+
+
+def test_process_xml_range_raises_in_failfast_mode_when_opening_tag_is_unclosed():
+    """FAILFAST must raise, not just PERMISSIVE, when the row tag's own opening tag is
+    truncated before EOF with no ">" ever found."""
+    xml_bytes = b'<ROOT><PARENT id="p1"'
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
+    ):
+        with pytest.raises(EOFError, match="Malformed XML record at bytes"):
+            list(
+                process_xml_range(
+                    "test.xml",
+                    "PARENT",
+                    0,
+                    len(xml_bytes),
+                    "FAILFAST",
+                    "_corrupt_record",
+                    True,
+                    "_",
+                    False,
+                    "_VALUE",
+                    "",
+                    "utf-8",
+                    False,
+                    "",
+                )
+            )
+
+
+def test_process_xml_range_raises_in_failfast_mode_when_closing_tag_is_missing():
+    """FAILFAST must raise, not just PERMISSIVE, when a non-self-closing tag's closing
+    tag is never found before EOF."""
+    xml_bytes = b'<ROOT><PARENT id="p1">some content with no closing tag'
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
+    ):
+        with pytest.raises(EOFError, match="Malformed XML record at bytes"):
+            list(
+                process_xml_range(
+                    "test.xml",
+                    "PARENT",
+                    0,
+                    len(xml_bytes),
+                    "FAILFAST",
+                    "_corrupt_record",
+                    True,
+                    "_",
+                    False,
+                    "_VALUE",
+                    "",
+                    "utf-8",
+                    False,
+                    "",
+                )
+            )
+
+
+def test_process_xml_range_permissive_mode_yields_corrupt_record_when_tag_is_unclosed():
+    """Known gap (tracked separately, not fixed here): the file cursor is already at EOF
+    when tag_is_self_closing raises, and this branch never seeks back to record_start
+    before reading, so the corrupt-record column ends up empty instead of containing the
+    malformed bytes. Asserts today's actual behavior so a future fix updates this test
+    deliberately rather than it silently passing either way."""
+    xml_bytes = b'<ROOT><PARENT id="p1"'
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
+    ):
+        records = _records_only(
+            process_xml_range(
+                "test.xml",
+                "PARENT",
+                0,
+                len(xml_bytes),
+                "PERMISSIVE",
+                "_corrupt_record",
+                True,
+                "_",
+                False,
+                "_VALUE",
+                "",
+                "utf-8",
+                False,
+                "",
+            )
+        )
+    assert records == [{"_corrupt_record": ""}]
+
+
+def test_process_xml_range_permissive_mode_yields_corrupt_record_when_closing_tag_is_missing():
+    """Known gap (tracked separately, not fixed here): same missing-seek issue as
+    test_process_xml_range_permissive_mode_yields_corrupt_record_when_tag_is_unclosed,
+    but for find_next_closing_tag_pos's EOF path instead of tag_is_self_closing's."""
+    xml_bytes = b'<ROOT><PARENT id="p1">some content with no closing tag'
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
+    ):
+        records = _records_only(
+            process_xml_range(
+                "test.xml",
+                "PARENT",
+                0,
+                len(xml_bytes),
+                "PERMISSIVE",
+                "_corrupt_record",
+                True,
+                "_",
+                False,
+                "_VALUE",
+                "",
+                "utf-8",
+                False,
+                "",
+            )
+        )
+    assert records == [{"_corrupt_record": ""}]
+
+
+def test_process_xml_range_permissive_mode_yields_corrupt_record_on_parse_error():
+    """A record whose closing tag is found correctly but whose inner content is not
+    well-formed XML raises ET.ParseError during parsing; PERMISSIVE must yield it as a
+    corrupt record rather than dropping it or crashing."""
+    xml_bytes = (
+        b"<root>"
+        b"<record><id>41</id><name>Ann</name></record>"
+        b"<record><id>42</id><name>Bob</name></email></record>"
+        b"</root>"
+    )
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
+    ):
+        records = _records_only(
+            process_xml_range(
+                "test.xml",
+                "record",
+                0,
+                len(xml_bytes),
+                "PERMISSIVE",
+                "_corrupt_record",
+                True,
+                "_",
+                False,
+                "_VALUE",
+                "",
+                "utf-8",
+                False,
+                "",
+            )
+        )
+    assert records == [
+        {"id": "41", "name": "Ann"},
+        {"_corrupt_record": "<record><id>42</id><name>Bob</name></email></record>"},
+    ]
 
 
 #
@@ -1959,6 +2161,16 @@ def test_skip_children_handles_single_quoted_attributes():
     assert [record for record, _ in records] == [{"_id": "p1", "_region": "north"}]
 
 
+def test_skip_children_yields_empty_attributes_on_charset_mismatch():
+    """A declared charset that doesn't match the file's actual encoding can decode the
+    tag's own bytes into text that no longer starts with the expected "<tag_name"
+    prefix. Rather than crashing on garbled input, this yields an empty attributes dict
+    instead of misparsing it."""
+    xml_bytes = b'<ROOT><PARENT id="p1"><CHILD/></PARENT></ROOT>'
+    records = _skip_children_records(xml_bytes, charset="utf-16")
+    assert [record for record, _ in records] == [{}]
+
+
 def test_skip_children_reports_record_start_offsets():
     xml_bytes = b'<ROOT><PARENT id="p1"><CHILD/></PARENT><PARENT id="p2"><CHILD/></PARENT></ROOT>'
     records = _skip_children_records(xml_bytes)
@@ -2029,6 +2241,38 @@ def test_skip_children_on_truncated_tag_drops_record_in_dropmalformed_mode():
 def test_skip_children_on_truncated_tag_raises_in_failfast_mode():
     with pytest.raises(EOFError, match="Malformed XML record at bytes"):
         _skip_children_truncated_tag("FAILFAST")
+
+
+def test_skip_children_stops_when_worker_range_ends_at_tag_boundary():
+    """When approx_end lands exactly at (or before) the current tag's own closing ">",
+    the loop must stop there rather than searching past this worker's assigned range for
+    a next record that belongs to the next worker."""
+    xml_bytes = b'<ROOT><PARENT id="p1"></PARENT><PARENT id="p2"></PARENT></ROOT>'
+    tag_end = xml_bytes.index(b'<PARENT id="p1">') + len(b'<PARENT id="p1">')
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda *a, **k: io.BytesIO(xml_bytes),
+    ):
+        records = list(
+            process_xml_range(
+                "test.xml",
+                "PARENT",
+                0,
+                tag_end,
+                "PERMISSIVE",
+                "_corrupt_record",
+                True,
+                "_",
+                False,
+                "_VALUE",
+                "",
+                "utf-8",
+                False,
+                "",
+                skip_children=True,
+            )
+        )
+    assert [record for record, _ in records] == [{"_id": "p1"}]
 
 
 def test_skip_children_reads_past_a_small_chunk_size():

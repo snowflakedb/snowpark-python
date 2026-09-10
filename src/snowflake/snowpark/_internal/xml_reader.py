@@ -869,7 +869,40 @@ class XMLReader:
         chunk_size: int,
         skip_children: bool,
     ):
-        """See :func:`_iter_xml_records` for the shared argument meanings."""
+        """Yields one row per XML record found in ``[approx_start, approx_end)`` of
+        ``filename``.
+
+        Repeats the full argument list rather than delegating to a shared base class:
+        UDTF registration recovers input types by AST-scanning this method directly, not
+        through inheritance.
+
+        Args:
+            filename (str): Path to the XML file.
+            approx_start (int): Approximate start byte position of this worker's byte
+                range, as assigned by :func:`_xml_worker_assignments` in
+                ``snowflake_plan.py``.
+            approx_end (int): Approximate end byte position of this worker's byte range.
+            row_tag (str): The tag name that delimits records (e.g., "row").
+            mode (str): The mode for dealing with corrupt records.
+                "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
+            column_name_of_corrupt_record (str): The name of the column for corrupt records.
+            ignore_namespace (bool): Whether to strip namespaces from the XML element.
+            attribute_prefix (str): The prefix to add to the attribute names.
+            exclude_attributes (bool): Whether to exclude attributes from the XML element.
+            value_tag (str): The tag name for the value column.
+            null_value (str): The value to treat as a null value.
+            charset (str): The character encoding of the XML file.
+            ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding
+                values should be skipped.
+            row_validation_xsd_path (str): Path to XSD file for row validation.
+            custom_schema (str): User input schema for xml, must be used together with
+                row tag.
+            is_snowpark_connect_compatible (bool): context._is_snowpark_connect_compatible_mode
+            chunk_size (int): Size of chunks to read while scanning for tag/record
+                boundaries.
+            skip_children (bool): When True, read only the row tag's own opening-tag
+                attributes, skipping its children.
+        """
         for element, _ in _iter_xml_records(
             filename,
             approx_start,
@@ -918,7 +951,10 @@ class XMLReaderWithPos:
         chunk_size: int,
         skip_children: bool,
     ):
-        """See :func:`_iter_xml_records` for the shared argument meanings."""
+        """Yields one row per XML record, plus its source byte offset and file path.
+
+        Args are identical to :meth:`XMLReader.process`; see there for their meanings.
+        """
         for element, byte_pos in _iter_xml_records(
             filename,
             approx_start,
