@@ -7,7 +7,6 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
-from snowflake.connector.cursor import ASYNC_RETRY_PATTERN
 from snowflake.connector.errors import DatabaseError
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
@@ -26,6 +25,8 @@ if TYPE_CHECKING:
     import snowflake.snowpark.session
 
 _logger = getLogger(__name__)
+
+ASYNC_RETRY_PATTERN = [1, 1, 2, 3, 4, 8, 10]
 
 
 class _AsyncResultType(Enum):
