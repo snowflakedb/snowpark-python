@@ -233,6 +233,28 @@ def test_extract_images_under_layout(session, doc_path):
     assert rows[0]["_document_error"] is None
 
 
+def test_extract_images_with_page_filter_aggregates_back_to_one_row(session, doc_path):
+    # page_filter forces the page-array explode/aggregate path even under a
+    # document row_boundary; extract_images has to survive that same aggregation.
+    df = (
+        session.read.option("parse_mode", "layout")
+        .option("extract_images", True)
+        .option("page_filter", [{"start": 0, "end": 2}])
+        ._documents(doc_path)
+    )
+
+    assert _unquoted(df) == [
+        "SOURCE_FILE",
+        "TOTAL_PAGES",
+        "CONTENT",
+        "IMAGES",
+        "_document_error",
+    ]
+    rows = df.collect()
+    assert len(rows) == 1
+    assert rows[0]["_document_error"] is None
+
+
 def test_multiple_files_produce_one_row_each(session, doc_stage):
     rows = (
         session.read.option("parse_mode", "layout")
@@ -360,6 +382,50 @@ def test_ai_complete_extraction_uses_a_default_model(session, invoice_path):
     assert len(rows) == 1
     assert rows[0]["INVOICE_NUMBER"]
     assert rows[0]["TOTAL_AMOUNT"]
+    assert rows[0]["_document_error"] is None
+
+
+def test_ai_complete_extraction_with_row_boundary_page(session, doc_path):
+    # ai_complete chained after ai_parse_document is materialized (collected and
+    # rebuilt) before ai_complete runs; row_boundary="page" means that
+    # materialization step also has to carry PAGE_INDEX through.
+    rows = (
+        session.read.option("parse_mode", "layout")
+        .option("row_boundary", "page")
+        .option("extraction_engine", "ai_complete")
+        .option("schema", INVOICE_SCHEMA)
+        ._documents(doc_path)
+        .collect()
+    )
+
+    assert len(rows) == DOC_PAGE_COUNT
+    assert {row["PAGE_INDEX"] for row in rows} == set(range(DOC_PAGE_COUNT))
+    assert all(row["_document_error"] is None for row in rows)
+
+
+def test_ai_complete_extraction_with_extract_images(session, invoice_path):
+    # Same materialization step as above, this time carrying IMAGES (a VARIANT,
+    # collected back as a JSON string) through the collect()-and-rebuild.
+    df = (
+        session.read.option("parse_mode", "layout")
+        .option("extract_images", True)
+        .option("extraction_engine", "ai_complete")
+        .option("schema", INVOICE_SCHEMA)
+        ._documents(invoice_path)
+    )
+
+    assert _unquoted(df) == [
+        "SOURCE_FILE",
+        "TOTAL_PAGES",
+        "CONTENT",
+        "IMAGES",
+        "INVOICE_NUMBER",
+        "TOTAL_AMOUNT",
+        "_document_error",
+    ]
+    rows = df.collect()
+    assert len(rows) == 1
+    assert rows[0]["INVOICE_NUMBER"]
     assert rows[0]["_document_error"] is None
 
 
