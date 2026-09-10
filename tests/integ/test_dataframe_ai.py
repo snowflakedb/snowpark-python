@@ -1262,6 +1262,45 @@ def test_dataframe_ai_extract_file_column_referenced_from_earlier_step_with_scor
     assert "scoring" in data
 
 
+def test_dataframe_ai_extract_file_column_referenced_from_earlier_step_with_config(
+    session, resources_path
+):
+    """A FILE column from an earlier step must route correctly when config is supplied.
+
+    config forces a named-argument SQL call; the fix keeps input and response_format
+    positional so Snowflake's server-side FILE vs. TEXT overload resolution still works
+    for FILE values that were computed upstream (not inline at the call site).
+    """
+    stage_name = Utils.random_stage_name()
+    _ = session.sql(
+        f"CREATE OR REPLACE TEMP STAGE {stage_name} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
+    file_local = TestFiles(resources_path).test_invoice_pdf
+    _ = session.file.put(file_local, f"@{stage_name}", auto_compress=False)
+
+    df = session.create_dataframe(
+        [[f"@{stage_name}/invoice.pdf"]], schema=["file_path"]
+    )
+    # FILE value computed one step before ai.extract() -- not inline at the call site.
+    file_df = df.select(to_file(col("file_path")).alias("F"))
+
+    result_df = file_df.ai.extract(
+        input_column="F",
+        response_format=[
+            ["date", "What is the invoice date?"],
+            ["amount", "What is the amount?"],
+        ],
+        config={"scale_factor": 1.0},
+        output_column="info",
+    )
+
+    results = result_df.collect(_emit_ast=False)
+    data = json.loads(results[0]["INFO"]) if results[0]["INFO"] else {}
+    assert isinstance(data, dict) and isinstance(data.get("response", {}), dict)
+    assert data["response"]["date"] == "Nov 26, 2016"
+    assert data["response"]["amount"] == "USD $950.00"
+
+
 def test_dataframe_ai_extract_error_handling(session):
     """Test error handling in DataFrame.ai.extract."""
     df = session.create_dataframe([["text"]], schema=["col"])
