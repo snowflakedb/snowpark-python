@@ -1,0 +1,102 @@
+CALL CENTER TRANSCRIPT
+Call ID: CC-2985
+Date: 2024-07-22
+Duration: 12:08
+Customer ID: CUST-55901
+Representative ID: REP-064
+Category: Account Update - Address Change
+Status: Resolved
+
+================================================================================
+TRANSCRIPT
+================================================================================
+
+[2024-07-22-09-45-04] REP: Meridian Utilities, this is Rosa, how can I help you today?
+
+[2024-07-22-09-45-22] CUSTOMER: Hi! Yeah, so I just bought a house — like literally just closed on it last Thursday — and I need to transfer my service to the new address.
+
+[2024-07-22-09-45-32] REP: Oh, congratulations on the house! That's so exciting.
+
+[2024-07-22-09-45-50] CUSTOMER: Thank you! I'm still kind of pinching myself, honestly. We've been renting for six years so this is a big deal.
+
+[2024-07-22-09-46-05] REP: That is a big deal. We'll get everything set up for you. Can I get your name and current account information?
+
+[2024-07-22-09-46-15] CUSTOMER: Yep, I'm Paul Hendricks. Account number is CUST-55901.
+
+[2024-07-22-09-46-24] REP: And your current service address?
+
+[2024-07-22-09-46-34] CUSTOMER: 14 Orchard Avenue, Apartment 3A, Cincinnati, Ohio 45219. That's where I'm renting now.
+
+[2024-07-22-09-46-44] REP: And the last four of your PIN or Social for verification?
+
+[2024-07-22-09-46-50] CUSTOMER: PIN is 8834.
+
+[2024-07-22-09-47-18] REP: Got it. Okay, Mr. Hendricks, I can see your account. You have electricity service at the apartment. Is there anything else — gas, internet?
+
+[2024-07-22-09-47-32] CUSTOMER: No, just electric. The apartment includes gas and I don't have internet through you guys, it's through a cable company.
+
+[2024-07-22-09-47-41] REP: Got it. And what's the new address?
+
+[2024-07-22-09-47-52] CUSTOMER: 5503 Willowbrook Drive, Cincinnati, Ohio 45230. And it's a house, so no apartment number.
+
+[2024-07-22-09-48-26] REP: Beautiful. Let me check if that address is in our service territory. [pause] Yes, 5503 Willowbrook Drive is in our area. Let me see if there's an active account at that address. [pause] Okay — it looks like the previous owners had service there up until July 10th. So the account is closed but the meter is still there and active in our system.
+
+[2024-07-22-09-48-46] CUSTOMER: Oh perfect. Is there anything special I need to do since it's a house that already had service?
+
+[2024-07-22-09-49-14] REP: Nope! Actually this is the best-case scenario. Since the infrastructure is already in place, we don't need to send anyone out. It's just an account activation on our end. We'll close your apartment account on the date you choose and open the new address on the same date.
+
+[2024-07-22-09-49-30] CUSTOMER: Oh, great. So when do you want to do this? I'm moving in next Saturday — the 27th.
+
+[2024-07-22-09-49-49] REP: We can do July 27th as the transfer date. Your apartment account closes on the 27th, new account opens at Willowbrook Drive on the 27th.
+
+[2024-07-22-09-50-02] CUSTOMER: And I'll still have power at the apartment through the 26th?
+
+[2024-07-22-09-50-16] REP: Correct. Service at the apartment remains active through the end of the 26th, and the new address activates first thing on the 27th.
+
+[2024-07-22-09-50-24] CUSTOMER: That's perfect.
+
+[2024-07-22-09-50-36] REP: For billing — should I use the new Willowbrook address for billing going forward?
+
+[2024-07-22-09-50-44] CUSTOMER: Yes, please. Everything to the new house.
+
+[2024-07-22-09-51-22] REP: Done. And I'll also update the service address in your account profile, of course. The email we have on file is phendricks.cinci@gmail.com — still current?
+
+[2024-07-22-09-51-29] CUSTOMER: Yep, that's me.
+
+[2024-07-22-09-52-07] REP: Great. You'll get a confirmation email with the transfer details. One thing to note — because this is technically a new service address, your first bill at the new house will be a fresh account statement. Your billing date will shift slightly depending on when we open the new account, so that first month might be a prorated shorter period.
+
+[2024-07-22-09-52-20] CUSTOMER: Oh, that's fine. I'm just happy to have things transferred over cleanly.
+
+[2024-07-22-09-52-44] REP: Very easy, actually. Quick question — do you want to keep the same payment method and autopay setup that you currently have on the apartment account?
+
+[2024-07-22-09-52-57] CUSTOMER: Oh yeah, absolutely. I have a card on file. Can that carry over?
+
+[2024-07-22-09-53-13] REP: It can. I'll note that in the transfer so the new account is set up with autopay from the start.
+
+[2024-07-22-09-53-24] CUSTOMER: Oh that's great, I don't have to set it up again?
+
+[2024-07-22-09-53-33] REP: Correct, it'll transfer automatically.
+
+[2024-07-22-09-53-47] CUSTOMER: Wow, okay. This is all really smooth. I was expecting it to be complicated.
+
+[2024-07-22-09-54-08] REP: [laughs] We try! Is there anything about the new house — any concerns, any weird setup questions?
+
+[2024-07-22-09-54-44] CUSTOMER: Actually, yeah — one thing. The house has a detached garage and I'm not sure if that has a separate meter or if it's on the same meter as the house. Does that matter for how I set up the account?
+
+[2024-07-22-09-55-30] REP: Great question. For residential accounts, unless the garage has its own separate meter panel installed by a previous owner for a specific reason — like if it was used as a business space — it almost always runs off the main house meter. Do you know if the garage has its own breaker panel or its own meter box outside?
+
+[2024-07-22-09-55-45] CUSTOMER: I honestly don't know yet. I haven't really gotten in there and looked.
+
+[2024-07-22-09-56-15] REP: That's totally fine — you can check after you move in. If it does have a separate meter, you'd call us back and we'd open a second service account for that meter. But most residential garages are just sub-panels off the main breaker, so you're probably fine.
+
+[2024-07-22-09-56-26] CUSTOMER: Okay, that makes sense. I'll check.
+
+[2024-07-22-09-56-44] REP: Sounds good. Alright — transfer is all set for July 27th. Anything else I can help with?
+
+[2024-07-22-09-56-58] CUSTOMER: I think that's everything. Thank you, Rosa, this was super easy.
+
+[2024-07-22-09-57-14] REP: My pleasure. And congratulations again on the house, Mr. Hendricks! Enjoy it.
+
+[2024-07-22-09-57-24] CUSTOMER: Thank you so much! Bye!
+
+[2024-07-22-09-57-31] REP: Take care! Goodbye!
