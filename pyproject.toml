@@ -1,13 +1,23 @@
 [build-system]
 requires = [
-    "setuptools",
+    # Bounded rather than exact-pinned: this file ships inside the sdist, so an
+    # exact setuptools pin would break source builds (conda-forge, distros) on
+    # newer Pythons that require a newer setuptools.
+    "setuptools>=40.6.0,<85",
     # py>=3.14: protoc-wheel-0 has no cp314 wheel on PyPI, so it cannot be installed
     # in pip's build isolation venv. setup.py falls back to shutil.which("protoc").
     "protoc-wheel-0==21.1; python_version < '3.14'", # Protocol buffer compiler for Snowpark IR
-    # py>=3.14: pin <=3.6.0 so the build isolation venv does not install mypy-protobuf 5.x,
+    # mypy-protobuf runs its protoc-gen-mypy entry point during the signed release
+    # build, so it must be exact-version pinned (CWE-829): an unpinned resolve lets a
+    # newly published release execute arbitrary code in the release job.
+    # py>=3.14: pin ==3.6.0 so the build isolation venv does not install mypy-protobuf 5.x,
     # whose extensions_pb2.py was generated with protobuf 6.x gencode and fails at import
     # time when the isolated venv resolves protobuf 5.x (Snowflake internal channel).
-    "mypy-protobuf<=3.6.0; python_version >= '3.14'",
-    "mypy-protobuf; python_version < '3.14'", # used in generating typed Python code from protobuf for Snowpark IR
+    "mypy-protobuf==3.6.0; python_version >= '3.14'",
+    # py<3.14: 5.1.0 is the version an unpinned resolve already installs today, so this
+    # pin is status-quo-preserving. Do NOT "align" it with the 3.6.0 pin above: 3.6.0
+    # emits materially different .pyi stubs (non-aliased imports, different
+    # typing_extensions handling, ~900 fewer lines) and would be a silent downgrade.
+    "mypy-protobuf==5.1.0; python_version < '3.14'", # used in generating typed Python code from protobuf for Snowpark IR
 ]
 build-backend = "setuptools.build_meta"

@@ -71,13 +71,17 @@ install() {
 
 install
 
-# mypy-protobuf is used to generated typed Python code from protobuf
+# mypy-protobuf is used to generated typed Python code from protobuf.
+# Exact-version pinned (CWE-829): protoc-gen-mypy is executed while building the
+# officially signed release, so an unpinned resolve would let a newly published
+# mypy-protobuf run arbitrary code in the release job.
+MYPY_PROTOBUF_VERSION="5.1.0"
 if command -v uv &> /dev/null; then
     echo "Using uv to install mypy-protobuf"
-    uv pip install mypy-protobuf --system
+    uv pip install "mypy-protobuf==${MYPY_PROTOBUF_VERSION}" --system
 else
     echo "uv not available, using pip to install mypy-protobuf"
-    pip install mypy-protobuf
+    pip install "mypy-protobuf==${MYPY_PROTOBUF_VERSION}"
 fi
 echo "mypy-protobuf version: $(protoc-gen-mypy --version)"
 
