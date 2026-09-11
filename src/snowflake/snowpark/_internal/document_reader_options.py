@@ -176,6 +176,19 @@ class DocumentReaderOptions:
                     option_name, value, valid_values
                 )
         if self.extraction is not None:
+            # finalize_errors() anchors the FAILFAST guard on CONTENT when parsing
+            # runs, or on the first extracted field column when it doesn't -- an
+            # unrecognized response_format shape derives zero fields, and with
+            # parse_mode="none" there is then no column at all to anchor on. Every
+            # other mode/parse_mode combination tolerates zero fields fine (they
+            # just produce a read with no extracted columns), so this is scoped to
+            # exactly the combination that has no valid anchor, not banned outright.
+            if (
+                self.mode == "FAILFAST"
+                and not self.parse_enabled
+                and not self.extraction.field_columns
+            ):
+                raise SnowparkClientExceptionMessages.DF_DOCUMENTS_SCHEMA_HAS_NO_FIELDS()
             self.validate_field_names()
 
     def validate_field_names(self) -> None:

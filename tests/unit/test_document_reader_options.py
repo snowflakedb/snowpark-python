@@ -387,6 +387,33 @@ class TestSchemaFieldNameCollisions:
 
 
 # ---------------------------------------------------------------------------
+# A schema that derives zero fields (an unrecognized response_format shape)
+# is harmless everywhere finalize_errors() can anchor on CONTENT or has no
+# FAILFAST check to anchor at all -- except parse_mode="none" + mode="FAILFAST",
+# which has no column left to anchor on and previously raised a bare IndexError.
+# ---------------------------------------------------------------------------
+
+
+class TestSchemaWithNoFields:
+    def test_failfast_without_parsing_raises_1118(self):
+        error = _expect_error(
+            "1118",
+            {"PARSE_MODE": "none", "MODE": "FAILFAST", "SCHEMA": 42},
+        )
+        assert "did not resolve to any extractable fields" in error.message
+
+    def test_permissive_without_parsing_does_not_raise(self):
+        options = _build({"PARSE_MODE": "none", "SCHEMA": {"properties": {}}})
+        assert options.extraction.field_columns == []
+
+    def test_failfast_with_parsing_does_not_raise(self):
+        # parse_mode != "none" means finalize_errors() anchors on CONTENT,
+        # regardless of how many fields the schema derived.
+        options = _build({"MODE": "FAILFAST", "SCHEMA": {"properties": {}}})
+        assert options.extraction.field_columns == []
+
+
+# ---------------------------------------------------------------------------
 # Options that are simply inapplicable given another option's value are
 # silently unused, not guarded -- the same convention dataframe_reader.py
 # already uses elsewhere (e.g. "predicates will be ignored if column is

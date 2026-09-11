@@ -235,6 +235,15 @@ class SnowparkClientExceptionMessages:
             error_code="1117",
         )
 
+    @staticmethod
+    def DF_DOCUMENTS_SCHEMA_HAS_NO_FIELDS() -> SnowparkDataframeReaderException:
+        return SnowparkDataframeReaderException(
+            "The 'schema' option did not resolve to any extractable fields. "
+            "Provide a dict mapping field names to prompts, a JSON Schema object "
+            "with a 'properties' entry, or a list of [name, prompt] pairs.",
+            error_code="1118",
+        )
+
     # Plan Analysis error codes 02XX
 
     @staticmethod
