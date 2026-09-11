@@ -334,7 +334,7 @@ def test_misc_settings(
         "" if use_logical_type is None else f" USE_LOGICAL_TYPE = {use_logical_type}"
     )
     queries = [
-        f"^CREATE .*TEMP.* STAGE .* FILE_FORMAT=\\(TYPE=PARQUET COMPRESSION={compression}\\)",
+        f"^CREATE .*TEMP.* STAGE .* FILE_FORMAT=\\(TYPE=PARQUET COMPRESSION={copy_compression}\\)",
         f"PUT.*PARALLEL={parallel}",
         f'COPY INTO "SNOWPARK_PYTHON_MOCKED_ARROW_TABLE" .* FILE_FORMAT=\\(TYPE=PARQUET USE_VECTORIZED_SCANNER={use_vectorized_scanner} COMPRESSION={copy_compression}{sql_use_logical_type.upper()}\\) PURGE=TRUE ON_ERROR={on_error}',
     ]
