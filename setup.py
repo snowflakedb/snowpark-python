@@ -75,6 +75,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "pyarrow",  # used in dataframe reader tests
     "polars>=1.0",  # used in test_df_to_polars integration tests
     "pdfminer.six",  # used in PDF reader unit tests
+    "python-docx",  # used in PDF reader unit tests (DOCX text mode)
 ]
 MODIN_DEVELOPMENT_REQUIREMENTS = [
     # Snowpark pandas 3rd party library testing. Cap the scipy version because

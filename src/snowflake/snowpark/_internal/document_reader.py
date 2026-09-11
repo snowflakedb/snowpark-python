@@ -482,7 +482,7 @@ def register_pdf_udtf(session: "Session"):
             ]
         ),
         input_types=input_types,
-        packages=["snowflake-snowpark-python", "pdfminer.six"],
+        packages=["snowflake-snowpark-python", "pdfminer.six", "python-docx"],
         if_not_exists=True,
         skip_upload_on_content_match=True,
         _suppress_local_package_warnings=True,
