@@ -192,7 +192,8 @@ def _stage_listing_basename(file_path: str) -> str:
 
 
 def _pack_xml_assignments(
-    per_file_assignments: List[Tuple[int, List[Tuple[str, int, int]]]]
+    per_file_assignments: List[Tuple[int, List[Tuple[str, int, int]]]],
+    target_bytes: int = XML_BATCH_TARGET_BYTES,
 ) -> List[Tuple[str, int, int]]:
     """Combine per-file byte ranges into worker-assignment rows, batching small files.
     A file split into more than one range is never batched -- only single-worker files are
@@ -217,7 +218,7 @@ def _pack_xml_assignments(
             rows.extend(ranges)
             continue
         if pending and (
-            pending_bytes + file_size > XML_BATCH_TARGET_BYTES
+            pending_bytes + file_size > target_bytes
             or len(pending) >= XML_BATCH_MAX_FILES
         ):
             flush()
@@ -2033,8 +2034,11 @@ class SnowflakePlanBuilder:
             )
 
         max_workers = _positive_int_option(options, "NUMWORKERS", DEFAULT_MAX_WORKERS)
-        # chunk_size is internal; numWorkers is the only worker-sizing option exposed.
+        # chunk_size is internal; numWorkers is the only per-file worker-sizing option exposed.
         chunk_size = DEFAULT_CHUNK_SIZE
+        batch_target_bytes = _positive_int_option(
+            options, "BATCHTARGETBYTES", XML_BATCH_TARGET_BYTES
+        )
 
         if read_directory:
             file_sizes = self._list_directory_file_sizes(file_path)
@@ -2056,7 +2060,7 @@ class SnowflakePlanBuilder:
                     _xml_worker_assignments(path, file_size, max_workers, chunk_size),
                 )
             )
-        assignments = _pack_xml_assignments(per_file_assignments)
+        assignments = _pack_xml_assignments(per_file_assignments, batch_target_bytes)
         df = self.session.sql(
             _xml_worker_assignment_sql(
                 assignments,

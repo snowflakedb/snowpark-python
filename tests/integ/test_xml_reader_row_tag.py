@@ -28,7 +28,7 @@ from snowflake.snowpark.types import (
     ArrayType,
 )
 import snowflake.snowpark.context as context
-from snowflake.snowpark._internal.xml_reader import BATCH_FILE_SEP
+from snowflake.snowpark._internal.xml_reader import decode_batch_or_single
 from tests.utils import TestFiles, Utils
 
 
@@ -1719,7 +1719,30 @@ def test_read_xml_batches_small_files_into_one_worker_row(session):
     ]
     # Three files, one row, and the row carries the batch encoding.
     assert values_clause.count("::BIGINT") // 2 == 1
-    assert BATCH_FILE_SEP in values_clause
+    literal = values_clause[
+        values_clause.index("'") + 1 : values_clause.index(", 0::BIGINT")
+    ]
+    assert literal.endswith("'")
+    decoded = decode_batch_or_single(literal[:-1].replace("''", "'"), 0, 0)
+    assert len(decoded) == 3
+
+
+def test_read_xml_batch_target_bytes_option_shrinks_batches(session):
+    """batchTargetBytes must actually change packing, not just exist -- a budget too small
+    for two files together forces them into separate, unbatched rows."""
+    with session.query_history() as history:
+        _read_directory(session, "CHILD", batchTargetBytes=1)
+
+    assignment_queries = [
+        q.sql_text for q in history.queries if "APPROX_START" in q.sql_text.upper()
+    ]
+    assert len(assignment_queries) == 1
+    values_clause = assignment_queries[0][
+        assignment_queries[0].upper().index("FROM VALUES") :
+    ]
+    # A 1-byte budget can't fit even two of the three files together, so each of the
+    # multifile directory's 3 files lands in its own unbatched row.
+    assert values_clause.count("::BIGINT") // 2 == 3
 
 
 def test_read_xml_batched_source_pos_attributes_records_to_their_own_file(session):

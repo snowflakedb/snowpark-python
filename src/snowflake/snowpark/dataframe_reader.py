@@ -1333,6 +1333,12 @@ class DataFrameReader:
                 directly under it in one operation instead of one file at a time. The default value
                 is ``False``.
 
+              + ``batchTargetBytes``: With ``readDirectory``, files small enough to need only one
+                worker are packed several per worker-assignment row, up to this many total bytes per
+                row, to amortize per-invocation overhead across many small files. The default value is
+                ``52428800`` (50 MiB). Only relevant when reading many files whose combined size would
+                otherwise produce a very large number of single-file rows.
+
               + ``skipChildren``: Whether to read only the attributes on the ``rowTag`` element's own
                 opening tag, without parsing anything nested inside it. The default value is ``False``.
 

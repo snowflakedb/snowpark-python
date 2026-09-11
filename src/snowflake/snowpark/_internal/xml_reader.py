@@ -44,35 +44,51 @@ VARIANT_COLUMN_SIZE_LIMIT: int = 16 * 1024 * 1024
 # ">") treats both as valid, and XML legally allows either on an attribute value.
 _XML_ATTRIBUTE_PATTERN = re.compile(r'([\w][\w.-]*)=(?:"([^"]*)"|\'([^\']*)\')')
 
-# Control characters packing several (file, start, end) work items into one worker-assignment
-# row. Stage paths can't contain these bytes, so the encoding is unambiguous.
-BATCH_FIELD_SEP: str = "\x01"
-BATCH_FILE_SEP: str = "\x02"
 
-# Threads for concurrently processing the files packed into one batched row.
-MAX_BATCH_WORKERS: int = 8
+def _encode_field(value: str) -> str:
+    """A netstring-style length prefix: ``<byte length>:<value>``. Decoding this walks by
+    explicit byte counts instead of splitting on a delimiter, so it stays unambiguous no
+    matter what bytes ``value`` contains -- unlike a fixed delimiter byte, a length prefix
+    can't collide with the value's own content."""
+    return f"{len(value)}:{value}"
 
 
 def encode_batch(entries: List[Tuple[str, int, int]]) -> str:
-    """Pack ``(file_path, approx_start, approx_end)`` work items into one string."""
-    return BATCH_FILE_SEP.join(
-        f"{path}{BATCH_FIELD_SEP}{start}{BATCH_FIELD_SEP}{end}"
+    """Pack ``(file_path, approx_start, approx_end)`` work items into one string, each field
+    length-prefixed. A real stage path always starts with ``@`` or ``snow://`` (enforced by
+    ``_validate_stage_path`` before any path reaches here), never an ASCII digit, so the
+    leading length digit also unambiguously distinguishes an encoded batch from an unbatched
+    single path in :func:`decode_batch_or_single`."""
+    return "".join(
+        _encode_field(path) + _encode_field(str(start)) + _encode_field(str(end))
         for path, start, end in entries
     )
+
+
+def _decode_field(encoded: str, pos: int) -> Tuple[str, int]:
+    colon = encoded.index(":", pos)
+    value_start = colon + 1
+    value_end = value_start + int(encoded[pos:colon])
+    return encoded[value_start:value_end], value_end
 
 
 def decode_batch_or_single(
     filename: str, approx_start: int, approx_end: int
 ) -> List[Tuple[str, int, int]]:
     """Recover the work items a worker-assignment row stands for. An unbatched row carries
-    one file path with its range in ``approx_start``/``approx_end``; a batched row encodes
-    every entry's range into ``filename`` instead."""
-    if BATCH_FIELD_SEP not in filename:
+    one file path with its range in ``approx_start``/``approx_end``; a batched row
+    length-prefix-encodes every entry's fields into ``filename`` instead -- see
+    :func:`encode_batch` for why checking the leading character reliably tells the two cases
+    apart."""
+    if not filename[:1].isdigit():
         return [(filename, approx_start, approx_end)]
     entries = []
-    for entry in filename.split(BATCH_FILE_SEP):
-        path, start, end = entry.split(BATCH_FIELD_SEP)
-        entries.append((path, int(start), int(end)))
+    pos = 0
+    while pos < len(filename):
+        path, pos = _decode_field(filename, pos)
+        start_str, pos = _decode_field(filename, pos)
+        end_str, pos = _decode_field(filename, pos)
+        entries.append((path, int(start_str), int(end_str)))
     return entries
 
 def replace_entity(match: re.Match) -> str:
@@ -959,7 +975,7 @@ def _process_batch_concurrently(batch, row_tag, **read_kwargs):
         path, start, end = entry
         return path, list(process_xml_range(path, row_tag, start, end, **read_kwargs))
 
-    with ThreadPoolExecutor(max_workers=min(len(batch), MAX_BATCH_WORKERS)) as executor:
+    with ThreadPoolExecutor() as executor:
         for future in as_completed(
             [executor.submit(read_one, entry) for entry in batch]
         ):

@@ -62,8 +62,6 @@ from snowflake.snowpark._internal.xml_reader import (
     _validate_row_for_type_mismatch,
     XMLReader,
     XMLReaderWithPos,
-    BATCH_FIELD_SEP,
-    BATCH_FILE_SEP,
     _process_batch_concurrently,
     decode_batch_or_single,
     encode_batch,
@@ -2614,8 +2612,25 @@ def test_decode_handles_a_batch_of_one():
     against the decoder silently depending on that.
     """
     encoded = encode_batch([("@stage/only.xml", 3, 42)])
-    assert BATCH_FILE_SEP not in encoded
+    assert encoded[0].isdigit()  # recognized as an encoded batch even with one entry
     assert decode_batch_or_single(encoded, 0, 0) == [("@stage/only.xml", 3, 42)]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "@stage/5:weird.xml",
+        "@stage/contains\x01control\x02bytes.xml",
+        "@stage/11:@s/b.xml1:01:1.xml",
+    ],
+)
+def test_batch_encode_decode_survives_paths_that_look_like_the_encoding(path):
+    """A length-prefixed encoding can't be confused by path content that happens to look
+    like a length prefix, a colon, or (unlike the old delimiter scheme) even a literal
+    control byte -- decoding always walks by the byte counts it wrote, never by scanning
+    for a separator that could collide with the path itself."""
+    entries = [(path, 3, 42), ("@stage/other.xml", 0, 5)]
+    assert decode_batch_or_single(encode_batch(entries), 0, 0) == entries
 
 
 def _single(path, size):
@@ -2674,6 +2689,20 @@ def test_pack_flushes_at_the_file_count_limit():
     assert over_limit[1] == (f"@s/f{XML_BATCH_MAX_FILES}.xml", 0, 1)
 
 
+def test_pack_honors_a_caller_supplied_target_bytes():
+    """The byte target is a parameter, not just the module constant -- callers (the
+    ``batchTargetBytes`` reader option) must be able to override it."""
+    packed = _pack_xml_assignments(
+        [_single("@s/a.xml", 30), _single("@s/b.xml", 30)], target_bytes=50
+    )
+    assert len(packed) == 2, "50 is too small for both 30-byte files in one row"
+
+    packed = _pack_xml_assignments(
+        [_single("@s/a.xml", 30), _single("@s/b.xml", 30)], target_bytes=60
+    )
+    assert len(packed) == 1, "60 fits both 30-byte files in one row"
+
+
 def test_pack_fills_a_batch_exactly_to_the_byte_target():
     half = XML_BATCH_TARGET_BYTES // 2
     packed = _pack_xml_assignments(
@@ -2707,15 +2736,18 @@ def test_pack_keeps_a_file_larger_than_the_target_on_its_own_row():
 
 def test_batched_row_escapes_through_the_worker_assignment_sql():
     """The encoded batch is a caller-influenced string embedded as a SQL literal, so it has
-    to survive the same escaping as a plain path -- separators included."""
-    encoded = encode_batch([("@s/it's.xml", 0, 1), ("@s/b.xml", 1, 2)])
+    to survive the same escaping as a plain path -- length prefixes included."""
+    entries = [("@s/it's.xml", 0, 1), ("@s/b.xml", 1, 2)]
+    encoded = encode_batch(entries)
     sql = _xml_worker_assignment_sql([(encoded, 0, 0)], "F", "S", "E")
     assert sql.count("SELECT") == 1
     body = sql[sql.index("FROM VALUES ") :]
-    # The quote in the path is doubled, and both separators are carried through intact.
+    # The quote in the path is doubled by SQL escaping...
     assert "it''s" in body
-    assert BATCH_FIELD_SEP in body
-    assert BATCH_FILE_SEP in body
+    # ...and undoing just that escaping recovers the exact original encoding.
+    literal = body[body.index("'") + 1 : body.index(", 0::BIGINT")]
+    assert literal.endswith("'")
+    assert decode_batch_or_single(literal[:-1].replace("''", "'"), 0, 0) == entries
 
 
 def test_process_batch_concurrently_returns_every_record_from_every_file():
