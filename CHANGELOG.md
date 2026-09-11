@@ -11,7 +11,7 @@
 - Fixed `ai_extract` misrouting FILE-type inputs to the TEXT overload when `scores` or `config` were also supplied.
 - Fixed the nullable `FILE` column schema expression.
 
-## 1.55.0 (TBD)
+## 1.55.0 (2026-09-10)
 
 ### Snowpark Python API Updates
 
