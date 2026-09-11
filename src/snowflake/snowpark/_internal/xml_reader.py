@@ -7,7 +7,8 @@ import re
 import html.entities
 import struct
 import copy
-from typing import Optional, Dict, Any, Iterator, BinaryIO, Union, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional, Dict, Any, Iterator, BinaryIO, List, Union, Tuple
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
@@ -39,6 +40,56 @@ except ImportError:
 DEFAULT_CHUNK_SIZE: int = 1024
 VARIANT_COLUMN_SIZE_LIMIT: int = 16 * 1024 * 1024
 
+# Matches both quote styles: tag_is_self_closing (reused to find the tag's own closing
+# ">") treats both as valid, and XML legally allows either on an attribute value.
+_XML_ATTRIBUTE_PATTERN = re.compile(r'([\w][\w.-]*)=(?:"([^"]*)"|\'([^\']*)\')')
+
+
+def _encode_field(value: str) -> str:
+    """A netstring-style length prefix: ``<byte length>:<value>``. Decoding this walks by
+    explicit byte counts instead of splitting on a delimiter, so it stays unambiguous no
+    matter what bytes ``value`` contains -- unlike a fixed delimiter byte, a length prefix
+    can't collide with the value's own content."""
+    return f"{len(value)}:{value}"
+
+
+def encode_batch(entries: List[Tuple[str, int, int]]) -> str:
+    """Pack ``(file_path, approx_start, approx_end)`` work items into one string, each field
+    length-prefixed. A real stage path always starts with ``@`` or ``snow://`` (enforced by
+    ``_validate_stage_path`` before any path reaches here), never an ASCII digit, so the
+    leading length digit also unambiguously distinguishes an encoded batch from an unbatched
+    single path in :func:`decode_batch_or_single`."""
+    return "".join(
+        _encode_field(path) + _encode_field(str(start)) + _encode_field(str(end))
+        for path, start, end in entries
+    )
+
+
+def _decode_field(encoded: str, pos: int) -> Tuple[str, int]:
+    colon = encoded.index(":", pos)
+    value_start = colon + 1
+    value_end = value_start + int(encoded[pos:colon])
+    return encoded[value_start:value_end], value_end
+
+
+def decode_batch_or_single(
+    filename: str, approx_start: int, approx_end: int
+) -> List[Tuple[str, int, int]]:
+    """Recover the work items a worker-assignment row stands for. An unbatched row carries
+    one file path with its range in ``approx_start``/``approx_end``; a batched row
+    length-prefix-encodes every entry's fields into ``filename`` instead -- see
+    :func:`encode_batch` for why checking the leading character reliably tells the two cases
+    apart."""
+    if not filename[:1].isdigit():
+        return [(filename, approx_start, approx_end)]
+    entries = []
+    pos = 0
+    while pos < len(filename):
+        path, pos = _decode_field(filename, pos)
+        start_str, pos = _decode_field(filename, pos)
+        end_str, pos = _decode_field(filename, pos)
+        entries.append((path, int(start_str), int(end_str)))
+    return entries
 
 def replace_entity(match: re.Match) -> str:
     """
@@ -876,26 +927,23 @@ def _iter_xml_records(
     chunk_size,
     skip_children,
 ):
-    """Shared body of the XML reader UDTF handlers. Handlers must repeat this argument
-    list since a UDTF's input types are recovered by AST-scanning its own ``process``
-    method."""
+    """Shared body of the XML reader UDTF handlers, yielding (file_path, record, offset) --
+    per-record file path since one worker-assignment row may stand for several batched
+    files. Handlers must repeat this argument list since a UDTF's input types are recovered
+    by AST-scanning its own ``process`` method."""
     result_template, schema_type = schema_string_to_result_dict_and_struct_type(
         custom_schema
     )
-    yield from process_xml_range(
-        filename,
-        row_tag,
-        approx_start,
-        approx_end,
-        mode,
-        column_name_of_corrupt_record,
-        ignore_namespace,
-        attribute_prefix,
-        exclude_attributes,
-        value_tag,
-        null_value,
-        charset,
-        ignore_surrounding_whitespace,
+    read_kwargs = dict(
+        mode=mode,
+        column_name_of_corrupt_record=column_name_of_corrupt_record,
+        ignore_namespace=ignore_namespace,
+        attribute_prefix=attribute_prefix,
+        exclude_attributes=exclude_attributes,
+        value_tag=value_tag,
+        null_value=null_value,
+        charset=charset,
+        ignore_surrounding_whitespace=ignore_surrounding_whitespace,
         row_validation_xsd_path=row_validation_xsd_path,
         chunk_size=chunk_size,
         result_template=result_template,
@@ -903,6 +951,37 @@ def _iter_xml_records(
         is_snowpark_connect_compatible=is_snowpark_connect_compatible,
         skip_children=skip_children,
     )
+
+    batch = decode_batch_or_single(filename, approx_start, approx_end)
+    if len(batch) == 1:
+        # The unbatched case, including every byte-range split of a large file. It pays no
+        # thread-pool cost.
+        path, start, end = batch[0]
+        for record, offset in process_xml_range(
+            path, row_tag, start, end, **read_kwargs
+        ):
+            yield path, record, offset
+    else:
+        yield from _process_batch_concurrently(batch, row_tag, **read_kwargs)
+
+
+def _process_batch_concurrently(batch, row_tag, **read_kwargs):
+    """Read a batched row's files on separate threads, yielding (path, record, offset).
+    Overlapping the reads is what makes packing files into one invocation pay off, since
+    each spends most of its time waiting on stage I/O. ``result_template``/``schema_type``
+    are safe to share across threads since neither is mutated."""
+
+    def read_one(entry):
+        path, start, end = entry
+        return path, list(process_xml_range(path, row_tag, start, end, **read_kwargs))
+
+    with ThreadPoolExecutor() as executor:
+        for future in as_completed(
+            [executor.submit(read_one, entry) for entry in batch]
+        ):
+            path, records = future.result()
+            for record, offset in records:
+                yield path, record, offset
 
 
 class XMLReader:
@@ -964,7 +1043,7 @@ class XMLReader:
             skip_children (bool): When True, read only the row tag's own opening-tag
                 attributes, skipping its children.
         """
-        for element, _ in _iter_xml_records(
+        for _, element, _ in _iter_xml_records(
             filename,
             approx_start,
             approx_end,
@@ -1016,7 +1095,7 @@ class XMLReaderWithPos:
 
         Args are identical to :meth:`XMLReader.process`; see there for their meanings.
         """
-        for element, byte_pos in _iter_xml_records(
+        for source_file, element, byte_pos in _iter_xml_records(
             filename,
             approx_start,
             approx_end,
@@ -1036,4 +1115,4 @@ class XMLReaderWithPos:
             chunk_size,
             skip_children,
         ):
-            yield (element, byte_pos, filename)
+            yield (element, byte_pos, source_file)

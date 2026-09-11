@@ -21,6 +21,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     DEFAULT_MAX_WORKERS,
     SnowflakePlanBuilder,
     _positive_int_option,
+    XML_BATCH_TARGET_BYTES,
+    _pack_xml_assignments,
     _stage_listing_basename,
     _xml_worker_assignment_sql,
     _xml_worker_assignments,
@@ -59,6 +61,9 @@ from snowflake.snowpark._internal.xml_reader import (
     _validate_row_for_type_mismatch,
     XMLReader,
     XMLReaderWithPos,
+    _process_batch_concurrently,
+    decode_batch_or_single,
+    encode_batch,
 )
 from snowflake.snowpark.types import (
     StructType,
@@ -2577,3 +2582,218 @@ def test_xml_worker_assignment_sql_escapes_paths(path):
     assert literal.startswith("'") and literal.endswith("'")
     # No unescaped single quote can appear inside the literal body.
     assert "'" not in literal[1:-1].replace("''", "")
+
+
+#
+# Small-file batching: packing several files into one worker-assignment row.
+#
+
+
+def test_batch_encode_decode_round_trip():
+    entries = [
+        ("@stage/a.xml", 0, 10),
+        ("@stage/b.xml", 0, 20),
+        ("@stage/c.xml", 5, 25),
+    ]
+    assert decode_batch_or_single(encode_batch(entries), 0, 0) == entries
+
+
+def test_decode_passes_through_an_unbatched_row():
+    """An unbatched row's range comes from its own columns, not from the path."""
+    assert decode_batch_or_single("@stage/a.xml", 7, 99) == [("@stage/a.xml", 7, 99)]
+
+
+def test_decode_handles_a_batch_of_one():
+    """A one-entry batch must decode from the encoded string rather than falling through to
+    the row's range columns, which are set to 0 for batched rows.
+
+    The planner emits a lone file unencoded today, so this only matters as insurance
+    against the decoder silently depending on that.
+    """
+    encoded = encode_batch([("@stage/only.xml", 3, 42)])
+    assert encoded[0].isdigit()  # recognized as an encoded batch even with one entry
+    assert decode_batch_or_single(encoded, 0, 0) == [("@stage/only.xml", 3, 42)]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "@stage/5:weird.xml",
+        "@stage/contains\x01control\x02bytes.xml",
+        "@stage/11:@s/b.xml1:01:1.xml",
+    ],
+)
+def test_batch_encode_decode_survives_paths_that_look_like_the_encoding(path):
+    """A length-prefixed encoding can't be confused by path content that happens to look
+    like a length prefix, a colon, or (unlike the old delimiter scheme) even a literal
+    control byte -- decoding always walks by the byte counts it wrote, never by scanning
+    for a separator that could collide with the path itself."""
+    entries = [(path, 3, 42), ("@stage/other.xml", 0, 5)]
+    assert decode_batch_or_single(encode_batch(entries), 0, 0) == entries
+
+
+def _single(path, size):
+    return (size, [(path, 0, size)])
+
+
+def test_pack_emits_a_lone_small_file_unencoded():
+    """The ordinary single-file read must keep producing exactly the row it always did."""
+    assert _pack_xml_assignments([_single("@s/a.xml", 100)]) == [("@s/a.xml", 0, 100)]
+
+
+def test_pack_batches_several_small_files_into_one_row():
+    packed = _pack_xml_assignments(
+        [_single("@s/a.xml", 100), _single("@s/b.xml", 200), _single("@s/c.xml", 300)]
+    )
+    assert len(packed) == 1
+    assert decode_batch_or_single(packed[0][0], 0, 0) == [
+        ("@s/a.xml", 0, 100),
+        ("@s/b.xml", 0, 200),
+        ("@s/c.xml", 0, 300),
+    ]
+
+
+def test_pack_never_batches_a_file_split_across_workers():
+    """A multi-megabyte byte range packed alongside whole small files would make that row's
+    runtime wildly uneven, and per-invocation overhead is not what dominates for large
+    files."""
+    packed = _pack_xml_assignments(
+        [
+            _single("@s/a.xml", 100),
+            (5000, [("@s/big.xml", 0, 2500), ("@s/big.xml", 2500, 5000)]),
+            _single("@s/c.xml", 100),
+        ]
+    )
+    assert packed == [
+        ("@s/a.xml", 0, 100),
+        ("@s/big.xml", 0, 2500),
+        ("@s/big.xml", 2500, 5000),
+        ("@s/c.xml", 0, 100),
+    ]
+
+
+def test_pack_honors_a_caller_supplied_target_bytes():
+    """The byte target is a parameter, not just the module constant -- callers (the
+    ``batchTargetBytes`` reader option) must be able to override it."""
+    packed = _pack_xml_assignments(
+        [_single("@s/a.xml", 30), _single("@s/b.xml", 30)], target_bytes=50
+    )
+    assert len(packed) == 2, "50 is too small for both 30-byte files in one row"
+
+    packed = _pack_xml_assignments(
+        [_single("@s/a.xml", 30), _single("@s/b.xml", 30)], target_bytes=60
+    )
+    assert len(packed) == 1, "60 fits both 30-byte files in one row"
+
+
+def test_pack_fills_a_batch_exactly_to_the_byte_target():
+    half = XML_BATCH_TARGET_BYTES // 2
+    packed = _pack_xml_assignments(
+        [_single("@s/a.xml", half), _single("@s/b.xml", XML_BATCH_TARGET_BYTES - half)]
+    )
+    assert len(packed) == 1, "a batch summing exactly to the target should not be split"
+
+
+def test_pack_flushes_when_one_more_byte_would_exceed_the_target():
+    half = XML_BATCH_TARGET_BYTES // 2
+    packed = _pack_xml_assignments(
+        [
+            _single("@s/a.xml", half),
+            _single("@s/b.xml", XML_BATCH_TARGET_BYTES - half + 1),
+        ]
+    )
+    assert len(packed) == 2
+
+
+def test_pack_keeps_a_file_larger_than_the_target_on_its_own_row():
+    packed = _pack_xml_assignments(
+        [
+            _single("@s/a.xml", 10),
+            _single("@s/huge.xml", XML_BATCH_TARGET_BYTES + 1),
+            _single("@s/b.xml", 10),
+        ]
+    )
+    # The oversized file forces a flush before it, then cannot share with what follows.
+    assert len(packed) == 3
+
+
+def test_batched_row_escapes_through_the_worker_assignment_sql():
+    """The encoded batch is a caller-influenced string embedded as a SQL literal, so it has
+    to survive the same escaping as a plain path -- length prefixes included."""
+    entries = [("@s/it's.xml", 0, 1), ("@s/b.xml", 1, 2)]
+    encoded = encode_batch(entries)
+    sql = _xml_worker_assignment_sql([(encoded, 0, 0)], "F", "S", "E")
+    assert sql.count("SELECT") == 1
+    body = sql[sql.index("FROM VALUES ") :]
+    # The quote in the path is doubled by SQL escaping...
+    assert "it''s" in body
+    # ...and undoing just that escaping recovers the exact original encoding.
+    literal = body[body.index("'") + 1 : body.index(", 0::BIGINT")]
+    assert literal.endswith("'")
+    assert decode_batch_or_single(literal[:-1].replace("''", "'"), 0, 0) == entries
+
+
+def test_process_batch_concurrently_returns_every_record_from_every_file():
+    """All entries' records must come back, tagged with the file each came from."""
+    contents = {
+        "a.xml": b"<r><record><id>a1</id></record><record><id>a2</id></record></r>",
+        "b.xml": b"<r><record><id>b1</id></record></r>",
+        "c.xml": b"<r><record><id>c1</id></record><record><id>c2</id></record></r>",
+    }
+    batch = [(name, 0, len(data)) for name, data in contents.items()]
+
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda path, *a, **k: io.BytesIO(contents[path]),
+    ):
+        produced = list(
+            _process_batch_concurrently(
+                batch,
+                "record",
+                mode="PERMISSIVE",
+                column_name_of_corrupt_record="_corrupt_record",
+                ignore_namespace=True,
+                attribute_prefix="_",
+                exclude_attributes=False,
+                value_tag="_VALUE",
+                null_value="",
+                charset="utf-8",
+                ignore_surrounding_whitespace=False,
+                row_validation_xsd_path="",
+                chunk_size=DEFAULT_CHUNK_SIZE,
+                result_template=None,
+                schema_type=None,
+                is_snowpark_connect_compatible=False,
+                skip_children=False,
+            )
+        )
+
+    # Order across files is not preserved -- results are yielded as each file finishes.
+    assert sorted((path, record["id"]) for path, record, _ in produced) == [
+        ("a.xml", "a1"),
+        ("a.xml", "a2"),
+        ("b.xml", "b1"),
+        ("c.xml", "c1"),
+        ("c.xml", "c2"),
+    ]
+
+
+def test_xml_reader_dispatches_a_batch_encoded_filename_through_the_thread_pool():
+    """A handler's own filename argument, not just _process_batch_concurrently in
+    isolation, must route a batch-encoded row to the thread pool -- the single-file path
+    is only correct for an unbatched row."""
+    contents = {
+        "a.xml": b"<r><record><id>a1</id></record></r>",
+        "b.xml": b"<r><record><id>b1</id></record></r>",
+    }
+    encoded = encode_batch([(name, 0, len(data)) for name, data in contents.items()])
+
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda path, *a, **k: io.BytesIO(contents[path]),
+    ):
+        rows = list(
+            XMLReaderWithPos().process(*((encoded, 0, 0) + _process_args(b"")[3:]))
+        )
+
+    assert {row[2]: row[0]["id"] for row in rows} == {"a.xml": "a1", "b.xml": "b1"}

@@ -28,6 +28,7 @@ from snowflake.snowpark.types import (
     ArrayType,
 )
 import snowflake.snowpark.context as context
+from snowflake.snowpark._internal.xml_reader import decode_batch_or_single
 from tests.utils import TestFiles, Utils
 
 
@@ -1648,20 +1649,29 @@ def test_read_xml_read_directory_with_many_worker_rows(session):
     import tempfile
 
     file_count = _CREATE_DATAFRAME_INLINE_VALUES_ROW_LIMIT + 50
-    directory = f"@{tmp_stage_name}/{multifile_subdirectory}_many"
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        for i in range(file_count):
-            local_path = os.path.join(tmp_dir, f"row_{i}.xml")
-            with open(local_path, "w") as f:
-                f.write(f"<ROOT><CHILD><id>{i}</id></CHILD></ROOT>")
-            Utils.upload_to_stage(session, directory, local_path, compress=False)
+    # A name that shares no prefix with any other directory on this stage: LIST
+    # matches by raw path prefix, so e.g. "{multifile_subdirectory}_many" would
+    # also be picked up by `ls @stage/{multifile_subdirectory}` and break that
+    # unrelated directory's read for the rest of the module.
+    directory = f"@{tmp_stage_name}/many_worker_rows"
+    try:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            for i in range(file_count):
+                local_path = os.path.join(tmp_dir, f"row_{i}.xml")
+                with open(local_path, "w") as f:
+                    f.write(f"<ROOT><CHILD><id>{i}</id></CHILD></ROOT>")
+                Utils.upload_to_stage(session, directory, local_path, compress=False)
 
-    df = (
-        session.read.option("rowTag", "CHILD")
-        .option("readDirectory", True)
-        .xml(directory)
-    )
-    assert len(df.collect()) == file_count
+        df = (
+            session.read.option("rowTag", "CHILD")
+            .option("readDirectory", True)
+            .xml(directory)
+        )
+        assert len(df.collect()) == file_count
+    finally:
+        # Leftover files here would linger on the shared stage for the rest of
+        # the module's test run, not just this test.
+        session.sql(f"REMOVE {directory}").collect()
 
 
 def test_read_xml_read_directory_ignores_sibling_directory_sharing_prefix(session):
@@ -1696,3 +1706,91 @@ def test_read_xml_read_directory_ignores_sibling_directory_sharing_prefix(sessio
     finally:
         session.sql(f"REMOVE {directory}").collect()
         session.sql(f"REMOVE {sibling_directory}").collect()
+
+
+#
+# Small-file batching.
+#
+
+
+def test_read_xml_batches_small_files_into_one_worker_row(session):
+    """Small files should share a worker-assignment row rather than taking one each; that
+    collapse is what keeps large file counts under Snowflake's VALUES row limit."""
+    with session.query_history() as history:
+        _read_directory(session, "CHILD")
+
+    assignment_queries = [
+        q.sql_text for q in history.queries if "APPROX_START" in q.sql_text.upper()
+    ]
+    assert len(assignment_queries) == 1
+    values_clause = assignment_queries[0][
+        assignment_queries[0].upper().index("FROM VALUES") :
+    ]
+    # Three files, one row, and the row carries the batch encoding.
+    assert values_clause.count("::BIGINT") // 2 == 1
+    literal = values_clause[
+        values_clause.index("'") + 1 : values_clause.index(", 0::BIGINT")
+    ]
+    assert literal.endswith("'")
+    decoded = decode_batch_or_single(literal[:-1].replace("''", "'"), 0, 0)
+    assert len(decoded) == 3
+
+
+def test_read_xml_batch_target_bytes_option_shrinks_batches(session):
+    """batchTargetBytes must actually change packing, not just exist -- a budget too small
+    for two files together forces them into separate, unbatched rows."""
+    with session.query_history() as history:
+        _read_directory(session, "CHILD", batchTargetBytes=1)
+
+    assignment_queries = [
+        q.sql_text for q in history.queries if "APPROX_START" in q.sql_text.upper()
+    ]
+    assert len(assignment_queries) == 1
+    values_clause = assignment_queries[0][
+        assignment_queries[0].upper().index("FROM VALUES") :
+    ]
+    # A 1-byte budget can't fit even two of the three files together, so each of the
+    # multifile directory's 3 files lands in its own unbatched row.
+    assert values_clause.count("::BIGINT") // 2 == 3
+
+
+def test_read_xml_batched_source_pos_attributes_records_to_their_own_file(session):
+    """A batched row covers several files, so the file path has to come from the reader per
+    record rather than from the row -- otherwise every record in a batch would be labelled
+    with whichever file the row happened to name first."""
+    rows = _read_directory(
+        session, "CHILD", includeSourcePos=True, useVariantProjection=True
+    ).collect()
+    assert len(rows) == 9
+
+    by_file = {}
+    for row in rows:
+        file_name = row["'_source_file_path'"].rsplit("/", 1)[-1]
+        by_file.setdefault(file_name, set()).add(row["'_sku'"].strip('"'))
+
+    assert by_file == {
+        test_file_multifile_a_xml: {"a1-1", "a1-2", "a2-1"},
+        test_file_multifile_b_xml: {"b1-1", "b1-2"},
+        test_file_multifile_c_xml: {"c1-1", "c2-1", "c2-2", "c3-1"},
+    }
+
+
+def test_read_xml_batched_read_is_stable_on_a_small_warehouse(session):
+    """Batched files are read concurrently, so a batch's peak memory is several files at
+    once inside the UDTF sandbox. A large warehouse hides that; this runs the same read on
+    an X-Small one.
+    """
+    original_warehouse = session.get_current_warehouse()
+    small_warehouse = "TESTWH_ARROW"
+    try:
+        session.use_warehouse(small_warehouse)
+    except Exception as exc:  # pragma: no cover - depends on account grants
+        pytest.skip(f"X-Small warehouse {small_warehouse} unavailable: {exc}")
+
+    try:
+        # The multifile fixtures are all under the batching thresholds by default, so this
+        # read is already a single batched row covering every file.
+        batched = _read_directory(session, "CHILD")
+        assert len(batched.collect()) == 9
+    finally:
+        session.use_warehouse(original_warehouse)
