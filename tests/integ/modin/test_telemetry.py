@@ -20,6 +20,7 @@ from snowflake.snowpark.modin.config import SnowflakeModinTelemetryFlushInterval
 import snowflake.snowpark.modin.plugin  # noqa: F401
 import snowflake.snowpark.session
 from snowflake.snowpark._internal.telemetry import TelemetryClient, TelemetryField
+from snowflake.snowpark._internal.utils import IS_V5_DRIVER
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     ModinTelemetrySender,
     _not_equal_to_default,
@@ -138,10 +139,13 @@ def test_snowpark_pandas_telemetry_method_decorator(send_mock, test_table_name):
     assert data[0]["func_name"] == "DataFrame.to_snowflake"
     # Test telemetry in python connector satisfy json format
     body = {"logs": [x.to_dict() for x in captured_logs]}
-    # If any previous REST request failed to send telemetry, telemetry_client._enabled would be set to False
-    assert (
-        telemetry_client._enabled
-    ), "Telemetry client should be enabled, likely because the previous REST request failed to send telemetry."
+    if not IS_V5_DRIVER:
+        # The V5 driver's TelemetryClient does not expose `_enabled`;
+        # batching and the enable kill-switch live in Rust.
+        # If any previous REST request failed to send telemetry, telemetry_client._enabled would be set to False
+        assert (
+            telemetry_client._enabled
+        ), "Telemetry client should be enabled, likely because the previous REST request failed to send telemetry."
     _ = json.dumps(body)
 
 
