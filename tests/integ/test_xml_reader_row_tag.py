@@ -1649,20 +1649,29 @@ def test_read_xml_read_directory_with_many_worker_rows(session):
     import tempfile
 
     file_count = _CREATE_DATAFRAME_INLINE_VALUES_ROW_LIMIT + 50
-    directory = f"@{tmp_stage_name}/{multifile_subdirectory}_many"
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        for i in range(file_count):
-            local_path = os.path.join(tmp_dir, f"row_{i}.xml")
-            with open(local_path, "w") as f:
-                f.write(f"<ROOT><CHILD><id>{i}</id></CHILD></ROOT>")
-            Utils.upload_to_stage(session, directory, local_path, compress=False)
+    # A name that shares no prefix with any other directory on this stage: LIST
+    # matches by raw path prefix, so e.g. "{multifile_subdirectory}_many" would
+    # also be picked up by `ls @stage/{multifile_subdirectory}` and break that
+    # unrelated directory's read for the rest of the module.
+    directory = f"@{tmp_stage_name}/many_worker_rows"
+    try:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            for i in range(file_count):
+                local_path = os.path.join(tmp_dir, f"row_{i}.xml")
+                with open(local_path, "w") as f:
+                    f.write(f"<ROOT><CHILD><id>{i}</id></CHILD></ROOT>")
+                Utils.upload_to_stage(session, directory, local_path, compress=False)
 
-    df = (
-        session.read.option("rowTag", "CHILD")
-        .option("readDirectory", True)
-        .xml(directory)
-    )
-    assert len(df.collect()) == file_count
+        df = (
+            session.read.option("rowTag", "CHILD")
+            .option("readDirectory", True)
+            .xml(directory)
+        )
+        assert len(df.collect()) == file_count
+    finally:
+        # Leftover files here would linger on the shared stage for the rest of
+        # the module's test run, not just this test.
+        session.sql(f"REMOVE {directory}").collect()
 
 
 def test_read_xml_read_directory_ignores_sibling_directory_sharing_prefix(session):

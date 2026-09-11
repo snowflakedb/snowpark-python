@@ -21,7 +21,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     DEFAULT_MAX_WORKERS,
     SnowflakePlanBuilder,
     _positive_int_option,
-    XML_BATCH_MAX_FILES,
     XML_BATCH_TARGET_BYTES,
     _pack_xml_assignments,
     _stage_listing_basename,
@@ -2673,22 +2672,6 @@ def test_pack_never_batches_a_file_split_across_workers():
     ]
 
 
-def test_pack_flushes_at_the_file_count_limit():
-    at_limit = _pack_xml_assignments(
-        [_single(f"@s/f{i}.xml", 1) for i in range(XML_BATCH_MAX_FILES)]
-    )
-    assert len(at_limit) == 1
-    assert len(decode_batch_or_single(at_limit[0][0], 0, 0)) == XML_BATCH_MAX_FILES
-
-    over_limit = _pack_xml_assignments(
-        [_single(f"@s/f{i}.xml", 1) for i in range(XML_BATCH_MAX_FILES + 1)]
-    )
-    assert len(over_limit) == 2
-    assert len(decode_batch_or_single(over_limit[0][0], 0, 0)) == XML_BATCH_MAX_FILES
-    # The leftover file is alone, so it is emitted unencoded.
-    assert over_limit[1] == (f"@s/f{XML_BATCH_MAX_FILES}.xml", 0, 1)
-
-
 def test_pack_honors_a_caller_supplied_target_bytes():
     """The byte target is a parameter, not just the module constant -- callers (the
     ``batchTargetBytes`` reader option) must be able to override it."""
@@ -2793,3 +2776,24 @@ def test_process_batch_concurrently_returns_every_record_from_every_file():
         ("c.xml", "c1"),
         ("c.xml", "c2"),
     ]
+
+
+def test_xml_reader_dispatches_a_batch_encoded_filename_through_the_thread_pool():
+    """A handler's own filename argument, not just _process_batch_concurrently in
+    isolation, must route a batch-encoded row to the thread pool -- the single-file path
+    is only correct for an unbatched row."""
+    contents = {
+        "a.xml": b"<r><record><id>a1</id></record></r>",
+        "b.xml": b"<r><record><id>b1</id></record></r>",
+    }
+    encoded = encode_batch([(name, 0, len(data)) for name, data in contents.items()])
+
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda path, *a, **k: io.BytesIO(contents[path]),
+    ):
+        rows = list(
+            XMLReaderWithPos().process(*((encoded, 0, 0) + _process_args(b"")[3:]))
+        )
+
+    assert {row[2]: row[0]["id"] for row in rows} == {"a.xml": "a1", "b.xml": "b1"}

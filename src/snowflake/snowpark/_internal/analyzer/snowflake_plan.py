@@ -160,12 +160,9 @@ DEFAULT_MAX_WORKERS: int = 16
 # worker-assignment row count.
 _XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES: int = 200_000
 
-# Limits on how many small files are packed into one worker-assignment row. The byte target
-# keeps a row's total work near one worker's share so batched rows do not become stragglers;
-# the file cap bounds a row independently of size, since batched files are read concurrently
-# and each one costs memory in the UDTF sandbox.
+# How many bytes of small files to pack into one worker-assignment row, keeping a row's
+# total work near one worker's share so batched rows do not become stragglers.
 XML_BATCH_TARGET_BYTES: int = 50 * 1024 * 1024
-XML_BATCH_MAX_FILES: int = 500
 
 
 def _xml_worker_assignments(
@@ -217,10 +214,7 @@ def _pack_xml_assignments(
             flush()
             rows.extend(ranges)
             continue
-        if pending and (
-            pending_bytes + file_size > target_bytes
-            or len(pending) >= XML_BATCH_MAX_FILES
-        ):
+        if pending and pending_bytes + file_size > target_bytes:
             flush()
         pending.append(ranges[0])
         pending_bytes += file_size
