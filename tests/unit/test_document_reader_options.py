@@ -210,6 +210,13 @@ class TestExtractionSpecFields:
         assert _fields(42) == []
         assert _fields("invoice_number") == []
 
+    def test_list_with_non_string_items_does_not_raise(self):
+        # A malformed response_format (e.g. a stray int) must not blow up with
+        # an AttributeError from field.upper() -- field_name() always returns
+        # a string, even for a shape this reader doesn't otherwise recognize.
+        assert _fields([42, "city: What city?"]) == ["42", "city"]
+        assert _fields([[42, "What is it?"]]) == ["42"]
+
 
 # ---------------------------------------------------------------------------
 # schema option -- accepted verbatim, in any shape AI_EXTRACT documents, and

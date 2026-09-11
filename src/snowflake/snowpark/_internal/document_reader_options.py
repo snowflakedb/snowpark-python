@@ -58,10 +58,10 @@ class ExtractionSpec:
 
         def field_name(item: Any) -> str:
             if isinstance(item, (list, tuple)) and item:
-                return item[0]
+                return str(item[0])
             if isinstance(item, str) and ":" in item:
                 return item.split(":", 1)[0].strip()
-            return item
+            return str(item)
 
         is_json_schema = isinstance(response_format, dict) and isinstance(
             response_format.get("properties"), dict
