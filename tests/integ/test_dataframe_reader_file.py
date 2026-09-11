@@ -11,7 +11,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.functions import col, fl_get_file_type
+from snowflake.snowpark.functions import col, flatten, fl_get_file_type, lit
 from snowflake.snowpark.types import FileType, TimestampType
 from tests.utils import Utils, TestFiles
 
@@ -451,3 +451,18 @@ def test_parquet_pattern_infer_with_metadata_files(session):
 
     finally:
         Utils.drop_stage(session, stage_name)
+
+
+def test_nullable_file_column_schema_after_join_table_function(session):
+    """Nullable FILE column must not break schema resolution after join_table_function."""
+    files_df = session.sql("SELECT TRY_TO_FILE(NULL) AS F")
+
+    # join_table_function() causes the schema query to cross a join boundary;
+    # a subsequent with_column forces schema re-resolution on the joined plan.
+    joined = files_df.join_table_function(flatten(lit([1, 2, 3])))
+    extra = joined.with_column("DOUBLE_INDEX", col("INDEX") * 2)
+
+    # Before the fix this raised a server error ("invalid expression NULL :: FILE").
+    columns = extra.columns
+    assert "F" in columns
+    assert "DOUBLE_INDEX" in columns
