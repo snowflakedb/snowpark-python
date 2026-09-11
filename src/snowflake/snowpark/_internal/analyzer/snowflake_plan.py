@@ -154,6 +154,12 @@ _logger = getLogger(__name__)
 # Default for numWorkers.
 DEFAULT_MAX_WORKERS: int = 16
 
+# Snowflake's own limit on expressions in a single VALUES list ("maximum number of
+# expressions in a list exceeded"), measured empirically. A directory of many large
+# files -- each needing multiple byte-range workers -- has no other ceiling on
+# worker-assignment row count.
+_XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES: int = 200_000
+
 
 def _xml_worker_assignments(
     file_path: str, file_size: int, max_workers: int, chunk_size: int
@@ -178,6 +184,13 @@ def _stage_listing_basename(file_path: str) -> str:
     return file_path.rsplit("/", 1)[-1]
 
 
+def _xml_worker_assignment_values(assignments: List[Tuple[str, int, int]]) -> str:
+    return ", ".join(
+        f"({str_to_sql(path)}, {start}::BIGINT, {end}::BIGINT)"
+        for path, start, end in assignments
+    )
+
+
 def _xml_worker_assignment_sql(
     assignments: List[Tuple[str, int, int]],
     file_path_column: str,
@@ -185,17 +198,26 @@ def _xml_worker_assignment_sql(
     approx_end_column: str,
 ) -> str:
     """Render worker assignments as a single inline ``VALUES`` query, avoiding
-    ``Session.create_dataframe`` which drops setup statements past a couple hundred rows."""
-    rows = ", ".join(
-        f"({str_to_sql(path)}, {start}::BIGINT, {end}::BIGINT)"
-        for path, start, end in assignments
-    )
-    return (
+    ``Session.create_dataframe`` which drops setup statements past a couple hundred rows.
+
+    Chunked into multiple ``VALUES`` clauses joined by ``UNION ALL`` once the row count
+    would exceed Snowflake's own per-list expression limit (measured empirically at
+    200,000: "maximum number of expressions in a list exceeded"), while staying a single
+    statement -- a directory of many large files, each needing multiple byte-range
+    workers, has no other ceiling on worker-assignment row count.
+    """
+    chunks = [
+        assignments[i : i + _XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES]
+        for i in range(0, len(assignments), _XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES)
+    ] or [[]]
+    selects = [
         f"SELECT $1 AS {file_path_column}, "
         f"$2 AS {approx_start_column}, "
         f"$3 AS {approx_end_column} "
-        f"FROM VALUES {rows}"
-    )
+        f"FROM VALUES {_xml_worker_assignment_values(chunk)}"
+        for chunk in chunks
+    ]
+    return " UNION ALL ".join(selects)
 
 
 def _positive_int_option(options: Dict[str, Any], name: str, default: int) -> int:
@@ -1912,11 +1934,11 @@ class SnowflakePlanBuilder:
         """Map every file directly under a stage directory to its byte size, via one LIST.
         Filters to the shallowest depth since LIST is recursive and would otherwise also
         return files from recursed subdirectories."""
-        rows = self._list_stage_path(directory)
+        directory_prefix = directory.rstrip("/")
+        rows = self._list_stage_path(f"{directory_prefix}/")
         if not rows:
             raise ValueError(f"{directory} does not exist or contains no files")
         min_depth = min(row["name"].count("/") for row in rows)  # type: ignore
-        directory_prefix = directory.rstrip("/")
         return {
             f"{directory_prefix}/{_stage_listing_basename(row['name'])}": int(row["size"])  # type: ignore
             for row in rows

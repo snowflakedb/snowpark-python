@@ -1662,3 +1662,37 @@ def test_read_xml_read_directory_with_many_worker_rows(session):
         .xml(directory)
     )
     assert len(df.collect()) == file_count
+
+
+def test_read_xml_read_directory_ignores_sibling_directory_sharing_prefix(session):
+    """LIST does raw string-prefix matching, not directory-boundary matching: listing
+    "orders" must not also pick up files from a sibling "orders_archive" directory on
+    the same stage just because its name shares that prefix. Depth-filtering alone can't
+    catch this either, since the sibling sits at the same path depth."""
+    import tempfile
+
+    directory = f"@{tmp_stage_name}/orders"
+    sibling_directory = f"@{tmp_stage_name}/orders_archive"
+    try:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            for name, directory_path in (
+                ("a.xml", directory),
+                ("b.xml", directory),
+                ("c.xml", sibling_directory),
+            ):
+                local_path = os.path.join(tmp_dir, name)
+                with open(local_path, "w") as f:
+                    f.write("<ROOT><CHILD><id>1</id></CHILD></ROOT>")
+                Utils.upload_to_stage(
+                    session, directory_path, local_path, compress=False
+                )
+
+        df = (
+            session.read.option("rowTag", "CHILD")
+            .option("readDirectory", True)
+            .xml(directory)
+        )
+        assert len(df.collect()) == 2
+    finally:
+        session.sql(f"REMOVE {directory}").collect()
+        session.sql(f"REMOVE {sibling_directory}").collect()

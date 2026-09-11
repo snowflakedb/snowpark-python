@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     _stage_listing_basename,
     _xml_worker_assignment_sql,
     _xml_worker_assignments,
+    _XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES,
 )
 from snowflake.snowpark._internal.udf_utils import (
     retrieve_func_type_hints_from_source,
@@ -2003,7 +2004,7 @@ def test_list_directory_file_sizes_lists_once_for_every_file():
     """A directory read must cost one LIST for every file in it, not one apiece -- a
     LIST per file would be a round trip per file before the read even starts."""
     listing = {
-        "@stage/dir": [
+        "@stage/dir/": [
             {"name": "stage/dir/a.xml", "size": 10},
             {"name": "stage/dir/b.xml", "size": 20},
             {"name": "stage/dir/c.xml", "size": 30},
@@ -2016,14 +2017,36 @@ def test_list_directory_file_sizes_lists_once_for_every_file():
         "@stage/dir/b.xml": 20,
         "@stage/dir/c.xml": 30,
     }
-    assert listed == ["ls @stage/dir"]
+    assert listed == ["ls @stage/dir/"]
+
+
+def test_list_directory_file_sizes_lists_with_trailing_slash_not_bare_prefix():
+    """LIST does raw string-prefix matching, not directory-boundary matching: listing a
+    bare directory name would also match a sibling directory sharing that prefix (e.g.
+    "orders" matching "orders_archive"), and since the sibling sits at the same path
+    depth, the depth filter can't catch it either. Listing must target the directory
+    with a trailing slash so the prefix matches the actual boundary."""
+    listing = {
+        # A bare, no-trailing-slash listing would (incorrectly) return this too.
+        "@stage/orders": [
+            {"name": "stage/orders/a.xml", "size": 10},
+            {"name": "stage/orders_archive/c.xml", "size": 999},
+        ],
+        "@stage/orders/": [
+            {"name": "stage/orders/a.xml", "size": 10},
+        ],
+    }
+    builder, listed = _fake_builder(listing)
+    sizes = builder._list_directory_file_sizes("@stage/orders")
+    assert sizes == {"@stage/orders/a.xml": 10}
+    assert listed == ["ls @stage/orders/"]
 
 
 def test_list_directory_file_sizes_matches_mixed_case_stage_listing():
     """A mixed-case stage name resolves against LIST's lowercased form -- matching by
     basename means the stage-name segment's case never has to be reconstructed at all."""
     listing = {
-        "@db.schema.MyStage/SubDir": [
+        "@db.schema.MyStage/SubDir/": [
             {"name": "mystage/SubDir/a.xml", "size": 11},
             {"name": "mystage/SubDir/b.xml", "size": 22},
         ]
@@ -2042,7 +2065,7 @@ def test_list_directory_file_sizes_matches_named_external_stage_listing():
     listing name from the stage identifier missed every external-stage file, since the
     URL has no relation to the stage's own name."""
     listing = {
-        "@db.schema.ext_stage/dir": [
+        "@db.schema.ext_stage/dir/": [
             {
                 "name": "s3://ecosystem-sas/test_files_xml/security_master_1.xml",
                 "size": 123,
@@ -2073,7 +2096,7 @@ def test_list_directory_file_sizes_ignores_recursively_listed_subdirectory_files
     filtering must exclude it, or the wrong size gets assigned and byte ranges silently
     cover only part of the real file."""
     listing = {
-        "@stage/dir": [
+        "@stage/dir/": [
             {"name": "stage/dir/a.xml", "size": 32},
             {"name": "stage/dir/b.xml", "size": 32},
             # Same basename as dir/a.xml, one level deeper -- must not be matched.
@@ -2088,7 +2111,7 @@ def test_list_directory_file_sizes_ignores_recursively_listed_subdirectory_files
 def test_list_directory_file_sizes_ignores_deeper_match_regardless_of_list_order():
     """The shallower row must win even when LIST returns the deeper duplicate first."""
     listing = {
-        "@stage/dir": [
+        "@stage/dir/": [
             {"name": "stage/dir/sub/a.xml", "size": 512},
             {"name": "stage/dir/a.xml", "size": 32},
             {"name": "stage/dir/b.xml", "size": 64},
@@ -2161,14 +2184,59 @@ def test_skip_children_handles_single_quoted_attributes():
     assert [record for record, _ in records] == [{"_id": "p1", "_region": "north"}]
 
 
-def test_skip_children_yields_empty_attributes_on_charset_mismatch():
+def test_skip_children_decodes_entities_in_attribute_values():
+    """skipChildren must decode entities the same way the non-skip_children path does
+    via ElementTree's element.attrib, not yield the raw undecoded text."""
+    xml_bytes = (
+        b'<ROOT><PARENT note="a&amp;b &lt;x&gt; &#39;y&#39;"><CHILD/></PARENT></ROOT>'
+    )
+    records = _skip_children_records(xml_bytes)
+    assert [record for record, _ in records] == [{"_note": "a&b <x> 'y'"}]
+
+
+def test_skip_children_respects_exclude_attributes():
+    xml_bytes = b'<ROOT><PARENT id="p1"><CHILD/></PARENT></ROOT>'
+    records = _skip_children_records(xml_bytes, exclude_attributes=True)
+    assert [record for record, _ in records] == [{}]
+
+
+def test_skip_children_respects_ignore_namespace_flag():
+    """A colon-containing attribute name must only be namespace-stripped when
+    ignore_namespace=True is actually set -- not unconditionally."""
+    xml_bytes = b'<ROOT><PARENT xyz:id="p1"><CHILD/></PARENT></ROOT>'
+    stripped = _skip_children_records(xml_bytes, ignore_namespace=True)
+    assert [record for record, _ in stripped] == [{"_id": "p1"}]
+
+    # xyz is an undeclared namespace prefix; with ignore_namespace=False there is no
+    # recovery path to resolve it, same as the non-skip_children path failing to parse
+    # -- and like every other malformed-record path here, PERMISSIVE yields it as a
+    # corrupt record rather than silently dropping the attributes.
+    not_stripped = _skip_children_records(xml_bytes, ignore_namespace=False)
+    assert [record for record, _ in not_stripped] == [
+        {"_corrupt_record": '<PARENT xyz:id="p1">'}
+    ]
+
+
+def test_skip_children_on_charset_mismatch_yields_corrupt_record_in_permissive_mode():
     """A declared charset that doesn't match the file's actual encoding can decode the
     tag's own bytes into text that no longer starts with the expected "<tag_name"
-    prefix. Rather than crashing on garbled input, this yields an empty attributes dict
-    instead of misparsing it."""
+    prefix. This is a malformed record like any other: PERMISSIVE yields it as a
+    corrupt record instead of silently misparsing it into an empty attributes dict."""
     xml_bytes = b'<ROOT><PARENT id="p1"><CHILD/></PARENT></ROOT>'
     records = _skip_children_records(xml_bytes, charset="utf-16")
-    assert [record for record, _ in records] == [{}]
+    assert [record for record, _ in records] == [{"_corrupt_record": "值剁久⁔摩∽ㅰ㸢"}]
+
+
+def test_skip_children_on_charset_mismatch_drops_record_in_dropmalformed_mode():
+    xml_bytes = b'<ROOT><PARENT id="p1"><CHILD/></PARENT></ROOT>'
+    records = _skip_children_records(xml_bytes, charset="utf-16", mode="DROPMALFORMED")
+    assert records == []
+
+
+def test_skip_children_on_charset_mismatch_raises_in_failfast_mode():
+    xml_bytes = b'<ROOT><PARENT id="p1"><CHILD/></PARENT></ROOT>'
+    with pytest.raises(RuntimeError, match="Malformed XML record at bytes"):
+        _skip_children_records(xml_bytes, charset="utf-16", mode="FAILFAST")
 
 
 def test_skip_children_reports_record_start_offsets():
@@ -2443,6 +2511,52 @@ def test_xml_worker_assignment_sql_is_one_statement_at_any_scale(assignment_coun
     assert "INSERT" not in sql.upper()
     assert ";" not in sql
     assert sql.count("::BIGINT") == 2 * assignment_count
+
+
+@pytest.mark.parametrize(
+    "assignment_count",
+    [
+        _XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES,
+        _XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES + 1,
+        2 * _XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES + 137,
+    ],
+)
+def test_xml_worker_assignment_sql_chunks_past_the_values_list_limit(assignment_count):
+    """Snowflake rejects a single VALUES list past 200,000 expressions ("maximum number
+    of expressions in a list exceeded") -- confirmed against a live account. A directory
+    of many large files, each needing multiple byte-range workers, has no other ceiling
+    on row count. Once the limit would be crossed, the statement must split into
+    multiple VALUES clauses joined by UNION ALL rather than exceeding any single one,
+    while remaining a single statement (no CREATE/INSERT, no semicolon) for the same
+    reason as above.
+    """
+    assignments = [(f"@stage/f{i}.xml", i, i + 10) for i in range(assignment_count)]
+    sql = _xml_worker_assignment_sql(
+        assignments, "FILE_PATH", "APPROX_START", "APPROX_END"
+    )
+    expected_chunks = -(
+        -assignment_count // _XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES
+    )  # ceil division
+    assert sql.count("SELECT") == expected_chunks
+    assert sql.count(" FROM VALUES ") == expected_chunks
+    assert sql.count(" UNION ALL ") == expected_chunks - 1
+    assert "CREATE" not in sql.upper()
+    assert "INSERT" not in sql.upper()
+    assert ";" not in sql
+    assert sql.count("::BIGINT") == 2 * assignment_count
+
+
+def test_xml_worker_assignment_sql_stays_one_chunk_at_the_limit_boundary():
+    """Exactly at the limit, one VALUES clause is still enough -- no unnecessary split."""
+    assignments = [
+        (f"@stage/f{i}.xml", i, i + 10)
+        for i in range(_XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES)
+    ]
+    sql = _xml_worker_assignment_sql(
+        assignments, "FILE_PATH", "APPROX_START", "APPROX_END"
+    )
+    assert sql.count("SELECT") == 1
+    assert "UNION ALL" not in sql
 
 
 @pytest.mark.parametrize(

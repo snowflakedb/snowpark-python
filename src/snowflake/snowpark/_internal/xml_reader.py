@@ -39,10 +39,6 @@ except ImportError:
 DEFAULT_CHUNK_SIZE: int = 1024
 VARIANT_COLUMN_SIZE_LIMIT: int = 16 * 1024 * 1024
 
-# Matches both quote styles: tag_is_self_closing (reused to find the tag's own closing
-# ">") treats both as valid, and XML legally allows either on an attribute value.
-_XML_ATTRIBUTE_PATTERN = re.compile(r'([\w][\w.-]*)=(?:"([^"]*)"|\'([^\']*)\')')
-
 
 def replace_entity(match: re.Match) -> str:
     """
@@ -649,19 +645,84 @@ def process_xml_range(
                 tag_text = f.read(tag_end - record_start).decode(
                     charset, errors="replace"
                 )
+                tag_text = re.sub(r"&(\w+);", replace_entity, tag_text)
                 attributes: Dict[str, Any] = {}
                 prefix = f"<{tag_name}"
+                parse_error: Optional[Exception] = None
                 if tag_text.startswith(prefix):
-                    attribute_text = tag_text[len(prefix) : -1].rstrip("/").strip()
-                    for match in _XML_ATTRIBUTE_PATTERN.finditer(attribute_text):
-                        name, double_quoted, single_quoted = match.groups()
-                        value = (
-                            double_quoted
-                            if double_quoted is not None
-                            else single_quoted
+                    # Self-close the isolated opening tag so it parses standalone, then
+                    # reuse the same parser (and its entity-decoding, undeclared-namespace
+                    # recovery, and ns_clean behavior) the non-skip_children path uses,
+                    # instead of a hand-rolled attribute regex that can't replicate any of
+                    # that -- it previously left entities undecoded, silently ignored
+                    # exclude_attributes, and always stripped a colon-containing prefix
+                    # whether or not ignore_namespace was set.
+                    self_closed_text = (
+                        tag_text if tag_text.endswith("/>") else f"{tag_text[:-1]}/>"
+                    )
+                    element = None
+                    if lxml_installed:
+                        recover = bool(":" in tag_name)
+                        parser = ET.XMLParser(recover=recover, ns_clean=True)
+                        try:
+                            element = ET.fromstring(self_closed_text, parser)
+                        except ET.XMLSyntaxError as e:
+                            if ignore_namespace:
+                                try:
+                                    cleaned = re.sub(
+                                        r"\s+(\w+):(\w+)=", r" \2=", self_closed_text
+                                    )
+                                    element = ET.fromstring(cleaned, parser)
+                                except Exception as inner_e:
+                                    parse_error = inner_e
+                            else:
+                                parse_error = e
+                    else:
+                        try:
+                            element = ET.fromstring(self_closed_text)
+                        except ET.ParseError as e:
+                            parse_error = e
+
+                    if element is not None:
+                        if ignore_namespace:
+                            element = strip_xml_namespaces(element)
+                        if not exclude_attributes:
+                            for attr_name, attr_value in element.attrib.items():
+                                if ignore_surrounding_whitespace:
+                                    attr_value = attr_value.strip()
+                                attributes[attribute_prefix + attr_name] = (
+                                    None if attr_value == null_value else attr_value
+                                )
+                    else:
+                        parse_error = parse_error or ValueError(
+                            "opening tag could not be parsed"
                         )
-                        attributes[attribute_prefix + name] = value
-                yield (attributes, record_start)
+                else:
+                    # e.g. a declared charset that doesn't match the file's actual
+                    # encoding, decoding the tag's own bytes into text that no longer
+                    # starts with the expected "<tag_name" prefix.
+                    parse_error = ValueError(
+                        "opening tag bytes could not be decoded to match the "
+                        "expected tag name"
+                    )
+
+                # Mode handling for a row tag whose opening tag couldn't be read --
+                # same PERMISSIVE/FAILFAST/DROPMALFORMED contract as every other
+                # malformed-record path in this function.
+                should_yield = True
+                if parse_error is not None:
+                    if mode == "PERMISSIVE":
+                        attributes = {column_name_of_corrupt_record: tag_text}
+                    elif mode == "FAILFAST":
+                        raise RuntimeError(
+                            f"Malformed XML record at bytes {record_start}-{tag_end}: "
+                            f"{parse_error}\nXML record string: {tag_text}"
+                        )
+                    else:
+                        should_yield = False
+
+                if should_yield:
+                    yield (attributes, record_start)
 
                 if tag_end >= approx_end:
                     break
