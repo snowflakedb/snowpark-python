@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Optional, List, Set
+from typing import Any, Iterable, Optional, List, Set
 
 from snowflake.connector import OperationalError, ProgrammingError
 from snowflake.snowpark.exceptions import (
@@ -212,6 +212,36 @@ class SnowparkClientExceptionMessages:
         return SnowparkTableException(
             f"{action} has been specified for {clause} to merge table",
             error_code="1115",
+        )
+
+    @staticmethod
+    def DF_DOCUMENTS_INVALID_OPTION_VALUE(
+        option_name: str, value: Any, valid_values: Iterable[str]
+    ) -> SnowparkDataframeReaderException:
+        return SnowparkDataframeReaderException(
+            f"Invalid value {value!r} for option '{option_name}'. Valid values are: "
+            f"{', '.join(sorted(valid_values))}.",
+            error_code="1116",
+        )
+
+    @staticmethod
+    def DF_DOCUMENTS_SCHEMA_FIELD_NAME_COLLISION(
+        field_name: str,
+    ) -> SnowparkDataframeReaderException:
+        return SnowparkDataframeReaderException(
+            f"Schema field '{field_name}' collides with a reserved output column or "
+            f"another schema field once upper-cased. Rename this field to avoid "
+            f"silently overwriting a column.",
+            error_code="1117",
+        )
+
+    @staticmethod
+    def DF_DOCUMENTS_SCHEMA_HAS_NO_FIELDS() -> SnowparkDataframeReaderException:
+        return SnowparkDataframeReaderException(
+            "The 'schema' option did not resolve to any extractable fields. "
+            "Provide a dict mapping field names to prompts, a JSON Schema object "
+            "with a 'properties' entry, or a list of [name, prompt] pairs.",
+            error_code="1118",
         )
 
     # Plan Analysis error codes 02XX
