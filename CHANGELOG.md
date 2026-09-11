@@ -39,6 +39,8 @@
 
 - Fixed a bug where referencing `modin.pandas` inside a Snowpark pandas `apply()` function raised a `ModuleNotFoundError`.
 
+- Added a `useVariantProjection` option to `DataFrameReader.xml` that speeds up XML ingestion. The default is `False`; setting it to `True` requires `cacheResult` to also be `True` (the default).
+
 ## 1.54.0 (2026-07-29)
 
 ### Snowpark Python API updates
