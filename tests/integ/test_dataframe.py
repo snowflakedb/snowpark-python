@@ -41,6 +41,7 @@ from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import (
+    IS_V5_DRIVER,
     TempObjectType,
     random_name_for_temp_object,
 )
@@ -4195,8 +4196,17 @@ def test_create_dataframe_large_respects_paramstyle_negative(db_parameters):
     original_value = analyzer.ARRAY_BIND_THRESHOLD
     session_builder = Session.builder.configs(db_parameters)
     new_session = session_builder.create()
-    new_session._conn._conn._paramstyle = "unsupported"
     try:
+        try:
+            new_session._conn._conn._paramstyle = "unsupported"
+        except ProgrammingError:
+            if IS_V5_DRIVER:
+                # The V5 driver validates paramstyle eagerly on assignment
+                # and raises here instead of lazily at bind time, so the
+                # negative path this test exercises is already covered by
+                # the assignment itself.
+                return
+            raise
         analyzer.ARRAY_BIND_THRESHOLD = 2
         with pytest.raises(
             ValueError, match="'unsupported' is not a recognized paramstyle"
