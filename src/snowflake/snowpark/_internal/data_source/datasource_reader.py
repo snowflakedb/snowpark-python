@@ -11,7 +11,7 @@ from snowflake.snowpark._internal.data_source.datasource_typing import Connectio
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
-from snowflake.connector.options import pandas as pd
+from snowflake.snowpark._internal.options import pandas as pd
 import logging
 
 logger = logging.getLogger(__name__)
