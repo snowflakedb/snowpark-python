@@ -6,17 +6,10 @@
 
 #### New Features
 
-#### Improvements
-
 #### Bug Fixes
 
-### Snowpark pandas API Updates
-
-#### New Features
-
-#### Improvements
-
-#### Bug Fixes
+- Fixed `ai_extract` misrouting FILE-type inputs to the TEXT overload when `scores` or `config` were also supplied.
+- Fixed the nullable `FILE` column schema expression.
 
 ## 1.55.0 (2026-09-10)
 
