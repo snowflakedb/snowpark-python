@@ -409,6 +409,28 @@ def test_dataFrame_printSchema(capfd, mock_server_connection):
     )
 
 
+def test_dataframe_pipe(session):
+    df: DataFrame = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+
+    # test normal function
+    def test_function(df: DataFrame, col: str, threshold: float = 0.0):
+        df = df.filter(df[col] > threshold)
+        return df.collect(), df.count()
+
+    result, expected_result = df.pipe(test_function, "a", threshold=1), test_function(
+        df, "a", 1
+    )
+
+    assert result == expected_result
+
+    # test lambda function
+    result, expected_result = df.pipe(lambda x: int(x.count())), (
+        lambda x: int(x.count())
+    )(df)
+
+    assert result == expected_result
+
+
 def test_session():
     fake_session = mock.create_autospec(Session, _session_id=123456)
     fake_session._analyzer = mock.Mock()
