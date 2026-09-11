@@ -14,7 +14,8 @@ from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import col, lit
+from snowflake.snowpark import Window
+from snowflake.snowpark.functions import col, lit, row_number
 from snowflake.snowpark.types import (
     StructType,
     StructField,
@@ -63,6 +64,16 @@ test_file_books_xsd = "books.xsd"
 test_file_dk_trace_xml = "dk_trace_sample.xml"
 test_file_dblp_xml = "dblp_6kb.xml"
 test_file_books_attr_val_xml = "books_attribute_value.xml"
+# <PARENT> wraps <CHILD>, for parent/child range-JOIN testing.
+test_file_multifile_a_xml = "multifile_a.xml"
+test_file_multifile_b_xml = "multifile_b.xml"
+test_file_multifile_c_xml = "multifile_c.xml"
+multifile_subdirectory = "multifile"
+test_files_multifile = [
+    test_file_multifile_a_xml,
+    test_file_multifile_b_xml,
+    test_file_multifile_c_xml,
+]
 
 # Global stage name for uploading test files
 tmp_stage_name = Utils.random_stage_name()
@@ -200,6 +211,19 @@ def setup(session, resources_path, local_testing_mode):
         test_files.test_books_attribute_value_xml,
         compress=False,
     )
+
+    # In their own subdirectory so readDirectory has one directory to list.
+    for local_path in (
+        test_files.test_multifile_a_xml,
+        test_files.test_multifile_b_xml,
+        test_files.test_multifile_c_xml,
+    ):
+        Utils.upload_to_stage(
+            session,
+            f"@{tmp_stage_name}/{multifile_subdirectory}",
+            local_path,
+            compress=False,
+        )
 
     # Upload inline XML strings for mode tests
     for name, xml_str in {
@@ -1151,25 +1175,35 @@ def test_dropmalformed_multifield_drops_any_bad_field(
 
 
 #
+# Shared read/compare helpers, used by the output-projection and multi-file sections below.
+#
+
+
+def _apply_options(reader, options):
+    for key, value in options.items():
+        reader = reader.option(key, value)
+    return reader
+
+
+def _content_by_name(df):
+    """Row content keyed by column name rather than positional, so it can be compared
+    across projections without depending on column order."""
+    names = [c.strip('"').strip("'") for c in df.columns]
+    return sorted(
+        tuple(sorted(zip(names, (str(v) for v in row)))) for row in df.collect()
+    )
+
+
+#
 # Output projection: direct VARIANT key projection instead of flatten + dynamic pivot.
 #
 
 
 def _read_xml_content(session, file_name, row_tag, **options):
-    """Read an XML file and return (columns, row content keyed by column name).
-
-    Row content is keyed rather than positional so it can be compared across
-    projections without depending on column order.
-    """
-    reader = session.read.option("rowTag", row_tag)
-    for key, value in options.items():
-        reader = reader.option(key, value)
+    """Read an XML file and return (columns, row content keyed by column name)."""
+    reader = _apply_options(session.read.option("rowTag", row_tag), options)
     df = reader.xml(f"@{tmp_stage_name}/{file_name}")
-    names = [c.strip('"').strip("'") for c in df.columns]
-    content = sorted(
-        tuple(sorted(zip(names, (str(v) for v in row)))) for row in df.collect()
-    )
-    return df.columns, content
+    return df.columns, _content_by_name(df)
 
 
 @pytest.mark.parametrize(
@@ -1410,3 +1444,255 @@ def test_read_xml_rejects_degenerate_num_workers(session, value):
         session.read.option("rowTag", "book").option("numWorkers", value).xml(
             f"@{tmp_stage_name}/{test_file_books_xml}"
         )
+
+
+#
+# Multi-file reads, skipChildren, and includeSourcePos.
+#
+
+
+def _multifile_directory():
+    return f"@{tmp_stage_name}/{multifile_subdirectory}"
+
+
+def _read_directory(session, row_tag, **options):
+    reader = _apply_options(
+        session.read.option("rowTag", row_tag).option("readDirectory", True), options
+    )
+    return reader.xml(_multifile_directory())
+
+
+def test_read_xml_multifile_matches_sum_of_single_file_reads(session):
+    """A directory read must produce exactly what reading each file separately produces."""
+    combined = _read_directory(session, "CHILD")
+
+    per_file = []
+    for name in test_files_multifile:
+        path = f"{_multifile_directory()}/{name}"
+        per_file.extend(
+            _content_by_name(session.read.option("rowTag", "CHILD").xml(path))
+        )
+
+    assert len(combined.collect()) == 9
+    assert _content_by_name(combined) == sorted(per_file)
+
+
+def test_read_xml_read_directory_lists_once(session):
+    """A LIST per file would be a round trip per file before the read starts;
+    readDirectory must resolve the whole directory with a single LIST."""
+    with session.query_history() as history:
+        _read_directory(session, "CHILD")
+
+    listings = [
+        q.sql_text
+        for q in history.queries
+        if q.sql_text.strip().lower().startswith("ls ")
+        and multifile_subdirectory in q.sql_text
+    ]
+    assert len(listings) == 1
+
+
+def test_read_xml_read_directory_missing_directory_raises(session):
+    with pytest.raises(ValueError, match="does not exist"):
+        session.read.option("rowTag", "CHILD").option("readDirectory", True).xml(
+            f"@{tmp_stage_name}/{multifile_subdirectory}_does_not_exist"
+        )
+
+
+def test_read_xml_read_directory_requires_row_tag(session):
+    # readDirectory has no multi-file read path to use without rowTag.
+    with pytest.raises(ValueError, match="only supported for XML with the rowTag"):
+        session.read.option("readDirectory", True).xml(_multifile_directory())
+
+
+def test_read_xml_skip_children_reads_only_parent_attributes(session):
+    skipped = _read_directory(session, "PARENT", skipChildren=True)
+    assert sorted(c.strip('"').strip("'") for c in skipped.columns) == [
+        "_id",
+        "_region",
+    ]
+
+    rows = skipped.collect()
+    assert len(rows) == 6
+    assert {row["'_id'"].strip('"') for row in rows} == {
+        "a1",
+        "a2",
+        "b1",
+        "c1",
+        "c2",
+        "c3",
+    }
+
+    # Without the option the same row tag also yields the nested CHILD content.
+    full = _read_directory(session, "PARENT")
+    assert "CHILD" in {c.strip('"').strip("'") for c in full.columns}
+    assert len(full.collect()) == 6
+
+
+def test_read_xml_include_source_pos_adds_position_columns(session):
+    df = _read_directory(
+        session, "CHILD", includeSourcePos=True, useVariantProjection=True
+    )
+
+    names = [c.strip('"').strip("'") for c in df.columns]
+    assert names[-2:] == ["_source_byte_pos", "_source_file_path"]
+
+    rows = df.collect()
+    assert len(rows) == 9
+    # Every file contributes, and offsets are plain integers rather than VARIANT.
+    assert {row["'_source_file_path'"].rsplit("/", 1)[-1] for row in rows} == set(
+        test_files_multifile
+    )
+    assert all(isinstance(row["'_source_byte_pos'"], int) for row in rows)
+    assert all(row["'_source_byte_pos'"] > 0 for row in rows)
+
+    # Without the option the columns are absent.
+    plain = _read_directory(session, "CHILD")
+    assert not any("_source" in c for c in plain.columns)
+
+
+def test_read_xml_include_source_pos_supports_parent_child_range_join(session):
+    """Attributes each child to the parent whose byte range contains it; offsets restart
+    per file, so file path disambiguates."""
+    parents = _read_directory(
+        session,
+        "PARENT",
+        skipChildren=True,
+        includeSourcePos=True,
+        useVariantProjection=True,
+    )
+    children = _read_directory(
+        session, "CHILD", includeSourcePos=True, useVariantProjection=True
+    )
+
+    parents = parents.select(
+        col("'_id'").cast(StringType()).alias("PARENT_ID"),
+        col("'_source_file_path'").alias("PARENT_FILE"),
+        col("'_source_byte_pos'").alias("PARENT_POS"),
+    )
+    children = children.select(
+        col("'_sku'").cast(StringType()).alias("SKU"),
+        col("'_source_file_path'").alias("CHILD_FILE"),
+        col("'_source_byte_pos'").alias("CHILD_POS"),
+    )
+
+    joined = children.join(
+        parents,
+        (children["CHILD_FILE"] == parents["PARENT_FILE"])
+        & (parents["PARENT_POS"] <= children["CHILD_POS"]),
+    )
+    # Among all parents starting before a child, the closest one encloses it.
+    attributed = joined.select(
+        col("SKU"),
+        col("PARENT_ID"),
+        row_number()
+        .over(
+            Window.partition_by(col("CHILD_FILE"), col("CHILD_POS")).order_by(
+                col("PARENT_POS").desc()
+            )
+        )
+        .alias("RN"),
+    ).filter(col("RN") == 1)
+
+    rows = attributed.collect()
+    assert len(rows) == 9
+    for row in rows:
+        sku = row["SKU"].strip('"')
+        parent_id = row["PARENT_ID"].strip('"')
+        assert sku.startswith(parent_id), f"{sku} attributed to {parent_id}"
+
+
+@pytest.mark.parametrize(
+    "options,match",
+    [
+        # useVariantProjection unset: use_xml_variant_projection's own early return.
+        ({}, "requires the VARIANT projection"),
+        # useVariantProjection set but cacheResult=False with no schema known:
+        # use_xml_variant_projection's cacheResult-dependent branch.
+        (
+            {"useVariantProjection": True, "cacheResult": False},
+            "requires the VARIANT projection",
+        ),
+    ],
+)
+def test_read_xml_include_source_pos_rejects_unsupported_paths(session, options, match):
+    """Rather than silently dropping the position columns on a path that cannot carry
+    them, the option is rejected -- for either reason use_xml_variant_projection can
+    return False."""
+    reader = (
+        session.read.option("rowTag", "CHILD")
+        .option("readDirectory", True)
+        .option("includeSourcePos", True)
+    )
+    for key, value in options.items():
+        reader = reader.option(key, value)
+    with pytest.raises(ValueError, match=match):
+        reader.xml(_multifile_directory())
+
+
+def test_read_xml_include_source_pos_rejects_user_schema(session):
+    schema = StructType([StructField("_sku", StringType())])
+    with pytest.raises(ValueError, match="not supported when a schema is"):
+        session.read.schema(schema).option("rowTag", "CHILD").option(
+            "readDirectory", True
+        ).option("includeSourcePos", True).xml(_multifile_directory())
+
+
+# session.create_dataframe drops setup statements above this many rows.
+_CREATE_DATAFRAME_INLINE_VALUES_ROW_LIMIT = 200
+
+
+def test_read_xml_read_directory_with_many_worker_rows(session):
+    """Generates enough small files, one worker row apiece, to clear
+    _CREATE_DATAFRAME_INLINE_VALUES_ROW_LIMIT."""
+    import tempfile
+
+    file_count = _CREATE_DATAFRAME_INLINE_VALUES_ROW_LIMIT + 50
+    directory = f"@{tmp_stage_name}/{multifile_subdirectory}_many"
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        for i in range(file_count):
+            local_path = os.path.join(tmp_dir, f"row_{i}.xml")
+            with open(local_path, "w") as f:
+                f.write(f"<ROOT><CHILD><id>{i}</id></CHILD></ROOT>")
+            Utils.upload_to_stage(session, directory, local_path, compress=False)
+
+    df = (
+        session.read.option("rowTag", "CHILD")
+        .option("readDirectory", True)
+        .xml(directory)
+    )
+    assert len(df.collect()) == file_count
+
+
+def test_read_xml_read_directory_ignores_sibling_directory_sharing_prefix(session):
+    """LIST does raw string-prefix matching, not directory-boundary matching: listing
+    "orders" must not also pick up files from a sibling "orders_archive" directory on
+    the same stage just because its name shares that prefix. Depth-filtering alone can't
+    catch this either, since the sibling sits at the same path depth."""
+    import tempfile
+
+    directory = f"@{tmp_stage_name}/orders"
+    sibling_directory = f"@{tmp_stage_name}/orders_archive"
+    try:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            for name, directory_path in (
+                ("a.xml", directory),
+                ("b.xml", directory),
+                ("c.xml", sibling_directory),
+            ):
+                local_path = os.path.join(tmp_dir, name)
+                with open(local_path, "w") as f:
+                    f.write("<ROOT><CHILD><id>1</id></CHILD></ROOT>")
+                Utils.upload_to_stage(
+                    session, directory_path, local_path, compress=False
+                )
+
+        df = (
+            session.read.option("rowTag", "CHILD")
+            .option("readDirectory", True)
+            .xml(directory)
+        )
+        assert len(df.collect()) == 2
+    finally:
+        session.sql(f"REMOVE {directory}").collect()
+        session.sql(f"REMOVE {sibling_directory}").collect()

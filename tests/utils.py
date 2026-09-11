@@ -1672,6 +1672,18 @@ class TestFiles:
         return os.path.join(self.resources_path, "books2.xml")
 
     @property
+    def test_multifile_a_xml(self):
+        return os.path.join(self.resources_path, "multifile_a.xml")
+
+    @property
+    def test_multifile_b_xml(self):
+        return os.path.join(self.resources_path, "multifile_b.xml")
+
+    @property
+    def test_multifile_c_xml(self):
+        return os.path.join(self.resources_path, "multifile_c.xml")
+
+    @property
     def test_house_xml(self):
         return os.path.join(self.resources_path, "fias_house.xml")
 

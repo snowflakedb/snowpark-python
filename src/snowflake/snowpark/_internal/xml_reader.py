@@ -3,7 +3,6 @@
 #
 
 import datetime
-import os
 import re
 import html.entities
 import struct
@@ -221,15 +220,6 @@ def struct_type_to_result_template(dt: DataType) -> Optional[dict]:
         return struct_type_to_result_template(dt.value_type)
 
     return None
-
-
-def get_file_size(filename: str) -> Optional[int]:
-    """
-    Get the size of a file using a file object without reading its content.
-    """
-    with SnowflakeFile.open(filename, "rb", require_scoped_url=False) as file_obj:
-        file_obj.seek(0, os.SEEK_END)
-        return file_obj.tell()
 
 
 def tag_is_self_closing(
@@ -554,7 +544,8 @@ def process_xml_range(
     result_template: Optional[dict] = None,
     schema_type: Optional[StructType] = None,
     is_snowpark_connect_compatible: bool = False,
-) -> Iterator[Optional[Dict[str, Any]]]:
+    skip_children: bool = False,
+) -> Iterator[Tuple[Optional[Dict[str, Any]], int]]:
     """
     Processes an XML file within a given approximate byte range.
     It locates complete records by:
@@ -586,10 +577,11 @@ def process_xml_range(
         result_template(dict): a result template generate from user input schema
         schema_type(StructType): the parsed StructType for row validation
         is_snowpark_connect_compatible(bool): context._is_snowpark_connect_compatible_mode
+        skip_children (bool): When True, read only the row tag's own opening-tag attributes,
+            skipping its children.
 
     Yields:
-        Optional[Dict[str, Any]]: Dictionary representation of the parsed XML element.
-                                  Yields None if parsing fails.
+        Tuple[Optional[Dict[str, Any]], int]: the parsed element, paired with its start byte offset.
     """
     tag_start_1 = f"<{tag_name}>".encode()
     tag_start_2 = f"<{tag_name} ".encode()
@@ -626,6 +618,117 @@ def process_xml_range(
             record_start = open_pos
             f.seek(record_start)
 
+            if skip_children:
+                # Reuses the same quote-aware scan the non-skip_children path uses to find
+                # the row tag's own closing ">", so a ">" inside a quoted attribute value
+                # doesn't end the tag early, and an unclosed tag is handled like every
+                # other malformed record instead of always silently yielding {}.
+                try:
+                    _, tag_end = tag_is_self_closing(f)
+                except EOFError as e:
+                    if mode == "PERMISSIVE":
+                        f.seek(record_start)
+                        record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
+                        record_str = record_bytes.decode(charset, errors="replace")
+                        record_str = re.sub(r"&(\w+);", replace_entity, record_str)
+                        yield (
+                            {column_name_of_corrupt_record: record_str},
+                            record_start,
+                        )
+                    elif mode == "FAILFAST":
+                        raise EOFError(
+                            f"Malformed XML record at bytes {record_start}-EOF: {e}"
+                        ) from e
+                    break
+
+                f.seek(record_start)
+                tag_text = f.read(tag_end - record_start).decode(
+                    charset, errors="replace"
+                )
+                tag_text = re.sub(r"&(\w+);", replace_entity, tag_text)
+                attributes: Dict[str, Any] = {}
+                prefix = f"<{tag_name}"
+                parse_error: Optional[Exception] = None
+                if tag_text.startswith(prefix):
+                    # Self-close the isolated opening tag so it parses standalone, then
+                    # reuse the same parser (and its entity-decoding, undeclared-namespace
+                    # recovery, and ns_clean behavior) the non-skip_children path uses,
+                    # instead of a hand-rolled attribute regex that can't replicate any of
+                    # that -- it previously left entities undecoded, silently ignored
+                    # exclude_attributes, and always stripped a colon-containing prefix
+                    # whether or not ignore_namespace was set.
+                    self_closed_text = (
+                        tag_text if tag_text.endswith("/>") else f"{tag_text[:-1]}/>"
+                    )
+                    element = None
+                    if lxml_installed:
+                        recover = bool(":" in tag_name)
+                        parser = ET.XMLParser(recover=recover, ns_clean=True)
+                        try:
+                            element = ET.fromstring(self_closed_text, parser)
+                        except ET.XMLSyntaxError as e:
+                            if ignore_namespace:
+                                try:
+                                    cleaned = re.sub(
+                                        r"\s+(\w+):(\w+)=", r" \2=", self_closed_text
+                                    )
+                                    element = ET.fromstring(cleaned, parser)
+                                except Exception as inner_e:
+                                    parse_error = inner_e
+                            else:
+                                parse_error = e
+                    else:
+                        try:
+                            element = ET.fromstring(self_closed_text)
+                        except ET.ParseError as e:
+                            parse_error = e
+
+                    if element is not None:
+                        if ignore_namespace:
+                            element = strip_xml_namespaces(element)
+                        if not exclude_attributes:
+                            for attr_name, attr_value in element.attrib.items():
+                                if ignore_surrounding_whitespace:
+                                    attr_value = attr_value.strip()
+                                attributes[attribute_prefix + attr_name] = (
+                                    None if attr_value == null_value else attr_value
+                                )
+                    else:
+                        parse_error = parse_error or ValueError(
+                            "opening tag could not be parsed"
+                        )
+                else:
+                    # e.g. a declared charset that doesn't match the file's actual
+                    # encoding, decoding the tag's own bytes into text that no longer
+                    # starts with the expected "<tag_name" prefix.
+                    parse_error = ValueError(
+                        "opening tag bytes could not be decoded to match the "
+                        "expected tag name"
+                    )
+
+                # Mode handling for a row tag whose opening tag couldn't be read --
+                # same PERMISSIVE/FAILFAST/DROPMALFORMED contract as every other
+                # malformed-record path in this function.
+                should_yield = True
+                if parse_error is not None:
+                    if mode == "PERMISSIVE":
+                        attributes = {column_name_of_corrupt_record: tag_text}
+                    elif mode == "FAILFAST":
+                        raise RuntimeError(
+                            f"Malformed XML record at bytes {record_start}-{tag_end}: "
+                            f"{parse_error}\nXML record string: {tag_text}"
+                        )
+                    else:
+                        should_yield = False
+
+                if should_yield:
+                    yield (attributes, record_start)
+
+                if tag_end >= approx_end:
+                    break
+                f.seek(tag_end)
+                continue
+
             # decide whether the row element is self‑closing
             try:
                 is_self_close, tag_end = tag_is_self_closing(f)
@@ -637,7 +740,7 @@ def process_xml_range(
                     record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
                     record_str = record_bytes.decode(charset, errors="replace")
                     record_str = re.sub(r"&(\w+);", replace_entity, record_str)
-                    yield {column_name_of_corrupt_record: record_str}
+                    yield ({column_name_of_corrupt_record: record_str}, record_start)
                 elif mode == "FAILFAST":
                     raise EOFError(
                         f"Malformed XML record at bytes {record_start}-EOF: {e}"
@@ -658,7 +761,10 @@ def process_xml_range(
                         record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
                         record_str = record_bytes.decode(charset, errors="replace")
                         record_str = re.sub(r"&(\w+);", replace_entity, record_str)
-                        yield {column_name_of_corrupt_record: record_str}
+                        yield (
+                            {column_name_of_corrupt_record: record_str},
+                            record_start,
+                        )
                     elif mode == "FAILFAST":
                         raise EOFError(
                             f"Malformed XML record at bytes {record_start}-EOF: {e}"
@@ -732,11 +838,11 @@ def process_xml_range(
                     )
 
                 if row is not None:
-                    yield row
+                    yield (row, record_start)
             # Mode handling for malformed XML records that fail to parse.
             except ET.ParseError as e:
                 if mode == "PERMISSIVE":
-                    yield {column_name_of_corrupt_record: record_str}
+                    yield ({column_name_of_corrupt_record: record_str}, record_start)
                 elif mode == "FAILFAST":
                     raise RuntimeError(
                         f"Malformed XML record at bytes {record_start}-{record_end}: {e}\n"
@@ -750,13 +856,65 @@ def process_xml_range(
             f.seek(record_end)
 
 
+def _iter_xml_records(
+    filename,
+    approx_start,
+    approx_end,
+    row_tag,
+    mode,
+    column_name_of_corrupt_record,
+    ignore_namespace,
+    attribute_prefix,
+    exclude_attributes,
+    value_tag,
+    null_value,
+    charset,
+    ignore_surrounding_whitespace,
+    row_validation_xsd_path,
+    custom_schema,
+    is_snowpark_connect_compatible,
+    chunk_size,
+    skip_children,
+):
+    """Shared body of the XML reader UDTF handlers. Handlers must repeat this argument
+    list since a UDTF's input types are recovered by AST-scanning its own ``process``
+    method."""
+    result_template, schema_type = schema_string_to_result_dict_and_struct_type(
+        custom_schema
+    )
+    yield from process_xml_range(
+        filename,
+        row_tag,
+        approx_start,
+        approx_end,
+        mode,
+        column_name_of_corrupt_record,
+        ignore_namespace,
+        attribute_prefix,
+        exclude_attributes,
+        value_tag,
+        null_value,
+        charset,
+        ignore_surrounding_whitespace,
+        row_validation_xsd_path=row_validation_xsd_path,
+        chunk_size=chunk_size,
+        result_template=result_template,
+        schema_type=schema_type,
+        is_snowpark_connect_compatible=is_snowpark_connect_compatible,
+        skip_children=skip_children,
+    )
+
+
 class XMLReader:
+    """UDTF handler emitting one VARIANT column per XML record, for one pre-assigned
+    byte range."""
+
     def process(
         self,
         filename: str,
-        num_workers: int,
+        approx_start: int,
+        approx_end: int,
         row_tag: str,
-        i: int,
         mode: str,
         column_name_of_corrupt_record: str,
         ignore_namespace: bool,
@@ -769,17 +927,23 @@ class XMLReader:
         row_validation_xsd_path: str,
         custom_schema: str,
         is_snowpark_connect_compatible: bool,
+        chunk_size: int,
+        skip_children: bool,
     ):
-        """
-        Splits the file into byte ranges—one per worker—by starting with an even
-        file size division and then moving each boundary to the end of a record,
-        as indicated by the closing tag.
+        """Yields one row per XML record found in ``[approx_start, approx_end)`` of
+        ``filename``.
+
+        Repeats the full argument list rather than delegating to a shared base class:
+        UDTF registration recovers input types by AST-scanning this method directly, not
+        through inheritance.
 
         Args:
             filename (str): Path to the XML file.
-            num_workers (int): Number of workers/chunks.
+            approx_start (int): Approximate start byte position of this worker's byte
+                range, as assigned by :func:`_xml_worker_assignments` in
+                ``snowflake_plan.py``.
+            approx_end (int): Approximate end byte position of this worker's byte range.
             row_tag (str): The tag name that delimits records (e.g., "row").
-            i (int): The worker id.
             mode (str): The mode for dealing with corrupt records.
                 "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
             column_name_of_corrupt_record (str): The name of the column for corrupt records.
@@ -789,23 +953,22 @@ class XMLReader:
             value_tag (str): The tag name for the value column.
             null_value (str): The value to treat as a null value.
             charset (str): The character encoding of the XML file.
-            ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
+            ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding
+                values should be skipped.
             row_validation_xsd_path (str): Path to XSD file for row validation.
-            custom_schema: User input schema for xml, must be used together with row tag.
+            custom_schema (str): User input schema for xml, must be used together with
+                row tag.
             is_snowpark_connect_compatible (bool): context._is_snowpark_connect_compatible_mode
+            chunk_size (int): Size of chunks to read while scanning for tag/record
+                boundaries.
+            skip_children (bool): When True, read only the row tag's own opening-tag
+                attributes, skipping its children.
         """
-        file_size = get_file_size(filename)
-        approx_chunk_size = file_size // num_workers
-        approx_start = approx_chunk_size * i
-        approx_end = approx_chunk_size * (i + 1) if i < num_workers - 1 else file_size
-        result_template, schema_type = schema_string_to_result_dict_and_struct_type(
-            custom_schema
-        )
-        for element in process_xml_range(
+        for element, _ in _iter_xml_records(
             filename,
-            row_tag,
             approx_start,
             approx_end,
+            row_tag,
             mode,
             column_name_of_corrupt_record,
             ignore_namespace,
@@ -815,9 +978,62 @@ class XMLReader:
             null_value,
             charset,
             ignore_surrounding_whitespace,
-            row_validation_xsd_path=row_validation_xsd_path,
-            result_template=result_template,
-            schema_type=schema_type,
-            is_snowpark_connect_compatible=is_snowpark_connect_compatible,
+            row_validation_xsd_path,
+            custom_schema,
+            is_snowpark_connect_compatible,
+            chunk_size,
+            skip_children,
         ):
             yield (element,)
+
+
+class XMLReaderWithPos:
+    """UDTF handler that also emits each record's source file and byte offset. Separate
+    from :class:`XMLReader` since a UDTF's output schema is fixed at registration."""
+
+    def process(
+        self,
+        filename: str,
+        approx_start: int,
+        approx_end: int,
+        row_tag: str,
+        mode: str,
+        column_name_of_corrupt_record: str,
+        ignore_namespace: bool,
+        attribute_prefix: str,
+        exclude_attributes: bool,
+        value_tag: str,
+        null_value: str,
+        charset: str,
+        ignore_surrounding_whitespace: bool,
+        row_validation_xsd_path: str,
+        custom_schema: str,
+        is_snowpark_connect_compatible: bool,
+        chunk_size: int,
+        skip_children: bool,
+    ):
+        """Yields one row per XML record, plus its source byte offset and file path.
+
+        Args are identical to :meth:`XMLReader.process`; see there for their meanings.
+        """
+        for element, byte_pos in _iter_xml_records(
+            filename,
+            approx_start,
+            approx_end,
+            row_tag,
+            mode,
+            column_name_of_corrupt_record,
+            ignore_namespace,
+            attribute_prefix,
+            exclude_attributes,
+            value_tag,
+            null_value,
+            charset,
+            ignore_surrounding_whitespace,
+            row_validation_xsd_path,
+            custom_schema,
+            is_snowpark_connect_compatible,
+            chunk_size,
+            skip_children,
+        ):
+            yield (element, byte_pos, filename)

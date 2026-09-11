@@ -143,6 +143,7 @@ from snowflake.snowpark._internal.utils import (
     get_line_numbers,
 )
 from snowflake.snowpark.row import Row
+from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark.types import StructType
 import snowflake.snowpark.context as context
 
@@ -151,8 +152,72 @@ from collections.abc import Iterable
 _logger = getLogger(__name__)
 
 # Default for numWorkers.
-# TODO SNOW-1983360: revisit once the UDTF scalability issue is resolved.
 DEFAULT_MAX_WORKERS: int = 16
+
+# Snowflake's own limit on expressions in a single VALUES list ("maximum number of
+# expressions in a list exceeded"), measured empirically. A directory of many large
+# files -- each needing multiple byte-range workers -- has no other ceiling on
+# worker-assignment row count.
+_XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES: int = 200_000
+
+
+def _xml_worker_assignments(
+    file_path: str, file_size: int, max_workers: int, chunk_size: int
+) -> List[Tuple[str, int, int]]:
+    """Split a file into ``(path, approx_start, approx_end)`` byte ranges, one per worker,
+    each extended to the end of the record it lands in."""
+    num_workers = min(max_workers, file_size // chunk_size + 1)
+    approx_chunk = file_size // num_workers
+    return [
+        (
+            file_path,
+            approx_chunk * i,
+            approx_chunk * (i + 1) if i < num_workers - 1 else file_size,
+        )
+        for i in range(num_workers)
+    ]
+
+
+def _stage_listing_basename(file_path: str) -> str:
+    """The final path segment of a path, used to match it against LIST -- the rest of what
+    LIST reports is stage-type-dependent and unsafe to reconstruct."""
+    return file_path.rsplit("/", 1)[-1]
+
+
+def _xml_worker_assignment_values(assignments: List[Tuple[str, int, int]]) -> str:
+    return ", ".join(
+        f"({str_to_sql(path)}, {start}::BIGINT, {end}::BIGINT)"
+        for path, start, end in assignments
+    )
+
+
+def _xml_worker_assignment_sql(
+    assignments: List[Tuple[str, int, int]],
+    file_path_column: str,
+    approx_start_column: str,
+    approx_end_column: str,
+) -> str:
+    """Render worker assignments as a single inline ``VALUES`` query, avoiding
+    ``Session.create_dataframe`` which drops setup statements past a couple hundred rows.
+
+    Chunked into multiple ``VALUES`` clauses joined by ``UNION ALL`` once the row count
+    would exceed Snowflake's own per-list expression limit (measured empirically at
+    200,000: "maximum number of expressions in a list exceeded"), while staying a single
+    statement -- a directory of many large files, each needing multiple byte-range
+    workers, has no other ceiling on worker-assignment row count.
+    """
+    chunks = [
+        assignments[i : i + _XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES]
+        for i in range(0, len(assignments), _XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES)
+    ] or [[]]
+    selects = [
+        f"SELECT $1 AS {file_path_column}, "
+        f"$2 AS {approx_start_column}, "
+        f"$3 AS {approx_end_column} "
+        f"FROM VALUES {_xml_worker_assignment_values(chunk)}"
+        for chunk in chunks
+    ]
+    return " UNION ALL ".join(selects)
 
 
 def _positive_int_option(options: Dict[str, Any], name: str, default: int) -> int:
@@ -1850,6 +1915,36 @@ class SnowflakePlanBuilder:
             )(setting["property_value"])
         return new_options
 
+    def _list_stage_path(self, path: str) -> List[Row]:
+        return list(
+            self.session.sql(f"ls {path}", _emit_ast=False).collect(_emit_ast=False)
+        )
+
+    def _resolve_stage_file_size(self, file_path: str) -> int:
+        """Look up a single file's byte size via LIST, matched by basename since LIST's
+        reported name format is stage-type-dependent (e.g. a named external stage's LIST
+        reports the underlying cloud URL, unrelated to the stage's own name)."""
+        basename = _stage_listing_basename(file_path)
+        for row in self._list_stage_path(file_path):
+            if _stage_listing_basename(row["name"]) == basename:  # type: ignore
+                return int(row["size"])  # type: ignore
+        raise ValueError(f"{file_path} does not exist")
+
+    def _list_directory_file_sizes(self, directory: str) -> Dict[str, int]:
+        """Map every file directly under a stage directory to its byte size, via one LIST.
+        Filters to the shallowest depth since LIST is recursive and would otherwise also
+        return files from recursed subdirectories."""
+        directory_prefix = directory.rstrip("/")
+        rows = self._list_stage_path(f"{directory_prefix}/")
+        if not rows:
+            raise ValueError(f"{directory} does not exist or contains no files")
+        min_depth = min(row["name"].count("/") for row in rows)  # type: ignore
+        return {
+            f"{directory_prefix}/{_stage_listing_basename(row['name'])}": int(row["size"])  # type: ignore
+            for row in rows
+            if row["name"].count("/") == min_depth  # type: ignore
+        }
+
     def _create_xml_query(
         self,
         xml_reader_udtf: "UserDefinedTableFunction",
@@ -1866,7 +1961,9 @@ class SnowflakePlanBuilder:
         schema_string = (
             attribute_to_schema_string_deep(schema) if schema is not None else ""
         )
-        worker_column_name = "WORKER"
+        file_path_column_name = "FILE_PATH"
+        approx_start_column_name = "APPROX_START"
+        approx_end_column_name = "APPROX_END"
         xml_row_number_column_name = "XML_ROW_NUMBER"
         row_tag = options[XML_ROW_TAG_STRING]
         mode = options.get("MODE", "PERMISSIVE").upper()
@@ -1884,6 +1981,8 @@ class SnowflakePlanBuilder:
             "IGNORESURROUNDINGWHITESPACE", False
         )
         row_validation_xsd_path = options.get("ROWVALIDATIONXSDPATH", "")
+        skip_children = bool(options.get("SKIPCHILDREN", False))
+        read_directory = bool(options.get("READDIRECTORY", False))
 
         if mode not in {"PERMISSIVE", "DROPMALFORMED", "FAILFAST"}:
             raise ValueError(
@@ -1891,20 +1990,37 @@ class SnowflakePlanBuilder:
             )
 
         max_workers = _positive_int_option(options, "NUMWORKERS", DEFAULT_MAX_WORKERS)
-        try:
-            file_size = int(self.session.sql(f"ls {file_path}", _emit_ast=False).collect(_emit_ast=False)[0]["size"])  # type: ignore
-        except IndexError:
-            raise ValueError(f"{file_path} does not exist")
-        num_workers = min(max_workers, file_size // DEFAULT_CHUNK_SIZE + 1)
+        # chunk_size is internal; numWorkers is the only worker-sizing option exposed.
+        chunk_size = DEFAULT_CHUNK_SIZE
 
-        # Create a range from 0 to N-1
-        df = self.session.range(num_workers).to_df(worker_column_name)
+        if read_directory:
+            file_sizes = self._list_directory_file_sizes(file_path)
+            file_paths = list(file_sizes.keys())
+        else:
+            file_paths = [file_path]
+            file_sizes = {file_path: self._resolve_stage_file_size(file_path)}
+
+        # One row per (file, byte range); all files share a single SQL plan.
+        assignments = []
+        for path in file_paths:
+            assignments.extend(
+                _xml_worker_assignments(path, file_sizes[path], max_workers, chunk_size)
+            )
+        df = self.session.sql(
+            _xml_worker_assignment_sql(
+                assignments,
+                file_path_column_name,
+                approx_start_column_name,
+                approx_end_column_name,
+            ),
+            _emit_ast=False,
+        )
 
         udtf_args = (
-            lit(file_path),
-            lit(num_workers),
+            col(file_path_column_name),
+            col(approx_start_column_name),
+            col(approx_end_column_name),
             lit(row_tag),
-            col(worker_column_name),
             lit(mode),
             lit(column_name_of_corrupt_record),
             lit(ignore_namespace),
@@ -1917,6 +2033,8 @@ class SnowflakePlanBuilder:
             lit(row_validation_xsd_path),
             lit(schema_string),
             lit(context._is_snowpark_connect_compatible_mode),
+            lit(chunk_size),
+            lit(skip_children),
         )
 
         if use_xml_variant_projection(options, schema is not None):
@@ -1937,23 +2055,23 @@ class SnowflakePlanBuilder:
         # Apply UDTF to the XML file and get each XML record as a Variant data,
         # and append a unique row number to each record.
         df = df.select(
-            worker_column_name,
+            file_path_column_name,
             seq8().as_(xml_row_number_column_name),
             xml_reader_udtf(*udtf_args),
         )
 
         # Flatten the Variant data to get the key-value pairs
         df = df.select(
-            worker_column_name,
+            file_path_column_name,
             xml_row_number_column_name,
             flatten(XML_ROW_DATA_COLUMN_NAME),
-        ).select(worker_column_name, xml_row_number_column_name, "key", "value")
+        ).select(file_path_column_name, xml_row_number_column_name, "key", "value")
 
         # Apply dynamic pivot to get the flat table with dynamic schema
         df = df.pivot("key").max("value")
 
-        # Exclude the worker and row number columns
-        return f"SELECT * EXCLUDE ({worker_column_name}, {xml_row_number_column_name}) FROM ({df.queries['queries'][-1]})"
+        # Exclude the file path and row number columns
+        return f"SELECT * EXCLUDE ({file_path_column_name}, {xml_row_number_column_name}) FROM ({df.queries['queries'][-1]})"
 
     def read_file(
         self,

@@ -67,7 +67,11 @@ from snowflake.snowpark._internal.utils import (
     STAGE_PREFIX,
     XML_ROW_TAG_STRING,
     XML_ROW_DATA_COLUMN_NAME,
+    XML_SOURCE_BYTE_POS_COLUMN_NAME,
+    XML_SOURCE_FILE_PATH_COLUMN_NAME,
+    XML_SOURCE_POSITION_OUTPUT_NAMES,
     xml_variant_projection,
+    xml_source_position_projection,
     use_xml_variant_projection,
     XML_READER_FILE_PATH,
     XML_SCHEMA_INFERENCE_FILE_PATH,
@@ -98,6 +102,7 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     ArrayType,
+    LongType,
     MapType,
     StringType,
     StructType,
@@ -1255,7 +1260,7 @@ class DataFrameReader:
         """Specify the path of the XML file(s) to load.
 
         Args:
-            path: The stage location of an XML file, or a stage location that has XML files.
+            path: The stage location of an XML file, or (with ``readDirectory``) a directory of XML files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
@@ -1323,6 +1328,17 @@ class DataFrameReader:
                 The file is split into at most this many byte ranges, each read by one worker. This is a **per-file**
                 cap, not a total: when reading N files, the number of workers scales with N rather than being
                 limited to ``numWorkers`` overall.
+
+              + ``readDirectory``: Whether to treat ``path`` as a stage directory and read every file
+                directly under it in one operation instead of one file at a time. The default value
+                is ``False``.
+
+              + ``skipChildren``: Whether to read only the attributes on the ``rowTag`` element's own
+                opening tag, without parsing anything nested inside it. The default value is ``False``.
+
+              + ``includeSourcePos``: Whether to add ``_source_byte_pos`` and ``_source_file_path``
+                columns recording where each record came from. The default value is ``False``, and it
+                requires ``useVariantProjection`` to be ``True`` with no schema given.
 
               + ``cacheResult``: Whether to cache the result DataFrame of the XML reader to a temporary table after calling :meth:`xml`.
                 When set to ``True`` (default), the result is cached and all subsequent operations on the DataFrame are performed on the cached data.
@@ -1415,7 +1431,14 @@ class DataFrameReader:
                 self._cur_options.get(XML_ROW_TAG_STRING), self._file_path
             )
 
-        result = df.select(*(xml_variant_projection(key) for key in keys))
+        projections = [xml_variant_projection(key) for key in keys]
+        # includeSourcePos columns are already typed, not VARIANT keys.
+        df_columns = {c.strip('"') for c in df.columns}
+        for column_name, alias in XML_SOURCE_POSITION_OUTPUT_NAMES.items():
+            if column_name in df_columns:
+                projections.append(xml_source_position_projection(column_name, alias))
+
+        result = df.select(*projections)
         result._all_variant_cols = True
         return result
 
@@ -1983,6 +2006,13 @@ class DataFrameReader:
             and XML_ROW_TAG_STRING not in self._cur_options
         ):
             raise ValueError("When reading XML with user schema, rowtag must be set.")
+        if self._cur_options.get("READDIRECTORY", False) and (
+            format.lower() != "xml" or XML_ROW_TAG_STRING not in self._cur_options
+        ):
+            raise ValueError(
+                "The readDirectory option is only supported for XML with the rowTag "
+                "option set."
+            )
         path = _validate_stage_path(path)
         self._file_path = path
         self._file_type = format
@@ -2051,13 +2081,46 @@ class DataFrameReader:
                     ]
                     use_user_schema = True
 
-            xml_reader_udtf = self._register_xml_udtf(
-                XML_READER_FILE_PATH,
-                "XMLReader",
-                StructType(
-                    [StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True)]
-                ),
-            )
+            if self._cur_options.get("INCLUDESOURCEPOS", False):
+                schema_known = xml_inferred_schema is not None or bool(
+                    self._user_schema
+                )
+                # A known schema or the legacy pivot path would silently drop these columns.
+                if schema_known:
+                    raise ValueError(
+                        "The includeSourcePos option is not supported when a schema is "
+                        "provided or inferred, because the source position columns are "
+                        "not part of that schema."
+                    )
+                if not use_xml_variant_projection(self._cur_options, schema_known):
+                    raise ValueError(
+                        "The includeSourcePos option requires the VARIANT projection "
+                        "path: set useVariantProjection=True, and note that the path is "
+                        "unavailable when cacheResult=False and no schema is known."
+                    )
+                xml_reader_udtf = self._register_xml_udtf(
+                    XML_READER_FILE_PATH,
+                    "XMLReaderWithPos",
+                    StructType(
+                        [
+                            StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True),
+                            StructField(
+                                XML_SOURCE_BYTE_POS_COLUMN_NAME, LongType(), True
+                            ),
+                            StructField(
+                                XML_SOURCE_FILE_PATH_COLUMN_NAME, StringType(), True
+                            ),
+                        ]
+                    ),
+                )
+            else:
+                xml_reader_udtf = self._register_xml_udtf(
+                    XML_READER_FILE_PATH,
+                    "XMLReader",
+                    StructType(
+                        [StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True)]
+                    ),
+                )
         else:
             xml_reader_udtf = None
 
