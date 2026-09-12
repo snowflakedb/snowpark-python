@@ -594,7 +594,16 @@ class ServerConnection:
             new_cursor.get_results_from_sfqid(qid)
             results_cursor = new_cursor
 
-        if to_pandas:
+        # Python Driver v5+ supports pandas conversion from JSON-format result
+        # sets, but results slightly differ from output of Snowpark's custom
+        # fallback. Enforce Snowpark's fallback for backwards compatibility.
+        force_json_fallback = (
+            to_pandas
+            and IS_V5_DRIVER
+            and results_cursor._query_result_format != "arrow"
+        )
+
+        if to_pandas and not force_json_fallback:
             try:
                 data_or_iter = (
                     map(
@@ -610,15 +619,15 @@ class ServerConnection:
                     )
                 )
             except NotSupportedError:
-                data_or_iter = (
-                    iter(results_cursor) if to_iter else results_cursor.fetchall()
-                )
+                data_or_iter = _json_fallback(results_cursor, to_iter)
             except KeyboardInterrupt:
                 raise
             except BaseException as ex:
                 raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
                     str(ex)
                 )
+        elif to_pandas:
+            data_or_iter = _json_fallback(results_cursor, to_iter)
         elif to_arrow:
             data_or_iter = (
                 results_cursor.fetch_arrow_batches()
@@ -626,9 +635,7 @@ class ServerConnection:
                 else results_cursor.fetch_arrow_all(True)
             )
         else:
-            data_or_iter = (
-                iter(results_cursor) if to_iter else results_cursor.fetchall()
-            )
+            data_or_iter = _json_fallback(results_cursor, to_iter)
 
         return {"data": data_or_iter, "sfqid": qid}
 
@@ -1003,6 +1010,12 @@ class ServerConnection:
             if self._conn._session_parameters
             else default_value
         )
+
+
+def _json_fallback(
+    results_cursor: SnowflakeCursor, to_iter: bool
+) -> Union[Iterator[Tuple], List[Tuple]]:
+    return iter(results_cursor) if to_iter else results_cursor.fetchall()
 
 
 def _fix_pandas_df_fixed_type(
