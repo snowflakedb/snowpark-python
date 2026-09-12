@@ -31,6 +31,7 @@ from snowflake.snowpark.types import (
     DecFloatType,
     DecimalType,
     DoubleType,
+    FileType,
     FloatType,
     GeographyType,
     GeometryType,
@@ -73,6 +74,7 @@ def test_to_sql():
     assert to_sql(None, StructType([])) == "NULL"
     assert to_sql(None, GeographyType()) == "NULL"
     assert to_sql(None, GeometryType()) == "NULL"
+    assert to_sql(None, FileType()) == "TO_FILE(NULL)"
 
     assert to_sql(None, IntegerType()) == "NULL :: INT"
     assert to_sql(None, ShortType()) == "NULL :: INT"
@@ -420,6 +422,7 @@ def test_to_sql_system_function():
     assert to_sql_no_cast(None, StructType([])) == "NULL"
     assert to_sql_no_cast(None, GeographyType()) == "NULL"
     assert to_sql_no_cast(None, GeometryType()) == "NULL"
+    assert to_sql_no_cast(None, FileType()) == "NULL"
 
     assert to_sql_no_cast(None, IntegerType()) == "NULL"
     assert to_sql_no_cast(None, ShortType()) == "NULL"
@@ -828,7 +831,8 @@ def test_schema_expression():
         schema_expression(DayTimeIntervalType(), True)
         == "NULL :: INTERVAL DAY TO SECOND"
     )
-
+    assert schema_expression(FileType(), True) == "TRY_TO_FILE(NULL)"
+    assert schema_expression(FileType(), False).startswith("TO_FILE(")
     assert (
         schema_expression(GeographyType(), False)
         == "to_geography('POINT(-122.35 37.55)')"

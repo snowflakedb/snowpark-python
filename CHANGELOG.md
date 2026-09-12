@@ -1,11 +1,23 @@
 # Release History
 
-## 1.55.0 (TBD)
+## 1.56.0 (TBD)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
+#### Bug Fixes
+
+- Fixed `ai_extract` misrouting FILE-type inputs to the TEXT overload when `scores` or `config` were also supplied.
+- Fixed the nullable `FILE` column schema expression.
+
+## 1.55.0 (2026-09-10)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added `DataFrame.to_polars()` to convert a Snowpark DataFrame to a Polars DataFrame. Supports an optional `transport="parquet"` mode for large data-transfer-dominated workloads.
 - Added interval type support for Python UDFs and stored procedures. Use `datetime.timedelta` as the type annotation for day-time interval (`DayTimeIntervalType`) parameters and return values, and `YearMonthInterval` (a type annotation sentinel from `snowflake.snowpark.types`) for year-month interval (`YearMonthIntervalType`) parameters and return values.
 - Added support for a `table_properties` key in the `iceberg_config` dictionary of `DataFrameWriter.save_as_table`, which emits a `TABLE_PROPERTIES = ('k'='v', ...)` clause on Iceberg table creation (CREATE / CTAS).
 

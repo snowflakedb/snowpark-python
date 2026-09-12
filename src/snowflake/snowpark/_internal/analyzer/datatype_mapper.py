@@ -554,6 +554,8 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             return "TRY_TO_GEOGRAPHY(NULL)"
         if isinstance(data_type, GeometryType):
             return "TRY_TO_GEOMETRY(NULL)"
+        if isinstance(data_type, FileType):
+            return "TRY_TO_FILE(NULL)"
         if isinstance(data_type, ArrayType) and not data_type.structured:
             return "PARSE_JSON('NULL') :: ARRAY"
         if isinstance(data_type, MapType) and not data_type.structured:

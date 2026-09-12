@@ -425,3 +425,51 @@ def test_ai_extract_list_value_special_characters_escaped():
     # Single quotes are doubled and the backslash is doubled inside the literal.
     assert "a''b\\\\c" in sql
     assert sql.count("'") % 2 == 0
+
+
+def _render_ai_extract_sql_with_opts(response_format, scores=None, config=None):
+    """Like _render_ai_extract_sql but also accepts scores/config."""
+    column = ai_extract(
+        "INPUT_TEXT", response_format, scores=scores, config=config, _emit_ast=False
+    )
+    expr = column._expression
+    children = [
+        child.name if hasattr(child, "name") else "<input>" for child in expr.children
+    ]
+    return function_expression(expr.name, children, False)
+
+
+def test_ai_extract_scores_named_arg_sql():
+    # scores=True must appear as a trailing named arg; input and response_format
+    # stay positional so server-side FILE vs. TEXT overload resolution works.
+    sql = _render_ai_extract_sql_with_opts({"city": "What city?"}, scores=True)
+    assert sql.startswith("ai_extract(<input>, ")
+    assert "scores => true" in sql
+    # input (positional) comes before scores (named)
+    assert sql.index("<input>") < sql.index("scores =>")
+
+
+def test_ai_extract_config_named_arg_sql():
+    # config must appear as a trailing named arg; input and response_format
+    # stay positional so server-side FILE vs. TEXT overload resolution works.
+    sql = _render_ai_extract_sql_with_opts(
+        {"city": "What city?"}, config={"scale_factor": 2.0}
+    )
+    assert sql.startswith("ai_extract(<input>, ")
+    assert "config => " in sql
+    assert "scale_factor" in sql
+    # input (positional) comes before config (named)
+    assert sql.index("<input>") < sql.index("config =>")
+
+
+def test_ai_extract_scores_and_config_named_arg_sql():
+    # When both scores and config are provided, both appear as trailing named args.
+    sql = _render_ai_extract_sql_with_opts(
+        {"city": "What city?"}, scores=True, config={"scale_factor": 1.5}
+    )
+    assert sql.startswith("ai_extract(<input>, ")
+    assert "scores => true" in sql
+    assert "config => " in sql
+    assert "scale_factor" in sql
+    assert sql.index("<input>") < sql.index("scores =>")
+    assert sql.index("<input>") < sql.index("config =>")

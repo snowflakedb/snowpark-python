@@ -13173,40 +13173,27 @@ def ai_extract(
     else:
         ast = None
 
-    # Use named-argument form when scores or config is requested
-    if scores is not None or config is not None:
-        response_format_col = sql_expr(
-            _python_obj_to_sql_literal(response_format), is_constant=True
-        )
-        # Detect file vs text input: TO_FILE() calls produce a FunctionExpression named "to_file"
-        is_file = (
-            isinstance(input_col, Column)
-            and isinstance(input_col._expr1, FunctionExpression)
-            and input_col._expr1.name.upper() == "TO_FILE"
-        )
-        input_key = "file" if is_file else "text"
-        call_kwargs: Dict[str, Column] = {
-            input_key: input_col,
-            "responseFormat": response_format_col,
-        }
-        if config is not None:
-            call_kwargs["config"] = sql_expr(
-                _python_obj_to_sql_literal(config), is_constant=True
-            )
-        if scores is not None:
-            call_kwargs["scores"] = lit(scores)
-        return _call_named_arguments_function(
-            sql_func_name, call_kwargs, _ast=ast, _emit_ast=_emit_ast
-        )
-
-    # Default: positional form (backward-compatible)
+    # Keep input and response_format positional so Snowflake's server-side
+    # overload resolution (FILE vs. TEXT) works correctly for all input types.
     response_format_col = sql_expr(
         _python_obj_to_sql_literal(response_format), is_constant=True
     )
+    call_args = [input_col, response_format_col]
+    if scores is not None:
+        call_args.append(
+            sql_expr(
+                f"scores => {_python_obj_to_sql_literal(scores)}", is_constant=True
+            )
+        )
+    if config is not None:
+        call_args.append(
+            sql_expr(
+                f"config => {_python_obj_to_sql_literal(config)}", is_constant=True
+            )
+        )
     return _call_function(
         sql_func_name,
-        input_col,
-        response_format_col,
+        *call_args,
         _ast=ast,
         _emit_ast=_emit_ast,
     )
