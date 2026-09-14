@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     DEFAULT_MAX_WORKERS,
+    DEFAULT_MIN_WORKER_BYTES,
     SnowflakePlanBuilder,
     _positive_int_option,
     XML_BATCH_TARGET_BYTES,
@@ -1842,6 +1843,53 @@ def test_xml_worker_assignments_cover_file_exactly(file_size, max_workers, chunk
 def test_xml_worker_assignments_carries_file_path():
     assignments = _xml_worker_assignments("@stage/dir/books.xml", 5533, 16, 1024)
     assert {path for path, _, _ in assignments} == {"@stage/dir/books.xml"}
+
+
+#
+# min_worker_bytes: the worker-split/batching-eligibility threshold is its own constant,
+# independent of the UDTF's chunk_size (I/O scan buffer) and of numWorkers/batchTargetBytes.
+#
+
+
+def test_xml_worker_assignments_default_min_worker_bytes_batches_realistic_small_files():
+    """A file in the low single-digit MB range -- the actual shape of the 'many small
+    files' problem this feature targets -- must get exactly one worker at the real
+    production default. Regression guard for the old chunk_size=1024 mixup: at that
+    divisor, a 2MB file needed 16 workers and could never be batched."""
+    two_mb = 2 * 1024 * 1024
+    assignments = _xml_worker_assignments(
+        "@stage/f.xml", two_mb, DEFAULT_MAX_WORKERS, DEFAULT_MIN_WORKER_BYTES
+    )
+    assert len(assignments) == 1
+
+
+def test_xml_worker_assignments_default_min_worker_bytes_still_splits_large_files():
+    """The fix must not turn off splitting altogether: a file well above
+    DEFAULT_MIN_WORKER_BYTES still splits into more than one range, and a huge file
+    still saturates at exactly max_workers."""
+    ten_mb = 10 * 1024 * 1024
+    mid_split = _xml_worker_assignments(
+        "@stage/f.xml", ten_mb, DEFAULT_MAX_WORKERS, DEFAULT_MIN_WORKER_BYTES
+    )
+    assert 1 < len(mid_split) < DEFAULT_MAX_WORKERS
+
+    fifty_gb = 50 * 1024 * 1024 * 1024
+    huge_split = _xml_worker_assignments(
+        "@stage/f.xml", fifty_gb, DEFAULT_MAX_WORKERS, DEFAULT_MIN_WORKER_BYTES
+    )
+    assert len(huge_split) == DEFAULT_MAX_WORKERS
+
+
+@pytest.mark.parametrize("max_workers", [1, 4, 16, 64])
+def test_xml_worker_assignments_batching_threshold_ignores_num_workers(max_workers):
+    """numWorkers must not move the batching cutoff: a file just below
+    min_worker_bytes stays a single-worker batching candidate no matter how the
+    warehouse-scaling numWorkers option is tuned."""
+    just_under_threshold = DEFAULT_MIN_WORKER_BYTES - 1
+    assignments = _xml_worker_assignments(
+        "@stage/f.xml", just_under_threshold, max_workers, DEFAULT_MIN_WORKER_BYTES
+    )
+    assert len(assignments) == 1
 
 
 @pytest.mark.parametrize("num_workers", [1, 2, 3, 5, 16])

@@ -164,13 +164,22 @@ _XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES: int = 200_000
 # total work near one worker's share so batched rows do not become stragglers.
 XML_BATCH_TARGET_BYTES: int = 50 * 1024 * 1024
 
+# Below this size, a file gets exactly one worker (making it a batching candidate)
+# instead of being split. This is deliberately its own constant rather than derived from
+# XML_BATCH_TARGET_BYTES or DEFAULT_MAX_WORKERS/numWorkers: tuning either of those options
+# for its own purpose (warehouse-sized parallelism on a big file, or row count for many
+# small files) must not silently move this cutoff out from under the other option.
+DEFAULT_MIN_WORKER_BYTES: int = 4 * 1024 * 1024
+
 
 def _xml_worker_assignments(
-    file_path: str, file_size: int, max_workers: int, chunk_size: int
+    file_path: str, file_size: int, max_workers: int, min_worker_bytes: int
 ) -> List[Tuple[str, int, int]]:
     """Split a file into ``(path, approx_start, approx_end)`` byte ranges, one per worker,
-    each extended to the end of the record it lands in."""
-    num_workers = min(max_workers, file_size // chunk_size + 1)
+    each extended to the end of the record it lands in. A file smaller than
+    ``min_worker_bytes`` always gets exactly one range (worker), regardless of
+    ``max_workers`` -- see :func:`_pack_xml_assignments` for why that matters."""
+    num_workers = min(max_workers, file_size // min_worker_bytes + 1)
     approx_chunk = file_size // num_workers
     return [
         (
@@ -2028,8 +2037,13 @@ class SnowflakePlanBuilder:
             )
 
         max_workers = _positive_int_option(options, "NUMWORKERS", DEFAULT_MAX_WORKERS)
-        # chunk_size is internal; numWorkers is the only per-file worker-sizing option exposed.
+        # chunk_size is the UDTF's own I/O read-buffer size for scanning tag boundaries --
+        # unrelated to how many workers a file gets, and not exposed as an option.
         chunk_size = DEFAULT_CHUNK_SIZE
+        # min_worker_bytes decides whether a file is split or becomes a batching candidate.
+        # Deliberately independent of numWorkers/batchTargetBytes -- see
+        # DEFAULT_MIN_WORKER_BYTES.
+        min_worker_bytes = DEFAULT_MIN_WORKER_BYTES
         batch_target_bytes = _positive_int_option(
             options, "BATCHTARGETBYTES", XML_BATCH_TARGET_BYTES
         )
@@ -2051,7 +2065,9 @@ class SnowflakePlanBuilder:
             per_file_assignments.append(
                 (
                     file_size,
-                    _xml_worker_assignments(path, file_size, max_workers, chunk_size),
+                    _xml_worker_assignments(
+                        path, file_size, max_workers, min_worker_bytes
+                    ),
                 )
             )
         assignments = _pack_xml_assignments(per_file_assignments, batch_target_bytes)
