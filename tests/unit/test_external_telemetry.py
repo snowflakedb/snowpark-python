@@ -129,7 +129,7 @@ class _V5Connection:
         raise AttributeError("_session_manager")
 
 
-@pytest.mark.skipif(not IS_V5_DRIVER, reason="v5 / universal-driver connector only")
+@pytest.mark.skipif(not IS_V5_DRIVER, reason="v5 only")
 def test_get_external_telemetry_auth_token_uses_connection_config():
     session = MagicMock()
     session.connection = _V5Connection()
@@ -154,7 +154,7 @@ def test_get_external_telemetry_auth_token_uses_connection_config():
     }
 
 
-@pytest.mark.skipif(IS_V5_DRIVER, reason="legacy connector only")
+@pytest.mark.skipif(IS_V5_DRIVER, reason="v4 only")
 def test_get_external_telemetry_auth_token_uses_auth_class():
     session = MagicMock()
     session.connection.auth_class.provider = "mock_provider"
