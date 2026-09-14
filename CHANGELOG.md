@@ -10,6 +10,7 @@
 
 - Fixed `ai_extract` misrouting FILE-type inputs to the TEXT overload when `scores` or `config` were also supplied.
 - Fixed the nullable `FILE` column schema expression.
+- Fixed `Session.client_telemetry` failing to obtain a workload-identity auth token on the v5 / universal-driver connector, which does not expose `auth_class`, `_session_manager`, or top-level `wif_util`.
 
 ## 1.55.0 (2026-09-10)
 

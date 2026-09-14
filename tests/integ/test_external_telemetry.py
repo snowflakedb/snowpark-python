@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.event_table_telemetry import (
     EventTableTelemetry,
     RetryWithTokenRefreshAdapter,
 )
+from snowflake.snowpark._internal.utils import IS_V5_DRIVER
 
 try:
     from opentelemetry import trace
@@ -31,7 +32,12 @@ try:
     )
     from opentelemetry.exporter.otlp.proto.http import Compression  # noqa: F401
     from opentelemetry.sdk._logs._internal.export import LogExportResult
-    from snowflake.connector.wif_util import create_attestation  # noqa: F401
+    if IS_V5_DRIVER:
+        from snowflake.connector._common.wif_util import (  # noqa: F401
+            create_attestation,
+        )
+    else:
+        from snowflake.connector.wif_util import create_attestation  # noqa: F401
 
     dependencies_missing = False
 except Exception:
@@ -96,11 +102,23 @@ def create_mock_response(current_endpoint):
     return fake_response
 
 
+CREATE_ATTESTATION_PATH = (
+    "snowflake.connector._common.wif_util.create_attestation"
+    if IS_V5_DRIVER
+    else "snowflake.connector.wif_util.create_attestation"
+)
+
+
 @pytest.fixture(scope="module", autouse=True)
 def mock_session(session):
-    session.connection.auth_class.provider = "mock_provider"
-    session.connection.auth_class.entra_resource = "mock_resource"
-    session.connection.auth_class.token = "mock_token"
+    if IS_V5_DRIVER:
+        session.connection.config.workload_identity_provider = "AWS"
+        session.connection.config.workload_identity_entra_resource = "mock_resource"
+        session.connection.config.token = "mock_token"
+    else:
+        session.connection.auth_class.provider = "mock_provider"
+        session.connection.auth_class.entra_resource = "mock_resource"
+        session.connection.auth_class.token = "mock_token"
     return session
 
 
@@ -112,7 +130,7 @@ def test_end_to_end(session):
     # test with mock exporter and authentication
     with (
         patch(
-            "snowflake.connector.wif_util.create_attestation",
+            CREATE_ATTESTATION_PATH,
             return_value=FakeAttestation(),
         ),
         patch("requests.get", return_value=mock_response),
@@ -221,9 +239,8 @@ def test_negative_case(session, caplog):
 def test_external_telemetry_adapter(session):
     # Create mock session
     mock_session = Mock()
-    mock_session._get_external_telemetry_auth_token.return_value = {
-        "Authorization": "Bearer new_token"
-    }
+    refresh_token = mock_session.client_telemetry._get_external_telemetry_auth_token
+    refresh_token.return_value = {"Authorization": "Bearer new_token"}
 
     # Test data
     initial_header = {"Authorization": "Bearer initial_token"}
@@ -250,11 +267,11 @@ def test_external_telemetry_adapter(session):
         assert result == mock_response
         assert mock_request.headers == initial_header
         mock_super_send.assert_called_once_with(mock_request)
-        mock_session._get_external_telemetry_auth_token.assert_not_called()
+        refresh_token.assert_not_called()
 
     # Reset mocks
     mock_super_send.reset_mock()
-    mock_session._get_external_telemetry_auth_token.reset_mock()
+    refresh_token.reset_mock()
     mock_request.headers = {}
 
     # Test 2: Retry on 401 status code with token refresh (successful on retry)
@@ -271,12 +288,12 @@ def test_external_telemetry_adapter(session):
         # Verify retry with token refresh
         assert result == mock_response_200
         assert mock_super_send.call_count == 2
-        assert mock_session._get_external_telemetry_auth_token.call_count == 1
+        assert refresh_token.call_count == 1
         assert adapter.header == {"Authorization": "Bearer new_token"}
 
     # Reset mocks
     mock_super_send.reset_mock()
-    mock_session._get_external_telemetry_auth_token.reset_mock()
+    refresh_token.reset_mock()
     mock_request.headers = {}
     adapter.header = initial_header.copy()
 
@@ -292,12 +309,12 @@ def test_external_telemetry_adapter(session):
 
         assert result.status_code == 200
         assert mock_super_send.call_count == 2
-        assert mock_session._get_external_telemetry_auth_token.call_count == 1
+        assert refresh_token.call_count == 1
         assert adapter.header == {"Authorization": "Bearer new_token"}
 
     # Reset mocks
     mock_super_send.reset_mock()
-    mock_session._get_external_telemetry_auth_token.reset_mock()
+    refresh_token.reset_mock()
     mock_request.headers = {}
     adapter.header = initial_header.copy()
 
@@ -313,12 +330,12 @@ def test_external_telemetry_adapter(session):
         # Verify all retries exhausted and final 401 returned
         assert result == mock_response_401
         assert mock_super_send.call_count == max_retries + 1  # 3 total attempts
-        assert mock_session._get_external_telemetry_auth_token.call_count == max_retries
+        assert refresh_token.call_count == max_retries
         assert adapter.header == {"Authorization": "Bearer new_token"}
 
     # Reset mocks
     mock_super_send.reset_mock()
-    mock_session._get_external_telemetry_auth_token.reset_mock()
+    refresh_token.reset_mock()
     mock_request.headers = {}
     adapter.header = initial_header.copy()
 
@@ -332,5 +349,5 @@ def test_external_telemetry_adapter(session):
 
         # Verify all retries attempted
         assert mock_super_send.call_count == max_retries + 1  # 3 total attempts
-        assert mock_session._get_external_telemetry_auth_token.call_count == max_retries
+        assert refresh_token.call_count == max_retries
         assert adapter.header == {"Authorization": "Bearer new_token"}
