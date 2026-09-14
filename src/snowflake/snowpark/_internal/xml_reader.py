@@ -91,6 +91,7 @@ def decode_batch_or_single(
         entries.append((path, int(start_str), int(end_str)))
     return entries
 
+
 def replace_entity(match: re.Match) -> str:
     """
     Replaces an HTML entity with its corresponding character, except for predefined XML entities.
