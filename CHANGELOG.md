@@ -32,6 +32,7 @@
 - Added a `readDirectory` option to `DataFrameReader.xml` to read every file directly under a stage directory in one operation instead of one file at a time.
 - Added a `skipChildren` option to `DataFrameReader.xml` to read only the attributes on the row tag's own opening tag without parsing anything nested inside it.
 - Added an `includeSourcePos` option to `DataFrameReader.xml` to add `_source_byte_pos` and `_source_file_path` columns recording where each record came from.
+- Improved multi-file `DataFrameReader.xml` reads by packing files that do not need to be split across workers into shared units of work, read concurrently.
 
 ## 1.54.0 (2026-07-29)
 

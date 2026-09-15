@@ -19,8 +19,11 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     DEFAULT_MAX_WORKERS,
+    DEFAULT_MIN_WORKER_BYTES,
     SnowflakePlanBuilder,
     _positive_int_option,
+    XML_BATCH_TARGET_BYTES,
+    _pack_xml_assignments,
     _stage_listing_basename,
     _xml_worker_assignment_sql,
     _xml_worker_assignments,
@@ -49,6 +52,7 @@ from snowflake.snowpark._internal.xml_reader import (
     find_next_opening_tag_pos,
     tag_is_self_closing,
     process_xml_range,
+    _read_or_signal_eof,
     DEFAULT_CHUNK_SIZE,
     struct_type_to_result_template,
     schema_string_to_result_dict_and_struct_type,
@@ -59,6 +63,9 @@ from snowflake.snowpark._internal.xml_reader import (
     _validate_row_for_type_mismatch,
     XMLReader,
     XMLReaderWithPos,
+    _process_batch_concurrently,
+    decode_batch_or_single,
+    encode_batch,
 )
 from snowflake.snowpark.types import (
     StructType,
@@ -379,6 +386,52 @@ def test_find_next_closing_tag_pos_no_tag(chunk_size):
     closing_tag = b"</row>"
     with pytest.raises(EOFError):
         find_next_closing_tag_pos(file_obj, closing_tag, chunk_size=chunk_size)
+
+
+#
+# Mid-scan I/O failures: a dropped connection while scanning (not graceful EOF) must
+# become the same EOFError every caller already handles per-mode, not a novel exception.
+#
+
+
+def test_read_or_signal_eof_translates_a_non_eof_failure():
+    mock_file = mock.MagicMock()
+    mock_file.read.side_effect = ConnectionError("connection reset")
+    with pytest.raises(EOFError, match="connection reset"):
+        _read_or_signal_eof(mock_file, 1024)
+
+
+def test_read_or_signal_eof_does_not_double_wrap_a_real_eof():
+    """A genuine EOFError raised by the underlying stream must pass through unchanged,
+    not get wrapped in a second, more confusing layer."""
+    mock_file = mock.MagicMock()
+    mock_file.read.side_effect = EOFError("already at true end of stream")
+    with pytest.raises(EOFError, match="already at true end of stream"):
+        _read_or_signal_eof(mock_file, 1024)
+
+
+def test_tag_is_self_closing_converts_mid_scan_io_failure_to_eof():
+    mock_file = mock.MagicMock()
+    mock_file.tell.return_value = 0
+    mock_file.read.side_effect = ConnectionError("connection reset")
+    with pytest.raises(EOFError, match="connection reset"):
+        tag_is_self_closing(mock_file)
+
+
+def test_find_next_closing_tag_pos_converts_mid_scan_io_failure_to_eof():
+    mock_file = mock.MagicMock()
+    mock_file.tell.return_value = 0
+    mock_file.read.side_effect = OSError("connection reset")
+    with pytest.raises(EOFError, match="connection reset"):
+        find_next_closing_tag_pos(mock_file, b"</record>")
+
+
+def test_find_next_opening_tag_pos_converts_mid_scan_io_failure_to_eof():
+    mock_file = mock.MagicMock()
+    mock_file.tell.return_value = 0
+    mock_file.read.side_effect = OSError("connection reset")
+    with pytest.raises(EOFError, match="connection reset"):
+        find_next_opening_tag_pos(mock_file, b"<record>", b"<record ", 1000)
 
 
 @pytest.mark.parametrize("chunk_size", [3, 10, DEFAULT_CHUNK_SIZE])
@@ -1755,6 +1808,119 @@ def test_process_xml_range_permissive_mode_yields_corrupt_record_on_parse_error(
 
 
 #
+# File-level open/seek failures: distinct from a malformed *record* inside a file that
+# opened fine (every test above) -- e.g. deleted between LIST and read, or not authorized.
+# Handled per-mode the same way, but must never crash regardless of mode.
+#
+
+_ARGS_AFTER_TAG_NAME = (
+    "PERMISSIVE",
+    "_corrupt_record",
+    True,
+    "_",
+    False,
+    "_VALUE",
+    "",
+    "utf-8",
+    False,
+    "",
+)
+
+
+def test_process_xml_range_permissive_mode_yields_corrupt_record_when_file_cannot_be_opened():
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=RuntimeError("File does not exist or not authorized"),
+    ):
+        records = _records_only(
+            process_xml_range(
+                "@stage/missing.xml", "record", 0, 100, *_ARGS_AFTER_TAG_NAME
+            )
+        )
+    assert len(records) == 1
+    message = records[0]["_corrupt_record"]
+    assert "missing.xml" in message
+    assert "File does not exist" in message
+
+
+def test_process_xml_range_dropmalformed_mode_drops_record_when_file_cannot_be_opened():
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=RuntimeError("File does not exist or not authorized"),
+    ):
+        records = _records_only(
+            process_xml_range(
+                "@stage/missing.xml",
+                "record",
+                0,
+                100,
+                "DROPMALFORMED",
+                *_ARGS_AFTER_TAG_NAME[1:],
+            )
+        )
+    assert records == []
+
+
+def test_process_xml_range_raises_in_failfast_mode_when_file_cannot_be_opened():
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=RuntimeError("File does not exist or not authorized"),
+    ):
+        with pytest.raises(RuntimeError, match="file could not be read"):
+            list(
+                process_xml_range(
+                    "@stage/missing.xml",
+                    "record",
+                    0,
+                    100,
+                    "FAILFAST",
+                    *_ARGS_AFTER_TAG_NAME[1:],
+                )
+            )
+
+
+def test_process_xml_range_permissive_mode_yields_corrupt_record_when_seek_fails():
+    """A seek failure right after a successful open is the same class of problem as an
+    open failure outright -- can't get positioned into the file at all -- and must be
+    handled identically, not just the open() call itself."""
+    mock_file = mock.MagicMock()
+    mock_file.seek.side_effect = OSError("connection reset")
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+        records = _records_only(
+            process_xml_range(
+                "@stage/flaky.xml", "record", 0, 100, *_ARGS_AFTER_TAG_NAME
+            )
+        )
+    assert len(records) == 1
+    assert "flaky.xml" in records[0]["_corrupt_record"]
+    mock_file.close.assert_called_once()
+
+
+def test_process_xml_range_file_open_failure_does_not_affect_a_later_file():
+    """process_xml_range is called once per file; a failure reading one file must not
+    leave any state that corrupts the read of the next one (this function's only shared
+    state is its arguments, but this guards against a future refactor introducing any)."""
+    good_xml = b"<r><record><id>ok</id></record></r>"
+
+    def fake_open(path, *a, **k):
+        if path == "@s/bad.xml":
+            raise RuntimeError("File does not exist or not authorized")
+        return io.BytesIO(good_xml)
+
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", side_effect=fake_open):
+        bad_records = _records_only(
+            process_xml_range("@s/bad.xml", "record", 0, 100, *_ARGS_AFTER_TAG_NAME)
+        )
+        good_records = _records_only(
+            process_xml_range(
+                "@s/good.xml", "record", 0, len(good_xml), *_ARGS_AFTER_TAG_NAME
+            )
+        )
+    assert "_corrupt_record" in bad_records[0]
+    assert good_records == [{"id": "ok"}]
+
+
+#
 # Byte-range worker assignment: explicit (FILE_PATH, APPROX_START, APPROX_END) ranges.
 #
 
@@ -1837,6 +2003,53 @@ def test_xml_worker_assignments_cover_file_exactly(file_size, max_workers, chunk
 def test_xml_worker_assignments_carries_file_path():
     assignments = _xml_worker_assignments("@stage/dir/books.xml", 5533, 16, 1024)
     assert {path for path, _, _ in assignments} == {"@stage/dir/books.xml"}
+
+
+#
+# min_worker_bytes: the worker-split/batching-eligibility threshold is its own constant,
+# independent of the UDTF's chunk_size (I/O scan buffer) and of numWorkers/batchTargetBytes.
+#
+
+
+def test_xml_worker_assignments_default_min_worker_bytes_batches_realistic_small_files():
+    """A file in the low single-digit MB range -- the actual shape of the 'many small
+    files' problem this feature targets -- must get exactly one worker at the real
+    production default. Regression guard for the old chunk_size=1024 mixup: at that
+    divisor, a 2MB file needed 16 workers and could never be batched."""
+    two_mb = 2 * 1024 * 1024
+    assignments = _xml_worker_assignments(
+        "@stage/f.xml", two_mb, DEFAULT_MAX_WORKERS, DEFAULT_MIN_WORKER_BYTES
+    )
+    assert len(assignments) == 1
+
+
+def test_xml_worker_assignments_default_min_worker_bytes_still_splits_large_files():
+    """The fix must not turn off splitting altogether: a file well above
+    DEFAULT_MIN_WORKER_BYTES still splits into more than one range, and a huge file
+    still saturates at exactly max_workers."""
+    ten_mb = 10 * 1024 * 1024
+    mid_split = _xml_worker_assignments(
+        "@stage/f.xml", ten_mb, DEFAULT_MAX_WORKERS, DEFAULT_MIN_WORKER_BYTES
+    )
+    assert 1 < len(mid_split) < DEFAULT_MAX_WORKERS
+
+    fifty_gb = 50 * 1024 * 1024 * 1024
+    huge_split = _xml_worker_assignments(
+        "@stage/f.xml", fifty_gb, DEFAULT_MAX_WORKERS, DEFAULT_MIN_WORKER_BYTES
+    )
+    assert len(huge_split) == DEFAULT_MAX_WORKERS
+
+
+@pytest.mark.parametrize("max_workers", [1, 4, 16, 64])
+def test_xml_worker_assignments_batching_threshold_ignores_num_workers(max_workers):
+    """numWorkers must not move the batching cutoff: a file just below
+    min_worker_bytes stays a single-worker batching candidate no matter how the
+    warehouse-scaling numWorkers option is tuned."""
+    just_under_threshold = DEFAULT_MIN_WORKER_BYTES - 1
+    assignments = _xml_worker_assignments(
+        "@stage/f.xml", just_under_threshold, max_workers, DEFAULT_MIN_WORKER_BYTES
+    )
+    assert len(assignments) == 1
 
 
 @pytest.mark.parametrize("num_workers", [1, 2, 3, 5, 16])
@@ -2577,3 +2790,313 @@ def test_xml_worker_assignment_sql_escapes_paths(path):
     assert literal.startswith("'") and literal.endswith("'")
     # No unescaped single quote can appear inside the literal body.
     assert "'" not in literal[1:-1].replace("''", "")
+
+
+#
+# Small-file batching: packing several files into one worker-assignment row.
+#
+
+
+def test_batch_encode_decode_round_trip():
+    entries = [
+        ("@stage/a.xml", 0, 10),
+        ("@stage/b.xml", 0, 20),
+        ("@stage/c.xml", 5, 25),
+    ]
+    assert decode_batch_or_single(encode_batch(entries), 0, 0) == entries
+
+
+def test_decode_passes_through_an_unbatched_row():
+    """An unbatched row's range comes from its own columns, not from the path."""
+    assert decode_batch_or_single("@stage/a.xml", 7, 99) == [("@stage/a.xml", 7, 99)]
+
+
+def test_decode_handles_a_batch_of_one():
+    """A one-entry batch must decode from the encoded string rather than falling through to
+    the row's range columns, which are set to 0 for batched rows.
+
+    The planner emits a lone file unencoded today, so this only matters as insurance
+    against the decoder silently depending on that.
+    """
+    encoded = encode_batch([("@stage/only.xml", 3, 42)])
+    assert encoded[0].isdigit()  # recognized as an encoded batch even with one entry
+    assert decode_batch_or_single(encoded, 0, 0) == [("@stage/only.xml", 3, 42)]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "@stage/5:weird.xml",
+        "@stage/contains\x01control\x02bytes.xml",
+        "@stage/11:@s/b.xml1:01:1.xml",
+    ],
+)
+def test_batch_encode_decode_survives_paths_that_look_like_the_encoding(path):
+    """A length-prefixed encoding can't be confused by path content that happens to look
+    like a length prefix, a colon, or (unlike the old delimiter scheme) even a literal
+    control byte -- decoding always walks by the byte counts it wrote, never by scanning
+    for a separator that could collide with the path itself."""
+    entries = [(path, 3, 42), ("@stage/other.xml", 0, 5)]
+    assert decode_batch_or_single(encode_batch(entries), 0, 0) == entries
+
+
+def _single(path, size):
+    return (size, [(path, 0, size)])
+
+
+def test_pack_emits_a_lone_small_file_unencoded():
+    """The ordinary single-file read must keep producing exactly the row it always did."""
+    assert _pack_xml_assignments([_single("@s/a.xml", 100)]) == [("@s/a.xml", 0, 100)]
+
+
+def test_pack_batches_several_small_files_into_one_row():
+    packed = _pack_xml_assignments(
+        [_single("@s/a.xml", 100), _single("@s/b.xml", 200), _single("@s/c.xml", 300)]
+    )
+    assert len(packed) == 1
+    assert decode_batch_or_single(packed[0][0], 0, 0) == [
+        ("@s/a.xml", 0, 100),
+        ("@s/b.xml", 0, 200),
+        ("@s/c.xml", 0, 300),
+    ]
+
+
+def test_pack_never_batches_a_file_split_across_workers():
+    """A multi-megabyte byte range packed alongside whole small files would make that row's
+    runtime wildly uneven, and per-invocation overhead is not what dominates for large
+    files."""
+    packed = _pack_xml_assignments(
+        [
+            _single("@s/a.xml", 100),
+            (5000, [("@s/big.xml", 0, 2500), ("@s/big.xml", 2500, 5000)]),
+            _single("@s/c.xml", 100),
+        ]
+    )
+    assert packed == [
+        ("@s/a.xml", 0, 100),
+        ("@s/big.xml", 0, 2500),
+        ("@s/big.xml", 2500, 5000),
+        ("@s/c.xml", 0, 100),
+    ]
+
+
+def test_pack_honors_a_caller_supplied_target_bytes():
+    """The byte target is a parameter, not just the module constant -- callers (the
+    ``batchTargetBytes`` reader option) must be able to override it."""
+    packed = _pack_xml_assignments(
+        [_single("@s/a.xml", 30), _single("@s/b.xml", 30)], target_bytes=50
+    )
+    assert len(packed) == 2, "50 is too small for both 30-byte files in one row"
+
+    packed = _pack_xml_assignments(
+        [_single("@s/a.xml", 30), _single("@s/b.xml", 30)], target_bytes=60
+    )
+    assert len(packed) == 1, "60 fits both 30-byte files in one row"
+
+
+def test_pack_fills_a_batch_exactly_to_the_byte_target():
+    half = XML_BATCH_TARGET_BYTES // 2
+    packed = _pack_xml_assignments(
+        [_single("@s/a.xml", half), _single("@s/b.xml", XML_BATCH_TARGET_BYTES - half)]
+    )
+    assert len(packed) == 1, "a batch summing exactly to the target should not be split"
+
+
+def test_pack_flushes_when_one_more_byte_would_exceed_the_target():
+    half = XML_BATCH_TARGET_BYTES // 2
+    packed = _pack_xml_assignments(
+        [
+            _single("@s/a.xml", half),
+            _single("@s/b.xml", XML_BATCH_TARGET_BYTES - half + 1),
+        ]
+    )
+    assert len(packed) == 2
+
+
+def test_pack_keeps_a_file_larger_than_the_target_on_its_own_row():
+    packed = _pack_xml_assignments(
+        [
+            _single("@s/a.xml", 10),
+            _single("@s/huge.xml", XML_BATCH_TARGET_BYTES + 1),
+            _single("@s/b.xml", 10),
+        ]
+    )
+    # The oversized file forces a flush before it, then cannot share with what follows.
+    assert len(packed) == 3
+
+
+#
+# The encoded-size cap: batchTargetBytes only tracks file *content* bytes, which says
+# nothing about path length -- a batch of many small files with long paths could otherwise
+# encode into a cell far larger than content size alone would suggest.
+#
+
+
+def test_pack_flushes_on_encoded_size_even_when_content_bytes_are_tiny():
+    """Two files whose content is 1 byte each would never trip a content-bytes cap, but
+    if their paths alone are close to the (patched, for a fast test) encoded-size cap,
+    they still can't share a row."""
+    long_path_a = "@s/" + "a" * 100
+    long_path_b = "@s/" + "b" * 100
+    with mock.patch(
+        "snowflake.snowpark._internal.xml_reader.VARIANT_COLUMN_SIZE_LIMIT", 150
+    ):
+        packed = _pack_xml_assignments(
+            [_single(long_path_a, 1), _single(long_path_b, 1)]
+        )
+    assert len(packed) == 2
+
+
+def test_pack_keeps_an_encoded_oversized_entry_on_its_own_row():
+    """A single entry whose own encoded size already exceeds the cap must still get its
+    own row rather than blocking or erroring -- mirrors the existing content-bytes-cap
+    behavior for an oversized file (test_pack_keeps_a_file_larger_than_the_target_on_its_own_row)."""
+    huge_path = "@s/" + "x" * 200
+    with mock.patch(
+        "snowflake.snowpark._internal.xml_reader.VARIANT_COLUMN_SIZE_LIMIT", 50
+    ):
+        packed = _pack_xml_assignments(
+            [_single("@s/a.xml", 1), _single(huge_path, 1), _single("@s/b.xml", 1)]
+        )
+    assert len(packed) == 3
+
+
+def test_pack_encoded_size_cap_does_not_affect_realistic_short_paths():
+    """Regression guard: ordinary short paths must pack exactly as before -- the encoded-
+    size cap should be inert for the realistic case and only bind for pathological ones."""
+    packed = _pack_xml_assignments(
+        [_single("@s/a.xml", 100), _single("@s/b.xml", 200), _single("@s/c.xml", 300)]
+    )
+    assert len(packed) == 1
+    assert decode_batch_or_single(packed[0][0], 0, 0) == [
+        ("@s/a.xml", 0, 100),
+        ("@s/b.xml", 0, 200),
+        ("@s/c.xml", 0, 300),
+    ]
+
+
+def test_batched_row_escapes_through_the_worker_assignment_sql():
+    """The encoded batch is a caller-influenced string embedded as a SQL literal, so it has
+    to survive the same escaping as a plain path -- length prefixes included."""
+    entries = [("@s/it's.xml", 0, 1), ("@s/b.xml", 1, 2)]
+    encoded = encode_batch(entries)
+    sql = _xml_worker_assignment_sql([(encoded, 0, 0)], "F", "S", "E")
+    assert sql.count("SELECT") == 1
+    body = sql[sql.index("FROM VALUES ") :]
+    # The quote in the path is doubled by SQL escaping...
+    assert "it''s" in body
+    # ...and undoing just that escaping recovers the exact original encoding.
+    literal = body[body.index("'") + 1 : body.index(", 0::BIGINT")]
+    assert literal.endswith("'")
+    assert decode_batch_or_single(literal[:-1].replace("''", "'"), 0, 0) == entries
+
+
+def test_process_batch_concurrently_returns_every_record_from_every_file():
+    """All entries' records must come back, tagged with the file each came from."""
+    contents = {
+        "a.xml": b"<r><record><id>a1</id></record><record><id>a2</id></record></r>",
+        "b.xml": b"<r><record><id>b1</id></record></r>",
+        "c.xml": b"<r><record><id>c1</id></record><record><id>c2</id></record></r>",
+    }
+    batch = [(name, 0, len(data)) for name, data in contents.items()]
+
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda path, *a, **k: io.BytesIO(contents[path]),
+    ):
+        produced = list(
+            _process_batch_concurrently(
+                batch,
+                "record",
+                mode="PERMISSIVE",
+                column_name_of_corrupt_record="_corrupt_record",
+                ignore_namespace=True,
+                attribute_prefix="_",
+                exclude_attributes=False,
+                value_tag="_VALUE",
+                null_value="",
+                charset="utf-8",
+                ignore_surrounding_whitespace=False,
+                row_validation_xsd_path="",
+                chunk_size=DEFAULT_CHUNK_SIZE,
+                result_template=None,
+                schema_type=None,
+                is_snowpark_connect_compatible=False,
+                skip_children=False,
+            )
+        )
+
+    # Order across files is not preserved -- results are yielded as each file finishes.
+    assert sorted((path, record["id"]) for path, record, _ in produced) == [
+        ("a.xml", "a1"),
+        ("a.xml", "a2"),
+        ("b.xml", "b1"),
+        ("c.xml", "c1"),
+        ("c.xml", "c2"),
+    ]
+
+
+def test_process_batch_concurrently_isolates_a_file_open_failure():
+    """One file failing to open inside a batch must not take down the other files packed
+    into the same row -- that's the point of handling it per-mode inside process_xml_range
+    instead of letting the exception propagate through the thread pool's Future."""
+    good_xml = b"<r><record><id>ok</id></record></r>"
+
+    def fake_open(path, *a, **k):
+        if path == "@s/bad.xml":
+            raise RuntimeError("File does not exist or not authorized")
+        return io.BytesIO(good_xml)
+
+    batch = [("@s/good.xml", 0, len(good_xml)), ("@s/bad.xml", 0, 100)]
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", side_effect=fake_open):
+        produced = list(
+            _process_batch_concurrently(
+                batch,
+                "record",
+                mode="PERMISSIVE",
+                column_name_of_corrupt_record="_corrupt_record",
+                ignore_namespace=True,
+                attribute_prefix="_",
+                exclude_attributes=False,
+                value_tag="_VALUE",
+                null_value="",
+                charset="utf-8",
+                ignore_surrounding_whitespace=False,
+                row_validation_xsd_path="",
+                chunk_size=DEFAULT_CHUNK_SIZE,
+                result_template=None,
+                schema_type=None,
+                is_snowpark_connect_compatible=False,
+                skip_children=False,
+            )
+        )
+
+    by_path = {}
+    for path, record, _offset in produced:
+        by_path.setdefault(path, []).append(record)
+
+    assert len(by_path["@s/good.xml"]) == 1
+    assert "_corrupt_record" not in by_path["@s/good.xml"][0]
+    assert len(by_path["@s/bad.xml"]) == 1
+    assert "bad.xml" in by_path["@s/bad.xml"][0]["_corrupt_record"]
+
+
+def test_xml_reader_dispatches_a_batch_encoded_filename_through_the_thread_pool():
+    """A handler's own filename argument, not just _process_batch_concurrently in
+    isolation, must route a batch-encoded row to the thread pool -- the single-file path
+    is only correct for an unbatched row."""
+    contents = {
+        "a.xml": b"<r><record><id>a1</id></record></r>",
+        "b.xml": b"<r><record><id>b1</id></record></r>",
+    }
+    encoded = encode_batch([(name, 0, len(data)) for name, data in contents.items()])
+
+    with patch(
+        "snowflake.snowpark.files.SnowflakeFile.open",
+        side_effect=lambda path, *a, **k: io.BytesIO(contents[path]),
+    ):
+        rows = list(
+            XMLReaderWithPos().process(*((encoded, 0, 0) + _process_args(b"")[3:]))
+        )
+
+    assert {row[2]: row[0]["id"] for row in rows} == {"a.xml": "a1", "b.xml": "b1"}

@@ -160,13 +160,26 @@ DEFAULT_MAX_WORKERS: int = 16
 # worker-assignment row count.
 _XML_WORKER_ASSIGNMENT_MAX_ROWS_PER_VALUES: int = 200_000
 
+# How many bytes of small files to pack into one worker-assignment row, keeping a row's
+# total work near one worker's share so batched rows do not become stragglers.
+XML_BATCH_TARGET_BYTES: int = 50 * 1024 * 1024
+
+# Below this size, a file gets exactly one worker (making it a batching candidate)
+# instead of being split. This is deliberately its own constant rather than derived from
+# XML_BATCH_TARGET_BYTES or DEFAULT_MAX_WORKERS/numWorkers: tuning either of those options
+# for its own purpose (warehouse-sized parallelism on a big file, or row count for many
+# small files) must not silently move this cutoff out from under the other option.
+DEFAULT_MIN_WORKER_BYTES: int = 4 * 1024 * 1024
+
 
 def _xml_worker_assignments(
-    file_path: str, file_size: int, max_workers: int, chunk_size: int
+    file_path: str, file_size: int, max_workers: int, min_worker_bytes: int
 ) -> List[Tuple[str, int, int]]:
     """Split a file into ``(path, approx_start, approx_end)`` byte ranges, one per worker,
-    each extended to the end of the record it lands in."""
-    num_workers = min(max_workers, file_size // chunk_size + 1)
+    each extended to the end of the record it lands in. A file smaller than
+    ``min_worker_bytes`` always gets exactly one range (worker), regardless of
+    ``max_workers`` -- see :func:`_pack_xml_assignments` for why that matters."""
+    num_workers = min(max_workers, file_size // min_worker_bytes + 1)
     approx_chunk = file_size // num_workers
     return [
         (
@@ -182,6 +195,57 @@ def _stage_listing_basename(file_path: str) -> str:
     """The final path segment of a path, used to match it against LIST -- the rest of what
     LIST reports is stage-type-dependent and unsafe to reconstruct."""
     return file_path.rsplit("/", 1)[-1]
+
+
+def _pack_xml_assignments(
+    per_file_assignments: List[Tuple[int, List[Tuple[str, int, int]]]],
+    target_bytes: int = XML_BATCH_TARGET_BYTES,
+) -> List[Tuple[str, int, int]]:
+    """Combine per-file byte ranges into worker-assignment rows, batching small files.
+    A file split into more than one range is never batched -- only single-worker files are
+    packed several per row, to amortize per-invocation overhead across many small files."""
+    from snowflake.snowpark._internal.xml_reader import (
+        VARIANT_COLUMN_SIZE_LIMIT,
+        _encode_field,
+        encode_batch,
+    )
+
+    rows: List[Tuple[str, int, int]] = []
+    pending: List[Tuple[str, int, int]] = []
+    pending_bytes = 0
+    pending_encoded_bytes = 0
+
+    def flush() -> None:
+        nonlocal pending, pending_bytes, pending_encoded_bytes
+        if not pending:
+            return
+        rows.append(pending[0] if len(pending) == 1 else (encode_batch(pending), 0, 0))
+        pending = []
+        pending_bytes = 0
+        pending_encoded_bytes = 0
+
+    for file_size, ranges in per_file_assignments:
+        if len(ranges) > 1:
+            flush()
+            rows.extend(ranges)
+            continue
+        entry = ranges[0]
+        path, start, end = entry
+        entry_encoded_bytes = (
+            len(_encode_field(path))
+            + len(_encode_field(str(start)))
+            + len(_encode_field(str(end)))
+        )
+        if pending and (
+            pending_bytes + file_size > target_bytes
+            or pending_encoded_bytes + entry_encoded_bytes > VARIANT_COLUMN_SIZE_LIMIT
+        ):
+            flush()
+        pending.append(entry)
+        pending_bytes += file_size
+        pending_encoded_bytes += entry_encoded_bytes
+    flush()
+    return rows
 
 
 def _xml_worker_assignment_values(assignments: List[Tuple[str, int, int]]) -> str:
@@ -1990,8 +2054,16 @@ class SnowflakePlanBuilder:
             )
 
         max_workers = _positive_int_option(options, "NUMWORKERS", DEFAULT_MAX_WORKERS)
-        # chunk_size is internal; numWorkers is the only worker-sizing option exposed.
+        # chunk_size is the UDTF's own I/O read-buffer size for scanning tag boundaries --
+        # unrelated to how many workers a file gets, and not exposed as an option.
         chunk_size = DEFAULT_CHUNK_SIZE
+        # min_worker_bytes decides whether a file is split or becomes a batching candidate.
+        # Deliberately independent of numWorkers/batchTargetBytes -- see
+        # DEFAULT_MIN_WORKER_BYTES.
+        min_worker_bytes = DEFAULT_MIN_WORKER_BYTES
+        batch_target_bytes = _positive_int_option(
+            options, "BATCHTARGETBYTES", XML_BATCH_TARGET_BYTES
+        )
 
         if read_directory:
             file_sizes = self._list_directory_file_sizes(file_path)
@@ -2000,12 +2072,22 @@ class SnowflakePlanBuilder:
             file_paths = [file_path]
             file_sizes = {file_path: self._resolve_stage_file_size(file_path)}
 
-        # One row per (file, byte range); all files share a single SQL plan.
-        assignments = []
+        # One row per (file, byte range); all files share a single SQL plan. Files small
+        # enough to need one worker are batched several per row.
+        per_file_assignments = []
         for path in file_paths:
-            assignments.extend(
-                _xml_worker_assignments(path, file_sizes[path], max_workers, chunk_size)
+            # _resolve_stage_file_size raises for a path it could not match, so every
+            # requested path is present here.
+            file_size = file_sizes[path]
+            per_file_assignments.append(
+                (
+                    file_size,
+                    _xml_worker_assignments(
+                        path, file_size, max_workers, min_worker_bytes
+                    ),
+                )
             )
+        assignments = _pack_xml_assignments(per_file_assignments, batch_target_bytes)
         df = self.session.sql(
             _xml_worker_assignment_sql(
                 assignments,
