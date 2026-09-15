@@ -405,7 +405,7 @@ class Session:
     current database or schema - while other threads are active can lead to unexpected
     behavior. Use a separate :class:`Session` object for each thread in those cases.
     For more information, see
-    `Submit Snowpark queries concurrently <https://docs.snowflake.com/en/developer-guide/snowpark/python/working-with-dataframes#submit-snowpark-queries-concurrently>`_.
+    `Submit Snowpark queries concurrently <https://docs.snowflake.com/en/developer-guide/snowpark/python/working-with-dataframes#label-snowpark-python-dataframe-threadsafe-objects>`_.
 
     To run DataFrame operations concurrently on a shared session::
 
