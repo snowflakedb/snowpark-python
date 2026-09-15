@@ -397,6 +397,24 @@ class Session:
 
     :class:`Session` contains functions to construct a :class:`DataFrame` like :meth:`table`,
     :meth:`sql` and :attr:`read`, etc.
+
+    A :class:`Session` object is thread-safe. You can share a single session across
+    multiple threads to submit queries concurrently, using Python's standard threading
+    APIs. This requires version 1.24.0 or later. Note that a single session does not
+    support concurrent transactions, and changing session configuration - such as the
+    current database or schema - while other threads are active can lead to unexpected
+    behavior. Use a separate :class:`Session` object for each thread in those cases.
+    For more information, see
+    `Submit Snowpark queries concurrently <https://docs.snowflake.com/en/developer-guide/snowpark/python/working-with-dataframes#submit-snowpark-queries-concurrently>`_.
+
+    To run DataFrame operations concurrently on a shared session::
+
+        >>> from concurrent.futures import ThreadPoolExecutor
+        >>> def count_rows(table_name):
+        ...     return session.table(table_name).count()
+        >>> tables = ["table_a", "table_b", "table_c"]
+        >>> with ThreadPoolExecutor(max_workers=3) as executor:  # doctest: +SKIP
+        ...     counts = list(executor.map(count_rows, tables))
     """
 
     class RuntimeConfig:
