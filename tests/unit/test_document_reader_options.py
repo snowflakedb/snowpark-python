@@ -10,6 +10,7 @@ from snowflake.snowpark._internal.document_reader_options import (
     ExtractionSpec,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+from snowflake.snowpark.types import BooleanType, DoubleType, LongType, StringType
 
 # `.option()` upper-cases every key it stores in `_cur_options`
 # (`get_aliased_option_name`), so `from_reader_options` only ever reads upper-case
@@ -216,6 +217,79 @@ class TestExtractionSpecFields:
         # a string, even for a shape this reader doesn't otherwise recognize.
         assert _fields([42, "city: What city?"]) == ["42", "city"]
         assert _fields([[42, "What is it?"]]) == ["42"]
+
+
+# ---------------------------------------------------------------------------
+# ExtractionSpec.field_types -- a JSON-Schema response_format's declared per-field
+# type, when it maps to an unambiguous Snowpark scalar. Drives whether
+# cast_extracted_field() casts the output column or leaves it as the raw VARIANT
+# AI_EXTRACT/AI_COMPLETE returned.
+# ---------------------------------------------------------------------------
+
+
+def _field_types(response_format) -> dict:
+    return ExtractionSpec.from_response_format(response_format).field_types
+
+
+class TestExtractionSpecFieldTypes:
+    def test_flat_dict_has_no_declared_types(self):
+        # AI_EXTRACT's own flat {name: prompt} shape carries no type contract at
+        # all -- every field maps to None (kept as raw VARIANT).
+        assert _field_types(FLAT_SCHEMA) == {"invoice_number": None, "total": None}
+
+    def test_json_schema_scalar_types_resolve(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "amount": {"type": "number"},
+                "quantity": {"type": "integer"},
+                "is_paid": {"type": "boolean"},
+            },
+        }
+        types = _field_types(schema)
+        assert isinstance(types["name"], StringType)
+        assert isinstance(types["amount"], DoubleType)
+        assert isinstance(types["quantity"], LongType)
+        assert isinstance(types["is_paid"], BooleanType)
+
+    def test_json_schema_composite_types_have_no_declared_scalar(self):
+        # array/object are deliberately absent from the scalar map: AI_EXTRACT/
+        # AI_COMPLETE already return these as a real ARRAY/OBJECT VARIANT, and
+        # forcing them to a scalar would discard the nesting the caller declared.
+        schema = {
+            "type": "object",
+            "properties": {
+                "tags": {"type": "array", "items": {"type": "string"}},
+                "address": {
+                    "type": "object",
+                    "properties": {"city": {"type": "string"}},
+                },
+            },
+        }
+        assert _field_types(schema) == {"tags": None, "address": None}
+
+    def test_json_schema_missing_or_malformed_property_has_no_declared_type(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "untyped": {},
+                # A type union (e.g. ["string", "null"]) isn't a single scalar --
+                # falls back to None rather than raising on the unhashable list.
+                "nullable_string": {"type": ["string", "null"]},
+                # Not itself a dict -- malformed, but must not raise.
+                "malformed": "not a schema",
+            },
+        }
+        assert _field_types(schema) == {
+            "untyped": None,
+            "nullable_string": None,
+            "malformed": None,
+        }
+
+    def test_unrecognized_json_schema_type_has_no_declared_scalar(self):
+        schema = {"type": "object", "properties": {"blob": {"type": "null"}}}
+        assert _field_types(schema) == {"blob": None}
 
 
 # ---------------------------------------------------------------------------

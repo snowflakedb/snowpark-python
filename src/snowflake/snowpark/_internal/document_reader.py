@@ -4,7 +4,7 @@
 
 import json
 import os
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
@@ -13,6 +13,7 @@ from snowflake.snowpark._internal.document_reader_options import (
     CONTENT_COLUMN,
     DocumentReaderOptions,
     EXTRACTION_SCORES_COLUMN,
+    ExtractionSpec,
     IMAGES_COLUMN,
     PAGE_INDEX_COLUMN,
     SOURCE_FILE_COLUMN,
@@ -36,6 +37,7 @@ from snowflake.snowpark.functions import (
     array_compact,
     array_construct,
     array_size,
+    array_to_string,
     coalesce,
     col,
     concat,
@@ -46,6 +48,7 @@ from snowflake.snowpark.functions import (
     object_construct_keep_null,
     random,
     to_file,
+    try_cast,
     try_parse_json,
     when,
 )
@@ -257,6 +260,50 @@ def parse_text(
 # ---------------------------------------------------------------------------
 
 
+def cast_extracted_field(
+    value: Column, field: str, extraction: ExtractionSpec
+) -> Tuple[Column, Optional[Column]]:
+    """Returns (output_column, mismatch), where mismatch is a boolean Column (true when
+    the field was populated but didn't match its declared type), or None when there is no
+    scalar type to enforce. Uses TRY_CAST via VARCHAR (VARIANT has no direct TRY_CAST
+    overload) to degrade a bad field to NULL rather than aborting the row; the mismatch
+    signal surfaces that degradation through the existing error column so PERMISSIVE/
+    FAILFAST semantics are preserved. Fields with no declared type or a composite type
+    (array/object) are returned as-is."""
+    target_type = extraction.field_types.get(field)
+    if target_type is None:
+        return value, None
+    text = value.cast(StringType())
+    if isinstance(target_type, StringType):
+        return text, None
+    casted = try_cast(text, target_type)
+    return casted, value.is_not_null() & casted.is_null()
+
+
+def merge_extract_error(
+    native_error: Column, field_columns: List[str], mismatches: List[Optional[Column]]
+) -> Column:
+    tagged = [
+        when(mismatch, lit(name))
+        for name, mismatch in zip(field_columns, mismatches)
+        if mismatch is not None
+    ]
+    if not tagged:
+        return native_error.cast(StringType())
+    mismatched_fields = array_compact(array_construct(*tagged))
+    mismatch_message = when(
+        array_size(mismatched_fields) > 0,
+        concat(
+            lit("Field(s) did not match their declared type: "),
+            array_to_string(mismatched_fields, lit(", ")),
+        ),
+    )
+    # AI_EXTRACT/AI_COMPLETE's own in-band error takes precedence -- a call that
+    # already failed has nothing meaningful in `response`/`value` to mismatch-check
+    # in the first place, so the two conditions can't both legitimately fire at once.
+    return coalesce(native_error.cast(StringType()), mismatch_message)
+
+
 def extract(df: "DataFrame", options: DocumentReaderOptions) -> "DataFrame":
     input_col = (
         col(CONTENT_COLUMN) if options.parse_enabled else col(SOURCE_FILE_COLUMN)
@@ -330,10 +377,18 @@ def extract_with_ai_extract(
     )
     extracted = col(_EXTRACTED_COLUMN)
     response = extracted["response"]
+    cast_results = [
+        cast_extracted_field(response[field], field, extraction)
+        for field in extraction.fields
+    ]
     names = extraction.field_columns + [EXTRACTION_SCORES_COLUMN, _EXTRACT_ERROR_COLUMN]
-    values = [response[field].cast(StringType()) for field in extraction.fields] + [
+    values = [column for column, _ in cast_results] + [
         extracted["scoring"],
-        extracted["error"].cast(StringType()),
+        merge_extract_error(
+            extracted["error"],
+            extraction.field_columns,
+            [mismatch for _, mismatch in cast_results],
+        ),
     ]
     return df.with_columns(names, values)
 
@@ -380,9 +435,17 @@ def extract_with_ai_complete(
     extracted = col(_EXTRACTED_COLUMN)
     value = extracted["value"]
     extraction = options.extraction
+    cast_results = [
+        cast_extracted_field(value[field], field, extraction)
+        for field in extraction.fields
+    ]
     names = extraction.field_columns + [_EXTRACT_ERROR_COLUMN]
-    values = [value[field].cast(StringType()) for field in extraction.fields] + [
-        extracted["error"].cast(StringType())
+    values = [column for column, _ in cast_results] + [
+        merge_extract_error(
+            extracted["error"],
+            extraction.field_columns,
+            [mismatch for _, mismatch in cast_results],
+        )
     ]
     return df.with_columns(names, values)
 

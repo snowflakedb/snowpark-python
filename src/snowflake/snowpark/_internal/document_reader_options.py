@@ -6,11 +6,26 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.types import (
+    BooleanType,
+    DataType,
+    DoubleType,
+    LongType,
+    StringType,
+)
 
 _PARSE_MODES = frozenset({"layout", "ocr", "text", "none"})
 _ROW_BOUNDARIES = frozenset({"document", "page"})
 _MODES = frozenset({"PERMISSIVE", "FAILFAST"})
 _EXTRACTION_ENGINES = frozenset({"ai_extract", "ai_complete"})
+
+# JSON Schema scalar types mapped to Snowpark equivalents; "array"/"object" are omitted since AI_EXTRACT/AI_COMPLETE already return them as structured VARIANT.
+_JSON_SCHEMA_SCALAR_TYPES: Dict[str, DataType] = {
+    "string": StringType(),
+    "number": DoubleType(),
+    "integer": LongType(),
+    "boolean": BooleanType(),
+}
 
 _DEFAULT_CORRUPT_RECORD_COLUMN = "_document_error"
 
@@ -50,6 +65,22 @@ class ExtractionSpec:
     field_columns: List[str]
     ai_extract_format: Any
     ai_complete_format: Any
+    # Per-field output type (keyed by original field name); None means keep the raw VARIANT
+    # (composite types, or no declared type in response_format).
+    field_types: Dict[str, Optional[DataType]]
+
+    @staticmethod
+    def _scalar_type(property_schema: Any) -> Optional[DataType]:
+        # property_schema is user-supplied and only loosely validated upstream (it just
+        # has to be a dict for is_json_schema to trigger at all) -- a malformed per-field
+        # entry, or a JSON-Schema type union like ["string", "null"], falls back to None
+        # (raw VARIANT) rather than raising, same as "no declared type" does.
+        if not isinstance(property_schema, dict):
+            return None
+        json_type = property_schema.get("type")
+        if not isinstance(json_type, str):
+            return None
+        return _JSON_SCHEMA_SCALAR_TYPES.get(json_type)
 
     @classmethod
     def from_response_format(cls, response_format: Any) -> Optional["ExtractionSpec"]:
@@ -81,12 +112,19 @@ class ExtractionSpec:
         if is_json_schema:
             ai_extract_format = {"schema": response_format}
             ai_complete_format = {"type": "json", "schema": response_format}
+            properties = response_format["properties"]
+            field_types = {
+                field: cls._scalar_type(properties[field]) for field in fields
+            }
+        else:
+            field_types = {field: None for field in fields}
 
         return cls(
             fields=fields,
             field_columns=[field.upper() for field in fields],
             ai_extract_format=ai_extract_format,
             ai_complete_format=ai_complete_format,
+            field_types=field_types,
         )
 
 

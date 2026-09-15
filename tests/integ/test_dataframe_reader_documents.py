@@ -6,11 +6,17 @@ import json
 
 import pytest
 
+from snowflake.snowpark._internal.document_reader import (
+    cast_extracted_field,
+    merge_extract_error,
+)
+from snowflake.snowpark._internal.document_reader_options import ExtractionSpec
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import col, try_parse_json
+from snowflake.snowpark.types import BooleanType, DoubleType, StringType, VariantType
 from tests.utils import TestFiles, Utils
 
 pytestmark = [
@@ -31,6 +37,31 @@ INVOICE_SCHEMA = {
         "total_amount": {"type": "string"},
     },
 }
+
+# AI_EXTRACT's JSON-Schema validator only accepts "string" and "array" (of strings)
+# at the property level -- "number"/"integer"/"boolean" are rejected outright with
+# "Error parsing JSON Schema: Incorrect 2nd-level type", confirmed live. AI_COMPLETE's
+# response_format has no such restriction. So the scalar-type-casting behavior can
+# only be exercised end-to-end via ai_complete; the array (no-cast/VARIANT) case is
+# exercised via both engines below.
+TYPED_SCALAR_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "invoice_number": {"type": "string"},
+        "total_amount_number": {"type": "number"},
+        "is_invoice": {"type": "boolean"},
+    },
+}
+
+ARRAY_FIELD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "invoice_number": {"type": "string"},
+        "line_item_descriptions": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
+FLAT_NL_SCHEMA = {"invoice_number": "What is the invoice number?"}
 
 
 def _unquoted(df) -> list:
@@ -343,6 +374,104 @@ def test_ai_extract_per_page(session, doc_path):
     assert all(row["CONTENT"] for row in rows)
 
 
+def _datatype(df, column_name: str):
+    return next(
+        f.datatype for f in df.schema.fields if f.name.strip('"') == column_name
+    )
+
+
+def test_ai_extract_array_field_stays_variant_not_stringified(session, invoice_path):
+    # "array" has no entry in the scalar-type map, on purpose: AI_EXTRACT already
+    # returns it as a real ARRAY, and forcing it to a string would just
+    # re-serialize the structure the schema asked for.
+    df = (
+        session.read.option("parse_mode", "layout")
+        .option("schema", ARRAY_FIELD_SCHEMA)
+        ._documents(invoice_path)
+    )
+    assert isinstance(_datatype(df, "INVOICE_NUMBER"), StringType)
+    assert isinstance(_datatype(df, "LINE_ITEM_DESCRIPTIONS"), VariantType)
+
+    row = df.collect()[0]
+    assert row["INVOICE_NUMBER"]
+    # A VARIANT column round-trips through collect() as its JSON text -- the point
+    # isn't the Python-side representation, it's that the SQL-level type is a real
+    # ARRAY/VARIANT the caller can flatten() themselves, not a StringType column
+    # that was already collapsed before they ever saw it.
+    assert json.loads(row["LINE_ITEM_DESCRIPTIONS"])
+    assert row["_document_error"] is None
+
+
+def test_ai_complete_scalar_types_are_cast_not_stringified(session, invoice_path):
+    df = (
+        session.read.option("parse_mode", "layout")
+        .option("extraction_engine", "ai_complete")
+        .option("schema", TYPED_SCALAR_SCHEMA)
+        ._documents(invoice_path)
+    )
+    assert isinstance(_datatype(df, "INVOICE_NUMBER"), StringType)
+    assert isinstance(_datatype(df, "TOTAL_AMOUNT_NUMBER"), DoubleType)
+    assert isinstance(_datatype(df, "IS_INVOICE"), BooleanType)
+
+    row = df.collect()[0]
+    assert row["INVOICE_NUMBER"]
+    # These land as real Python float/bool, not "34.49"/"true" strings -- proof the
+    # normalization contract holds end to end, not just at the declared-dtype level.
+    assert isinstance(row["TOTAL_AMOUNT_NUMBER"], float)
+    assert row["TOTAL_AMOUNT_NUMBER"] > 0
+    assert isinstance(row["IS_INVOICE"], bool)
+    assert row["IS_INVOICE"] is True
+    assert row["_document_error"] is None
+
+
+def test_ai_complete_array_field_stays_variant_not_stringified(session, invoice_path):
+    df = (
+        session.read.option("parse_mode", "layout")
+        .option("extraction_engine", "ai_complete")
+        .option("schema", ARRAY_FIELD_SCHEMA)
+        ._documents(invoice_path)
+    )
+    assert isinstance(_datatype(df, "LINE_ITEM_DESCRIPTIONS"), VariantType)
+    row = df.collect()[0]
+    assert json.loads(row["LINE_ITEM_DESCRIPTIONS"])
+    assert row["_document_error"] is None
+
+
+def test_natural_language_schema_field_stays_variant_not_stringified(
+    session, invoice_path
+):
+    # A flat {name: prompt} response_format carries no type contract at all -- the
+    # field's actual shape could vary row to row, so there is nothing safe to cast
+    # to. The output column must stay the raw VARIANT AI_EXTRACT returned rather
+    # than being forced into StringType the way every field used to be.
+    df = (
+        session.read.option("parse_mode", "layout")
+        .option("schema", FLAT_NL_SCHEMA)
+        ._documents(invoice_path)
+    )
+    assert isinstance(_datatype(df, "INVOICE_NUMBER"), VariantType)
+    row = df.collect()[0]
+    assert json.loads(row["INVOICE_NUMBER"])
+    assert row["_document_error"] is None
+
+
+def test_ai_extract_rejects_non_string_scalar_property_types(session, invoice_path):
+    # Documents today's actual AI_EXTRACT limitation (confirmed live, not assumed):
+    # its JSON-Schema validator only accepts "string"/"array" at the property level.
+    # "number"/"integer"/"boolean" fail the call itself with an in-band extract
+    # error -- the existing PERMISSIVE error machinery, not a new failure mode this
+    # normalization introduces.
+    rows = (
+        session.read.option("parse_mode", "layout")
+        .option("schema", TYPED_SCALAR_SCHEMA)
+        ._documents(invoice_path)
+        .collect()
+    )
+    assert len(rows) == 1
+    assert rows[0]["_document_error"] is not None
+    assert "Incorrect 2nd-level type" in rows[0]["_document_error"]
+
+
 def test_ai_complete_extraction_emits_no_scores_column(session, invoice_path):
     df = (
         session.read.option("parse_mode", "layout")
@@ -504,6 +633,61 @@ def test_permissive_leaves_the_error_column_null_for_a_good_file(session, invoic
     assert len(rows) == 1
     assert rows[0]["_document_error"] is None
     assert rows[0]["CONTENT"]
+
+
+def test_extract_type_mismatch_is_surfaced_not_silently_dropped(session):
+    # AI_EXTRACT/AI_COMPLETE's own schema validation normally catches a genuine
+    # type mismatch before it ever reaches this reader's TRY_CAST layer (verified
+    # separately, live: AI_COMPLETE reports its own "json mode output validation
+    # error" for a field that doesn't fit its declared type). That still leaves a
+    # defense-in-depth question this test targets directly: if a value ever does
+    # get past that validation not matching its declared type, does TRY_CAST's
+    # NULL-on-mismatch stay silent, or does the reader surface it? Provoking a
+    # real mismatch out of the live model isn't reliably reproducible (it may
+    # just comply), so this drives the reader's own cast_extracted_field()/
+    # merge_extract_error() directly against a synthetic AI_COMPLETE-shaped
+    # response instead -- real SQL execution (TRY_CAST, COALESCE, array
+    # functions), just not a real model call.
+    synthetic_response = (
+        '{"value": {"invoice_number": "INV-1", "amount": "not-a-number", '
+        '"is_paid": true}, "error": null}'
+    )
+    df = session.create_dataframe([[synthetic_response]], schema=["RAW"]).with_column(
+        "EXTRACTED", try_parse_json(col("RAW"))
+    )
+    spec = ExtractionSpec(
+        fields=["invoice_number", "amount", "is_paid"],
+        field_columns=["INVOICE_NUMBER", "AMOUNT", "IS_PAID"],
+        ai_extract_format=None,
+        ai_complete_format=None,
+        field_types={
+            "invoice_number": StringType(),
+            "amount": DoubleType(),
+            "is_paid": BooleanType(),
+        },
+    )
+    extracted = col("EXTRACTED")
+    value = extracted["value"]
+    cast_results = [cast_extracted_field(value[f], f, spec) for f in spec.fields]
+    names = spec.field_columns + ["_DOC_EXTRACT_ERROR"]
+    values = [column for column, _ in cast_results] + [
+        merge_extract_error(
+            extracted["error"], spec.field_columns, [m for _, m in cast_results]
+        )
+    ]
+    row = df.with_columns(names, values).collect()[0]
+
+    # The two fields that do fit their declared type are unaffected.
+    assert row["INVOICE_NUMBER"] == "INV-1"
+    assert row["IS_PAID"] is True
+    # The one that doesn't degrades to NULL rather than aborting the whole row...
+    assert row["AMOUNT"] is None
+    # ...but isn't silently dropped: it's named in the error column, the same one
+    # AI_EXTRACT/AI_COMPLETE's own in-band error already populates.
+    assert (
+        row["_DOC_EXTRACT_ERROR"]
+        == "Field(s) did not match their declared type: AMOUNT"
+    )
 
 
 def test_failfast_raises_on_an_unreadable_file(session, unsupported_stage):
