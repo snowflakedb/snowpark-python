@@ -204,29 +204,46 @@ def _pack_xml_assignments(
     """Combine per-file byte ranges into worker-assignment rows, batching small files.
     A file split into more than one range is never batched -- only single-worker files are
     packed several per row, to amortize per-invocation overhead across many small files."""
-    from snowflake.snowpark._internal.xml_reader import encode_batch
+    from snowflake.snowpark._internal.xml_reader import (
+        VARIANT_COLUMN_SIZE_LIMIT,
+        _encode_field,
+        encode_batch,
+    )
 
     rows: List[Tuple[str, int, int]] = []
     pending: List[Tuple[str, int, int]] = []
     pending_bytes = 0
+    pending_encoded_bytes = 0
 
     def flush() -> None:
-        nonlocal pending, pending_bytes
+        nonlocal pending, pending_bytes, pending_encoded_bytes
         if not pending:
             return
         rows.append(pending[0] if len(pending) == 1 else (encode_batch(pending), 0, 0))
         pending = []
         pending_bytes = 0
+        pending_encoded_bytes = 0
 
     for file_size, ranges in per_file_assignments:
         if len(ranges) > 1:
             flush()
             rows.extend(ranges)
             continue
-        if pending and pending_bytes + file_size > target_bytes:
+        entry = ranges[0]
+        path, start, end = entry
+        entry_encoded_bytes = (
+            len(_encode_field(path))
+            + len(_encode_field(str(start)))
+            + len(_encode_field(str(end)))
+        )
+        if pending and (
+            pending_bytes + file_size > target_bytes
+            or pending_encoded_bytes + entry_encoded_bytes > VARIANT_COLUMN_SIZE_LIMIT
+        ):
             flush()
-        pending.append(ranges[0])
+        pending.append(entry)
         pending_bytes += file_size
+        pending_encoded_bytes += entry_encoded_bytes
     flush()
     return rows
 

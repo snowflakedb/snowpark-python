@@ -274,6 +274,16 @@ def struct_type_to_result_template(dt: DataType) -> Optional[dict]:
     return None
 
 
+def _read_or_signal_eof(file_obj: Union[BinaryIO, SnowflakeFile], size: int) -> bytes:
+    """Any I/O failure here becomes the same EOFError callers already handle per-mode."""
+    try:
+        return file_obj.read(size)
+    except EOFError:
+        raise
+    except Exception as e:
+        raise EOFError(f"I/O error while reading: {e}") from e
+
+
 def tag_is_self_closing(
     file_obj: Union[BinaryIO, SnowflakeFile],
     chunk_size: int = DEFAULT_CHUNK_SIZE,
@@ -296,7 +306,7 @@ def tag_is_self_closing(
 
     while True:
         chunk_start_pos = file_obj.tell()
-        chunk = file_obj.read(chunk_size)
+        chunk = _read_or_signal_eof(file_obj, chunk_size)
         if not chunk:
             raise EOFError("Reached end of file but the tag is not closed")
 
@@ -346,7 +356,7 @@ def find_next_closing_tag_pos(
 
     while True:
         pos_before = file_obj.tell()
-        chunk = file_obj.read(chunk_size)
+        chunk = _read_or_signal_eof(file_obj, chunk_size)
         if not chunk:
             raise EOFError("Reached end of file before finding tag end")
 
@@ -415,7 +425,7 @@ def find_next_opening_tag_pos(
         # Read enough so that the new chunk plus our overlap covers possible tag splits.
         current_chunk_size = min(chunk_size, remaining + overlap_size)
         pos_before = file_obj.tell()
-        chunk = file_obj.read(current_chunk_size)
+        chunk = _read_or_signal_eof(file_obj, current_chunk_size)
         if not chunk:
             raise EOFError("Reached end of file before finding opening tag")
 
@@ -653,8 +663,29 @@ def process_xml_range(
     # only yields element events (not byte offsets), requires well‑formed XML over the full stream,
     # and incurs extra overhead parsing every element sequentially—none of which allow us to locate
     # matching tag positions as raw byte ranges for chunking.
-    with SnowflakeFile.open(file_path, "rb", require_scoped_url=False) as f:
-        f.seek(approx_start)
+    try:
+        f = SnowflakeFile.open(file_path, "rb", require_scoped_url=False)
+        try:
+            f.seek(approx_start)
+        except Exception:
+            f.close()
+            raise
+    except Exception as e:
+        if mode == "PERMISSIVE":
+            yield (
+                {
+                    column_name_of_corrupt_record: f"<file could not be read: {file_path}: {e}>"
+                },
+                approx_start,
+            )
+        elif mode == "FAILFAST":
+            raise RuntimeError(
+                f"Malformed XML record at bytes {approx_start}-EOF: "
+                f"file could not be read: {file_path}: {e}"
+            ) from e
+        return
+
+    with f:
         while True:
             try:
                 open_pos = find_next_opening_tag_pos(
