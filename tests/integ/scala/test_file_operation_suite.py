@@ -277,13 +277,15 @@ def test_put_negative(
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
 
-    with pytest.raises(SnowparkSQLException) as file_not_exist_info:
+    # legacy: "File doesn't exist"; V5: "File does not exist"
+    with pytest.raises(
+        SnowparkSQLException, match=r"File does(?:n't| not) exist"
+    ):
         session.file.put(
             f"file://{temp_source_directory}/not_exists_file.txt",
             stage_with_prefix,
             auto_compress=not local_testing_mode,
         )
-    assert "File doesn't exist" in str(file_not_exist_info.value)
 
     if not local_testing_mode:
         # local testing currently doesn't support stage CRUD
