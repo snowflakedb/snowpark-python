@@ -4202,8 +4202,8 @@ def test_create_dataframe_large_respects_paramstyle_negative(db_parameters):
             with pytest.raises(ProgrammingError, match="Invalid paramstyle"):
                 new_session._conn._conn._paramstyle = "unsupported"
             return
-        else:
-            new_session._conn._conn._paramstyle = "unsupported"
+
+        new_session._conn._conn._paramstyle = "unsupported"
         analyzer.ARRAY_BIND_THRESHOLD = 2
         with pytest.raises(
             ValueError, match="'unsupported' is not a recognized paramstyle"
