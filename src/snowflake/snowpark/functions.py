@@ -14666,6 +14666,7 @@ def ai_redact(
         >>> result = df.collect()[0][0]
         >>> import json
         >>> spans = json.loads(result) if isinstance(result, str) else result
+        >>> spans = spans['spans'] if isinstance(spans, dict) else spans
         >>> isinstance(spans, list) and spans[0]['category'] in ('NAME', 'PHONE_NUMBER')
         True
     """

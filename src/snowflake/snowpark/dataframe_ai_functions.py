@@ -2121,6 +2121,7 @@ class DataFrameAIFunctions:
             >>> pii = results[0]["PII_SPANS"]
             >>> import json
             >>> spans = json.loads(pii) if isinstance(pii, str) else pii
+            >>> spans = spans['spans'] if isinstance(spans, dict) else spans
             >>> isinstance(spans, list) and spans[0]['category'] in ('NAME', 'EMAIL', 'PHONE_NUMBER', 'ADDRESS', 'NATIONAL_ID')
             True
         """

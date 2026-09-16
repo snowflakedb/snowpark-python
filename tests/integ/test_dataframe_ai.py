@@ -1882,10 +1882,20 @@ def test_ai_redact_with_categories(session):
 
 
 def _assert_ai_redact_detect_spans(value):
-    """Detect mode returns an ARRAY of span objects, not {spans: [...]}."""
+    """Detect mode is an ARRAY of spans, or a legacy OBJECT with a spans field."""
     parsed = json.loads(value) if isinstance(value, str) else value
+    if isinstance(parsed, dict) and "spans" in parsed:
+        parsed = parsed["spans"]
     assert isinstance(parsed, list) and parsed
     assert {"category", "start", "end", "text"} <= set(parsed[0])
+
+
+def test_assert_ai_redact_detect_spans_accepts_array_and_legacy_object():
+    span = {"category": "NAME", "start": 0, "end": 4, "text": "John"}
+    _assert_ai_redact_detect_spans([span])
+    _assert_ai_redact_detect_spans({"spans": [span]})
+    _assert_ai_redact_detect_spans(json.dumps([span]))
+    _assert_ai_redact_detect_spans(json.dumps({"spans": [span]}))
 
 
 def test_ai_redact_detect_mode(session):
