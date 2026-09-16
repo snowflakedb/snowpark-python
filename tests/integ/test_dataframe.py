@@ -4197,16 +4197,13 @@ def test_create_dataframe_large_respects_paramstyle_negative(db_parameters):
     session_builder = Session.builder.configs(db_parameters)
     new_session = session_builder.create()
     try:
-        try:
+        # V5 validates paramstyle on assignment; legacy validates at bind time.
+        if IS_V5_DRIVER:
+            with pytest.raises(ProgrammingError, match="Invalid paramstyle"):
+                new_session._conn._conn._paramstyle = "unsupported"
+            return
+        else:
             new_session._conn._conn._paramstyle = "unsupported"
-        except ProgrammingError:
-            if IS_V5_DRIVER:
-                # The V5 driver validates paramstyle eagerly on assignment
-                # and raises here instead of lazily at bind time, so the
-                # negative path this test exercises is already covered by
-                # the assignment itself.
-                return
-            raise
         analyzer.ARRAY_BIND_THRESHOLD = 2
         with pytest.raises(
             ValueError, match="'unsupported' is not a recognized paramstyle"
