@@ -1881,17 +1881,21 @@ def test_ai_redact_with_categories(session):
     assert "[PHONE_NUMBER]" in result
 
 
+def _assert_ai_redact_detect_spans(value):
+    """Detect mode returns an ARRAY of span objects, not {spans: [...]}."""
+    parsed = json.loads(value) if isinstance(value, str) else value
+    assert isinstance(parsed, list) and parsed
+    assert {"category", "start", "end", "text"} <= set(parsed[0])
+
+
 def test_ai_redact_detect_mode(session):
     """Test ai_redact in detect mode returns span metadata."""
     from snowflake.snowpark.functions import ai_redact
-    import json
 
     df = session.range(1).select(
         ai_redact("Contact Alice at alice@example.com", mode="detect").alias("spans")
     )
-    result = df.collect()[0][0]
-    parsed = json.loads(result) if isinstance(result, str) else result
-    assert "spans" in parsed
+    _assert_ai_redact_detect_spans(df.collect()[0][0])
 
 
 def test_ai_redact_column_input(session):
@@ -1933,13 +1937,7 @@ def test_dataframe_ai_redact_detect_mode(session):
         schema=["text"],
     )
     result_df = df.ai.redact(input_column="text", mode="detect", output_column="pii")
-    results = result_df.collect()
-    parsed = (
-        json.loads(results[0]["PII"])
-        if isinstance(results[0]["PII"], str)
-        else results[0]["PII"]
-    )
-    assert "spans" in parsed
+    _assert_ai_redact_detect_spans(result_df.collect()[0]["PII"])
 
 
 def test_dataframe_ai_redact_with_categories(session):
