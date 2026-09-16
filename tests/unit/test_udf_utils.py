@@ -569,3 +569,12 @@ def test_ar_non_str_packages_raise_typeerror(session):
         match="Non-conda artifact repository requires that all packages be passed as str",
     ):
         _resolve_ar_packages(session, [1], False)
+
+
+def test_sandbox_ar_pandas_udf_unparseable_spec_still_injects_pandas():
+    # Requirement() raises on this spec, so the startswith fallback must run.
+    names = _package_names(
+        _resolve_ar_packages(None, ["numpy", "invalid package!!!"], True)
+    )
+    assert "pandas" in names
+    assert names.count("pandas") == 1
