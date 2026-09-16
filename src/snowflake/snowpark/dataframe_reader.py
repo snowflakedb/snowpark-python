@@ -1379,11 +1379,56 @@ class DataFrameReader:
         result = df.select(cols)
         return result
 
+    @publicapi
+    @experimental(version="1.44.0")
+    def documents(
+        self,
+        path: str,
+        schema: Optional[Dict[str, Any]] = None,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """Read unstructured documents from a stage.
+
+        By default only *path* is required. Parse mode, page vs document rows, and
+        whether to call ``AI_EXTRACT`` on the file (skipping parse) are inferred
+        from the file list and *schema*. Set ``.option(...)`` to override.
+
+        Args:
+            path: Stage location (``@stage/...`` or ``snow://...``).
+            schema: Optional extraction schema (JSON Schema ``properties``, or a
+                flat ``{field: question}`` map). When omitted, the DataFrame is
+                parsed text only (``CONTENT``).
+
+        Example::
+
+            df = session.read.documents("@mystage/invoices/")
+            df = session.read.documents("@mystage/invoices/", schema=invoice_schema)
+        """
+        if schema is not None:
+            self.option("schema", schema, _emit_ast=_emit_ast)
+        df = self._documents(path)
+        set_api_call_source(df, "DataFrameReader.documents")
+        return df
+
     def _documents(self, path: str) -> DataFrame:
+        from snowflake.snowpark._internal.document_reader_heuristics import (
+            apply_document_heuristics,
+            smart_enabled,
+        )
+
         path = _validate_stage_path(path)
         options = document_reader.DocumentReaderOptions.from_reader_options(
             self._cur_options
         )
+        if smart_enabled(self._cur_options):
+            files = document_reader.list_stage_file_stats(self._session, path)
+            options = apply_document_heuristics(
+                options,
+                self._cur_options.keys(),
+                schema=self._cur_options.get("SCHEMA"),
+                prompt=str(self._cur_options.get("PROMPT") or options.prompt or ""),
+                files=files,
+            )
         df = document_reader.read_documents(self._session, path, options)
         set_api_call_source(df, "DataFrameReader._documents")
         return df

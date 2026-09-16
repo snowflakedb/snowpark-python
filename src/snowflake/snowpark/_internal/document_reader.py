@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.document_reader_options import (
     _EXTRACT_ERROR_COLUMN,
     _PARSE_ERROR_COLUMN,
 )
+from snowflake.snowpark._internal.document_reader_heuristics import MAX_FILE_BYTES
 from snowflake.snowpark._internal.pdf_reader import PAGE_SEPARATOR
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark._internal.utils import (
@@ -127,11 +128,30 @@ def as_variant(column: Column) -> Column:
 # ---------------------------------------------------------------------------
 
 
+def list_stage_file_stats(session: "Session", path: str) -> List[Tuple[str, int]]:
+    """(name, size_bytes) from LIST, used by the smart-reader planner."""
+    rows = session.sql(f"LIST {path}").collect()
+    files: List[Tuple[str, int]] = []
+    for row in rows:
+        data = row.as_dict() if hasattr(row, "as_dict") else {}
+        name = data.get("name", data.get("NAME", row[0] if row else ""))
+        size = data.get("size", data.get("SIZE", row[1] if len(row) > 1 else 0))
+        try:
+            size_int = int(size or 0)
+        except (TypeError, ValueError):
+            size_int = 0
+        files.append((str(name or ""), size_int))
+    return files
+
+
 def access(session: "Session", path: str) -> "DataFrame":
     # The plain string path is kept as its own column because the PDF UDTF takes a
     # path string, not a FILE value.
     stage_path = concat(lit(STAGE_PREFIX), col('"name"'))
-    files_df = session.sql(f"LIST {path}").select(
+    listed = session.sql(f"LIST {path}").filter(
+        col('"size"').is_null() | (col('"size"') <= lit(MAX_FILE_BYTES))
+    )
+    files_df = listed.select(
         to_file(stage_path).alias(SOURCE_FILE_COLUMN),
         stage_path.alias(_STAGE_PATH_COLUMN),
     )
@@ -367,13 +387,15 @@ def extract_with_ai_extract(
     df: "DataFrame", input_col: Column, options: DocumentReaderOptions
 ) -> "DataFrame":
     extraction = options.extraction
+    extract_kwargs: Dict[str, Any] = {
+        "response_format": extraction.ai_extract_format,
+        "scores": True,
+    }
+    if options.extract_scale_factor and options.extract_scale_factor != 1.0:
+        extract_kwargs["config"] = {"scale_factor": options.extract_scale_factor}
     df = df.with_column(
         _EXTRACTED_COLUMN,
-        as_variant(
-            ai_extract(
-                input_col, response_format=extraction.ai_extract_format, scores=True
-            )
-        ),
+        as_variant(ai_extract(input_col, **extract_kwargs)),
     )
     extracted = col(_EXTRACTED_COLUMN)
     response = extracted["response"]
@@ -411,6 +433,7 @@ def build_ai_complete_call(
             model,
             prompt_text,
             response_format=response_format,
+            model_parameters={"temperature": 0},
             return_error_details=True,
         )
     return ai_complete(
@@ -418,6 +441,7 @@ def build_ai_complete_call(
         options.prompt or _DEFAULT_EXTRACTION_PROMPT,
         file=input_col,
         response_format=response_format,
+        model_parameters={"temperature": 0},
         return_error_details=True,
     )
 

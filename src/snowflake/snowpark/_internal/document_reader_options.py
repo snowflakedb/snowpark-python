@@ -140,6 +140,7 @@ class DocumentReaderOptions:
     extraction: Optional[ExtractionSpec] = None
     model: Optional[str] = None
     prompt: Optional[str] = None
+    extract_scale_factor: float = 1.0
 
     @property
     def parse_enabled(self) -> bool:
@@ -192,6 +193,9 @@ class DocumentReaderOptions:
             extraction=ExtractionSpec.from_response_format(cur_options.get("SCHEMA")),
             model=cur_options.get("MODEL", defaults.model),
             prompt=cur_options.get("PROMPT", defaults.prompt),
+            extract_scale_factor=float(
+                cur_options.get("EXTRACT_SCALE_FACTOR", defaults.extract_scale_factor)
+            ),
         )
         options.validate()
         return options
