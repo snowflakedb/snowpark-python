@@ -40,18 +40,10 @@ requirements:
     - protobuf==4.25.3  # [py>310 and py<314]
     - protobuf >=5.29.3,<6.34  # [py>=314]
     - libprotobuf >=5.29.3,<6.34  # [py>=314]
-    # Exact-pinned to match the [build-system] requires in pyproject.toml.
-    # The versions differ from pyproject.toml's because neither of its pins is
-    # available here: conda-forge has no mypy-protobuf 3.6.0 at all, and its
-    # 5.1.0 requires protobuf >=6.32, which cannot satisfy the protobuf pins
-    # above for py<3.14. These are the versions the previous <=3.6.0 ceiling
-    # already resolved to, so this pins current behavior rather than changing
-    # it: 3.5.0 needs protobuf >=4.23.4, so py<=310 (protobuf 3.20.1) has to
-    # use 3.3.0 (protobuf >=3.19.3). Both are <=3.6.0 and so emit no
-    # ValidateProtobufRuntimeVersion call, keeping the generated pb2 files safe
-    # with the internal channel's protobuf 5.x on py314.
-    - mypy-protobuf ==3.3.0  # [py<=310]
-    - mypy-protobuf ==3.5.0  # [py>310]
+    # mypy-protobuf <=3.6.0 has no ValidateProtobufRuntimeVersion in its pb2 files,
+    # safe with protobuf 5.x or 6.x. mypy-protobuf 5.x+ requires protobuf 6.x gencode
+    # which conflicts with the internal channel's protobuf 5.x for py314.
+    - mypy-protobuf <=3.6.0
   run:
     {% if noarch_build and py == 310 %}
     - python >=3.10,<3.11.0a0
