@@ -600,12 +600,9 @@ class ServerConnection:
         # sets, but results slightly differ from output of Snowpark's custom
         # fallback. Enforce Snowpark's fallback for backwards compatibility.
         #
-        # A cursor loaded by get_results_from_sfqid is exempt. Pre-v5 drivers load
-        # such a result by re-running RESULT_SCAN, which is a SELECT, so their
-        # result format is "arrow" there whatever the original statement was and
-        # the fallback never ran. v5+ reads the stored result instead and reports
-        # the original statement's format, so the format is not a usable signal
-        # on this path.
+        # from_query_id exception - pre-v5 driver loads such a result by re-running
+        # RESULT_SCAN (default arrow format), v5+ uses REST API getting
+        # the original statement's format.
         force_json_fallback = (
             to_pandas
             and IS_V5_DRIVER
