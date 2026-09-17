@@ -1,9 +1,6 @@
 [build-system]
 requires = [
-    # Bounded rather than exact-pinned: this file ships inside the sdist, so an
-    # exact setuptools pin would break source builds (conda-forge, distros) on
-    # newer Pythons that require a newer setuptools.
-    "setuptools>=40.6.0,<85",
+    "setuptools>=40.6.0",
     # py>=3.14: protoc-wheel-0 has no cp314 wheel on PyPI, so it cannot be installed
     # in pip's build isolation venv. setup.py falls back to shutil.which("protoc").
     "protoc-wheel-0==21.1; python_version < '3.14'", # Protocol buffer compiler for Snowpark IR

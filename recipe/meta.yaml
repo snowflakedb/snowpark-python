@@ -33,7 +33,7 @@ requirements:
   host:
     - python
     - pip
-    - setuptools >=40.6.0,<85
+    - setuptools >=40.6.0
     - wheel
     # Snowpark IR
     - protobuf==3.20.1  # [py<=310]
