@@ -16,6 +16,10 @@
 
 - Updated `ai_redact(..., mode="detect")` and `DataFrame.ai.redact(..., mode="detect")` to document that detect mode returns an ARRAY of span objects, not an OBJECT with a `spans` field.
 
+#### Other Changes
+
+- Test-only: skip the GHA Azure cases that fail with `000603 XP_WORKER_FAILURE` when the test-account Python UDF worker crashes (SNOW-4139794). AWS/GCP are unchanged.
+
 ## 1.55.0 (2026-09-10)
 
 ### Snowpark Python API Updates
@@ -35,6 +39,8 @@
 - Documented the JSON Schema `response_format` shape for `ai_extract` and `DataFrame.ai.extract`.
 
 #### Other Changes
+
+- Test-only: skip the GHA Azure cases that fail with `000603 XP_WORKER_FAILURE` when the test-account Python UDF worker crashes (SNOW-4139794). AWS/GCP are unchanged.
 
 - Test-only: fixed `test_generator_table_function` failing as `assert 0 < 0` on the `seq2(0)` + `generator(timelimit => 1)` case. `seq2(0)` passes sign=0, so it continues at 0 after 32767, and a one-second generator run usually emits far more than one 32768-value cycle, making `ORDER BY seq2(0) LIMIT 3` return `0, 0, 0`. That assertion now allows equal values; the `seq1(1)` + `rowcount` assertions stay strictly increasing.
 

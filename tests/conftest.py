@@ -12,6 +12,11 @@ from pathlib import Path
 import pytest
 
 from snowflake.snowpark._internal.utils import warning_dict
+from tests.azure_udf_worker_flake import (
+    AZURE_UDF_WORKER_FLAKE_SKIP_REASON,
+    is_azure_ci,
+    matches_azure_udf_worker_flake,
+)
 from .ast.conftest import default_unparser_path
 
 pytest_plugins = ("tests.integ.test_catalog",)
@@ -89,7 +94,14 @@ def pytest_collection_modifyitems(items) -> None:
     top_doctest_internal_dir = top_test_dir.parent.joinpath(
         "src/snowflake/snowpark/_functions"
     )
+    skip_azure_udf_worker = is_azure_ci()
+    azure_skip = pytest.mark.skip(reason=AZURE_UDF_WORKER_FLAKE_SKIP_REASON)
     for item in items:
+        if skip_azure_udf_worker and (
+            matches_azure_udf_worker_flake(getattr(item, "originalname", "") or "")
+            or matches_azure_udf_worker_flake(item.name)
+        ):
+            item.add_marker(azure_skip)
         item_path = Path(str(item.fspath)).parent
         try:
             relative_path = item_path.relative_to(top_test_dir)
