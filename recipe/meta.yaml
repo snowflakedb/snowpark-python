@@ -33,16 +33,26 @@ requirements:
   host:
     - python
     - pip
-    - setuptools >=40.6.0
+    - setuptools >=40.6.0,<85
     - wheel
     # Snowpark IR
     - protobuf==3.20.1  # [py<=310]
     - protobuf==4.25.3  # [py>310 and py<314]
     - protobuf >=5.29.3,<6.34  # [py>=314]
     - libprotobuf >=5.29.3,<6.34  # [py>=314]
-    # mypy-protobuf <=3.6.0 has no ValidateProtobufRuntimeVersion in its pb2 files,
-    # safe with protobuf 5.x or 6.x. mypy-protobuf 5.x+ requires protobuf 6.x gencode
-    # which conflicts with the internal channel's protobuf 5.x for py314.
+    # NOTE: the build script above runs `pip install .`, so the protobuf stub
+    # generator is resolved by PEP 517 build isolation from the pinned
+    # [build-system] requires in pyproject.toml -- mypy-protobuf==3.6.0 for
+    # py>=3.14 and ==5.1.0 for py<3.14. pyproject.toml is the source of truth
+    # for the generated gencode; this host entry only bounds the conda env.
+    #
+    # It is deliberately a ceiling and not an exact pin, because neither
+    # pyproject.toml pin is expressible here: conda-forge has no mypy-protobuf
+    # 3.6.0 at all, and its 5.1.0 requires protobuf >=6.32, which cannot satisfy
+    # the protobuf pins above for py<3.14. The ceiling lets the solver pick a
+    # build compatible with the pinned protobuf, and keeps
+    # ValidateProtobufRuntimeVersion out of the pb2 files so the result stays
+    # safe with the internal channel's protobuf 5.x on py314.
     - mypy-protobuf <=3.6.0
   run:
     {% if noarch_build and py == 310 %}
