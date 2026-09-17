@@ -14621,16 +14621,15 @@ def ai_redact(
             all supported PII categories are redacted. Example categories include
             ``'NAME'``, ``'EMAIL'``, ``'PHONE_NUMBER'``, ``'ADDRESS'``, ``'NATIONAL_ID'``.
         mode: Operating mode. Either ``'redact'`` (default) to replace PII with
-            placeholder labels (e.g. ``[NAME]``), or ``'detect'`` to return an
-            object with metadata about each detected PII span without modifying
-            the text.
+            placeholder labels (e.g. ``[NAME]``), or ``'detect'`` to return
+            metadata about each detected PII span without modifying the text.
         return_error_details: When ``True``, returns an OBJECT with ``value`` and
             ``error`` fields instead of returning NULL on failure.
 
     Returns:
         In ``'redact'`` mode (default): a VARCHAR with PII replaced by placeholder labels.
 
-        In ``'detect'`` mode: an OBJECT with a ``spans`` array, where each entry contains:
+        In ``'detect'`` mode: an ARRAY of OBJECTs, where each entry contains:
 
             - ``category``: The PII category name.
             - ``start`` / ``end``: Character offsets of the PII span in the original text.
@@ -14665,7 +14664,10 @@ def ai_redact(
         ...     ai_redact('Contact John at 555-1234', mode='detect').alias("detected")
         ... )
         >>> result = df.collect()[0][0]
-        >>> 'spans' in result
+        >>> import json
+        >>> spans = json.loads(result) if isinstance(result, str) else result
+        >>> spans = spans['spans'] if isinstance(spans, dict) else spans
+        >>> isinstance(spans, list) and spans[0]['category'] in ('NAME', 'PHONE_NUMBER')
         True
     """
     sql_func_name = "ai_redact"
