@@ -587,19 +587,29 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         to_arrow: bool = False,
+        from_query_id: bool = False,
     ) -> Dict[str, Any]:
         qid = results_cursor.sfqid
         if to_iter:
             new_cursor = results_cursor.connection.cursor()
             new_cursor.get_results_from_sfqid(qid)
             results_cursor = new_cursor
+            from_query_id = True
 
         # Python Driver v5+ supports pandas conversion from JSON-format result
         # sets, but results slightly differ from output of Snowpark's custom
         # fallback. Enforce Snowpark's fallback for backwards compatibility.
+        #
+        # A cursor loaded by get_results_from_sfqid is exempt. Pre-v5 drivers load
+        # such a result by re-running RESULT_SCAN, which is a SELECT, so their
+        # result format is "arrow" there whatever the original statement was and
+        # the fallback never ran. v5+ reads the stored result instead and reports
+        # the original statement's format, so the format is not a usable signal
+        # on this path.
         force_json_fallback = (
             to_pandas
             and IS_V5_DRIVER
+            and not from_query_id
             and results_cursor._query_result_format != "arrow"
         )
 
