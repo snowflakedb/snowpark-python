@@ -7,6 +7,10 @@
 
 name: Daily UD regress
 on:
+  # Required until this file is on the default branch: GitHub only registers
+  # workflow_dispatch / schedule for workflows that already exist on default.
+  pull_request:
+
   schedule:
     # 7 AM UTC, an hour after daily_connector_regress so the two don't contend for
     # the same test account.
