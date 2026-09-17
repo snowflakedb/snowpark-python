@@ -278,9 +278,7 @@ def test_put_negative(
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
 
     # legacy: "File doesn't exist"; V5: "File does not exist"
-    with pytest.raises(
-        SnowparkSQLException, match=r"File does(?:n't| not) exist"
-    ):
+    with pytest.raises(SnowparkSQLException, match=r"File does(?:n't| not) exist"):
         session.file.put(
             f"file://{temp_source_directory}/not_exists_file.txt",
             stage_with_prefix,
