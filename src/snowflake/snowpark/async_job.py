@@ -436,11 +436,11 @@ class AsyncJob:
             result = None
         elif async_result_type == _AsyncResultType.PANDAS:
             result = self._session._conn._to_data_or_iter(
-                self._cursor, to_pandas=True, to_iter=False
+                self._cursor, to_pandas=True, to_iter=False, from_query_id=True
             )["data"]
         elif async_result_type == _AsyncResultType.PANDAS_BATCH:
             result = self._session._conn._to_data_or_iter(
-                self._cursor, to_pandas=True, to_iter=True
+                self._cursor, to_pandas=True, to_iter=True, from_query_id=True
             )["data"]
         else:
             result_data = self._cursor.fetchall()
