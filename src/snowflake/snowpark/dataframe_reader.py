@@ -32,6 +32,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_table_name,
     with_src_position,
 )
+from snowflake.snowpark._internal import document_reader
 from snowflake.snowpark._internal.data_source import JDBC
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
     DataSourcePartitioner,
@@ -1377,6 +1378,15 @@ class DataFrameReader:
 
         result = df.select(cols)
         return result
+
+    def _documents(self, path: str) -> DataFrame:
+        path = _validate_stage_path(path)
+        options = document_reader.DocumentReaderOptions.from_reader_options(
+            self._cur_options
+        )
+        df = document_reader.read_documents(self._session, path, options)
+        set_api_call_source(df, "DataFrameReader._documents")
+        return df
 
     @publicapi
     def option(self, key: str, value: Any, _emit_ast: bool = True) -> "DataFrameReader":
