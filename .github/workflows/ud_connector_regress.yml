@@ -97,7 +97,7 @@ jobs:
       - name: Assert the wheel is a binary wheel for this interpreter
         run: |
           TAG="cp${PYTHON_VERSION/./}"
-          ls -1 python/dist/snowflake_connector_python-*"$TAG"*.whl \
+          ls -1 python/dist/snowflake_connector_python*"$TAG"*.whl \
             || { echo "::error::no $TAG wheel: the UD build fell back to pure python"; exit 1; }
 
       - name: Upload UD wheel
