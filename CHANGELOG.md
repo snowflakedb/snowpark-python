@@ -8,8 +8,13 @@
 
 #### Bug Fixes
 
+- Fixed `Session.write_pandas` raising a raw connector error instead of Snowpark's table-does-not-exist message when the target table was missing and `auto_create_table=False`.
 - Fixed `ai_extract` misrouting FILE-type inputs to the TEXT overload when `scores` or `config` were also supplied.
 - Fixed the nullable `FILE` column schema expression.
+
+#### Documentation
+
+- Updated `ai_redact(..., mode="detect")` and `DataFrame.ai.redact(..., mode="detect")` to document that detect mode returns an ARRAY of span objects, not an OBJECT with a `spans` field.
 
 ## 1.55.0 (2026-09-10)
 
