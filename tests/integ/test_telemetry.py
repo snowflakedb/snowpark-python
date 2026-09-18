@@ -56,21 +56,27 @@ pytestmark = [
 class TelemetryDataTracker:
     def __init__(self, session: Session) -> None:
         self.session = session
+        self._captured_logs = []
+        telemetry_obj = session._conn._telemetry_client.telemetry
+        # The Universal Driver moves the batch buffer into the Rust core, so
+        # `telemetry_obj._log_batch` is no longer readable from Python. Spy on
+        # the one call Snowpark actually makes instead of reading the buffer.
+        patch.object(
+            telemetry_obj,
+            "try_add_log_to_batch",
+            side_effect=self._captured_logs.append,
+        ).start()
 
     def extract_telemetry_log_data(self, index, partial_func) -> Tuple[Dict, str, Any]:
         """Extracts telemetry data, telemetry type from the log batch and result of running partial_func."""
-        telemetry_obj = self.session._conn._telemetry_client.telemetry
-
         result = partial_func()
-        message_log = telemetry_obj._log_batch
+        message_log = self._captured_logs
 
         if len(message_log) < abs(index):
-            # if current message_log is smaller than requested index, this means that we just
-            # send a batch of messages and reset message log. We will re-run our function to
-            # refill our message log and extract the message. This assumes that the requested
-            # index is appropriate and will be fill once the function is called again.
+            # not enough captured entries yet for the requested index (e.g. this
+            # is the first call); re-run to produce more.
             result = partial_func()
-            message_log = telemetry_obj._log_batch
+            message_log = self._captured_logs
 
         message = message_log[index].to_dict()["message"]
         data = message.get(TelemetryField.KEY_DATA.value, None)
@@ -78,18 +84,14 @@ class TelemetryDataTracker:
         return data, type_, result
 
     def find_message_in_log_data(self, size, partial_func, expected_data) -> bool:
-        telemetry_obj = self.session._conn._telemetry_client.telemetry
-
         partial_func()
-        message_log = telemetry_obj._log_batch
+        message_log = self._captured_logs
 
         if len(message_log) < size:
-            # if current message_log is smaller than requested size, this means that we just
-            # send a batch of messages and reset message log. We will re-run our function to
-            # refill our message log and extract the message. This assumes that the requested
-            # size is appropriate and will be fill once the function is called again.
+            # not enough captured entries yet for the requested size; re-run to
+            # produce more.
             partial_func()
-            message_log = telemetry_obj._log_batch
+            message_log = self._captured_logs
 
         # we search for messages in reverse until we hit
         for message in message_log[: -(size + 1) : -1]:

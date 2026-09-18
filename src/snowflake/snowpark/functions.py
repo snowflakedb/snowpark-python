@@ -13173,40 +13173,27 @@ def ai_extract(
     else:
         ast = None
 
-    # Use named-argument form when scores or config is requested
-    if scores is not None or config is not None:
-        response_format_col = sql_expr(
-            _python_obj_to_sql_literal(response_format), is_constant=True
-        )
-        # Detect file vs text input: TO_FILE() calls produce a FunctionExpression named "to_file"
-        is_file = (
-            isinstance(input_col, Column)
-            and isinstance(input_col._expr1, FunctionExpression)
-            and input_col._expr1.name.upper() == "TO_FILE"
-        )
-        input_key = "file" if is_file else "text"
-        call_kwargs: Dict[str, Column] = {
-            input_key: input_col,
-            "responseFormat": response_format_col,
-        }
-        if config is not None:
-            call_kwargs["config"] = sql_expr(
-                _python_obj_to_sql_literal(config), is_constant=True
-            )
-        if scores is not None:
-            call_kwargs["scores"] = lit(scores)
-        return _call_named_arguments_function(
-            sql_func_name, call_kwargs, _ast=ast, _emit_ast=_emit_ast
-        )
-
-    # Default: positional form (backward-compatible)
+    # Keep input and response_format positional so Snowflake's server-side
+    # overload resolution (FILE vs. TEXT) works correctly for all input types.
     response_format_col = sql_expr(
         _python_obj_to_sql_literal(response_format), is_constant=True
     )
+    call_args = [input_col, response_format_col]
+    if scores is not None:
+        call_args.append(
+            sql_expr(
+                f"scores => {_python_obj_to_sql_literal(scores)}", is_constant=True
+            )
+        )
+    if config is not None:
+        call_args.append(
+            sql_expr(
+                f"config => {_python_obj_to_sql_literal(config)}", is_constant=True
+            )
+        )
     return _call_function(
         sql_func_name,
-        input_col,
-        response_format_col,
+        *call_args,
         _ast=ast,
         _emit_ast=_emit_ast,
     )
@@ -14634,16 +14621,15 @@ def ai_redact(
             all supported PII categories are redacted. Example categories include
             ``'NAME'``, ``'EMAIL'``, ``'PHONE_NUMBER'``, ``'ADDRESS'``, ``'NATIONAL_ID'``.
         mode: Operating mode. Either ``'redact'`` (default) to replace PII with
-            placeholder labels (e.g. ``[NAME]``), or ``'detect'`` to return an
-            object with metadata about each detected PII span without modifying
-            the text.
+            placeholder labels (e.g. ``[NAME]``), or ``'detect'`` to return
+            metadata about each detected PII span without modifying the text.
         return_error_details: When ``True``, returns an OBJECT with ``value`` and
             ``error`` fields instead of returning NULL on failure.
 
     Returns:
         In ``'redact'`` mode (default): a VARCHAR with PII replaced by placeholder labels.
 
-        In ``'detect'`` mode: an OBJECT with a ``spans`` array, where each entry contains:
+        In ``'detect'`` mode: an ARRAY of OBJECTs, where each entry contains:
 
             - ``category``: The PII category name.
             - ``start`` / ``end``: Character offsets of the PII span in the original text.
@@ -14678,7 +14664,10 @@ def ai_redact(
         ...     ai_redact('Contact John at 555-1234', mode='detect').alias("detected")
         ... )
         >>> result = df.collect()[0][0]
-        >>> 'spans' in result
+        >>> import json
+        >>> spans = json.loads(result) if isinstance(result, str) else result
+        >>> spans = spans['spans'] if isinstance(spans, dict) else spans
+        >>> isinstance(spans, list) and spans[0]['category'] in ('NAME', 'PHONE_NUMBER')
         True
     """
     sql_func_name = "ai_redact"

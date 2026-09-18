@@ -10,9 +10,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from snowflake.connector.network import ReauthenticationRequest
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
+from snowflake.snowpark._internal.utils import IS_V5_DRIVER
+
+if IS_V5_DRIVER:
+    from snowflake.connector.errors import ReauthenticationRequest
+else:
+    from snowflake.connector.network import ReauthenticationRequest
 from snowflake.snowpark.exceptions import (
     SnowparkFetchDataException,
     SnowparkQueryCancelledException,
@@ -95,7 +100,11 @@ def test_run_query_exceptions(mock_server_connection, caplog):
     mock_server_connection._cursor.execute.return_value = mock_server_connection._cursor
     mock_server_connection._cursor.sfqid = "fake id"
     mock_server_connection._cursor.query = "fake query"
-    mock_server_connection._cursor._request_id = "1234"
+    mock_server_connection._cursor._query_result_format = "arrow"
+    if IS_V5_DRIVER:
+        mock_server_connection._cursor.request_id = "1234"
+    else:
+        mock_server_connection._cursor._request_id = "1234"
     with mock.patch.object(
         mock_server_connection._cursor,
         "fetch_pandas_all",
@@ -237,3 +246,30 @@ def test_existing_application_param_not_overwritten(mock_server_connection):
             mock_server_connection._lower_case_parameters["application"]
             == "existing_app"
         )
+
+
+@pytest.mark.skipif(not IS_V5_DRIVER, reason="force_json_fallback only applies to v5+")
+@pytest.mark.parametrize(
+    "from_query_id,expected_pandas_fetch",
+    [(False, False), (True, True)],
+)
+def test_to_data_or_iter_exempts_query_id_results_from_json_fallback(
+    mock_server_connection, from_query_id, expected_pandas_fetch
+):
+    """A JSON-format result loaded by query id is fetched as pandas, not through the fallback.
+
+    Pre-v5 drivers load such a result by re-running RESULT_SCAN, so their format
+    reads "arrow" there and the fallback never ran.
+    """
+    cursor = MagicMock()
+    cursor.sfqid = "fake id"
+    cursor._query_result_format = "json"
+
+    result = mock_server_connection._to_data_or_iter(
+        cursor, to_pandas=True, from_query_id=from_query_id
+    )["data"]
+
+    assert cursor.fetch_pandas_all.called is expected_pandas_fetch
+    assert cursor.fetchall.called is not expected_pandas_fetch
+    if expected_pandas_fetch:
+        assert result is not cursor.fetchall.return_value

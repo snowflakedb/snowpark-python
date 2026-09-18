@@ -25,11 +25,10 @@ from typing import (
 )
 
 from snowflake.connector import SnowflakeConnection, connect
-from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
+from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import Error, NotSupportedError, ProgrammingError
-from snowflake.connector.network import ReauthenticationRequest
-from snowflake.connector.options import pandas
+from snowflake.snowpark._internal.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
@@ -54,6 +53,7 @@ from snowflake.snowpark._internal.telemetry import (
     get_plan_telemetry_metrics,
 )
 from snowflake.snowpark._internal.utils import (
+    IS_V5_DRIVER,
     create_rlock,
     create_thread_local,
     escape_quotes,
@@ -69,6 +69,11 @@ from snowflake.snowpark._internal.utils import (
     result_set_to_rows,
     unwrap_stage_location_single_quote,
 )
+
+if IS_V5_DRIVER:
+    from snowflake.connector.errors import ReauthenticationRequest
+else:
+    from snowflake.connector.network import ReauthenticationRequest
 from snowflake.snowpark import context
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.query_history import QueryListener, QueryRecord
@@ -81,6 +86,9 @@ if TYPE_CHECKING:
         ResultMetadataV2 = ResultMetadata
 
 logger = getLogger(__name__)
+
+# backward compatibility constant
+ENV_VAR_PARTNER = "SF_PARTNER"
 
 # parameters needed for usage tracking
 PARAM_APPLICATION = "application"
@@ -459,7 +467,9 @@ class ServerConnection:
             )
             raise ex
 
-        notify_kwargs["requestId"] = str(results_cursor._request_id)
+        notify_kwargs["requestId"] = str(
+            results_cursor.request_id if IS_V5_DRIVER else results_cursor._request_id
+        )
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query), **notify_kwargs
         )
@@ -577,14 +587,30 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         to_arrow: bool = False,
+        from_query_id: bool = False,
     ) -> Dict[str, Any]:
         qid = results_cursor.sfqid
         if to_iter:
             new_cursor = results_cursor.connection.cursor()
             new_cursor.get_results_from_sfqid(qid)
             results_cursor = new_cursor
+            from_query_id = True
 
-        if to_pandas:
+        # Python Driver v5+ supports pandas conversion from JSON-format result
+        # sets, but results slightly differ from output of Snowpark's custom
+        # fallback. Enforce Snowpark's fallback for backwards compatibility.
+        #
+        # from_query_id exception - pre-v5 driver loads such a result by re-running
+        # RESULT_SCAN (default arrow format), v5+ uses REST API getting
+        # the original statement's format.
+        force_json_fallback = (
+            to_pandas
+            and IS_V5_DRIVER
+            and not from_query_id
+            and results_cursor._query_result_format != "arrow"
+        )
+
+        if to_pandas and not force_json_fallback:
             try:
                 data_or_iter = (
                     map(
@@ -600,15 +626,15 @@ class ServerConnection:
                     )
                 )
             except NotSupportedError:
-                data_or_iter = (
-                    iter(results_cursor) if to_iter else results_cursor.fetchall()
-                )
+                data_or_iter = _json_fallback(results_cursor, to_iter)
             except KeyboardInterrupt:
                 raise
             except BaseException as ex:
                 raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
                     str(ex)
                 )
+        elif to_pandas:
+            data_or_iter = _json_fallback(results_cursor, to_iter)
         elif to_arrow:
             data_or_iter = (
                 results_cursor.fetch_arrow_batches()
@@ -616,9 +642,7 @@ class ServerConnection:
                 else results_cursor.fetch_arrow_all(True)
             )
         else:
-            data_or_iter = (
-                iter(results_cursor) if to_iter else results_cursor.fetchall()
-            )
+            data_or_iter = _json_fallback(results_cursor, to_iter)
 
         return {"data": data_or_iter, "sfqid": qid}
 
@@ -993,6 +1017,12 @@ class ServerConnection:
             if self._conn._session_parameters
             else default_value
         )
+
+
+def _json_fallback(
+    results_cursor: SnowflakeCursor, to_iter: bool
+) -> Union[Iterator[Tuple], List[Tuple]]:
+    return iter(results_cursor) if to_iter else results_cursor.fetchall()
 
 
 def _fix_pandas_df_fixed_type(
