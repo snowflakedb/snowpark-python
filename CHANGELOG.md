@@ -8,6 +8,7 @@
 
 #### Bug Fixes
 
+- Fixed `pandas_udf` with an explicit `packages` list omitting pandas when using a non-conda artifact repository (PyPI / Python 3.14 default).
 - Fixed `Session.write_pandas` raising a raw connector error instead of Snowpark's table-does-not-exist message when the target table was missing and `auto_create_table=False`.
 - Fixed `ai_extract` misrouting FILE-type inputs to the TEXT overload when `scores` or `config` were also supplied.
 - Fixed the nullable `FILE` column schema expression.
