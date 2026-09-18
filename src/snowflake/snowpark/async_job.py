@@ -7,9 +7,8 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
-from snowflake.connector.cursor import ASYNC_RETRY_PATTERN
 from snowflake.connector.errors import DatabaseError
-from snowflake.connector.options import pandas
+from snowflake.snowpark._internal.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
@@ -26,6 +25,8 @@ if TYPE_CHECKING:
     import snowflake.snowpark.session
 
 _logger = getLogger(__name__)
+
+ASYNC_RETRY_PATTERN = [1, 1, 2, 3, 4, 8, 10]
 
 
 class _AsyncResultType(Enum):
@@ -435,11 +436,11 @@ class AsyncJob:
             result = None
         elif async_result_type == _AsyncResultType.PANDAS:
             result = self._session._conn._to_data_or_iter(
-                self._cursor, to_pandas=True, to_iter=False
+                self._cursor, to_pandas=True, to_iter=False, from_query_id=True
             )["data"]
         elif async_result_type == _AsyncResultType.PANDAS_BATCH:
             result = self._session._conn._to_data_or_iter(
-                self._cursor, to_pandas=True, to_iter=True
+                self._cursor, to_pandas=True, to_iter=True, from_query_id=True
             )["data"]
         else:
             result_data = self._cursor.fetchall()

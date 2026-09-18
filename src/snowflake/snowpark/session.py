@@ -42,7 +42,7 @@ from packaging.version import parse as parse_version
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
-from snowflake.connector.options import installed_pandas, pandas, pyarrow
+from snowflake.snowpark._internal.options import installed_pandas, pandas, pyarrow
 from snowflake.connector.pandas_tools import write_pandas
 
 from snowflake.snowpark import UDFProfiler
@@ -3628,7 +3628,8 @@ class Session:
                         **kwargs,
                     )
         except ProgrammingError as pe:
-            if pe.msg.endswith("does not exist"):
+            msg = getattr(pe, "raw_msg", pe.msg)
+            if msg.endswith("does not exist"):
                 raise SnowparkClientExceptionMessages.DF_PANDAS_TABLE_DOES_NOT_EXIST_EXCEPTION(
                     location
                 ) from pe

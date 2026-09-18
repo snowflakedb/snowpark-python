@@ -74,6 +74,16 @@ def test_snowpark_pandas_telemetry_method_decorator(send_mock, test_table_name):
     """
     Test one of two telemetry decorators: snowpark_pandas_telemetry_method_decorator
     """
+    session = snowflake.snowpark.session._get_active_session()
+    telemetry_client = session._conn._telemetry_client.telemetry
+    captured_logs = []
+    # The Universal Driver moves the batch buffer into the Rust core, so
+    # `telemetry_client._log_batch` is no longer readable from Python. Spy on
+    # the one call Snowpark actually makes instead of reading the buffer.
+    patch.object(
+        telemetry_client, "try_add_log_to_batch", side_effect=captured_logs.append
+    ).start()
+
     df1 = pd.DataFrame([[1, np.nan], [3, 4]], index=[1, 0])
     # Test in place lazy API: df1 api_call_list should contain lazy.
     df1._query_compiler.snowpark_pandas_api_calls.clear()
@@ -127,10 +137,7 @@ def test_snowpark_pandas_telemetry_method_decorator(send_mock, test_table_name):
     assert len(data[0]["sfqids"]) > 0
     assert data[0]["func_name"] == "DataFrame.to_snowflake"
     # Test telemetry in python connector satisfy json format
-    telemetry_client = (
-        df1._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry
-    )
-    body = {"logs": [x.to_dict() for x in telemetry_client._log_batch]}
+    body = {"logs": [x.to_dict() for x in captured_logs]}
     # If any previous REST request failed to send telemetry, telemetry_client._enabled would be set to False
     assert (
         telemetry_client._enabled
