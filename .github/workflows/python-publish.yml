@@ -22,9 +22,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
     - name: Set up Python
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@3542bca2639a428e1796aaa6a2ffef0c0f575566 # v3.1.4
       with:
         python-version: '3.11'
     - name: Install dependencies
@@ -73,6 +73,11 @@ jobs:
         done
     - name: List artifacts after sign
       run: ls ./dist
+    - name: Record artifact digests
+      # Snapshot the digests of the signed, verified distributions so that any
+      # substitution of dist/* by a later step can be detected.
+      run: |
+        sha256sum dist/* | tee dist.sha256
     - name: Copy files to release
       run: |
         gh release upload ${{ github.event.release.tag_name }} *.sigstore
@@ -80,8 +85,19 @@ jobs:
         gh release upload ${{ github.event.release.tag_name }} *.crt
       env:
         GITHUB_TOKEN: ${{ github.TOKEN }}
+    - name: Verify artifact digests before publish
+      # Fail the release before anything is uploaded if the signed
+      # distributions no longer match what sigstore verified above.
+      run: |
+        sha256sum --check --strict dist.sha256
     - name: Publish package
-      uses: pypa/gh-action-pypi-publish@release/v1
+      uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
       with:
         user: __token__
         password: ${{ secrets.PYPI_API_TOKEN }}
+    - name: Verify artifact digests after publish
+      # Defence in depth: detect a third-party publish action that swapped a
+      # distribution in the shared workspace before uploading it to PyPI.
+      if: always()
+      run: |
+        sha256sum --check --strict dist.sha256
