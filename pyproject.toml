@@ -8,6 +8,11 @@ requires = [
     # whose extensions_pb2.py was generated with protobuf 6.x gencode and fails at import
     # time when the isolated venv resolves protobuf 5.x (Snowflake internal channel).
     "mypy-protobuf<=3.6.0; python_version >= '3.14'",
-    "mypy-protobuf; python_version < '3.14'", # used in generating typed Python code from protobuf for Snowpark IR
+    # Exact-version pinned (CWE-829): protoc-gen-mypy is executed during the build, so an
+    # unpinned resolve lets a newly published mypy-protobuf run arbitrary code in the
+    # release job. 5.1.0 is the version the unpinned spec already installed, so this pin
+    # is status-quo-preserving; do not "align" it with the 3.6.0 pin above, which emits
+    # materially different .pyi stubs and would be a silent downgrade.
+    "mypy-protobuf==5.1.0; python_version < '3.14'", # used in generating typed Python code from protobuf for Snowpark IR
 ]
 build-backend = "setuptools.build_meta"
