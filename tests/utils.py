@@ -78,6 +78,13 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 
+# Prefer the snowpark shim (connector v5 drops connector.options). Fall back
+# so prepared tests still collect against released snowpark (e.g. 1.55.0).
+try:
+    from snowflake.snowpark._internal.options import installed_pandas
+except ModuleNotFoundError:
+    from snowflake.connector.options import installed_pandas
+
 IS_WINDOWS = platform.system() == "Windows"
 IS_MACOS = platform.system() == "Darwin"
 IS_LINUX = platform.system() == "Linux"
