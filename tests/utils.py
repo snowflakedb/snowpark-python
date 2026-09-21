@@ -83,7 +83,9 @@ from snowflake.snowpark.types import (
 try:
     from snowflake.snowpark._internal.options import installed_pandas
 except ModuleNotFoundError:
-    from snowflake.connector.options import installed_pandas
+    from snowflake.connector import options as connector_options
+
+    installed_pandas = connector_options.installed_pandas
 
 IS_WINDOWS = platform.system() == "Windows"
 IS_MACOS = platform.system() == "Darwin"
