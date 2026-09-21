@@ -17,6 +17,8 @@ echo "${SCRIPT_NAME} is running... "
 PROTOC_VERSION=3.20.1
 PROTOC_OS_ARCH=""
 PROTOC_ZIP=""
+PROTOC_SHA256=""
+DOWNLOAD_ATTEMPTS=3
 
 buildProtocZIPName() {
   PROTOC_ZIP=protoc-${PROTOC_VERSION}-${PROTOC_OS_ARCH}.zip
@@ -30,12 +32,15 @@ getOSNameAndArch(){
   case "${KERNEL_TYPE}" in
       linux)
         PROTOC_OS_ARCH="linux-x86_64"
+        PROTOC_SHA256="3a0e900f9556fbcac4c3a913a00d07680f0fdf6b990a341462d822247b265562"
         ;;
       darwin)
         PROTOC_OS_ARCH="osx-x86_64"
+        PROTOC_SHA256="b4f36b18202d54d343a66eebc9f8ae60809a2a96cc2d1b378137550bbe4cf33c"
         ;;
       mingw64* | msys* | cygwin*)
         PROTOC_OS_ARCH="win64"
+        PROTOC_SHA256="897bf86b9c989f91c4171c7f99e3886fedfceb077a94dd150f1401cfe922cd46"
         ;;
       * )
         echo "Your Operating System ${KERNEL_TYPE} -> ITS NOT SUPPORTED"
@@ -44,15 +49,53 @@ getOSNameAndArch(){
   esac
 }
 
+sha256Of() {
+  # sha256sum on Linux and Git Bash, shasum on macOS.
+  if command -v sha256sum > /dev/null 2>&1; then
+    sha256sum "$1" | cut -d ' ' -f 1
+  else
+    shasum -a 256 "$1" | cut -d ' ' -f 1
+  fi
+}
 
 downloadProtoc() {
   URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP}"
 
   echo "Downloading ${PROTOC_ZIP} at ${URL}"
 
-  mkdir ${HOME}/local
+  mkdir -p "${HOME}/local"
 
-  curl -L -o "${PROTOC_ZIP}" "${URL}"
+  # The release is fetched unauthenticated, so GitHub throttles it per runner IP
+  # and answers with a short error body instead of the archive. Without --fail
+  # curl stores that body as the .zip and the run dies later in unzip, so the
+  # download is both status-checked and digest-checked before it is trusted.
+  ATTEMPT=1
+  while true; do
+    rm -f "${PROTOC_ZIP}"
+
+    if curl --fail --location --silent --show-error \
+            --retry 5 --retry-delay 5 --retry-connrefused \
+            --connect-timeout 30 --max-time 300 \
+            -o "${PROTOC_ZIP}" "${URL}"; then
+      ACTUAL_SHA256=$(sha256Of "${PROTOC_ZIP}")
+      if [ "${ACTUAL_SHA256}" = "${PROTOC_SHA256}" ]; then
+        break
+      fi
+      echo "Checksum mismatch for ${PROTOC_ZIP} ($(wc -c < "${PROTOC_ZIP}" | tr -d ' ') bytes)"
+      echo "  expected ${PROTOC_SHA256}"
+      echo "  actual   ${ACTUAL_SHA256}"
+    fi
+
+    if [ "${ATTEMPT}" -ge "${DOWNLOAD_ATTEMPTS}" ]; then
+      echo "Could not download a valid ${PROTOC_ZIP} after ${DOWNLOAD_ATTEMPTS} attempts"
+      exit 1
+    fi
+
+    ATTEMPT=$((ATTEMPT + 1))
+    echo "Retrying download (attempt ${ATTEMPT} of ${DOWNLOAD_ATTEMPTS})..."
+    sleep $((ATTEMPT * 5))
+  done
+
   unzip -o "${PROTOC_ZIP}" -d  ${HOME}/local
   echo "$HOME/local/bin" >> $GITHUB_PATH
 }
