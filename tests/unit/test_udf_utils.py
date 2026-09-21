@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.context import (
     _ANACONDA_SHARED_REPOSITORY,
     _DEFAULT_ARTIFACT_REPOSITORY,
+    _PYPI_SHARED_REPOSITORY,
 )
 from snowflake.snowpark.types import StringType
 from snowflake.snowpark.version import VERSION
@@ -488,3 +489,92 @@ def test_resolve_imports_and_packages_non_conda_injects_cloudpickle_ge():
     assert all_packages is not None
     assert f"cloudpickle>={cloudpickle.__version__}" in all_packages
     assert f"cloudpickle=={cloudpickle.__version__}" not in all_packages
+
+
+def _package_names(all_packages: str):
+    from packaging.requirements import Requirement
+
+    names = []
+    for part in all_packages.split(","):
+        spec = part.strip().strip("'")
+        if spec:
+            try:
+                names.append(Requirement(spec).name.lower())
+            except Exception:
+                names.append(spec.lower())
+    return names
+
+
+def _resolve_ar_packages(session, packages, is_pandas_udf):
+    def _call():
+        _, _, _, all_packages, _, _ = resolve_imports_and_packages(
+            session=session,
+            object_type=TempObjectType.FUNCTION,
+            func=lambda x: x,
+            arg_names=["x"],
+            udf_name="test_udf",
+            stage_location=None,
+            imports=None,
+            packages=packages,
+            is_pandas_udf=is_pandas_udf,
+            is_dataframe_input=False,
+            artifact_repository=_PYPI_SHARED_REPOSITORY,
+        )
+        return all_packages
+
+    if session is None:
+        return _call()
+    with mock.patch.object(session, "get_session_stage", return_value="@test_stage"):
+        with mock.patch.object(session, "_resolve_imports", return_value=[]):
+            return _call()
+
+
+# SNOW-4130609: PyPI AR + explicit packages now injects pandas for pandas_udf.
+
+
+def test_ar_pandas_udf_explicit_packages_injects_pandas(session):
+    names = _package_names(_resolve_ar_packages(session, ["numpy"], True))
+    assert {"numpy", "cloudpickle", "pandas"} <= set(names)
+    assert names.count("pandas") == 1
+
+
+def test_ar_regular_udf_explicit_packages_does_not_inject_pandas(session):
+    names = _package_names(_resolve_ar_packages(session, ["numpy"], False))
+    assert {"numpy", "cloudpickle"} <= set(names)
+    assert "pandas" not in names
+
+
+def test_ar_pandas_udf_does_not_duplicate_explicit_pandas(session):
+    all_packages = _resolve_ar_packages(session, ["numpy", "pandas>=2.0"], True)
+    assert _package_names(all_packages).count("pandas") == 1
+    assert "pandas>=2.0" in all_packages
+
+
+def test_ar_pandas_udf_packages_none_still_injects_pandas(session):
+    names = _package_names(_resolve_ar_packages(session, None, True))
+    assert "pandas" in names
+
+
+def test_ar_explicit_packages_ignore_session_packages(session):
+    pkg_dict = session._get_packages_by_artifact_repository(_PYPI_SHARED_REPOSITORY)
+    pkg_dict["numpy"] = "numpy==1.26.0"
+    names = _package_names(_resolve_ar_packages(session, ["cloudpickle"], False))
+    assert "numpy" not in names
+    assert pkg_dict == {"numpy": "numpy==1.26.0"}
+
+
+def test_ar_non_str_packages_raise_typeerror(session):
+    with pytest.raises(
+        TypeError,
+        match="Non-conda artifact repository requires that all packages be passed as str",
+    ):
+        _resolve_ar_packages(session, [1], False)
+
+
+def test_sandbox_ar_pandas_udf_unparseable_spec_still_injects_pandas():
+    # Requirement() raises on this spec, so the startswith fallback must run.
+    names = _package_names(
+        _resolve_ar_packages(None, ["numpy", "invalid package!!!"], True)
+    )
+    assert "pandas" in names
+    assert names.count("pandas") == 1
