@@ -1974,6 +1974,51 @@ class Session:
             package_dict[package] = (package_name, use_local_version, package_req)
         return package_dict
 
+    @staticmethod
+    def _anaconda_package_spec(
+        package_name: str,
+        package: str,
+        package_req: Requirement,
+        valid_versions: Optional[List[str]],
+    ) -> str:
+        """Rewrite an exact pin to the Anaconda catalog's literal version string.
+
+        Snowflake's ``PACKAGES`` clause matches catalog versions as raw strings, while
+        Snowpark validates availability with PEP 440. Pins such as
+        ``python-dateutil==2.9.0.post0`` therefore pass client-side checks against
+        ``2.9.0post0+snowflake1`` and are then rejected by the server.
+
+        Only exact ``==`` pins are rewritten. Ranges and prefix matches (``==2.3.*``)
+        are left unchanged because the server already accepts those specifiers.
+        """
+        if not valid_versions or not package_req.specifier:
+            return package
+        specifiers = list(package_req.specifier)
+        if (
+            len(specifiers) != 1
+            or specifiers[0].operator != "=="
+            or str(specifiers[0].version).endswith(".*")
+        ):
+            return package
+        requested = str(specifiers[0].version)
+        if requested in valid_versions:
+            return package
+        matches = [v for v in valid_versions if package_req.specifier.contains(v)]
+        if not matches:
+            return package
+        try:
+            requested_public = parse_version(requested).public
+        except Exception:
+            return f"{package_name}=={matches[0]}"
+        preferred: List[str] = []
+        for version in matches:
+            try:
+                if parse_version(version).public == requested_public:
+                    preferred.append(version)
+            except Exception:
+                continue
+        return f"{package_name}=={(preferred or matches)[0]}"
+
     def _get_dependency_packages(
         self,
         package_dict: Dict[str, Tuple[str, bool, Requirement]],
@@ -2098,6 +2143,14 @@ class Session:
                                 package_name,
                                 ex,
                             )
+
+            if validate_package and valid_packages:
+                package = Session._anaconda_package_spec(
+                    package_name,
+                    package,
+                    package_req,
+                    valid_packages.get(package_name),
+                )
 
             if package_name in current_packages:
                 if current_packages[package_name] != package:

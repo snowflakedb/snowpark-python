@@ -289,6 +289,86 @@ def test_resolve_packages_side_effect(mock_server_connection):
     assert len(existing_packages) == 1, existing_packages
 
 
+@pytest.mark.parametrize(
+    "package, valid_versions, expected",
+    [
+        (
+            "python-dateutil==2.9.0.post0",
+            ["2.8.2", "2.8.3+snowflake1", "2.9.0post0+snowflake1"],
+            "python-dateutil==2.9.0post0+snowflake1",
+        ),
+        (
+            "certifi==2026.2.25",
+            ["2026.01.04", "2026.02.25"],
+            "certifi==2026.02.25",
+        ),
+        (
+            "dbt-core==1.9.4b0",
+            ["1.9.4b", "1.9.4"],
+            "dbt-core==1.9.4b",
+        ),
+        (
+            "pandas==2.3.*",
+            ["2.2.3", "2.3.3"],
+            "pandas==2.3.*",
+        ),
+        (
+            "numpy",
+            ["1.26.3", "2.0.2"],
+            "numpy",
+        ),
+        (
+            "python-dateutil==2.9.0.post0",
+            ["2.9.0.post0"],
+            "python-dateutil==2.9.0.post0",
+        ),
+    ],
+)
+def test_anaconda_package_spec(package, valid_versions, expected):
+    from packaging.requirements import Requirement
+
+    req = Requirement(package)
+    assert (
+        Session._anaconda_package_spec(req.name, package, req, valid_versions)
+        == expected
+    )
+
+
+def test_resolve_packages_rewrites_pep440_pin_to_catalog_string(
+    mock_server_connection,
+):
+    def mock_get_information_schema_packages(table_name: str, _emit_ast: bool = True):
+        result = MagicMock()
+        result.filter().group_by().agg()._internal_collect_with_tag.return_value = [
+            (
+                "python-dateutil",
+                json.dumps(
+                    ["2.8.1", "2.8.2", "2.8.3+snowflake1", "2.9.0post0+snowflake1"]
+                ),
+            )
+        ]
+        return result
+
+    session = Session(mock_server_connection)
+    session.table = MagicMock(name="session.table")
+    session.table.side_effect = mock_get_information_schema_packages
+
+    existing_packages = {}
+    resolved = session._resolve_packages(
+        ["python-dateutil==2.9.0.post0"],
+        artifact_repository=_ANACONDA_SHARED_REPOSITORY,
+        existing_packages_dict=existing_packages,
+        validate_package=True,
+        include_pandas=False,
+    )
+
+    assert existing_packages == {
+        "python-dateutil": "python-dateutil==2.9.0post0+snowflake1"
+    }
+    assert "python-dateutil==2.9.0post0+snowflake1" in resolved
+    assert "python-dateutil==2.9.0.post0" not in resolved
+
+
 def test_resolve_packages_suppresses_internal_warning(mock_server_connection, caplog):
     session = Session(mock_server_connection)
 
