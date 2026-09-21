@@ -8,6 +8,8 @@ import pickle
 import threading
 from unittest import mock
 
+from tests.utils import IS_PY314
+
 import pytest
 
 from snowflake.snowpark import Session
@@ -578,3 +580,69 @@ def test_sandbox_ar_pandas_udf_unparseable_spec_still_injects_pandas():
     )
     assert "pandas" in names
     assert names.count("pandas") == 1
+
+
+@pytest.mark.parametrize(
+    "object_type",
+    [TempObjectType.FUNCTION, TempObjectType.PROCEDURE],
+)
+def test_pypi_udf_and_sproc_keep_pep440_package_pin(mock_server_connection, object_type):
+    """PyPI resolution (the Python 3.14+ default) must not rewrite pins to Anaconda catalog strings."""
+    session = Session(mock_server_connection)
+    pin = "python-dateutil==2.9.0.post0"
+    with mock.patch.object(session, "get_session_stage", return_value="@test_stage"):
+        with mock.patch.object(session, "_resolve_imports", return_value=[]):
+            _, _, _, all_packages, _, _ = resolve_imports_and_packages(
+                session=session,
+                object_type=object_type,
+                func=lambda: None,
+                arg_names=[],
+                udf_name="test_obj",
+                stage_location=None,
+                imports=None,
+                packages=[pin],
+                is_pandas_udf=False,
+                is_dataframe_input=False,
+                artifact_repository=_PYPI_SHARED_REPOSITORY,
+            )
+    assert f"'{pin}'" in all_packages
+    assert "2.9.0post0+snowflake1" not in all_packages
+
+
+@pytest.mark.skipif(
+    not IS_PY314,
+    reason="Python 3.14+ UDFs and stored procedures default to the PyPI artifact repository",
+)
+@pytest.mark.parametrize(
+    "object_type",
+    [TempObjectType.FUNCTION, TempObjectType.PROCEDURE],
+)
+def test_py314_default_udf_and_sproc_keep_pep440_package_pin(
+    mock_server_connection, object_type
+):
+    session = Session(mock_server_connection)
+    pin = "python-dateutil==2.9.0.post0"
+    with mock.patch.object(
+        session,
+        "_get_default_artifact_repository",
+        return_value=_PYPI_SHARED_REPOSITORY,
+    ):
+        with mock.patch.object(session, "get_session_stage", return_value="@test_stage"):
+            with mock.patch.object(session, "_resolve_imports", return_value=[]):
+                with mock.patch.object(session, "table") as mock_table:
+                    _, _, _, all_packages, _, _ = resolve_imports_and_packages(
+                        session=session,
+                        object_type=object_type,
+                        func=lambda: None,
+                        arg_names=[],
+                        udf_name="test_obj",
+                        stage_location=None,
+                        imports=None,
+                        packages=[pin],
+                        is_pandas_udf=False,
+                        is_dataframe_input=False,
+                    )
+    mock_table.assert_not_called()
+    assert f"'{pin}'" in all_packages
+    assert "2.9.0post0+snowflake1" not in all_packages
+    assert _DEFAULT_ARTIFACT_REPOSITORY == _PYPI_SHARED_REPOSITORY

@@ -33,8 +33,10 @@ from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_
 from snowflake.snowpark.context import (
     _ANACONDA_SHARED_REPOSITORY,
     _DEFAULT_ARTIFACT_REPOSITORY,
+    _PYPI_SHARED_REPOSITORY,
 )
 from snowflake.snowpark.types import StructField, StructType
+from tests.utils import IS_PY314
 
 
 def test_aliases():
@@ -367,6 +369,60 @@ def test_resolve_packages_rewrites_pep440_pin_to_catalog_string(
     }
     assert "python-dateutil==2.9.0post0+snowflake1" in resolved
     assert "python-dateutil==2.9.0.post0" not in resolved
+
+
+def test_resolve_packages_pypi_keeps_pep440_pin(mock_server_connection):
+    """PyPI artifact repositories skip Anaconda catalog lookup, so PEP 440 pins are kept."""
+    session = Session(mock_server_connection)
+    existing_packages = {}
+    with mock.patch.object(session, "table") as mock_table:
+        resolved = session._resolve_packages(
+            ["python-dateutil==2.9.0.post0"],
+            artifact_repository=_PYPI_SHARED_REPOSITORY,
+            existing_packages_dict=existing_packages,
+            validate_package=True,
+            include_pandas=False,
+        )
+
+    mock_table.assert_not_called()
+    assert existing_packages == {"python-dateutil": "python-dateutil==2.9.0.post0"}
+    assert "python-dateutil==2.9.0.post0" in resolved
+    assert "2.9.0post0+snowflake1" not in ",".join(resolved)
+
+
+@pytest.mark.skipif(
+    not IS_PY314,
+    reason="Python 3.14+ UDFs and stored procedures default to the PyPI artifact repository",
+)
+def test_py314_default_artifact_repository_is_pypi():
+    assert _DEFAULT_ARTIFACT_REPOSITORY == _PYPI_SHARED_REPOSITORY
+
+
+@pytest.mark.skipif(
+    not IS_PY314,
+    reason="Python 3.14+ UDFs and stored procedures default to the PyPI artifact repository",
+)
+def test_py314_default_resolve_packages_does_not_rewrite_anaconda_pin(
+    mock_server_connection,
+):
+    session = Session(mock_server_connection)
+    existing_packages = {}
+    with mock.patch.object(
+        session,
+        "_get_default_artifact_repository",
+        return_value=_PYPI_SHARED_REPOSITORY,
+    ), mock.patch.object(session, "table") as mock_table:
+        resolved = session._resolve_packages(
+            ["python-dateutil==2.9.0.post0"],
+            existing_packages_dict=existing_packages,
+            validate_package=True,
+            include_pandas=False,
+        )
+
+    mock_table.assert_not_called()
+    assert existing_packages == {"python-dateutil": "python-dateutil==2.9.0.post0"}
+    assert "python-dateutil==2.9.0.post0" in resolved
+    assert "2.9.0post0+snowflake1" not in ",".join(resolved)
 
 
 def test_resolve_packages_suppresses_internal_warning(mock_server_connection, caplog):
