@@ -12,7 +12,6 @@ import pytest
 from unittest import mock
 
 import snowflake.snowpark.context as context
-from snowflake.snowpark._internal.options import installed_pandas
 from snowflake.snowpark import Row
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -61,6 +60,7 @@ from tests.utils import (
     TestFiles,
     Utils,
     iceberg_supported,
+    installed_pandas,
     structured_types_enabled_session,
     structured_types_supported,
     IS_IN_STORED_PROC,
