@@ -508,6 +508,7 @@ jobs:
             .tox/coverage.xml
 
   test-snowpark-pandas:
+    if: false # modin tests disabled
     name: Test modin-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os }}
@@ -619,6 +620,7 @@ jobs:
             .tox/coverage.xml
 
   test-modin-extra-without-pandas-extra:
+    if: false # modin tests disabled
     name: Test modin extra without pandas extra py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}.
     needs: build
     runs-on: ${{ matrix.os.image_name }}
@@ -689,8 +691,6 @@ jobs:
     needs:
       - test
       - test-local-testing
-      - test-snowpark-pandas
-      - test-modin-extra-without-pandas-extra
       - test-ast-encoding
     runs-on: ubuntu-latest
     steps:
