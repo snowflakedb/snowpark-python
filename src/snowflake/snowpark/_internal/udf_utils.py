@@ -1134,8 +1134,16 @@ def add_snowpark_package_to_sproc_packages(
 ) -> List[Union[str, ModuleType]]:
     major, minor, patch = VERSION
     package_name = "snowflake-snowpark-python"
-    # Use == to ensure that the remote version matches the local version
+    use_rollout_fallback = (
+        packages is None
+        and artifact_repository == _ANACONDA_SHARED_REPOSITORY
+        and VERSION == (1, 56, 0)
+        and cloudpickle.__version__ == "3.1.2"
+        and not (session and session.custom_package_usage_config.get("enabled", False))
+    )
     this_package = f"{package_name}=={major}.{minor}.{patch}"
+    if use_rollout_fallback:
+        this_package = f"{package_name}>=1.55.0,<=1.56.0"
 
     # When resolve_imports_and_packages is called below it will use the provided packages or
     # default to the packages in the current session. If snowflake-snowpark-python is not
@@ -1151,9 +1159,22 @@ def add_snowpark_package_to_sproc_packages(
                 )
                 if package_name not in existing_packages:
                     packages = list(existing_packages.values()) + [this_package]
-        return packages
+        if packages is None:
+            return None
+    else:
+        packages = add_package_to_existing_packages(
+            packages, package_name, this_package
+        )
 
-    return add_package_to_existing_packages(packages, package_name, this_package)
+    # During the 1.56 rollout, allow the backend to select the verified
+    # 1.55/3.1.1 pair until the 1.56/3.1.2 pair reaches the Anaconda channel.
+    return (
+        add_package_to_existing_packages(
+            packages, "cloudpickle", "cloudpickle>=3.1.1,<=3.1.2"
+        )
+        if use_rollout_fallback
+        else packages
+    )
 
 
 def add_package_to_existing_packages(
