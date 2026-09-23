@@ -265,10 +265,11 @@ def test_add_snowpark_package_to_sproc_packages_add_package(packages):
 
     major, minor, patch = VERSION
     package_name = "snowflake-snowpark-python"
-    final_name = f"{package_name}=={major}.{minor}.{patch}"
+    final_name = package_name
 
-    assert len(result) == old_packages_length + 1
+    assert len(result) == old_packages_length + 2
     assert final_name in result
+    assert "cloudpickle" in result
 
 
 def test_add_snowpark_package_to_sproc_packages_does_not_replace_package():
@@ -277,12 +278,23 @@ def test_add_snowpark_package_to_sproc_packages_does_not_replace_package():
         "random_package_two",
         "snowflake-snowpark-python==1.12.0",
     ]
+    old_packages_length = len(packages)
     result = add_snowpark_package_to_sproc_packages(
         session=None, packages=packages, artifact_repository=_ANACONDA_SHARED_REPOSITORY
     )
 
-    assert len(result) == len(packages)
+    assert len(result) == old_packages_length + 1
     assert "snowflake-snowpark-python==1.12.0" in result
+    assert "cloudpickle" in result
+
+
+def test_add_snowpark_package_to_sproc_packages_pypi_uses_exact_version():
+    result = add_snowpark_package_to_sproc_packages(
+        session=None, packages=None, artifact_repository=_PYPI_SHARED_REPOSITORY
+    )
+
+    major, minor, patch = VERSION
+    assert result == [f"snowflake-snowpark-python=={major}.{minor}.{patch}"]
 
 
 def test_add_snowpark_package_to_sproc_packages_to_session():
@@ -303,9 +315,10 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
 
     major, minor, patch = VERSION
     package_name = "snowflake-snowpark-python"
-    final_name = f"{package_name}=={major}.{minor}.{patch}"
-    assert len(result) == 3
+    final_name = package_name
+    assert len(result) == 4
     assert final_name in result
+    assert "cloudpickle" in result
 
     fake_session._packages[
         "snowflake-snowpark-python"

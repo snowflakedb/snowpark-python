@@ -1134,8 +1134,12 @@ def add_snowpark_package_to_sproc_packages(
 ) -> List[Union[str, ModuleType]]:
     major, minor, patch = VERSION
     package_name = "snowflake-snowpark-python"
-    # Use == to ensure that the remote version matches the local version
-    this_package = f"{package_name}=={major}.{minor}.{patch}"
+    use_backend_package_resolution = artifact_repository == _ANACONDA_SHARED_REPOSITORY
+    this_package = (
+        package_name
+        if use_backend_package_resolution
+        else f"{package_name}=={major}.{minor}.{patch}"
+    )
 
     # When resolve_imports_and_packages is called below it will use the provided packages or
     # default to the packages in the current session. If snowflake-snowpark-python is not
@@ -1151,9 +1155,21 @@ def add_snowpark_package_to_sproc_packages(
                 )
                 if package_name not in existing_packages:
                     packages = list(existing_packages.values()) + [this_package]
-        return packages
+        if packages is None:
+            return None
+    else:
+        packages = add_package_to_existing_packages(
+            packages, package_name, this_package
+        )
 
-    return add_package_to_existing_packages(packages, package_name, this_package)
+    # Let the backend solve Snowpark and cloudpickle together. This avoids a
+    # deployment gap when the client release reaches PyPI before the matching
+    # Snowpark package reaches the Anaconda channel.
+    return (
+        add_package_to_existing_packages(packages, "cloudpickle")
+        if use_backend_package_resolution
+        else packages
+    )
 
 
 def add_package_to_existing_packages(
