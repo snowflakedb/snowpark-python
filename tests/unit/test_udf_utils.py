@@ -265,11 +265,14 @@ def test_add_snowpark_package_to_sproc_packages_add_package(packages):
 
     major, minor, patch = VERSION
     package_name = "snowflake-snowpark-python"
-    final_name = package_name
-
-    assert len(result) == old_packages_length + 2
+    if packages is None:
+        final_name = f"{package_name}>=1.55.0,<=1.56.0"
+        assert len(result) == old_packages_length + 2
+        assert "cloudpickle>=3.1.1,<=3.1.2" in result
+    else:
+        final_name = f"{package_name}=={major}.{minor}.{patch}"
+        assert len(result) == old_packages_length + 1
     assert final_name in result
-    assert "cloudpickle" in result
 
 
 def test_add_snowpark_package_to_sproc_packages_does_not_replace_package():
@@ -278,14 +281,12 @@ def test_add_snowpark_package_to_sproc_packages_does_not_replace_package():
         "random_package_two",
         "snowflake-snowpark-python==1.12.0",
     ]
-    old_packages_length = len(packages)
     result = add_snowpark_package_to_sproc_packages(
         session=None, packages=packages, artifact_repository=_ANACONDA_SHARED_REPOSITORY
     )
 
-    assert len(result) == old_packages_length + 1
+    assert len(result) == len(packages)
     assert "snowflake-snowpark-python==1.12.0" in result
-    assert "cloudpickle" in result
 
 
 def test_add_snowpark_package_to_sproc_packages_pypi_uses_exact_version():
@@ -303,6 +304,7 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
         "random_package_one": "random_package_one",
         "random_package_two": "random_package_two",
     }
+    fake_session.custom_package_usage_config = {}
     fake_session._package_lock = threading.RLock()
     fake_session._get_packages_by_artifact_repository.side_effect = (
         lambda a: Session._get_packages_by_artifact_repository(fake_session, a)
@@ -315,10 +317,10 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
 
     major, minor, patch = VERSION
     package_name = "snowflake-snowpark-python"
-    final_name = package_name
+    final_name = f"{package_name}>=1.55.0,<=1.56.0"
     assert len(result) == 4
     assert final_name in result
-    assert "cloudpickle" in result
+    assert "cloudpickle>=3.1.1,<=3.1.2" in result
 
     fake_session._packages[
         "snowflake-snowpark-python"
