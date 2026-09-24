@@ -11,7 +11,6 @@ from unittest import mock
 import pytest
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark._internal.options import installed_pandas
 from snowflake.snowpark import Window
 from snowflake.snowpark._internal.analyzer import analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType, Query
@@ -45,7 +44,7 @@ import snowflake.snowpark.context as context
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils, installed_pandas
 
 pytestmark = [
     pytest.mark.skipif(
