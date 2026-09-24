@@ -38,7 +38,7 @@ test_package() {
 
     # Install required dependencies first
     echo "Installing dependencies..."
-    pip install "cloudpickle<=3.1.1" pyyaml snowflake-connector-python tzlocal python-dateutil protobuf
+    pip install "cloudpickle<=3.1.2" pyyaml snowflake-connector-python tzlocal python-dateutil protobuf
 
     # Install the package
     echo "Installing package: $(basename "$package_path")"
