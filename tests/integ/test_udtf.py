@@ -1587,3 +1587,147 @@ def test_udtf_artifact_repository_from_file(session, tmpdir):
             )
         ],
     )
+
+
+STAGED_HELPER_MODULE = dedent(
+    """
+    import pandas as pd
+
+
+    def module_level_count(pdf):
+        # module-level function: cloudpickle serializes it BY REFERENCE, so the
+        # UDTF genuinely needs this module importable at execution time
+        return pd.DataFrame([(int(pdf.GROUP_ID.iloc[0]), len(pdf))])
+
+
+    class UpliftLike:
+        def __init__(self, scale):
+            self.scale = scale
+
+        def make_fn_via_self(self):
+            def fn(pdf):
+                # closure touches self -> captures this staged class by reference
+                return pd.DataFrame(
+                    [(int(pdf.GROUP_ID.iloc[0]), len(pdf) * self.scale)]
+                )
+
+            return fn
+    """
+)
+
+# An absolute native app / clean room artifact stage path, the shape the platform seeds
+# into session imports inside a procedure declared with IMPORTS. It is deliberately
+# unresolvable from the UDTF-creating context, like an app package stage is to the
+# consumer role.
+UNRESOLVABLE_APP_PACKAGE_IMPORT = (
+    '@SNOWPARK_TEST_MISSING_APP_PKG."APP_ARTIFACTS_V1_0.82".APP_FILES'
+    "/helpers/snow4174500_helper.py"
+)
+
+
+@pytest.fixture
+def simulated_stored_procedure_imports(session, tmp_path):
+    """Reproduce the stored procedure runtime's import handling.
+
+    The platform (a) materializes the procedure's own IMPORTS flat on the local
+    filesystem and exposes that directory via ``snowflake_import_directory``,
+    (b) puts it on ``sys.path``, and (c) seeds ``session.get_imports()`` with the
+    *absolute* stage paths of those same files.
+    """
+    import sys
+
+    import snowflake.snowpark.session as session_module
+
+    helper_path = tmp_path / "snow4174500_helper.py"
+    helper_path.write_text(STAGED_HELPER_MODULE)
+
+    original_imports = session.get_imports()
+    original_xoption = sys._xoptions.get("snowflake_import_directory")
+    sys._xoptions["snowflake_import_directory"] = f"{tmp_path}{os.sep}"
+    sys.path.insert(0, str(tmp_path))
+    session.clear_imports()
+    session.add_import(UNRESOLVABLE_APP_PACKAGE_IMPORT)
+
+    with mock.patch.object(session_module, "is_in_stored_procedure", return_value=True):
+        import snow4174500_helper
+
+        yield snow4174500_helper
+
+    sys.modules.pop("snow4174500_helper", None)
+    sys.path.remove(str(tmp_path))
+    if original_xoption is None:
+        sys._xoptions.pop("snowflake_import_directory", None)
+    else:  # pragma: no cover
+        sys._xoptions["snowflake_import_directory"] = original_xoption
+    session.clear_imports()
+    for an_import in original_imports:
+        session.add_import(an_import)
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="the stored procedure runtime is simulated by this test"
+)
+@pytest.mark.parametrize("closure_shape", ["module_level", "method_self"])
+def test_apply_in_pandas_restages_inherited_stored_procedure_imports(
+    session, simulated_stored_procedure_imports, closure_shape
+):
+    """SNOW-4174500: apply_in_pandas must not weld an inherited, unresolvable app
+    package stage path onto its own temporary UDTF (002003 / 093023), and must not
+    simply drop the inherited import either -- by-reference closures need it and would
+    fail to unpickle with ModuleNotFoundError. The local copy is re-staged instead.
+    """
+    helper = simulated_stored_procedure_imports
+    if closure_shape == "module_level":
+        func = helper.module_level_count
+    else:
+        func = helper.UpliftLike(1).make_fn_via_self()
+
+    df = session.create_dataframe(
+        [(1, 10), (1, 20), (2, 30), (2, 40), (2, 50)], schema=["GROUP_ID", "VALUE"]
+    )
+    output_schema = StructType(
+        [StructField("GROUP_ID", IntegerType()), StructField("COUNT", IntegerType())]
+    )
+
+    with session.query_history() as history:
+        Utils.check_answer(
+            df.group_by("GROUP_ID").apply_in_pandas(func, output_schema),
+            [Row(1, 2), Row(2, 3)],
+        )
+
+    create_function_queries = [
+        query.sql_text
+        for query in history.queries
+        if "TEMPORARY  FUNCTION" in query.sql_text.upper().replace("\t", " ")
+        or "TEMPORARY FUNCTION" in query.sql_text.upper()
+    ]
+    assert create_function_queries, "expected a CREATE TEMPORARY FUNCTION to be emitted"
+    for sql_text in create_function_queries:
+        assert "SNOWPARK_TEST_MISSING_APP_PKG" not in sql_text
+        assert "snow4174500_helper" in sql_text
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="the stored procedure runtime is simulated by this test"
+)
+def test_apply_in_pandas_keeps_inherited_imports_when_restaging_disabled(
+    session, simulated_stored_procedure_imports
+):
+    """The escape hatch restores the previous behavior."""
+    helper = simulated_stored_procedure_imports
+    df = session.create_dataframe([(1, 10), (2, 30)], schema=["GROUP_ID", "VALUE"])
+    output_schema = StructType(
+        [StructField("GROUP_ID", IntegerType()), StructField("COUNT", IntegerType())]
+    )
+
+    session.conf.set("restage_stored_procedure_imports", False)
+    try:
+        with pytest.raises(SnowparkSQLException) as exc_info:
+            df.group_by("GROUP_ID").apply_in_pandas(
+                helper.module_level_count, output_schema
+            ).collect()
+        assert "SNOWPARK_TEST_MISSING_APP_PKG" in str(exc_info.value)
+    finally:
+        session.conf.set("restage_stored_procedure_imports", True)
