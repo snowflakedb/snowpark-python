@@ -136,6 +136,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
     CreateViewCommand,
+    Filter,
     Pivot,
     Sample,
     Project,
@@ -1082,6 +1083,18 @@ def execute_mock_plan(
         return table
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan, expr_to_alias)
+    if isinstance(source_plan, Filter):
+        child_df = execute_mock_plan(source_plan.child, expr_to_alias)
+        if child_df is None:
+            return TableEmulator()
+        condition = calculate_expression(
+            source_plan.condition, child_df, analyzer, expr_to_alias
+        )
+        filtered = child_df[condition.fillna(value=False)]
+        # Fix issue #4076: same pandas empty-df indexing edge case as MockSelectStatement where.
+        if len(filtered.columns) == 0 and len(child_df.columns) > 0:
+            filtered = child_df.iloc[0:0].copy()
+        return filtered
     if isinstance(source_plan, MockSelectStatement):
         projection: Optional[List[Expression]] = source_plan.projection or []
         from_: Optional[MockSelectable] = source_plan.from_
@@ -1161,7 +1174,16 @@ def execute_mock_plan(
 
         if where:
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
-            result_df = result_df[condition.fillna(value=False)]
+            filtered_result = result_df[condition.fillna(value=False)]
+            # Fix issue #4076: pandas df[boolean_mask] on empty DataFrame can return
+            # 0 columns (schemaless) due to index-alignment edge case. Row filtering
+            # should always preserve schema. We use iloc[0:0] when this happens.
+            if (
+                len(filtered_result.columns) == 0
+                and len(result_df.columns) > 0
+            ):
+                filtered_result = result_df.iloc[0:0].copy()
+            result_df = filtered_result
 
         if order_by:
             result_df = handle_order_by_clause(
