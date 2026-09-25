@@ -520,9 +520,32 @@ class Session:
             Adds the specified :class:`dict` of connection parameters to
             the :class:`SessionBuilder` configuration.
 
+            Args:
+                options: A dictionary mapping connection parameter names to their values.
+                    For supported parameters and their descriptions, see the
+                    `Snowflake Connector for Python connect parameters
+                    <https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-api#label-snowflake-connector-methods-connect>`_.
+
+            Returns:
+                This :class:`SessionBuilder` instance. Call :meth:`create` to establish
+                the session.
+
             Note:
-                Calling this method overwrites any existing connection parameters
-                that you have already set in the SessionBuilder.
+                Values in ``options`` overwrite previously configured values with the
+                same keys. Previously configured parameters not present in ``options``
+                are retained.
+
+            Example::
+                >>> # Use a connection named "myconnection" defined in connections.toml.
+                >>> connection_parameters = {
+                ...     "connection_name": "myconnection",
+                ...     "warehouse": "MY_WAREHOUSE",
+                ... }
+                >>> session = Session.builder.configs(connection_parameters).create()  # doctest: +SKIP
+
+            For authentication options and additional examples, see
+            `Creating a Session for Snowpark Python
+            <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-session>`_.
             """
             self._options = {**self._options, **options}
             return self
