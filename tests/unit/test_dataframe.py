@@ -103,6 +103,43 @@ def test_dataframe_method_alias():
 
 
 @pytest.mark.parametrize(
+    ("parameter", "value"),
+    [
+        ("statement", "query-id"),
+        ("offset", -60),
+        ("timestamp", "2026-01-01 00:00:00"),
+        ("stream", "my_stream"),
+    ],
+)
+def test_dataframe_reader_direct_time_travel_parameter_requires_mode(
+    mock_server_connection, parameter, value
+):
+    session = Session(mock_server_connection)
+
+    with pytest.raises(ValueError, match="Must specify time travel mode"):
+        session.read.table("my_table", _emit_ast=False, **{parameter: value})
+
+
+@pytest.mark.parametrize(
+    ("parameter", "value"),
+    [
+        ("statement", "query-id"),
+        ("offset", -60),
+        ("timestamp", "2026-01-01 00:00:00"),
+        ("stream", "my_stream"),
+    ],
+)
+def test_dataframe_reader_direct_time_travel_parameter_overrides_options(
+    mock_server_connection, parameter, value
+):
+    session = Session(mock_server_connection)
+    reader = session.read.option("time_travel_mode", "at").option("offset", -3600)
+
+    with pytest.raises(ValueError, match="Must specify time travel mode"):
+        reader.table("my_table", _emit_ast=False, **{parameter: value})
+
+
+@pytest.mark.parametrize(
     "format_type",
     [
         "json",
