@@ -5,8 +5,13 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 
 import types
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from snowflake.snowpark._internal import event_table_telemetry as ett
+from snowflake.snowpark._internal.event_table_telemetry import EventTableTelemetry
+from snowflake.snowpark._internal.utils import IS_V5_DRIVER
 
 
 def test_import_or_missing_opentelemetry_imports_resources(monkeypatch):
@@ -101,3 +106,80 @@ def test_import_or_missing_opentelemetry_returns_missing_on_importerror(monkeypa
 
     assert installed is False
     assert isinstance(otel, ett.MissingOpenTelemetry)
+
+
+class FakeAttestation:
+    def __init__(self) -> None:
+        self.credential = "mock_cred"
+
+
+class _V5Connection:
+    def __init__(self) -> None:
+        self.config = MagicMock()
+        self.config.workload_identity_provider = "AWS"
+        self.config.workload_identity_entra_resource = "mock_resource"
+        self.config.token = "mock_token"
+
+    @property
+    def auth_class(self):
+        raise AttributeError("auth_class")
+
+    @property
+    def _session_manager(self):
+        raise AttributeError("_session_manager")
+
+
+@pytest.mark.skipif(not IS_V5_DRIVER, reason="v5 only")
+def test_get_external_telemetry_auth_token_uses_connection_config():
+    session = MagicMock()
+    session.connection = _V5Connection()
+
+    telemetry = EventTableTelemetry(session)
+    telemetry._event_table = "db.sc.tb"
+
+    with patch(
+        "snowflake.connector._common.wif_util.create_attestation",
+        return_value=FakeAttestation(),
+    ) as mock_create:
+        headers = telemetry._get_external_telemetry_auth_token()
+
+    args, kwargs = mock_create.call_args
+    assert args[0].value == "AWS"
+    assert args[1] == "mock_resource"
+    assert args[2] == "mock_token"
+    assert "session_manager" not in kwargs
+    assert headers == {
+        "Authorization": "Bearer WIF.AWS.mock_cred",
+        "event-table": "db.sc.tb",
+    }
+
+
+@pytest.mark.skipif(IS_V5_DRIVER, reason="v4 only")
+def test_get_external_telemetry_auth_token_uses_auth_class():
+    session = MagicMock()
+    session.connection.auth_class.provider = "mock_provider"
+    session.connection.auth_class.entra_resource = "mock_resource"
+    session.connection.auth_class.token = "mock_token"
+    cloned = MagicMock()
+    session.connection._session_manager.clone.return_value = cloned
+
+    telemetry = EventTableTelemetry(session)
+    telemetry._event_table = "db.sc.tb"
+
+    with patch(
+        "snowflake.connector.wif_util.create_attestation",
+        return_value=FakeAttestation(),
+    ) as mock_create:
+        headers = telemetry._get_external_telemetry_auth_token()
+
+    mock_create.assert_called_once_with(
+        "mock_provider",
+        "mock_resource",
+        "mock_token",
+        session_manager=cloned,
+    )
+    session.connection._session_manager.clone.assert_called_once_with(max_retries=0)
+    assert headers == {
+        "Authorization": "Bearer WIF.AWS.mock_cred",
+        "event-table": "db.sc.tb",
+    }
