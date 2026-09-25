@@ -425,6 +425,7 @@ class Session:
                 "flatten_select_after_filter_and_orderby": True,
                 "collect_stacktrace_in_query_tag": False,
                 "use_simplified_query_generation": False,
+                "restage_stored_procedure_imports": True,
             }  # For config that's temporary/to be removed soon
             self._lock = self._session._lock
             for key, val in conf.items():
@@ -1546,6 +1547,70 @@ class Session:
         else:
             return trimmed_path, None, None
 
+    @staticmethod
+    def _stored_procedure_import_directory() -> Optional[str]:
+        """Where the stored procedure runtime materializes the procedure's own ``IMPORTS``."""
+        return sys._xoptions.get("snowflake_import_directory")
+
+    def _redirect_inherited_stage_imports(
+        self,
+        import_paths: Dict[str, Tuple[Optional[str], Optional[str]]],
+    ) -> Dict[str, Tuple[Optional[str], Optional[str]]]:
+        """Re-point inherited stage imports at their local copies inside a stored procedure.
+
+        A procedure's own ``IMPORTS`` land in the session as absolute stage paths, so a
+        nested UDF/UDTF registered without explicit ``imports`` inherits them into its DDL
+        -- unresolvable to the role running it (``002003``), or rejected by a versioned
+        schema (``093023``). Dropping them instead would break closures ``cloudpickle``
+        serializes by reference (module-level functions, ``self``-capturing closures) with
+        ``ModuleNotFoundError``, so re-stage the local copy the runtime already provides.
+        Explicit (udf-level) imports are the caller's choice and are left untouched.
+        """
+        if not is_in_stored_procedure() or not self._conf.get(
+            "restage_stored_procedure_imports", True
+        ):
+            return import_paths
+
+        import_directory = self._stored_procedure_import_directory()
+        if not import_directory:  # pragma: no cover
+            return import_paths
+
+        redirected: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+        for path, import_info in import_paths.items():
+            local_path = None
+            if path.startswith(STAGE_PREFIX):
+                # The runtime materializes every import flat, under its base name.
+                file_name = path.rsplit("/", 1)[-1].strip()
+                if file_name:
+                    candidate = os.path.join(import_directory, file_name)
+                    if os.path.isfile(candidate):
+                        local_path = candidate
+            if local_path is None:
+                # Not one of the procedure's own imports (no local copy) - leave as is.
+                redirected[path] = import_info
+                continue
+            try:
+                resolved_path, checksum, leading_path = self._resolve_import_path(
+                    local_path
+                )
+            except Exception as ex:  # pragma: no cover
+                _logger.warning(
+                    "Could not re-stage the inherited import %s from its local copy %s, "
+                    "keeping the original stage path: %s",
+                    path,
+                    local_path,
+                    ex,
+                )
+                redirected[path] = import_info
+                continue
+            _logger.debug(
+                "Re-staging inherited stored procedure import %s from its local copy %s",
+                path,
+                local_path,
+            )
+            redirected[resolved_path] = (checksum, leading_path)
+        return redirected
+
     def _resolve_imports(
         self,
         import_only_stage: str,
@@ -1570,7 +1635,10 @@ class Session:
         )
 
         with self._lock:
+            inherited_from_session = not udf_level_import_paths
             import_paths = udf_level_import_paths or self._import_paths.copy()
+        if inherited_from_session:
+            import_paths = self._redirect_inherited_stage_imports(import_paths)
         for path, (prefix, leading_path) in import_paths.items():
             # stage file
             if path.startswith(STAGE_PREFIX):
