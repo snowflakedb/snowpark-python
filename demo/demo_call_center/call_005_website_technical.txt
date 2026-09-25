@@ -1,0 +1,289 @@
+CALL CENTER TRANSCRIPT
+Call ID: CC-6634
+Date: 2024-06-27
+Duration: 52:14
+Customer ID: CUST-67823
+Representative ID: REP-091
+Category: Technical Support - Online Portal
+Status: Resolved
+
+================================================================================
+TRANSCRIPT
+================================================================================
+
+[2024-06-27-13-45-00] REP: Meridian Utilities, this is Heather, how can I help you today?
+
+[2024-06-27-13-45-06] CUSTOMER: Yeah, hi. I'm having a problem with your website. I cannot log in, and I have been trying for the past hour and a half and I am beyond frustrated right now.
+
+[2024-06-27-13-45-17] REP: Oh no, I'm really sorry about that. I'd be happy to help you troubleshoot. Can I get your name and account number first?
+
+[2024-06-27-13-45-23] CUSTOMER: Terry Okafor. Account number is CUST-67823.
+
+[2024-06-27-13-45-30] REP: Thank you, Terry. And for verification — can you confirm your service address?
+
+[2024-06-27-13-45-35] CUSTOMER: 5592 Hollowbrook Drive, Sacramento, California 95842.
+
+[2024-06-27-13-45-42] REP: And date of birth?
+
+[2024-06-27-13-45-44] CUSTOMER: July 14th, 1979.
+
+[2024-06-27-13-45-48] REP: Perfect, I've got you here. Okay Terry, tell me everything — what's happening when you try to log in?
+
+[2024-06-27-13-45-54] CUSTOMER: Okay so I go to the website — meridianutilities.com — I type in my email and my password, I hit Sign In, and it says "Invalid credentials." Every. Single. Time. And I know my password is right. I've been using it for years. Nothing's changed on my end.
+
+[2024-06-27-13-46-12] REP: Got it. And when did this first start?
+
+[2024-06-27-13-46-16] CUSTOMER: Yesterday. I logged in maybe two weeks ago to pay my bill, zero problems. Then yesterday I tried to check my usage and suddenly it won't let me in.
+
+[2024-06-27-13-46-28] REP: Okay. And you haven't changed your password or email recently?
+
+[2024-06-27-13-46-32] CUSTOMER: No. I haven't touched anything. I didn't change anything. It just stopped working on its own.
+
+[2024-06-27-13-46-39] REP: Understood. Before we do anything drastic, let me try a few quick things. First — what browser are you using?
+
+[2024-06-27-13-46-46] CUSTOMER: Chrome. Regular Chrome on a laptop.
+
+[2024-06-27-13-46-50] REP: Okay. Let's try this: can you open a new incognito window in Chrome? That way we bypass any cached data or extensions that might be interfering. In Chrome it's Control-Shift-N, or on a Mac it's Command-Shift-N.
+
+[2024-06-27-13-47-01] CUSTOMER: Okay... yeah, I've got an incognito window open.
+
+[2024-06-27-13-47-05] REP: Great. Now go to meridianutilities.com in that incognito window and try to log in.
+
+[2024-06-27-13-47-09] CUSTOMER: [pause] Going to the site... typing my email and password... [pause] Same thing. "Invalid credentials."
+
+[2024-06-27-13-47-22] REP: Okay. So it's not a caching issue in your regular browser. Next question — do you have any browser extensions installed? Things like password managers, VPNs, ad blockers?
+
+[2024-06-27-13-47-33] CUSTOMER: I've got LastPass, uBlock, and a dark mode extension.
+
+[2024-06-27-13-47-42] REP: Worth disabling those temporarily — some extensions affect page behavior even in incognito. Go to the puzzle piece icon in Chrome's top right and toggle them off.
+
+[2024-06-27-13-47-54] CUSTOMER: [pause] Okay... turning them off... this is already more steps than I expected for checking an electricity bill.
+
+[2024-06-27-13-48-05] REP: I hear you. We're just ruling things out so we don't chase the wrong problem.
+
+[2024-06-27-13-48-12] CUSTOMER: Extensions off. Logging in again... [pause] Still "Invalid credentials." Same message.
+
+[2024-06-27-13-48-24] REP: Alright. So we've ruled out browser cache, incognito mode, and extensions. The issue is something else. Let me look at your account from the backend and see if anything jumps out. [typing] One moment.
+
+[2024-06-27-13-48-34] CUSTOMER: Sure.
+
+[2024-06-27-13-48-37] REP: [pause] Okay — I see a potential issue here. Let me ask you: what email address are you using when you try to log in?
+
+[2024-06-27-13-48-46] CUSTOMER: terry.okafor@gmail.com. That's my email. That's what I always use.
+
+[2024-06-27-13-48-53] REP: So the email address associated with your online portal account on our end is... t.okafor79@yahoo.com. Is that an address you recognize?
+
+[2024-06-27-13-49-04] CUSTOMER: What? Yahoo? I haven't — I mean, I had a Yahoo email years ago. Like a decade ago. I definitely didn't set this account up with that email recently.
+
+[2024-06-27-13-49-18] REP: It's possible it was the address on file when the account was originally created and it was never updated. That would explain exactly why the "Invalid credentials" error keeps appearing — you're typing in your Gmail, but the portal is looking for the Yahoo address.
+
+[2024-06-27-13-49-31] CUSTOMER: Okay so I feel like I should be annoyed that your system is using a ten-year-old email address and nobody told me, but fine. Can you just update it to my Gmail?
+
+[2024-06-27-13-49-42] REP: Absolutely. I can do that right now from my end. I'm updating your portal email to terry.okafor@gmail.com. [typing] Done. Now let me send a password reset to your Gmail so you can set a fresh password on the newly linked email address.
+
+[2024-06-27-13-49-59] CUSTOMER: Okay. [pause] Oh — I just got an email. Reset link. That's fast.
+
+[2024-06-27-13-50-08] REP: Great. Go ahead and click that link to set a new password.
+
+[2024-06-27-13-50-13] CUSTOMER: [pause] Um. It's asking me to create a new password. Setting it now... okay, done. It says "Password updated successfully." Okay now going to login... [pause]
+
+[2024-06-27-13-50-28] CUSTOMER: Oh you have got to be kidding me.
+
+[2024-06-27-13-50-31] REP: What's it saying?
+
+[2024-06-27-13-50-33] CUSTOMER: It says — "Too many login attempts detected. Your account has been temporarily locked for security purposes." I feel like I'm taking the bar exam just to read my electricity bill.
+
+[2024-06-27-13-50-45] REP: [exhales] Okay. So the login attempts you made over the past hour and a half — those triggered our security lockout threshold. That is a legitimate security feature, but I completely understand that in this case it's adding insult to injury.
+
+[2024-06-27-13-50-58] CUSTOMER: Can you unlock it from your end?
+
+[2024-06-27-13-51-02] REP: Yes. I'm going to manually clear the lockout flag on your account right now. It takes a few minutes on the backend — I'm submitting the unlock request now. [typing] Okay, request is in. The system typically processes these within three to four minutes.
+
+[2024-06-27-13-51-17] CUSTOMER: Three to four minutes. Great. I'll just sit here.
+
+[2024-06-27-13-51-22] REP: I know, I'm sorry. While we wait — is there anything else about your account you'd like me to look at, just to use the time?
+
+[2024-06-27-13-51-30] CUSTOMER: Sure. Am I enrolled in paperless billing?
+
+[2024-06-27-13-51-34] REP: [typing] Not yet — still getting paper statements. Once we're in the portal I'll walk you through setting that up.
+
+[2024-06-27-13-51-47] CUSTOMER: Good. I don't need paper bills.
+
+[2024-06-27-13-51-52] REP: Okay, about two minutes in — checking unlock status. [pause] Still processing. Probably another minute.
+
+[2024-06-27-13-52-01] CUSTOMER: This is genuinely the most complicated login process I've ever experienced. And I used to use a secure government portal for work. That was easier than this.
+
+[2024-06-27-13-52-13] REP: [laughs gently] I would love to tell you this is a rare exception, but I won't insult you. I can say that once it's sorted out today, you shouldn't have to go through this again.
+
+[2024-06-27-13-52-23] CUSTOMER: That's the goal.
+
+[2024-06-27-13-52-26] REP: [typing] Okay, the unlock is showing as complete. Try logging in now — use your Gmail and the new password you just created.
+
+[2024-06-27-13-52-36] CUSTOMER: Okay. Going to the site. Typing... [long pause] And it's... asking me to — wait. It's asking for a verification code. It says "We've sent a 6-digit code to your phone to complete login." Two-factor authentication.
+
+[2024-06-27-13-52-54] REP: Right, our portal does have two-factor authentication. What phone number is it saying it's sending the code to?
+
+[2024-06-27-13-52-59] CUSTOMER: It says "sent to number ending in 4477." I don't recognize that number.
+
+[2024-06-27-13-53-07] REP: Let me check what phone number we have on file for 2FA. [typing] Okay, I see a number ending in 4477. Does that possibly belong to a previous phone?
+
+[2024-06-27-13-53-19] CUSTOMER: Oh — you know what, that might be my old cell number. I got a new number about two years ago when I switched carriers. I don't have that number anymore.
+
+[2024-06-27-13-53-30] REP: Okay. So the 2FA code is going to a number you can no longer receive texts on. We need to update the phone number on file. I can do that from my end but I'll need to re-verify your identity first — for security purposes, changing a phone number triggers an identity check.
+
+[2024-06-27-13-53-45] CUSTOMER: You already verified me at the start of the call.
+
+[2024-06-27-13-53-49] REP: I know — and I'm sorry. Phone number changes are treated as sensitive account modifications and require a separate secondary verification. Just one more piece of information.
+
+[2024-06-27-13-53-61] CUSTOMER: Fine. What do you need?
+
+[2024-06-27-13-54-05] REP: Can you confirm the last four digits of the Social Security number associated with the account?
+
+[2024-06-27-13-54-11] CUSTOMER: It's 3819.
+
+[2024-06-27-13-54-14] REP: [typing] That matches. Thank you. Okay, what's your current mobile number?
+
+[2024-06-27-13-54-20] CUSTOMER: 916-555-0284.
+
+[2024-06-27-13-54-27] REP: [typing] Updating the 2FA phone number now to 916-555-0284. Done. Now — this update itself is going to trigger a verification step. You should get a text message to your current phone number with a 6-digit code asking you to confirm the change.
+
+[2024-06-27-13-54-43] CUSTOMER: Of course there's another code. [pause] Yeah, okay, I got it. The text says "Your Meridian account phone number has been updated — enter this code to confirm: 847291."
+
+[2024-06-27-13-54-55] REP: Go ahead and enter that on whatever screen is prompting you, or just read it to me and I'll confirm it on my end.
+
+[2024-06-27-13-55-02] CUSTOMER: 8-4-7-2-9-1.
+
+[2024-06-27-13-55-06] REP: [typing] Confirmed. Phone number is now updated. Now let's try the portal login again. This time when it sends the 2FA code, it should go to your current number.
+
+[2024-06-27-13-55-16] CUSTOMER: Okay. Going to the login page again. Typing email and password... [pause] Okay it's asking for the verification code again. And — yes! The text just came to my current phone. Code is 591047.
+
+[2024-06-27-13-55-35] REP: Great, enter that on the screen.
+
+[2024-06-27-13-55-38] CUSTOMER: [pause] Entering it... [long pause] ...Oh. OH. I'm in. I'm actually in the portal.
+
+[2024-06-27-13-55-49] REP: Yes! Finally!
+
+[2024-06-27-13-55-52] CUSTOMER: Oh my god. That took — I've been at this for two hours now, including the call. Two hours to log in to check my electricity bill.
+
+[2024-06-27-13-56-01] REP: I know, and I'm genuinely sorry. It was a cascade — outdated email, security lockout from too many attempts, then outdated 2FA phone number. Each thing was its own layer. But you're in now and it should be smooth going forward.
+
+[2024-06-27-13-56-15] CUSTOMER: It better. Okay. I'm looking around — account info looks right, I can see my bills. This is what I wanted.
+
+[2024-06-27-13-56-24] REP: Good. While I have you — you mentioned the app on your phone was also giving you errors. Do you want to try that now?
+
+[2024-06-27-13-56-31] CUSTOMER: Oh right, yeah. The app. It kept giving me a server error. Maybe it'll work now?
+
+[2024-06-27-13-56-38] REP: Possibly. Try opening it and logging in.
+
+[2024-06-27-13-56-42] CUSTOMER: [pause] Okay it's asking me to log in. Typing in my email and password... and it says — "Session expired, please update the app to continue." Different error than before. Before it said "server error."
+
+[2024-06-27-13-56-57] REP: The "session expired, please update" message is helpful — that means the app itself is outdated. What kind of phone are you on?
+
+[2024-06-27-13-57-03] CUSTOMER: iPhone 14 Pro.
+
+[2024-06-27-13-57-06] REP: Okay. Can you go to the App Store and search for the Meridian MyAccount app and check if there's an Update button?
+
+[2024-06-27-13-57-14] CUSTOMER: [pause] Yeah. There's an Update button. Let me download it... [pause] Okay, updated. Opening it... logging in... [pause] Still getting an error. Now it says "Unable to connect to server. Check your internet connection."
+
+[2024-06-27-13-57-35] REP: Okay — are you on Wi-Fi right now?
+
+[2024-06-27-13-57-40] CUSTOMER: Yeah, I'm on my home Wi-Fi.
+
+[2024-06-27-13-57-43] REP: Let's try switching to cellular data for a moment. Sometimes a home Wi-Fi configuration can block connections to certain external servers, especially if you have a firewall or router-level filtering. Turn off Wi-Fi temporarily and test on cellular.
+
+[2024-06-27-13-57-56] CUSTOMER: Okay... turning off Wi-Fi... logging in on cellular... [pause] It worked! I'm in on the app.
+
+[2024-06-27-13-58-12] REP: So it's a Wi-Fi routing issue — your home network is blocking the app's connection, not the app itself.
+
+[2024-06-27-13-58-20] CUSTOMER: Do I have to use cellular every time?
+
+[2024-06-27-13-58-25] REP: Not necessarily. Try restarting your router — that sometimes clears overly aggressive filtering rules. If not, there may be a content filtering setting in your router's admin panel. Either way, the app works on cellular and the website works fine on Wi-Fi, so you have options.
+
+[2024-06-27-13-58-48] CUSTOMER: Yeah, the site is still open on my laptop and working. I can deal with that. I'll poke at the router settings later.
+
+[2024-06-27-13-58-58] REP: Sounds good. Now, before you go — I want to help you get the most out of the portal now that we have it working, because after everything you went through today, I want you to feel like it was worth it.
+
+[2024-06-27-13-59-08] CUSTOMER: [laughs] Fair enough. Go ahead.
+
+[2024-06-27-13-59-11] REP: First thing — you asked about paperless billing earlier. In the portal, you can set that up yourself. Look for "My Preferences" or "Billing Preferences" in your account settings.
+
+[2024-06-27-13-59-22] CUSTOMER: [pause] Okay, I see "Billing Preferences." Clicking... yes, there's a paperless billing toggle. Turning it on... it says "Paperless billing enabled. Your statements will be sent to terry.okafor@gmail.com." Done.
+
+[2024-06-27-13-59-38] REP: Perfect. Second thing — usage alerts. You can set up text or email notifications that tell you when your usage is higher than usual, which is great for catching things like an appliance that's running when it shouldn't be or a billing surprise before it happens. Look for "Alerts and Notifications."
+
+[2024-06-27-13-59-53] CUSTOMER: [pause] Found it. I see "Bill Ready Notification," "High Usage Alert," "Payment Due Reminder," "Outage Notification"...
+
+[2024-06-27-14-00-05] REP: Turn on all of those. Bill Ready tells you when your statement is available, High Usage flags a spike before it becomes a bill surprise, Payment Due gives you a heads-up before the due date, and Outage Notification pings you if service is disrupted in your area.
+
+[2024-06-27-14-00-22] CUSTOMER: That's actually useful. Turning them all on — selecting both email and text. Done.
+
+[2024-06-27-14-00-34] REP: One more thing many people don't notice — under "My Usage" there's a graph of your daily and monthly consumption. Useful for spotting patterns. If your bill spikes in July you can see exactly which days drove it.
+
+[2024-06-27-14-00-50] CUSTOMER: Oh, that is actually nice. Bar graph by month with a daily view. Yeah, I can see where last summer spiked — that was the AC.
+
+[2024-06-27-14-01-03] REP: If you ever see a day that's unusually high and can't explain it, call in — it might mean a meter read error or a malfunctioning appliance.
+
+[2024-06-27-14-01-15] CUSTOMER: Good to know. I've been with Meridian six or seven years and never knew any of this was in the portal. I just used it to pay bills.
+
+[2024-06-27-14-01-28] REP: Most people do. These features are there but we're not great at surfacing them. Consider this your official tour.
+
+[2024-06-27-14-01-35] CUSTOMER: [laughs] Yeah. I feel like I should be angrier about how long this took, but it worked out and I learned stuff, so.
+
+[2024-06-27-14-01-45] REP: I do want to acknowledge — a lot of this cascade happened because our system never prompted you to update an outdated contact on file. That shouldn't spiral into a two-hour call, and I'm noting that as feedback.
+
+[2024-06-27-14-02-08] CUSTOMER: Yeah. It would've been nice if someone — or the system — had flagged "hey, this email bounced." Good that you're noting it.
+
+[2024-06-27-14-02-16] CUSTOMER: Okay. Website works, app works on cellular, paperless billing and alerts are on, I know where the usage graph is. I'm good.
+
+[2024-06-27-14-02-28] REP: That's everything. And your credentials — Gmail address, the new password you set today — those are what you'll use going forward every time.
+
+[2024-06-27-14-02-37] CUSTOMER: Got it. I'm going to write it down this time instead of relying on muscle memory.
+
+[2024-06-27-14-02-43] REP: Highly recommended. [laughs] Is there anything else I can help you with?
+
+[2024-06-27-14-02-48] CUSTOMER: No, I think that's it. Heather, you were really patient with me today. I know I got a little snippy in the middle there.
+
+[2024-06-27-14-02-56] REP: Don't worry about it at all. An hour and a half of failed login attempts before you even called me would make anyone snippy. You were fine.
+
+[2024-06-27-14-03-05] CUSTOMER: [laughs] Okay. Thanks. Take care.
+
+[2024-06-27-14-03-08] REP: You too, Terry. Goodbye!
+
+[2024-06-27-14-03-10] CUSTOMER: Bye.
+
+================================================================================
+POST-CALL NOTES (REP-091)
+================================================================================
+Extended troubleshooting session — portal login failure. Total call duration: 52 min.
+
+ROOT CAUSE CHAIN:
+1. Portal email on file: t.okafor79@yahoo.com (outdated — customer no longer has
+   Yahoo access). Customer was logging in with terry.okafor@gmail.com — mismatch
+   caused all "Invalid credentials" errors.
+2. Pre-call login attempts (~1.5 hours) triggered security lockout. Account manually
+   unlocked from backend (approx. 3-4 min processing).
+3. Password reset sent successfully to updated Gmail.
+4. After unlock, login triggered 2FA — code sent to old phone number ending 4477.
+   Customer no longer has that number (carrier switch ~2 years ago).
+5. Identity re-verified (SSN last 4: 3819) to authorize phone number update.
+   New 2FA number: 916-555-0284. Confirmation code process completed.
+6. Full login confirmed on portal website.
+
+APP ISSUE:
+- App was outdated — updated via App Store, resolved session error.
+- Wi-Fi blocking app connections (router-level filtering suspected). App confirmed
+  working on cellular data. Customer advised to check router settings.
+
+PORTAL SETUP COMPLETED DURING CALL:
+- Paperless billing enabled (terry.okafor@gmail.com)
+- All usage and billing alerts enabled (email + text): Bill Ready, High Usage,
+  Payment Due Reminder, Outage Notification
+- Walked customer through Usage Graph feature
+
+FEEDBACK NOTED: Customer raised valid point that system should proactively flag
+outdated contact info (bounced emails, stale phone numbers) to prevent this cascade.
+Noted on account record for product feedback review.
+
+Account email updated: t.okafor79@yahoo.com -> terry.okafor@gmail.com
+2FA phone updated: ***-4477 -> 916-555-0284
+Customer ended call satisfied despite long session.
