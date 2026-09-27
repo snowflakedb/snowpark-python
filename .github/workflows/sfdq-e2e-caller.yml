@@ -1,0 +1,81 @@
+name: SFDQ E2E Caller
+
+# End-to-end test of the cross-repo CI trigger flow, targeting a dummy
+# receiver in snowflake-eng/snowflake-describe-query-analysis (sfdq).
+# This is a throwaway workflow to validate the repository_dispatch +
+# status-callback plumbing without impacting real SCOS CI. Invoke manually.
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  trigger-and-wait:
+    name: Trigger sfdq dummy receiver and wait
+    runs-on: ubuntu-latest
+    env:
+      TARGET_REPO: snowflake-eng/snowflake-describe-query-analysis
+      STATUS_CONTEXT: SFDQ E2E Test
+    steps:
+      - name: Dispatch sfdq receiver
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.SFDQ_TRIGGER_PAT }}
+          repository: snowflake-eng/snowflake-describe-query-analysis
+          event-type: snowpark-python-e2e-test
+          client-payload: |
+            {
+              "caller_repo": "${{ github.repository }}",
+              "caller_sha": "${{ github.sha }}",
+              "snowpark_python_branch": "${{ github.ref_name }}",
+              "sleep_seconds": "${{ inputs.sleep_seconds }}",
+              "force_result": "${{ inputs.force_result }}"
+            }
+
+      - name: Wait for sfdq status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          echo "Polling ${{ github.repository }}@${SHA} for context '${STATUS_CONTEXT}'..."
+
+          # Brief delay so the receiver's report-pending job has time to fire.
+          sleep 15
+
+          # Up to 30 minutes: 60 iterations * 30s. Dummy tests are short.
+          # Fail fast if no status appears after ~5 minutes (dispatch lost).
+          seen_status="false"
+          pending_ack_deadline=10
+
+          for i in $(seq 1 60); do
+            RAW=$(gh api "repos/${{ github.repository }}/commits/${SHA}/status" \
+              -q ".statuses[] | select(.context == \"${STATUS_CONTEXT}\") | .state" \
+              2>/dev/null | head -n 1 || true)
+
+            if [ -n "$RAW" ]; then
+              seen_status="true"
+              STATUS="$RAW"
+            else
+              STATUS="missing"
+            fi
+
+            if [ "$STATUS" = "success" ]; then
+              echo "sfdq reported success."
+              exit 0
+            elif [ "$STATUS" = "failure" ] || [ "$STATUS" = "error" ]; then
+              echo "sfdq reported failure (state=$STATUS)."
+              exit 1
+            fi
+
+            if [ "$seen_status" = "false" ] && [ "$i" -ge "$pending_ack_deadline" ]; then
+              echo "No status from sfdq after ${pending_ack_deadline} polls."
+              echo "Likely causes: bad SFDQ_TRIGGER_PAT, wrong event-type, or"
+              echo "SNOWPARK_PYTHON_STATUS_TOKEN missing on sfdq side."
+              exit 1
+            fi
+
+            echo "Status: $STATUS - waiting 30s... (attempt $i/60)"
+            sleep 30
+          done
+
+          echo "Timeout waiting for sfdq status."
+          exit 1
