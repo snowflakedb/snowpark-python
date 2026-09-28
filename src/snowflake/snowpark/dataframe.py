@@ -2681,8 +2681,16 @@ class DataFrame:
         This method returns a :class:`RelationalGroupedDataFrame` that you can use to
         perform aggregations on each group of data.
 
+        With no columns (``df.group_by()`` or ``df.group_by([])``), the entire
+        DataFrame forms one group for aggregation. With one or more columns,
+        rows that have the same values for those columns form a group. Calling
+        this method defines the groups; call an aggregation method such as
+        :meth:`RelationalGroupedDataFrame.agg` to produce a result DataFrame.
+
         Args:
-            *cols: The columns to group by.
+            *cols: Column names or expressions that define the groups. Omit
+                this argument or pass an empty list to aggregate all rows
+                together.
 
         Valid inputs are:
 
