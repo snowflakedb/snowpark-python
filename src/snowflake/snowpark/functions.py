@@ -2096,7 +2096,7 @@ def to_decimal(
 def to_double(
     e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None, _emit_ast: bool = True
 ) -> Column:
-    """Converts an input expression to a decimal.
+    """Converts an input expression to a double-precision floating-point number.
 
     Example::
         >>> df = session.create_dataframe(['12', '11.3', '-90.12345'], schema=['a'])
