@@ -2841,6 +2841,18 @@ class DataFrame:
         from the current DataFrame.
 
         This is equivalent to performing a SELECT DISTINCT in SQL.
+
+        Duplicate rows are compared across all columns. To return distinct values
+        for selected columns, call :meth:`select` before calling this method.
+        The result has no guaranteed row order; use :meth:`sort` when order matters.
+
+        Examples::
+
+            >>> df = session.create_dataframe([(1, "a"), (1, "a"), (1, "b"), (2, "a")], schema=["id", "value"])
+            >>> df.distinct().sort("id", "value").collect()
+            [Row(ID=1, VALUE='a'), Row(ID=1, VALUE='b'), Row(ID=2, VALUE='a')]
+            >>> df.select("id").distinct().sort("id").collect()
+            [Row(ID=1), Row(ID=2)]
         """
 
         # AST.
