@@ -1,0 +1,102 @@
+CALL CENTER TRANSCRIPT
+Call ID: CC-9987
+Date: 2024-11-02
+Duration: 6:51
+Customer ID: CUST-20045
+Representative ID: REP-055
+Category: Emergency - Gas Leak
+Status: Escalated
+
+================================================================================
+TRANSCRIPT
+================================================================================
+
+[2024-11-02-11-03-04] REP: Meridian Utilities Emergency Line, this is Carlos, what is the nature of your emergency?
+
+[2024-11-02-11-03-18] CUSTOMER: Um — hi, yes, I think — I think I smell gas? In my kitchen? It's pretty strong and I don't know what to do.
+
+[2024-11-02-11-03-30] REP: Okay, I hear you. I want you to stay calm and listen to me carefully, alright? Are you inside the building right now?
+
+[2024-11-02-11-03-39] CUSTOMER: Yes, I'm in the kitchen. Should I — should I leave?
+
+[2024-11-02-11-04-08] REP: Yes. Right now, I want you to leave the building immediately. Do not turn any light switches or electrical switches on or off. Do not use your phone inside — once you step outside you can keep talking to me, but if you're still inside, I need you to start moving toward the door right now. Can you do that?
+
+[2024-11-02-11-04-30] CUSTOMER: Okay, okay, I'm moving — [sounds of footsteps, door opening] — okay I'm outside. I'm on the front porch.
+
+[2024-11-02-11-04-44] REP: Good. You did the right thing. Keep moving away from the building — get at least 100 feet away from the structure, okay? Can you do that?
+
+[2024-11-02-11-04-57] CUSTOMER: Yeah, I'm — I'm walking down the driveway. Okay I'm on the sidewalk now.
+
+[2024-11-02-11-05-20] REP: Perfect. Stay there. Do not go back inside for any reason. Not to grab your phone charger, not to get your pet, not anything. If you have pets inside—
+
+[2024-11-02-11-05-28] CUSTOMER: Oh god, my cat is in there —
+
+[2024-11-02-11-05-44] REP: I know that's scary. But you cannot go back inside right now. Emergency responders will be there very shortly and they are trained to handle this. Okay?
+
+[2024-11-02-11-05-53] CUSTOMER: [audibly distressed] Okay. Okay.
+
+[2024-11-02-11-06-15] REP: You're doing everything right. Now I need your address so I can dispatch our emergency crew and get the fire department notified. What's your address?
+
+[2024-11-02-11-06-24] CUSTOMER: It's 1740 Crestview Terrace, Denver, Colorado 80209.
+
+[2024-11-02-11-06-35] REP: 1740 Crestview Terrace, Denver, 80209. Got it. And your name?
+
+[2024-11-02-11-06-41] CUSTOMER: Angela. Angela Kim.
+
+[2024-11-02-11-07-05] REP: Angela, I'm dispatching an emergency crew to your address right now as we speak. I'm also alerting Denver Fire. What's a good callback number for you in case we get disconnected?
+
+[2024-11-02-11-07-13] CUSTOMER: It's 720-553-8841.
+
+[2024-11-02-11-07-33] REP: 720-553-8841. Good. Angela, I want you to tell me — when did you first smell the gas?
+
+[2024-11-02-11-07-52] CUSTOMER: Maybe... ten minutes ago? I was making coffee and I just — it hit me. It's like a really strong rotten egg smell.
+
+[2024-11-02-11-08-05] REP: Okay. And have you heard any hissing sounds near the stove or the gas lines?
+
+[2024-11-02-11-08-16] CUSTOMER: I didn't notice but I got out pretty fast once I smelled it.
+
+[2024-11-02-11-08-34] REP: That's exactly what you should have done. Do you know if your neighbors are home? Any adjacent units?
+
+[2024-11-02-11-08-44] CUSTOMER: It's a house, not an apartment. My neighbors across the street — I can see lights on.
+
+[2024-11-02-11-09-16] REP: Okay. If you're able to safely make contact with your immediate next-door neighbors — not by going inside, just by waving or calling out to them — let them know to stay away from your property as a precaution. Can you see if either next-door neighbor is outside?
+
+[2024-11-02-11-09-24] CUSTOMER: I don't see anyone right now.
+
+[2024-11-02-11-09-44] REP: That's okay. Emergency crews are en route — I'm showing estimated arrival of approximately 8 minutes. Do not approach any vehicle that arrives until you confirm it's emergency services.
+
+[2024-11-02-11-09-57] CUSTOMER: Okay. How — how serious could this be? I'm scared.
+
+[2024-11-02-11-10-28] REP: Angela, you did everything correctly by getting out immediately. Most of these situations are resolved quickly once crews arrive and locate the source. The most dangerous thing would have been staying inside, and you didn't do that. You're safe right now.
+
+[2024-11-02-11-10-42] CUSTOMER: [exhales] Okay. Thank you. I'm just standing here on the sidewalk.
+
+[2024-11-02-11-10-57] REP: That's exactly right. I'm going to stay on the line with you until the crews arrive. Has anyone pulled up yet?
+
+[2024-11-02-11-11-12] CUSTOMER: Not yet... wait. I see — yes, I see a fire truck coming down the street.
+
+[2024-11-02-11-11-22] REP: Good. Stay where you are, let them come to you. Wave so they can see you.
+
+[2024-11-02-11-11-32] CUSTOMER: I'm waving. They're pulling up. Oh thank god.
+
+[2024-11-02-11-11-50] REP: Angela, the crews are with you now. They're going to take over from here. Do not re-enter the property until a firefighter or our gas technician tells you it's safe. Understood?
+
+[2024-11-02-11-11-59] CUSTOMER: Yes. Yes, I understand.
+
+[2024-11-02-11-12-25] REP: Our emergency gas technician is also en route and should arrive within the next fifteen minutes. You'll receive a follow-up call from our team once the situation is assessed. Is there anything else I can do for you right now?
+
+[2024-11-02-11-12-38] CUSTOMER: No, they're — they're here and they're talking to me. Thank you so much.
+
+[2024-11-02-11-12-48] REP: Of course. You handled this perfectly. Take care, Angela.
+
+================================================================================
+POST-CALL NOTES (REP-055)
+================================================================================
+GAS EMERGENCY CALL - PRIORITY 1
+Customer Angela Kim reported strong gas odor in kitchen at 1740 Crestview Terrace,
+Denver CO 80209. Customer safely evacuated before end of call. Emergency crew
+dispatched 11:07 AM - ETA 8 min. Denver Fire Dept also alerted via emergency
+protocol. No ignition sources reported. Customer's cat remaining in structure -
+noted for emergency crew. Callback: 720-553-8841. Follow-up call to be placed by
+field technician after assessment. Account: CUST-20045 / Angela Kim.
+ESCALATED TO FIELD OPS - DO NOT CLOSE UNTIL FIELD RESOLUTION CONFIRMED.

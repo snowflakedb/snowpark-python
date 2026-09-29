@@ -1,0 +1,96 @@
+CALL CENTER TRANSCRIPT
+Call ID: CC-5519
+Date: 2025-01-08
+Duration: 14:17
+Customer ID: CUST-33614
+Representative ID: REP-076
+Category: Service Cancellation
+Status: Resolved
+
+================================================================================
+TRANSCRIPT
+================================================================================
+
+[2025-01-08-10-22-04] REP: Thank you for calling Meridian Utilities, this is Kevin, how can I assist you today?
+
+[2025-01-08-10-22-17] CUSTOMER: Hi Kevin. Um, I'm calling to cancel my service. I'm moving out of state next month.
+
+[2025-01-08-10-22-33] REP: Oh, I'm sorry to see you go. Where are you headed, if you don't mind me asking?
+
+[2025-01-08-10-22-45] CUSTOMER: I'm moving to Asheville, North Carolina. My daughter's out there and, well, it's time.
+
+[2025-01-08-10-23-07] REP: That sounds like a wonderful move. Congratulations. Let me pull up your account so we can take care of everything. Can I get your name and account number?
+
+[2025-01-08-10-23-28] CUSTOMER: Sure. It's Dorothy Flanagan. And the account number is... let me find it... CUST-33614.
+
+[2025-01-08-10-23-41] REP: Thank you. And for verification, can you confirm your service address?
+
+[2025-01-08-10-23-50] CUSTOMER: 88 Maple Ridge Court, Minneapolis, Minnesota 55416.
+
+[2025-01-08-10-24-00] REP: And the last four of your Social or your account PIN?
+
+[2025-01-08-10-24-07] CUSTOMER: The PIN is 4421.
+
+[2025-01-08-10-24-32] REP: Perfect. I've got your account here, Ms. Flanagan. I can see you've been with us since... 2009. That's over fifteen years — you are definitely a long-time customer.
+
+[2025-01-08-10-24-57] CUSTOMER: [laughs softly] Yeah, I've been in that house a long time. All three of my kids grew up there. It's a little bittersweet, to be honest.
+
+[2025-01-08-10-25-14] REP: I can imagine. Well, we'll make sure the process is as easy as possible for you. What date would you like service to end?
+
+[2025-01-08-10-25-41] CUSTOMER: We close on the house sale on January 31st. So I was thinking the 31st? Or should I do February 1st to make sure we're covered for the closing?
+
+[2025-01-08-10-26-11] REP: Great question. I'd actually recommend February 1st, just to be safe. That way you don't have any gap in service on the day of closing in case there are any delays in the process. We can schedule a final meter read for February 1st and close the account that day.
+
+[2025-01-08-10-26-24] CUSTOMER: That makes sense. Let's do February 1st then.
+
+[2025-01-08-10-26-43] REP: Perfect. I'll schedule the account closure for February 1st, 2025. We'll do a final meter read that day and generate your final bill.
+
+[2025-01-08-10-27-09] CUSTOMER: Okay. And how does the final bill work? I want to make sure I don't have anything hanging over me once I'm gone.
+
+[2025-01-08-10-27-51] REP: Of course. So on February 1st we'll take the final reading. Your last bill will cover everything from your last billing date through February 1st — it'll be prorated for that partial month. We'll generate that bill and it will be sent to whatever forwarding address you give us. Do you have a forwarding address in Asheville yet?
+
+[2025-01-08-10-28-12] CUSTOMER: I'll be staying with my daughter initially. Her address is 221 Laurel Glen Road, Asheville, North Carolina 28804.
+
+[2025-01-08-10-28-42] REP: Got it, I'll add that as your forwarding address for the final bill. Typically the final bill generates within five to seven business days after the closure date, and then it's due 21 days from the statement date.
+
+[2025-01-08-10-28-55] CUSTOMER: And I can still pay it online even after the account is closed?
+
+[2025-01-08-10-29-16] REP: Yes, for 90 days after account closure you can still access the payment portal to pay your final balance. Or you can call in and we can take a payment over the phone at no charge.
+
+[2025-01-08-10-29-30] CUSTOMER: Okay, good. I've been on autopay — will that stop automatically when the account closes?
+
+[2025-01-08-10-29-50] REP: Yes, autopay will deactivate when the account is closed. The final bill won't be auto-drafted — you'll need to pay that one manually since it's a closure statement.
+
+[2025-01-08-10-30-03] CUSTOMER: Alright. And what about my deposit? I think I put one down way back when.
+
+[2025-01-08-10-30-35] REP: Let me check on that. [pause] Yes, I do see a security deposit of $150 on the account from when you opened back in 2009. That will be credited against your final bill. If the deposit is more than what you owe, we'll issue a refund check to your forwarding address.
+
+[2025-01-08-10-30-46] CUSTOMER: Oh, I forgot that was even there. Good to know.
+
+[2025-01-08-10-31-00] REP: So depending on your final usage, you may actually end up with a small refund. We'll know once the final bill generates.
+
+[2025-01-08-10-31-11] CUSTOMER: That would be a nice little going-away gift. [laughs]
+
+[2025-01-08-10-31-24] REP: It would! Is there any other service at the property — gas, water — that I should make a note of?
+
+[2025-01-08-10-31-33] CUSTOMER: I have electricity and gas through you. Water is the city.
+
+[2025-01-08-10-31-44] REP: Okay, so I'll set the closure for both electric and gas services on February 1st.
+
+[2025-01-08-10-31-50] CUSTOMER: Yes please.
+
+[2025-01-08-10-32-30] REP: Alright. I've got everything I need to set that up. Your account will close February 1st for both electric and gas at 88 Maple Ridge Court. Final bill will go to 221 Laurel Glen Road in Asheville. You'll also get an email confirmation of the cancellation — the email on file is... dflanagan.home@comcast.net. Is that still correct?
+
+[2025-01-08-10-32-38] CUSTOMER: Yes, that's still good.
+
+[2025-01-08-10-32-55] REP: Great. You'll get a confirmation within the next day or two. Is there anything else I can help you with today?
+
+[2025-01-08-10-33-21] CUSTOMER: No, I think that covers it. I just hope the process is smooth. I've never really had any problems with Meridian, so hopefully the ending is just as easy.
+
+[2025-01-08-10-33-51] REP: We'll do our best to make sure it is, Ms. Flanagan. And genuinely — it's been a pleasure having you as a customer for all these years. I hope the move to Asheville goes wonderfully for you and your family.
+
+[2025-01-08-10-34-04] CUSTOMER: Thank you, Kevin. That's very sweet of you to say. Have a good day.
+
+[2025-01-08-10-34-13] REP: You too. Safe travels. Goodbye!
+
+[2025-01-08-10-34-19] CUSTOMER: Goodbye.
