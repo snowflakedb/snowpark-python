@@ -576,7 +576,22 @@ class Session:
             return session
 
         def getOrCreate(self) -> "Session":
-            """Gets the last created session or creates a new one if needed."""
+            """Returns the single active session, or creates one if needed.
+
+            Unlike :meth:`create`, which creates a new session, this method
+            reuses the active session when exactly one exists and its connection
+            hasn't expired. Builder configuration options aren't applied to a
+            reused session.
+
+            If no active session exists, or the single active session's
+            connection has expired, this method calls :meth:`create` using this
+            builder's configuration. If multiple sessions are active, it raises
+            :class:`~snowflake.snowpark.exceptions.SnowparkSessionException`
+            instead of selecting the most recently created session.
+
+            Returns:
+                The existing active session or a newly created :class:`Session`.
+            """
             try:
                 session = _get_active_session()
                 if session._conn._conn.expired:
