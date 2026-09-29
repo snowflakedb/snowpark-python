@@ -16,6 +16,16 @@ import os
 import re
 from typing import Any, Iterable, Sequence
 
+from snowflake.snowpark._internal.cortex_document_schema import (
+    DEFAULT_BPA_COMPLETE_MODEL,
+    _schema_defs,
+    _simplify,
+    annotate_numeric_leaves,
+    is_extract_legal,
+    is_table_property,
+    prepare_schema_for_engine,
+    schema_properties,
+)
 from snowflake.snowpark._internal.document_reader_options import (
     DocumentReaderOptions,
     ExtractionSpec,
@@ -106,29 +116,6 @@ def smart_enabled(cur_options: dict[str, Any]) -> bool:
     return str(cur_options["SMART"]).lower() not in {"false", "0", "no", "off"}
 
 
-def schema_properties(schema: Any) -> dict[str, Any]:
-    if not isinstance(schema, dict):
-        return {}
-    if isinstance(schema.get("properties"), dict):
-        return schema["properties"]
-    inner = schema.get("schema")
-    if isinstance(inner, dict) and isinstance(inner.get("properties"), dict):
-        return inner["properties"]
-    return {}
-
-
-def is_table_property(defn: Any) -> bool:
-    if not isinstance(defn, dict) or defn.get("type") != "object":
-        return False
-    nested = defn.get("properties") or {}
-    if not nested:
-        return False
-    return all(
-        isinstance(col_def, dict) and col_def.get("type") == "array"
-        for col_def in nested.values()
-    )
-
-
 def _token_blob(schema: Any, prompt: str = "") -> str:
     parts = [prompt or ""]
     for name, defn in schema_properties(schema).items():
@@ -170,18 +157,56 @@ def infer_row_boundary(schema: Any) -> str:
 
 
 def looks_generative(schema: Any) -> bool:
+    """True when at least one field asks the model to COMPOSE text rather than
+    transcribe, classify, or aggregate what is already printed in the source.
+
+    Used to also scan each field's DESCRIPTION for ``_COMPLETE_PHRASES``
+    ("summar", "explain", ...) and to match ``_COMPLETE_TOKENS`` as a bare
+    substring of the field name. Auditing all 29 families this predicate
+    flagged True across the 57-family extractbench corpus found zero genuine
+    matches: 27/29 fired on description prose, not the field name, and every
+    one was a false positive -- a Form 990-PF field whose own description
+    reads "do NOT include summary lines" (a negative instruction about a
+    DIFFERENT field), cbp_7501's description merely cross-referencing a
+    sibling field named "summary_status", and fidelity's schema calling its
+    source PDFs "explainer-only" in a field description that has nothing to
+    do with that field's extraction. The other 2/29 fired on the bare
+    substring branch, e.g. "estimated_taxes_insurance_assessments" matching
+    "assessment" as a substring rather than as its own token. Matching is
+    now name-only, and a name token must equal a complete underscore-split
+    token of the field name -- ``_COMPLETE_PHRASES`` is dropped from this
+    check entirely rather than re-scoped to the name, because the same
+    substring failure mode that produced the assessment/assessments false
+    positive would recur immediately: "unexplained_variance" contains
+    "explain", "summaries_of_prior_years" is not "summary"/"summarize" but
+    still contains "summar". None of the 29 flagged families needed a phrase
+    match against a name (both of the 2 name-driven false positives fired
+    on ``_COMPLETE_TOKENS``, not ``_COMPLETE_PHRASES``), so there is no
+    evidence this branch ever caught a real case.
+
+    A name-token match still is not enough on its own: "_summary" /
+    "_explanation" style tokens also appear on structured fields that
+    AGGREGATE or COPY already-printed content rather than compose it -- e.g.
+    a "valuation_summary" object whose properties are all extracted numbers
+    (professional_valuation), or an entry whose token match is on a table/row
+    container. Composed narrative can only be a scalar leaf, so the token
+    match is gated on the field's RESOLVED type: refs/unions are collapsed
+    via ``_simplify`` (the same resolution helper ``is_extract_legal`` uses --
+    inspecting the raw, unresolved node here would repeat the bug that has
+    now bitten this project four times: is_extract_legal, ExtractionSpec.
+    _scalar_type, is_table_property, and this), and an object or array match
+    is skipped.
+    """
+    defs = _schema_defs(schema)
     for name, defn in schema_properties(schema).items():
         lname = name.lower().replace("-", "_")
-        desc = ""
-        if isinstance(defn, dict):
-            desc = str(defn.get("description") or "").lower()
-        elif isinstance(defn, str):
-            desc = defn.lower()
         tokens = set(lname.split("_"))
-        if tokens & _COMPLETE_TOKENS or any(t in lname for t in _COMPLETE_TOKENS):
-            return True
-        if any(p in f"{lname} {desc}" for p in _COMPLETE_PHRASES):
-            return True
+        if not (tokens & _COMPLETE_TOKENS):
+            continue
+        resolved = _simplify(defn, defs) if isinstance(defn, dict) else {}
+        if isinstance(resolved, dict) and resolved.get("type") in ("object", "array"):
+            continue
+        return True
     # Flat {field: question} schemas: only the values are questions.
     if isinstance(schema, dict) and not schema_properties(schema):
         for key, value in schema.items():
@@ -289,7 +314,7 @@ def rewrite_response_format(schema: Any, prompt: str = "") -> Any:
         if context and context.lower() not in question.lower():
             question = f"{question} Context: {context}"
         defn["description"] = question
-    return fmt
+    return annotate_numeric_leaves(fmt)
 
 
 def plan_parse_mode(
@@ -335,7 +360,12 @@ def plan_extract_scale(files: Sequence[tuple[str, int]]) -> float:
 
 
 def plan_extraction_engine(schema: Any) -> str:
-    return "ai_complete" if looks_generative(schema) else "ai_extract"
+    """EXTRACT unless the schema is generative or an explicit illegal object/array."""
+    if looks_generative(schema):
+        return "ai_complete"
+    if is_extract_legal(schema):
+        return "ai_extract"
+    return "ai_complete"
 
 
 def apply_document_heuristics(
@@ -352,18 +382,39 @@ def apply_document_heuristics(
     schema = schema
     prompt = prompt or (options.prompt or "")
 
+    if "EXTRACTION_ENGINE" not in explicit_keys and schema:
+        options.extraction_engine = plan_extraction_engine(schema)
+
+    if (
+        "MODEL" not in explicit_keys
+        and options.extraction_engine == "ai_complete"
+        and not looks_generative(schema)
+    ):
+        options.model = options.model or DEFAULT_BPA_COMPLETE_MODEL
+
     if schema and "SCHEMA" in explicit_keys:
-        rewritten = rewrite_response_format(schema, prompt)
+        prepared = prepare_schema_for_engine(schema, options.extraction_engine)
+        rewritten = rewrite_response_format(prepared, prompt)
         options.extraction = ExtractionSpec.from_response_format(rewritten)
 
     if "ROW_BOUNDARY" not in explicit_keys and schema:
         options.row_boundary = infer_row_boundary(schema)
+        # Recorded so read_documents() can tell an inferred page boundary from
+        # one the caller asked for, and collapse only the former.
+        options.row_boundary_inferred = True
 
-    if "EXTRACT_IMAGES" not in explicit_keys and needs_images(schema, prompt):
-        options.extract_images = True
-
-    if "EXTRACTION_ENGINE" not in explicit_keys and schema:
-        options.extraction_engine = plan_extraction_engine(schema)
+    # extract_images is deliberately NOT inferred. It only ever adds an IMAGES
+    # output column -- extract() feeds the engine CONTENT or SOURCE_FILE and never
+    # IMAGES -- so turning it on cannot improve an extraction, it can only add
+    # AI_PARSE_DOCUMENT cost. Inferring it from needs_images() switched it on for
+    # 206 of the 252 short-split documents, because that predicate substring-matches
+    # description prose: "the last updated timestamp" and "document creation
+    # timestamp" both contain "stamp". Returning images is a thing a caller asks
+    # for, so it now requires .option("extract_images", True).
+    #
+    # needs_images() is still consulted by plan_parse_mode() to choose LAYOUT, which
+    # is a separate question -- whether the page needs a structure-aware parse -- and
+    # is unaffected by this.
 
     if "PARSE_MODE" not in explicit_keys:
         options.parse_mode = plan_parse_mode(

@@ -1,0 +1,119 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 333 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(DATA SUPPLY AGREEMENT) Tj
+T*
+() Tj
+T*
+(Supplier: Red Maple Geo Products Inc.) Tj
+T*
+(Start Date: 2025-08-20) Tj
+T*
+(End Date: 2027-08-19) Tj
+T*
+(Renewal: This Agreement will not renew automatically.) Tj
+T*
+() Tj
+T*
+(Data may be used for route optimization and internal site-selection analysis.) Tj
+T*
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 418 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(DELIVERY AND EXIT) Tj
+T*
+() Tj
+T*
+(A full geographic file is due on the 15th calendar day of each month by 17:00 UTC.) Tj
+T*
+() Tj
+T*
+(Either party may terminate for an uncured material breach after 30 days written ) Tj
+T*
+(notice. Customer may also terminate if four deliveries are late in any twelve-) Tj
+T*
+(month period.) Tj
+T*
+() Tj
+T*
+(There is no annual purchase minimum.) Tj
+T*
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 542 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(MUTUAL REMEDIES) Tj
+T*
+() Tj
+T*
+(SUPPLIER FAILURE. For a file delivered more than 24 hours late, Supplier pays ) Tj
+T*
+(Customer USD 2,000 per occurrence. For corrupted geometry affecting more than 1% ) Tj
+T*
+(of records, Supplier pays an additional USD 7,500.) Tj
+T*
+() Tj
+T*
+(CUSTOMER FAILURE. If Customer redistributes raw coordinates, Customer pays ) Tj
+T*
+(Supplier USD 100,000 per incident. If Customer is more than 45 days late paying an) Tj
+T*
+( invoice, Customer pays 1.25% interest per month.) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000133 00000 n 
+0000000203 00000 n 
+0000000329 00000 n 
+0000000713 00000 n 
+0000000839 00000 n 
+0000001308 00000 n 
+0000001434 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+2027
+%%EOF

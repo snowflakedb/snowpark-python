@@ -5,6 +5,7 @@
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from snowflake.snowpark._internal.cortex_document_schema import _unwrap_union
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.types import (
     BooleanType,
@@ -73,11 +74,63 @@ class ExtractionSpec:
     def _scalar_type(property_schema: Any) -> Optional[DataType]:
         # property_schema is user-supplied and only loosely validated upstream (it just
         # has to be a dict for is_json_schema to trigger at all) -- a malformed per-field
-        # entry, or a JSON-Schema type union like ["string", "null"], falls back to None
-        # (raw VARIANT) rather than raising, same as "no declared type" does.
+        # entry falls back to None (raw VARIANT) rather than raising, same as "no
+        # declared type" does.
         if not isinstance(property_schema, dict):
             return None
         json_type = property_schema.get("type")
+        if json_type is None:
+            # for_cortex_extract() deliberately leaves anyOf/oneOf unresolved --
+            # its own docstring says inlining them into explicit arrays/objects is
+            # what live AI_EXTRACT rejects -- so every nullable field on that path
+            # arrives this way instead of as the type: [X, "null"] list the branch
+            # below handles. h12's schema is anyOf-wrapped on all 78 of its fields,
+            # and with no handling here every one of them resolved to None: nothing
+            # got cast in cast_extracted_field(), and the raw VARIANT reached the
+            # caller double-JSON-quoted rather than as the string/boolean it
+            # declared. That went unnoticed because the eval harness's
+            # unwrap_extracted() was silently
+            # stripping the extra quoting before scoring, masking the bug rather
+            # than exercising the fix. _unwrap_union already resolves this exact
+            # shape, so this reuses it instead of re-deriving the same null-member
+            # filtering by hand -- hand-rolling it is the mistake this project keeps
+            # making (is_extract_legal, the type-list branch below, is_table_property,
+            # and looks_generative each did it separately and each needed its own
+            # fix). _unwrap_union itself always resolves to its first non-null member
+            # no matter how many real members are present, so the ambiguity check --
+            # two real members names no single type, and raw VARIANT is the honest
+            # answer -- has to happen here, before delegating to it for the actual
+            # resolution.
+            members = property_schema.get("anyOf") or property_schema.get("oneOf")
+            if isinstance(members, list):
+                non_null_members = [
+                    member
+                    for member in members
+                    if not (isinstance(member, dict) and member.get("type") == "null")
+                ]
+                if len(non_null_members) == 1:
+                    # The chosen member can itself be an unresolved $ref (no "type"
+                    # key at all -- _scalar_type has no access to the root schema's
+                    # $defs to chase it, so it stays raw VARIANT, same as any other
+                    # undeclared type) or carry its own type: [X, "null"] list, which
+                    # the branch immediately below this one already knows how to
+                    # collapse.
+                    json_type = _unwrap_union(members).get("type")
+        if isinstance(json_type, list):
+            # simplify_json_schema() spells an optional field as type: [X, "null"],
+            # so this union is how every nullable field now arrives. It names one
+            # output type, and not resolving it here silently skips the cast in
+            # cast_extracted_field() -- which matters most for a field the same
+            # preparation stringified, because a VARIANT holding JSON *text*
+            # reaches the caller double-encoded rather than as the array it
+            # describes. A union with two real members names no single type and
+            # still keeps the raw VARIANT.
+            candidates = [
+                member
+                for member in json_type
+                if isinstance(member, str) and member != "null"
+            ]
+            json_type = candidates[0] if len(candidates) == 1 else None
         if not isinstance(json_type, str):
             return None
         return _JSON_SCHEMA_SCALAR_TYPES.get(json_type)
@@ -141,6 +194,11 @@ class DocumentReaderOptions:
     model: Optional[str] = None
     prompt: Optional[str] = None
     extract_scale_factor: float = 1.0
+    # True when infer_row_boundary() chose row_boundary rather than the caller.
+    # row_boundary="page" is a legitimate thing to ask for -- one row per page is
+    # what you want for retrieval chunking -- so the reader must only collapse
+    # page rows back into one row per document when it picked page rows itself.
+    row_boundary_inferred: bool = False
 
     @property
     def parse_enabled(self) -> bool:

@@ -7,22 +7,110 @@ from __future__ import annotations
 
 import array
 import tempfile
+from collections.abc import Iterable, Mapping
 from io import (
+    SEEK_CUR,
+    SEEK_END,
+    SEEK_SET,
+    BufferedReader,
     RawIOBase,
     UnsupportedOperation,
-    BufferedReader,
-    SEEK_SET,
-    SEEK_END,
-    SEEK_CUR,
 )
+from typing import Any, Dict, Sequence
+
+import logging
+
 from snowflake.snowpark._internal.utils import (
     SNOWFLAKE_PATH_PREFIXES,
 )
-from typing import Sequence
 from snowflake.snowpark.context import get_active_session
-import logging
 
-from collections.abc import Iterable
+
+class FileMetadata(Dict[str, Any]):
+    """Immutable, dict-compatible metadata for a legacy FILE (FileV1) UDT argument.
+
+    Snowflake passes FILE-typed UDF arguments as ``FileMetadata`` instances rather
+    than plain dicts when the ``PYTHON_UDF_ENABLE_FILE_ARG_AS_FILE_METADATA`` parameter
+    is enabled.  The class is a ``dict`` subclass so existing code that reads keys
+    directly continues to work, while the typed properties provide a more ergonomic
+    API.
+
+    This client-side definition mirrors the coprocessor implementation.  On Snowflake,
+    the coprocessor replaces this class at interpreter initialisation time with its
+    own equivalent; the implementation here is used in local testing.
+
+    Example::
+
+        >>> from snowflake.snowpark.files import FileMetadata
+        >>> from snowflake.snowpark.functions import udf
+        >>> @udf
+        ... def get_size(file: FileMetadata) -> int:
+        ...     return file.size
+
+    Properties map to upper-case dict keys that the server populates:
+
+    * ``stage`` — stage name
+    * ``relative_path`` — path of the file within the stage
+    * ``scoped_file_url`` — short-lived scoped URL
+    * ``stage_file_url`` — permanent stage file URL
+    * ``size`` — file size in bytes
+    * ``content_type`` — MIME type
+    * ``last_modified`` — ISO-8601 last-modified timestamp
+    * ``etag`` — ETag string
+    * ``version`` — numeric version
+    """
+
+    def __init__(self, metadata: Mapping[str, Any]) -> None:
+        dict.__init__(self, metadata)
+
+    @property
+    def stage(self) -> str | None:
+        return self.get("STAGE")
+
+    @property
+    def relative_path(self) -> str | None:
+        return self.get("RELATIVE_PATH")
+
+    @property
+    def scoped_file_url(self) -> str | None:
+        return self.get("SCOPED_FILE_URL")
+
+    @property
+    def stage_file_url(self) -> str | None:
+        return self.get("STAGE_FILE_URL")
+
+    @property
+    def size(self) -> int | None:
+        return self.get("SIZE")
+
+    @property
+    def content_type(self) -> str | None:
+        return self.get("CONTENT_TYPE")
+
+    @property
+    def last_modified(self) -> str | None:
+        return self.get("LAST_MODIFIED")
+
+    @property
+    def etag(self) -> str | None:
+        return self.get("ETAG")
+
+    @property
+    def version(self) -> int | None:
+        return self.get("VERSION")
+
+    def _immutable(self, *_args: Any, **_kwargs: Any) -> None:
+        raise TypeError("FileMetadata is immutable")
+
+    __setitem__ = _immutable  # type: ignore[assignment]
+    __delitem__ = _immutable  # type: ignore[assignment]
+    clear = _immutable  # type: ignore[assignment]
+    pop = _immutable  # type: ignore[assignment]
+    popitem = _immutable  # type: ignore[assignment]
+    setdefault = _immutable  # type: ignore[assignment]
+    update = _immutable  # type: ignore[assignment]
+    # __ior__ only exists on Python 3.9+; the unused-ignore silences mypy on 3.8.
+    __ior__ = _immutable  # type: ignore[assignment, unused-ignore]
 
 
 _WRITE_MODE_ERR_MSG = (

@@ -1,0 +1,378 @@
+{
+  "dataset_version": "1.0",
+  "description": "Synthetic contracts for document-reader extraction evaluation. All entities and terms are fictional.",
+  "documents": [
+    {
+      "filename": "01_short_msa.pdf",
+      "pages": [
+        {
+          "text": "MASTER DATA SERVICES AGREEMENT\n\nVendor: Northstar Data Cooperative LLC\nCustomer: Example Analytics Holdings Inc.\n\nTERM\nThis Agreement is effective on January 1, 2025 and expires on December 31, 2027. It automatically renews for successive one-year terms unless either party gives 90 days written notice.\n\nPERMITTED USE\nCustomer may use the supplied records for audience measurement and internal analytics.\n\nTERMINATION\nEither party may terminate for a material breach that remains uncured for 30 days after written notice."
+        },
+        {
+          "text": "DELIVERY AND COMMERCIAL TERMS\n\nVendor will deliver a complete data file every Monday by 06:00 UTC.\n\nCustomer commits to an annual purchase minimum of USD 240,000.\n\nIf Vendor misses three scheduled deliveries in a calendar quarter, Customer receives a service credit equal to 5% of that quarter's fees. Amounts unpaid by Customer more than 30 days after notice accrue interest at 1% per month."
+        }
+      ],
+      "expected": {
+        "vendor_name": "Northstar Data Cooperative LLC",
+        "start_date": "January 1, 2025",
+        "end_date": "December 31, 2027",
+        "auto_renew": "successive one-year terms unless either party gives 90 days written notice",
+        "termination_clause": "Either party may terminate for a material breach that remains uncured for 30 days after written notice.",
+        "delivery_window": "every Monday by 06:00 UTC",
+        "annual_minimum": "USD 240,000",
+        "permitted_uses": [
+          "audience measurement",
+          "internal analytics"
+        ],
+        "penalty_supplier": "service credit equal to 5% of that quarter's fees",
+        "penalty_customer": "interest at 1% per month"
+      },
+      "match_modes": {
+        "termination_clause": "normalized_contains",
+        "auto_renew": "normalized_contains",
+        "penalty_supplier": "normalized_contains",
+        "penalty_customer": "normalized_contains"
+      }
+    },
+    {
+      "filename": "02_sow_delivery.pdf",
+      "pages": [
+        {
+          "text": "STATEMENT OF WORK 24-B\n\nSupplier: Blue Heron Signals Ltd.\nEffective Date: March 15, 2025\nEnd Date: March 14, 2026\n\nThis Statement of Work does not renew automatically.\n\nSCOPE\nSupplier will provide anonymized household movement aggregates for Customer's fraud detection and internal analytics programs."
+        },
+        {
+          "text": "DELIVERY SERVICE LEVEL\n\nDaily incremental files must arrive between 02:00 UTC and 04:00 UTC. A full refresh must arrive by 08:00 UTC each Sunday.\n\nThere is no annual spending minimum under this Statement of Work.\n\nTERMINATION\nCustomer may terminate for convenience on 45 days written notice. Either party may terminate immediately for unlawful use of the data."
+        },
+        {
+          "text": "SERVICE CREDITS\n\nFor each daily file delivered after 04:00 UTC, Supplier will credit USD 500, capped at USD 5,000 per month.\n\nCustomer must delete all supplied records within 10 business days after termination. Failure to certify deletion results in a USD 2,500 administrative charge."
+        }
+      ],
+      "expected": {
+        "vendor_name": "Blue Heron Signals Ltd.",
+        "start_date": "March 15, 2025",
+        "end_date": "March 14, 2026",
+        "auto_renew": "does not renew automatically",
+        "termination_clause": "Customer may terminate for convenience on 45 days written notice. Either party may terminate immediately for unlawful use of the data.",
+        "delivery_window": "Daily incremental files between 02:00 UTC and 04:00 UTC; full refresh by 08:00 UTC each Sunday",
+        "annual_minimum": "No annual spending minimum",
+        "permitted_uses": [
+          "fraud detection",
+          "internal analytics"
+        ],
+        "penalty_supplier": "USD 500 for each late daily file, capped at USD 5,000 per month",
+        "penalty_customer": "USD 2,500 administrative charge"
+      },
+      "match_modes": {
+        "termination_clause": "normalized_contains",
+        "delivery_window": "semantic",
+        "annual_minimum": "normalized_contains",
+        "penalty_supplier": "semantic",
+        "penalty_customer": "normalized_contains"
+      }
+    },
+    {
+      "filename": "03_addendum_new_end_date.pdf",
+      "pages": [
+        {
+          "text": "SECOND ADDENDUM TO MASTER DATA SERVICES AGREEMENT\n\nThis Second Addendum is entered into by Northstar Data Cooperative LLC and Example Analytics Holdings Inc. and is effective October 1, 2027.\n\nAMENDED EXPIRATION DATE\nThe expiration date in the Agreement is deleted and replaced with June 30, 2029. For avoidance of doubt, December 31, 2027 is no longer the expiration date."
+        },
+        {
+          "text": "AMENDED RENEWAL AND DELIVERY\n\nAfter June 30, 2029, the Agreement automatically renews for successive six-month terms unless either party gives 120 days written notice.\n\nThe weekly delivery deadline is changed to every Tuesday by 05:00 UTC.\n\nAll other provisions, including permitted uses, termination rights, annual minimums, and penalties, remain unchanged."
+        }
+      ],
+      "expected": {
+        "vendor_name": "Northstar Data Cooperative LLC",
+        "start_date": "October 1, 2027",
+        "end_date": "June 30, 2029",
+        "auto_renew": "successive six-month terms unless either party gives 120 days written notice",
+        "delivery_window": "every Tuesday by 05:00 UTC"
+      },
+      "match_modes": {
+        "auto_renew": "normalized_contains",
+        "delivery_window": "normalized_contains"
+      }
+    },
+    {
+      "filename": "04_alt_headings_msa.pdf",
+      "pages": [
+        {
+          "text": "INFORMATION LICENSE\n\nPARTIES\nLicensor: Cedar Peak Information Partners Inc.\nLicensee: Example Commerce Group LLC\n\nWHEN THIS LICENSE APPLIES\nCommencement: 2026-07-01\nSunset: 2028-06-30\nContinuation: The license rolls over for one additional year unless notice is received at least 60 days before Sunset."
+        },
+        {
+          "text": "WHAT LICENSEE MAY DO\n\nLicensee may use the information to improve address quality, suppress duplicate customer records, and conduct internal market research. Advertising resale and consumer eligibility decisions are prohibited.\n\nENDING THE RELATIONSHIP\nA party may end this license after an uncured material default by giving 20 business days to cure."
+        },
+        {
+          "text": "OPERATING COMMITMENTS\n\nA replacement snapshot will be available no later than the fifth business day of each month.\n\nThe yearly committed fee floor is USD 75,000.\n\nIf Licensor is late, 2% of the monthly fee is credited for each business day of delay, up to 10%. If Licensee exceeds the permitted user count, Licensee pays USD 100 per excess user per month."
+        }
+      ],
+      "expected": {
+        "vendor_name": "Cedar Peak Information Partners Inc.",
+        "start_date": "2026-07-01",
+        "end_date": "2028-06-30",
+        "auto_renew": "one additional year unless notice is received at least 60 days before Sunset",
+        "termination_clause": "A party may end this license after an uncured material default by giving 20 business days to cure.",
+        "delivery_window": "no later than the fifth business day of each month",
+        "annual_minimum": "USD 75,000",
+        "permitted_uses": [
+          "improve address quality",
+          "suppress duplicate customer records",
+          "internal market research"
+        ],
+        "penalty_supplier": "2% of the monthly fee for each business day of delay, up to 10%",
+        "penalty_customer": "USD 100 per excess user per month"
+      },
+      "match_modes": {
+        "auto_renew": "normalized_contains",
+        "termination_clause": "normalized_contains",
+        "penalty_supplier": "semantic",
+        "penalty_customer": "normalized_contains"
+      }
+    },
+    {
+      "filename": "05_taxonomy_tables.pdf",
+      "pages": [
+        {
+          "text": "DATA DICTIONARY AND TAXONOMY SCHEDULE\n\nProvider: Lantern Lake Taxonomy Services LLC\nSchedule Start Date: February 1, 2025\nSchedule End Date: January 31, 2028\nRenewal: one-year automatic renewal with 75 days prior notice to opt out.\n\nAuthorized purposes are product categorization and search relevance tuning."
+        },
+        {
+          "text": "TABLE 1 - DELIVERY FILES\n\nFile                    Cadence       Deadline\ncategory_full.csv       Monthly       3rd business day, 12:00 UTC\ncategory_delta.csv      Weekly        Friday, 18:00 UTC\nvalue_dictionary.csv    Quarterly     10th calendar day, 12:00 UTC\n\nAnnual record-volume minimum: 25 million records."
+        },
+        {
+          "text": "TABLE 2 - TAXONOMY COLUMNS\n\nColumn                  Meaning                     Example\nCATEGORY_ID             Stable category key         C-1042\nPARENT_CATEGORY_ID      Parent category key         C-1000\nDISPLAY_NAME            Human-readable label        Outdoor Lighting\nSTATUS                  active or retired           active\n\nProvider must announce breaking taxonomy changes 30 days before delivery."
+        },
+        {
+          "text": "REMEDIES AND TERMINATION\n\nEither party may terminate after 30 days to cure a material breach. If Provider fails two delivery deadlines in one quarter, Provider credits 8% of the quarterly fee. If Customer distributes the dictionary externally, Customer owes liquidated damages of USD 20,000."
+        }
+      ],
+      "expected": {
+        "vendor_name": "Lantern Lake Taxonomy Services LLC",
+        "start_date": "February 1, 2025",
+        "end_date": "January 31, 2028",
+        "auto_renew": "one-year automatic renewal with 75 days prior notice to opt out",
+        "termination_clause": "Either party may terminate after 30 days to cure a material breach.",
+        "delivery_window": "monthly, weekly, and quarterly delivery deadlines shown in Table 1",
+        "annual_minimum": "25 million records",
+        "permitted_uses": [
+          "product categorization",
+          "search relevance tuning"
+        ],
+        "penalty_supplier": "8% of the quarterly fee",
+        "penalty_customer": "liquidated damages of USD 20,000"
+      },
+      "match_modes": {
+        "auto_renew": "normalized_contains",
+        "termination_clause": "normalized_contains",
+        "delivery_window": "semantic",
+        "penalty_supplier": "normalized_contains",
+        "penalty_customer": "normalized_contains"
+      }
+    },
+    {
+      "filename": "06_signature_page.pdf",
+      "pages": [
+        {
+          "text": "ORDER FORM\n\nSupplier: Silverline Reference Data Corp.\nOrder Effective Date: September 10, 2025\nOrder End Date: September 9, 2028\nAuto-Renewal: none.\n\nSupplier will provide a monthly reference-data snapshot by 23:00 UTC on the last calendar day of each month."
+        },
+        {
+          "text": "TERMS\n\nCustomer may use the data for internal risk modeling and regulatory reporting.\n\nEither party may terminate if the other party becomes insolvent or fails to cure a material breach within 15 days.\n\nAnnual purchase minimum: USD 180,000. Supplier owes a 4% monthly credit for a missed snapshot. Customer owes a USD 1,000 reinstatement fee following suspension for nonpayment."
+        },
+        {
+          "image_only": true
+        }
+      ],
+      "expected": {
+        "vendor_name": "Silverline Reference Data Corp.",
+        "start_date": "September 10, 2025",
+        "end_date": "September 9, 2028",
+        "auto_renew": "none",
+        "termination_clause": "Either party may terminate if the other party becomes insolvent or fails to cure a material breach within 15 days.",
+        "delivery_window": "by 23:00 UTC on the last calendar day of each month",
+        "annual_minimum": "USD 180,000",
+        "permitted_uses": [
+          "internal risk modeling",
+          "regulatory reporting"
+        ],
+        "penalty_supplier": "4% monthly credit",
+        "penalty_customer": "USD 1,000 reinstatement fee"
+      },
+      "match_modes": {
+        "termination_clause": "normalized_contains",
+        "delivery_window": "normalized_contains",
+        "penalty_supplier": "normalized_contains",
+        "penalty_customer": "normalized_contains"
+      }
+    },
+    {
+      "filename": "07_financial_minimums.pdf",
+      "pages": [
+        {
+          "text": "ANNUAL SUBSCRIPTION AGREEMENT\n\nData Supplier: Ember Coast Metrics LLC\nTerm begins: November 1, 2025\nTerm ends: October 31, 2028\nThe subscription automatically renews annually unless cancelled with 100 days written notice."
+        },
+        {
+          "text": "PRICING SCHEDULE\n\nContract Year    Platform Fee    Minimum Usage Fee    Total Annual Minimum\nYear 1           USD 40,000      USD 260,000          USD 300,000\nYear 2           USD 42,000      USD 273,000          USD 315,000\nYear 3           USD 44,000      USD 286,750          USD 330,750\n\nThe total three-year committed minimum is USD 945,750."
+        },
+        {
+          "text": "USE, DELIVERY, AND REMEDIES\n\nPermitted uses: media planning and aggregate campaign measurement.\nDelivery: refreshed metrics by 09:00 local time every business day.\nTermination: Customer may terminate after two uncured Severity 1 delivery failures in a rolling 90-day period.\nSupplier penalty: 10% of the affected month's fee.\nCustomer penalty: unpaid committed minimum becomes immediately due."
+        }
+      ],
+      "expected": {
+        "vendor_name": "Ember Coast Metrics LLC",
+        "start_date": "November 1, 2025",
+        "end_date": "October 31, 2028",
+        "auto_renew": "automatically renews annually unless cancelled with 100 days written notice",
+        "termination_clause": "Customer may terminate after two uncured Severity 1 delivery failures in a rolling 90-day period.",
+        "delivery_window": "by 09:00 local time every business day",
+        "annual_minimum": "Year 1 USD 300,000; Year 2 USD 315,000; Year 3 USD 330,750",
+        "permitted_uses": [
+          "media planning",
+          "aggregate campaign measurement"
+        ],
+        "penalty_supplier": "10% of the affected month's fee",
+        "penalty_customer": "unpaid committed minimum becomes immediately due"
+      },
+      "match_modes": {
+        "auto_renew": "normalized_contains",
+        "termination_clause": "normalized_contains",
+        "annual_minimum": "semantic",
+        "penalty_supplier": "normalized_contains",
+        "penalty_customer": "normalized_contains"
+      }
+    },
+    {
+      "filename": "08_permitted_use_list.pdf",
+      "pages": [
+        {
+          "text": "LIMITED DATA LICENSE\n\nVendor Legal Name: Meadowlark Consumer Insights LLC\nEffective: April 1, 2026\nExpires: March 31, 2029\nRenewal: successive one-year periods; opt-out notice is due 90 days before expiration."
+        },
+        {
+          "text": "SECTION 4 - PERMITTED USES\n\nCustomer may use the licensed data solely for:\n  1. internal market research;\n  2. aggregate audience segmentation;\n  3. suppression of existing customers from acquisition campaigns; and\n  4. measurement of advertising reach.\n\nCustomer may not use the data for credit, employment, insurance, or housing eligibility decisions."
+        },
+        {
+          "text": "OPERATIONS AND TERMINATION\n\nVendor delivers weekly files each Wednesday between 01:00 and 03:00 UTC. Annual minimum: USD 125,000.\n\nEither party may terminate for breach after a 25-day cure period. Vendor credits 3% of monthly charges per late file, capped at 12%. Customer pays USD 50,000 for a substantiated prohibited eligibility use."
+        }
+      ],
+      "expected": {
+        "vendor_name": "Meadowlark Consumer Insights LLC",
+        "start_date": "April 1, 2026",
+        "end_date": "March 31, 2029",
+        "auto_renew": "successive one-year periods; opt-out notice is due 90 days before expiration",
+        "termination_clause": "Either party may terminate for breach after a 25-day cure period.",
+        "delivery_window": "each Wednesday between 01:00 and 03:00 UTC",
+        "annual_minimum": "USD 125,000",
+        "permitted_uses": [
+          "internal market research",
+          "aggregate audience segmentation",
+          "suppression of existing customers from acquisition campaigns",
+          "measurement of advertising reach"
+        ],
+        "penalty_supplier": "3% of monthly charges per late file, capped at 12%",
+        "penalty_customer": "USD 50,000"
+      },
+      "match_modes": {
+        "auto_renew": "normalized_contains",
+        "termination_clause": "normalized_contains",
+        "delivery_window": "normalized_contains",
+        "penalty_supplier": "normalized_contains"
+      }
+    },
+    {
+      "filename": "09_bilateral_penalties.pdf",
+      "pages": [
+        {
+          "text": "DATA SUPPLY AGREEMENT\n\nSupplier: Red Maple Geo Products Inc.\nStart Date: 2025-08-20\nEnd Date: 2027-08-19\nRenewal: This Agreement will not renew automatically.\n\nData may be used for route optimization and internal site-selection analysis."
+        },
+        {
+          "text": "DELIVERY AND EXIT\n\nA full geographic file is due on the 15th calendar day of each month by 17:00 UTC.\n\nEither party may terminate for an uncured material breach after 30 days written notice. Customer may also terminate if four deliveries are late in any twelve-month period.\n\nThere is no annual purchase minimum."
+        },
+        {
+          "text": "MUTUAL REMEDIES\n\nSUPPLIER FAILURE. For a file delivered more than 24 hours late, Supplier pays Customer USD 2,000 per occurrence. For corrupted geometry affecting more than 1% of records, Supplier pays an additional USD 7,500.\n\nCUSTOMER FAILURE. If Customer redistributes raw coordinates, Customer pays Supplier USD 100,000 per incident. If Customer is more than 45 days late paying an invoice, Customer pays 1.25% interest per month."
+        }
+      ],
+      "expected": {
+        "vendor_name": "Red Maple Geo Products Inc.",
+        "start_date": "2025-08-20",
+        "end_date": "2027-08-19",
+        "auto_renew": "will not renew automatically",
+        "termination_clause": "Either party may terminate for an uncured material breach after 30 days written notice. Customer may also terminate if four deliveries are late in any twelve-month period.",
+        "delivery_window": "15th calendar day of each month by 17:00 UTC",
+        "annual_minimum": "No annual purchase minimum",
+        "permitted_uses": [
+          "route optimization",
+          "internal site-selection analysis"
+        ],
+        "penalty_supplier": "USD 2,000 per late occurrence and USD 7,500 for corrupted geometry affecting more than 1% of records",
+        "penalty_customer": "USD 100,000 per raw-coordinate redistribution incident and 1.25% interest per month on invoices more than 45 days late"
+      },
+      "match_modes": {
+        "termination_clause": "normalized_contains",
+        "annual_minimum": "normalized_contains",
+        "penalty_supplier": "semantic",
+        "penalty_customer": "semantic"
+      }
+    },
+    {
+      "filename": "10_long_exhibits.pdf",
+      "pages": [
+        {
+          "text": "ENTERPRISE DATA PRODUCTS AGREEMENT\n\nVendor: Juniper Ridge Data Works LLC\nCustomer: Example Retail Systems Corp.\nEffective Date: May 5, 2025\nExpiration Date: May 4, 2028\nRenewal: automatic one-year renewals unless either party provides 120 days notice."
+        },
+        {
+          "text": "GENERAL TERMS\n\nThe parties agree that confidentiality, security, audit, and data-handling obligations apply to every Product listed in an Exhibit. Defined terms have the meanings stated in this Agreement."
+        },
+        {
+          "text": "PERMITTED USE\n\nCustomer may use Products for internal demand forecasting, inventory optimization, and aggregate location analytics. Customer may not sell raw records or use a Product to make an individual eligibility decision."
+        },
+        {
+          "text": "DELIVERY\n\nDaily deltas are due by 05:30 UTC. Weekly full files are due each Sunday by 10:00 UTC. Quarterly dictionaries are due within five business days after quarter end."
+        },
+        {
+          "text": "FEES\n\nThe annual committed minimum is USD 600,000 across all Products. Unused committed amounts expire at the end of each contract year."
+        },
+        {
+          "text": "SERVICE LEVEL REMEDY\n\nIf Vendor misses a daily deadline by more than six hours, Vendor credits 1% of the monthly Product fee per occurrence, capped at 15% per month."
+        },
+        {
+          "text": "CUSTOMER REMEDY\n\nIf Customer discloses raw records to an unauthorized third party, Customer must pay USD 80,000 per event in addition to documented remediation costs."
+        },
+        {
+          "text": "TERMINATION\n\nEither party may terminate for a material breach not cured within 30 days. Customer may terminate a Product Exhibit after five missed delivery deadlines in a rolling six-month period without terminating this Agreement."
+        },
+        {
+          "text": "EXHIBIT A - POWER PRODUCT\n\nAsset: Grid Pulse Daily\nCoverage: national aggregate load zones\nDelivery: daily delta and Sunday full file\nDictionary version: GP-4.2"
+        },
+        {
+          "text": "EXHIBIT B - IDENTITY PRODUCT\n\nAsset: Household Link Reference\nCoverage: pseudonymous household clusters\nDelivery: weekly full file\nDictionary version: HLR-7.1"
+        },
+        {
+          "text": "EXHIBIT C - DICTIONARY\n\nField                   Type          Meaning\nPRODUCT_ID              STRING        Stable product identifier\nOBSERVATION_DATE         DATE          UTC observation date\nREGION_CODE             STRING        Aggregate region identifier\nVALUE                    NUMBER        Reported aggregate value"
+        },
+        {
+          "text": "EXHIBIT D - CONTACTS AND NOTICES\n\nOperational notices: operations@example.invalid\nLegal notices: legal@example.invalid\nBilling notices: billing@example.invalid\n\nEND OF AGREEMENT"
+        }
+      ],
+      "expected": {
+        "vendor_name": "Juniper Ridge Data Works LLC",
+        "start_date": "May 5, 2025",
+        "end_date": "May 4, 2028",
+        "auto_renew": "automatic one-year renewals unless either party provides 120 days notice",
+        "termination_clause": "Either party may terminate for a material breach not cured within 30 days. Customer may terminate a Product Exhibit after five missed delivery deadlines in a rolling six-month period without terminating this Agreement.",
+        "delivery_window": "daily deltas by 05:30 UTC; weekly full files Sunday by 10:00 UTC; quarterly dictionaries within five business days after quarter end",
+        "annual_minimum": "USD 600,000",
+        "permitted_uses": [
+          "internal demand forecasting",
+          "inventory optimization",
+          "aggregate location analytics"
+        ],
+        "penalty_supplier": "1% of the monthly Product fee per occurrence, capped at 15% per month",
+        "penalty_customer": "USD 80,000 per unauthorized disclosure event plus documented remediation costs"
+      },
+      "match_modes": {
+        "auto_renew": "normalized_contains",
+        "termination_clause": "normalized_contains",
+        "delivery_window": "semantic",
+        "penalty_supplier": "normalized_contains",
+        "penalty_customer": "semantic"
+      }
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 694 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(MASTER DATA SERVICES AGREEMENT) Tj
+T*
+() Tj
+T*
+(Vendor: Northstar Data Cooperative LLC) Tj
+T*
+(Customer: Example Analytics Holdings Inc.) Tj
+T*
+() Tj
+T*
+(TERM) Tj
+T*
+(This Agreement is effective on January 1, 2025 and expires on December 31, 2027. ) Tj
+T*
+(It automatically renews for successive one-year terms unless either party gives 90) Tj
+T*
+( days written notice.) Tj
+T*
+() Tj
+T*
+(PERMITTED USE) Tj
+T*
+(Customer may use the supplied records for audience measurement and internal ) Tj
+T*
+(analytics.) Tj
+T*
+() Tj
+T*
+(TERMINATION) Tj
+T*
+(Either party may terminate for a material breach that remains uncured for 30 days ) Tj
+T*
+(after written notice.) Tj
+T*
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 498 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(DELIVERY AND COMMERCIAL TERMS) Tj
+T*
+() Tj
+T*
+(Vendor will deliver a complete data file every Monday by 06:00 UTC.) Tj
+T*
+() Tj
+T*
+(Customer commits to an annual purchase minimum of USD 240,000.) Tj
+T*
+() Tj
+T*
+(If Vendor misses three scheduled deliveries in a calendar quarter, Customer ) Tj
+T*
+(receives a service credit equal to 5% of that quarter's fees. Amounts unpaid by ) Tj
+T*
+(Customer more than 30 days after notice accrue interest at 1% per month.) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000127 00000 n 
+0000000197 00000 n 
+0000000323 00000 n 
+0000001068 00000 n 
+0000001194 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+1743
+%%EOF

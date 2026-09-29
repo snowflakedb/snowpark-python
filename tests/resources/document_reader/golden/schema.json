@@ -1,0 +1,48 @@
+{
+  "type": "object",
+  "properties": {
+    "vendor_name": {
+      "type": "string",
+      "description": "What is the full legal name of the vendor or supplier?"
+    },
+    "start_date": {
+      "type": "string",
+      "description": "What is the contract effective or start date?"
+    },
+    "end_date": {
+      "type": "string",
+      "description": "What is the contract expiration or end date?"
+    },
+    "auto_renew": {
+      "type": "string",
+      "description": "Does the contract automatically renew, and for what term?"
+    },
+    "termination_clause": {
+      "type": "string",
+      "description": "What does the contract say about early termination?"
+    },
+    "delivery_window": {
+      "type": "string",
+      "description": "What delivery schedule, cadence, or time window is required?"
+    },
+    "annual_minimum": {
+      "type": "string",
+      "description": "What annual spending, purchase, or volume minimum is required?"
+    },
+    "permitted_uses": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List: What uses of the supplied data are permitted?"
+    },
+    "penalty_supplier": {
+      "type": "string",
+      "description": "What penalty applies when the supplier fails its obligations?"
+    },
+    "penalty_customer": {
+      "type": "string",
+      "description": "What penalty applies when the customer fails its obligations?"
+    }
+  }
+}

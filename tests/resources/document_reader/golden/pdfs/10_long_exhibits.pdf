@@ -1,0 +1,330 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R 22 0 R 24 0 R 26 0 R] /Count 12 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 339 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(ENTERPRISE DATA PRODUCTS AGREEMENT) Tj
+T*
+() Tj
+T*
+(Vendor: Juniper Ridge Data Works LLC) Tj
+T*
+(Customer: Example Retail Systems Corp.) Tj
+T*
+(Effective Date: May 5, 2025) Tj
+T*
+(Expiration Date: May 4, 2028) Tj
+T*
+(Renewal: automatic one-year renewals unless either party provides 120 days notice.) Tj
+T*
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 278 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(GENERAL TERMS) Tj
+T*
+() Tj
+T*
+(The parties agree that confidentiality, security, audit, and data-handling ) Tj
+T*
+(obligations apply to every Product listed in an Exhibit. Defined terms have the ) Tj
+T*
+(meanings stated in this Agreement.) Tj
+T*
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 300 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(PERMITTED USE) Tj
+T*
+() Tj
+T*
+(Customer may use Products for internal demand forecasting, inventory optimization,) Tj
+T*
+( and aggregate location analytics. Customer may not sell raw records or use a ) Tj
+T*
+(Product to make an individual eligibility decision.) Tj
+T*
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 237 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(DELIVERY) Tj
+T*
+() Tj
+T*
+(Daily deltas are due by 05:30 UTC. Weekly full files are due each Sunday by 10:00 ) Tj
+T*
+(UTC. Quarterly dictionaries are due within five business days after quarter end.) Tj
+T*
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 201 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(FEES) Tj
+T*
+() Tj
+T*
+(The annual committed minimum is USD 600,000 across all Products. Unused committed ) Tj
+T*
+(amounts expire at the end of each contract year.) Tj
+T*
+ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 15 0 R >>
+endobj
+15 0 obj
+<< /Length 230 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(SERVICE LEVEL REMEDY) Tj
+T*
+() Tj
+T*
+(If Vendor misses a daily deadline by more than six hours, Vendor credits 1% of the) Tj
+T*
+( monthly Product fee per occurrence, capped at 15% per month.) Tj
+T*
+ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 17 0 R >>
+endobj
+17 0 obj
+<< /Length 231 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(CUSTOMER REMEDY) Tj
+T*
+() Tj
+T*
+(If Customer discloses raw records to an unauthorized third party, Customer must ) Tj
+T*
+(pay USD 80,000 per event in addition to documented remediation costs.) Tj
+T*
+ET
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 19 0 R >>
+endobj
+19 0 obj
+<< /Length 305 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(TERMINATION) Tj
+T*
+() Tj
+T*
+(Either party may terminate for a material breach not cured within 30 days. ) Tj
+T*
+(Customer may terminate a Product Exhibit after five missed delivery deadlines in a) Tj
+T*
+( rolling six-month period without terminating this Agreement.) Tj
+T*
+ET
+endstream
+endobj
+20 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 21 0 R >>
+endobj
+21 0 obj
+<< /Length 240 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(EXHIBIT A - POWER PRODUCT) Tj
+T*
+() Tj
+T*
+(Asset: Grid Pulse Daily) Tj
+T*
+(Coverage: national aggregate load zones) Tj
+T*
+(Delivery: daily delta and Sunday full file) Tj
+T*
+(Dictionary version: GP-4.2) Tj
+T*
+ET
+endstream
+endobj
+22 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 23 0 R >>
+endobj
+23 0 obj
+<< /Length 238 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(EXHIBIT B - IDENTITY PRODUCT) Tj
+T*
+() Tj
+T*
+(Asset: Household Link Reference) Tj
+T*
+(Coverage: pseudonymous household clusters) Tj
+T*
+(Delivery: weekly full file) Tj
+T*
+(Dictionary version: HLR-7.1) Tj
+T*
+ET
+endstream
+endobj
+24 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 25 0 R >>
+endobj
+25 0 obj
+<< /Length 411 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(EXHIBIT C - DICTIONARY) Tj
+T*
+() Tj
+T*
+(Field                   Type          Meaning) Tj
+T*
+(PRODUCT_ID              STRING        Stable product identifier) Tj
+T*
+(OBSERVATION_DATE         DATE          UTC observation date) Tj
+T*
+(REGION_CODE             STRING        Aggregate region identifier) Tj
+T*
+(VALUE                    NUMBER        Reported aggregate value) Tj
+T*
+ET
+endstream
+endobj
+26 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 27 0 R >>
+endobj
+27 0 obj
+<< /Length 265 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(EXHIBIT D - CONTACTS AND NOTICES) Tj
+T*
+() Tj
+T*
+(Operational notices: operations@example.invalid) Tj
+T*
+(Legal notices: legal@example.invalid) Tj
+T*
+(Billing notices: billing@example.invalid) Tj
+T*
+() Tj
+T*
+(END OF AGREEMENT) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 28
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000197 00000 n 
+0000000267 00000 n 
+0000000393 00000 n 
+0000000783 00000 n 
+0000000909 00000 n 
+0000001238 00000 n 
+0000001364 00000 n 
+0000001715 00000 n 
+0000001843 00000 n 
+0000002132 00000 n 
+0000002260 00000 n 
+0000002513 00000 n 
+0000002641 00000 n 
+0000002923 00000 n 
+0000003051 00000 n 
+0000003334 00000 n 
+0000003462 00000 n 
+0000003819 00000 n 
+0000003947 00000 n 
+0000004239 00000 n 
+0000004367 00000 n 
+0000004657 00000 n 
+0000004785 00000 n 
+0000005248 00000 n 
+0000005376 00000 n 
+trailer
+<< /Size 28 /Root 1 0 R >>
+startxref
+5693
+%%EOF

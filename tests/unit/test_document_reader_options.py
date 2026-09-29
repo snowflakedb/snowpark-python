@@ -274,17 +274,63 @@ class TestExtractionSpecFieldTypes:
             "type": "object",
             "properties": {
                 "untyped": {},
-                # A type union (e.g. ["string", "null"]) isn't a single scalar --
-                # falls back to None rather than raising on the unhashable list.
-                "nullable_string": {"type": ["string", "null"]},
                 # Not itself a dict -- malformed, but must not raise.
                 "malformed": "not a schema",
             },
         }
+        assert _field_types(schema) == {"untyped": None, "malformed": None}
+
+    def test_nullable_union_resolves_to_its_non_null_scalar(self):
+        # simplify_json_schema() spells an optional field as type: [X, "null"],
+        # so this is the shape every nullable field now arrives in. Leaving it
+        # unresolved would silently stop casting the column: the field keeps the
+        # raw VARIANT, and a VARIANT holding a JSON *string* reaches the caller
+        # double-encoded ('"[{\\"x\\":1}]"' rather than '[{"x":1}]').
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": ["string", "null"]},
+                "amount": {"type": ["number", "null"]},
+                "quantity": {"type": ["null", "integer"]},
+                "is_paid": {"type": ["boolean", "null"]},
+            },
+        }
+        types = _field_types(schema)
+        assert isinstance(types["name"], StringType)
+        assert isinstance(types["amount"], DoubleType)
+        assert isinstance(types["quantity"], LongType)
+        assert isinstance(types["is_paid"], BooleanType)
+
+    def test_nullable_composite_union_still_has_no_declared_scalar(self):
+        # Resolving the union must not promote a composite: array/object are
+        # absent from the scalar map for the same reason as in the non-null case.
+        schema = {
+            "type": "object",
+            "properties": {
+                "tags": {"type": ["array", "null"], "items": {"type": "string"}},
+                "address": {"type": ["object", "null"]},
+            },
+        }
+        assert _field_types(schema) == {"tags": None, "address": None}
+
+    def test_ambiguous_union_of_two_real_types_has_no_declared_scalar(self):
+        # Two non-null members name no single output type, so there is nothing to
+        # cast to -- the raw VARIANT is the honest answer. Same for a union that
+        # is nothing but nulls, or carries non-string members.
+        schema = {
+            "type": "object",
+            "properties": {
+                "either": {"type": ["string", "number"]},
+                "only_null": {"type": ["null"]},
+                "empty": {"type": []},
+                "nested_list": {"type": [["string"], "null"]},
+            },
+        }
         assert _field_types(schema) == {
-            "untyped": None,
-            "nullable_string": None,
-            "malformed": None,
+            "either": None,
+            "only_null": None,
+            "empty": None,
+            "nested_list": None,
         }
 
     def test_unrecognized_json_schema_type_has_no_declared_scalar(self):

@@ -1,0 +1,144 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R] /Count 4 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 404 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(DATA DICTIONARY AND TAXONOMY SCHEDULE) Tj
+T*
+() Tj
+T*
+(Provider: Lantern Lake Taxonomy Services LLC) Tj
+T*
+(Schedule Start Date: February 1, 2025) Tj
+T*
+(Schedule End Date: January 31, 2028) Tj
+T*
+(Renewal: one-year automatic renewal with 75 days prior notice to opt out.) Tj
+T*
+() Tj
+T*
+(Authorized purposes are product categorization and search relevance tuning.) Tj
+T*
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 408 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(TABLE 1 - DELIVERY FILES) Tj
+T*
+() Tj
+T*
+(File                    Cadence       Deadline) Tj
+T*
+(category_full.csv       Monthly       3rd business day, 12:00 UTC) Tj
+T*
+(category_delta.csv      Weekly        Friday, 18:00 UTC) Tj
+T*
+(value_dictionary.csv    Quarterly     10th calendar day, 12:00 UTC) Tj
+T*
+() Tj
+T*
+(Annual record-volume minimum: 25 million records.) Tj
+T*
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 512 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(TABLE 2 - TAXONOMY COLUMNS) Tj
+T*
+() Tj
+T*
+(Column                  Meaning                     Example) Tj
+T*
+(CATEGORY_ID             Stable category key         C-1042) Tj
+T*
+(PARENT_CATEGORY_ID      Parent category key         C-1000) Tj
+T*
+(DISPLAY_NAME            Human-readable label        Outdoor Lighting) Tj
+T*
+(STATUS                  active or retired           active) Tj
+T*
+() Tj
+T*
+(Provider must announce breaking taxonomy changes 30 days before delivery.) Tj
+T*
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 374 >>
+stream
+BT
+/F1 10 Tf
+64 746 Td
+14 TL
+(REMEDIES AND TERMINATION) Tj
+T*
+() Tj
+T*
+(Either party may terminate after 30 days to cure a material breach. If Provider ) Tj
+T*
+(fails two delivery deadlines in one quarter, Provider credits 8% of the quarterly ) Tj
+T*
+(fee. If Customer distributes the dictionary externally, Customer owes liquidated ) Tj
+T*
+(damages of USD 20,000.) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 12
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000140 00000 n 
+0000000210 00000 n 
+0000000336 00000 n 
+0000000791 00000 n 
+0000000917 00000 n 
+0000001376 00000 n 
+0000001502 00000 n 
+0000002065 00000 n 
+0000002193 00000 n 
+trailer
+<< /Size 12 /Root 1 0 R >>
+startxref
+2619
+%%EOF

@@ -12,6 +12,7 @@
 - Fixed `Session.write_pandas` raising a raw connector error instead of Snowpark's table-does-not-exist message when the target table was missing and `auto_create_table=False`.
 - Fixed `ai_extract` misrouting FILE-type inputs to the TEXT overload when `scores` or `config` were also supplied.
 - Fixed the nullable `FILE` column schema expression.
+- Fixed `DataFrameReader.documents()` discarding whole extractions on three unrelated causes: `AI_COMPLETE` was called with `max_tokens=8192`, which truncated larger answers and rejected the malformed reply; the extraction schema rewrote `number`/`integer`/`boolean`/`array` leaves to `string`, so a model answering with real JSON types had its entire response rejected; and `required` was forwarded to Cortex, which enforces it as must-be-non-null, so one field absent from the document discarded every other field. Arrays now also keep their `items` declaration, so a nested array reaches the caller as an `ARRAY` rather than an escaped JSON string.
 
 #### Documentation
 
