@@ -24,7 +24,29 @@ from snowflake.snowpark._internal.utils import (
 
 
 class PutResult(NamedTuple):
-    """Represents the results of uploading a local file to a stage location."""
+    """Represents the results of uploading a local file to a stage location.
+
+    :meth:`FileOperation.put` returns a list of these objects. Inspect each
+    object's ``source``, ``target``, ``status``, and ``message`` attributes to
+    identify the file and its upload outcome. ``SKIPPED`` means the file wasn't
+    uploaded; it doesn't mean a new upload succeeded.
+
+    This example requires an existing internal stage named ``example_stage``
+    and a session authorized to upload to it. It creates only a local text
+    fixture; use a stage intended for testing. File names and sizes in the
+    returned objects depend on the input and compression options.
+
+    Example::
+
+        >>> from pathlib import Path
+        >>> from tempfile import TemporaryDirectory
+        >>> with TemporaryDirectory() as directory:  # doctest: +SKIP
+        ...     path = Path(directory) / "message.txt"
+        ...     _ = path.write_text("hello", encoding="utf-8")
+        ...     results = session.file.put(str(path), "@example_stage", auto_compress=False)
+        ...     for result in results:
+        ...         print(result.source, result.target, result.status, result.message)
+    """
 
     source: str  #: The source file path.
     target: str  #: The file path in the stage where the source file is uploaded.
