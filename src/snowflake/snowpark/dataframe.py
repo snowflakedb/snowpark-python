@@ -6887,6 +6887,25 @@ class DataFrame:
         Returns a ``dict`` that contains a list of queries that will be executed to
         evaluate this DataFrame with the key `queries`, and a list of post-execution
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
+
+        ``queries`` contains SQL statements in the DataFrame's execution plan;
+        a plan can contain more than one statement. ``post_actions`` contains
+        cleanup statements associated with that plan and can be empty. These
+        lists aren't result rows or a history of previously executed queries.
+
+        Use :meth:`explain` for a printed query list and, when available, a
+        database execution plan. Use :meth:`Session.query_history` to record
+        queries executed through a session. Generated SQL can change between
+        library versions and configurations; don't rely on exact SQL text.
+
+        Example::
+
+            >>> df = session.range(3)
+            >>> planned_sql = df.queries
+            >>> sorted(planned_sql)
+            ['post_actions', 'queries']
+            >>> isinstance(planned_sql["queries"], list)
+            True
         """
         plan_queries = self._plan.execution_queries
         return {
