@@ -426,6 +426,12 @@ class DataFrameStatFunctions:
     ) -> "snowflake.snowpark.DataFrame":
         """Returns a DataFrame containing a stratified sample without replacement, based on a ``dict`` that specifies the fraction for each stratum.
 
+        ``df.stat`` is the :class:`DataFrameStatFunctions` accessor for ``df``;
+        it groups statistical operations and doesn't select a column named
+        ``stat``. ``df.stat.sample_by(...)``, ``df.sample_by(...)``, and
+        ``df.sampleBy(...)`` call the same sampling operation. Separate calls
+        can return different random samples.
+
         Example::
 
             >>> df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
