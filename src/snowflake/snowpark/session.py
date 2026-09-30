@@ -4302,6 +4302,19 @@ class Session:
         """
         Returns the name of the current account for the Python connector session attached
         to this session.
+
+        The value comes from the attached connection; it isn't a database or
+        schema name. The returned string depends on the connection's account
+        configuration. It can be ``None`` if that parameter isn't available.
+
+        Example::
+
+            >>> account = session.get_current_account()
+            >>> isinstance(account, (str, type(None)))
+            True
+
+        Use ``account`` when you need the account configured for an existing
+        session, rather than creating a new connection to inspect it.
         """
         return self._conn._get_current_parameter("account")
 
