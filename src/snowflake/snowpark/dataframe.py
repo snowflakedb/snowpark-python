@@ -1728,7 +1728,25 @@ class DataFrame:
 
     @publicapi
     def col(self, col_name: str, _emit_ast: bool = True) -> Column:
-        """Returns a reference to a column in the DataFrame."""
+        """Returns a reference to a column in the DataFrame.
+
+        Use the returned :class:`Column` expression in operations such as
+        :meth:`select` and :meth:`filter`. This method doesn't retrieve the
+        column's values; call an action such as :meth:`collect` on the resulting
+        DataFrame to retrieve rows.
+
+        Args:
+            col_name: The name of a column in this DataFrame, or ``"*"`` to
+                reference all columns.
+
+        Examples::
+
+            >>> df = session.create_dataframe([(1, 10), (2, 20)], schema=["id", "amount"])
+            >>> df.select(df.col("id"), (df.col("amount") + 5).alias("adjusted")).sort("id").collect()
+            [Row(ID=1, ADJUSTED=15), Row(ID=2, ADJUSTED=25)]
+            >>> df.filter(df.col("amount") > 10).select(df.col("id")).collect()
+            [Row(ID=2)]
+        """
         expr = None
         if _emit_ast:
             expr = proto.Expr()
