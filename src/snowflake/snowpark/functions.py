@@ -7018,6 +7018,18 @@ def array_agg(
         |]         |
         ------------
         <BLANKLINE>
+
+    ``collect_list`` is an alias of ``array_agg`` with the same arguments and
+    behavior. The two names share this documentation, which is why the example
+    above uses ``array_agg``. By default, duplicates are retained.
+
+    This example produces an array containing ``[1, 2, 2]``:
+
+    Example using the alias::
+
+        >>> from snowflake.snowpark.functions import collect_list
+        >>> df = session.create_dataframe([[2], [1], [2]], schema=["a"])
+        >>> result = df.select(collect_list("a").within_group("a").alias("values")).collect()
     """
     ast = build_function_expr("array_agg", [col, is_distinct]) if _emit_ast else None
     c = _to_col_if_str(col, "array_agg")
