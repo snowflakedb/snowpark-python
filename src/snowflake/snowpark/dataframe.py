@@ -814,6 +814,22 @@ class DataFrame:
 
         See also:
             :meth:`collect_nowait()`
+
+        The default blocking call retrieves all result rows into client memory.
+        For large results, consider :meth:`to_local_iterator` instead of
+        materializing a list. Use :meth:`sort` before collecting when the order
+        of rows matters.
+
+        Example::
+
+            >>> df = session.create_dataframe([(2, "Bob"), (1, "Alice")], schema=["id", "name"])
+            >>> rows = df.sort("id").collect()
+            >>> rows
+            [Row(ID=1, NAME='Alice'), Row(ID=2, NAME='Bob')]
+            >>> rows[0]["NAME"]
+            'Alice'
+            >>> rows[1].ID
+            2
         """
 
         kwargs = {}
