@@ -136,7 +136,11 @@ class DocumentReaderOptions:
     page_filter: Optional[list] = None
     mode: str = "PERMISSIVE"
     corrupt_record_column: str = _DEFAULT_CORRUPT_RECORD_COLUMN
-    extraction_engine: str = "ai_extract"
+    # DEMO BRANCH: AI_COMPLETE rather than AI_EXTRACT. AI_EXTRACT flattens tabular and
+    # clause-structured content instead of extracting it, and cannot express the verbatim
+    # multi-paragraph answers that clause-level review asks for. This leaves the AI_EXTRACT
+    # path reachable only by explicit option.
+    extraction_engine: str = "ai_complete"
     extraction: Optional[ExtractionSpec] = None
     model: Optional[str] = None
     prompt: Optional[str] = None
@@ -193,6 +197,25 @@ class DocumentReaderOptions:
             model=cur_options.get("MODEL", defaults.model),
             prompt=cur_options.get("PROMPT", defaults.prompt),
         )
+        # DEMO BRANCH: hand the document to AI_COMPLETE as a FILE rather than as text
+        # AI_PARSE_DOCUMENT produced. Parsing flattens the document, and layout is
+        # information: table columns, and the printed section numbers clause extraction is
+        # asked to quote, survive in the page image and not in flattened text. Skipping the
+        # parse also removes a whole Cortex call per document, along with its own failure and
+        # latency modes -- parse cost scales with page content in ways the file's size and
+        # page count do not predict.
+        #
+        # Conditional on there being something to extract. With no schema, AI_COMPLETE has
+        # nothing to do and the parsed text is the read's only output, so skipping the parse
+        # would hand back a DataFrame with nothing in it. An explicit parse_mode always wins;
+        # this only fills the default, and runs before validate() so validation sees the
+        # parse_mode the read will actually use.
+        if (
+            "PARSE_MODE" not in cur_options
+            and options.extract_enabled
+            and options.extraction_engine == "ai_complete"
+        ):
+            options.parse_mode = "none"
         options.validate()
         return options
 
