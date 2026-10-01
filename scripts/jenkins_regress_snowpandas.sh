@@ -13,6 +13,13 @@ set -euxo pipefail
 # decrypt profile
 gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "tests/parameters.py" $@
 
+# decrypt RSA private key for connection profiles that use key-pair auth
+# (e.g. scripts/parameters_prod.py.gpg); harmless no-op for profiles that
+# don't reference a private_key_file
+if [ -f "scripts/rsa_key_prod.p8.gpg" ]; then
+    gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "tests/rsa_key_prod.p8" scripts/rsa_key_prod.p8.gpg
+fi
+
 # Install tox, which is by default not present in the environment.
 python -m pip install tox
 
