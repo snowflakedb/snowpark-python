@@ -40,7 +40,10 @@ class SnowflakeFile(RawIOBase):
     SnowflakeFile supports most operations supported by Python IOBase objects.
     A SnowflakeFile object can be used as a Python IOBase object.
 
-    The constructor of this class is not supposed to be called directly. Call :meth:`~snowflake.snowpark.file.SnowflakeFile.open` to create a read-only SnowflakeFile object, and call :meth:`~snowflake.snowpark.file.SnowflakeFile.open_new_result` to create a write-only SnowflakeFile object.
+    Do not call the constructor directly. Call :meth:`open` to create a read-only
+    SnowflakeFile object, or :meth:`open_new_result` to create a write-only result
+    file. The constructor's ``from_result_api`` argument is for internal use.
+    The ``is_owner_file`` argument is deprecated; use ``require_scoped_url``.
 
     This class is used to read and write files in UDFs and stored procedures. On Snowflake, it is used to read and write stage files. It also
     supports Python IOBase and BufferedBase methods such as :meth:`read`, :meth:`write`, :meth:`close`.
@@ -52,8 +55,8 @@ class SnowflakeFile(RawIOBase):
         >>> from snowflake.snowpark.functions import udf
         >>> @udf
         ... def read_file(url: str) -> str:
-        ...     file = SnowflakeFile.open(url, "r")
-        ...     return file.read()
+        ...     with SnowflakeFile.open(url, "r") as file:
+        ...         return file.read()
 
     To write to a staged file first write to a result file via the following example.
     The result file will return as a scoped URL which can be copied to a permanent stage
@@ -75,6 +78,11 @@ class SnowflakeFile(RawIOBase):
     This currently supports using read APIs on relative paths, mocked stages
     (sessions in local testing mode that aren't connected to a real stage), and Snowflake stages.
     Scoped and Stage URLs (https://) are not yet supported.
+
+    Not every IOBase operation is supported. :meth:`fileno` raises an OSError,
+    :meth:`detach` is unsupported, :meth:`flush` does not write buffered data,
+    and :meth:`isatty` returns False. Consult each method's reference for
+    environment-specific limitations.
 
     Note:
         1. All of the implementation in this file is for local testing purposes.
@@ -156,7 +164,8 @@ class SnowflakeFile(RawIOBase):
         require_scoped_url: bool = True,
     ) -> SnowflakeFile:
         """
-        Used to create a :class:`~snowflake.snowpark.file.SnowflakeFile` which can only be used for read-based IO operations on the file.
+        Opens a file for reading and returns a :class:`SnowflakeFile` stream.
+        Use a ``with`` statement to close the stream after reading.
 
         In UDFs and Stored Procedures, the object works like a read-only Python IOBase object and as a wrapper for an IO stream of remote files.
 
@@ -171,7 +180,42 @@ class SnowflakeFile(RawIOBase):
             file_location: scoped URL, file URL, or string path for files located in a stage
             mode: A string used to mark the type of an IO stream. Supported modes are "r" for text read and "rb" for binary read.
             is_owner_file: (Deprecated) A boolean value, if True, the API is intended to access owner's files and all URI/URL are allowed. If False, the API is intended to access files passed into the function by the caller and only scoped URL is allowed.
-            require_scoped_url: A boolean value, if True, file_location must be a scoped URL. A scoped URL ensures that the caller cannot access the UDF owners files that the caller does not have access to.
+            require_scoped_url: Defaults to True, the recommended setting for
+                caller-supplied file locations. In Snowflake, file_location must
+                then be a scoped URL. Do not disable this requirement for
+                untrusted input. Local testing does not validate scoped URLs
+                or reproduce Snowflake access-control checks.
+
+        Note:
+            Reading an entire file with ``read()`` and then parsing it can hold
+            both the file and the parsed objects in memory. For large files,
+            read bounded chunks or use a streaming parser; avoid accumulating
+            all chunks in a list. Available memory depends on the execution
+            environment, so there is no universal safe file-size threshold.
+
+            For UTF-8 files that might begin with a byte order mark (BOM), binary
+            mode lets you control decoding explicitly. Python's ``utf-8-sig``
+            incremental decoder removes an initial UTF-8 BOM while preserving
+            multibyte characters split across chunks. Do not decode each chunk
+            independently or assume a JSON parser will ignore a BOM.
+
+        Example (handler code; ``url`` is a caller-provided scoped URL)::
+
+            import codecs
+            from snowflake.snowpark.files import SnowflakeFile
+
+            def decoded_chunks(url):
+                decoder = codecs.getincrementaldecoder("utf-8-sig")()
+                with SnowflakeFile.open(url, "rb") as source:
+                    while True:
+                        chunk = source.read(64 * 1024)
+                        if not chunk:
+                            break
+                        yield decoder.decode(chunk)
+                    yield decoder.decode(b"", final=True)
+
+        Consume these chunks incrementally. This helper decodes text; it does
+        not by itself parse a JSON document or bound the memory used by a caller.
         """
         if mode not in _READ_MODES:
             raise ValueError(
@@ -184,7 +228,13 @@ class SnowflakeFile(RawIOBase):
     @classmethod
     def open_new_result(cls, mode: str = "w") -> SnowflakeFile:
         """
-        Used to create a :class:`~snowflake.snowpark.file.SnowflakeFile` which can only be used for write-based IO operations. UDFs/Stored Procedures should return the file to materialize it, and it is then made accessible via a scoped URL returned in the query results.
+        Used to create a :class:`SnowflakeFile` which can only be used for write-based IO operations. UDFs/Stored Procedures should return the file to materialize it, and it is then made accessible via a scoped URL returned in the query results.
+
+        This creates a result file, not a permanent named stage file. Return the
+        file object from the handler after writing; returning only its contents
+        does not expose the file. Copy results that must be retained to a stage
+        using `COPY FILES <https://docs.snowflake.com/en/sql-reference/sql/copy-files>`_.
+        See the write example in :class:`SnowflakeFile`.
 
         In UDFs and Stored Procedures, the object works like a write-only Python IOBase object and as a wrapper for an IO stream of remote files.
 

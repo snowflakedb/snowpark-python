@@ -26,7 +26,9 @@ Files
     :toctree: api/
 
     ~SnowflakeFile.close
+    ~SnowflakeFile.detach
     ~SnowflakeFile.fileno
+    ~SnowflakeFile.flush
     ~SnowflakeFile.isatty
     ~SnowflakeFile.open
     ~SnowflakeFile.open_new_result
@@ -49,4 +51,3 @@ Files
 .. rubric:: Attributes
 
 None
-

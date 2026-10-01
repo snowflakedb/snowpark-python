@@ -74,7 +74,9 @@ class DataFrameStatFunctions:
 
         Args:
             col: The name of the numeric column.
-            percentile: A list of float values greater than or equal to 0.0 and less than 1.0.
+            percentile: A list of float values between 0.0 and 1.0, inclusive.
+                For example, 0.5 requests the approximate median and 1.0 requests
+                the approximate maximum.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Returns:

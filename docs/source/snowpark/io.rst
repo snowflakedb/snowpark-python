@@ -46,6 +46,7 @@ Input/Output
     DataFrameWriter.option
     DataFrameWriter.options
     DataFrameWriter.parquet
+    DataFrameWriter.partition_by
     DataFrameWriter.save
     DataFrameWriter.saveAsTable
     DataFrameWriter.save_as_table
@@ -85,4 +86,3 @@ Input/Output
     ListResult.md5
     ListResult.sha1
     ListResult.last_modified
-

@@ -12,6 +12,7 @@
 #
 import os
 import sys
+from pathlib import Path
 
 
 # -- Project information -----------------------------------------------------
@@ -21,7 +22,8 @@ copyright = "2022, Snowflake Inc"
 author = "Snowflake Inc."
 
 # The full version, including alpha/beta/rc tags
-SRC_DIR = "../../src"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SRC_DIR = str(REPO_ROOT / "src")
 sys.path.insert(0, os.path.abspath(SRC_DIR))
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 VERSION = (1, 1, 1, None)  # Default, needed so code will compile
@@ -353,22 +355,21 @@ def linkcode_resolve(domain, info):
 
     try:
         if isinstance(obj, property):
-            fn = inspect.getsourcefile(inspect.unwrap(obj.fget))
-        else:
-            fn = inspect.getsourcefile(inspect.unwrap(obj))
-    except TypeError as e:
+            obj = obj.fget
+        obj = inspect.unwrap(obj)
+        fn = inspect.getsourcefile(obj)
+        if fn is None:
+            return None
+        relative_path = Path(fn).resolve().relative_to(REPO_ROOT).as_posix()
+    except (TypeError, ValueError, OSError):
         return None
 
     try:
-        if isinstance(obj, property):
-            source, lineno = inspect.getsourcelines(obj.fget)
-        else:
-            source, lineno = inspect.getsourcelines(obj)
+        source, lineno = inspect.getsourcelines(obj)
         linespec = f"#L{lineno}-L{lineno + len(source) - 1}"
-    except TypeError:
+    except (TypeError, OSError):
         linespec = ""
     return (
         f"https://github.com/snowflakedb/snowpark-python/blob/"
-        f"v{release}/{os.path.relpath(fn)}{linespec}"
+        f"v{release}/{relative_path}{linespec}"
     )
-

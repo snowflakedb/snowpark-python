@@ -417,19 +417,28 @@ _TO_SNOWFLAKE_DOC = """
     Save the Snowpark pandas DataFrame or Series as a Snowflake table.
 
     Args:
-        obj: Either a Snowpark pandas DataFrame or Series
+        obj: The Snowpark pandas DataFrame or Series to write. This function
+            executes the write and returns None, not a row-count report.
         name:
-            Name of the SQL table or fully-qualified object identifier
+            Destination table name or fully-qualified object identifier, such as
+            ``"MY_DB.MY_SCHEMA.MY_TABLE"`` or
+            ``["MY_DB", "MY_SCHEMA", "MY_TABLE"]``. Unqualified names use the
+            session's current database and schema. Use double-quoted identifier
+            components to preserve mixed case.
         if_exists:
             How to behave if table already exists. default 'fail'
                 - fail: Raise ValueError.
                 - replace: Drop the table before inserting new values.
                 - append: Insert new values to the existing table. The order of insertion is not guaranteed.
         index: default True
-            If true, save DataFrame index columns as table columns.
+            If true, save the object's index levels as table columns in addition
+            to its data columns. Set False to omit the index. Row ordering is
+            not preserved by a Snowflake table.
         index_label:
             Column label for index column(s). If None is given (default) and index is True,
-            then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
+            then the index names are used. For an unnamed index, supply a label
+            when saving it. For MultiIndex, provide one label per level.
+            Labels must not duplicate data-column labels. Ignored when index=False.
         table_type:
             The table type of table to be created. The supported values are: ``temp``, ``temporary``,
             and ``transient``. An empty string means to create a permanent table. Learn more about table
@@ -505,6 +514,7 @@ def _read_snowflake_ray_backend(
     return df.set_backend("Ray")
 
 
+@doc(_TO_SNOWFLAKE_DOC)
 def to_snowflake(
     obj: Union[DataFrame, Series],
     name: Union[str, Iterable[str]],

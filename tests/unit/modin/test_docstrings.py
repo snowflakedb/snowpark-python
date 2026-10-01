@@ -2,10 +2,18 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import inspect
+
 import modin.pandas as pd
 import pandas as native_pd
 
 import snowflake.snowpark.modin.plugin as plugin
+
+
+def test_to_snowflake_has_parameter_documentation():
+    documentation = inspect.getdoc(pd.to_snowflake)
+    for parameter in ("obj", "name", "if_exists", "index", "index_label", "table_type"):
+        assert f"{parameter}:" in documentation
 
 
 def test_base_property_snow_1305329():

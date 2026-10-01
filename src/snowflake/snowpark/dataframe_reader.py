@@ -1026,6 +1026,26 @@ class DataFrameReader:
     def csv(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the CSV file(s) to load.
 
+        Configure the reader with :meth:`option`, :meth:`options`, and
+        :meth:`schema` before calling ``csv``. Options are not keyword
+        arguments of this method. Common CSV format options include
+        ``FIELD_DELIMITER``, ``SKIP_HEADER``, and
+        ``FIELD_OPTIONALLY_ENCLOSED_BY``. See the
+        `CSV format options
+        <https://docs.snowflake.com/en/sql-reference/sql/create-file-format#type-csv>`_
+        for their accepted values.
+
+        Provide a schema explicitly or enable the reader's ``INFER_SCHEMA``
+        option. Schema inference can issue queries while constructing the
+        DataFrame and is not supported for CSV in local testing mode.
+
+        Example (requires an existing stage containing a header row and two
+        comma-separated columns)::
+
+            >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
+            >>> schema = StructType([StructField("id", IntegerType()), StructField("name", StringType())])
+            >>> df = session.read.schema(schema).option("SKIP_HEADER", 1).csv("@my_stage/people.csv")  # doctest: +SKIP
+
         Args:
             path: The stage location of a CSV file, or a stage location that has CSV files.
 

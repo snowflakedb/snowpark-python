@@ -750,6 +750,11 @@ class DataFrame:
 
     @property
     def analytics(self) -> DataFrameAnalyticsFunctions:
+        """Returns the :class:`DataFrameAnalyticsFunctions` namespace for this
+        DataFrame. Access methods through ``df.analytics``, for example
+        :meth:`DataFrameAnalyticsFunctions.moving_agg` or
+        :meth:`DataFrameAnalyticsFunctions.compute_lag`.
+        """
         return self._analytics
 
     @property
@@ -1153,10 +1158,21 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
 
-            3. For TIMESTAMP columns:
-            - TIMESTAMP_LTZ and TIMESTAMP_TZ are both converted to `datetime64[ns, tz]` in pandas,
-            as pandas cannot distinguish between the two.
-            - TIMESTAMP_NTZ is converted to `datetime64[ns]` (without timezone).
+            3. For TIMESTAMP columns, TIMESTAMP_LTZ and TIMESTAMP_TZ are both
+            converted to ``datetime64[ns, tz]`` in pandas, as pandas cannot
+            distinguish between the two. TIMESTAMP_NTZ is converted to
+            ``datetime64[ns]`` (without timezone).
+
+            4. Snowflake SQL types and pandas dtypes are not interchangeable.
+            Conversion does not preserve every detail of the Snowflake schema,
+            such as NUMBER precision and scale. NULL values can also affect the
+            resulting pandas dtype. See the Python Connector's
+            `Snowflake to pandas data mapping
+            <https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-pandas#snowflake-to-pandas-data-mapping>`_.
+            Inspect :attr:`schema` before conversion and the returned DataFrame's
+            ``dtypes`` afterwards. Cast columns in Snowpark before conversion if
+            you need a particular SQL type. A pandas ``astype`` conversion after
+            fetching cannot recover precision already lost during conversion.
         """
 
         if _emit_ast:
@@ -1319,11 +1335,11 @@ class DataFrame:
     ) -> Union["pyarrow.Table", AsyncJob]:
         """
         Executes the query representing this DataFrame and returns the result as a
-        `pyarrow Table <https://arrow.apache.org/docs/python/generated/pyarrow.Table.html>`.
+        `pyarrow Table <https://arrow.apache.org/docs/python/generated/pyarrow.Table.html>`_.
 
         When the data is too large to fit into memory, you can use :meth:`to_arrow_batches`.
 
-        This function requires the optional dependenct snowflake-snowpark-python[pandas] be installed.
+        This function requires the optional dependency ``snowflake-snowpark-python[pandas]`` to be installed.
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
@@ -6200,14 +6216,33 @@ class DataFrame:
         n: Optional[int] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
-        """Samples rows based on either the number of rows to be returned or a
-        percentage of rows to be returned.
+        """Returns a random sample of rows using Snowflake's SQL SAMPLE clause.
+
+        Specify either ``frac`` or ``n``. Fractional sampling includes each row
+        with the given probability, so the number of returned rows can vary.
+        Fixed-size sampling returns the requested number of rows, or all rows
+        if the input contains fewer rows. Neither form guarantees row order.
+        Repeated executions can return different samples; this method has no
+        seed parameter. For seeded sampling of a table, see :meth:`Table.sample`.
+
+        See `SAMPLE <https://docs.snowflake.com/en/sql-reference/constructs/sample>`_
+        for SQL sampling semantics.
 
         Args:
-            frac: the percentage of rows to be sampled.
+            frac: The probability of selecting each row, from 0.0 to 1.0
+                inclusive. For example, 0.1 requests approximately 10 percent
+                of the rows, not exactly 10 percent.
             n: the number of rows to sample in the range of 0 to 1,000,000 (inclusive).
+
         Returns:
             a :class:`DataFrame` containing the sample of rows.
+
+        Examples::
+
+            >>> df = session.range(100)
+            >>> fractional_sample = df.sample(frac=0.1)
+            >>> fixed_sample = df.sample(n=5)
+            >>> assert fixed_sample.count() == 5
         """
         DataFrame._validate_sample_input(frac, n)
 
@@ -6263,6 +6298,15 @@ class DataFrame:
         """
         Returns a :class:`DataFrameAIFunctions` object that provides AI-powered functions
         for the DataFrame.
+
+        Access this namespace through an existing DataFrame, for example
+        ``df.ai``. It is not a column and accessing it does not itself execute
+        an AI function. Call a method on the namespace to build an AI operation.
+
+        See :meth:`DataFrameAIFunctions.classify`,
+        :meth:`DataFrameAIFunctions.extract`, and
+        :meth:`DataFrameAIFunctions.sentiment` for parameters and examples.
+        The :class:`DataFrameAIFunctions` reference lists the available methods.
         """
         return self._ai
 

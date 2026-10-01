@@ -213,6 +213,12 @@ class FileOperation:
                 The command lists all files in the specified path and applies the regular expression pattern on each of the files found.
                 Default: ``None`` (all files in the specified stage are downloaded).
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+                For example, ``{"QUERY_TAG": "download_files"}`` tags the GET
+                statement. See `Snowflake parameters
+                <https://docs.snowflake.com/en/sql-reference/parameters>`_ for
+                parameter meanings and allowed values. Only parameters supported
+                at statement level apply; this is not a way to set account-only
+                parameters or GET options such as ``parallel`` and ``pattern``.
 
         Returns:
             A ``list`` of :class:`GetResult` instances, each of which represents the result of a downloaded file.

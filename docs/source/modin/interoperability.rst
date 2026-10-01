@@ -9,6 +9,22 @@ works in Snowpark pandas as well.
 Snowpark pandas supports the `dataframe interchange protocol <https://data-apis.org/dataframe-protocol/latest/>`_, which
 some libraries use to interoperate with Snowpark pandas to the same level of support as pandas.
 
+Scope of this reference
+=======================
+
+The tables below describe specific Plotly and scikit-learn operations, not a
+complete compatibility certification for every version or API of a library.
+Accepting a native pandas object does not by itself establish that an API accepts
+a Snowpark pandas object or executes its work in Snowflake.
+
+For a library or operation not covered here, such as an Altair, Seaborn,
+Matplotlib, XGBoost, NLTK, or Streamlit operation, check that library's accepted
+input types. You can explicitly convert a Snowpark pandas DataFrame or Series
+with ``to_pandas()`` and then use APIs that accept native pandas objects.
+Conversion materializes the data on the client; ensure the result fits in
+memory. This is a local-pandas path, not a claim of direct Snowpark pandas
+interoperability. For NumPy-specific behavior, see :doc:`numpy`.
+
 plotly.express
 ==============
 

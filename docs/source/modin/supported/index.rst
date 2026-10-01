@@ -8,6 +8,13 @@ of the most recent release.
 
 To view the docs for the most recent release, check that you’re viewing the stable version of the docs.
 
+Read each table's legend and the missing-parameter and notes columns, not just
+the method name. An entry can describe a partial implementation or an
+unsupported operation. These tables describe Snowpark pandas support; they are
+not a promise that every upstream pandas or Modin API is available with identical
+behavior. Also consult :doc:`../hybrid_execution` when interpreting where an
+operation runs.
+
 .. toctree::
    :maxdepth: 2
 
