@@ -58,8 +58,9 @@ class ExtractionSpec:
     needs its own envelope for each engine -- AI_EXTRACT wants {"schema": {...}}, AI_COMPLETE
     wants {"type": "json", "schema": {...}} (see its docstring's "Structured output with
     response format" example) -- confirmed live against both engines, since neither's
-    own docstring documents this shape. Every other shape (AI_EXTRACT's own flat Q&A
-    dict/array forms) is passed to both engines exactly as given."""
+    own docstring documents this shape. AI_EXTRACT's own flat Q&A dict/array forms reach
+    AI_EXTRACT exactly as given, but AI_COMPLETE rejects them, so for that engine they are
+    rewritten into a JSON Schema -- see _questions_as_json_schema."""
 
     fields: List[str]
     field_columns: List[str]
@@ -81,6 +82,43 @@ class ExtractionSpec:
         if not isinstance(json_type, str):
             return None
         return _JSON_SCHEMA_SCALAR_TYPES.get(json_type)
+
+    @staticmethod
+    def _questions_as_json_schema(response_format: Any, fields: List[str]) -> dict:
+        """Express AI_EXTRACT's flat question form as a JSON Schema, for AI_COMPLETE.
+
+        ``{"vendor": "Who issued this invoice?"}`` is AI_EXTRACT's own shape and AI_COMPLETE
+        rejects it outright ("invalid response format object"), so sending it unchanged is
+        only safe while AI_EXTRACT is the engine. Each question becomes its field's
+        ``description``, which is how a model reads it under either engine.
+
+        Every field is typed ``string``: a question carries no type information, so there is
+        nothing to infer one from. A field whose answer should be a list or a number needs a
+        real JSON Schema -- this conversion makes the call succeed, it cannot add a contract
+        the input never expressed.
+        """
+        questions: Dict[str, Any] = {}
+        if isinstance(response_format, dict):
+            questions = dict(response_format)
+        elif isinstance(response_format, list):
+            # The array form carries its question inside the item: either a ["name",
+            # "question"] pair or a "name: question" string. Dropping it would discard the
+            # only instruction the model gets for that field.
+            for item in response_format:
+                if isinstance(item, (list, tuple)) and len(item) >= 2:
+                    questions[str(item[0])] = item[1]
+                elif isinstance(item, str) and ":" in item:
+                    name, _, question = item.partition(":")
+                    questions[name.strip()] = question.strip()
+
+        properties: Dict[str, Any] = {}
+        for field in fields:
+            node: Dict[str, Any] = {"type": "string"}
+            question = questions.get(field)
+            if isinstance(question, str) and question.strip():
+                node["description"] = question
+            properties[field] = node
+        return {"type": "object", "properties": properties}
 
     @classmethod
     def from_response_format(cls, response_format: Any) -> Optional["ExtractionSpec"]:
@@ -108,7 +146,6 @@ class ExtractionSpec:
             fields = []
 
         ai_extract_format = response_format
-        ai_complete_format = response_format
         if is_json_schema:
             ai_extract_format = {"schema": response_format}
             ai_complete_format = {"type": "json", "schema": response_format}
@@ -117,6 +154,16 @@ class ExtractionSpec:
                 field: cls._scalar_type(properties[field]) for field in fields
             }
         else:
+            # AI_EXTRACT keeps its own shape; AI_COMPLETE only accepts a JSON Schema, so the
+            # questions are rewritten into one rather than passed through to be rejected.
+            ai_complete_format = {
+                "type": "json",
+                "schema": cls._questions_as_json_schema(response_format, fields),
+            }
+            # field_types stays unset. The conversion types every field `string` purely
+            # because a question implies no type, and that is not grounds to start casting
+            # output columns -- least of all on the AI_EXTRACT path, which shares this and
+            # whose behaviour is unchanged here.
             field_types = {field: None for field in fields}
 
         return cls(
