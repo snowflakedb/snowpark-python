@@ -7005,6 +7005,16 @@ def array_agg(
     """Returns the input values, pivoted into an ARRAY. If the input is empty, an empty
     ARRAY is returned.
 
+    Element order is unpredictable unless you specify :meth:`Column.within_group`
+    on the aggregate expression. Sorting the result DataFrame orders result
+    rows, not the elements inside each array. This also applies to the
+    ``collect_list`` alias. When ``is_distinct=True``, the ordering expression
+    must refer to the same column as the aggregate input.
+
+    For example, this expression orders elements within each array by ``a``::
+
+        >>> ordered_values = array_agg("a").within_group("a")
+
     Example::
         >>> df = session.create_dataframe([[1], [2], [3], [1]], schema=["a"])
         >>> df.select(array_agg("a", True).within_group("a").alias("result")).show()
@@ -7018,6 +7028,18 @@ def array_agg(
         |]         |
         ------------
         <BLANKLINE>
+
+    ``collect_list`` is an alias of ``array_agg`` with the same arguments and
+    behavior. The two names share this documentation, which is why the example
+    above uses ``array_agg``. By default, duplicates are retained.
+
+    This example produces an array containing ``[1, 2, 2]``:
+
+    Example using the alias::
+
+        >>> from snowflake.snowpark.functions import collect_list
+        >>> df = session.create_dataframe([[2], [1], [2]], schema=["a"])
+        >>> result = df.select(collect_list("a").within_group("a").alias("values")).collect()
     """
     ast = build_function_expr("array_agg", [col, is_distinct]) if _emit_ast else None
     c = _to_col_if_str(col, "array_agg")
