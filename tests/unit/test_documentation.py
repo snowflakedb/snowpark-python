@@ -1,12 +1,15 @@
+#
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
+
 import functools
 import inspect
-from pathlib import Path
 import runpy
 import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 
