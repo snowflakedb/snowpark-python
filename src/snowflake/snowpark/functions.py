@@ -13062,7 +13062,7 @@ def ai_extract(
         ...     col("text"),
         ...     ai_extract(col("text"), [['name', 'What is the first name?'], ['city', 'What city do they work in?']]).alias("info")
         ... )
-        >>> extracted_df.show()
+        >>> extracted_df.sort(col("text")).show()
         ------------------------------------------------------------
         |"TEXT"                          |"INFO"                   |
         ------------------------------------------------------------
@@ -13261,7 +13261,7 @@ def ai_filter(
         ...     ai_filter(prompt("Is {0} in Europe?", col("country"))).as_("europe"),
         ...     ai_filter(prompt("Is {0} in North America?", col("country"))).as_("north_america"),
         ...     ai_filter(prompt("Is {0} in Central America?", col("country"))).as_("central_america"),
-        ... ).show()
+        ... ).sort("asia").show()
         -----------------------------------------------------------
         |"ASIA"  |"EUROPE"  |"NORTH_AMERICA"  |"CENTRAL_AMERICA"  |
         -----------------------------------------------------------
@@ -14279,30 +14279,10 @@ def ai_sentiment(
         ...     ["The food was delicious but the service was slow."],
         ...     ["The movie was great, but the acting was terrible."]
         ... ], schema=["review"])
-        >>> df.select("review", ai_sentiment(col("review"), ['plot', 'visual effects', 'acting']).alias("sentiment")).show()
+        >>> df.select("review", ai_sentiment(col("review"), ['plot', 'visual effects', 'acting']).alias("sentiment")).sort("review").show()
         ----------------------------------------------------------------------------------------
         |"REVIEW"                                            |"SENTIMENT"                      |
         ----------------------------------------------------------------------------------------
-        |The movie had amazing visual effects but the pl...  |{                                |
-        |                                                    |  "categories": [                |
-        |                                                    |    {                            |
-        |                                                    |      "name": "overall",         |
-        |                                                    |      "sentiment": "mixed"       |
-        |                                                    |    },                           |
-        |                                                    |    {                            |
-        |                                                    |      "name": "acting",          |
-        |                                                    |      "sentiment": "neutral"     |
-        |                                                    |    },                           |
-        |                                                    |    {                            |
-        |                                                    |      "name": "plot",            |
-        |                                                    |      "sentiment": "negative"    |
-        |                                                    |    },                           |
-        |                                                    |    {                            |
-        |                                                    |      "name": "visual effects",  |
-        |                                                    |      "sentiment": "positive"    |
-        |                                                    |    }                            |
-        |                                                    |  ]                              |
-        |                                                    |}                                |
         |The food was delicious but the service was slow.    |{                                |
         |                                                    |  "categories": [                |
         |                                                    |    {                            |
@@ -14320,6 +14300,26 @@ def ai_sentiment(
         |                                                    |    {                            |
         |                                                    |      "name": "visual effects",  |
         |                                                    |      "sentiment": "unknown"     |
+        |                                                    |    }                            |
+        |                                                    |  ]                              |
+        |                                                    |}                                |
+        |The movie had amazing visual effects but the pl...  |{                                |
+        |                                                    |  "categories": [                |
+        |                                                    |    {                            |
+        |                                                    |      "name": "overall",         |
+        |                                                    |      "sentiment": "mixed"       |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "acting",          |
+        |                                                    |      "sentiment": "neutral"     |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "plot",            |
+        |                                                    |      "sentiment": "negative"    |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "visual effects",  |
+        |                                                    |      "sentiment": "positive"    |
         |                                                    |    }                            |
         |                                                    |  ]                              |
         |                                                    |}                                |
