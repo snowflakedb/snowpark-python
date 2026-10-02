@@ -1062,6 +1062,23 @@ class Session:
     def sql_simplifier_enabled(self) -> bool:
         """Set to ``True`` to use the SQL simplifier (defaults to ``True``).
         The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled.
+
+        Set this property before constructing the DataFrame whose SQL you want
+        to inspect. SQL text can change between library versions; compare
+        :attr:`DataFrame.queries` rather than relying on a specific SQL string.
+
+        Example::
+
+            >>> original_setting = session.sql_simplifier_enabled
+            >>> try:
+            ...     session.sql_simplifier_enabled = True
+            ...     df = session.range(10).select("id").filter("id > 2")
+            ...     simplified_queries = df.queries["queries"]
+            ...     session.sql_simplifier_enabled = False
+            ...     df = session.range(10).select("id").filter("id > 2")
+            ...     unsimplified_queries = df.queries["queries"]
+            ... finally:
+            ...     session.sql_simplifier_enabled = original_setting
         """
         return self._sql_simplifier_enabled
 
@@ -3156,6 +3173,19 @@ class Session:
             or :func:`DataFrame.to_pandas` evaluate the DataFrame.
             For **immediate execution**, chain the call with the collect method: `session.sql(query).collect()`.
 
+            SQL compilation and execution errors usually surface when an action
+            executes the query, not when this method creates the DataFrame.
+            Operations that request schema metadata can also contact Snowflake
+            before collection. Catch :class:`~snowflake.snowpark.exceptions.SnowparkSQLException`
+            around the operation that triggers evaluation; inspect its message
+            and query ID to diagnose the server error. This is not an exhaustive
+            list of possible client, connection, or argument errors.
+
+        Raises:
+            NotImplementedError: SQL execution is not supported in local testing
+                mode. See `mocking SQL operations
+                <https://docs.snowflake.com/en/developer-guide/snowpark/python/testing-locally>`_.
+
         Args:
             query: The SQL statement to execute.
             params: binding parameters. We only support qmark bind variables. For more information, check
@@ -3520,7 +3550,11 @@ class Session:
 
         Args:
             df: The pandas DataFrame or Snowpark pandas DataFrame or Series we'd like to write back.
-            table_name: Name of the table we want to insert into.
+            table_name: Name of the table we want to insert into, without the
+                database or schema prefix. Pass those separately through
+                ``database`` and ``schema``. For example, use
+                ``table_name="MY_TABLE", database="MY_DB", schema="MY_SCHEMA"``,
+                not ``table_name="MY_DB.MY_SCHEMA.MY_TABLE"``.
             database: Database that the table is in. If not provided, the default one will be used.
             schema: Schema that the table is in. If not provided, the default one will be used.
             chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once.
@@ -3537,6 +3571,10 @@ class Session:
             quote_identifiers: By default, identifiers, specifically database, schema, table and column names
                 (from :attr:`DataFrame.columns`) will be quoted. If set to ``False``, identifiers
                 are passed on to Snowflake without quoting, i.e. identifiers will be coerced to uppercase by Snowflake.
+                With the default ``True``, names must match the stored case:
+                an object created with an unquoted name normally has an uppercase
+                name, whereas a quoted mixed-case name must retain its case.
+                Do not uppercase names of quoted mixed-case objects.
             auto_create_table: When true, automatically creates a table to store the passed in pandas DataFrame using the
                 passed in ``database``, ``schema``, and ``table_name``. Note: there are usually multiple table configurations that
                 would allow you to upload a particular pandas DataFrame successfully. If you don't like the auto created

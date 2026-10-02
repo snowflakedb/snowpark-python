@@ -7356,7 +7356,10 @@ def array_insert(
 def array_position(
     variant: ColumnOrName, array: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
-    """Returns the index of the first occurrence of an element in an ARRAY.
+    """Returns the zero-based index of the first occurrence of an element in an ARRAY.
+
+    The first element has index 0. If the value is not present, returns SQL NULL
+    (represented by ``None`` in a collected Row), not -1.
 
     Args:
         variant: Column containing the VARIANT value that you want to find. The function
@@ -7364,16 +7367,16 @@ def array_position(
         array: Column containing the ARRAY to be searched.
 
     Example::
-        >>> from snowflake.snowpark import Row
-        >>> df = session.create_dataframe([Row([2, 1]), Row([1, 3])], schema=["a"])
-        >>> df.select(array_position(lit(1), "a").alias("result")).show()
-        ------------
-        |"RESULT"  |
-        ------------
-        |1         |
-        |0         |
-        ------------
-        <BLANKLINE>
+        >>> from snowflake.snowpark.functions import array_position, lit
+        >>> df = session.create_dataframe(
+        ...     [(1, [2, 1, 1]), (2, [1, 3]), (3, [4, 5])],
+        ...     schema=["id", "values"])
+        >>> df.select("id", array_position(lit(1), "values").alias("position")).sort("id").collect()
+        [Row(ID=1, POSITION=1), Row(ID=2, POSITION=0), Row(ID=3, POSITION=None)]
+
+    In the first row, 1 appears twice; the result is the position of its first
+    occurrence. Use :func:`lit` to search for a literal value rather than a
+    column name.
     """
     v = _to_col_if_str(variant, "array_position")
     a = _to_col_if_str(array, "array_position")
@@ -8834,13 +8837,20 @@ def iff(
         expr1: A :class:`Column` expression or a literal value, which will be returned
             if ``condition`` is true.
         expr2: A :class:`Column` expression or a literal value, which will be returned
-            if ``condition`` is false.
+            if ``condition`` is false or NULL.
 
     Examples::
 
-        >>> df = session.create_dataframe([True, False, None], schema=["a"])
-        >>> df.select(iff(df["a"], lit("true"), lit("false")).alias("iff")).collect()
-        [Row(IFF='true'), Row(IFF='false'), Row(IFF='false')]
+        >>> from snowflake.snowpark.functions import iff, lit
+        >>> df = session.create_dataframe(
+        ...     [(1, True), (2, False), (3, None)], schema=["id", "approved"])
+        >>> df.select(
+        ...     "id", iff(df["approved"], lit("ship"), lit("hold")).alias("action")
+        ... ).sort("id").collect()
+        [Row(ID=1, ACTION='ship'), Row(ID=2, ACTION='hold'), Row(ID=3, ACTION='hold')]
+
+    Only an approved row selects ``"ship"``. Both false and unknown (NULL)
+    approval select ``"hold"``.
     """
     ast = build_function_expr("iff", [condition, expr1, expr2]) if _emit_ast else None
     return _call_function(

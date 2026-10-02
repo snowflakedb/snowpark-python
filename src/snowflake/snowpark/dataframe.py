@@ -6200,14 +6200,33 @@ class DataFrame:
         n: Optional[int] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
-        """Samples rows based on either the number of rows to be returned or a
-        percentage of rows to be returned.
+        """Returns a random sample of rows using Snowflake's SQL SAMPLE clause.
+
+        Specify either ``frac`` or ``n``. Fractional sampling includes each row
+        with the given probability, so the number of returned rows can vary.
+        Fixed-size sampling returns the requested number of rows, or all rows
+        if the input contains fewer rows. Neither form guarantees row order.
+        Repeated executions can return different samples; this method has no
+        seed parameter. For seeded sampling of a table, see :meth:`Table.sample`.
+
+        See `SAMPLE <https://docs.snowflake.com/en/sql-reference/constructs/sample>`_
+        for SQL sampling semantics.
 
         Args:
-            frac: the percentage of rows to be sampled.
+            frac: The probability of selecting each row, from 0.0 to 1.0
+                inclusive. For example, 0.1 requests approximately 10 percent
+                of the rows, not exactly 10 percent.
             n: the number of rows to sample in the range of 0 to 1,000,000 (inclusive).
+
         Returns:
             a :class:`DataFrame` containing the sample of rows.
+
+        Examples::
+
+            >>> df = session.range(100)
+            >>> fractional_sample = df.sample(frac=0.1)
+            >>> fixed_sample = df.sample(n=5)
+            >>> assert fixed_sample.count() == 5
         """
         DataFrame._validate_sample_input(frac, n)
 
@@ -6263,6 +6282,15 @@ class DataFrame:
         """
         Returns a :class:`DataFrameAIFunctions` object that provides AI-powered functions
         for the DataFrame.
+
+        Access this namespace through an existing DataFrame, for example
+        ``df.ai``. It is not a column and accessing it does not itself execute
+        an AI function. Call a method on the namespace to build an AI operation.
+
+        See :meth:`DataFrameAIFunctions.classify`,
+        :meth:`DataFrameAIFunctions.extract`, and
+        :meth:`DataFrameAIFunctions.sentiment` for parameters and examples.
+        The :class:`DataFrameAIFunctions` reference lists the available methods.
         """
         return self._ai
 
