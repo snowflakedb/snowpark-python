@@ -12,6 +12,7 @@
 - Fixed `Session.write_pandas` raising a raw connector error instead of Snowpark's table-does-not-exist message when the target table was missing and `auto_create_table=False`.
 - Fixed `ai_extract` misrouting FILE-type inputs to the TEXT overload when `scores` or `config` were also supplied.
 - Fixed the nullable `FILE` column schema expression.
+- Fixed UDFs and UDTFs registered inside a stored procedure — including the temporary UDTF that `DataFrame.group_by(...).apply_in_pandas(...)` creates for its own machinery — inheriting the procedure's own absolute stage imports into their generated DDL. Inside a procedure declared with an `IMPORTS` clause the platform seeds the session's imports with those already-resolved stage paths, so a registration that does not pass `imports` explicitly emitted, for example, a Native App or Data Clean Rooms artifact path (`@<app_pkg>."APP_ARTIFACTS_...".APP_FILES/...`) that the executing role cannot resolve (`002003`), or that a versioned schema rejects (`093023`). Such inherited imports are now re-staged from the local copy the procedure runtime materializes, so functions that `cloudpickle` serializes by reference — a module-level function in a staged module, or a closure capturing `self` of a staged class — keep working instead of failing to unpickle with `ModuleNotFoundError`. Imports passed explicitly to a registration are unchanged.
 
 #### Documentation
 

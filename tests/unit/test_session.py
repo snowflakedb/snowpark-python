@@ -4,6 +4,7 @@
 import json
 import logging
 import os
+import sys
 import types
 from typing import Optional
 from unittest import mock
@@ -1108,3 +1109,149 @@ def test_vsc_history_exporter_not_registered_when_env_var_unset(monkeypatch):
 
     assert session._vsc_history_exporter is None
     fake_connection.add_query_listener.assert_not_called()
+
+
+# SNOW-4174500: inside a stored procedure the platform seeds session imports with the
+# procedure's own absolute IMPORTS paths (e.g. a native app / clean room
+# @<app_pkg>."APP_ARTIFACTS_...".APP_FILES/... stage). Forwarding those verbatim into a
+# nested UDF/UDTF registration emits DDL the executing role cannot resolve (002003), or
+# that a versioned schema rejects (093023). They must be re-staged from the local copy
+# the runtime materializes, not dropped -- dropping breaks by-reference closures.
+APP_PACKAGE_IMPORT = (
+    '@APP_PKG_DB."APP_ARTIFACTS_V1_0.82".APP_FILES/helpers/pandas_helper.py'
+)
+
+
+def _sproc_import_dir(tmp_path_factory, *file_names: str):
+    import_dir = tmp_path_factory.mktemp("sproc_import_dir")
+    for file_name in file_names:
+        (import_dir / file_name).write_text("SCALE = 1\n")
+    return import_dir
+
+
+def test_redirect_inherited_stage_imports_outside_stored_procedure(
+    tmp_path_factory, mock_server_connection, monkeypatch
+):
+    """Outside a stored procedure nothing is rewritten, even if a local copy exists."""
+    session = Session(mock_server_connection)
+    import_dir = _sproc_import_dir(tmp_path_factory, "pandas_helper.py")
+    monkeypatch.setitem(
+        sys._xoptions, "snowflake_import_directory", f"{import_dir}{os.sep}"
+    )
+
+    import_paths = {APP_PACKAGE_IMPORT: (None, None)}
+    assert session._redirect_inherited_stage_imports(import_paths) == import_paths
+
+
+def test_redirect_inherited_stage_imports_in_stored_procedure(
+    tmp_path_factory, mock_server_connection, monkeypatch
+):
+    """An inherited stage import with a local copy is re-pointed at that local copy."""
+    session = Session(mock_server_connection)
+    import_dir = _sproc_import_dir(tmp_path_factory, "pandas_helper.py")
+    local_copy = str(import_dir / "pandas_helper.py")
+    monkeypatch.setitem(
+        sys._xoptions, "snowflake_import_directory", f"{import_dir}{os.sep}"
+    )
+
+    with mock.patch.object(
+        snowflake.snowpark.session, "is_in_stored_procedure", return_value=True
+    ):
+        redirected = session._redirect_inherited_stage_imports(
+            {APP_PACKAGE_IMPORT: (None, None)}
+        )
+
+    assert list(redirected) == [local_copy]
+    # a checksum is computed for the local copy so the upload is content-deduplicated
+    checksum, leading_path = redirected[local_copy]
+    assert checksum
+    assert leading_path is None
+
+
+def test_redirect_inherited_stage_imports_without_local_copy(
+    tmp_path_factory, mock_server_connection, monkeypatch
+):
+    """A stage import that is not one of the procedure's own imports is left alone."""
+    session = Session(mock_server_connection)
+    import_dir = _sproc_import_dir(tmp_path_factory, "pandas_helper.py")
+    monkeypatch.setitem(
+        sys._xoptions, "snowflake_import_directory", f"{import_dir}{os.sep}"
+    )
+    unrelated = "@some_db.some_schema.some_stage/other_module.py"
+
+    with mock.patch.object(
+        snowflake.snowpark.session, "is_in_stored_procedure", return_value=True
+    ):
+        redirected = session._redirect_inherited_stage_imports(
+            {unrelated: (None, None)}
+        )
+
+    assert redirected == {unrelated: (None, None)}
+
+
+def test_redirect_inherited_stage_imports_leaves_local_imports_alone(
+    tmp_path_factory, mock_server_connection, monkeypatch
+):
+    """Local session imports already work today and must not be touched."""
+    session = Session(mock_server_connection)
+    import_dir = _sproc_import_dir(tmp_path_factory, "pandas_helper.py")
+    monkeypatch.setitem(
+        sys._xoptions, "snowflake_import_directory", f"{import_dir}{os.sep}"
+    )
+    a_local_import = str(import_dir / "pandas_helper.py")
+
+    with mock.patch.object(
+        snowflake.snowpark.session, "is_in_stored_procedure", return_value=True
+    ):
+        redirected = session._redirect_inherited_stage_imports(
+            {a_local_import: ("checksum", None)}
+        )
+
+    assert redirected == {a_local_import: ("checksum", None)}
+
+
+def test_redirect_inherited_stage_imports_can_be_disabled(
+    tmp_path_factory, mock_server_connection, monkeypatch
+):
+    session = Session(mock_server_connection)
+    import_dir = _sproc_import_dir(tmp_path_factory, "pandas_helper.py")
+    monkeypatch.setitem(
+        sys._xoptions, "snowflake_import_directory", f"{import_dir}{os.sep}"
+    )
+    session.conf.set("restage_stored_procedure_imports", False)
+
+    with mock.patch.object(
+        snowflake.snowpark.session, "is_in_stored_procedure", return_value=True
+    ):
+        redirected = session._redirect_inherited_stage_imports(
+            {APP_PACKAGE_IMPORT: (None, None)}
+        )
+
+    assert redirected == {APP_PACKAGE_IMPORT: (None, None)}
+
+
+def test_resolve_imports_redirects_only_session_level_imports(
+    tmp_path_factory, mock_server_connection, monkeypatch
+):
+    """Explicitly passed (udf-level) imports are the caller's choice and stay verbatim;
+    session-level inheritance is what gets re-staged."""
+    session = Session(mock_server_connection)
+    import_dir = _sproc_import_dir(tmp_path_factory, "pandas_helper.py")
+    local_copy = str(import_dir / "pandas_helper.py")
+    monkeypatch.setitem(
+        sys._xoptions, "snowflake_import_directory", f"{import_dir}{os.sep}"
+    )
+    session.add_import(APP_PACKAGE_IMPORT)
+
+    with mock.patch.object(
+        snowflake.snowpark.session, "is_in_stored_procedure", return_value=True
+    ), mock.patch.object(session, "_list_files_in_stage", return_value=set()):
+        session_level = session._resolve_imports("@stage", "@stage")
+        udf_level = session._resolve_imports(
+            "@stage", "@stage", {APP_PACKAGE_IMPORT: (None, None)}
+        )
+
+    assert local_copy not in session_level[0]  # uploaded and referenced on @stage
+    assert session_level[0].startswith("'@stage/")
+    assert session_level[0].endswith("pandas_helper.py.zip'")
+    assert udf_level == [APP_PACKAGE_IMPORT]
