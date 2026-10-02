@@ -750,11 +750,6 @@ class DataFrame:
 
     @property
     def analytics(self) -> DataFrameAnalyticsFunctions:
-        """Returns the :class:`DataFrameAnalyticsFunctions` namespace for this
-        DataFrame. Access methods through ``df.analytics``, for example
-        :meth:`DataFrameAnalyticsFunctions.moving_agg` or
-        :meth:`DataFrameAnalyticsFunctions.compute_lag`.
-        """
         return self._analytics
 
     @property
@@ -1158,21 +1153,10 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
 
-            3. For TIMESTAMP columns, TIMESTAMP_LTZ and TIMESTAMP_TZ are both
-            converted to ``datetime64[ns, tz]`` in pandas, as pandas cannot
-            distinguish between the two. TIMESTAMP_NTZ is converted to
-            ``datetime64[ns]`` (without timezone).
-
-            4. Snowflake SQL types and pandas dtypes are not interchangeable.
-            Conversion does not preserve every detail of the Snowflake schema,
-            such as NUMBER precision and scale. NULL values can also affect the
-            resulting pandas dtype. See the Python Connector's
-            `Snowflake to pandas data mapping
-            <https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-pandas#snowflake-to-pandas-data-mapping>`_.
-            Inspect :attr:`schema` before conversion and the returned DataFrame's
-            ``dtypes`` afterwards. Cast columns in Snowpark before conversion if
-            you need a particular SQL type. A pandas ``astype`` conversion after
-            fetching cannot recover precision already lost during conversion.
+            3. For TIMESTAMP columns:
+            - TIMESTAMP_LTZ and TIMESTAMP_TZ are both converted to `datetime64[ns, tz]` in pandas,
+            as pandas cannot distinguish between the two.
+            - TIMESTAMP_NTZ is converted to `datetime64[ns]` (without timezone).
         """
 
         if _emit_ast:
@@ -1335,11 +1319,11 @@ class DataFrame:
     ) -> Union["pyarrow.Table", AsyncJob]:
         """
         Executes the query representing this DataFrame and returns the result as a
-        `pyarrow Table <https://arrow.apache.org/docs/python/generated/pyarrow.Table.html>`_.
+        `pyarrow Table <https://arrow.apache.org/docs/python/generated/pyarrow.Table.html>`.
 
         When the data is too large to fit into memory, you can use :meth:`to_arrow_batches`.
 
-        This function requires the optional dependency ``snowflake-snowpark-python[pandas]`` to be installed.
+        This function requires the optional dependenct snowflake-snowpark-python[pandas] be installed.
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.

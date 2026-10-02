@@ -3545,16 +3545,8 @@ class Session:
         **kwargs: Dict[str, Any],
     ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
-        Snowpark :class:`Table` object referring to the table where the
+        Snowpark :class:`DataFrame` object referring to the table where the
         pandas DataFrame was written to.
-
-        The return value is not an insertion report. Calling ``count()`` on it
-        counts all rows currently in the target table, including pre-existing
-        rows when appending. The number of input rows is not necessarily the
-        number loaded if ``on_error`` permits skipping errors. For per-load
-        row counts, the Python Connector's
-        `write_pandas <https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-api#write_pandas>`_
-        returns a result tuple containing ``num_rows``; that is a different API.
 
         Args:
             df: The pandas DataFrame or Snowpark pandas DataFrame or Series we'd like to write back.

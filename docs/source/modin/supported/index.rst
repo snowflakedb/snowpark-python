@@ -8,9 +8,6 @@ of the most recent release.
 
 To view the docs for the most recent release, check that you’re viewing the stable version of the docs.
 
-Snowpark pandas supports a subset of pandas and Modin APIs. Each table lists
-supported operations, parameter limitations, and implementation notes.
-
 .. toctree::
    :maxdepth: 2
 

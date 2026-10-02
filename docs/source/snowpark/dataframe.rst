@@ -88,8 +88,6 @@ DataFrame
     DataFrame.toDF
     DataFrame.toLocalIterator
     DataFrame.toPandas
-    DataFrame.to_arrow
-    DataFrame.to_arrow_batches
     DataFrame.to_df
     DataFrame.to_local_iterator
     DataFrame.to_pandas
@@ -153,7 +151,6 @@ DataFrame
     :toctree: api/
 
     DataFrame.ai
-    DataFrame.analytics
     DataFrame.columns
     DataFrame.na
     DataFrame.queries

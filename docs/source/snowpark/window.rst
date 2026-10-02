@@ -10,7 +10,6 @@ Window
     :toctree: api/
 
     Window
-    WindowSpec
 
 .. rubric:: Methods
 

@@ -417,28 +417,19 @@ _TO_SNOWFLAKE_DOC = """
     Save the Snowpark pandas DataFrame or Series as a Snowflake table.
 
     Args:
-        obj: The Snowpark pandas DataFrame or Series to write. This function
-            executes the write and returns None, not a row-count report.
+        obj: Either a Snowpark pandas DataFrame or Series
         name:
-            Destination table name or fully-qualified object identifier, such as
-            ``"MY_DB.MY_SCHEMA.MY_TABLE"`` or
-            ``["MY_DB", "MY_SCHEMA", "MY_TABLE"]``. Unqualified names use the
-            session's current database and schema. Use double-quoted identifier
-            components to preserve mixed case.
+            Name of the SQL table or fully-qualified object identifier
         if_exists:
             How to behave if table already exists. default 'fail'
                 - fail: Raise ValueError.
                 - replace: Drop the table before inserting new values.
                 - append: Insert new values to the existing table. The order of insertion is not guaranteed.
         index: default True
-            If true, save the object's index levels as table columns in addition
-            to its data columns. Set False to omit the index. Row ordering is
-            not preserved by a Snowflake table.
+            If true, save DataFrame index columns as table columns.
         index_label:
             Column label for index column(s). If None is given (default) and index is True,
-            then the index names are used. For an unnamed index, supply a label
-            when saving it. For MultiIndex, provide one label per level.
-            Labels must not duplicate data-column labels. Ignored when index=False.
+            then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
         table_type:
             The table type of table to be created. The supported values are: ``temp``, ``temporary``,
             and ``transient``. An empty string means to create a permanent table. Learn more about table
@@ -514,7 +505,6 @@ def _read_snowflake_ray_backend(
     return df.set_backend("Ray")
 
 
-@doc(_TO_SNOWFLAKE_DOC)
 def to_snowflake(
     obj: Union[DataFrame, Series],
     name: Union[str, Iterable[str]],
@@ -523,6 +513,41 @@ def to_snowflake(
     index_label: Optional[IndexLabel] = None,
     table_type: Literal["", "temp", "temporary", "transient"] = "",
 ) -> None:
+    """Save a Snowpark pandas DataFrame or Series as a Snowflake table.
+
+    Args:
+        obj: The Snowpark pandas DataFrame or Series to write.
+        name: Destination table name or fully-qualified identifier, such as
+            ``"MY_DB.MY_SCHEMA.MY_TABLE"`` or
+            ``["MY_DB", "MY_SCHEMA", "MY_TABLE"]``. Unqualified names use the
+            session's current database and schema. Double-quote identifier
+            components to preserve mixed case.
+        if_exists: How to handle an existing table. Defaults to ``"fail"``:
+
+            - ``"fail"``: Raise ValueError if the table exists.
+            - ``"replace"``: Drop the table and write the new values.
+            - ``"append"``: Add rows to the existing table.
+
+        index: If True (the default), save index levels as table columns in
+            addition to the data columns. Set False to omit the index.
+        index_label: Column label or labels for the saved index. Defaults to
+            the index names. Supply a label for an unnamed index and one label
+            per level for a MultiIndex. Labels must not duplicate data-column
+            labels. Ignored when ``index=False``.
+        table_type: Type of table to create: ``"temp"`` or ``"temporary"``,
+            ``"transient"``, or ``""`` (the default) for a permanent table.
+            See `table types
+            <https://docs.snowflake.com/en/user-guide/tables-temp-transient>`_.
+
+    Returns:
+        None. The write is executed by this call. Row ordering is not preserved
+        by a Snowflake table.
+
+    See also:
+        :func:`DataFrame.to_snowflake <modin.pandas.DataFrame.to_snowflake>`,
+        :func:`Series.to_snowflake <modin.pandas.Series.to_snowflake>`,
+        :func:`read_snowflake <modin.pandas.read_snowflake>`.
+    """
     _snowpark_pandas_obj_check(obj)
     return obj.to_snowflake(
         name=name,
