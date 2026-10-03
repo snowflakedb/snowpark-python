@@ -1643,6 +1643,10 @@ class TestFiles:
         return os.path.join(self.test_sp_directory, "test_table_sp_file.py")
 
     @property
+    def test_pandas_apply_helper_py_file(self):
+        return os.path.join(self.resources_path, "test_pandas_apply_helper.py")
+
+    @property
     def test_pandas_udf_py_file(self):
         return os.path.join(self.test_udf_directory, "test_pandas_udf_file.py")
 
