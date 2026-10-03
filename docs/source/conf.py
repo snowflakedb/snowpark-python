@@ -13,6 +13,12 @@
 import os
 import sys
 
+DOCS_SOURCE_DIR = os.path.dirname(os.path.abspath(__file__))
+REPOSITORY_ROOT = os.path.abspath(os.path.join(DOCS_SOURCE_DIR, "../.."))
+sys.path.insert(0, DOCS_SOURCE_DIR)
+
+from _linkcode import resolve_linkcode
+
 
 # -- Project information -----------------------------------------------------
 
@@ -21,7 +27,7 @@ copyright = "2022, Snowflake Inc"
 author = "Snowflake Inc."
 
 # The full version, including alpha/beta/rc tags
-SRC_DIR = "../../src"
+SRC_DIR = os.path.join(REPOSITORY_ROOT, "src")
 sys.path.insert(0, os.path.abspath(SRC_DIR))
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 VERSION = (1, 1, 1, None)  # Default, needed so code will compile
@@ -333,42 +339,4 @@ suppress_warnings = ["app.add_directive"]
 
 # Construct URL to the corresponding section in the snowpark-python repo
 def linkcode_resolve(domain, info):
-    import inspect
-
-    if domain != "py":
-        return None
-
-    mod_name = info["module"]
-    full_name = info["fullname"]
-
-    obj = sys.modules.get(mod_name)
-    if obj is None:
-        return None
-
-    for part in full_name.split("."):
-        try:
-            obj = getattr(obj, part)
-        except AttributeError:
-            return None
-
-    try:
-        if isinstance(obj, property):
-            fn = inspect.getsourcefile(inspect.unwrap(obj.fget))
-        else:
-            fn = inspect.getsourcefile(inspect.unwrap(obj))
-    except TypeError as e:
-        return None
-
-    try:
-        if isinstance(obj, property):
-            source, lineno = inspect.getsourcelines(obj.fget)
-        else:
-            source, lineno = inspect.getsourcelines(obj)
-        linespec = f"#L{lineno}-L{lineno + len(source) - 1}"
-    except TypeError:
-        linespec = ""
-    return (
-        f"https://github.com/snowflakedb/snowpark-python/blob/"
-        f"v{release}/{os.path.relpath(fn)}{linespec}"
-    )
-
+    return resolve_linkcode(domain, info, release, REPOSITORY_ROOT)
