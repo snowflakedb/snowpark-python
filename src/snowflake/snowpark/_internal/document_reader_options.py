@@ -58,8 +58,9 @@ class ExtractionSpec:
     needs its own envelope for each engine -- AI_EXTRACT wants {"schema": {...}}, AI_COMPLETE
     wants {"type": "json", "schema": {...}} (see its docstring's "Structured output with
     response format" example) -- confirmed live against both engines, since neither's
-    own docstring documents this shape. Every other shape (AI_EXTRACT's own flat Q&A
-    dict/array forms) is passed to both engines exactly as given."""
+    own docstring documents this shape. AI_EXTRACT's own flat Q&A dict/array forms reach
+    AI_EXTRACT exactly as given, but AI_COMPLETE rejects them, so for that engine they are
+    rewritten into a JSON Schema -- see _questions_as_json_schema."""
 
     fields: List[str]
     field_columns: List[str]
@@ -81,6 +82,43 @@ class ExtractionSpec:
         if not isinstance(json_type, str):
             return None
         return _JSON_SCHEMA_SCALAR_TYPES.get(json_type)
+
+    @staticmethod
+    def _questions_as_json_schema(response_format: Any, fields: List[str]) -> dict:
+        """Express AI_EXTRACT's flat question form as a JSON Schema, for AI_COMPLETE.
+
+        ``{"vendor": "Who issued this invoice?"}`` is AI_EXTRACT's own shape and AI_COMPLETE
+        rejects it outright ("invalid response format object"), so sending it unchanged is
+        only safe while AI_EXTRACT is the engine. Each question becomes its field's
+        ``description``, which is how a model reads it under either engine.
+
+        Every field is typed ``string``: a question carries no type information, so there is
+        nothing to infer one from. A field whose answer should be a list or a number needs a
+        real JSON Schema -- this conversion makes the call succeed, it cannot add a contract
+        the input never expressed.
+        """
+        questions: Dict[str, Any] = {}
+        if isinstance(response_format, dict):
+            questions = dict(response_format)
+        elif isinstance(response_format, list):
+            # The array form carries its question inside the item: either a ["name",
+            # "question"] pair or a "name: question" string. Dropping it would discard the
+            # only instruction the model gets for that field.
+            for item in response_format:
+                if isinstance(item, (list, tuple)) and len(item) >= 2:
+                    questions[str(item[0])] = item[1]
+                elif isinstance(item, str) and ":" in item:
+                    name, _, question = item.partition(":")
+                    questions[name.strip()] = question.strip()
+
+        properties: Dict[str, Any] = {}
+        for field in fields:
+            node: Dict[str, Any] = {"type": "string"}
+            question = questions.get(field)
+            if isinstance(question, str) and question.strip():
+                node["description"] = question
+            properties[field] = node
+        return {"type": "object", "properties": properties}
 
     @classmethod
     def from_response_format(cls, response_format: Any) -> Optional["ExtractionSpec"]:
@@ -108,7 +146,6 @@ class ExtractionSpec:
             fields = []
 
         ai_extract_format = response_format
-        ai_complete_format = response_format
         if is_json_schema:
             ai_extract_format = {"schema": response_format}
             ai_complete_format = {"type": "json", "schema": response_format}
@@ -117,6 +154,16 @@ class ExtractionSpec:
                 field: cls._scalar_type(properties[field]) for field in fields
             }
         else:
+            # AI_EXTRACT keeps its own shape; AI_COMPLETE only accepts a JSON Schema, so the
+            # questions are rewritten into one rather than passed through to be rejected.
+            ai_complete_format = {
+                "type": "json",
+                "schema": cls._questions_as_json_schema(response_format, fields),
+            }
+            # field_types stays unset. The conversion types every field `string` purely
+            # because a question implies no type, and that is not grounds to start casting
+            # output columns -- least of all on the AI_EXTRACT path, which shares this and
+            # whose behaviour is unchanged here.
             field_types = {field: None for field in fields}
 
         return cls(
@@ -136,7 +183,11 @@ class DocumentReaderOptions:
     page_filter: Optional[list] = None
     mode: str = "PERMISSIVE"
     corrupt_record_column: str = _DEFAULT_CORRUPT_RECORD_COLUMN
-    extraction_engine: str = "ai_extract"
+    # DEMO BRANCH: AI_COMPLETE rather than AI_EXTRACT. AI_EXTRACT flattens tabular and
+    # clause-structured content instead of extracting it, and cannot express the verbatim
+    # multi-paragraph answers that clause-level review asks for. This leaves the AI_EXTRACT
+    # path reachable only by explicit option.
+    extraction_engine: str = "ai_complete"
     extraction: Optional[ExtractionSpec] = None
     model: Optional[str] = None
     prompt: Optional[str] = None
@@ -193,6 +244,25 @@ class DocumentReaderOptions:
             model=cur_options.get("MODEL", defaults.model),
             prompt=cur_options.get("PROMPT", defaults.prompt),
         )
+        # DEMO BRANCH: hand the document to AI_COMPLETE as a FILE rather than as text
+        # AI_PARSE_DOCUMENT produced. Parsing flattens the document, and layout is
+        # information: table columns, and the printed section numbers clause extraction is
+        # asked to quote, survive in the page image and not in flattened text. Skipping the
+        # parse also removes a whole Cortex call per document, along with its own failure and
+        # latency modes -- parse cost scales with page content in ways the file's size and
+        # page count do not predict.
+        #
+        # Conditional on there being something to extract. With no schema, AI_COMPLETE has
+        # nothing to do and the parsed text is the read's only output, so skipping the parse
+        # would hand back a DataFrame with nothing in it. An explicit parse_mode always wins;
+        # this only fills the default, and runs before validate() so validation sees the
+        # parse_mode the read will actually use.
+        if (
+            "PARSE_MODE" not in cur_options
+            and options.extract_enabled
+            and options.extraction_engine == "ai_complete"
+        ):
+            options.parse_mode = "none"
         options.validate()
         return options
 
