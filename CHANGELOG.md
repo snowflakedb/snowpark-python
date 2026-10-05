@@ -7,6 +7,7 @@
 #### New Features
 
 #### Bug Fixes
+- Fixed nested UDxF registration inside a stored procedure inheriting inaccessible app-package stage paths from the procedure's `IMPORTS` clause.
 
 #### Improvements
 
