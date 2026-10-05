@@ -814,6 +814,22 @@ class DataFrame:
 
         See also:
             :meth:`collect_nowait()`
+
+        The default blocking call retrieves all result rows into client memory.
+        For large results, consider :meth:`to_local_iterator` instead of
+        materializing a list. Use :meth:`sort` before collecting when the order
+        of rows matters.
+
+        Example::
+
+            >>> df = session.create_dataframe([(2, "Bob"), (1, "Alice")], schema=["id", "name"])
+            >>> rows = df.sort("id").collect()
+            >>> rows
+            [Row(ID=1, NAME='Alice'), Row(ID=2, NAME='Bob')]
+            >>> rows[0]["NAME"]
+            'Alice'
+            >>> rows[1].ID
+            2
         """
 
         kwargs = {}
@@ -6184,14 +6200,33 @@ class DataFrame:
         n: Optional[int] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
-        """Samples rows based on either the number of rows to be returned or a
-        percentage of rows to be returned.
+        """Returns a random sample of rows using Snowflake's SQL SAMPLE clause.
+
+        Specify either ``frac`` or ``n``. Fractional sampling includes each row
+        with the given probability, so the number of returned rows can vary.
+        Fixed-size sampling returns the requested number of rows, or all rows
+        if the input contains fewer rows. Neither form guarantees row order.
+        Repeated executions can return different samples; this method has no
+        seed parameter. For seeded sampling of a table, see :meth:`Table.sample`.
+
+        See `SAMPLE <https://docs.snowflake.com/en/sql-reference/constructs/sample>`_
+        for SQL sampling semantics.
 
         Args:
-            frac: the percentage of rows to be sampled.
+            frac: The probability of selecting each row, from 0.0 to 1.0
+                inclusive. For example, 0.1 requests approximately 10 percent
+                of the rows, not exactly 10 percent.
             n: the number of rows to sample in the range of 0 to 1,000,000 (inclusive).
+
         Returns:
             a :class:`DataFrame` containing the sample of rows.
+
+        Examples::
+
+            >>> df = session.range(100)
+            >>> fractional_sample = df.sample(frac=0.1)
+            >>> fixed_sample = df.sample(n=5)
+            >>> assert fixed_sample.count() == 5
         """
         DataFrame._validate_sample_input(frac, n)
 
@@ -6247,6 +6282,15 @@ class DataFrame:
         """
         Returns a :class:`DataFrameAIFunctions` object that provides AI-powered functions
         for the DataFrame.
+
+        Access this namespace through an existing DataFrame, for example
+        ``df.ai``. It is not a column and accessing it does not itself execute
+        an AI function. Call a method on the namespace to build an AI operation.
+
+        See :meth:`DataFrameAIFunctions.classify`,
+        :meth:`DataFrameAIFunctions.extract`, and
+        :meth:`DataFrameAIFunctions.sentiment` for parameters and examples.
+        The :class:`DataFrameAIFunctions` reference lists the available methods.
         """
         return self._ai
 
@@ -6905,6 +6949,25 @@ class DataFrame:
         Returns a ``dict`` that contains a list of queries that will be executed to
         evaluate this DataFrame with the key `queries`, and a list of post-execution
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
+
+        ``queries`` contains SQL statements in the DataFrame's execution plan;
+        a plan can contain more than one statement. ``post_actions`` contains
+        cleanup statements associated with that plan and can be empty. These
+        lists aren't result rows or a history of previously executed queries.
+
+        Use :meth:`explain` for a printed query list and, when available, a
+        database execution plan. Use :meth:`Session.query_history` to record
+        queries executed through a session. Generated SQL can change between
+        library versions and configurations; don't rely on exact SQL text.
+
+        Example::
+
+            >>> df = session.range(3)
+            >>> planned_sql = df.queries
+            >>> sorted(planned_sql)
+            ['post_actions', 'queries']
+            >>> isinstance(planned_sql["queries"], list)
+            True
         """
         plan_queries = self._plan.execution_queries
         return {

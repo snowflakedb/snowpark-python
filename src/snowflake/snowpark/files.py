@@ -156,7 +156,19 @@ class SnowflakeFile(RawIOBase):
         require_scoped_url: bool = True,
     ) -> SnowflakeFile:
         """
-        Used to create a :class:`~snowflake.snowpark.file.SnowflakeFile` which can only be used for read-based IO operations on the file.
+        Opens a file for reading and returns a :class:`SnowflakeFile` stream.
+        Use a ``with`` statement to close the stream after reading.
+
+        For example, inside a handler with a caller-provided scoped URL::
+
+            from snowflake.snowpark.files import SnowflakeFile
+
+            def read_text(url):
+                with SnowflakeFile.open(url, "r") as source:
+                    return source.read()
+
+        This example reads the whole file into memory. Use binary mode
+        (``"rb"``) when the consumer expects bytes rather than text.
 
         In UDFs and Stored Procedures, the object works like a read-only Python IOBase object and as a wrapper for an IO stream of remote files.
 
