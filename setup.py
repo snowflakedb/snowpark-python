@@ -43,8 +43,12 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.10"
 
 PANDAS_REQUIREMENTS = [
-    f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
-    "pandas<3.0.0",
+    "pandas<4.0.0",
+    # Mirrors the pyarrow bounds in snowflake-connector-python's [pandas] extra
+    # (its setup.cfg). We no longer request that extra, but the connector's Arrow
+    # code still needs this range and warns at import when it is not met.
+    "pyarrow>=14.0.1,<24; python_version >= '3.14'",
+    "pyarrow>=14.0.1; python_version < '3.14'",
 ]
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
