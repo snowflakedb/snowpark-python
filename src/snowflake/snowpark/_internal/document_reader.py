@@ -64,7 +64,44 @@ if TYPE_CHECKING:  # pragma: no cover
     from snowflake.snowpark.session import Session
 
 
-_DEFAULT_EXTRACTION_MODEL = "claude-4-sonnet"
+# DEMO BRANCH: claude-opus-5 rather than claude-4-sonnet.
+_DEFAULT_EXTRACTION_MODEL = "claude-opus-5"
+
+# AI_COMPLETE applies its own max_tokens default of 4096 when none is sent, which is low
+# enough to truncate a document answering more than a handful of fields. Truncation stops
+# generation mid-JSON, response_format then rejects the malformed reply, and it surfaces as a
+# bare internal error -- indistinguishable from a server fault. It can also report success
+# with a silently partial answer, so status alone is not a quality signal.
+#
+# The ceiling is PER-MODEL, and the server states each model's limit when exceeded
+# ("max_tokens parameter exceeds the maximum possible value (N)"). One shared constant is
+# therefore unsafe: claude-opus-5's ceiling sent to claude-4-sonnet fails every call. Only
+# models whose ceiling has been confirmed are listed -- anything else sends no max_tokens and
+# gets the server default, which is always accepted.
+#
+# claude-opus-5 accepts 128000, but 65536 is used deliberately. A larger ceiling does not
+# rescue a document whose answer cannot fit in one response -- it only lets the call run
+# longer before failing, so the practical effect of the maximum is a slower failure.
+_MODEL_MAX_OUTPUT_TOKENS = {
+    "claude-opus-5": 65536,
+    "claude-4-sonnet": 32000,
+}
+
+
+def complete_model_parameters(model: str) -> dict:
+    """``model_parameters`` for AI_COMPLETE: deterministic, and uncapped where it is safe.
+
+    ``temperature`` is 0 for every model -- the same document and schema should not yield
+    different answers on consecutive reads, so determinism is a correctness property here
+    rather than a preference.
+    """
+    parameters: dict = {"temperature": 0}
+    max_tokens = _MODEL_MAX_OUTPUT_TOKENS.get(model)
+    if max_tokens is not None:
+        parameters["max_tokens"] = max_tokens
+    return parameters
+
+
 _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
 
 _PDF_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "pdf_reader.py")
@@ -410,6 +447,7 @@ def build_ai_complete_call(
         return ai_complete(
             model,
             prompt_text,
+            model_parameters=complete_model_parameters(model),
             response_format=response_format,
             return_error_details=True,
         )
@@ -417,6 +455,7 @@ def build_ai_complete_call(
         model,
         options.prompt or _DEFAULT_EXTRACTION_PROMPT,
         file=input_col,
+        model_parameters=complete_model_parameters(model),
         response_format=response_format,
         return_error_details=True,
     )
