@@ -206,7 +206,7 @@ def test_to_polars_timestamp_ltz_and_tz(session):
     pl_df = session.sql(
         "SELECT TO_TIMESTAMP_LTZ('2024-01-15 12:00:00 -0800') AS ts_ltz,"
         "       TO_TIMESTAMP_TZ('2024-01-15 20:00:00 +0530')  AS ts_tz"
-    ).to_polars()
+    ).to_polars(transport="arrow")
     assert (
         pl_df["TS_LTZ"][0] is not None and pl_df["TS_LTZ"].dtype.time_zone is not None
     )
@@ -221,18 +221,18 @@ def test_to_polars_eager_matches_to_arrow(session):
         "       TRUE AS b, DATE '2024-01-01' AS d,"
         "       TO_TIMESTAMP_NTZ('2024-01-01 12:00:00') AS t"
     )
-    assert polars_to_pydict(df.to_polars()) == df.to_arrow().to_pydict()
+    assert (
+        polars_to_pydict(df.to_polars(transport="arrow")) == df.to_arrow().to_pydict()
+    )
 
 
 @_skip_local
 def test_to_polars_statement_params(session):
-    """statement_params must reach Snowflake on every to_polars path,
-    including the raw-cursor Arrow path. Regression guard: earlier the Arrow
-    path forwarded the params only on the (rare) empty-batch fallback and
-    silently dropped them on the main query.
+    """statement_params must reach Snowflake on every to_polars path.
 
-    The ``query_history()`` context manager doubles as a check that the
-    raw-cursor Arrow path still triggers session-level query listeners.
+    Exercises the default (parquet) path. Regression guard: verifies that
+    statement_params are forwarded through the COPY INTO unload and that the
+    query listener records the query.
     """
     df = session.create_dataframe([[1]], schema=["A"])
 
@@ -275,7 +275,7 @@ def test_to_polars_transport_parquet_matches_arrow_shape(session):
         [[i, str(i), i * 1.5] for i in range(500)], schema=["ID", "S", "F"]
     )
     pq = df.to_polars(transport="parquet")
-    arrow = df.to_polars()
+    arrow = df.to_polars(transport="arrow")
     assert pq.height == arrow.height == 500
     assert set(pq.columns) == set(arrow.columns)
     # FLOAT is downcast to float32 by the Parquet unload, so cast both sides
@@ -345,7 +345,7 @@ def test_to_polars_column_identifier_casing(
     and column-name-based selection on the Parquet result."""
     df = session.sql(sql)
 
-    eager = df.to_polars()
+    eager = df.to_polars(transport="arrow")
     assert eager.columns == expected_columns
 
     pq = df.to_polars(transport="parquet")

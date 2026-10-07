@@ -1396,7 +1396,7 @@ class DataFrame:
     def to_polars(
         self,
         *,
-        transport: typing.Literal["arrow", "parquet"] = "arrow",
+        transport: typing.Literal["arrow", "parquet"] = "parquet",
         max_workers: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> "polars.DataFrame":
@@ -1409,15 +1409,14 @@ class DataFrame:
         ==========  ============================================
         transport   Description
         ==========  ============================================
-        "arrow"     Arrow (default; full Snowflake type fidelity)
-        "parquet"   Parquet unload + eager parallel read
+        "parquet"   Parquet unload + eager parallel read (default)
+        "arrow"     Arrow (full Snowflake type fidelity)
         ==========  ============================================
 
         Usage Notes:
             - **Transport selection**:
-                - ``"parquet"``:
-                  Recommended when the result set is large and the type-fidelity
-                  caveats are acceptable. Snowflake's ``COPY INTO`` splits the
+                - ``"parquet"`` (default):
+                  The default transport. Snowflake's ``COPY INTO`` splits the
                   result into multiple Parquet files that are opened and read
                   concurrently. In server-side environments such as stored
                   procedures, each file open is a parallelizable I/O operation,
@@ -1427,7 +1426,7 @@ class DataFrame:
                   modest; for small or medium result sets the ``COPY INTO``
                   setup cost may outweigh the gain, making Arrow the more
                   efficient choice.
-                - ``"arrow"`` (default):
+                - ``"arrow"``:
                   Streams result batches directly from the cursor without
                   staging to disk. Preserves full Snowflake type fidelity.
                   Use when type accuracy is required, or when the result set is
@@ -1446,7 +1445,7 @@ class DataFrame:
             (2, 2)
 
         Args:
-            transport: Either ``"arrow"`` (default) or ``"parquet"``. When
+            transport: Either ``"parquet"`` (default) or ``"arrow"``. When
                 ``"parquet"``, unload the result to Parquet on the session
                 stage and read the files back in parallel. Can be faster than
                 the ``"arrow"`` transport for large, data-transfer-dominated
@@ -1473,7 +1472,7 @@ class DataFrame:
 
             See the `COPY INTO <location> usage notes
             <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location#usage-notes>`_
-            for the full unload type mapping. Use the Arrow default when
+            for the full unload type mapping. Use ``transport="arrow"`` when
             full type fidelity is required.
         """
         from snowflake.snowpark._internal.polars_backend import (
