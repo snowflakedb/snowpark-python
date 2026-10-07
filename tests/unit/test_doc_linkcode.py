@@ -1,14 +1,18 @@
+#!/usr/bin/env python3
+#
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
+
 """Source-link tests that don't import Sphinx or its configuration."""
 
 import functools
 import importlib.util
 import inspect
 import os
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
-
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location(
