@@ -1153,10 +1153,70 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
 
-            3. For TIMESTAMP columns:
-            - TIMESTAMP_LTZ and TIMESTAMP_TZ are both converted to `datetime64[ns, tz]` in pandas,
-            as pandas cannot distinguish between the two.
-            - TIMESTAMP_NTZ is converted to `datetime64[ns]` (without timezone).
+        Data type mapping:
+            Conversion uses pandas representations rather than preserving the Snowflake schema
+            exactly. The following table describes typical mappings for Arrow query results.
+            Numeric widths can depend on the returned values; results can also vary with the
+            pandas and Python Connector versions.
+
+            .. list-table:: Snowflake to pandas mappings
+                :header-rows: 1
+                :widths: 30 40 30
+
+                * - Snowflake type
+                  - pandas dtype / Python value
+                  - SQL NULL representation
+                * - NUMBER with scale 0
+                  - Integer dtype when values fit; can become float64 for larger values
+                  - Can become float64 with NaN
+                * - NUMBER with scale greater than 0
+                  - float64
+                  - NaN
+                * - FLOAT / DOUBLE
+                  - float64
+                  - NaN
+                * - BOOLEAN
+                  - bool; object when NULLs are present
+                  - None
+                * - VARCHAR
+                  - object containing str
+                  - None
+                * - BINARY
+                  - object containing bytes
+                  - None
+                * - DATE
+                  - object containing datetime.date
+                  - None
+                * - TIME
+                  - object containing datetime.time
+                  - None
+                * - TIMESTAMP_NTZ
+                  - datetime64[ns] (without timezone)
+                  - NaT
+                * - TIMESTAMP_LTZ / TIMESTAMP_TZ
+                  - datetime64[ns, tz] (timezone-aware)
+                  - NaT
+                * - Semi-structured VARIANT / ARRAY / OBJECT
+                  - object containing JSON strings
+                  - None
+
+            Floating-point conversion can lose precision for decimals and large integers,
+            including integer columns containing NULLs. Casting the pandas column afterward
+            cannot recover precision already lost. Python datetime.time has microsecond
+            precision, so TIME values with finer precision are truncated. pandas does not
+            preserve the distinction between TIMESTAMP_LTZ and TIMESTAMP_TZ.
+
+        Example:
+            Inspect the Snowpark schema and the pandas dtypes before relying on a conversion:
+
+            >>> df = session.sql("SELECT 42::NUMBER(10,0) AS N, 'hello'::VARCHAR AS S")
+            >>> df.schema
+            StructType([StructField('N', LongType(), nullable=False), StructField('S', StringType(), nullable=False)])
+            >>> pdf = df.to_pandas()
+            >>> print(pdf.dtypes)
+            N      int8
+            S    object
+            dtype: object
         """
 
         if _emit_ast:
