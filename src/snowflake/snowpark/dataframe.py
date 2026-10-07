@@ -1466,8 +1466,8 @@ class DataFrame:
 
                - ``TIMESTAMP_LTZ`` and ``TIMESTAMP_TZ`` columns cause the
                  unload to error.
-               - ``TIMESTAMP_NTZ`` values with nanosecond precision are
-                 truncated to milliseconds.
+               - ``TIMESTAMP_NTZ`` values with sub-millisecond precision
+                 (microseconds or nanoseconds) are rounded to milliseconds.
                - ``FLOAT`` (double) columns are downcast to ``float32``.
 
             See the `COPY INTO <location> usage notes
