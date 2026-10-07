@@ -11,6 +11,7 @@
 
 #### Improvements
 
+- `DataFrame.to_polars()` now defaults to `transport="parquet"` instead of `transport="arrow"`.
 ## 1.55.1 (2026-10-05)
 
 ### Snowpark Python API Updates
