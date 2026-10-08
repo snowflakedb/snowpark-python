@@ -1238,6 +1238,7 @@ class Analyzer:
                 max_data_extension_time=logical_plan.max_data_extension_time,
                 change_tracking=logical_plan.change_tracking,
                 copy_grants=logical_plan.copy_grants,
+                ignore_grants=logical_plan.ignore_grants,
                 child=resolved_child,
                 source_plan=logical_plan,
                 use_scoped_temp_objects=self.session._use_scoped_temp_objects,

@@ -6,6 +6,8 @@
 
 #### New Features
 
+- Added ``ignore_grants`` to ``DataFrameWriter.save_as_table``. When true, ``CREATE OR REPLACE`` emits ``IGNORE GRANTS`` so privileges on the replaced table are dropped. Defaults to false. ``copy_grants=False`` is unchanged and still omits the clause.
+
 #### Bug Fixes
 - Fixed nested UDxF registration inside a stored procedure inheriting inaccessible app-package stage paths from the procedure's `IMPORTS` clause.
 
