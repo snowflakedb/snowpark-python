@@ -1282,6 +1282,7 @@ class SnowflakePlanBuilder:
         iceberg_config: Optional[dict] = None,
         table_exists: Optional[bool] = None,
         overwrite_condition: Optional[str] = None,
+        ignore_grants: bool = False,
     ) -> SnowflakePlan:
         """Returns a SnowflakePlan to materialize the child plan into a table.
 
@@ -1297,6 +1298,8 @@ class SnowflakePlanBuilder:
             max_data_extension_time: max data extension time in days
             change_tracking: whether to enable change tracking
             copy_grants: whether to copy grants
+            ignore_grants: whether to emit IGNORE GRANTS so a replaced table drops
+                privileges instead of copying them
             child: the SnowflakePlan that is being materialized into a table
             source_plan: the source plan of the child
             use_scoped_temp_objects: should we use scoped temp objects
@@ -1378,6 +1381,7 @@ class SnowflakePlanBuilder:
                     max_data_extension_time=max_data_extension_time,
                     change_tracking=change_tracking,
                     copy_grants=copy_grants,
+                    ignore_grants=ignore_grants,
                     iceberg_config=iceberg_config,
                     use_scoped_temp_objects=use_scoped_temp_objects,
                     is_generated=is_generated,
@@ -1404,6 +1408,7 @@ class SnowflakePlanBuilder:
                 max_data_extension_time=max_data_extension_time,
                 change_tracking=change_tracking,
                 copy_grants=copy_grants,
+                ignore_grants=ignore_grants,
                 use_scoped_temp_objects=use_scoped_temp_objects,
                 is_generated=is_generated,
                 iceberg_config=iceberg_config,

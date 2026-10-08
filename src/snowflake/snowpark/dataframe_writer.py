@@ -244,6 +244,7 @@ class DataFrameWriter:
         max_data_extension_time: Optional[int] = None,
         change_tracking: Optional[bool] = None,
         copy_grants: bool = False,
+        ignore_grants: bool = False,
         iceberg_config: Optional[
             Dict[str, Union[str, Iterable[ColumnOrSqlExpr]]]
         ] = None,
@@ -298,6 +299,7 @@ class DataFrameWriter:
                 streams on the table from becoming stale.
             change_tracking: Specifies whether to enable change tracking for the table. If not set, the default behavior is used.
             copy_grants: When true, retain the access privileges from the original table when a new table is created with "overwrite" mode.
+            ignore_grants: When true, drop the access privileges from the original table by emitting ``IGNORE GRANTS`` on ``CREATE OR REPLACE``. Defaults to false, which leaves the clause off. Cannot be combined with ``copy_grants``.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
@@ -417,6 +419,7 @@ class DataFrameWriter:
             # max_data_extension_time: Optional[int] = None,
             # change_tracking: Optional[bool] = None,
             # copy_grants: bool = False,
+            # ignore_grants: bool = False,
             # iceberg_config: Optional[dict] = None,
             # table_exists: Optional[bool] = None,
             # overwrite_condition: Optional[ColumnOrSqlExpr] = None,
@@ -455,6 +458,7 @@ class DataFrameWriter:
             if change_tracking is not None:
                 expr.change_tracking.value = change_tracking
             expr.copy_grants = copy_grants
+            expr.ignore_grants = ignore_grants
             if iceberg_config is not None:
                 for k, v in iceberg_config.items():
                     t = expr.iceberg_config.add()
@@ -559,6 +563,7 @@ class DataFrameWriter:
                 iceberg_config,
                 table_exists,
                 overwrite_condition_expr,
+                ignore_grants,
             )
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
             result = session._conn.execute(

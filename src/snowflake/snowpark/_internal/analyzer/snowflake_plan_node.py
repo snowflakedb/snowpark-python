@@ -238,6 +238,7 @@ class SnowflakeCreateTable(LogicalPlan):
         iceberg_config: Optional[dict] = None,
         table_exists: Optional[bool] = None,
         overwrite_condition: Optional[Expression] = None,
+        ignore_grants: bool = False,
     ) -> None:
         super().__init__()
 
@@ -258,6 +259,7 @@ class SnowflakeCreateTable(LogicalPlan):
         self.max_data_extension_time = max_data_extension_time
         self.change_tracking = change_tracking
         self.copy_grants = copy_grants
+        self.ignore_grants = ignore_grants
         self.iceberg_config = iceberg_config
         # whether the table already exists in the database
         # determines the compiled SQL for APPEND and TRUNCATE mode

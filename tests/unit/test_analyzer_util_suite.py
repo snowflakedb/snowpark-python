@@ -283,6 +283,57 @@ def test_create_table_statement(
     assert if_not_exists_sql in create_table_stmt
 
 
+def test_ignore_grants_clause():
+    ctas = create_table_as_select_statement(
+        "table",
+        "select * from foo",
+        None,
+        replace=True,
+        ignore_grants=True,
+        comment="keep me",
+    )
+    assert " IGNORE GRANTS " in ctas
+    assert " COPY GRANTS " not in ctas
+    assert "COMMENT  = 'keep me'" in ctas
+    assert ctas.index("IGNORE GRANTS") < ctas.index("AS  SELECT")
+
+    default_ctas = create_table_as_select_statement(
+        "table", "select * from foo", None, replace=True
+    )
+    assert "IGNORE GRANTS" not in default_ctas
+    assert "COPY GRANTS" not in default_ctas
+
+    copy_ctas = create_table_as_select_statement(
+        "table", "select * from foo", None, replace=True, copy_grants=True
+    )
+    assert " COPY GRANTS " in copy_ctas
+    assert "IGNORE GRANTS" not in copy_ctas
+
+    create_stmt = create_table_statement(
+        "table", "schema", replace=True, ignore_grants=True
+    )
+    assert " IGNORE GRANTS " in create_stmt
+    assert " COPY GRANTS " not in create_stmt
+
+    with pytest.raises(ValueError, match="cannot both be True"):
+        create_table_as_select_statement(
+            "table",
+            "select * from foo",
+            None,
+            replace=True,
+            copy_grants=True,
+            ignore_grants=True,
+        )
+    with pytest.raises(ValueError, match="cannot both be True"):
+        create_table_statement(
+            "table",
+            "schema",
+            replace=True,
+            copy_grants=True,
+            ignore_grants=True,
+        )
+
+
 def test_create_or_replace_view_statement():
     assert create_or_replace_view_statement(
         name="my_view",

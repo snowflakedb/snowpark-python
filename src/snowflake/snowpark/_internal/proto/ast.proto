@@ -2884,4 +2884,5 @@ message WriteTable {
   NameRef table_name = 17;
   string table_type = 18;
   Expr writer = 19;
+  bool ignore_grants = 20;
 }
