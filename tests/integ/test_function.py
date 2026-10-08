@@ -165,7 +165,6 @@ from snowflake.snowpark.functions import (
     year,
 )
 import functools
-from snowflake.snowpark._internal.options import installed_pandas
 from snowflake.snowpark.functions import udf, vectorized
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.types import (
@@ -188,6 +187,7 @@ from tests.utils import (
     IS_IN_STORED_PROC,
     TestData,
     Utils,
+    installed_pandas,
     running_on_jenkins,
     structured_types_enabled_session,
     structured_types_supported,

@@ -14,7 +14,7 @@ from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import DecimalType
 
-from tests.utils import TestData, Utils
+from tests.utils import TestData, Utils, installed_pandas
 
 try:
     import polars as pl
@@ -28,6 +28,10 @@ except ImportError:
 _skip_local = pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="arrow not fully supported by local testing.",
+)
+_skip_without_pandas = pytest.mark.skipif(
+    not installed_pandas,
+    reason="pandas is required by the connector Arrow path.",
 )
 
 
@@ -184,6 +188,7 @@ def test_to_polars_eager_multi_batch(session):
 
 
 @_skip_local
+@_skip_without_pandas
 def test_to_polars_empty_dataframe(session):
     pl_df = (
         session.create_dataframe([[1, 2]], schema=["A", "B"])
@@ -209,6 +214,7 @@ def test_to_polars_timestamp_ltz_and_tz(session):
 
 
 @_skip_local
+@_skip_without_pandas
 def test_to_polars_eager_matches_to_arrow(session):
     df = session.sql(
         "SELECT 42::INT AS i, 3.14::FLOAT AS f, 'hello'::VARCHAR AS s,"
@@ -291,6 +297,7 @@ def test_to_polars_transport_parquet_timestamp_ltz_raises(session):
 
 
 @_skip_local
+@_skip_without_pandas
 def test_to_polars_transport_parquet_empty(session):
     """Empty result from the Parquet path returns a schema-preserving DataFrame."""
     pl_df = (
@@ -355,6 +362,7 @@ def test_to_polars_column_identifier_casing(
 # ---------------------------------------------------------------------------
 
 
+@_skip_without_pandas
 def test_to_polars_raises_when_polars_missing(local_session, _no_polars_required):
     df = local_session.create_dataframe([[1]], schema=["A"])
     with mock.patch.dict("sys.modules", {"polars": None}):

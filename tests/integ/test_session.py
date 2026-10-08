@@ -25,6 +25,7 @@ from snowflake.snowpark.types import (
     StringType,
 )
 from snowflake.snowpark._internal.utils import (
+    IS_V5_DRIVER,
     TempObjectType,
     get_version,
     parse_table_name,
@@ -446,7 +447,10 @@ def test_create_session_from_parameters(db_parameters, sql_simplifier_enabled):
         Utils.check_answer(df, [Row(1, 2)])
         assert session_builder._options.get("password") is None
         assert new_session._conn._lower_case_parameters.get("password") is None
-        assert new_session._conn._conn._password is None
+        if not IS_V5_DRIVER:
+            # The V5 driver never stores the password on the connection
+            # object, so the `_password` attribute no longer exists.
+            assert new_session._conn._conn._password is None
     finally:
         new_session.close()
 
@@ -465,7 +469,10 @@ def test_create_session_from_connection(
         assert session_builder._options.get("password") is None
         if not local_testing_mode:
             assert new_session._conn._lower_case_parameters.get("password") is None
-        assert new_session._conn._conn._password is None
+        if not IS_V5_DRIVER:
+            # The V5 driver never stores the password on the connection
+            # object, so the `_password` attribute no longer exists.
+            assert new_session._conn._conn._password is None
     finally:
         new_session.close()
 
@@ -493,7 +500,10 @@ def test_create_session_from_connection_with_noise_parameters(
         # erase it if it exists
         assert session_builder._options.get("password") is None
         assert new_session._conn._lower_case_parameters.get("password") is None
-        assert new_session._conn._conn._password is None
+        if not IS_V5_DRIVER:
+            # The V5 driver never stores the password on the connection
+            # object, so the `_password` attribute no longer exists.
+            assert new_session._conn._conn._password is None
     finally:
         new_session.close()
 

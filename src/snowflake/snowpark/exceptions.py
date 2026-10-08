@@ -77,6 +77,23 @@ class SnowparkSQLException(SnowparkClientException):
     Includes all error codes in range 13XX (where XX is 0-9).
 
     This exception is specifically raised for error codes: 1300, 1304.
+
+    Attributes:
+        error_code: Snowpark client error code. This is distinct from the
+            underlying Snowflake SQL error code.
+        sql_error_code: Snowflake SQL error number, when provided by the connector.
+        sfqid: Snowflake query ID, when available. Use this to locate the failed
+            statement in `Query History
+            <https://docs.snowflake.com/en/user-guide/ui-query-history>`_.
+        query: SQL text associated with the error, when available.
+        raw_message: Underlying error message, when available.
+        conn_error: Original connector exception, when available.
+
+    Read the error message first: a compilation error, missing object, and
+    insufficient privilege require different fixes even if they share a
+    Snowpark error code. Check the failed query's database, schema, role, and
+    referenced identifiers. When requesting help, include the query ID and
+    error codes; redact sensitive literals from SQL and error messages.
     """
 
     def __init__(

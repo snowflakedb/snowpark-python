@@ -104,10 +104,11 @@ def test_put_with_one_file(
         10,
         11,
     ) and first_result_with_statement_params.source_size in (10, 11)
-    # in local testing, target size on mac and linux is 10, on windows is 11
-    target_size_set = (64, 96) if not local_testing_mode else (10, 11)
+    # in local testing, target size on mac and linux is 10, on windows is 11.
+    # 64/96 are legacy gzip (FNAME left in the header); 32 is V5 (no FNAME).
+    target_size_set = (32, 64, 96) if not local_testing_mode else (10, 11)
     with_statement_params_target_size_set = (
-        (0, 64) if not local_testing_mode else (10, 11)
+        (0, 32, 64) if not local_testing_mode else (10, 11)
     )
     assert (
         first_result.target_size in target_size_set
@@ -160,7 +161,7 @@ def test_put_with_one_file(
         else file_name_3
     )
     assert third_result.source_size in (10, 11)
-    assert third_result.target_size in (64, 96) if not local_testing_mode else (10,)
+    assert third_result.target_size in (32, 64, 96) if not local_testing_mode else (10,)
     assert third_result.source_compression == "NONE"
     assert (
         third_result.target_compression == "GZIP" if not local_testing_mode else "NONE"
@@ -192,7 +193,11 @@ def test_put_with_one_file_twice(session, temp_stage, path1, local_testing_mode)
     )
     assert second_result.source_size in (10, 11)
     # On GCP, the files are not skipped if target file already exists
-    assert second_result.target_size in (0, 64, 96) if not local_testing_mode else (10,)
+    assert (
+        second_result.target_size in (0, 32, 64, 96)
+        if not local_testing_mode
+        else (10,)
+    )
     assert second_result.source_compression == "NONE"
     assert (
         second_result.target_compression == "GZIP" if not local_testing_mode else "NONE"
@@ -225,7 +230,11 @@ def test_put_with_one_relative_path_file(
             else file_name
         )
         assert first_result.source_size in (10, 11)
-        assert first_result.target_size in (64, 96) if not local_testing_mode else (10,)
+        assert (
+            first_result.target_size in (32, 64, 96)
+            if not local_testing_mode
+            else (10,)
+        )
         assert first_result.source_compression == "NONE"
         assert (
             first_result.target_compression == "GZIP"
@@ -268,13 +277,13 @@ def test_put_negative(
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
 
-    with pytest.raises(SnowparkSQLException) as file_not_exist_info:
+    # legacy: "File doesn't exist"; V5: "File does not exist"
+    with pytest.raises(SnowparkSQLException, match=r"File does(?:n't| not) exist"):
         session.file.put(
             f"file://{temp_source_directory}/not_exists_file.txt",
             stage_with_prefix,
             auto_compress=not local_testing_mode,
         )
-    assert "File doesn't exist" in str(file_not_exist_info.value)
 
     if not local_testing_mode:
         # local testing currently doesn't support stage CRUD
@@ -472,11 +481,11 @@ def test_get_one_file(
     try:
         assert len(results) == len(results_with_statement_params) == 1
         assert results[0].file == results_with_statement_params[0].file == file_name
-        # 10 (mac and linux), 11 (windows) is for local testing, 54, 55 is for non-local testing
+        # 10/11 local testing; 54/55 legacy gzip FNAME; 30/31 V5 (no FNAME; 31 on CRLF)
         assert results[0].size in (
-            (54, 55) if not local_testing_mode else (10, 11)
+            (30, 31, 54, 55) if not local_testing_mode else (10, 11)
         ) and results_with_statement_params[0].size in (
-            (54, 55) if not local_testing_mode else (10, 11)
+            (30, 31, 54, 55) if not local_testing_mode else (10, 11)
         )
         assert (
             results[0].status == results_with_statement_params[0].status == "DOWNLOADED"
@@ -512,8 +521,12 @@ def test_get_multiple_files(
         assert results[1].file == os.path.basename(path2)
         assert results[2].file == os.path.basename(path3)
 
-        assert results[0].size in ((54, 55) if not local_testing_mode else (10, 11))
-        assert results[1].size in ((54, 55) if not local_testing_mode else (10, 11))
+        assert results[0].size in (
+            (30, 31, 54, 55) if not local_testing_mode else (10, 11)
+        )
+        assert results[1].size in (
+            (30, 31, 54, 55) if not local_testing_mode else (10, 11)
+        )
         assert results[2].size in (10, 11)
     finally:
         os.remove(f"{temp_target_directory}/{os.path.basename(path1)}")
