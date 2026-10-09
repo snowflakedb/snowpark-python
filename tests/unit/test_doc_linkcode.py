@@ -67,8 +67,8 @@ class LinkcodeTests(unittest.TestCase):
 
     def test_independent_of_working_directory(self):
         original = Path.cwd()
-        try:
-            with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory() as directory:
+            try:
                 for cwd in (
                     REPOSITORY_ROOT,
                     REPOSITORY_ROOT / "docs/source",
@@ -80,8 +80,9 @@ class LinkcodeTests(unittest.TestCase):
                             self.resolve("Example.method"),
                             self.expected(Example.method),
                         )
-        finally:
-            os.chdir(original)
+            finally:
+                # Windows cannot remove a directory while it is the current directory.
+                os.chdir(original)
 
     def test_missing_object(self):
         self.assertIsNone(self.resolve("Example.missing"))
