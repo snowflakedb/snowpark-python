@@ -195,9 +195,24 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ matrix.os != 'macos-latest' }}
+      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version != '3.14' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest${EXTRA_TOX_FACTORS}-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+          EXTRA_TOX_FACTORS: ${{ matrix.tox-extra-factors }}
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
+        shell: bash
+      # SNOW-4145327: 3.14 warehouse is artifact-repo pip vs published
+      # snowpark-python <=3.1.1 (391577). Skip live UDF/sproc until the
+      # next client is on PyPI. Same hold as daily_precommit.yml.
+      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version == '3.14' }}
+        name: Run tests (excluding udf, doctests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest${EXTRA_TOX_FACTORS}-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
