@@ -5,6 +5,7 @@
 import os
 import copy
 import datetime
+import sys
 import decimal
 import json
 import logging
@@ -7428,6 +7429,13 @@ def test_dataframe_to_local_iterator_with_to_pandas_isolation(
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.skipif(
+    sys.version_info[:2] == (3, 13),
+    reason=(
+        "SNOW-4145327: 3.13 artifact-repo pip vs published "
+        "snowpark-python<=3.1.1 (391577) until the next client is on PyPI"
+    ),
 )
 @pytest.mark.udf
 @pytest.mark.parametrize("overlapping_columns", [True, False])
