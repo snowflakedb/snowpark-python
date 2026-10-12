@@ -7433,8 +7433,9 @@ def test_dataframe_to_local_iterator_with_to_pandas_isolation(
 @pytest.mark.skipif(
     sys.version_info[:2] == (3, 13),
     reason=(
-        "SNOW-4145327: 3.13 artifact-repo pip vs published "
-        "snowpark-python<=3.1.1 (391577) until the next client is on PyPI"
+        "SNOW-4145327: this map UDF installs Snowpark from PyPI, which "
+        "still pins the old cloudpickle. Skip on 3.13 until the next "
+        "client is published."
     ),
 )
 @pytest.mark.udf

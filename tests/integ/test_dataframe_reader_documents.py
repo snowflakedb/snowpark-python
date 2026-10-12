@@ -26,10 +26,9 @@ pytestmark = [
     ),
 ]
 
-# parse_mode="text" registers a PDF UDTF (391577 on 3.14 artifact-repo pip
-# until the next client is on PyPI). Mark those cases udf so 3.14
-# notudfdoctest skips them; 3.10-3.13 notdoctest still runs them.
-# SNOW-4145327: remove the udf marks after that client is published.
+# SNOW-4145327: text mode creates a PDF UDTF. Published Snowpark still
+# rejects cloudpickle 3.1.2, so 3.14 skips anything marked udf. Other
+# versions still run these. Remove after the next client is on PyPI.
 _TEXT_PARSE_MODE = pytest.param("text", marks=pytest.mark.udf)
 
 # doc.pdf is 3 pages, invoice.pdf is 1 page. The page count matters for the
@@ -190,7 +189,7 @@ def test_row_boundary_page_yields_one_row_per_page(session, doc_path):
         assert row["_document_error"] is None
 
 
-@pytest.mark.udf
+@pytest.mark.udf  # SNOW-4145327: text-mode UDTF; hold on 3.14 until next client is on PyPI
 def test_row_boundary_page_in_text_mode_yields_one_row_per_page(session, doc_path):
     page_rows = (
         session.read.option("parse_mode", "text")
@@ -205,7 +204,7 @@ def test_row_boundary_page_in_text_mode_yields_one_row_per_page(session, doc_pat
     assert all(row["TOTAL_PAGES"] == DOC_PAGE_COUNT for row in page_rows)
 
 
-@pytest.mark.udf
+@pytest.mark.udf  # SNOW-4145327: text-mode UDTF; hold on 3.14 until next client is on PyPI
 def test_row_boundary_document_concatenates_every_page(session, doc_path):
     document_row = (
         session.read.option("parse_mode", "text")._documents(doc_path).collect()[0]
@@ -599,7 +598,7 @@ def test_ai_complete_extracts_directly_from_the_file_with_no_parse_phase(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.udf
+@pytest.mark.udf  # SNOW-4145327: text-mode UDTF; hold on 3.14 until next client is on PyPI
 def test_permissive_captures_a_parse_error_without_aborting(session, unsupported_stage):
     # parse_mode="text" routes through our own PDF UDTF, which fails
     # deterministically on a non-PDF instead of depending on server-side
@@ -619,7 +618,7 @@ def test_permissive_captures_a_parse_error_without_aborting(session, unsupported
     assert errors[0]["message"]
 
 
-@pytest.mark.udf
+@pytest.mark.udf  # SNOW-4145327: text-mode UDTF; hold on 3.14 until next client is on PyPI
 def test_permissive_uses_a_custom_corrupt_record_column(session, unsupported_stage):
     df = (
         session.read.option("parse_mode", "text")
@@ -637,7 +636,7 @@ def test_permissive_uses_a_custom_corrupt_record_column(session, unsupported_sta
     assert errors[0]["stage"] == "parse"
 
 
-@pytest.mark.udf
+@pytest.mark.udf  # SNOW-4145327: text-mode UDTF; hold on 3.14 until next client is on PyPI
 def test_permissive_leaves_the_error_column_null_for_a_good_file(session, invoice_path):
     rows = session.read.option("parse_mode", "text")._documents(invoice_path).collect()
 
@@ -701,7 +700,7 @@ def test_extract_type_mismatch_is_surfaced_not_silently_dropped(session):
     )
 
 
-@pytest.mark.udf
+@pytest.mark.udf  # SNOW-4145327: text-mode UDTF; hold on 3.14 until next client is on PyPI
 def test_failfast_raises_on_an_unreadable_file(session, unsupported_stage):
     df = (
         session.read.option("parse_mode", "text")
