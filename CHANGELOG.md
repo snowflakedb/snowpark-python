@@ -4,14 +4,13 @@
 
 ### Snowpark Python API Updates
 
-#### New Features
-
-- Added ``ignore_grants`` to ``DataFrameWriter.save_as_table``. When true, ``CREATE OR REPLACE`` emits ``IGNORE GRANTS`` so privileges on the replaced table are dropped. Defaults to false. ``copy_grants=False`` is unchanged and still omits the clause.
-
 #### Bug Fixes
+
 - Fixed nested UDxF registration inside a stored procedure inheriting inaccessible app-package stage paths from the procedure's `IMPORTS` clause.
 
 #### Improvements
+
+- ``DataFrameWriter.save_as_table`` emits ``IGNORE GRANTS`` on ``CREATE OR REPLACE`` when ``copy_grants`` is false (the default), so privileges on the replaced table are dropped. This keeps the previous behavior when Snowflake behavior change BCR-2433 is enabled. ``copy_grants=True`` still emits ``COPY GRANTS``.
 
 ## 1.55.1 (2026-10-05)
 

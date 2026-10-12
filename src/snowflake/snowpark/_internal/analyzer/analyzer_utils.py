@@ -1154,18 +1154,16 @@ def get_comment_sql(comment: Optional[str]) -> str:
     )
 
 
-def table_grants_clause(copy_grants: bool = False, ignore_grants: bool = False) -> str:
+def table_grants_clause(copy_grants: bool = False, replace: bool = False) -> str:
     """Clause for CREATE TABLE grant handling.
 
-    ``copy_grants`` emits ``COPY GRANTS``. ``ignore_grants`` emits ``IGNORE GRANTS``.
-    The default emits neither, so existing statements stay unchanged when Snowflake
-    changes the default of a bare ``CREATE OR REPLACE``.
+    ``copy_grants`` emits ``COPY GRANTS``. ``copy_grants=False`` on
+    ``CREATE OR REPLACE`` emits ``IGNORE GRANTS`` so privileges on the replaced
+    table are dropped. ``IGNORE GRANTS`` requires ``OR REPLACE``.
     """
-    if copy_grants and ignore_grants:
-        raise ValueError("copy_grants and ignore_grants cannot both be True")
     if copy_grants:
         return COPY_GRANTS
-    if ignore_grants:
+    if replace:
         return IGNORE_GRANTS
     return EMPTY_STRING
 
@@ -1183,7 +1181,6 @@ def create_table_statement(
     max_data_extension_time: Optional[int] = None,
     change_tracking: Optional[bool] = None,
     copy_grants: bool = False,
-    ignore_grants: bool = False,
     *,
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
@@ -1214,7 +1211,7 @@ def create_table_statement(
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{ICEBERG if iceberg_options else EMPTY_STRING}{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}{partition_by_clause}{cluster_by_clause}"
-        f"{options_statement}{table_properties_clause}{table_grants_clause(copy_grants, ignore_grants)}{comment_sql}"
+        f"{options_statement}{table_properties_clause}{table_grants_clause(copy_grants, replace)}{comment_sql}"
     )
 
 
@@ -1272,7 +1269,6 @@ def create_table_as_select_statement(
     max_data_extension_time: Optional[int] = None,
     change_tracking: Optional[bool] = None,
     copy_grants: bool = False,
-    ignore_grants: bool = False,
     iceberg_config: Optional[dict] = None,
     *,
     use_scoped_temp_objects: bool = False,
@@ -1308,7 +1304,7 @@ def create_table_as_select_statement(
         f"{ICEBERG if iceberg_options else EMPTY_STRING}{TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
         f"{table_name}{column_definition_sql}{partition_by_clause}{cluster_by_clause}{options_statement}{table_properties_clause}"
-        f"{table_grants_clause(copy_grants, ignore_grants)}{comment_sql} {AS}{project_statement([], child)}"
+        f"{table_grants_clause(copy_grants, replace)}{comment_sql} {AS}{project_statement([], child)}"
     )
 
 
