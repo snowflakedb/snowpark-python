@@ -10,6 +10,7 @@
 - Fixed nested UDxF registration inside a stored procedure inheriting inaccessible app-package stage paths from the procedure's `IMPORTS` clause.
 
 #### Improvements
+- Bumped cloudpickle dependency to also support `cloudpickle==3.1.2` in addition to previous versions.
 
 ## 1.55.1 (2026-10-05)
 
@@ -25,6 +26,8 @@
 #### Documentation
 
 - Updated `ai_redact(..., mode="detect")` and `DataFrame.ai.redact(..., mode="detect")` to document that detect mode returns an ARRAY of span objects, not an OBJECT with a `spans` field.
+
+#### Improvements
 
 ## 1.55.0 (2026-09-10)
 

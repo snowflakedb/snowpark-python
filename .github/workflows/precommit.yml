@@ -195,9 +195,24 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ matrix.os != 'macos-latest' }}
+      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version != '3.14' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest${EXTRA_TOX_FACTORS}-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+          EXTRA_TOX_FACTORS: ${{ matrix.tox-extra-factors }}
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
+        shell: bash
+      # SNOW-4145327: 3.14 live UDF/sproc install Snowpark from PyPI, which
+      # still pins the old cloudpickle. Hold those tests until the next
+      # client is published. Same as daily_precommit.yml / #681.
+      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version == '3.14' }}
+        name: Run tests (excluding udf, doctests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest${EXTRA_TOX_FACTORS}-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
