@@ -21,3 +21,12 @@ def test_connection(session):
 
     with pytest.raises(NotImplementedError):
         MockServerConnection().get_result_set(None)
+
+
+def test_semantic_view(session):
+    with pytest.raises(NotImplementedError):
+        session.semantic_view("V", metrics="orders.revenue")
+
+    # Unsupported-feature error wins over argument validation.
+    with pytest.raises(NotImplementedError):
+        session.semantic_view("V")
