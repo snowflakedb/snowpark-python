@@ -240,11 +240,13 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: ${{ success() || failure() }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: ${{ success() || failure() }}
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
@@ -310,11 +312,13 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
+        if: ${{ success() || failure() }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: ${{ success() || failure() }}
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-local-testing
@@ -390,11 +394,13 @@ jobs:
           TZ: EST
         shell: bash
       - name: Combine coverages
+        if: ${{ success() || failure() }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: ${{ success() || failure() }}
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
@@ -510,11 +516,13 @@ jobs:
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       - name: Combine coverages
+        if: ${{ success() || failure() }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: ${{ success() || failure() }}
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
@@ -621,11 +629,13 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: ${{ success() || failure() }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: ${{ success() || failure() }}
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-snowpark-pandas-testing
@@ -688,9 +698,11 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: ${{ success() || failure() }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
       - uses: actions/upload-artifact@v4
+        if: ${{ success() || failure() }}
         with:
           include-hidden-files: true
           name: coverage_modin_extra_without_pandas_extra
