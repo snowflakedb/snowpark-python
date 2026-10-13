@@ -7,11 +7,10 @@
 #### Bug Fixes
 
 - Fixed nested UDxF registration inside a stored procedure inheriting inaccessible app-package stage paths from the procedure's `IMPORTS` clause.
+- ``DataFrameWriter.save_as_table`` emits a grants clause on ``CREATE OR REPLACE``. ``copy_grants=True`` (the default) emits ``COPY GRANTS``. ``copy_grants=False`` emits ``IGNORE GRANTS`` so privileges on the replaced table are dropped. This preserves the explicit ``copy_grants=False`` behavior when Snowflake behavior change BCR-2433 is enabled.
 
 #### Improvements
 - Bumped cloudpickle dependency to also support `cloudpickle==3.1.2` in addition to previous versions.
-
-- ``DataFrameWriter.save_as_table`` emits ``IGNORE GRANTS`` on ``CREATE OR REPLACE`` when ``copy_grants`` is false (the default), so privileges on the replaced table are dropped. This keeps the previous behavior when Snowflake behavior change BCR-2433 is enabled. ``copy_grants=True`` still emits ``COPY GRANTS``.
 
 ## 1.55.1 (2026-10-05)
 
