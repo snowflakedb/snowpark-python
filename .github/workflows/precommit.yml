@@ -719,6 +719,7 @@ jobs:
       - test-snowpark-pandas
       - test-modin-extra-without-pandas-extra
       - test-ast-encoding
+      - test-ast-phase0
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
