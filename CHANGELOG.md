@@ -9,6 +9,7 @@
 - Fixed nested UDxF registration inside a stored procedure inheriting inaccessible app-package stage paths from the procedure's `IMPORTS` clause.
 
 #### Improvements
+- Bumped cloudpickle dependency to also support `cloudpickle==3.1.2` in addition to previous versions.
 
 - ``DataFrameWriter.save_as_table`` emits ``IGNORE GRANTS`` on ``CREATE OR REPLACE`` when ``copy_grants`` is false (the default), so privileges on the replaced table are dropped. This keeps the previous behavior when Snowflake behavior change BCR-2433 is enabled. ``copy_grants=True`` still emits ``COPY GRANTS``.
 
@@ -26,6 +27,8 @@
 #### Documentation
 
 - Updated `ai_redact(..., mode="detect")` and `DataFrame.ai.redact(..., mode="detect")` to document that detect mode returns an ARRAY of span objects, not an OBJECT with a `spans` field.
+
+#### Improvements
 
 ## 1.55.0 (2026-09-10)
 
