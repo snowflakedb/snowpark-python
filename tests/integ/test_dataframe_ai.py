@@ -72,7 +72,7 @@ def test_dataframe_ai_complete_with_positional_placeholders(session):
         prompt="Define {0} in the context of {1} in one sentence.",
         input_columns=[col("topic"), col("category")],
         output_column="definition",
-        model="claude-4-sonnet",
+        model="claude-sonnet-4-5",
     )
 
     # Check schema

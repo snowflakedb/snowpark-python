@@ -537,13 +537,13 @@ class TestInapplicableOptionsAreSilentlyUnused:
     def test_model_and_prompt_with_ai_complete_and_schema_are_used(self):
         options = _build(
             {
-                "MODEL": "claude-4-sonnet",
+                "MODEL": "claude-sonnet-4-5",
                 "PROMPT": "Extract the invoice fields.",
                 "EXTRACTION_ENGINE": "ai_complete",
                 "SCHEMA": FLAT_SCHEMA,
             }
         )
-        assert options.model == "claude-4-sonnet"
+        assert options.model == "claude-sonnet-4-5"
         assert options.prompt == "Extract the invoice fields."
         assert options.extract_enabled is True
 
