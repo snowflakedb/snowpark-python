@@ -483,7 +483,7 @@ def test_ai_complete_extraction_emits_no_scores_column(session, invoice_path):
     df = (
         session.read.option("parse_mode", "layout")
         .option("extraction_engine", "ai_complete")
-        .option("model", "claude-4-sonnet")
+        .option("model", "claude-sonnet-4-5")
         .option("prompt", "Extract the invoice number and the total amount due.")
         .option("schema", INVOICE_SCHEMA)
         ._documents(invoice_path)
@@ -575,7 +575,7 @@ def test_ai_complete_extracts_directly_from_the_file_with_no_parse_phase(
     df = (
         session.read.option("parse_mode", "none")
         .option("extraction_engine", "ai_complete")
-        .option("model", "claude-4-sonnet")
+        .option("model", "claude-sonnet-4-5")
         .option("schema", INVOICE_SCHEMA)
         ._documents(invoice_path)
     )
@@ -794,7 +794,7 @@ def test_invalid_options_raise_before_any_query(
             id="extract_images_outside_layout",
         ),
         pytest.param(
-            {"model": "claude-4-sonnet", "schema": INVOICE_SCHEMA},
+            {"model": "claude-sonnet-4-5", "schema": INVOICE_SCHEMA},
             id="model_with_ai_extract",
         ),
         pytest.param(
@@ -802,7 +802,7 @@ def test_invalid_options_raise_before_any_query(
             id="prompt_with_ai_extract",
         ),
         pytest.param(
-            {"model": "claude-4-sonnet", "extraction_engine": "ai_complete"},
+            {"model": "claude-sonnet-4-5", "extraction_engine": "ai_complete"},
             id="model_without_schema",
         ),
         pytest.param({"schema": {"properties": {}}}, id="schema_with_empty_properties"),

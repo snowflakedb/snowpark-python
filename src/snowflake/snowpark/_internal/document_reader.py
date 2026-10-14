@@ -64,7 +64,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from snowflake.snowpark.session import Session
 
 
-_DEFAULT_EXTRACTION_MODEL = "claude-4-sonnet"
+_DEFAULT_EXTRACTION_MODEL = "claude-sonnet-4-5"
 _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
 
 _PDF_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "pdf_reader.py")

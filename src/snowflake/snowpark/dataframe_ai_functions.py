@@ -130,7 +130,7 @@ class DataFrameAIFunctions:
             ...         col("question")
             ...     ],
             ...     output_column="answer",
-            ...     model="claude-4-sonnet"
+            ...     model="claude-sonnet-4-5"
             ... )
             >>> result_df.columns
             ['IMAGE_PATH', 'QUESTION', 'ANSWER']

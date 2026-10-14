@@ -14050,7 +14050,7 @@ def ai_complete(
         >>> _ = session.file.put("tests/resources/kitchen.png", "@mystage", auto_compress=False)
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='claude-4-sonnet',
+        ...         model='claude-sonnet-4-5',
         ...         prompt='Extract the kitchen appliances identified in this image. Respond in JSON only with the identified appliances.',
         ...         file=to_file('@mystage/kitchen.png'),
         ...     )
@@ -14085,7 +14085,7 @@ def ai_complete(
         >>> # Using prompt object from prompt() function
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='claude-4-sonnet',
+        ...         model='claude-sonnet-4-5',
         ...         prompt=prompt("Extract the kitchen appliances identified in this image. Respond in JSON only with the identified appliances? {0}", to_file('@mystage/kitchen.png')),
         ...     )
         ... )
