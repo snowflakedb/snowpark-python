@@ -1,10 +1,8 @@
 # Release History
 
-## 1.56.0 (TBD)
+## 1.55.1 (2026-10-05)
 
 ### Snowpark Python API Updates
-
-#### New Features
 
 #### Bug Fixes
 - Fixed nested UDxF registration inside a stored procedure inheriting inaccessible app-package stage paths from the procedure's `IMPORTS` clause.
