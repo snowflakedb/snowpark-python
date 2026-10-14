@@ -243,7 +243,7 @@ class DataFrameWriter:
         data_retention_time: Optional[int] = None,
         max_data_extension_time: Optional[int] = None,
         change_tracking: Optional[bool] = None,
-        copy_grants: bool = True,
+        copy_grants: bool = False,
         iceberg_config: Optional[
             Dict[str, Union[str, Iterable[ColumnOrSqlExpr]]]
         ] = None,
@@ -297,7 +297,7 @@ class DataFrameWriter:
             max_data_extension_time: Specifies the maximum number of days for which Snowflake can extend the data retention period for the table to prevent
                 streams on the table from becoming stale.
             change_tracking: Specifies whether to enable change tracking for the table. If not set, the default behavior is used.
-            copy_grants: When true (the default), retain the access privileges from the original table by emitting ``COPY GRANTS`` on ``CREATE OR REPLACE``. When false, ``CREATE OR REPLACE`` emits ``IGNORE GRANTS`` so privileges on the replaced table are dropped.
+            copy_grants: When true, retain the access privileges from the original table by emitting ``COPY GRANTS`` when a table is created with "overwrite" mode. When false (the default), ``CREATE OR REPLACE`` emits ``IGNORE GRANTS`` so privileges on the replaced table are dropped.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
@@ -416,7 +416,7 @@ class DataFrameWriter:
             # data_retention_time: Optional[int] = None,
             # max_data_extension_time: Optional[int] = None,
             # change_tracking: Optional[bool] = None,
-            # copy_grants: bool = True,
+            # copy_grants: bool = False,
             # iceberg_config: Optional[dict] = None,
             # table_exists: Optional[bool] = None,
             # overwrite_condition: Optional[ColumnOrSqlExpr] = None,

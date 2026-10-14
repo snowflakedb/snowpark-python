@@ -248,12 +248,12 @@ def test_create_table_statement(
     data_retention_time_sql = EMPTY_STRING
     max_data_extension_time_sql = EMPTY_STRING
     change_tracking_sql = EMPTY_STRING
-    if not replace:
-        grants_sql = EMPTY_STRING
-    elif copy_grants:
+    if copy_grants:
         grants_sql = COPY_GRANTS
-    else:
+    elif replace:
         grants_sql = IGNORE_GRANTS
+    else:
+        grants_sql = EMPTY_STRING
 
     if enable_schema_evolution is not None:
         enable_schema_evolution_sql = (
@@ -294,7 +294,7 @@ def test_create_table_statement(
     assert if_not_exists_sql in create_table_stmt
 
 
-def test_copy_grants_clause_on_replace():
+def test_copy_grants_false_emits_ignore_grants_on_replace():
     ctas = create_table_as_select_statement(
         "table",
         "select * from foo",
@@ -304,23 +304,6 @@ def test_copy_grants_clause_on_replace():
     )
     assert ctas == "\n".join(
         [
-            " CREATE  OR  REPLACE    TABLE  table   COPY GRANTS  COMMENT  = 'keep me'  AS  SELECT  * ",
-            " FROM (",
-            "select * from foo",
-            ")",
-        ]
-    )
-
-    ignore_ctas = create_table_as_select_statement(
-        "table",
-        "select * from foo",
-        None,
-        replace=True,
-        copy_grants=False,
-        comment="keep me",
-    )
-    assert ignore_ctas == "\n".join(
-        [
             " CREATE  OR  REPLACE    TABLE  table   IGNORE GRANTS  COMMENT  = 'keep me'  AS  SELECT  * ",
             " FROM (",
             "select * from foo",
@@ -328,21 +311,27 @@ def test_copy_grants_clause_on_replace():
         ]
     )
 
+    copy_ctas = create_table_as_select_statement(
+        "table", "select * from foo", None, replace=True, copy_grants=True
+    )
+    assert " COPY GRANTS " in copy_ctas
+    assert "IGNORE GRANTS" not in copy_ctas
+    assert copy_ctas.index("COPY GRANTS") < copy_ctas.index("AS  SELECT")
+
     create_stmt = create_table_statement("table", "schema", replace=True)
-    assert create_stmt == " CREATE  OR  REPLACE    TABLE table(schema)   COPY GRANTS "
+    assert create_stmt == " CREATE  OR  REPLACE    TABLE table(schema)   IGNORE GRANTS "
 
     create_if_not_exists = create_table_statement(
-        "table", "schema", replace=False, error=False, copy_grants=True
+        "table", "schema", replace=False, error=False
     )
     assert "IGNORE GRANTS" not in create_if_not_exists
     assert "COPY GRANTS" not in create_if_not_exists
 
-    create_with_ignore = create_table_statement(
-        "table", "schema", replace=True, copy_grants=False
+    create_with_copy = create_table_statement(
+        "table", "schema", replace=True, copy_grants=True
     )
-    assert create_with_ignore == (
-        " CREATE  OR  REPLACE    TABLE table(schema)   IGNORE GRANTS "
-    )
+    assert " COPY GRANTS " in create_with_copy
+    assert "IGNORE GRANTS" not in create_with_copy
 
 
 def test_create_or_replace_view_statement():

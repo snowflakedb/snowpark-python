@@ -234,7 +234,7 @@ class SnowflakeCreateTable(LogicalPlan):
         data_retention_time: Optional[int] = None,
         max_data_extension_time: Optional[int] = None,
         change_tracking: Optional[bool] = None,
-        copy_grants: bool = True,
+        copy_grants: bool = False,
         iceberg_config: Optional[dict] = None,
         table_exists: Optional[bool] = None,
         overwrite_condition: Optional[Expression] = None,

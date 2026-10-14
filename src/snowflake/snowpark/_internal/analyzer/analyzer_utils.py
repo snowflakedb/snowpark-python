@@ -1154,16 +1154,18 @@ def get_comment_sql(comment: Optional[str]) -> str:
     )
 
 
-def table_grants_clause(copy_grants: bool = True, replace: bool = False) -> str:
-    """Clause for CREATE OR REPLACE TABLE grant handling.
+def table_grants_clause(copy_grants: bool = False, replace: bool = False) -> str:
+    """Clause for CREATE TABLE grant handling.
 
-    ``copy_grants`` emits ``COPY GRANTS``. ``copy_grants=False`` emits
-    ``IGNORE GRANTS`` so privileges on the replaced table are dropped. Both
-    clauses require ``OR REPLACE``.
+    ``copy_grants`` emits ``COPY GRANTS``. ``copy_grants=False`` on
+    ``CREATE OR REPLACE`` emits ``IGNORE GRANTS`` so privileges on the replaced
+    table are dropped. ``IGNORE GRANTS`` requires ``OR REPLACE``.
     """
-    if not replace:
-        return EMPTY_STRING
-    return COPY_GRANTS if copy_grants else IGNORE_GRANTS
+    if copy_grants:
+        return COPY_GRANTS
+    if replace:
+        return IGNORE_GRANTS
+    return EMPTY_STRING
 
 
 def create_table_statement(
@@ -1178,7 +1180,7 @@ def create_table_statement(
     data_retention_time: Optional[int] = None,
     max_data_extension_time: Optional[int] = None,
     change_tracking: Optional[bool] = None,
-    copy_grants: bool = True,
+    copy_grants: bool = False,
     *,
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
@@ -1266,7 +1268,7 @@ def create_table_as_select_statement(
     data_retention_time: Optional[int] = None,
     max_data_extension_time: Optional[int] = None,
     change_tracking: Optional[bool] = None,
-    copy_grants: bool = True,
+    copy_grants: bool = False,
     iceberg_config: Optional[dict] = None,
     *,
     use_scoped_temp_objects: bool = False,
