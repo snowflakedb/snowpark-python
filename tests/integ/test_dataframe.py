@@ -5385,6 +5385,61 @@ def test_write_table_with_all_options(session):
         Utils.drop_table(session, table_name)
 
 
+def _role_has_select_grant(session, table_name: str, role: str) -> bool:
+    rows = session.sql(f"SHOW GRANTS ON TABLE {table_name}").collect()
+    return any(
+        row["privilege"] == "SELECT" and row["grantee_name"] == role for row in rows
+    )
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table grants are not modeled in local testing",
+    run=False,
+)
+def test_save_as_table_grant_lifecycle(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    role = session.sql("SELECT CURRENT_ROLE()").collect()[0][0]
+    original = session.create_dataframe([(1,)], schema=["a"])
+    replacement = session.create_dataframe([(2,)], schema=["a"])
+    try:
+        original.write.save_as_table(table_name, mode="overwrite")
+        session.sql(f"GRANT SELECT ON TABLE {table_name} TO ROLE {role}").collect()
+        assert _role_has_select_grant(session, table_name, role)
+
+        with session.query_history() as history:
+            replacement.write.save_as_table(table_name, mode="overwrite")
+        assert _role_has_select_grant(session, table_name, role)
+        assert any("COPY GRANTS" in query.sql_text for query in history.queries)
+        assert all("IGNORE GRANTS" not in query.sql_text for query in history.queries)
+        assert session.table(table_name).collect() == [Row(A=2)]
+
+        with session.query_history() as history:
+            original.write.save_as_table(
+                table_name, mode="overwrite", copy_grants=False
+            )
+        assert not _role_has_select_grant(session, table_name, role)
+        assert any("IGNORE GRANTS" in query.sql_text for query in history.queries)
+        assert session.table(table_name).collect() == [Row(A=1)]
+
+        session.sql(f"GRANT SELECT ON TABLE {table_name} TO ROLE {role}").collect()
+        with session.query_history() as history:
+            replacement.write.save_as_table(
+                table_name, mode="overwrite", copy_grants=True
+            )
+        assert _role_has_select_grant(session, table_name, role)
+        create_queries = [
+            query.sql_text
+            for query in history.queries
+            if f"CREATE  OR  REPLACE    TABLE  {table_name}" in query.sql_text
+        ]
+        assert create_queries
+        assert all("COPY GRANTS" in query for query in create_queries)
+        assert all("IGNORE GRANTS" not in query for query in create_queries)
+    finally:
+        Utils.drop_table(session, table_name)
+
+
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]

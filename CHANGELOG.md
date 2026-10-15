@@ -8,6 +8,8 @@
 
 #### Bug Fixes
 
+- ``DataFrameWriter.save_as_table`` defaults ``copy_grants`` to true and emits ``COPY GRANTS`` on ``CREATE OR REPLACE``. Older Snowpark versions omit the clause, so once BCR-2433 is enabled they copy grants on replace; this default matches that behavior. ``copy_grants=False`` emits ``IGNORE GRANTS`` so privileges on the replaced table are dropped.
+
 #### Improvements
 
 ## 1.55.2 (2026-10-13)
