@@ -291,7 +291,7 @@ bash /verification/docker_verify.sh
 ## Dependencies
 
 The verification installs these dependencies inside each test environment:
-- cloudpickle<=3.1.1
+- cloudpickle<=3.1.2
 - pyyaml
 - snowflake-connector-python
 - tzlocal
