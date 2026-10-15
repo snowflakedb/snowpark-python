@@ -4,13 +4,22 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
 #### Bug Fixes
 
-- Fixed nested UDxF registration inside a stored procedure inheriting inaccessible app-package stage paths from the procedure's `IMPORTS` clause.
 - ``DataFrameWriter.save_as_table`` defaults ``copy_grants`` to true and emits ``COPY GRANTS`` on ``CREATE OR REPLACE``. Older Snowpark versions omit the clause, so once BCR-2433 is enabled they copy grants on replace; this default matches that behavior. ``copy_grants=False`` emits ``IGNORE GRANTS`` so privileges on the replaced table are dropped.
 
 #### Improvements
 
+## 1.55.2 (2026-10-13)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+- Fixed nested UDxF registration inside a stored procedure inheriting inaccessible app-package stage paths from the procedure's `IMPORTS` clause.
+
+#### Improvements
 - Bumped cloudpickle dependency to also support `cloudpickle==3.1.2` in addition to previous versions.
 
 ## 1.55.1 (2026-10-05)
