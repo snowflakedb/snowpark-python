@@ -6,12 +6,14 @@
 
 #### New Features
 
-#### Bug Fixes
-
 #### Improvements
 
 - Removed the `experimental` tag from `DataFrame.to_polars()`.
 - `DataFrame.to_polars()` now defaults to `transport="parquet"` instead of `transport="arrow"`.
+
+#### Bug Fixes
+
+- Fixed `Index.to_pandas()` returning an integer `Index` whose width (for example `int8` or `int32`) depended on the integer width the server returned, instead of the `int64` that Snowpark pandas uses for all integer types. This also affects `Index.astype` to any integer type.
 
 ## 1.55.2 (2026-10-13)
 
