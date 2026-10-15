@@ -1347,3 +1347,92 @@ def test_xml_reader_process_with_scos_compatible_param():
         )
     assert len(results) == 1
     assert results[0][0]["a"] == "1"
+
+
+# ---------------------------------------------------------------------------
+# EOF / unclosed-record path tests
+# ---------------------------------------------------------------------------
+
+_PROCESS_RANGE_DEFAULTS = dict(
+    file_path="test.xml",
+    tag_name="row",
+    approx_start=0,
+    column_name_of_corrupt_record="_corrupt_record",
+    ignore_namespace=True,
+    attribute_prefix="_",
+    exclude_attributes=False,
+    value_tag="_VALUE",
+    null_value="",
+    charset="utf-8",
+    ignore_surrounding_whitespace=False,
+    row_validation_xsd_path="",
+)
+
+
+def _run_process_range(xml_bytes, mode, **overrides):
+    mock_file = io.BytesIO(xml_bytes)
+    kwargs = {
+        **_PROCESS_RANGE_DEFAULTS,
+        "approx_end": len(xml_bytes),
+        "mode": mode,
+        **overrides,
+    }
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+        return list(process_xml_range(**kwargs))
+
+
+def _row(result):
+    return result[0] if isinstance(result, tuple) else result
+
+
+@pytest.mark.parametrize(
+    "mode,corrupt,raises",
+    [
+        ("PERMISSIVE", True, False),
+        ("FAILFAST", False, True),
+        ("DROPMALFORMED", False, False),
+    ],
+)
+def test_eof_unclosed_opening_tag(mode, corrupt, raises):
+    xml_bytes = b"<row unclosed_attr"
+    with patch(
+        "snowflake.snowpark._internal.xml_reader.tag_is_self_closing",
+        side_effect=EOFError("no closing >"),
+    ):
+        if raises:
+            with pytest.raises(EOFError, match="Malformed XML record"):
+                _run_process_range(xml_bytes, mode)
+            return
+        results = _run_process_range(xml_bytes, mode)
+    if corrupt:
+        assert len(results) == 1
+        assert _row(results[0])["_corrupt_record"] == xml_bytes.decode("utf-8")
+    else:
+        assert results == []
+
+
+@pytest.mark.parametrize(
+    "mode,corrupt,raises",
+    [
+        ("PERMISSIVE", True, False),
+        ("FAILFAST", False, True),
+        ("DROPMALFORMED", False, False),
+    ],
+)
+def test_eof_no_closing_tag(mode, corrupt, raises):
+    tail = b"content without closing tag"
+    xml_bytes = b"<root><row>" + tail
+    with patch(
+        "snowflake.snowpark._internal.xml_reader.find_next_closing_tag_pos",
+        side_effect=EOFError("no closing tag"),
+    ):
+        if raises:
+            with pytest.raises(EOFError, match="Malformed XML record"):
+                _run_process_range(xml_bytes, mode)
+            return
+        results = _run_process_range(xml_bytes, mode)
+    if corrupt:
+        assert len(results) == 1
+        assert _row(results[0])["_corrupt_record"] == tail.decode("utf-8")
+    else:
+        assert results == []
