@@ -5409,14 +5409,24 @@ def test_save_as_table_grant_lifecycle(session):
 
         with session.query_history() as history:
             replacement.write.save_as_table(table_name, mode="overwrite")
-        assert not _role_has_select_grant(session, table_name, role)
-        assert any("IGNORE GRANTS" in query.sql_text for query in history.queries)
+        assert _role_has_select_grant(session, table_name, role)
+        assert any("COPY GRANTS" in query.sql_text for query in history.queries)
+        assert all("IGNORE GRANTS" not in query.sql_text for query in history.queries)
         assert session.table(table_name).collect() == [Row(A=2)]
 
-        session.sql(f"GRANT SELECT ON TABLE {table_name} TO ROLE {role}").collect()
-        assert _role_has_select_grant(session, table_name, role)
         with session.query_history() as history:
-            original.write.save_as_table(table_name, mode="overwrite", copy_grants=True)
+            original.write.save_as_table(
+                table_name, mode="overwrite", copy_grants=False
+            )
+        assert not _role_has_select_grant(session, table_name, role)
+        assert any("IGNORE GRANTS" in query.sql_text for query in history.queries)
+        assert session.table(table_name).collect() == [Row(A=1)]
+
+        session.sql(f"GRANT SELECT ON TABLE {table_name} TO ROLE {role}").collect()
+        with session.query_history() as history:
+            replacement.write.save_as_table(
+                table_name, mode="overwrite", copy_grants=True
+            )
         assert _role_has_select_grant(session, table_name, role)
         create_queries = [
             query.sql_text
@@ -5426,7 +5436,6 @@ def test_save_as_table_grant_lifecycle(session):
         assert create_queries
         assert all("COPY GRANTS" in query for query in create_queries)
         assert all("IGNORE GRANTS" not in query for query in create_queries)
-        assert session.table(table_name).collect() == [Row(A=1)]
     finally:
         Utils.drop_table(session, table_name)
 
