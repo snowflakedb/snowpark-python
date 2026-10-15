@@ -10,6 +10,9 @@
 
 #### Improvements
 
+- Removed the `experimental` tag from `DataFrame.to_polars()`.
+- `DataFrame.to_polars()` now defaults to `transport="parquet"` instead of `transport="arrow"`.
+
 ## 1.55.2 (2026-10-13)
 
 ### Snowpark Python API Updates
@@ -20,7 +23,6 @@
 #### Improvements
 - Bumped cloudpickle dependency to also support `cloudpickle==3.1.2` in addition to previous versions.
 
-- `DataFrame.to_polars()` now defaults to `transport="parquet"` instead of `transport="arrow"`.
 ## 1.55.1 (2026-10-05)
 
 ### Snowpark Python API Updates
