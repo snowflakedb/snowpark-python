@@ -7,6 +7,8 @@ import copy
 import pytest
 
 from snowflake.snowpark._internal.document_extract_proc import (
+    BOUNDED_FIRST_CALL_MIN_BYTES,
+    BOUNDED_FIRST_CALL_MIN_PAGES,
     EMPTY_ANSWER_ERROR,
     MAX_FILE_BYTES,
     STATUS_FIELD,
@@ -14,6 +16,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     _to_document_page,
     build_predicate,
     drop_unsupported,
+    first_round_budget,
     initial_ranges,
     is_empty_answer,
     is_splittable_error,
@@ -206,6 +209,43 @@ class TestIsEmptyAnswer:
     @pytest.mark.parametrize("value", [None, "not a dict", 42, []])
     def test_non_dict_values_are_not_empty(self, value):
         assert is_empty_answer(value) is False
+
+
+# ---------------------------------------------------------------------------
+# first_round_budget -- a big first call (hundreds of pages, or near the FILE
+# byte limit) is more likely to need splitting anyway, so it is planned
+# straight to the small "first" budget; below both thresholds a whole answer
+# usually fits in one call, so the bigger "range" budget is used instead.
+# ---------------------------------------------------------------------------
+
+
+class TestFirstRoundBudget:
+    def test_small_document_gets_the_range_budget(self):
+        assert first_round_budget(10, 1_000_000) == "range"
+
+    def test_more_pages_than_the_threshold_gets_the_first_budget(self):
+        assert (
+            first_round_budget(BOUNDED_FIRST_CALL_MIN_PAGES + 1, 1_000_000) == "first"
+        )
+
+    def test_exactly_the_page_threshold_gets_the_range_budget(self):
+        # Strictly greater than the threshold is required.
+        assert first_round_budget(BOUNDED_FIRST_CALL_MIN_PAGES, 1_000_000) == "range"
+
+    def test_more_bytes_than_the_threshold_gets_the_first_budget(self):
+        assert first_round_budget(10, BOUNDED_FIRST_CALL_MIN_BYTES + 1) == "first"
+
+    def test_exactly_the_byte_threshold_gets_the_range_budget(self):
+        # Strictly greater than the threshold is required.
+        assert first_round_budget(10, BOUNDED_FIRST_CALL_MIN_BYTES) == "range"
+
+    def test_over_both_thresholds_gets_the_first_budget(self):
+        assert (
+            first_round_budget(
+                BOUNDED_FIRST_CALL_MIN_PAGES + 1, BOUNDED_FIRST_CALL_MIN_BYTES + 1
+            )
+            == "first"
+        )
 
 
 # ---------------------------------------------------------------------------

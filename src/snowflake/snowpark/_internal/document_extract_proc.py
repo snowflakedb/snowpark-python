@@ -149,6 +149,22 @@ def is_empty_answer(value: Any) -> bool:
 MAX_FILE_BYTES = 12_000_000
 
 
+# Above these, a first call that ignores its token target can run for many minutes before
+# failing, so the first round gets the small "first" budget; below them a whole answer
+# usually fits in one call, which the small budget would needlessly split.
+BOUNDED_FIRST_CALL_MIN_PAGES = 50
+BOUNDED_FIRST_CALL_MIN_BYTES = 10_000_000
+
+
+def first_round_budget(total_pages: int, file_bytes: int) -> str:
+    if (
+        total_pages > BOUNDED_FIRST_CALL_MIN_PAGES
+        or file_bytes > BOUNDED_FIRST_CALL_MIN_BYTES
+    ):
+        return "first"
+    return "range"
+
+
 def initial_ranges(
     total_pages: int, file_bytes: int, max_bytes: int = MAX_FILE_BYTES
 ) -> List[Tuple[int, int]]:
@@ -431,7 +447,7 @@ def run(
     calls = {f: 0 for f in files}
     done: Dict[str, List[Tuple[int, Dict[str, Any]]]] = {f: [] for f in files}
     pending = [
-        (f, a, b, "first")
+        (f, a, b, first_round_budget(totals[f], sizes[f]))
         for f in files
         for a, b in (
             initial_ranges(totals[f], sizes[f]) if readers[f] is not None else [(1, 1)]
