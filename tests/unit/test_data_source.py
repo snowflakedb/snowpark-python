@@ -222,10 +222,11 @@ def test_jdbc_read_udtf_executes_query_lazily():
     ddl = _render_jdbc_ddls(query_timeout=240, fetch_size=100)
 
     # The statement work must be emitted *after* the Stream.generate call, i.e.
-    # inside the lazily evaluated supplier.
-    assert ddl.index("executeQuery") > ddl.index("Stream.generate")
-    assert ddl.index("createStatement") > ddl.index("Stream.generate")
-    assert ddl.index("setQueryTimeout") > ddl.index("Stream.generate")
+    # inside the lazily evaluated supplier. Match the full call sites rather than
+    # bare identifiers, which also appear in the surrounding comments.
+    assert ddl.index("stmt.executeQuery(query)") > ddl.index("Stream.generate")
+    assert ddl.index("this.conn.createStatement()") > ddl.index("Stream.generate")
+    assert ddl.index("stmt.setQueryTimeout(") > ddl.index("Stream.generate")
 
     # Lambda capture requires effectively-final holders.
     assert "final Statement[] stmtRef" in ddl

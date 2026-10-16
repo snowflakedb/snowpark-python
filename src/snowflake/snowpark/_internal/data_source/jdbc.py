@@ -415,15 +415,10 @@ class JDBC:
             }}
 
             public Stream<OutputRow> process(String query) {{
-                // The statement is executed lazily, on the first pull from the returned
-                // Stream, rather than here. Snowflake's Java UDF handler timeout
-                // (JAVA_UDF_HANDLER_TIMEOUT_SECONDS, 600s by default) only measures the
-                // time until process() returns; it does not cover consumption of the
-                // lazy Stream. Executing here would therefore charge the external
-                // source's entire query time against that budget, so a slow but healthy
-                // source query gets killed at 600s. Keeping process() cheap moves that
-                // wait outside the budget. Row fetching stays lazy so the full result is
-                // never materialized in memory.
+                // Execute lazily, on the first pull from the returned Stream.
+                // JAVA_UDF_HANDLER_TIMEOUT_SECONDS (600s by default) only bounds the time
+                // until process() returns, so calling executeQuery() here would charge the
+                // source's entire query time against it. Row fetching stays lazy.
                 final Statement[] stmtRef = new Statement[1];
                 final ResultSet[] rsRef = new ResultSet[1];
                 return Stream.generate(() -> {{
@@ -448,10 +443,9 @@ class JDBC:
                             return null;
                         }}
                     }} catch (Exception e) {{
-                        // Must catch Exception, not just SQLException: this block now
-                        // also covers connection/statement setup and query execution,
-                        // whose failures are not always SQLException. Narrowing it would
-                        // drop the "Ingestion error: " prefix that support triage relies on.
+                        // Exception rather than SQLException: this block now also covers
+                        // connection and statement setup, whose failures are not always
+                        // SQLException.
                         throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
                     }}
                 }}).takeWhile(Objects::nonNull);
