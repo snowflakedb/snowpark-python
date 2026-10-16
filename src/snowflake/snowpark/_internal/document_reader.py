@@ -75,13 +75,17 @@ _COMPLETE_MODEL_PARAMETERS = {"temperature": 0, "max_tokens": 65536}
 _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
 # Each call is asked to stop below `target` output tokens and plan the rest of the pages,
 # and is hard-capped at `max_tokens` because the model does not always stop when asked.
-# The first round is deliberately small so a document whose answer cannot fit fans out
-# after minutes, not after a full max_tokens generation.
+# The model overestimates its own output (1.2-2.6x measured), so a target at the full
+# max_tokens still leaves real headroom; a lower target only made it stop half-way through
+# ranges that would have fit. "first" applies to the first round of documents over 50
+# pages or 10 MB and can be lowered to fan out sooner.
 _CALL_BUDGETS = {
-    "first": {"target": 10000, "max_tokens": 20000},
-    "range": {"target": 40000, "max_tokens": 60000},
+    "first": {"target": 65000, "max_tokens": 65536},
+    "range": {"target": 65000, "max_tokens": 65536},
 }
-_MAX_CALLS_PER_FILE = 12
+# Floor for the per-document call cap; the procedure raises it from the answer size it
+# observes, up to its hard maximum.
+_MAX_CALLS_PER_FILE = 30
 
 _EXTRACT_PROC_FILE_PATH = os.path.join(
     os.path.dirname(__file__), "document_extract_proc.py"

@@ -298,6 +298,61 @@ def _to_document_page(page: Any, start: int, end: int) -> Optional[int]:
     return None
 
 
+def document_estimate(
+    value: Any, start: int, end: int, total_pages: int
+) -> Optional[int]:
+    """A call's estimate for its own pages scaled to the whole document; None without one."""
+    status = value.get(STATUS_FIELD) if isinstance(value, dict) else None
+    estimate = (
+        status.get("estimated_total_output_tokens")
+        if isinstance(status, dict)
+        else None
+    )
+    if not isinstance(estimate, int) or isinstance(estimate, bool) or estimate <= 0:
+        return None
+    return int(estimate * total_pages / max(end - start + 1, 1))
+
+
+_PAGE_FIELD_NAMES = frozenset({"page", "page_number", "pdf_page", "page_index"})
+
+
+def _is_page_field(name: str) -> bool:
+    lowered = name.lower()
+    return lowered in _PAGE_FIELD_NAMES or lowered.endswith("_page")
+
+
+def shift_page_fields(value: Dict[str, Any], start: int, end: int) -> Dict[str, Any]:
+    """Rows in a part file report pages as positions within that file; shift them to
+    document pages. Only a page field whose every value in an array lies within the part
+    file's content pages (2..file length; position 1 is the context page) is shifted, so
+    page numbers printed on the pages -- which run on from the document -- are left alone."""
+    offset = file_page_offset(start)
+    if offset == 0:
+        return value
+    file_pages = end - start + 2
+
+    def shift(node: Any) -> Any:
+        if isinstance(node, dict):
+            return {k: shift(v) for k, v in node.items()}
+        if not isinstance(node, list):
+            return node
+        items = [shift(item) for item in node]
+        rows = [item for item in items if isinstance(item, dict)]
+        page_keys = {k for row in rows for k in row if _is_page_field(k)}
+        for key in page_keys:
+            values = [row.get(key) for row in rows if row.get(key) is not None]
+            if values and all(
+                isinstance(v, int) and not isinstance(v, bool) and 2 <= v <= file_pages
+                for v in values
+            ):
+                for row in rows:
+                    if isinstance(row.get(key), int):
+                        row[key] += offset
+        return items
+
+    return {k: (v if k == STATUS_FIELD else shift(v)) for k, v in value.items()}
+
+
 def next_ranges(
     start: int,
     end: int,
@@ -587,9 +642,7 @@ def run(
     calls = {f: 0 for f in files}
     caps = {f: max_calls_per_file for f in files}
     observed: Dict[str, List[float]] = {f: [] for f in files}
-    first_round_estimate: Dict[str, int] = {f: 0 for f in files}
     range_target = budgets["range"]["target"]
-    round_number = 0
     done: Dict[str, List[Tuple[int, Dict[str, Any]]]] = {f: [] for f in files}
     pending = [
         (f, a, b, first_round_budget(totals[f], sizes[f]))
@@ -662,12 +715,14 @@ def run(
             factor = observed_factor(value) if error is None else None
             if factor is not None:
                 observed[file].append(factor)
-            if round_number == 0 and error is None and isinstance(value, dict):
-                estimate = (value.get(STATUS_FIELD) or {}).get(
-                    "estimated_total_output_tokens"
-                )
-                if isinstance(estimate, int) and not isinstance(estimate, bool):
-                    first_round_estimate[file] += estimate
+            if error is None and isinstance(value, dict):
+                value = shift_page_fields(value, start, end)
+                estimate = document_estimate(value, start, end, totals[file])
+                if estimate is not None:
+                    caps[file] = max(
+                        caps[file],
+                        call_cap(max_calls_per_file, estimate, 1.0, range_target),
+                    )
             keep, remaining = next_ranges(
                 start,
                 end,
@@ -684,15 +739,6 @@ def run(
             # ranges a call planned get the larger per-range budget.
             next_budget = "range" if keep else budget_name
             pending.extend((file, a, b, next_budget) for a, b in remaining)
-        if round_number == 0:
-            for file in files:
-                caps[file] = call_cap(
-                    max_calls_per_file,
-                    first_round_estimate[file],
-                    correction_factor(observed[file]),
-                    range_target,
-                )
-        round_number += 1
 
     rows = []
     for file in files:

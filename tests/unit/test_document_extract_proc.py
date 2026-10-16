@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     coalesce_ranges,
     continues_across_split,
     correction_factor,
+    document_estimate,
     drop_unsupported,
     first_round_budget,
     initial_ranges,
@@ -31,6 +32,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     nullable_scalars,
     observed_factor,
     qualify_listed_name,
+    shift_page_fields,
     unwrap_envelope,
     with_status,
 )
@@ -672,6 +674,153 @@ class TestToDocumentPage:
         # One past the last file position (20) for this part: maps to document
         # page 49, past end (48).
         assert _to_document_page(21, 30, 48) is None
+
+
+# ---------------------------------------------------------------------------
+# document_estimate -- scales one call's own estimated_total_output_tokens
+# (for the pages it alone covers) up to what the whole document would need,
+# by the ratio of total pages to this call's page count. None without a
+# usable positive int estimate to scale.
+# ---------------------------------------------------------------------------
+
+
+class TestDocumentEstimate:
+    def test_scales_the_estimate_to_the_whole_document(self):
+        value = {STATUS_FIELD: {"estimated_total_output_tokens": 48000}}
+        assert document_estimate(value, 30, 34, 114) == 1_094_400
+
+    def test_truncates_towards_zero_rather_than_rounding(self):
+        # 100 * 7 / 3 == 233.33...; int() truncates rather than rounding to 233.
+        value = {STATUS_FIELD: {"estimated_total_output_tokens": 100}}
+        assert document_estimate(value, 1, 3, 7) == 233
+
+    def test_a_degenerate_range_falls_back_to_a_denominator_of_1(self):
+        # end < start: end - start + 1 is 0 or negative, so the denominator floors at 1
+        # rather than dividing by zero or inflating the estimate with a negative one.
+        value = {STATUS_FIELD: {"estimated_total_output_tokens": 100}}
+        assert document_estimate(value, 5, 3, 10) == 1000
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            None,
+            "not a dict",
+            42,
+            {},
+            {STATUS_FIELD: "not a dict"},
+            {STATUS_FIELD: {}},
+        ],
+    )
+    def test_missing_or_non_dict_value_or_status_is_none(self, value):
+        assert document_estimate(value, 1, 10, 100) is None
+
+    @pytest.mark.parametrize("estimate", [None, "48000", True, 0, -5])
+    def test_missing_non_int_bool_or_non_positive_estimate_is_none(self, estimate):
+        value = {STATUS_FIELD: {"estimated_total_output_tokens": estimate}}
+        assert document_estimate(value, 1, 10, 100) is None
+
+
+# ---------------------------------------------------------------------------
+# shift_page_fields -- rows in a part file report page numbers as positions
+# WITHIN THAT FILE; shift a page field to document pages only when every row's
+# value for it is an int that actually lies within the part's own content
+# pages (2..file_pages; position 1 is the context page carried by parts after
+# the first) -- a page field that instead holds page numbers printed on the
+# document (which run on past the part) is left untouched. start=1 (and
+# start=2, which also has a zero offset) is always a no-op.
+# ---------------------------------------------------------------------------
+
+
+class TestShiftPageFields:
+    def test_values_within_the_part_are_shifted_by_the_offset(self):
+        # start=30, end=34: offset = file_page_offset(30) = 28.
+        value = {"rows": [{"source_page": 2}, {"source_page": 4}]}
+        result = shift_page_fields(value, 30, 34)
+        assert result == {"rows": [{"source_page": 30}, {"source_page": 32}]}
+
+    def test_values_outside_the_parts_content_pages_are_left_unchanged(self):
+        # start=35, end=66: file_pages = 66 - 35 + 2 = 33; these look like page
+        # numbers printed on the document (34..40), which exceed file_pages, so
+        # the field is left alone rather than shifted into nonsense.
+        value = {"rows": [{"printed_page": p} for p in range(34, 41)]}
+        result = shift_page_fields(value, 35, 66)
+        assert result == value
+
+    def test_a_context_page_position_anywhere_blocks_the_shift_for_every_row(self):
+        # One row reporting position 1 (the context page) means this key isn't a
+        # content page field after all, so no row for this key is shifted.
+        value = {"rows": [{"page": 1}, {"page": 3}]}
+        result = shift_page_fields(value, 30, 34)
+        assert result == value
+
+    def test_mixed_types_in_a_page_field_block_the_shift(self):
+        value = {"rows": [{"page": 2}, {"page": "3"}]}
+        result = shift_page_fields(value, 30, 34)
+        assert result == value
+
+    def test_a_bool_value_in_a_page_field_blocks_the_shift(self):
+        value = {"rows": [{"page": 2}, {"page": True}]}
+        result = shift_page_fields(value, 30, 34)
+        assert result == value
+
+    def test_none_values_are_left_as_none_and_do_not_block_other_rows(self):
+        value = {"rows": [{"page": 2}, {"page": None}]}
+        result = shift_page_fields(value, 30, 34)
+        assert result == {"rows": [{"page": 30}, {"page": None}]}
+
+    @pytest.mark.parametrize(
+        "key", ["page", "page_number", "pdf_page", "page_index", "source_page", "PAGE"]
+    )
+    def test_recognized_page_field_names_are_shifted(self, key):
+        value = {"rows": [{key: 2}]}
+        assert shift_page_fields(value, 30, 34) == {"rows": [{key: 30}]}
+
+    def test_an_unrecognized_field_name_is_never_shifted(self):
+        value = {"rows": [{"count": 2}]}
+        assert shift_page_fields(value, 30, 34) == value
+
+    def test_nested_arrays_inside_objects_are_shifted(self):
+        value = {
+            "funds": [
+                {
+                    "name": "A",
+                    "holdings": [{"page": 2}, {"page": 3}],
+                }
+            ]
+        }
+        result = shift_page_fields(value, 30, 34)
+        assert result == {
+            "funds": [
+                {
+                    "name": "A",
+                    "holdings": [{"page": 30}, {"page": 31}],
+                }
+            ]
+        }
+
+    def test_the_status_block_is_never_shifted(self):
+        value = {
+            STATUS_FIELD: {"last_pdf_page_extracted": 2},
+            "rows": [{"page": 2}],
+        }
+        result = shift_page_fields(value, 30, 34)
+        assert result[STATUS_FIELD] == {"last_pdf_page_extracted": 2}
+        assert result["rows"] == [{"page": 30}]
+
+    def test_start_1_is_a_no_op(self):
+        value = {"rows": [{"page": 2}]}
+        assert shift_page_fields(value, 1, 10) == value
+
+    def test_start_2_is_also_a_no_op(self):
+        # file_page_offset(2) == 0 too: position 1 already IS document page 1.
+        value = {"rows": [{"page": 2}]}
+        assert shift_page_fields(value, 2, 10) == value
+
+    def test_does_not_mutate_the_input(self):
+        value = {"rows": [{"page": 2}, {"page": 4}]}
+        original = copy.deepcopy(value)
+        shift_page_fields(value, 30, 34)
+        assert value == original
 
 
 # ---------------------------------------------------------------------------
