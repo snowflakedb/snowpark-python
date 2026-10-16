@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.document_reader_options import (
     ExtractionSpec,
     IMAGES_COLUMN,
     PAGE_INDEX_COLUMN,
+    RESPONSE_COLUMN,
     SOURCE_FILE_COLUMN,
     TOTAL_PAGES_COLUMN,
     _EXTRACT_ERROR_COLUMN,
@@ -64,43 +65,12 @@ if TYPE_CHECKING:  # pragma: no cover
     from snowflake.snowpark.session import Session
 
 
-# DEMO BRANCH: claude-opus-5 rather than claude-4-sonnet.
-_DEFAULT_EXTRACTION_MODEL = "claude-opus-5"
-
-# AI_COMPLETE applies its own max_tokens default of 4096 when none is sent, which is low
-# enough to truncate a document answering more than a handful of fields. Truncation stops
-# generation mid-JSON, response_format then rejects the malformed reply, and it surfaces as a
-# bare internal error -- indistinguishable from a server fault. It can also report success
-# with a silently partial answer, so status alone is not a quality signal.
-#
-# The ceiling is PER-MODEL, and the server states each model's limit when exceeded
-# ("max_tokens parameter exceeds the maximum possible value (N)"). One shared constant is
-# therefore unsafe: claude-opus-5's ceiling sent to claude-4-sonnet fails every call. Only
-# models whose ceiling has been confirmed are listed -- anything else sends no max_tokens and
-# gets the server default, which is always accepted.
-#
-# claude-opus-5 accepts 128000, but 65536 is used deliberately. A larger ceiling does not
-# rescue a document whose answer cannot fit in one response -- it only lets the call run
-# longer before failing, so the practical effect of the maximum is a slower failure.
-_MODEL_MAX_OUTPUT_TOKENS = {
-    "claude-opus-5": 65536,
-    "claude-4-sonnet": 32000,
-}
-
-
-def complete_model_parameters(model: str) -> dict:
-    """``model_parameters`` for AI_COMPLETE: deterministic, and uncapped where it is safe.
-
-    ``temperature`` is 0 for every model -- the same document and schema should not yield
-    different answers on consecutive reads, so determinism is a correctness property here
-    rather than a preference.
-    """
-    parameters: dict = {"temperature": 0}
-    max_tokens = _MODEL_MAX_OUTPUT_TOKENS.get(model)
-    if max_tokens is not None:
-        parameters["max_tokens"] = max_tokens
-    return parameters
-
+_EXTRACTION_MODEL = "claude-opus-5"
+# Without max_tokens AI_COMPLETE caps output at 4096, which truncates long-document answers
+# mid-JSON and surfaces as a bare internal error. 65536 rather than opus-5's 128000 maximum:
+# a larger ceiling only makes an answer that cannot fit fail more slowly. temperature 0 so
+# the same document and schema give the same answer on every read.
+_COMPLETE_MODEL_PARAMETERS = {"temperature": 0, "max_tokens": 65536}
 
 _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
 
@@ -128,7 +98,7 @@ def read_documents(
     if options.parse_enabled:
         df = parse(session, df, options)
 
-    if options.extract_enabled:
+    if options.complete_enabled:
         df = extract(df, options)
 
     df = finalize_errors(session, df, options)
@@ -148,6 +118,8 @@ def output_columns(options: DocumentReaderOptions) -> List[str]:
         names.extend(options.extraction.field_columns)
         if options.extraction_engine == "ai_extract":
             names.append(EXTRACTION_SCORES_COLUMN)
+    elif options.complete_enabled:
+        names.append(RESPONSE_COLUMN)
     if options.has_corrupt_record_column:
         names.append(quote_name_without_upper_casing(options.corrupt_record_column))
     return names
@@ -430,14 +402,15 @@ def extract_with_ai_extract(
     return df.with_columns(names, values)
 
 
-def build_ai_complete_call(
-    model: str, input_col: Column, options: DocumentReaderOptions
-) -> Column:
+def build_ai_complete_call(input_col: Column, options: DocumentReaderOptions) -> Column:
     # Parse ran: input_col is parsed CONTENT text, folded into AI_COMPLETE's
     # single-string variant. Parse didn't run: input_col is SOURCE_FILE, passed to
     # AI_COMPLETE's file variant instead -- whose prompt argument must then be a plain
-    # string, not a Column, so there is no CONTENT to fold in.
-    response_format = options.extraction.ai_complete_format
+    # string, not a Column, so there is no CONTENT to fold in. With no schema there is
+    # no response_format and AI_COMPLETE answers the prompt as free text.
+    response_format = (
+        options.extraction.ai_complete_format if options.extract_enabled else None
+    )
     if options.parse_enabled:
         prompt_text = (
             input_col
@@ -445,17 +418,17 @@ def build_ai_complete_call(
             else concat(lit(options.prompt), lit("\n\n"), input_col)
         )
         return ai_complete(
-            model,
+            _EXTRACTION_MODEL,
             prompt_text,
-            model_parameters=complete_model_parameters(model),
+            model_parameters=_COMPLETE_MODEL_PARAMETERS,
             response_format=response_format,
             return_error_details=True,
         )
     return ai_complete(
-        model,
+        _EXTRACTION_MODEL,
         options.prompt or _DEFAULT_EXTRACTION_PROMPT,
         file=input_col,
-        model_parameters=complete_model_parameters(model),
+        model_parameters=_COMPLETE_MODEL_PARAMETERS,
         response_format=response_format,
         return_error_details=True,
     )
@@ -464,8 +437,7 @@ def build_ai_complete_call(
 def extract_with_ai_complete(
     df: "DataFrame", input_col: Column, options: DocumentReaderOptions
 ) -> "DataFrame":
-    model = options.model or _DEFAULT_EXTRACTION_MODEL
-    call = build_ai_complete_call(model, input_col, options)
+    call = build_ai_complete_call(input_col, options)
     # Unlike AI_PARSE_DOCUMENT/AI_EXTRACT, AI_COMPLETE(..., return_error_details=True)
     # returns a native OBJECT rather than a JSON string -- CAST(... AS VARCHAR), which
     # as_variant() always applies, fails to compile for it. Bracket access works
@@ -474,6 +446,11 @@ def extract_with_ai_complete(
     extracted = col(_EXTRACTED_COLUMN)
     value = extracted["value"]
     extraction = options.extraction
+    if extraction is None:
+        return df.with_columns(
+            [RESPONSE_COLUMN, _EXTRACT_ERROR_COLUMN],
+            [value.cast(StringType()), extracted["error"].cast(StringType())],
+        )
     cast_results = [
         cast_extracted_field(value[field], field, extraction)
         for field in extraction.fields
@@ -524,9 +501,12 @@ def finalize_errors(
     # FAILFAST: every AI call captures its errors in-band, so aborting the read takes
     # an explicit raise, anchored to a real returned column -- an unused/dropped one
     # could be optimized away and the check with it.
-    anchor = (
-        CONTENT_COLUMN if options.parse_enabled else options.extraction.field_columns[0]
-    )
+    if options.parse_enabled:
+        anchor = CONTENT_COLUMN
+    elif options.extract_enabled:
+        anchor = options.extraction.field_columns[0]
+    else:
+        anchor = RESPONSE_COLUMN
     guard = register_error_guard_udf(session)
     raw_error = merge_error_expressions([col(name) for _, name in error_stages])
     return df.with_column(anchor, guard(raw_error, col(anchor)))

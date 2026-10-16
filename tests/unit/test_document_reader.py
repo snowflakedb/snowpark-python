@@ -2,11 +2,18 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from unittest import mock
+
 from snowflake.snowpark._internal.document_reader import (
+    build_ai_complete_call,
     cast_extracted_field,
     merge_extract_error,
+    output_columns,
 )
-from snowflake.snowpark._internal.document_reader_options import ExtractionSpec
+from snowflake.snowpark._internal.document_reader_options import (
+    DocumentReaderOptions,
+    ExtractionSpec,
+)
 from snowflake.snowpark.functions import col, lit
 from snowflake.snowpark.types import BooleanType, DoubleType, StringType
 
@@ -114,3 +121,60 @@ class TestMergeExtractError:
         mismatch = lit(True)
         result = merge_extract_error(native_error, ["AMOUNT"], [mismatch])
         assert type(result._expression).__name__ != "Cast"
+
+
+# ---------------------------------------------------------------------------
+# build_ai_complete_call -- a prompt-only read sends no response_format.
+# ---------------------------------------------------------------------------
+
+
+class TestBuildAiCompleteCall:
+    def test_prompt_only_uses_claude_opus_5_and_omits_response_format(self):
+        options = DocumentReaderOptions(parse_mode="none", prompt="Summarize this.")
+        input_col = col("SOURCE_FILE")
+        with mock.patch(
+            "snowflake.snowpark._internal.document_reader.ai_complete"
+        ) as mock_ai_complete:
+            build_ai_complete_call(input_col, options)
+
+        mock_ai_complete.assert_called_once()
+        args, kwargs = mock_ai_complete.call_args
+        assert args[0] == "claude-opus-5"
+        assert args[1] == "Summarize this."
+        assert kwargs["file"] is input_col
+        assert kwargs["model_parameters"] == {"temperature": 0, "max_tokens": 65536}
+        assert kwargs["response_format"] is None
+        assert kwargs["return_error_details"] is True
+
+    def test_schema_present_still_sends_the_fixed_model_and_parameters(self):
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+        )
+        input_col = col("SOURCE_FILE")
+        with mock.patch(
+            "snowflake.snowpark._internal.document_reader.ai_complete"
+        ) as mock_ai_complete:
+            build_ai_complete_call(input_col, options)
+
+        args, kwargs = mock_ai_complete.call_args
+        assert args[0] == "claude-opus-5"
+        assert kwargs["model_parameters"] == {"temperature": 0, "max_tokens": 65536}
+        assert kwargs["response_format"] == options.extraction.ai_complete_format
+
+
+# ---------------------------------------------------------------------------
+# output_columns -- a prompt-only read (complete_enabled but not extract_enabled)
+# has no schema fields to list, so RESPONSE is the one AI_COMPLETE output column
+# instead.
+# ---------------------------------------------------------------------------
+
+
+class TestOutputColumnsForPromptOnly:
+    def test_prompt_only_outputs_source_file_response_and_corrupt_record(self):
+        options = DocumentReaderOptions(parse_mode="none", prompt="Summarize this.")
+        assert output_columns(options) == [
+            "SOURCE_FILE",
+            "RESPONSE",
+            '"_document_error"',
+        ]

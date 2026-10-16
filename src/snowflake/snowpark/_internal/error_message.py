@@ -244,6 +244,16 @@ class SnowparkClientExceptionMessages:
             error_code="1118",
         )
 
+    @staticmethod
+    def DF_DOCUMENTS_UNSUPPORTED_OPTION(
+        option_name: str, supported: Iterable[str]
+    ) -> SnowparkDataframeReaderException:
+        return SnowparkDataframeReaderException(
+            f"Option {option_name!r} is not supported when reading documents. "
+            f"Supported options are: {', '.join(sorted(supported))}.",
+            error_code="1119",
+        )
+
     # Plan Analysis error codes 02XX
 
     @staticmethod
