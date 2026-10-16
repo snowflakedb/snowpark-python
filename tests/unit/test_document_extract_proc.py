@@ -7,12 +7,14 @@ import copy
 import pytest
 
 from snowflake.snowpark._internal.document_extract_proc import (
+    MAX_FILE_BYTES,
     STATUS_FIELD,
     _cover,
     _to_document_page,
     build_predicate,
     drop_unsupported,
-    is_truncation,
+    initial_ranges,
+    is_splittable_error,
     merge_values,
     next_ranges,
     nullable_root_scalars,
@@ -141,26 +143,86 @@ class TestDropUnsupported:
 
 
 # ---------------------------------------------------------------------------
-# is_truncation -- only a response cut off mid-JSON (hit max_tokens) is
-# helped by re-asking for a smaller page range; any other error is not.
+# is_splittable_error -- only an error that fewer pages can fix is worth
+# retrying with a smaller page range: a response cut off mid-JSON (hit
+# max_tokens), or an input Cortex rejects as too large (claude-opus-5 reports
+# that only as "malformed request"). Any other error is not.
 # ---------------------------------------------------------------------------
 
 
-class TestIsTruncation:
+class TestIsSplittableError:
     def test_true_when_the_message_is_exactly_the_truncation_signature(self):
-        assert is_truncation("unexpected end of JSON input") is True
+        assert is_splittable_error("unexpected end of JSON input") is True
 
-    def test_true_when_the_signature_is_a_substring(self):
+    def test_true_when_the_truncation_signature_is_a_substring(self):
         assert (
-            is_truncation(
+            is_splittable_error(
                 "JSONDecodeError: unexpected end of JSON input at position 42"
             )
             is True
         )
 
+    def test_true_when_the_message_is_exactly_the_malformed_request_signature(self):
+        assert is_splittable_error("malformed request") is True
+
+    def test_true_when_the_malformed_request_signature_is_a_substring(self):
+        assert (
+            is_splittable_error("Cortex error: malformed request for this file") is True
+        )
+
     def test_false_for_other_errors(self):
-        assert is_truncation("rate limited") is False
-        assert is_truncation("") is False
+        assert is_splittable_error("rate limited") is False
+        assert is_splittable_error("") is False
+
+
+# ---------------------------------------------------------------------------
+# initial_ranges -- page ranges for the first round of calls: the whole file
+# when it already fits in one call, otherwise even ranges sized from the
+# average page size so each part (after the first, which also carries one
+# context page) stays under the byte limit Cortex accepts for a FILE input.
+# ---------------------------------------------------------------------------
+
+
+class TestInitialRanges:
+    def test_file_within_the_byte_limit_is_a_single_range(self):
+        assert initial_ranges(66, 216_000) == [(1, 66)]
+
+    def test_file_exactly_at_the_byte_limit_is_a_single_range(self):
+        # file_bytes == max_bytes still fits in one call.
+        assert initial_ranges(10, MAX_FILE_BYTES) == [(1, 10)]
+
+    def test_single_page_file_is_a_single_range_even_if_oversized(self):
+        # total_pages <= 1: there is nothing left to split into.
+        assert initial_ranges(1, 20_000_000) == [(1, 1)]
+
+    def test_oversized_file_is_split_into_even_ranges_from_the_average_page_size(self):
+        assert initial_ranges(66, 15_190_000) == [(1, 51), (52, 66)]
+
+    def test_oversized_file_with_several_full_size_ranges_and_a_short_last_one(self):
+        assert initial_ranges(50, 60_000_000) == [
+            (1, 9),
+            (10, 18),
+            (19, 27),
+            (28, 36),
+            (37, 45),
+            (46, 50),
+        ]
+
+    def test_custom_max_bytes_is_honored_instead_of_the_default(self):
+        assert initial_ranges(10, 30_000_000, max_bytes=10_000_000) == [
+            (1, 2),
+            (3, 4),
+            (5, 6),
+            (7, 8),
+            (9, 10),
+        ]
+
+    def test_ranges_are_consecutive_non_overlapping_and_cover_1_to_total(self):
+        ranges = initial_ranges(50, 60_000_000)
+        assert ranges[0][0] == 1
+        assert ranges[-1][1] == 50
+        for (_, end), (next_start, _) in zip(ranges, ranges[1:]):
+            assert next_start == end + 1
 
 
 # ---------------------------------------------------------------------------
@@ -483,11 +545,17 @@ class TestNextRanges:
         assert ranges == [(1, 5), (6, 10)]
 
     def test_non_truncation_error_on_a_multi_page_call_gives_up_with_no_ranges(self):
-        # A non-truncation error (e.g. a content filter or rate limit) won't be
+        # A non-splittable error (e.g. a content filter or rate limit) won't be
         # fixed by splitting the pages, so it isn't retried at all.
         keep, ranges = next_ranges(1, 10, {"name": "x"}, "boom")
         assert keep is False
         assert ranges == []
+
+    def test_malformed_request_error_on_a_multi_page_call_halves_the_range(self):
+        # Cortex's own "file too large" rejection is also worth retrying smaller.
+        keep, ranges = next_ranges(1, 10, {"name": "x"}, "malformed request")
+        assert keep is False
+        assert ranges == [(1, 5), (6, 10)]
 
     def test_truncation_error_on_a_single_page_call_gives_up_with_no_ranges(self):
         keep, ranges = next_ranges(5, 5, None, "unexpected end of JSON input")
@@ -496,6 +564,14 @@ class TestNextRanges:
 
     def test_non_truncation_error_on_a_single_page_call_gives_up_with_no_ranges(self):
         keep, ranges = next_ranges(5, 5, None, "boom")
+        assert keep is False
+        assert ranges == []
+
+    def test_malformed_request_error_on_a_single_page_call_gives_up_with_no_ranges(
+        self,
+    ):
+        # Nothing left to split: one page is already the smallest unit.
+        keep, ranges = next_ranges(5, 5, None, "malformed request")
         assert keep is False
         assert ranges == []
 

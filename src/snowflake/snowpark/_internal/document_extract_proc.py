@@ -125,9 +125,31 @@ def drop_unsupported(schema: Any) -> Any:
     return out
 
 
-def is_truncation(error: str) -> bool:
-    """Only a response cut off at max_tokens is helped by splitting the pages."""
-    return "unexpected end of JSON input" in error
+def is_splittable_error(error: str) -> bool:
+    """Errors that fewer pages can fix: a response cut off at max_tokens, or an input
+    Cortex rejects as too large -- which claude-opus-5 reports only as "malformed
+    request", for scanned PDFs well under the documented 22 MB."""
+    return "unexpected end of JSON input" in error or "malformed request" in error
+
+
+# The largest scanned PDF claude-opus-5 accepted as one FILE was 12.63 MB; a 15.19 MB one
+# was rejected every time.
+MAX_FILE_BYTES = 12_000_000
+
+
+def initial_ranges(
+    total_pages: int, file_bytes: int, max_bytes: int = MAX_FILE_BYTES
+) -> List[Tuple[int, int]]:
+    """Page ranges for the first round: the whole file when it fits in one call,
+    otherwise even ranges sized from the average page size. Each range after the first
+    also carries one context page, so it is planned one page short."""
+    if file_bytes <= max_bytes or total_pages <= 1:
+        return [(1, total_pages)]
+    pages_per_range = max(1, int(max_bytes / (file_bytes / total_pages)) - 1)
+    return [
+        (start, min(start + pages_per_range - 1, total_pages))
+        for start in range(1, total_pages + 1, pages_per_range)
+    ]
 
 
 def nullable_root_scalars(properties: Dict[str, Any]) -> Dict[str, Any]:
@@ -234,7 +256,7 @@ def next_ranges(
 ) -> Tuple[bool, List[Tuple[int, int]]]:
     """Returns (keep_value, ranges_still_to_extract) for one finished call."""
     if error is not None or not isinstance(value, dict):
-        if end > start and (error is None or is_truncation(error)):
+        if end > start and (error is None or is_splittable_error(error)):
             mid = (start + end) // 2
             return False, [(start, mid), (mid + 1, end)]
         return False, []
@@ -351,24 +373,32 @@ def run(
 
     readers: Dict[str, Any] = {}
     totals: Dict[str, int] = {}
+    sizes: Dict[str, int] = {}
     errors: Dict[str, List[str]] = {f: [] for f in files}
     for file in files:
+        with SnowflakeFile.open(file, "rb", require_scoped_url=False) as f:
+            content = f.read()
+        sizes[file] = len(content)
         try:
-            with SnowflakeFile.open(file, "rb", require_scoped_url=False) as f:
-                readers[file] = PdfReader(io.BytesIO(f.read()))
+            readers[file] = PdfReader(io.BytesIO(content))
             totals[file] = len(readers[file].pages)
         except Exception:  # not a readable PDF: extract it whole, never split
             readers[file] = None
             totals[file] = 1
 
-    def part_file(file: str, start: int, end: int) -> str:
-        if start == 1 and end == totals[file]:
+    def part_file(file: str, start: int, end: int) -> Optional[str]:
+        """Stage the pages as their own PDF; None when the part is still too large."""
+        if start == 1 and end == totals[file] and sizes[file] <= MAX_FILE_BYTES:
+            return file
+        if readers[file] is None:
             return file
         writer = PdfWriter()
         for index in range(max(start - 2, 0), end):
             writer.add_page(readers[file].pages[index])
         buffer = io.BytesIO()
         writer.write(buffer)
+        if buffer.tell() > MAX_FILE_BYTES and end > start:
+            return None
         buffer.seek(0)
         stem = os.path.splitext(os.path.basename(file))[0]
         digest = hashlib.md5(file.encode()).hexdigest()[:12]
@@ -378,14 +408,26 @@ def run(
 
     calls = {f: 0 for f in files}
     done: Dict[str, List[Tuple[int, Dict[str, Any]]]] = {f: [] for f in files}
-    pending = [(f, 1, totals[f]) for f in files]
+    pending = [
+        (f, a, b)
+        for f in files
+        for a, b in (
+            initial_ranges(totals[f], sizes[f]) if readers[f] is not None else [(1, 1)]
+        )
+    ]
     while pending:
         jobs = []
+        oversized = []
         for file, start, end in pending:
             if calls[file] >= max_calls_per_file:
                 errors[file].append(
                     f"pages {start}-{end} not extracted: reached {max_calls_per_file} calls"
                 )
+                continue
+            staged = part_file(file, start, end)
+            if staged is None:
+                mid = (start + end) // 2
+                oversized.extend([(file, start, mid), (file, mid + 1, end)])
                 continue
             calls[file] += 1
             params = [
@@ -393,7 +435,7 @@ def run(
                 build_predicate(
                     predicate, output_token_target, start, end, totals[file]
                 ),
-                part_file(file, start, end),
+                staged,
                 model_parameters,
                 format_with_status,
             ]
@@ -405,7 +447,7 @@ def run(
                     session.sql(_AI_COMPLETE_SQL, params=params).collect_nowait(),
                 )
             )
-        pending = []
+        pending = oversized
         for file, start, end, job in jobs:
             try:
                 raw = job.result()[0][0]
