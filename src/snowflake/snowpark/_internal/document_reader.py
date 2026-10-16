@@ -73,6 +73,16 @@ _EXTRACTION_MODEL = "claude-opus-5"
 _COMPLETE_MODEL_PARAMETERS = {"temperature": 0, "max_tokens": 65536}
 
 _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
+# Each call is asked to stop below this many output tokens and plan the rest of the
+# pages; it sits below max_tokens because the model's own size estimate is approximate.
+_OUTPUT_TOKEN_TARGET = 55000
+_MAX_CALLS_PER_FILE = 12
+
+_EXTRACT_PROC_FILE_PATH = os.path.join(
+    os.path.dirname(__file__), "document_extract_proc.py"
+)
+_EXTRACT_PROC_HANDLER = "run"
+_EXTRACT_PROC_NAME = "SNOWPARK_TEMP_PROCEDURE_DOCUMENT_EXTRACT"
 
 _PDF_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "pdf_reader.py")
 _PDF_READER_HANDLER = "PDFTextReader"
@@ -93,6 +103,15 @@ _UDTF_ERROR_COLUMN = "UDTF_ERROR"
 def read_documents(
     session: "Session", path: str, options: DocumentReaderOptions
 ) -> "DataFrame":
+    if (
+        options.extract_enabled
+        and not options.parse_enabled
+        and options.extraction_engine == "ai_complete"
+    ):
+        df = extract_with_split_procedure(session, path, options)
+        df = finalize_errors(session, df, options)
+        return df.select(output_columns(options))
+
     df = access(session, path)
 
     if options.parse_enabled:
@@ -451,6 +470,12 @@ def extract_with_ai_complete(
             [RESPONSE_COLUMN, _EXTRACT_ERROR_COLUMN],
             [value.cast(StringType()), extracted["error"].cast(StringType())],
         )
+    return project_extracted_fields(df, value, extracted["error"], extraction)
+
+
+def project_extracted_fields(
+    df: "DataFrame", value: Column, error: Column, extraction: ExtractionSpec
+) -> "DataFrame":
     cast_results = [
         cast_extracted_field(value[field], field, extraction)
         for field in extraction.fields
@@ -458,12 +483,42 @@ def extract_with_ai_complete(
     names = extraction.field_columns + [_EXTRACT_ERROR_COLUMN]
     values = [column for column, _ in cast_results] + [
         merge_extract_error(
-            extracted["error"],
+            error,
             extraction.field_columns,
             [mismatch for _, mismatch in cast_results],
         )
     ]
     return df.with_columns(names, values)
+
+
+def extract_with_split_procedure(
+    session: "Session", path: str, options: DocumentReaderOptions
+) -> "DataFrame":
+    """Schema extraction straight from the FILE, splitting the PDF across several
+    AI_COMPLETE calls when one response cannot hold the whole answer. The loop needs each
+    call's answer before planning the next, so it runs in a stored procedure; the CALL
+    still stays lazy because Snowpark defers it to RESULT_SCAN at collect time."""
+    proc_name = register_extract_proc(session)
+    args = [
+        path,
+        json.dumps(options.extraction.ai_complete_format),
+        options.prompt or _DEFAULT_EXTRACTION_PROMPT,
+        _EXTRACTION_MODEL,
+        json.dumps(_COMPLETE_MODEL_PARAMETERS),
+        _OUTPUT_TOKEN_TARGET,
+        _MAX_CALLS_PER_FILE,
+        session.get_session_stage(),
+    ]
+    df = session.sql(
+        f"CALL {proc_name}({', '.join(['?'] * len(args))})", params=args
+    ).select(
+        to_file(col("STAGE_PATH")).alias(SOURCE_FILE_COLUMN),
+        try_parse_json(col("VALUE")).alias(_EXTRACTED_COLUMN),
+        col("ERROR").alias(_EXTRACT_ERROR_COLUMN),
+    )
+    return project_extracted_fields(
+        df, col(_EXTRACTED_COLUMN), col(_EXTRACT_ERROR_COLUMN), options.extraction
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -569,6 +624,60 @@ def register_pdf_udtf(session: "Session"):
         skip_upload_on_content_match=True,
         _suppress_local_package_warnings=True,
     )
+
+
+def register_extract_proc(session: "Session") -> str:
+    if is_in_stored_procedure():  # pragma: no cover
+        import_stage_name = session.get_fully_qualified_name_if_possible(
+            "SNOWPARK_TEMP_STAGE_PDFIMPORTS"
+        )
+        session._run_query(
+            f"CREATE TEMPORARY STAGE IF NOT EXISTS {import_stage_name}",
+            is_ddl_on_temp_object=True,
+        )
+        import_stage = f"{STAGE_PREFIX}{import_stage_name}"
+        session._conn.upload_file(
+            _EXTRACT_PROC_FILE_PATH,
+            import_stage,
+            compress_data=False,
+            overwrite=True,
+            skip_upload_on_content_match=True,
+        )
+        python_file_path = f"{import_stage}/{os.path.basename(_EXTRACT_PROC_FILE_PATH)}"
+    else:
+        python_file_path = _EXTRACT_PROC_FILE_PATH
+
+    name = session.get_fully_qualified_name_if_possible(_EXTRACT_PROC_NAME)
+    session.sproc.register_from_file(
+        python_file_path,
+        _EXTRACT_PROC_HANDLER,
+        return_type=StructType(
+            [
+                StructField("STAGE_PATH", StringType()),
+                StructField("VALUE", StringType()),
+                StructField("ERROR", StringType()),
+            ]
+        ),
+        input_types=[
+            StringType(),
+            StringType(),
+            StringType(),
+            StringType(),
+            StringType(),
+            IntegerType(),
+            IntegerType(),
+            StringType(),
+        ],
+        name=name,
+        packages=["snowflake-snowpark-python", "pypdf"],
+        if_not_exists=True,
+        # Caller's rights: the proc reads the caller's stages and writes page parts to
+        # the caller's session stage.
+        execute_as="caller",
+        skip_upload_on_content_match=True,
+        _suppress_local_package_warnings=True,
+    )
+    return name
 
 
 def register_error_guard_udf(session: "Session"):
