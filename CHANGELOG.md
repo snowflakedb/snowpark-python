@@ -13,6 +13,10 @@
 
 #### Bug Fixes
 
+- Fixed `DataFrameReader.jdbc`(PrPr) timing out on slow external data sources by executing the source query lazily.
+
+#### Improvements
+
 - Fixed `Index.to_pandas()` returning an integer `Index` whose width (for example `int8` or `int32`) depended on the integer width the server returned, instead of the `int64` that Snowpark pandas uses for all integer types. This also affects `Index.astype` to any integer type.
 
 ## 1.55.2 (2026-10-13)
