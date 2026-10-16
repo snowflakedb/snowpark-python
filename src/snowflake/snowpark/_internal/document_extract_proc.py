@@ -188,8 +188,16 @@ def with_status(response_format: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_predicate(
-    base: str, target: int, start: int, end: int, total_pages: int
+    base: str,
+    target: int,
+    start: int,
+    end: int,
+    total_pages: int,
+    plan_target: Optional[int] = None,
 ) -> str:
+    """``target`` bounds this response; ``plan_target`` sizes the ranges it plans for
+    the remaining pages (defaults to ``target``)."""
+    plan_target = plan_target or target
     if start == 1 and end == total_pages:
         scope = (
             f"This file is the whole document: document pages 1 to {total_pages}. "
@@ -226,7 +234,7 @@ def build_predicate(
         f"under {target} output tokens, never stopping in the middle of a page. Set "
         "complete = false, set last_pdf_page_extracted to that page, and split the "
         "remaining pages of this file into consecutive remaining_page_ranges that are each "
-        f"expected to need under {target} output tokens. Always fill extraction_status first."
+        f"expected to need under {plan_target} output tokens. Always fill extraction_status first."
     )
 
 
@@ -368,7 +376,7 @@ def run(
     predicate: str,
     model: str,
     model_parameters: str,
-    output_token_target: int,
+    call_budgets: str,
     max_calls_per_file: int,
     work_stage: str,
 ) -> DataFrame:  # pragma: no cover - exercised against a live account
@@ -376,6 +384,8 @@ def run(
     from snowflake.snowpark.files import SnowflakeFile
     from snowflake.snowpark.types import StringType, StructField, StructType
 
+    base_parameters = json.loads(model_parameters)
+    budgets = json.loads(call_budgets)
     sent_format = with_status(json.loads(response_format))
     format_with_status = json.dumps(sent_format)
     files = [
@@ -421,7 +431,7 @@ def run(
     calls = {f: 0 for f in files}
     done: Dict[str, List[Tuple[int, Dict[str, Any]]]] = {f: [] for f in files}
     pending = [
-        (f, a, b)
+        (f, a, b, "first")
         for f in files
         for a, b in (
             initial_ranges(totals[f], sizes[f]) if readers[f] is not None else [(1, 1)]
@@ -430,7 +440,7 @@ def run(
     while pending:
         jobs = []
         oversized = []
-        for file, start, end in pending:
+        for file, start, end, budget_name in pending:
             if calls[file] >= max_calls_per_file:
                 errors[file].append(
                     f"pages {start}-{end} not extracted: reached {max_calls_per_file} calls"
@@ -439,16 +449,24 @@ def run(
             staged = part_file(file, start, end)
             if staged is None:
                 mid = (start + end) // 2
-                oversized.extend([(file, start, mid), (file, mid + 1, end)])
+                oversized.extend(
+                    [(file, start, mid, budget_name), (file, mid + 1, end, budget_name)]
+                )
                 continue
             calls[file] += 1
+            budget = budgets[budget_name]
             params = [
                 model,
                 build_predicate(
-                    predicate, output_token_target, start, end, totals[file]
+                    predicate,
+                    budget["target"],
+                    start,
+                    end,
+                    totals[file],
+                    plan_target=budgets["range"]["target"],
                 ),
                 staged,
-                model_parameters,
+                json.dumps({**base_parameters, "max_tokens": budget["max_tokens"]}),
                 format_with_status,
             ]
             jobs.append(
@@ -456,11 +474,12 @@ def run(
                     file,
                     start,
                     end,
+                    budget_name,
                     session.sql(_AI_COMPLETE_SQL, params=params).collect_nowait(),
                 )
             )
         pending = oversized
-        for file, start, end, job in jobs:
+        for file, start, end, budget_name, job in jobs:
             try:
                 raw = job.result()[0][0]
                 result = json.loads(raw) if isinstance(raw, str) else raw
@@ -481,7 +500,10 @@ def run(
                 done[file].append((start, value))
             elif not remaining:
                 errors[file].append(f"pages {start}-{end}: {error}")
-            pending.extend((file, a, b) for a, b in remaining)
+            # Halves of a failed call know no more than it did, so they keep its budget;
+            # ranges a call planned get the larger per-range budget.
+            next_budget = "range" if keep else budget_name
+            pending.extend((file, a, b, next_budget) for a, b in remaining)
 
     rows = []
     for file in files:

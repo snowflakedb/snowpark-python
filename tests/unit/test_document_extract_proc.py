@@ -482,6 +482,21 @@ class TestBuildPredicate:
         )
         assert "never write a placeholder such as '<UNKNOWN>' or 'N/A'" in predicate
 
+    def test_plan_target_defaults_to_target(self):
+        predicate = build_predicate("Extract fields.", 1234, 1, 10, 10)
+        assert "expected to need under 1234 output tokens" in predicate
+
+    def test_plan_target_sizes_only_the_remaining_page_ranges_sentence(self):
+        # target still bounds THIS response's own stop/extract decision;
+        # plan_target only sizes the ranges planned for what's left over.
+        predicate = build_predicate(
+            "Extract fields.", 10000, 1, 10, 10, plan_target=40000
+        )
+        assert "is 10000 tokens or less" in predicate
+        assert "under 10000 output tokens, never stopping in the middle" in predicate
+        assert "expected to need under 40000 output tokens" in predicate
+        assert "40000 tokens or less" not in predicate
+
 
 # ---------------------------------------------------------------------------
 # unwrap_envelope -- claude-opus-5 sometimes nests its whole answer under one

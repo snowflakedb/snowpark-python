@@ -73,9 +73,14 @@ _EXTRACTION_MODEL = "claude-opus-5"
 _COMPLETE_MODEL_PARAMETERS = {"temperature": 0, "max_tokens": 65536}
 
 _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
-# Each call is asked to stop below this many output tokens and plan the rest of the
-# pages; it sits below max_tokens because the model's own size estimate is approximate.
-_OUTPUT_TOKEN_TARGET = 55000
+# Each call is asked to stop below `target` output tokens and plan the rest of the pages,
+# and is hard-capped at `max_tokens` because the model does not always stop when asked.
+# The first round is deliberately small so a document whose answer cannot fit fans out
+# after minutes, not after a full max_tokens generation.
+_CALL_BUDGETS = {
+    "first": {"target": 10000, "max_tokens": 20000},
+    "range": {"target": 40000, "max_tokens": 60000},
+}
 _MAX_CALLS_PER_FILE = 12
 
 _EXTRACT_PROC_FILE_PATH = os.path.join(
@@ -505,7 +510,7 @@ def extract_with_split_procedure(
         options.prompt or _DEFAULT_EXTRACTION_PROMPT,
         _EXTRACTION_MODEL,
         json.dumps(_COMPLETE_MODEL_PARAMETERS),
-        _OUTPUT_TOKEN_TARGET,
+        json.dumps(_CALL_BUDGETS),
         _MAX_CALLS_PER_FILE,
         session.get_session_stage(),
     ]
@@ -664,7 +669,7 @@ def register_extract_proc(session: "Session") -> str:
             StringType(),
             StringType(),
             StringType(),
-            IntegerType(),
+            StringType(),
             IntegerType(),
             StringType(),
         ],
