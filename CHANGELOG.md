@@ -8,7 +8,7 @@
 
 #### Bug Fixes
 
-- Fixed `DataFrameReader.jdbc`(PrPr) failing with `Process() method execution timed out` when the external data source was slow to return results. The generated UDTF now executes the source query lazily, on the first row pull, instead of inside `process()`.
+- Fixed `DataFrameReader.jdbc`(PrPr) timing out on slow external data sources by executing the source query lazily.
 
 #### Improvements
 
