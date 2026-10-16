@@ -125,11 +125,23 @@ def drop_unsupported(schema: Any) -> Any:
     return out
 
 
+EMPTY_ANSWER_ERROR = "AI_COMPLETE returned an empty object"
+
+
 def is_splittable_error(error: str) -> bool:
-    """Errors that fewer pages can fix: a response cut off at max_tokens, or an input
-    Cortex rejects as too large -- which claude-opus-5 reports only as "malformed
-    request", for scanned PDFs well under the documented 22 MB."""
-    return "unexpected end of JSON input" in error or "malformed request" in error
+    """Errors that fewer pages can fix: a response cut off at max_tokens; an input
+    Cortex rejects as too large, which claude-opus-5 reports only as "malformed
+    request"; or an answer too long to generate, which json mode can return as an
+    empty object with no error at all."""
+    return (
+        "unexpected end of JSON input" in error
+        or "malformed request" in error
+        or EMPTY_ANSWER_ERROR in error
+    )
+
+
+def is_empty_answer(value: Any) -> bool:
+    return isinstance(value, dict) and all(_is_absent(v) for v in value.values())
 
 
 # The largest scanned PDF claude-opus-5 accepted as one FILE was 12.63 MB; a 15.19 MB one
@@ -456,6 +468,8 @@ def run(
                 value = unwrap_envelope(value, sent_format["schema"])
             except Exception as exc:
                 value, error = None, str(exc)
+            if error is None and is_empty_answer(value):
+                value, error = None, EMPTY_ANSWER_ERROR
             if readers[file] is None:
                 if error is not None:
                     errors[file].append(error)

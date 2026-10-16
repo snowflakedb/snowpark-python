@@ -7,6 +7,7 @@ import copy
 import pytest
 
 from snowflake.snowpark._internal.document_extract_proc import (
+    EMPTY_ANSWER_ERROR,
     MAX_FILE_BYTES,
     STATUS_FIELD,
     _cover,
@@ -14,6 +15,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     build_predicate,
     drop_unsupported,
     initial_ranges,
+    is_empty_answer,
     is_splittable_error,
     merge_values,
     next_ranges,
@@ -145,8 +147,10 @@ class TestDropUnsupported:
 # ---------------------------------------------------------------------------
 # is_splittable_error -- only an error that fewer pages can fix is worth
 # retrying with a smaller page range: a response cut off mid-JSON (hit
-# max_tokens), or an input Cortex rejects as too large (claude-opus-5 reports
-# that only as "malformed request"). Any other error is not.
+# max_tokens); an input Cortex rejects as too large (claude-opus-5 reports
+# that only as "malformed request"); or an answer too long to generate, which
+# json mode can return as an empty object with no error at all (see
+# is_empty_answer and EMPTY_ANSWER_ERROR below). Any other error is not.
 # ---------------------------------------------------------------------------
 
 
@@ -170,9 +174,38 @@ class TestIsSplittableError:
             is_splittable_error("Cortex error: malformed request for this file") is True
         )
 
+    def test_true_when_the_message_is_exactly_the_empty_answer_signature(self):
+        assert is_splittable_error(EMPTY_ANSWER_ERROR) is True
+
+    def test_true_when_the_empty_answer_signature_is_a_substring(self):
+        assert is_splittable_error(f"pages 1-10: {EMPTY_ANSWER_ERROR}") is True
+
     def test_false_for_other_errors(self):
         assert is_splittable_error("rate limited") is False
         assert is_splittable_error("") is False
+
+
+# ---------------------------------------------------------------------------
+# is_empty_answer -- json mode can return an empty-ish object (every field
+# absent) instead of an error when the model's answer would not fit; run()
+# turns that into EMPTY_ANSWER_ERROR so next_ranges treats it like a
+# splittable error instead of a silently "complete" empty result.
+# ---------------------------------------------------------------------------
+
+
+class TestIsEmptyAnswer:
+    def test_an_empty_dict_is_empty(self):
+        assert is_empty_answer({}) is True
+
+    def test_a_dict_of_only_absent_values_is_empty(self):
+        assert is_empty_answer({"a": None, "b": "", "c": [], "d": {}}) is True
+
+    def test_a_dict_with_any_present_value_is_not_empty(self):
+        assert is_empty_answer({"a": 1, "b": None}) is False
+
+    @pytest.mark.parametrize("value", [None, "not a dict", 42, []])
+    def test_non_dict_values_are_not_empty(self, value):
+        assert is_empty_answer(value) is False
 
 
 # ---------------------------------------------------------------------------
@@ -465,6 +498,12 @@ class TestUnwrapEnvelope:
         value = {"input": {"a": 1, "b": 2}}
         assert unwrap_envelope(value, self.SCHEMA) == {"a": 1, "b": 2}
 
+    def test_a_dollar_parameter_name_envelope_is_unwrapped(self):
+        # Seen live: claude-opus-5 sometimes names the envelope after the SQL
+        # bind parameter rather than anything schema-related.
+        value = {"$PARAMETER_NAME": {"a": 1, "b": 2}}
+        assert unwrap_envelope(value, self.SCHEMA) == {"a": 1, "b": 2}
+
     def test_already_populated_top_level_is_left_unchanged(self):
         # The top level already names both declared fields, so the "input"
         # envelope (which only ties that count, not beats it) is not preferred.
@@ -556,6 +595,18 @@ class TestNextRanges:
         keep, ranges = next_ranges(1, 10, {"name": "x"}, "malformed request")
         assert keep is False
         assert ranges == [(1, 5), (6, 10)]
+
+    def test_empty_answer_error_on_a_multi_page_call_halves_the_range(self):
+        # run() converts an error-free empty object into EMPTY_ANSWER_ERROR;
+        # fewer pages per call is also worth retrying for that.
+        keep, ranges = next_ranges(1, 40, None, EMPTY_ANSWER_ERROR)
+        assert keep is False
+        assert ranges == [(1, 20), (21, 40)]
+
+    def test_empty_answer_error_on_a_single_page_call_gives_up_with_no_ranges(self):
+        keep, ranges = next_ranges(5, 5, None, EMPTY_ANSWER_ERROR)
+        assert keep is False
+        assert ranges == []
 
     def test_truncation_error_on_a_single_page_call_gives_up_with_no_ranges(self):
         keep, ranges = next_ranges(5, 5, None, "unexpected end of JSON input")
