@@ -66,26 +66,54 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 _EXTRACTION_MODEL = "claude-opus-5"
-# Without max_tokens AI_COMPLETE caps output at 4096, which truncates long-document answers
-# mid-JSON and surfaces as a bare internal error. 65536 rather than opus-5's 128000 maximum:
-# a larger ceiling only makes an answer that cannot fit fail more slowly. temperature 0 so
-# the same document and schema give the same answer on every read.
-_COMPLETE_MODEL_PARAMETERS = {"temperature": 0, "max_tokens": 65536}
 
 _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
-# Each call is asked to stop below `target` output tokens and plan the rest of the pages,
-# and is hard-capped at `max_tokens` because the model does not always stop when asked.
-# The model overestimates its own output (1.2-2.6x measured), so a target at the full
-# max_tokens still leaves real headroom; a lower target only made it stop half-way through
-# ranges that would have fit. "first" applies to the first round of documents over 50
-# pages or 10 MB and can be lowered to fan out sooner.
-_CALL_BUDGETS = {
-    "first": {"target": 65000, "max_tokens": 65536},
-    "range": {"target": 65000, "max_tokens": 65536},
+
+# Per-model AI_COMPLETE settings.
+# - model_parameters: without max_tokens AI_COMPLETE caps output at 4096, truncating long
+#   answers mid-JSON. temperature 0 makes reads repeatable where the model accepts it;
+#   claude-sonnet-5-5 rejects temperature 0 with a bare "malformed request".
+# - json_mode: claude-sonnet-5-5 also rejects response_format, so its schema goes in the
+#   prompt and the JSON is parsed out of the text answer.
+# - budgets: each call is asked to stop below `target` output tokens and plan the rest of
+#   the pages, and is hard-capped at `max_tokens`. The model overestimates its own output
+#   (1.2-2.6x measured on opus-5), so a target near max_tokens still leaves real headroom.
+#   "first" applies to the first round of documents over 50 pages or 10 MB.
+#   claude-sonnet-5-5's max_tokens ceiling is 128000 (it rejects anything higher).
+_MODEL_SETTINGS = {
+    "claude-opus-5": {
+        "model_parameters": {"temperature": 0},
+        "json_mode": True,
+        "budgets": {
+            "first": {"target": 65000, "max_tokens": 65536},
+            "range": {"target": 65000, "max_tokens": 65536},
+        },
+    },
+    "claude-sonnet-5-5": {
+        "model_parameters": {},
+        "json_mode": False,
+        "budgets": {
+            "first": {"target": 120000, "max_tokens": 128000},
+            "range": {"target": 120000, "max_tokens": 128000},
+        },
+    },
 }
 # Floor for the per-document call cap; the procedure raises it from the answer size it
 # observes, up to its hard maximum.
 _MAX_CALLS_PER_FILE = 30
+
+
+def model_settings(model: str) -> Dict[str, Any]:
+    return _MODEL_SETTINGS.get(model, _MODEL_SETTINGS[_EXTRACTION_MODEL])
+
+
+def single_call_model_parameters(model: str) -> Dict[str, Any]:
+    settings = model_settings(model)
+    return {
+        **settings["model_parameters"],
+        "max_tokens": settings["budgets"]["range"]["max_tokens"],
+    }
+
 
 _EXTRACT_PROC_FILE_PATH = os.path.join(
     os.path.dirname(__file__), "document_extract_proc.py"
@@ -448,7 +476,7 @@ def build_ai_complete_call(input_col: Column, options: DocumentReaderOptions) ->
         return ai_complete(
             _EXTRACTION_MODEL,
             prompt_text,
-            model_parameters=_COMPLETE_MODEL_PARAMETERS,
+            model_parameters=single_call_model_parameters(_EXTRACTION_MODEL),
             response_format=response_format,
             return_error_details=True,
         )
@@ -456,7 +484,7 @@ def build_ai_complete_call(input_col: Column, options: DocumentReaderOptions) ->
         _EXTRACTION_MODEL,
         options.prompt or _DEFAULT_EXTRACTION_PROMPT,
         file=input_col,
-        model_parameters=_COMPLETE_MODEL_PARAMETERS,
+        model_parameters=single_call_model_parameters(_EXTRACTION_MODEL),
         response_format=response_format,
         return_error_details=True,
     )
@@ -513,8 +541,13 @@ def extract_with_split_procedure(
         json.dumps(options.extraction.ai_complete_format),
         options.prompt or _DEFAULT_EXTRACTION_PROMPT,
         _EXTRACTION_MODEL,
-        json.dumps(_COMPLETE_MODEL_PARAMETERS),
-        json.dumps(_CALL_BUDGETS),
+        json.dumps(model_settings(_EXTRACTION_MODEL)["model_parameters"]),
+        json.dumps(
+            {
+                **model_settings(_EXTRACTION_MODEL)["budgets"],
+                "json_mode": model_settings(_EXTRACTION_MODEL)["json_mode"],
+            }
+        ),
         _MAX_CALLS_PER_FILE,
         session.get_session_stage(),
     ]

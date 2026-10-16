@@ -578,6 +578,50 @@ _AI_COMPLETE_SQL = (
     "model_parameters => PARSE_JSON(?), response_format => PARSE_JSON(?), "
     "return_error_details => TRUE)"
 )
+# For models that reject response_format (claude-sonnet-5-5): the schema travels in the
+# predicate and the answer comes back as text.
+_AI_COMPLETE_TEXT_SQL = (
+    "SELECT AI_COMPLETE(model => ?, predicate => ?, file => TO_FILE(?), "
+    "model_parameters => PARSE_JSON(?), return_error_details => TRUE)"
+)
+
+
+def schema_instruction(schema: Dict[str, Any]) -> str:
+    return (
+        "Respond with ONLY one JSON object that conforms to the JSON Schema below: no "
+        "prose before or after it and no markdown code fences. Fill extraction_status "
+        "first.\n\nJSON Schema:\n" + json.dumps(schema, separators=(",", ":"))
+    )
+
+
+TRUNCATED_TEXT_ERROR = "unexpected end of JSON input in a text answer"
+
+
+def parse_text_answer(text: Any) -> Tuple[Any, Optional[str]]:
+    """The JSON object out of a text answer. A JSON document cut off before it closes is
+    reported with the truncation signature so its pages get split, like json mode's."""
+    if isinstance(text, dict):
+        return text, None
+    if not isinstance(text, str):
+        return None, "answer was not text"
+    body = text.strip()
+    if body.startswith("```"):
+        body = body.split("\n", 1)[1] if "\n" in body else ""
+        if body.rstrip().endswith("```"):
+            body = body.rstrip()[:-3]
+    first = body.find("{")
+    if first < 0:
+        return None, "answer contained no JSON object"
+    candidate = body[first:]
+    try:
+        value, _ = json.JSONDecoder().raw_decode(candidate)
+    except json.JSONDecodeError as exc:
+        if exc.pos >= len(candidate.rstrip()) - 1:
+            return None, TRUNCATED_TEXT_ERROR
+        return None, f"answer was not valid JSON: {exc.msg}"
+    if not isinstance(value, dict):
+        return None, "answer JSON was not an object"
+    return value, None
 
 
 def run(
@@ -597,8 +641,12 @@ def run(
 
     base_parameters = json.loads(model_parameters)
     budgets = json.loads(call_budgets)
+    json_mode = budgets.get("json_mode", True)
     sent_format = with_status(json.loads(response_format))
     format_with_status = json.dumps(sent_format)
+    instruction = (
+        "" if json_mode else "\n\n" + schema_instruction(sent_format["schema"])
+    )
     files = [
         qualify_listed_name(path, row["name"])
         for row in session.sql(f"LIST {path}").collect()
@@ -681,18 +729,21 @@ def run(
                     end,
                     totals[file],
                     plan_target=int(range_target / factor),
-                ),
+                )
+                + instruction,
                 staged,
                 json.dumps({**base_parameters, "max_tokens": budget["max_tokens"]}),
-                format_with_status,
-            ]
+            ] + ([format_with_status] if json_mode else [])
             jobs.append(
                 (
                     file,
                     start,
                     end,
                     budget_name,
-                    session.sql(_AI_COMPLETE_SQL, params=params).collect_nowait(),
+                    session.sql(
+                        _AI_COMPLETE_SQL if json_mode else _AI_COMPLETE_TEXT_SQL,
+                        params=params,
+                    ).collect_nowait(),
                 )
             )
         pending = oversized
@@ -701,6 +752,8 @@ def run(
                 raw = job.result()[0][0]
                 result = json.loads(raw) if isinstance(raw, str) else raw
                 value, error = result.get("value"), result.get("error")
+                if error is None and not json_mode:
+                    value, error = parse_text_answer(value)
                 value = unwrap_envelope(value, sent_format["schema"])
             except Exception as exc:
                 value, error = None, str(exc)
