@@ -6,11 +6,10 @@
 
 #### New Features
 
-#### Bug Fixes
-
 #### Improvements
 
-### Snowpark pandas API Updates
+- Removed the `experimental` tag from `DataFrame.to_polars()`.
+- `DataFrame.to_polars()` now defaults to `transport="parquet"` instead of `transport="arrow"`.
 
 #### Bug Fixes
 
