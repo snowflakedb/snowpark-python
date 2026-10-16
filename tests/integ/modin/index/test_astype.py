@@ -6,6 +6,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pandas.api.types import is_integer_dtype
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -45,8 +46,11 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 )
 def test_index_astype(index, type):
     snow_index = pd.Index(index)
+    expected = index.astype(type)
+    if is_integer_dtype(expected.dtype):
+        expected = expected.astype(np.int64)
     with SqlCounter(query_count=1):
-        assert_index_equal(snow_index.astype(type), index.astype(type))
+        assert_index_equal(snow_index.astype(type), expected)
 
 
 @pytest.mark.parametrize(

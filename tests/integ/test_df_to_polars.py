@@ -89,17 +89,19 @@ def local_session():
         pytest.param(
             TestData.array1,
             {
-                "ARR1": ["[\n  1,\n  2,\n  3\n]", "[\n  6,\n  7,\n  8\n]"],
-                "ARR2": ["[\n  3,\n  4,\n  5\n]", "[\n  9,\n  0,\n  1\n]"],
+                # Parquet (default transport) serializes VARIANT/ARRAY as compact JSON.
+                "ARR1": ["[1,2,3]", "[6,7,8]"],
+                "ARR2": ["[3,4,5]", "[9,0,1]"],
             },
             id="semi-structured array",
         ),
         pytest.param(
             TestData.object2,
             {
+                # Parquet (default transport) serializes VARIANT/OBJECT as compact JSON.
                 "OBJ": [
-                    '{\n  "age": 21,\n  "name": "Joe",\n  "zip": 21021\n}',
-                    '{\n  "age": 26,\n  "name": "Jay",\n  "zip": 94021\n}',
+                    '{"age":21,"name":"Joe","zip":21021}',
+                    '{"age":26,"name":"Jay","zip":94021}',
                 ],
                 "K": ["age", "key"],
                 "V": [Decimal("0"), Decimal("0")],
@@ -110,9 +112,11 @@ def local_session():
         (
             TestData.datetime_primitives2,
             {
+                # Parquet (default transport) rounds TIMESTAMP_NTZ to millisecond
+                # precision: 123456 µs → 123000 µs, 567890 µs → 568000 µs.
                 "TIMESTAMP": [
-                    datetime(9999, 12, 31, 0, 0, 0, 123456),
-                    datetime(1583, 1, 1, 23, 59, 59, 567890),
+                    datetime(9999, 12, 31, 0, 0, 0, 123000),
+                    datetime(1583, 1, 1, 23, 59, 59, 568000),
                 ]
             },
         ),
@@ -146,7 +150,9 @@ def test_to_polars_decimal_precision(session):
         col("A").cast(DecimalType(38, 0)).alias("A"),
         col("B").cast(DecimalType(18, 0)).alias("B"),
     )
-    pa_df = df.to_polars().to_arrow()
+    # Use transport="arrow": the Arrow path coerces DECIMAL(18,0) → int64 when
+    # it fits; the parquet path preserves the decimal128(18,0) type as-is.
+    pa_df = df.to_polars(transport="arrow").to_arrow()
     assert str(pa_df.schema[0].type) == "decimal128(38, 0)"
     assert str(pa_df.schema[1].type) == "int64"
     assert [[int(x) for x in row.values()] for row in pa_df.to_pylist()] == data
@@ -206,7 +212,7 @@ def test_to_polars_timestamp_ltz_and_tz(session):
     pl_df = session.sql(
         "SELECT TO_TIMESTAMP_LTZ('2024-01-15 12:00:00 -0800') AS ts_ltz,"
         "       TO_TIMESTAMP_TZ('2024-01-15 20:00:00 +0530')  AS ts_tz"
-    ).to_polars()
+    ).to_polars(transport="arrow")
     assert (
         pl_df["TS_LTZ"][0] is not None and pl_df["TS_LTZ"].dtype.time_zone is not None
     )
@@ -221,18 +227,18 @@ def test_to_polars_eager_matches_to_arrow(session):
         "       TRUE AS b, DATE '2024-01-01' AS d,"
         "       TO_TIMESTAMP_NTZ('2024-01-01 12:00:00') AS t"
     )
-    assert polars_to_pydict(df.to_polars()) == df.to_arrow().to_pydict()
+    assert (
+        polars_to_pydict(df.to_polars(transport="arrow")) == df.to_arrow().to_pydict()
+    )
 
 
 @_skip_local
 def test_to_polars_statement_params(session):
-    """statement_params must reach Snowflake on every to_polars path,
-    including the raw-cursor Arrow path. Regression guard: earlier the Arrow
-    path forwarded the params only on the (rare) empty-batch fallback and
-    silently dropped them on the main query.
+    """statement_params must reach Snowflake on every to_polars path.
 
-    The ``query_history()`` context manager doubles as a check that the
-    raw-cursor Arrow path still triggers session-level query listeners.
+    Exercises the default (parquet) path. Regression guard: verifies that
+    statement_params are forwarded through the COPY INTO unload and that the
+    query listener records the query.
     """
     df = session.create_dataframe([[1]], schema=["A"])
 
@@ -275,7 +281,7 @@ def test_to_polars_transport_parquet_matches_arrow_shape(session):
         [[i, str(i), i * 1.5] for i in range(500)], schema=["ID", "S", "F"]
     )
     pq = df.to_polars(transport="parquet")
-    arrow = df.to_polars()
+    arrow = df.to_polars(transport="arrow")
     assert pq.height == arrow.height == 500
     assert set(pq.columns) == set(arrow.columns)
     # FLOAT is downcast to float32 by the Parquet unload, so cast both sides
@@ -345,7 +351,7 @@ def test_to_polars_column_identifier_casing(
     and column-name-based selection on the Parquet result."""
     df = session.sql(sql)
 
-    eager = df.to_polars()
+    eager = df.to_polars(transport="arrow")
     assert eager.columns == expected_columns
 
     pq = df.to_polars(transport="parquet")
