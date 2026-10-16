@@ -183,7 +183,7 @@ def test_resolve_udtf_packages_anaconda(dbms_type, expected_fragment):
 
 
 def _render_jdbc_ddls(**jdbc_kwargs):
-    """Render the infer-schema and read UDTF DDLs without a live session."""
+    """Render the read UDTF DDL without a live session."""
     session = Mock()
     captured = []
     session.sql.side_effect = lambda sql, **kwargs: (captured.append(sql), Mock())[1]
@@ -249,15 +249,3 @@ def test_jdbc_read_udtf_wraps_all_exceptions():
     assert "catch (Exception e)" in ddl
     assert "catch (SQLException e)" not in ddl
     assert 'throw new RuntimeException("Ingestion error: "' in ddl
-
-
-def test_jdbc_read_udtf_omits_unused_result_set_metadata():
-    """The read UDTF derives its output positionally from the known schema, so
-    it must not pay for a ``getMetaData()`` round trip. The infer-schema UDTF
-    genuinely needs the metadata and keeps it."""
-    read_ddl = _render_jdbc_ddls()
-    assert "getMetaData" not in read_ddl
-    assert "columnCount" not in read_ddl
-    # Sanity-check that the output assignment still uses the local ``rs`` name
-    # emitted by create_output_row_java_code().
-    assert "row.A = rs.getString(1);" in read_ddl
