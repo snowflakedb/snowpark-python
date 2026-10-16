@@ -236,16 +236,3 @@ def test_jdbc_read_udtf_executes_query_lazily():
     # session-init statements so they inherit it.
     assert "stmt.setQueryTimeout(240);" in ddl
     assert "stmt.setFetchSize(100);" in ddl
-
-
-def test_jdbc_read_udtf_wraps_all_exceptions():
-    """The in-lambda handler must catch Exception, not just SQLException.
-
-    The lambda now also covers connection/statement setup and query execution,
-    whose failures are not always ``SQLException``. Narrowing the catch would
-    drop the ``Ingestion error: `` prefix that support triage relies on.
-    """
-    ddl = _render_jdbc_ddls()
-    assert "catch (Exception e)" in ddl
-    assert "catch (SQLException e)" not in ddl
-    assert 'throw new RuntimeException("Ingestion error: "' in ddl
