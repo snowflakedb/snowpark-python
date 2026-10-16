@@ -2,13 +2,18 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import copy
 from unittest import mock
 
 from snowflake.snowpark._internal.document_reader import (
+    _EXTRACTION_MODEL,
+    _MODEL_SETTINGS,
     build_ai_complete_call,
     cast_extracted_field,
     merge_extract_error,
+    model_settings,
     output_columns,
+    single_call_model_parameters,
 )
 from snowflake.snowpark._internal.document_reader_options import (
     DocumentReaderOptions,
@@ -16,6 +21,68 @@ from snowflake.snowpark._internal.document_reader_options import (
 )
 from snowflake.snowpark.functions import col, lit
 from snowflake.snowpark.types import BooleanType, DoubleType, StringType
+
+# ---------------------------------------------------------------------------
+# model_settings -- the fixed per-model configuration (model_parameters,
+# json_mode, and output-token budgets) that drives every AI_COMPLETE call;
+# an unrecognized model name falls back to _EXTRACTION_MODEL's own settings
+# rather than erroring.
+# ---------------------------------------------------------------------------
+
+
+class TestModelSettings:
+    def test_claude_opus_5_uses_json_mode_with_a_zero_temperature_and_small_budgets(
+        self,
+    ):
+        settings = model_settings("claude-opus-5")
+        assert settings["json_mode"] is True
+        assert settings["model_parameters"] == {"temperature": 0}
+        assert settings["budgets"] == {
+            "first": {"target": 65000, "max_tokens": 65536},
+            "range": {"target": 65000, "max_tokens": 65536},
+        }
+
+    def test_claude_sonnet_5_5_uses_text_mode_with_no_parameters_and_larger_budgets(
+        self,
+    ):
+        settings = model_settings("claude-sonnet-5-5")
+        assert settings["json_mode"] is False
+        assert settings["model_parameters"] == {}
+        assert settings["budgets"] == {
+            "first": {"target": 120000, "max_tokens": 128000},
+            "range": {"target": 120000, "max_tokens": 128000},
+        }
+
+    def test_an_unrecognized_model_falls_back_to_the_extraction_models_settings(self):
+        assert model_settings("some-other-model") == model_settings(_EXTRACTION_MODEL)
+
+
+# ---------------------------------------------------------------------------
+# single_call_model_parameters -- the model_parameters for a call that must
+# finish in one shot (no further splitting possible), with max_tokens set
+# from the model's own "range" budget; built fresh each time, never mutating
+# the shared _MODEL_SETTINGS.
+# ---------------------------------------------------------------------------
+
+
+class TestSingleCallModelParameters:
+    def test_claude_opus_5_adds_max_tokens_to_its_fixed_temperature(self):
+        assert single_call_model_parameters("claude-opus-5") == {
+            "temperature": 0,
+            "max_tokens": 65536,
+        }
+
+    def test_claude_sonnet_5_5_has_only_max_tokens(self):
+        assert single_call_model_parameters("claude-sonnet-5-5") == {
+            "max_tokens": 128000
+        }
+
+    def test_does_not_mutate_the_shared_model_settings(self):
+        original = copy.deepcopy(_MODEL_SETTINGS)
+        single_call_model_parameters("claude-opus-5")
+        single_call_model_parameters("claude-sonnet-5-5")
+        assert _MODEL_SETTINGS == original
+
 
 # ---------------------------------------------------------------------------
 # cast_extracted_field -- an extracted field's declared JSON-Schema type (if any)

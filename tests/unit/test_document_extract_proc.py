@@ -3,6 +3,7 @@
 #
 
 import copy
+import json
 
 import pytest
 
@@ -14,6 +15,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     HARD_MAX_CALLS_PER_FILE,
     MAX_FILE_BYTES,
     STATUS_FIELD,
+    TRUNCATED_TEXT_ERROR,
     _cover,
     _to_document_page,
     build_predicate,
@@ -31,7 +33,9 @@ from snowflake.snowpark._internal.document_extract_proc import (
     next_ranges,
     nullable_scalars,
     observed_factor,
+    parse_text_answer,
     qualify_listed_name,
+    schema_instruction,
     shift_page_fields,
     unwrap_envelope,
     with_status,
@@ -266,8 +270,24 @@ class TestFirstRoundBudget:
 
 
 class TestInitialRanges:
-    def test_file_within_the_byte_limit_is_a_single_range(self):
-        assert initial_ranges(66, 216_000) == [(1, 66)]
+    def test_file_within_both_limits_is_a_single_range(self):
+        assert initial_ranges(50, 216_000) == [(1, 50)]
+
+    def test_more_than_fifty_pages_is_split_into_equal_parts_under_fifty(self):
+        assert initial_ranges(66, 216_000) == [(1, 33), (34, 66)]
+        assert initial_ranges(114, 11_820_000) == [(1, 38), (39, 76), (77, 114)]
+        assert initial_ranges(192, 8_600_000) == [
+            (1, 48),
+            (49, 96),
+            (97, 144),
+            (145, 192),
+        ]
+
+    def test_every_part_file_stays_under_fifty_pages_with_its_context_page(self):
+        for total in range(51, 400):
+            ranges = initial_ranges(total, 1)
+            assert ranges[0][0] == 1 and ranges[-1][1] == total
+            assert all(b - a + 2 <= 49 for a, b in ranges)
 
     def test_file_exactly_at_the_byte_limit_is_a_single_range(self):
         # file_bytes == max_bytes still fits in one call.
@@ -278,7 +298,8 @@ class TestInitialRanges:
         assert initial_ranges(1, 20_000_000) == [(1, 1)]
 
     def test_oversized_file_is_split_into_even_ranges_from_the_average_page_size(self):
-        assert initial_ranges(66, 15_190_000) == [(1, 51), (52, 66)]
+        assert initial_ranges(66, 15_190_000) == [(1, 33), (34, 66)]
+        assert initial_ranges(40, 15_190_000) == [(1, 20), (21, 40)]
 
     def test_oversized_file_with_several_full_size_ranges_and_a_short_last_one(self):
         assert initial_ranges(50, 60_000_000) == [
@@ -1427,3 +1448,110 @@ class TestQualifyListedName:
 
     def test_unqualified_stage(self):
         assert qualify_listed_name("@mystage", "mystage/a.pdf") == "@mystage/a.pdf"
+
+
+# ---------------------------------------------------------------------------
+# schema_instruction -- the fixed instruction text sent to claude-sonnet-5-5
+# (which has no response_format/json mode): asks for exactly one JSON object,
+# with extraction_status filled first, followed by the schema itself as
+# compact (no extra whitespace) JSON.
+# ---------------------------------------------------------------------------
+
+
+class TestSchemaInstruction:
+    def test_instruction_text_covers_the_required_points(self):
+        text = schema_instruction({"type": "object", "properties": {}})
+        assert "ONLY one JSON object" in text
+        assert "no prose before or after it and no markdown code fences" in text
+        assert "Fill extraction_status first" in text
+
+    def test_schema_round_trips_through_the_tail_after_the_json_schema_tag(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": ["string", "null"]},
+                "items": {"type": "array", "items": {"type": "integer"}},
+            },
+        }
+        text = schema_instruction(schema)
+        _, tail = text.split("JSON Schema:\n")
+        assert json.loads(tail) == schema
+
+    def test_schema_tail_is_compact_json_with_no_extra_whitespace(self):
+        schema = {"a": 1, "b": [1, 2]}
+        text = schema_instruction(schema)
+        _, tail = text.split("JSON Schema:\n")
+        assert tail == json.dumps(schema, separators=(",", ":"))
+        assert ", " not in tail
+        assert ": " not in tail
+
+    def test_json_schema_tag_appears_exactly_once_at_the_end(self):
+        text = schema_instruction({"a": 1})
+        assert text.endswith(json.dumps({"a": 1}, separators=(",", ":")))
+        assert text.count("JSON Schema:\n") == 1
+
+
+# ---------------------------------------------------------------------------
+# parse_text_answer -- claude-sonnet-5-5 has no response_format/json mode, so
+# its answer is free text that must still contain exactly one JSON object;
+# pull that object out (through markdown fences and surrounding prose) and
+# report a cut-off object with the same truncation signature run() already
+# knows how to split on.
+# ---------------------------------------------------------------------------
+
+
+class TestParseTextAnswer:
+    def test_a_dict_passes_through_unchanged(self):
+        value = {"name": "Alice"}
+        assert parse_text_answer(value) == (value, None)
+
+    @pytest.mark.parametrize("value", [42, None, [1, 2], True, 3.14])
+    def test_non_str_non_dict_is_rejected(self, value):
+        assert parse_text_answer(value) == (None, "answer was not text")
+
+    def test_a_plain_json_object_is_parsed(self):
+        assert parse_text_answer('{"name": "Alice"}') == ({"name": "Alice"}, None)
+
+    def test_a_json_fenced_block_with_a_trailing_fence_is_parsed(self):
+        text = '```json\n{"name": "Alice"}\n```'
+        assert parse_text_answer(text) == ({"name": "Alice"}, None)
+
+    def test_a_json_fenced_block_without_a_trailing_fence_is_parsed(self):
+        text = '```json\n{"name": "Alice"}'
+        assert parse_text_answer(text) == ({"name": "Alice"}, None)
+
+    def test_prose_before_and_after_the_object_is_ignored(self):
+        text = (
+            'Sure, here is the answer:\n{"name": "Alice"}\n'
+            "Let me know if you need more."
+        )
+        assert parse_text_answer(text) == ({"name": "Alice"}, None)
+
+    def test_an_object_found_inside_a_larger_sentence_is_still_parsed(self):
+        text = 'the fields are {"a": 1} and that is all'
+        assert parse_text_answer(text) == ({"a": 1}, None)
+
+    def test_no_opening_brace_is_rejected(self):
+        assert parse_text_answer("no JSON here") == (
+            None,
+            "answer contained no JSON object",
+        )
+
+    def test_a_top_level_array_with_no_object_is_rejected(self):
+        assert parse_text_answer("[1, 2, 3]") == (
+            None,
+            "answer contained no JSON object",
+        )
+
+    def test_json_cut_off_before_closing_is_reported_as_truncated(self):
+        value, error = parse_text_answer('{"a": 1, "b": [1,2')
+        assert value is None
+        assert error == TRUNCATED_TEXT_ERROR
+
+    def test_the_truncation_signature_is_recognized_as_splittable(self):
+        assert is_splittable_error(TRUNCATED_TEXT_ERROR) is True
+
+    def test_malformed_json_in_the_middle_is_reported_distinctly_from_truncation(self):
+        value, error = parse_text_answer('{"a": 1 "b": 2}')
+        assert value is None
+        assert error.startswith("answer was not valid JSON")

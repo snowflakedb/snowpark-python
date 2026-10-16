@@ -165,15 +165,35 @@ def first_round_budget(total_pages: int, file_bytes: int) -> str:
     return "range"
 
 
+# Documents over SPLIT_ABOVE_PAGES are split up front so no part file exceeds
+# MAX_PAGES_PER_PART pages, context page included: one call over a 100+ page document plans
+# poorly and, if it ignores its target, runs for many minutes.
+SPLIT_ABOVE_PAGES = 50
+MAX_PAGES_PER_PART = 49
+
+
 def initial_ranges(
-    total_pages: int, file_bytes: int, max_bytes: int = MAX_FILE_BYTES
+    total_pages: int,
+    file_bytes: int,
+    max_bytes: int = MAX_FILE_BYTES,
+    max_pages: int = MAX_PAGES_PER_PART,
 ) -> List[Tuple[int, int]]:
     """Page ranges for the first round: the whole file when it fits in one call,
-    otherwise even ranges sized from the average page size. Each range after the first
-    also carries one context page, so it is planned one page short."""
-    if file_bytes <= max_bytes or total_pages <= 1:
+    otherwise the fewest equal ranges that respect both the size and the page limit.
+    Each range after the first also carries one context page, so it is planned one page
+    short of either limit."""
+    if total_pages <= 1 or (
+        file_bytes <= max_bytes and total_pages <= SPLIT_ABOVE_PAGES
+    ):
         return [(1, total_pages)]
-    pages_per_range = max(1, int(max_bytes / (file_bytes / total_pages)) - 1)
+    by_size = (
+        max(1, int(max_bytes / (file_bytes / total_pages)) - 1)
+        if file_bytes > max_bytes
+        else total_pages
+    )
+    limit = max(1, min(by_size, max_pages - 1))
+    parts = -(-total_pages // limit)
+    pages_per_range = -(-total_pages // parts)
     return [
         (start, min(start + pages_per_range - 1, total_pages))
         for start in range(1, total_pages + 1, pages_per_range)
@@ -597,6 +617,26 @@ def schema_instruction(schema: Dict[str, Any]) -> str:
 TRUNCATED_TEXT_ERROR = "unexpected end of JSON input in a text answer"
 
 
+def _brackets_close(text: str) -> bool:
+    """Whether every { and [ outside a JSON string is closed by the end of ``text``."""
+    depth, in_string, escaped = 0, False, False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in "{[":
+            depth += 1
+        elif char in "}]":
+            depth -= 1
+    return depth <= 0 and not in_string
+
+
 def parse_text_answer(text: Any) -> Tuple[Any, Optional[str]]:
     """The JSON object out of a text answer. A JSON document cut off before it closes is
     reported with the truncation signature so its pages get split, like json mode's."""
@@ -616,7 +656,14 @@ def parse_text_answer(text: Any) -> Tuple[Any, Optional[str]]:
     try:
         value, _ = json.JSONDecoder().raw_decode(candidate)
     except json.JSONDecodeError as exc:
-        if exc.pos >= len(candidate.rstrip()) - 1:
+        # An answer cut off by max_tokens usually stops mid-string, and the decoder then
+        # points at where that string *started*, not at the end -- so also treat any answer
+        # whose brackets never close as truncated.
+        if (
+            exc.pos >= len(candidate.rstrip()) - 1
+            or exc.msg.startswith("Unterminated string")
+            or not _brackets_close(candidate)
+        ):
             return None, TRUNCATED_TEXT_ERROR
         return None, f"answer was not valid JSON: {exc.msg}"
     if not isinstance(value, dict):
