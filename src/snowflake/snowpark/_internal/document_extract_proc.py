@@ -180,25 +180,36 @@ def initial_ranges(
     ]
 
 
-def nullable_root_scalars(properties: Dict[str, Any]) -> Dict[str, Any]:
-    """A call covering only some pages cannot see a value printed elsewhere (a total on
-    the last page); with a non-null scalar type the model writes a placeholder such as
-    '<UNKNOWN>' into a number field and json mode rejects the whole response."""
-    out = {}
-    for name, prop in properties.items():
-        json_type = prop.get("type") if isinstance(prop, dict) else None
-        if isinstance(json_type, str) and json_type not in ("object", "array", "null"):
-            prop = {**prop, "type": [json_type, "null"]}
-        out[name] = prop
+_SUBSCHEMA_LISTS = ("anyOf", "oneOf", "allOf", "prefixItems")
+
+
+def nullable_scalars(schema: Any) -> Any:
+    """Make every scalar at any depth nullable. A call covering only some pages cannot see
+    a value printed elsewhere -- a document total on the last page, or a fund's totals
+    when the range starts mid-schedule -- and json mode rejects the whole response for
+    one null in a non-nullable field."""
+    if not isinstance(schema, dict):
+        return schema
+    out = dict(schema)
+    json_type = out.get("type")
+    if isinstance(json_type, str) and json_type not in ("object", "array", "null"):
+        out["type"] = [json_type, "null"]
+    for key in _NAME_MAPS:
+        if isinstance(out.get(key), dict):
+            out[key] = {name: nullable_scalars(sub) for name, sub in out[key].items()}
+    if "items" in out:
+        out["items"] = nullable_scalars(out["items"])
+    for key in _SUBSCHEMA_LISTS:
+        if isinstance(out.get(key), list):
+            out[key] = [nullable_scalars(sub) for sub in out[key]]
     return out
 
 
 def with_status(response_format: Dict[str, Any]) -> Dict[str, Any]:
-    schema = response_format["schema"]
-    wrapped = dict(schema)
+    wrapped = nullable_scalars(response_format["schema"])
     wrapped["properties"] = {
         STATUS_FIELD: _STATUS_SCHEMA,
-        **nullable_root_scalars(schema.get("properties", {})),
+        **wrapped.get("properties", {}),
     }
     return {**response_format, "schema": drop_unsupported(wrapped)}
 
@@ -288,9 +299,16 @@ def _to_document_page(page: Any, start: int, end: int) -> Optional[int]:
 
 
 def next_ranges(
-    start: int, end: int, value: Optional[Dict[str, Any]], error: Optional[str]
+    start: int,
+    end: int,
+    value: Optional[Dict[str, Any]],
+    error: Optional[str],
+    factor: Optional[float] = None,
+    target: Optional[int] = None,
 ) -> Tuple[bool, List[Tuple[int, int]]]:
-    """Returns (keep_value, ranges_still_to_extract) for one finished call."""
+    """Returns (keep_value, ranges_still_to_extract) for one finished call. With a
+    ``factor`` (actual / estimated output tokens) and ``target``, adjacent planned
+    ranges are coalesced up to ``target`` real tokens."""
     if error is not None or not isinstance(value, dict):
         if end > start and (error is None or is_splittable_error(error)):
             mid = (start + end) // 2
@@ -309,6 +327,7 @@ def next_ranges(
     if last >= end:
         return True, []
     ranges = []
+    estimates: Dict[Tuple[int, int], int] = {}
     for planned in status.get("remaining_page_ranges") or []:
         if not isinstance(planned, dict):
             continue
@@ -319,7 +338,94 @@ def next_ranges(
         a, b = max(a, last + 1), min(b, end)
         if a <= b:
             ranges.append((a, b))
-    return True, _cover(sorted(ranges), last + 1, end)
+            estimate = planned.get("estimated_output_tokens")
+            if isinstance(estimate, int) and not isinstance(estimate, bool):
+                estimates[(a, b)] = estimate
+    covered = _cover(sorted(ranges), last + 1, end)
+    if factor is None or target is None:
+        return True, covered
+    return True, coalesce_ranges(
+        [(a, b, estimates.get((a, b))) for a, b in covered], factor, target
+    )
+
+
+def coalesce_ranges(
+    ranges: List[Tuple[int, int, Optional[int]]], factor: float, target: int
+) -> List[Tuple[int, int]]:
+    """Merge consecutive ranges while their corrected estimate stays within ``target``.
+    The model overestimates its own output (1.2-2.6x observed), so its plan is far finer
+    than the target asks for; a range without an estimate is never merged."""
+    merged: List[Tuple[int, int, Optional[float]]] = []
+    for a, b, estimate in ranges:
+        scaled = estimate * factor if estimate is not None else None
+        if (
+            merged
+            and scaled is not None
+            and merged[-1][2] is not None
+            and merged[-1][2] + scaled <= target
+        ):
+            merged[-1] = (merged[-1][0], b, merged[-1][2] + scaled)
+        else:
+            merged.append((a, b, scaled))
+    return [(a, b) for a, b, _ in merged]
+
+
+CHARS_PER_OUTPUT_TOKEN = 2.5  # measured on opus-5 JSON answers: 2.51-2.54
+
+
+def observed_factor(value: Any) -> Optional[float]:
+    """Actual / estimated output tokens for the pages one call extracted, or None when the
+    call reported no usable estimate."""
+    if not isinstance(value, dict):
+        return None
+    status = value.get(STATUS_FIELD)
+    if not isinstance(status, dict):
+        return None
+    total = status.get("estimated_total_output_tokens")
+    if not isinstance(total, int) or isinstance(total, bool) or total <= 0:
+        return None
+    remaining = 0
+    if status.get("complete") is False:
+        for planned in status.get("remaining_page_ranges") or []:
+            estimate = (
+                planned.get("estimated_output_tokens")
+                if isinstance(planned, dict)
+                else None
+            )
+            if isinstance(estimate, int) and not isinstance(estimate, bool):
+                remaining += estimate
+    done = total - remaining
+    if done <= 0:
+        return None
+    answer = {k: v for k, v in value.items() if k != STATUS_FIELD}
+    return len(json.dumps(answer)) / CHARS_PER_OUTPUT_TOKEN / done
+
+
+def correction_factor(observed: List[float]) -> float:
+    """Median of a file's observed factors, clamped; 1.0 (trust the model) until known."""
+    if not observed:
+        return 1.0
+    ordered = sorted(observed)
+    middle = (
+        ordered[len(ordered) // 2]
+        if len(ordered) % 2
+        else (ordered[len(ordered) // 2 - 1] + ordered[len(ordered) // 2]) / 2
+    )
+    return min(max(middle, 0.2), 1.5)
+
+
+HARD_MAX_CALLS_PER_FILE = 60
+
+
+def call_cap(
+    floor: int, estimated_total: Optional[int], factor: float, range_target: int
+) -> int:
+    """Calls a file may use: twice the corrected number of target-sized ranges its answer
+    needs, plus slack, never below ``floor`` nor above HARD_MAX_CALLS_PER_FILE."""
+    if not estimated_total:
+        return floor
+    needed = -(-int(estimated_total * factor) // range_target)
+    return min(HARD_MAX_CALLS_PER_FILE, max(floor, 2 * needed + 4))
 
 
 def _cover(
@@ -345,9 +451,41 @@ def _is_absent(value: Any) -> bool:
     return value is None or value == "" or value == [] or value == {}
 
 
+def continues_across_split(last: Any, first: Any) -> bool:
+    """True when the last array item of one range and the first of the next are one item
+    cut by the split -- e.g. a fund whose holdings end one range and whose totals open the
+    next. They must agree on every value both have, share at least one identifying scalar,
+    and each fill something the other lacks; two complete rows are never joined, so a row
+    printed twice stays twice."""
+    if not isinstance(last, dict) or not isinstance(first, dict):
+        return False
+    shared_scalar = False
+    for key in set(last) & set(first):
+        a, b = last[key], first[key]
+        if _is_absent(a) or _is_absent(b):
+            continue
+        if isinstance(a, dict) and isinstance(b, dict):
+            if not continues_across_split(a, b) and a != b:
+                return False
+        elif isinstance(a, list) or isinstance(b, list):
+            continue
+        elif a != b:
+            return False
+        else:
+            shared_scalar = True
+    fills_last = any(
+        _is_absent(last.get(k)) and not _is_absent(v) for k, v in first.items()
+    )
+    fills_first = any(
+        _is_absent(first.get(k)) and not _is_absent(v) for k, v in last.items()
+    )
+    return shared_scalar and (fills_last or fills_first)
+
+
 def merge_values(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Merge per-range answers given in page order: arrays concatenate, objects merge
-    field by field, scalars keep the first present value."""
+    """Merge per-range answers given in page order: arrays concatenate (joining the item
+    a split cut in two), objects merge field by field, scalars keep the first present
+    value."""
 
     def merge(a: Any, b: Any) -> Any:
         if _is_absent(a):
@@ -355,6 +493,8 @@ def merge_values(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
         if _is_absent(b):
             return a
         if isinstance(a, list) and isinstance(b, list):
+            if continues_across_split(a[-1], b[0]):
+                return a[:-1] + [merge(a[-1], b[0])] + b[1:]
             return a + b
         if isinstance(a, dict) and isinstance(b, dict):
             out = dict(a)
@@ -445,6 +585,11 @@ def run(
         return target
 
     calls = {f: 0 for f in files}
+    caps = {f: max_calls_per_file for f in files}
+    observed: Dict[str, List[float]] = {f: [] for f in files}
+    first_round_estimate: Dict[str, int] = {f: 0 for f in files}
+    range_target = budgets["range"]["target"]
+    round_number = 0
     done: Dict[str, List[Tuple[int, Dict[str, Any]]]] = {f: [] for f in files}
     pending = [
         (f, a, b, first_round_budget(totals[f], sizes[f]))
@@ -457,9 +602,9 @@ def run(
         jobs = []
         oversized = []
         for file, start, end, budget_name in pending:
-            if calls[file] >= max_calls_per_file:
+            if calls[file] >= caps[file]:
                 errors[file].append(
-                    f"pages {start}-{end} not extracted: reached {max_calls_per_file} calls"
+                    f"pages {start}-{end} not extracted: reached {caps[file]} calls"
                 )
                 continue
             staged = part_file(file, start, end)
@@ -471,15 +616,18 @@ def run(
                 continue
             calls[file] += 1
             budget = budgets[budget_name]
+            # Targets are stated in the model's own (over)estimated units so it stops near
+            # the real target; max_tokens stays in real tokens as the hard bound.
+            factor = correction_factor(observed[file])
             params = [
                 model,
                 build_predicate(
                     predicate,
-                    budget["target"],
+                    int(budget["target"] / factor),
                     start,
                     end,
                     totals[file],
-                    plan_target=budgets["range"]["target"],
+                    plan_target=int(range_target / factor),
                 ),
                 staged,
                 json.dumps({**base_parameters, "max_tokens": budget["max_tokens"]}),
@@ -511,7 +659,23 @@ def run(
                 else:
                     done[file].append((start, value))
                 continue
-            keep, remaining = next_ranges(start, end, value, error)
+            factor = observed_factor(value) if error is None else None
+            if factor is not None:
+                observed[file].append(factor)
+            if round_number == 0 and error is None and isinstance(value, dict):
+                estimate = (value.get(STATUS_FIELD) or {}).get(
+                    "estimated_total_output_tokens"
+                )
+                if isinstance(estimate, int) and not isinstance(estimate, bool):
+                    first_round_estimate[file] += estimate
+            keep, remaining = next_ranges(
+                start,
+                end,
+                value,
+                error,
+                factor=correction_factor(observed[file]),
+                target=range_target,
+            )
             if keep:
                 done[file].append((start, value))
             elif not remaining:
@@ -520,6 +684,15 @@ def run(
             # ranges a call planned get the larger per-range budget.
             next_budget = "range" if keep else budget_name
             pending.extend((file, a, b, next_budget) for a, b in remaining)
+        if round_number == 0:
+            for file in files:
+                caps[file] = call_cap(
+                    max_calls_per_file,
+                    first_round_estimate[file],
+                    correction_factor(observed[file]),
+                    range_target,
+                )
+        round_number += 1
 
     rows = []
     for file in files:
