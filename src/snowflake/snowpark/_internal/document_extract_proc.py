@@ -165,36 +165,16 @@ def first_round_budget(total_pages: int, file_bytes: int) -> str:
     return "range"
 
 
-# With SPLIT_ABOVE_PAGES set, documents over that many pages are split up front so no part
-# file exceeds MAX_PAGES_PER_PART pages, context page included. Off by default: on
-# claude-sonnet-5-5 a whole-PDF first call planned real_imedia_full (114 pages) in 11 calls /
-# 32 min, against 12 calls / 44 min when split into three 38-page parts.
-SPLIT_ABOVE_PAGES: Optional[int] = None
-MAX_PAGES_PER_PART = 49
-
-
 def initial_ranges(
-    total_pages: int,
-    file_bytes: int,
-    max_bytes: int = MAX_FILE_BYTES,
-    max_pages: int = MAX_PAGES_PER_PART,
-    split_above_pages: Optional[int] = SPLIT_ABOVE_PAGES,
+    total_pages: int, file_bytes: int, max_bytes: int = MAX_FILE_BYTES
 ) -> List[Tuple[int, int]]:
     """Page ranges for the first round: the whole file when it fits in one call,
-    otherwise the fewest equal ranges that respect both the size and the page limit.
-    Each range after the first also carries one context page, so it is planned one page
-    short of either limit."""
-    split_by_pages = split_above_pages is not None and total_pages > split_above_pages
-    if total_pages <= 1 or (file_bytes <= max_bytes and not split_by_pages):
+    otherwise the fewest equal ranges whose size, estimated from the average page size,
+    stays under ``max_bytes``. Each range after the first also carries one context page,
+    so it is planned one page short."""
+    if file_bytes <= max_bytes or total_pages <= 1:
         return [(1, total_pages)]
-    if not split_by_pages:
-        max_pages = total_pages + 1
-    by_size = (
-        max(1, int(max_bytes / (file_bytes / total_pages)) - 1)
-        if file_bytes > max_bytes
-        else total_pages
-    )
-    limit = max(1, min(by_size, max_pages - 1))
+    limit = max(1, int(max_bytes / (file_bytes / total_pages)) - 1)
     parts = -(-total_pages // limit)
     pages_per_range = -(-total_pages // parts)
     return [

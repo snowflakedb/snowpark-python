@@ -270,32 +270,9 @@ class TestFirstRoundBudget:
 
 
 class TestInitialRanges:
-    def test_file_within_both_limits_is_a_single_range(self):
-        assert initial_ranges(50, 216_000, split_above_pages=50) == [(1, 50)]
-
-    def test_page_split_is_off_by_default(self):
-        assert initial_ranges(114, 11_820_000) == [(1, 114)]
+    def test_file_within_the_byte_limit_is_a_single_range_at_any_page_count(self):
         assert initial_ranges(66, 216_000) == [(1, 66)]
-
-    def test_more_than_fifty_pages_is_split_into_equal_parts_under_fifty(self):
-        assert initial_ranges(66, 216_000, split_above_pages=50) == [(1, 33), (34, 66)]
-        assert initial_ranges(114, 11_820_000, split_above_pages=50) == [
-            (1, 38),
-            (39, 76),
-            (77, 114),
-        ]
-        assert initial_ranges(192, 8_600_000, split_above_pages=50) == [
-            (1, 48),
-            (49, 96),
-            (97, 144),
-            (145, 192),
-        ]
-
-    def test_every_part_file_stays_under_fifty_pages_with_its_context_page(self):
-        for total in range(51, 400):
-            ranges = initial_ranges(total, 1, split_above_pages=50)
-            assert ranges[0][0] == 1 and ranges[-1][1] == total
-            assert all(b - a + 2 <= 49 for a, b in ranges)
+        assert initial_ranges(114, 11_820_000) == [(1, 114)]
 
     def test_file_exactly_at_the_byte_limit_is_a_single_range(self):
         # file_bytes == max_bytes still fits in one call.
