@@ -721,6 +721,14 @@ def run(
     caps = {f: max_calls_per_file for f in files}
     observed: Dict[str, List[float]] = {f: [] for f in files}
     range_target = budgets["range"]["target"]
+    # Models whose estimates are not measured as overestimates skip the correction, and
+    # planned ranges are only coalesced up to merge_target, leaving headroom under max_tokens.
+    correct_estimates = budgets.get("correct_estimates", True)
+    merge_target = budgets.get("merge_target", range_target)
+
+    def file_factor(file: str) -> float:
+        return correction_factor(observed[file]) if correct_estimates else 1.0
+
     done: Dict[str, List[Tuple[int, Dict[str, Any]]]] = {f: [] for f in files}
     pending = [
         (f, a, b, first_round_budget(totals[f], sizes[f]))
@@ -749,7 +757,7 @@ def run(
             budget = budgets[budget_name]
             # Targets are stated in the model's own (over)estimated units so it stops near
             # the real target; max_tokens stays in real tokens as the hard bound.
-            factor = correction_factor(observed[file])
+            factor = file_factor(file)
             params = [
                 model,
                 build_predicate(
@@ -811,8 +819,8 @@ def run(
                 end,
                 value,
                 error,
-                factor=correction_factor(observed[file]),
-                target=range_target,
+                factor=file_factor(file),
+                target=merge_target,
             )
             if keep:
                 done[file].append((start, value))

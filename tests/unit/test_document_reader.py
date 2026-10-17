@@ -49,8 +49,10 @@ class TestModelSettings:
         assert settings["json_mode"] is False
         assert settings["model_parameters"] == {}
         assert settings["budgets"] == {
-            "first": {"target": 120000, "max_tokens": 128000},
+            "first": {"target": 80000, "max_tokens": 128000},
             "range": {"target": 120000, "max_tokens": 128000},
+            "correct_estimates": False,
+            "merge_target": 60000,
         }
 
     def test_an_unrecognized_model_falls_back_to_the_extraction_models_settings(self):

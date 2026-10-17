@@ -80,6 +80,9 @@ _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
 #   (1.2-2.6x measured on opus-5), so a target near max_tokens still leaves real headroom.
 #   "first" applies to the first round of documents over 50 pages or 10 MB.
 #   claude-sonnet-5-5's max_tokens ceiling is 128000 (it rejects anything higher).
+#   claude-sonnet-5-5 underestimates instead (real output ~1.3x its estimate), so it skips
+#   the correction (correct_estimates), its first round aims well below max_tokens, and
+#   planned ranges are coalesced only up to merge_target.
 _MODEL_SETTINGS = {
     "claude-opus-5": {
         "model_parameters": {"temperature": 0},
@@ -93,8 +96,10 @@ _MODEL_SETTINGS = {
         "model_parameters": {},
         "json_mode": False,
         "budgets": {
-            "first": {"target": 120000, "max_tokens": 128000},
+            "first": {"target": 80000, "max_tokens": 128000},
             "range": {"target": 120000, "max_tokens": 128000},
+            "correct_estimates": False,
+            "merge_target": 60000,
         },
     },
 }
