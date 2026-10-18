@@ -35,6 +35,13 @@ from snowflake.snowpark._internal.document_extract_proc import (
     observed_factor,
     parse_text_answer,
     qualify_listed_name,
+    build_plan_predicate,
+    planning_segments,
+    ranges_from_plan,
+    ranges_from_salvaged_status,
+    salvage_status,
+    split_evenly,
+    range_budget,
     schema_instruction,
     shift_page_fields,
     unwrap_envelope,
@@ -258,6 +265,38 @@ class TestFirstRoundBudget:
                 BOUNDED_FIRST_CALL_MIN_PAGES + 1, BOUNDED_FIRST_CALL_MIN_BYTES + 1
             )
             == "first"
+        )
+
+
+# ---------------------------------------------------------------------------
+# range_budget -- a large file's planned ranges use "large_range" when the
+# model defines it, so they are planned and run against the same smaller
+# target; every other file, or a model without it, keeps "range".
+# ---------------------------------------------------------------------------
+
+_WITH_LARGE = {"range": {"target": 120000}, "large_range": {"target": 80000}}
+
+
+class TestRangeBudget:
+    def test_small_file_keeps_the_range_budget(self):
+        assert range_budget(10, 1_000_000, _WITH_LARGE) == "range"
+
+    def test_more_pages_than_the_threshold_gets_the_large_range_budget(self):
+        assert (
+            range_budget(BOUNDED_FIRST_CALL_MIN_PAGES + 1, 1_000_000, _WITH_LARGE)
+            == "large_range"
+        )
+
+    def test_more_bytes_than_the_threshold_gets_the_large_range_budget(self):
+        assert (
+            range_budget(10, BOUNDED_FIRST_CALL_MIN_BYTES + 1, _WITH_LARGE)
+            == "large_range"
+        )
+
+    def test_large_file_without_a_large_range_budget_keeps_the_range_budget(self):
+        assert (
+            range_budget(BOUNDED_FIRST_CALL_MIN_PAGES + 1, 1_000_000, {"range": {}})
+            == "range"
         )
 
 
@@ -1540,3 +1579,165 @@ class TestParseTextAnswer:
         value, error = parse_text_answer('{"a": 1 "b": 2}')
         assert value is None
         assert error.startswith("answer was not valid JSON")
+
+    def test_a_raw_control_character_inside_a_string_is_accepted(self):
+        assert parse_text_answer('{"name": "Alice\tSmith"}') == (
+            {"name": "Alice\tSmith"},
+            None,
+        )
+
+    def test_an_unparseable_answer_is_splittable(self):
+        _, error = parse_text_answer('{"a": 1 "b": 2}')
+        assert is_splittable_error(error) is True
+
+    def test_an_answer_with_no_json_object_is_splittable(self):
+        _, error = parse_text_answer("no JSON here")
+        assert is_splittable_error(error) is True
+
+
+# ---------------------------------------------------------------------------
+# salvage_status / ranges_from_salvaged_status -- a failed text answer still
+# opens with its extraction_status, whose plan re-splits the call's pages
+# instead of blind halves.
+# ---------------------------------------------------------------------------
+
+_CUT_OFF_ANSWER = (
+    '{"extraction_status":{"complete":false,"estimated_total_output_tokens":300000,'
+    '"last_pdf_page_extracted":10,"remaining_page_ranges":['
+    '{"start_pdf_page":11,"end_pdf_page":30,"estimated_output_tokens":120000},'
+    '{"start_pdf_page":31,"end_pdf_page":60,"estimated_output_tokens":120000}]},'
+    '"rows":[{"a":1},{"a":'
+)
+
+
+class TestSalvageStatus:
+    def test_the_status_of_a_cut_off_answer_is_recovered(self):
+        status = salvage_status(_CUT_OFF_ANSWER)
+        assert status["last_pdf_page_extracted"] == 10
+        assert len(status["remaining_page_ranges"]) == 2
+
+    def test_an_answer_cut_off_inside_its_status_gives_none(self):
+        assert salvage_status('{"extraction_status":{"complete":fal') is None
+
+    def test_an_answer_without_a_status_gives_none(self):
+        assert salvage_status('{"rows":[{"a":1},') is None
+
+    def test_a_non_string_gives_none(self):
+        assert salvage_status(None) is None
+
+
+class TestSplitEvenly:
+    def test_pages_are_cut_into_equal_consecutive_parts(self):
+        assert split_evenly(1, 10, 2) == [(1, 5), (6, 10)]
+
+    def test_never_more_parts_than_pages(self):
+        assert split_evenly(4, 5, 3) == [(4, 4), (5, 5)]
+
+
+class TestRangesFromSalvagedStatus:
+    def test_own_pages_are_halved_and_planned_ranges_follow(self):
+        status = salvage_status(_CUT_OFF_ANSWER)
+        assert ranges_from_salvaged_status(1, 60, status, 60000) == [
+            (1, 5),
+            (6, 10),
+            (11, 30),
+            (31, 60),
+        ]
+
+    def test_own_pages_are_cut_finer_when_their_estimate_exceeds_the_target(self):
+        status = salvage_status(_CUT_OFF_ANSWER)  # own pages: 300k - 240k = 60k
+        assert ranges_from_salvaged_status(1, 60, status, 20000)[:3] == [
+            (1, 4),
+            (5, 8),
+            (9, 10),
+        ]
+
+    def test_a_status_without_a_usable_last_page_gives_none(self):
+        assert ranges_from_salvaged_status(1, 60, {"complete": False}, 60000) is None
+
+    def test_a_single_page_status_that_would_repeat_the_call_gives_none(self):
+        status = {"last_pdf_page_extracted": 1, "remaining_page_ranges": []}
+        assert ranges_from_salvaged_status(1, 1, status, 60000) is None
+
+    def test_next_ranges_uses_the_salvaged_plan_for_a_failed_call(self):
+        status = salvage_status(_CUT_OFF_ANSWER)
+        keep, ranges = next_ranges(
+            1,
+            60,
+            None,
+            "unexpected end of JSON input in a text answer",
+            target=60000,
+            salvaged=status,
+        )
+        assert keep is False
+        assert ranges == [(1, 5), (6, 10), (11, 30), (31, 60)]
+
+    def test_next_ranges_falls_back_to_halves_without_a_usable_status(self):
+        keep, ranges = next_ranges(
+            1, 60, None, "unexpected end of JSON input", target=60000, salvaged={}
+        )
+        assert ranges == [(1, 30), (31, 60)]
+
+
+# ---------------------------------------------------------------------------
+# Plan-first mode: planning_segments cuts a large file into equal segments that
+# fit a part file with one context page; build_plan_predicate asks for ranges
+# without extracting; ranges_from_plan maps a planning answer back to pages.
+# ---------------------------------------------------------------------------
+
+
+class TestPlanningSegments:
+    def test_a_long_document_is_cut_into_equal_segments_of_at_most_49_pages(self):
+        assert planning_segments(192, 8_600_000) == [
+            (1, 48),
+            (49, 96),
+            (97, 144),
+            (145, 192),
+        ]
+
+    def test_a_large_file_is_cut_by_size(self):
+        # 114 pages at ~0.52 MB a page: 18 pages + the context page fit 10 MB.
+        segments = planning_segments(114, 59_470_000)
+        assert all(b - a + 1 <= 18 for a, b in segments)
+        assert segments[0][0] == 1 and segments[-1][1] == 114
+
+    def test_a_short_small_file_is_one_segment(self):
+        assert planning_segments(30, 1_000_000) == [(1, 30)]
+
+
+class TestBuildPlanPredicate:
+    def test_a_middle_segment_marks_its_first_position_as_context(self):
+        text = build_plan_predicate("Extract.", 49, 96, 192, 60000, {"type": "object"})
+        assert "Position 1 is the page BEFORE this segment" in text
+        assert "Report positions 2 to 49 of THIS file." in text
+        assert "UNDER 60000 output tokens" in text
+        assert "Do NOT extract this document" in text
+
+    def test_the_first_segment_has_no_context_page(self):
+        text = build_plan_predicate("Extract.", 1, 48, 192, 60000, {"type": "object"})
+        assert "Report positions 1 to 48 of THIS file." in text
+        assert "BEFORE this segment" not in text
+
+
+class TestRangesFromPlan:
+    def test_positions_of_a_middle_segment_map_back_to_document_pages(self):
+        # Segment 49-96: position 2 is page 49, so position k is page k + 47.
+        plan = {"ranges": [[2, 10, 50000], [11, 49, 55000]]}
+        assert ranges_from_plan(plan, 49, 96) == [(49, 57), (58, 96)]
+
+    def test_a_range_on_the_context_page_alone_is_dropped(self):
+        plan = {"ranges": [[1, 1, 100], [2, 49, 55000]]}
+        assert ranges_from_plan(plan, 49, 96) == [(49, 96)]
+
+    def test_pages_the_plan_left_out_get_their_own_range(self):
+        plan = {"ranges": [[1, 10, 50000], [15, 30, 55000]]}
+        assert ranges_from_plan(plan, 1, 30) == [(1, 10), (11, 14), (15, 30)]
+
+    def test_overlapping_ranges_are_trimmed(self):
+        plan = {"ranges": [[1, 12, 50000], [10, 20, 55000]]}
+        assert ranges_from_plan(plan, 1, 20) == [(1, 12), (13, 20)]
+
+    def test_no_usable_ranges_gives_none(self):
+        assert ranges_from_plan({"ranges": [["a", "b"]]}, 1, 20) is None
+        assert ranges_from_plan({"pages": []}, 1, 20) is None
+        assert ranges_from_plan(None, 1, 20) is None

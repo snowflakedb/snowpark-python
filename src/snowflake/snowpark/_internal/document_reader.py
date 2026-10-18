@@ -82,7 +82,11 @@ _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
 #   claude-sonnet-5-5's max_tokens ceiling is 128000 (it rejects anything higher).
 #   claude-sonnet-5-5 underestimates instead (real output ~1.3x its estimate), so it skips
 #   the correction (correct_estimates), its first round aims well below max_tokens, and
-#   planned ranges are coalesced only up to merge_target.
+#   planned ranges are coalesced only up to merge_target. "large_range" applies to the
+#   planned ranges of the same large documents, so they are planned and run against the
+#   same smaller target as their first round. "plan_first" makes those large documents
+#   start with planning-only calls (segments of at most 50 pages / 10 MB) that choose
+#   ranges under range_target, all of which are then extracted at once.
 _MODEL_SETTINGS = {
     "claude-opus-5": {
         "model_parameters": {"temperature": 0},
@@ -98,8 +102,10 @@ _MODEL_SETTINGS = {
         "budgets": {
             "first": {"target": 80000, "max_tokens": 128000},
             "range": {"target": 120000, "max_tokens": 128000},
+            "large_range": {"target": 80000, "max_tokens": 128000},
             "correct_estimates": False,
             "merge_target": 60000,
+            "plan_first": {"range_target": 60000, "max_tokens": 64000},
         },
     },
 }

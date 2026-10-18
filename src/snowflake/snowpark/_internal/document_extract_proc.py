@@ -137,6 +137,8 @@ def is_splittable_error(error: str) -> bool:
         "unexpected end of JSON input" in error
         or "malformed request" in error
         or EMPTY_ANSWER_ERROR in error
+        or UNPARSEABLE_TEXT_ERROR_PREFIX in error
+        or NO_JSON_TEXT_ERROR in error
     )
 
 
@@ -156,12 +158,23 @@ BOUNDED_FIRST_CALL_MIN_PAGES = 50
 BOUNDED_FIRST_CALL_MIN_BYTES = 10_000_000
 
 
-def first_round_budget(total_pages: int, file_bytes: int) -> str:
-    if (
+def is_large_file(total_pages: int, file_bytes: int) -> bool:
+    return (
         total_pages > BOUNDED_FIRST_CALL_MIN_PAGES
         or file_bytes > BOUNDED_FIRST_CALL_MIN_BYTES
-    ):
-        return "first"
+    )
+
+
+def first_round_budget(total_pages: int, file_bytes: int) -> str:
+    return "first" if is_large_file(total_pages, file_bytes) else "range"
+
+
+def range_budget(total_pages: int, file_bytes: int, budgets: Dict[str, Any]) -> str:
+    """Budget for a file's planned ranges: "large_range" for a large file when the model
+    defines one (so its ranges are sized and run against the same smaller target),
+    otherwise "range"."""
+    if "large_range" in budgets and is_large_file(total_pages, file_bytes):
+        return "large_range"
     return "range"
 
 
@@ -268,6 +281,121 @@ def build_predicate(
     )
 
 
+# Plan-first mode (a model's budgets define "plan_first"): a large file is first cut into
+# segments that each carry the previous page as context, and one planning call per segment
+# returns -- without extracting -- calibration samples, rows per page and the page ranges to
+# extract; every planned range then runs at once.
+PLAN_SEGMENT_MAX_PAGES = 50  # pages per planning part file, the context page included
+PLAN_SEGMENT_MAX_BYTES = 10_000_000
+
+
+def planning_segments(
+    total_pages: int,
+    file_bytes: int,
+    max_pages: int = PLAN_SEGMENT_MAX_PAGES,
+    max_bytes: int = PLAN_SEGMENT_MAX_BYTES,
+) -> List[Tuple[int, int]]:
+    """The fewest equal page segments whose part files, with one context page in front,
+    stay within ``max_pages`` pages and (from the average page size) ``max_bytes``."""
+    by_pages = max(1, max_pages - 1)
+    by_size = max(1, int(max_bytes / (file_bytes / max(total_pages, 1))) - 1)
+    limit = min(by_pages, by_size)
+    parts = -(-total_pages // limit)
+    size = -(-total_pages // parts)
+    return [
+        (a, min(a + size - 1, total_pages)) for a in range(1, total_pages + 1, size)
+    ]
+
+
+def build_plan_predicate(
+    predicate: str,
+    start: int,
+    end: int,
+    total_pages: int,
+    target: int,
+    schema: Dict[str, Any],
+) -> str:
+    """The planning prompt for document pages ``start``..``end``."""
+    if start == 1 and end == total_pages:
+        scope = (
+            f"This file is the whole document: pages 1 to {total_pages}. Report "
+            f"positions 1 to {total_pages} of THIS file."
+        )
+    elif start == 1:
+        scope = (
+            f"This file is pages 1 to {end} of a {total_pages}-page document. Report "
+            f"positions 1 to {end} of THIS file."
+        )
+    else:
+        positions = end - start + 2
+        scope = (
+            f"This file is {positions} consecutive pages from the middle of a "
+            f"{total_pages}-page document. Position 1 is the page BEFORE this segment, "
+            "included ONLY as context (for example, the column headers of a table that "
+            "continues onto the next page): do NOT report position 1 and do NOT take "
+            f"samples from it. Report positions 2 to {positions} of THIS file."
+        )
+    return (
+        "Do NOT extract this document. Your job is to plan its extraction as "
+        f"ACCURATELY as possible.\n\nThe extraction instructions are: {predicate}\n\n"
+        f"{scope}\n\n"
+        "How the plan is used: the pages you report will be split into the page ranges "
+        "you choose, and each range is extracted by a separate call, all running at the "
+        "same time. Each call can write at most 128000 output tokens; a call that runs "
+        "past that is cut off, its whole answer is thrown away and minutes of work are "
+        "wasted. So choose consecutive page ranges that each need UNDER "
+        f"{target} output tokens for their extracted JSON, as close to {target} as you "
+        "can without going over, and never split a page. Estimates from counting alone "
+        "have been about 2x too low, because every row repeats all its JSON keys, "
+        "quotes, nulls and punctuation. So measure, do not guess.\n\n"
+        "The extraction will produce JSON conforming to the JSON Schema below.\n\n"
+        "Step 1, calibration: pick 3 pages that are typical of the pages with the MOST "
+        "items, from different parts of the document. For each, write the first 3 "
+        "items of that page exactly as they would appear in the final JSON: every field "
+        "of the schema's array item, with null for missing values, compact JSON.\n\n"
+        "Step 2: for every page you must report, give [page, rows]: its 1-based PDF "
+        "page position within this file (not the number printed on the page) and how "
+        "many items from it would go into the schema's arrays.\n\n"
+        "Step 3: split the pages you must report into consecutive ranges [start_page, "
+        "end_page, estimated_output_tokens] that together cover all of them, each "
+        "estimated from your step 1 measurement (an item's JSON is roughly one token "
+        f"per 1.5 characters) and each under {target} output tokens.\n\n"
+        "Respond with ONLY one compact JSON object, no prose and no markdown code "
+        'fences:\n{"samples": [{"page": 12, "array": "<array field name>", "items": '
+        '[ ... ]}, ...], "pages": [[1, 0], [2, 74], ...], "ranges": [[1, 9, 58000], '
+        "[10, 17, 57000], ...]}\n\n"
+        f"JSON Schema:\n{json.dumps(schema)}"
+    )
+
+
+def ranges_from_plan(
+    value: Any, start: int, end: int
+) -> Optional[List[Tuple[int, int]]]:
+    """Document page ranges from a planning answer for pages ``start``..``end``: positions
+    mapped back to document pages, the context page dropped, overlaps trimmed and any page
+    the plan left out covered by its own range. None when the plan has no usable range."""
+    if not isinstance(value, dict) or not isinstance(value.get("ranges"), list):
+        return None
+    ranges = []
+    for item in value["ranges"]:
+        if not (
+            isinstance(item, list)
+            and len(item) >= 2
+            and all(isinstance(x, int) and not isinstance(x, bool) for x in item[:2])
+        ):
+            continue
+        a = _to_document_page(item[0], start, end)
+        b = _to_document_page(item[1], start, end)
+        if a is None or b is None:
+            continue
+        a, b = max(a, start), min(b, end)
+        if a <= b:
+            ranges.append((a, b))
+    if not ranges:
+        return None
+    return _cover(sorted(ranges), start, end)
+
+
 def unwrap_envelope(value: Any, schema: Dict[str, Any]) -> Any:
     """claude-opus-5 sometimes nests its whole answer under one undeclared key such as
     ``{"input": {...}}``. json mode accepts it because ``additionalProperties`` cannot be
@@ -363,12 +491,18 @@ def next_ranges(
     error: Optional[str],
     factor: Optional[float] = None,
     target: Optional[int] = None,
+    salvaged: Optional[Dict[str, Any]] = None,
 ) -> Tuple[bool, List[Tuple[int, int]]]:
     """Returns (keep_value, ranges_still_to_extract) for one finished call. With a
     ``factor`` (actual / estimated output tokens) and ``target``, adjacent planned
-    ranges are coalesced up to ``target`` real tokens."""
+    ranges are coalesced up to ``target`` real tokens. A failed call's ``salvaged``
+    status, when usable, re-splits its pages along its own plan instead of in halves."""
     if error is not None or not isinstance(value, dict):
         if end > start and (error is None or is_splittable_error(error)):
+            if salvaged is not None:
+                ranges = ranges_from_salvaged_status(start, end, salvaged, target)
+                if ranges:
+                    return False, ranges
             mid = (start + end) // 2
             return False, [(start, mid), (mid + 1, end)]
         return False, []
@@ -598,6 +732,8 @@ def schema_instruction(schema: Dict[str, Any]) -> str:
 
 
 TRUNCATED_TEXT_ERROR = "unexpected end of JSON input in a text answer"
+UNPARSEABLE_TEXT_ERROR_PREFIX = "answer was not valid JSON"
+NO_JSON_TEXT_ERROR = "answer contained no JSON object"
 
 
 def _brackets_close(text: str) -> bool:
@@ -634,10 +770,11 @@ def parse_text_answer(text: Any) -> Tuple[Any, Optional[str]]:
             body = body.rstrip()[:-3]
     first = body.find("{")
     if first < 0:
-        return None, "answer contained no JSON object"
+        return None, NO_JSON_TEXT_ERROR
     candidate = body[first:]
     try:
-        value, _ = json.JSONDecoder().raw_decode(candidate)
+        # strict=False: a raw tab or newline inside a string is still a usable answer.
+        value, _ = json.JSONDecoder(strict=False).raw_decode(candidate)
     except json.JSONDecodeError as exc:
         # An answer cut off by max_tokens usually stops mid-string, and the decoder then
         # points at where that string *started*, not at the end -- so also treat any answer
@@ -648,10 +785,69 @@ def parse_text_answer(text: Any) -> Tuple[Any, Optional[str]]:
             or not _brackets_close(candidate)
         ):
             return None, TRUNCATED_TEXT_ERROR
-        return None, f"answer was not valid JSON: {exc.msg}"
+        return None, f"{UNPARSEABLE_TEXT_ERROR_PREFIX}: {exc.msg}"
     if not isinstance(value, dict):
         return None, "answer JSON was not an object"
     return value, None
+
+
+def salvage_status(text: Any) -> Optional[Dict[str, Any]]:
+    """The extraction_status object of a text answer that does not parse as a whole. The
+    status is written first, so an answer cut off later usually still holds it intact."""
+    if not isinstance(text, str):
+        return None
+    key = text.find(f'"{STATUS_FIELD}"')
+    brace = text.find("{", key) if key >= 0 else -1
+    if brace < 0:
+        return None
+    try:
+        status, _ = json.JSONDecoder(strict=False).raw_decode(text[brace:])
+    except json.JSONDecodeError:
+        return None
+    return status if isinstance(status, dict) else None
+
+
+def split_evenly(start: int, end: int, parts: int) -> List[Tuple[int, int]]:
+    parts = max(1, min(parts, end - start + 1))
+    size = -(-(end - start + 1) // parts)
+    return [(a, min(a + size - 1, end)) for a in range(start, end + 1, size)]
+
+
+def ranges_from_salvaged_status(
+    start: int, end: int, status: Dict[str, Any], target: Optional[int]
+) -> Optional[List[Tuple[int, int]]]:
+    """Ranges for a failed call's pages from the plan in its salvaged status, instead of
+    blind halves. The pages it meant to extract itself overflowed, so they are cut into at
+    least two pieces (more if its own estimate for them exceeds ``target``); the pages it
+    planned follow as planned. None when the status gives nothing usable."""
+    last = _to_document_page(status.get("last_pdf_page_extracted"), start, end)
+    if last is None or last < start:
+        return None
+    planned: List[Tuple[int, int]] = []
+    remaining_estimate = 0
+    for item in status.get("remaining_page_ranges") or []:
+        if not isinstance(item, dict):
+            continue
+        a = _to_document_page(item.get("start_pdf_page"), start, end)
+        b = _to_document_page(item.get("end_pdf_page"), start, end)
+        if a is None or b is None:
+            continue
+        a, b = max(a, last + 1), min(b, end)
+        if a <= b:
+            planned.append((a, b))
+            estimate = item.get("estimated_output_tokens")
+            if isinstance(estimate, int) and not isinstance(estimate, bool):
+                remaining_estimate += estimate
+    total = status.get("estimated_total_output_tokens")
+    pieces = 2
+    if target and isinstance(total, int) and not isinstance(total, bool):
+        pieces = max(pieces, -(-(total - remaining_estimate) // target))
+    ranges = split_evenly(start, min(last, end), pieces)
+    if last < end:
+        ranges += _cover(sorted(planned), last + 1, end)
+    if ranges == [(start, end)]:
+        return None
+    return ranges
 
 
 def run(
@@ -720,6 +916,8 @@ def run(
     calls = {f: 0 for f in files}
     caps = {f: max_calls_per_file for f in files}
     observed: Dict[str, List[float]] = {f: [] for f in files}
+    range_budgets = {f: range_budget(totals[f], sizes[f], budgets) for f in files}
+    range_targets = {f: budgets[range_budgets[f]]["target"] for f in files}
     range_target = budgets["range"]["target"]
     # Models whose estimates are not measured as overestimates skip the correction, and
     # planned ranges are only coalesced up to merge_target, leaving headroom under max_tokens.
@@ -737,6 +935,72 @@ def run(
             initial_ranges(totals[f], sizes[f]) if readers[f] is not None else [(1, 1)]
         )
     ]
+    plan_first = budgets.get("plan_first")
+    planned = [
+        f
+        for f in files
+        if plan_first and readers[f] is not None and is_large_file(totals[f], sizes[f])
+    ]
+    if planned:
+        pending = [item for item in pending if item[0] not in planned]
+        plan_schema = json.loads(response_format)["schema"]
+        plan_jobs = []
+        for file in planned:
+            for a, b in planning_segments(totals[file], sizes[file]):
+                staged = part_file(file, a, b)
+                if staged is None:  # still over the size limit: plan it the old way
+                    pending.append((file, a, b, "first"))
+                    continue
+                calls[file] += 1
+                plan_jobs.append(
+                    (
+                        file,
+                        a,
+                        b,
+                        session.sql(
+                            _AI_COMPLETE_TEXT_SQL,
+                            params=[
+                                model,
+                                build_plan_predicate(
+                                    predicate,
+                                    a,
+                                    b,
+                                    totals[file],
+                                    plan_first["range_target"],
+                                    plan_schema,
+                                ),
+                                staged,
+                                json.dumps(
+                                    {
+                                        **base_parameters,
+                                        "max_tokens": plan_first["max_tokens"],
+                                    }
+                                ),
+                            ],
+                        ).collect_nowait(),
+                    )
+                )
+        for file, a, b, job in plan_jobs:
+            try:
+                raw = job.result()[0][0]
+                result = json.loads(raw) if isinstance(raw, str) else raw
+                value, error = result.get("value"), result.get("error")
+                if error is None:
+                    value, error = parse_text_answer(value)
+            except Exception as exc:
+                value, error = None, str(exc)
+            ranges = ranges_from_plan(value, a, b) if error is None else None
+            if ranges:
+                pending.extend((file, x, y, range_budgets[file]) for x, y in ranges)
+            else:
+                # A failed or unusable plan: this segment's first call extracts and
+                # plans its own remainder, as without plan_first.
+                pending.append((file, a, b, "first"))
+        for file in planned:
+            queued = sum(1 for item in pending if item[0] == file)
+            caps[file] = max(
+                caps[file], min(HARD_MAX_CALLS_PER_FILE, calls[file] + 2 * queued + 4)
+            )
     while pending:
         jobs = []
         oversized = []
@@ -766,7 +1030,7 @@ def run(
                     start,
                     end,
                     totals[file],
-                    plan_target=int(range_target / factor),
+                    plan_target=int(range_targets[file] / factor),
                 )
                 + instruction,
                 staged,
@@ -790,11 +1054,15 @@ def run(
                 raw = job.result()[0][0]
                 result = json.loads(raw) if isinstance(raw, str) else raw
                 value, error = result.get("value"), result.get("error")
+                salvaged = None
                 if error is None and not json_mode:
-                    value, error = parse_text_answer(value)
+                    text = value
+                    value, error = parse_text_answer(text)
+                    if error is not None:
+                        salvaged = salvage_status(text)
                 value = unwrap_envelope(value, sent_format["schema"])
             except Exception as exc:
-                value, error = None, str(exc)
+                value, error, salvaged = None, str(exc), None
             if error is None and is_empty_answer(value):
                 value, error = None, EMPTY_ANSWER_ERROR
             if readers[file] is None:
@@ -812,7 +1080,9 @@ def run(
                 if estimate is not None:
                     caps[file] = max(
                         caps[file],
-                        call_cap(max_calls_per_file, estimate, 1.0, range_target),
+                        call_cap(
+                            max_calls_per_file, estimate, 1.0, range_targets[file]
+                        ),
                     )
             keep, remaining = next_ranges(
                 start,
@@ -821,14 +1091,15 @@ def run(
                 error,
                 factor=file_factor(file),
                 target=merge_target,
+                salvaged=salvaged,
             )
             if keep:
                 done[file].append((start, value))
             elif not remaining:
                 errors[file].append(f"pages {start}-{end}: {error}")
-            # Halves of a failed call know no more than it did, so they keep its budget;
-            # ranges a call planned get the larger per-range budget.
-            next_budget = "range" if keep else budget_name
+            # Ranges re-split from a failed call (halves, or along its salvaged plan) keep
+            # its budget; ranges a successful call planned get the per-range budget.
+            next_budget = range_budgets[file] if keep else budget_name
             pending.extend((file, a, b, next_budget) for a, b in remaining)
 
     rows = []

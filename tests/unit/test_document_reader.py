@@ -51,8 +51,10 @@ class TestModelSettings:
         assert settings["budgets"] == {
             "first": {"target": 80000, "max_tokens": 128000},
             "range": {"target": 120000, "max_tokens": 128000},
+            "large_range": {"target": 80000, "max_tokens": 128000},
             "correct_estimates": False,
             "merge_target": 60000,
+            "plan_first": {"range_target": 60000, "max_tokens": 64000},
         }
 
     def test_an_unrecognized_model_falls_back_to_the_extraction_models_settings(self):
