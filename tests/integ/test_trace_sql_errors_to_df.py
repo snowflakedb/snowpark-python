@@ -244,6 +244,42 @@ def test_missing_table_with_dataframe_operations(
     ), f"Missing object trace not found for operation: {operation_name}"
 
 
+@pytest.mark.parametrize(
+    "operation_name,operation_func",
+    [
+        ("select", lambda df: df.select("A")),
+        ("select_expr", lambda df: df.select((col("A") + 1).alias("B"))),
+        ("select_chain", lambda df: df.select("A").select("A")),
+        ("filter_then_select", lambda df: df.filter(col("A") > 0).select("A")),
+    ],
+)
+def test_missing_table_context_when_error_is_raised_during_construction(
+    session, operation_name, operation_func
+):
+    """The describe that fails while building the dataframe must carry the same debug
+    context as an error raised at collect()."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    with pytest.raises(SnowparkSQLException) as ex:
+        operation_func(session.table("NON_EXISTENT_TABLE"))
+
+    assert "Missing object 'NON_EXISTENT_TABLE' corresponds to Python source" in str(
+        ex.value.debug_context
+    ), f"Missing object context not found for operation: {operation_name}"
+
+
+def test_missing_table_context_points_to_table_line_when_error_is_raised_during_construction(
+    session,
+):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    with pytest.raises(SnowparkSQLException) as ex:
+        line_number = Utils.get_current_line_number_sys()
+        session.table("NON_EXISTENT_TABLE").select("A")
+
+    assert f"line {line_number + 1}" in str(ex.value.debug_context)
+
+
 def test_existing_table_with_save_as_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([{"a": 1, "b": 2}])
