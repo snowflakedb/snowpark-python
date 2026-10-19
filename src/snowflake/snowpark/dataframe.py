@@ -735,6 +735,14 @@ class DataFrame:
             # Getting the plan attributes may run a describe query
             # and populates the schema for the dataframe.
             self._plan.attributes
+            # Without the SQL simplifier, Filter and Sort plans inherit the attributes
+            # of their child when reduce_describe_query_enabled is on, so no describe
+            # runs. Describe the full query to validate the clause.
+            if (
+                isinstance(self._plan.source_plan, (Filter, Sort))
+                and len(self._plan.queries) == 1
+            ):
+                self._plan._describe_full_query()
 
     def _set_ast_ref(self, dataframe_expr_builder: Any) -> None:
         """
@@ -1760,7 +1768,6 @@ class DataFrame:
         return snowpandas_df
 
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
-
         _emit_ast = self._ast_id is not None and self._session.ast_enabled
 
         if isinstance(item, str):

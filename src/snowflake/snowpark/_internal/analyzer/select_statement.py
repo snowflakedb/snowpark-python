@@ -1666,6 +1666,18 @@ class SelectStatement(Selectable):
 
         return new
 
+    def _validate_clause_eagerly(self) -> None:
+        """In eager schema validation mode, describes the full query of a statement that
+        has a WHERE or ORDER BY clause, because its schema query omits both clauses.
+        Skipped when the query depends on pre-actions (temp objects)."""
+        if not context._debug_eager_schema_validation:
+            return
+        if self.where is None and not self.order_by:
+            return
+        if self.pre_actions:
+            return
+        self.snowflake_plan._describe_full_query()
+
     def filter(self, col: Expression) -> "SelectStatement":
         self._session._retrieve_aggregation_function_list()
         can_be_flattened = (
@@ -1711,6 +1723,8 @@ class SelectStatement(Selectable):
         if self._session.reduce_describe_query_enabled:
             new.attributes = self.attributes
 
+        new._validate_clause_eagerly()
+
         return new
 
     def sort(self, cols: List[Expression]) -> "SelectStatement":
@@ -1744,6 +1758,8 @@ class SelectStatement(Selectable):
             )
         if self._session.reduce_describe_query_enabled:
             new.attributes = self.attributes
+
+        new._validate_clause_eagerly()
 
         return new
 
