@@ -368,6 +368,43 @@ def test_empty_query(session, udtf_configs):
     assert df.collect() == []
 
 
+def test_postgres_multiple_partitions_execute(session, postgres_udtf_configs):
+    """Actually execute a partitioned read, not just check the generated SQL.
+
+    Each partition is a separate ``process()`` invocation on its own handler
+    instance, so this covers the repeated-invocation path that only renders as
+    SQL strings in ``test_partitions``.
+    """
+    row_count = 100
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query=f"select i as id from generate_series(1,{row_count}) i",
+        column="ID",
+        lower_bound=0,
+        upper_bound=row_count,
+        num_partitions=3,
+    )
+    ids = sorted(int(row["ID"]) for row in df.collect())
+    # No rows dropped, none duplicated across partition boundaries.
+    assert ids == list(range(1, row_count + 1))
+
+
+def test_postgres_invalid_query_reports_ingestion_error(session, postgres_udtf_configs):
+    """A source-side query failure must keep the ``Ingestion error: `` prefix.
+
+    The query is executed inside the UDTF's lazily evaluated Stream, so this
+    guards the in-lambda handler catching ``Exception`` rather than only
+    ``SQLException``.
+    """
+    with pytest.raises(SnowparkSQLException, match="Ingestion error: "):
+        session.read.jdbc(
+            url=POSTGRES_URL,
+            udtf_configs=postgres_udtf_configs,
+            query="select no_such_column from no_such_table",
+        ).collect()
+
+
 def test_connect_postgres(session, postgres_udtf_configs):
     df = session.read.jdbc(
         url=POSTGRES_URL,
