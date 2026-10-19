@@ -87,6 +87,10 @@ from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
     is_sql_select_statement,
 )
+from snowflake.snowpark._internal.analyzer.metadata_utils import (
+    validate_clause_columns,
+    validate_projection_columns,
+)
 import snowflake.snowpark.context as context
 
 from collections.abc import Iterable
@@ -1372,6 +1376,34 @@ class SelectStatement(Selectable):
 
         return self._projection_complexities
 
+    def _validate_projection_columns(self, cols: List[Expression]) -> None:
+        """Raises if `cols` reference a column that is not in the stored column states.
+        Does nothing if the column states have not been stored."""
+        states = self._column_states
+        if states is None:
+            return
+        validate_projection_columns(
+            cols,
+            states.active_columns,
+            self.analyzer,
+            self.df_aliased_col_name_to_real_col_name,
+            [attr.name for attr in states.projection],
+        )
+
+    def _validate_clause_columns(self, exprs: List[Expression]) -> None:
+        """Raises if a filter or sort references a column that is not in the stored column
+        states. Dropped columns are accepted because the clause may be flattened into the
+        same select. Does nothing if the column states have not been stored."""
+        states = self._column_states
+        if states is None:
+            return
+        validate_clause_columns(
+            exprs,
+            set(states.keys()),
+            self.df_aliased_col_name_to_real_col_name,
+            [attr.name for attr in states.projection],
+        )
+
     def select(self, cols: List[Expression]) -> "SelectStatement":
         """Build a new query. This SelectStatement will be the subquery of the new query.
         Possibly flatten the new query and the subquery (self) to form a new flattened query.
@@ -1404,6 +1436,8 @@ class SelectStatement(Selectable):
             return new
         disable_next_level_flatten = False
         new_column_states = derive_column_states_from_subquery(cols, self)
+        if context._enable_metadata_validation:
+            self._validate_projection_columns(cols)
         if new_column_states is None:
             can_be_flattened = False
             disable_next_level_flatten = True
@@ -1693,6 +1727,8 @@ class SelectStatement(Selectable):
             )  # sum(col) as new_col, new_col can not be flattened in where clause
             and not (self.order_by and self.limit_ is not None)
         )
+        if context._enable_metadata_validation:
+            self._validate_clause_columns([col])
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
@@ -1725,6 +1761,8 @@ class SelectStatement(Selectable):
             )
             and not has_data_generator_exp(self.projection)
         )
+        if context._enable_metadata_validation:
+            self._validate_clause_columns(cols)
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
