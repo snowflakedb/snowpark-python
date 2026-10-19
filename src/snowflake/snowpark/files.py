@@ -180,9 +180,7 @@ class SnowflakeFile(RawIOBase):
         For large JSON files, use an incremental parser instead of ``json.load``
         or ``json.loads``, which materialize the whole document. The following
         UDTF handler reads a top-level array of objects, each with a string
-        ``name`` field, and yields one name per row. Register it with a single
-        STRING output column and include ``snowflake-snowpark-python`` and
-        ``ijson`` in the UDTF's packages. Pass a scoped file URL as its argument::
+        ``name`` field, and yields one name per row::
 
             import codecs
             import ijson
@@ -207,6 +205,39 @@ class SnowflakeFile(RawIOBase):
                         parser.close()
                         for record in records:
                             yield (record["name"],)
+
+        For example, upload a UTF-8 file named ``names.json`` to a stage you can
+        read. The file can have an initial BOM and contains::
+
+            [{"name": "Alice"}, {"name": "Bob"}]
+
+        With an existing Snowpark ``session`` and a current database and schema
+        where you can create functions, register the handler as a temporary UDTF::
+
+            from snowflake.snowpark.types import StringType, StructField, StructType
+
+            session.udtf.register(
+                ReadJsonArray,
+                name="read_json_array",
+                input_types=[StringType()],
+                output_schema=StructType([StructField("NAME", StringType())]),
+                packages=["snowflake-snowpark-python", "ijson"],
+                is_permanent=False,
+            )
+
+        Replace ``my_stage`` with your stage name, then call the UDTF::
+
+            rows = session.sql('''
+                SELECT NAME
+                FROM TABLE(read_json_array(
+                    BUILD_SCOPED_FILE_URL(@my_stage, 'names.json')
+                ))
+            ''').collect()
+            print(sorted(row["NAME"] for row in rows))
+
+        Output for this two-record file::
+
+            ['Alice', 'Bob']
 
         This example retains the parser's current record and the records
         completed in one input chunk, rather than the entire array. An individual
