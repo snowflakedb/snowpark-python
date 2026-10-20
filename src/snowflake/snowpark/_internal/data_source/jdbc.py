@@ -415,34 +415,40 @@ class JDBC:
             }}
 
             public Stream<OutputRow> process(String query) {{
-                try {{
-                    Statement stmt = this.conn.createStatement();
-                    stmt.setQueryTimeout({str(self.query_timeout)});
-                    stmt.setFetchSize({str(self.fetch_size)});
-                    {self.generate_session_init_statement()}
-                    ResultSet rs = stmt.executeQuery(query);
-                    ResultSetMetaData meta = rs.getMetaData();
-                    int columnCount = meta.getColumnCount();
-                    Stream<OutputRow> resultStream = Stream.generate(() -> {{
-                        try {{
-                            if (rs.next()) {{
-                                OutputRow row = new OutputRow();
-                                {self.create_output_row_java_code()}
-                                return row;
-                            }} else {{
-                                rs.close();
-                                stmt.close();
-                                this.conn.close();
-                                return null;
-                            }}
-                        }} catch (SQLException e) {{
-                            throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
+                // Execute lazily, on the first pull from the returned Stream.
+                // JAVA_UDF_HANDLER_TIMEOUT_SECONDS (600s by default) only bounds the time
+                // until process() returns, so calling executeQuery() here would charge the
+                // source's entire query time against it. Row fetching stays lazy.
+                final Statement[] stmtRef = new Statement[1];
+                final ResultSet[] rsRef = new ResultSet[1];
+                return Stream.generate(() -> {{
+                    try {{
+                        if (rsRef[0] == null) {{
+                            Statement stmt = this.conn.createStatement();
+                            stmt.setQueryTimeout({str(self.query_timeout)});
+                            stmt.setFetchSize({str(self.fetch_size)});
+                            {self.generate_session_init_statement()}
+                            stmtRef[0] = stmt;
+                            rsRef[0] = stmt.executeQuery(query);
                         }}
-                    }}).takeWhile(Objects::nonNull);
-                    return resultStream;
-                }} catch (Exception e) {{
-                    throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
-                }}
+                        ResultSet rs = rsRef[0];
+                        if (rs.next()) {{
+                            OutputRow row = new OutputRow();
+                            {self.create_output_row_java_code()}
+                            return row;
+                        }} else {{
+                            rs.close();
+                            stmtRef[0].close();
+                            this.conn.close();
+                            return null;
+                        }}
+                    }} catch (Exception e) {{
+                        // Exception rather than SQLException: this block now also covers
+                        // connection and statement setup, whose failures are not always
+                        // SQLException.
+                        throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
+                    }}
+                }}).takeWhile(Objects::nonNull);
             }}
 
             public Stream<OutputRow> endPartition() {{
