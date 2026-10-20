@@ -8,6 +8,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
+
 #### Improvements
 
 ## 1.55.2 (2026-10-13)
