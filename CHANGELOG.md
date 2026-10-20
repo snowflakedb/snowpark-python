@@ -12,6 +12,8 @@
 
 #### Improvements
 
+- Added debuggability improvements to raise `SnowparkPlanException` at the line of `select`, `with_column(s)`, `filter` and `sort` when they reference a column that is missing from the column names the client already holds, without sending extra queries. Enable it using `snowflake.snowpark.context.configure_development_features(enable_metadata_validation=True)`.
+
 ## 1.55.2 (2026-10-13)
 
 ### Snowpark Python API Updates

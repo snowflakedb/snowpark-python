@@ -3,15 +3,29 @@
 #
 from enum import Enum
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
+from typing import (
+    TYPE_CHECKING,
+    AbstractSet,
+    DefaultDict,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Union,
+)
 from snowflake.snowpark.types import DataType
 
 from snowflake.snowpark._internal.analyzer.expression import (
+    COLUMN_DEPENDENCY_ALL,
+    COLUMN_DEPENDENCY_DOLLAR,
     Attribute,
     Expression,
     Literal,
     Star,
+    UnresolvedAttribute,
+    derive_dependent_columns,
 )
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -82,6 +96,120 @@ def infer_quoted_identifiers_from_expressions(
         else:
             return None
     return result
+
+
+def find_missing_column(
+    dependent_columns: Optional[AbstractSet[str]],
+    known_columns: Optional[AbstractSet[str]],
+    produced_columns: AbstractSet[str] = frozenset(),
+) -> Optional[str]:
+    """
+    Returns the first referenced column that is missing from the known columns, or None.
+
+    The stored column names are trusted when present. This is a no-op (returns None) whenever
+    the answer is uncertain: the known names are unavailable, the referenced columns can't be
+    derived (SQL text, `*`, `$n`), or a name looks like a qualified or path reference.
+
+    Args:
+        dependent_columns: columns referenced by the expressions, from `derive_dependent_columns`.
+        known_columns: quoted names of the columns in scope, or None if not stored.
+        produced_columns: names produced by other expressions in the same projection, which
+            can be referenced at the same level (lateral alias).
+    """
+    if known_columns is None:
+        return None
+    if (
+        dependent_columns is COLUMN_DEPENDENCY_ALL
+        or dependent_columns == COLUMN_DEPENDENCY_DOLLAR
+    ):
+        return None
+    assert dependent_columns is not None
+    for name in sorted(dependent_columns):
+        if name in known_columns or name in produced_columns:
+            continue
+        if "." in name or "$" in name or "*" in name:
+            return None
+        return name
+    return None
+
+
+def _is_plain_column(expr: Expression) -> bool:
+    return isinstance(expr, Attribute) or (
+        isinstance(expr, UnresolvedAttribute) and not expr.is_sql_text
+    )
+
+
+def _raise_invalid_identifier(name: str, known_columns: Iterable[str]) -> None:
+    from snowflake.snowpark._internal.debug_utils import get_existing_identifiers_hint
+
+    hint = get_existing_identifiers_hint(name.strip('"'), list(known_columns))
+    raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name, hint)
+
+
+def validate_projection_columns(
+    cols: List[Expression],
+    known_columns: Optional[AbstractSet[str]],
+    analyzer: "Analyzer",
+    df_aliased_col_name_to_real_col_name: Union[
+        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+    ],
+    ordered_known_columns: Optional[Iterable[str]] = None,
+) -> None:
+    """
+    Raises SnowparkPlanException if a projection references a column that is not in
+    `known_columns`. Does nothing when the check can't be made with certainty.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        parse_column_name,
+    )
+    from snowflake.snowpark._internal.utils import quote_name
+
+    if known_columns is None or df_aliased_col_name_to_real_col_name:
+        return
+    # Names of computed or aliased columns can be referenced by other columns of the same select.
+    produced_by: List[Optional[str]] = []
+    for c in cols:
+        if _is_plain_column(c) or (
+            isinstance(c, UnresolvedAlias) and _is_plain_column(c.child)
+        ):
+            produced_by.append(None)
+            continue
+        name = parse_column_name(c, analyzer, df_aliased_col_name_to_real_col_name)
+        produced_by.append(None if name is None else quote_name(name))
+    for i, c in enumerate(cols):
+        produced = {n for j, n in enumerate(produced_by) if j != i and n is not None}
+        missing = find_missing_column(
+            derive_dependent_columns(c), known_columns, produced
+        )
+        if missing is not None:
+            _raise_invalid_identifier(
+                missing,
+                known_columns
+                if ordered_known_columns is None
+                else ordered_known_columns,
+            )
+
+
+def validate_clause_columns(
+    exprs: List[Expression],
+    known_columns: Optional[AbstractSet[str]],
+    df_aliased_col_name_to_real_col_name: Union[
+        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+    ],
+    ordered_known_columns: Optional[Iterable[str]] = None,
+) -> None:
+    """
+    Raises SnowparkPlanException if a filter or sort expression references a column that is
+    not in `known_columns`. Does nothing when the check can't be made with certainty.
+    """
+    if known_columns is None or df_aliased_col_name_to_real_col_name:
+        return
+    missing = find_missing_column(derive_dependent_columns(*exprs), known_columns)
+    if missing is not None:
+        _raise_invalid_identifier(
+            missing,
+            known_columns if ordered_known_columns is None else ordered_known_columns,
+        )
 
 
 def _extract_inferable_attribute_names(
