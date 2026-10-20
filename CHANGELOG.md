@@ -10,6 +10,7 @@
 
 #### Improvements
 
+- Documented in `snowflake.snowpark.context.configure_development_features` that the source locations reported by the tracing features include a column range on Python 3.11 and later and only the line on Python 3.10.
 - `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them. Turning the tracing features off now also restores the automatic temporary table clean-up, and the AST collection if the features were what enabled it.
 - Added debuggability improvements to raise `SnowparkPlanException` at the line of `select`, `with_column(s)`, `filter` and `sort` when they reference a column that is missing from the column names the client already holds, without sending extra queries. Enable it using `snowflake.snowpark.context.configure_development_features(enable_metadata_validation=True)`.
 

@@ -228,6 +228,11 @@ def configure_development_features(
         tables, and the AST collection if it was off before. A setting you changed yourself
         in the meantime, such as ``session.ast_enabled`` set to ``True`` before enabling the
         features or ``session.auto_clean_up_temp_table_enabled`` set after enabling them, is kept.
+
+        The source locations that the tracing features report depend on the Python version.
+        Python 3.11 and later give the line and the column range of the dataframe operation;
+        Python 3.10 gives the line only, so a multi-line expression is shown by its first line.
+        Python 3.9 and earlier are not supported by this package.
     """
     _logger.warning(
         "configure_development_features() is experimental since 1.33.0. Do not use it in production.",

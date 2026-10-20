@@ -2,7 +2,10 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import inspect
+import sys
 from decimal import Decimal
+from unittest import mock
 
 import pytest
 
@@ -12,6 +15,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_view_name,
     build_name,
     extract_src_from_expr,
+    with_src_position,
 )
 from snowflake.snowpark._internal.proto.generated import ast_pb2 as proto
 
@@ -130,3 +134,30 @@ def test_extract_src_from_expr():
     expr = proto.Expr()
     result = extract_src_from_expr(expr)
     assert result is None
+
+
+def _capture_src_position():
+    expr = proto.Expr()
+    with_src_position(expr.string_val)
+    return expr.string_val.src
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 11), reason="Column ranges need Python 3.11 or later"
+)
+def test_src_position_has_column_range_on_python_311_and_later():
+    line = inspect.currentframe().f_lineno + 1
+    src = _capture_src_position()
+    assert src.start_line == line
+    assert src.end_line == line
+    assert src.end_column > src.start_column
+
+
+def test_src_position_has_only_the_line_before_python_311():
+    with mock.patch("sys.version_info", (3, 10)):
+        line = inspect.currentframe().f_lineno + 1
+        src = _capture_src_position()
+    assert src.start_line == line
+    assert src.end_line == 0
+    assert src.start_column == 0
+    assert src.end_column == 0
