@@ -302,8 +302,10 @@ def override_time_zone(tz_name: str = "EST") -> None:
     _logger.debug(f"Overriding time zone to {tz_name} ({tz_code}).")
 
     if platform.system() != "Windows":
-        # This works only under Unix systems.
-        os.environ["TZ"] = tz_name
+        # This works only under Unix systems. Use a POSIX TZ string (name + offset) instead of the bare name:
+        # newer distros (e.g. Ubuntu 26.04) do not ship the legacy /usr/share/zoneinfo/EST file, and libc then
+        # silently falls back to UTC offset 0.
+        os.environ["TZ"] = "EST5" if tz_name == "EST" else tz_name
         time.tzset()
     else:
         # Under windows the CPython implementation uses localtime_s (https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/localtime-s-localtime32-s-localtime64-s?view=msvc-170)
