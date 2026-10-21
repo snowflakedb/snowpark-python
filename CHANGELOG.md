@@ -13,6 +13,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
 - Fixed `DataFrameReader.jdbc`(PrPr) timing out on slow external data sources by executing the source query lazily.
 
 #### Improvements
