@@ -247,21 +247,47 @@ def test_missing_table_with_dataframe_operations(
 @pytest.mark.parametrize(
     "operation_name,operation_func",
     [
-        ("select", lambda df: df.select("A")),
-        ("select_expr", lambda df: df.select((col("A") + 1).alias("B"))),
-        ("select_chain", lambda df: df.select("A").select("A")),
-        ("filter_then_select", lambda df: df.filter(col("A") > 0).select("A")),
+        # from_ is a SelectableEntity (table)
+        ("table_select", lambda t, session: t.select("A")),
+        ("table_select_expr", lambda t, session: t.select((col("A") + 1).alias("B"))),
+        ("table_select_chain", lambda t, session: t.select("A").select("A")),
+        ("table_filter", lambda t, session: t.filter(col("A") > 0)),
+        ("table_sort", lambda t, session: t.sort("A")),
+        (
+            "table_filter_then_select",
+            lambda t, session: t.filter(col("A") > 0).select("A"),
+        ),
+        ("table_with_column", lambda t, session: t.with_column("B", col("A") + 1)),
+        ("table_drop", lambda t, session: t.drop("A")),
+        # from_ is a SetStatement
+        ("union_then_select", lambda t, session: t.union(t).select("A")),
+        # from_ is a SelectSnowflakePlan
+        ("join_then_select", lambda t, session: t.join(t, "A").select("A")),
+        ("limit_then_select", lambda t, session: t.limit(1).select("A")),
+        # from_ is a SelectSQL
+        (
+            "sql_select",
+            lambda t, session: session.sql("select * from NON_EXISTENT_TABLE").select(
+                "A"
+            ),
+        ),
+        (
+            "sql_filter",
+            lambda t, session: session.sql("select * from NON_EXISTENT_TABLE").filter(
+                col("A") > 0
+            ),
+        ),
     ],
 )
 def test_missing_table_context_when_error_is_raised_during_construction(
     session, operation_name, operation_func
 ):
     """The describe that fails while building the dataframe must carry the same debug
-    context as an error raised at collect()."""
+    context as an error raised at collect(), whatever the kind of the inner `from_`."""
     if not session.sql_simplifier_enabled:
         pytest.skip("SQL simplifier must be enabled for this test")
     with pytest.raises(SnowparkSQLException) as ex:
-        operation_func(session.table("NON_EXISTENT_TABLE"))
+        operation_func(session.table("NON_EXISTENT_TABLE"), session)
 
     assert "Missing object 'NON_EXISTENT_TABLE' corresponds to Python source" in str(
         ex.value.debug_context
