@@ -1105,6 +1105,7 @@ class SnowflakePlanBuilder:
         is_distinct: bool = False,
         ilike_pattern: Optional[str] = None,
     ) -> SnowflakePlan:
+
         return self.build(
             lambda x: project_statement(
                 project_list,
@@ -1752,6 +1753,7 @@ class SnowflakePlanBuilder:
         iceberg_config: Optional[dict] = None,
         copy_grants: bool = False,
     ) -> SnowflakePlan:
+
         child = self.find_and_update_table_function_plan(child)
 
         if len(child.queries) != 1:

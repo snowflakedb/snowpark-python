@@ -1768,6 +1768,7 @@ class DataFrame:
         return snowpandas_df
 
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
+
         _emit_ast = self._ast_id is not None and self._session.ast_enabled
 
         if isinstance(item, str):
