@@ -10,6 +10,7 @@
 
 - Removed the `experimental` tag from `DataFrame.to_polars()`.
 - `DataFrame.to_polars()` now defaults to `transport="parquet"` instead of `transport="arrow"`.
+- Eager schema validation (`context.configure_development_features(enable_eager_schema_validation=True)`) now raises invalid column references in `DataFrame.filter` and `DataFrame.sort` when the DataFrame is created, instead of when it is evaluated.
 
 #### Bug Fixes
 
