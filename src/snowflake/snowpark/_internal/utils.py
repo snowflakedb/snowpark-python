@@ -515,6 +515,37 @@ def normalize_local_file(file: str) -> str:
     return normalize_path(file, is_local=True)
 
 
+# Connector 5 strips the ``file://`` prefix and keeps any extra slash, so
+# ``file:///C:/path`` is opened as ``/C:/path``. ``file://C:/path`` survives.
+_WINDOWS_DRIVE_FILE_URI = re.compile(r"file:///+([A-Za-z]:)")
+
+
+def rewrite_windows_put_get_file_uri(query: str) -> str:
+    """Rewrite Windows drive URIs in a PUT or GET statement.
+
+    Backslashes in the ``file://`` token become forward slashes, and a
+    ``file:///C:`` prefix becomes ``file://C:``. Other statements are unchanged.
+    """
+    if not query:
+        return query
+    command = query.lstrip()[:3].upper()
+    if command not in ("PUT", "GET"):
+        return query
+
+    def _rewrite(match):
+        uri = match.group(0).replace("\\", "/")
+        return _WINDOWS_DRIVE_FILE_URI.sub(r"file://\1", uri)
+
+    return re.sub(r"file://\S+", _rewrite, query)
+
+
+def normalize_windows_put_get_file_uri(query: str) -> str:
+    """Apply :func:`rewrite_windows_put_get_file_uri` on connector 5 under Windows."""
+    if not IS_V5_DRIVER or OPERATING_SYSTEM != "Windows":
+        return query
+    return rewrite_windows_put_get_file_uri(query)
+
+
 def split_path(path: str) -> Tuple[str, str]:
     """Split a file path into directory and file name."""
     path = unwrap_single_quote(path)
@@ -836,7 +867,7 @@ def column_to_bool(col_):
 
 
 def _parse_result_meta(
-    result_meta: Union[List[ResultMetadata], List["ResultMetadataV2"]]
+    result_meta: Union[List[ResultMetadata], List["ResultMetadataV2"]],
 ) -> Tuple[Optional[List[str]], Optional[List[Callable]]]:
     """
     Takes a list of result metadata objects and returns a list containing the names of all fields as
@@ -1331,7 +1362,7 @@ def check_imports_type(
 def check_output_schema_type(  # noqa: F821
     output_schema: Union[  # noqa: F821
         "StructType", Iterable[str], "PandasDataFrameType"  # noqa: F821
-    ]  # noqa: F821
+    ],  # noqa: F821
 ) -> None:
     """Helper function to ensure output_schema adheres to type hint."""
 
@@ -1369,7 +1400,7 @@ def _get_options(
 
 
 def get_copy_into_table_options(
-    options: Dict[str, Any]
+    options: Dict[str, Any],
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Method that extracts options for COPY INTO TABLE command into file
     format type options and copy options.
@@ -1378,7 +1409,7 @@ def get_copy_into_table_options(
 
 
 def get_copy_into_location_options(
-    options: Dict[str, Any]
+    options: Dict[str, Any],
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Method that extracts options for COPY INTO LOCATION command into file
     format type options and copy options.
@@ -1637,7 +1668,7 @@ def check_agg_exprs(
         "snowflake.snowpark.Column",
         Tuple["snowflake.snowpark.ColumnOrName", str],
         Dict[str, str],
-    ]
+    ],
 ):
     """Helper function to raise exceptions when invalid exprs have been passed."""
     from snowflake.snowpark import Column
