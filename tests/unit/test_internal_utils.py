@@ -8,6 +8,7 @@ import pytest
 from snowflake.snowpark._internal import options, utils
 from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
+    rewrite_windows_put_get_file_uri,
     split_snowflake_identifier_with_dot,
 )
 
@@ -198,6 +199,29 @@ def test_generate_random_alphanumeric():
 )
 def test_split_snowflake_identifier_with_dot(string, expected_result):
     assert split_snowflake_identifier_with_dot(string) == expected_result
+
+
+@pytest.mark.parametrize(
+    "query,expected",
+    [
+        (
+            r"put file:///C:\a\snowpark-python\testCSV.csv @stage",
+            "put file://C:/a/snowpark-python/testCSV.csv @stage",
+        ),
+        (
+            "get @stage file:///C:/tmp/out/",
+            "get @stage file://C:/tmp/out/",
+        ),
+        (
+            "put 'file:///C:/a dir/file.csv' @stage",
+            "put 'file://C:/a dir/file.csv' @stage",
+        ),
+        ("put file:///tmp/file.csv @stage", "put file:///tmp/file.csv @stage"),
+        ("select 'file:///C:/tmp'", "select 'file:///C:/tmp'"),
+    ],
+)
+def test_rewrite_windows_put_get_file_uri(query, expected):
+    assert rewrite_windows_put_get_file_uri(query) == expected
 
 
 def test_missing_pandas():

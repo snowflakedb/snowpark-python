@@ -4,6 +4,7 @@
 
 import gzip
 import os
+import shutil
 import sys
 import tempfile
 from typing import IO, Dict, List, NamedTuple, Optional, Union
@@ -12,6 +13,7 @@ import snowflake.snowpark
 from snowflake.connector import OperationalError, ProgrammingError
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
+    IS_V5_DRIVER,
     get_local_file_path,
     is_in_stored_procedure,
     is_single_quoted,
@@ -21,6 +23,35 @@ from snowflake.snowpark._internal.utils import (
     split_path,
     validate_stage_location,
 )
+
+
+def _decompress_gzip_payload_in_place(path: str) -> None:
+    """Unwrap a gzip payload whose local name does not end in ``.gz``.
+
+    Connector 5 stores the stage bytes as downloaded. The legacy connector
+    gunzipped those payloads, so a ``.parquet`` file could otherwise be gzip
+    data and fail readers that expect a ``PAR1`` footer. Names that already
+    end in ``.gz`` are left compressed.
+    """
+    if not IS_V5_DRIVER or path.endswith(".gz") or not os.path.isfile(path):
+        return
+    try:
+        with open(path, "rb") as src:
+            if src.read(2) != b"\x1f\x8b":
+                return
+    except OSError:
+        return
+    tmp_path = f"{path}.snowpark-decompress"
+    try:
+        with gzip.open(path, "rb") as src, open(tmp_path, "wb") as dst:
+            shutil.copyfileobj(src, dst)
+        os.replace(tmp_path, path)
+    except (OSError, EOFError):
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 
 class PutResult(NamedTuple):
@@ -254,7 +285,15 @@ class FileOperation:
                 get_result = snowflake.snowpark.dataframe.DataFrame(
                     self._session, plan
                 )._internal_collect_with_tag(statement_params=statement_params)
-            return [GetResult(**file_result.asDict()) for file_result in get_result]
+            results = [GetResult(**file_result.asDict()) for file_result in get_result]
+            for result in results:
+                local_path = result.file
+                if not os.path.isabs(local_path):
+                    local_path = os.path.join(
+                        target_directory, os.path.basename(local_path)
+                    )
+                _decompress_gzip_payload_in_place(local_path)
+            return results
         except IndexError:
             return []
 
@@ -392,6 +431,8 @@ class FileOperation:
                 )
                 raise ne.with_traceback(tb) from None
 
+            if not decompress:
+                _decompress_gzip_payload_in_place(local_file_name)
             return (
                 gzip.open(local_file_name, "rb")
                 if decompress
