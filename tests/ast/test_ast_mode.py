@@ -45,10 +45,6 @@ def _connection_parameters(use_ast, ast_mode, min_ver):
 @pytest.mark.parametrize(
     "use_ast,ast_mode,min_ver,expected_ast_mode,expect_downgrade_log,expect_min_ver_log",
     [
-        # Test: None of the new client ast / version parameters are set, but PYTHON_SNOWPARK_USE_AST=false
-        (False, None, None, AstMode.SQL_ONLY, False, False),
-        # Test: None of the new client ast / version parameters are set, but PYTHON_SNOWPARK_USE_AST=true
-        (True, None, None, AstMode.SQL_AND_AST, False, False),
         # Test: The new client ast mode parameters takes precedence over PYTHON_SNOWPARK_USE_AST value
         (True, AstMode.SQL_ONLY, VERSION, AstMode.SQL_ONLY, False, False),
         # Test: The new client ast mode parameters takes precedence over PYTHON_SNOWPARK_USE_AST value
@@ -96,3 +92,40 @@ def test_snowpark_python_ast_mode_and_version(
             )
             == expect_min_ver_log
         )
+
+
+@pytest.mark.parametrize(
+    "use_ast,expected_ast_mode",
+    [
+        (False, AstMode.SQL_ONLY),
+        (True, AstMode.SQL_AND_AST),
+    ],
+)
+def test_ast_mode_falls_back_to_use_ast_when_client_mode_is_unset(
+    monkeypatch, use_ast, expected_ast_mode
+) -> None:
+    """PYTHON_SNOWPARK_USE_AST applies only when CLIENT_AST_MODE is absent.
+
+    A live account can still send CLIENT_AST_MODE=0, which is an int and
+    takes precedence. Stub the getter so this covers the unset fallback.
+    """
+    from snowflake.snowpark._internal.server_connection import ServerConnection
+
+    original = ServerConnection._get_client_side_session_parameter
+
+    def _hide_client_ast_mode(self, name, default_value):
+        if name == _PYTHON_SNOWPARK_CLIENT_AST_MODE:
+            return default_value
+        if name == _PYTHON_SNOWPARK_USE_AST:
+            return use_ast
+        return original(self, name, default_value)
+
+    monkeypatch.setattr(
+        ServerConnection,
+        "_get_client_side_session_parameter",
+        _hide_client_ast_mode,
+    )
+    with Session.builder.configs(
+        _connection_parameters(use_ast, None, None)
+    ).create() as sess:
+        assert sess._ast_mode == expected_ast_mode

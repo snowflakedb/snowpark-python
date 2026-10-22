@@ -830,9 +830,9 @@ def test_cte_optimization_enabled_on_session(session, db_parameters):
 
     parameters = copy.deepcopy(db_parameters)
     parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION: get_version()
-        if default_value
-        else ""
+        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION: (
+            get_version() if default_value else ""
+        )
     }
     with Session.builder.configs(parameters).create() as new_session2:
         assert new_session2.cte_optimization_enabled is default_value
@@ -959,18 +959,22 @@ def test_get_session_stage(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="sproc disallows new connection creation")
-def test_session_atexit(db_parameters):
+def test_session_atexit(db_parameters, local_testing_mode):
     exit_funcs = []
     with patch("atexit.register", lambda func: exit_funcs.append(func)):
         with Session.builder.configs(db_parameters).create():
             pass
 
-    # the first exit function is from the connector
-    # the second exit function is from the Snowpark session
-    # the order matters so Snowpark session is closed first
-    assert len(exit_funcs) == 2
-    assert exit_funcs[0].__module__.startswith("snowflake.connector")
-    assert exit_funcs[1].__module__.startswith("snowflake.snowpark")
+    # Connector 5 registers its handler inside ``_connect``. Local testing
+    # replaces that method, so only the Snowpark handler is installed.
+    # Otherwise the connector handler is first and Snowpark closes first.
+    if local_testing_mode and IS_V5_DRIVER:
+        assert len(exit_funcs) == 1
+        assert exit_funcs[0].__module__.startswith("snowflake.snowpark")
+    else:
+        assert len(exit_funcs) == 2
+        assert exit_funcs[0].__module__.startswith("snowflake.connector")
+        assert exit_funcs[1].__module__.startswith("snowflake.snowpark")
 
 
 @pytest.mark.skipif(

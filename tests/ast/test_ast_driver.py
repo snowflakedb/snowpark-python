@@ -293,6 +293,27 @@ def test_ast(session, tables, test_case, resources_path):
             ) from e
 
 
+def _posix_tz_spec(tz) -> str:
+    """POSIX TZ string with an explicit offset.
+
+    ``TZ=EST`` is a fixed abbreviation. glibc treats that as offset 0 when the
+    name is not a zoneinfo entry, so encoded timestamps drop ``offset_seconds``.
+    ``EST5`` keeps the abbreviation and the -18000s offset the golden files use.
+    """
+    now = datetime.datetime.now(datetime.timezone.utc)
+    abbrev = tz.tzname(now) or "UTC"
+    offset = tz.utcoffset(now) or datetime.timedelta(0)
+    # POSIX offsets are hours west of UTC.
+    total = -int(offset.total_seconds())
+    sign = "-" if total < 0 else ""
+    total = abs(total)
+    hours, rem = divmod(total, 3600)
+    minutes, seconds = divmod(rem, 60)
+    if minutes or seconds:
+        return f"{abbrev}{sign}{hours}:{minutes:02d}:{seconds:02d}"
+    return f"{abbrev}{sign}{hours}"
+
+
 def override_time_zone(tz_name: str = "EST") -> None:
     # Use any time zone other than America/Los_Angeles and UTC, to minimize the
     # odds of tests passing by luck.
@@ -303,7 +324,7 @@ def override_time_zone(tz_name: str = "EST") -> None:
 
     if platform.system() != "Windows":
         # This works only under Unix systems.
-        os.environ["TZ"] = tz_name
+        os.environ["TZ"] = _posix_tz_spec(tz)
         time.tzset()
     else:
         # Under windows the CPython implementation uses localtime_s (https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/localtime-s-localtime32-s-localtime64-s?view=msvc-170)

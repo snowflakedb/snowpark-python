@@ -2,7 +2,10 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import gzip
+
 from snowflake.snowpark import GetResult, PutResult
+from snowflake.snowpark.file_operation import _decompress_gzip_payload_in_place
 
 
 def test_put_result():
@@ -41,3 +44,38 @@ def test_get_result():
     assert get_result.size == test_dict["size"]
     assert get_result.status == test_dict["status"]
     assert get_result.message == test_dict["message"]
+
+
+def test_decompress_gzip_payload_in_place(tmp_path, monkeypatch):
+    monkeypatch.setattr("snowflake.snowpark.file_operation.IS_V5_DRIVER", True)
+    payload = b"PAR1-payload"
+    gzip_parquet = tmp_path / "names.parquet"
+    with gzip.open(gzip_parquet, "wb") as handle:
+        handle.write(payload)
+    _decompress_gzip_payload_in_place(str(gzip_parquet))
+    assert gzip_parquet.read_bytes() == payload
+
+    plain = tmp_path / "already.parquet"
+    plain.write_bytes(payload)
+    _decompress_gzip_payload_in_place(str(plain))
+    assert plain.read_bytes() == payload
+
+    named_gz = tmp_path / "data.csv.gz"
+    with gzip.open(named_gz, "wb") as handle:
+        handle.write(b"1,one")
+    original = named_gz.read_bytes()
+    _decompress_gzip_payload_in_place(str(named_gz))
+    assert named_gz.read_bytes() == original
+
+    corrupt = tmp_path / "corrupt.parquet"
+    corrupt.write_bytes(b"\x1f\x8bnot-gzip")
+    _decompress_gzip_payload_in_place(str(corrupt))
+    assert corrupt.read_bytes() == b"\x1f\x8bnot-gzip"
+
+    monkeypatch.setattr("snowflake.snowpark.file_operation.IS_V5_DRIVER", False)
+    skipped = tmp_path / "skipped.parquet"
+    with gzip.open(skipped, "wb") as handle:
+        handle.write(payload)
+    compressed = skipped.read_bytes()
+    _decompress_gzip_payload_in_place(str(skipped))
+    assert skipped.read_bytes() == compressed
