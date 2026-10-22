@@ -1710,6 +1710,10 @@ class SelectStatement(Selectable):
             )
         if self._session.reduce_describe_query_enabled:
             new.attributes = self.attributes
+        # schema_query omits the WHERE clause, so describe the full query to validate it.
+        # Skipped with pre-actions, since the query may depend on temp objects.
+        if context._debug_eager_schema_validation and not new.pre_actions:
+            new.snowflake_plan._describe_full_query()
 
         return new
 
@@ -1744,6 +1748,10 @@ class SelectStatement(Selectable):
             )
         if self._session.reduce_describe_query_enabled:
             new.attributes = self.attributes
+        # schema_query omits the ORDER BY clause, so describe the full query to validate it.
+        # Skipped with pre-actions, since the query may depend on temp objects.
+        if context._debug_eager_schema_validation and not new.pre_actions:
+            new.snowflake_plan._describe_full_query()
 
         return new
 
