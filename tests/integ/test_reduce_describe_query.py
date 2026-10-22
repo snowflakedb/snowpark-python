@@ -596,6 +596,35 @@ def test_quoted_case_sensitive_sql_column_metadata_inference(session):
     assert attrs[0].name == '"MixedCase"'
 
 
+@pytest.mark.parametrize("quoted_name", ['"Mixed"', '"a b"', '"c.d"'])
+@pytest.mark.parametrize(
+    "action",
+    [
+        lambda df, c: df.group_by(c).count(),
+        lambda df, c: df.group_by(c).agg(max_("x")),
+        lambda df, c: df.rollup(c).agg(max_("x")),
+    ],
+    ids=["group_by_count", "group_by_agg", "rollup_agg"],
+)
+def test_aggregate_preserves_case_of_quoted_grouping_column(
+    session, action, quoted_name
+):
+    """Inferred names after an aggregate keep the case of a quoted grouping column
+    and match the server's describe."""
+    df = session.sql(f"SELECT 1 AS {quoted_name}, 2 AS x")
+    result = action(df, quoted_name)
+    inferred = result._plan._metadata.quoted_identifiers
+    if session.reduce_describe_query_enabled:
+        assert inferred is not None
+        assert inferred[0] == quoted_name
+    server_names = [
+        a.name for a in analyze_attributes(result._plan.queries[-1].sql, session)
+    ]
+    assert (inferred or server_names) == server_names
+    # the grouping column stays selectable by its original quoted name
+    assert Row(1) in result.select(quoted_name).collect()
+
+
 def test_non_simple_projection_skips_metadata_inference(session):
     """Expressions other than plain column or simple alias(column) do not infer attributes."""
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
