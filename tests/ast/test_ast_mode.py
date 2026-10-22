@@ -12,15 +12,34 @@ from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_USE_AST,
 )
 from snowflake.snowpark.version import VERSION
-from snowflake.connector import SnowflakeConnection
 from tests.parameters import CONNECTION_PARAMETERS
 
 
-@pytest.fixture(autouse=True, scope="module")
-def snowflake_connection() -> SnowflakeConnection:
-    conn = SnowflakeConnection(None, None, **CONNECTION_PARAMETERS)
-    yield conn
-    conn.close()
+def _connection_parameters(use_ast, ast_mode, min_ver):
+    """Connection config that sets the AST session parameters at login.
+
+    Passing ``session_parameters`` to :meth:`Session.builder.configs` is the
+    public connector API. Connector 5 no longer exposes a mutable
+    ``_session_parameters`` dict that tests can write after connect.
+    """
+    parameters = dict(CONNECTION_PARAMETERS)
+    session_parameters = dict(parameters.get("session_parameters") or {})
+    if use_ast is None:
+        session_parameters.pop(_PYTHON_SNOWPARK_USE_AST, None)
+    else:
+        session_parameters[_PYTHON_SNOWPARK_USE_AST] = use_ast
+    if ast_mode is None:
+        session_parameters.pop(_PYTHON_SNOWPARK_CLIENT_AST_MODE, None)
+    else:
+        session_parameters[_PYTHON_SNOWPARK_CLIENT_AST_MODE] = int(ast_mode)
+    if min_ver is None:
+        session_parameters.pop(_PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST, None)
+    else:
+        session_parameters[_PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST] = ".".join(
+            str(v) for v in min_ver
+        )
+    parameters["session_parameters"] = session_parameters
+    return parameters
 
 
 @pytest.mark.parametrize(
@@ -49,7 +68,6 @@ def snowflake_connection() -> SnowflakeConnection:
     ],
 )
 def test_snowpark_python_ast_mode_and_version(
-    snowflake_connection,
     caplog,
     use_ast,
     ast_mode,
@@ -58,34 +76,23 @@ def test_snowpark_python_ast_mode_and_version(
     expect_downgrade_log,
     expect_min_ver_log,
 ) -> None:
-    snowflake_connection._session_parameters[_PYTHON_SNOWPARK_USE_AST] = (
-        use_ast if use_ast is not None else None
-    )
-    snowflake_connection._session_parameters[_PYTHON_SNOWPARK_CLIENT_AST_MODE] = (
-        int(ast_mode) if ast_mode is not None else None
-    )
-    snowflake_connection._session_parameters[
-        _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST
-    ] = (".".join(str(v) for v in min_ver) if min_ver is not None else None)
-
-    sess = (
-        Session.SessionBuilder().configs({"connection": snowflake_connection}).create()
-    )
-
-    assert sess._ast_mode == expected_ast_mode
-    assert (
-        any(
-            "Snowpark python client does not support dataframe requests, downgrading to SQL_AND_AST."
-            in m
-            for m in caplog.messages
+    with Session.builder.configs(
+        _connection_parameters(use_ast, ast_mode, min_ver)
+    ).create() as sess:
+        assert sess._ast_mode == expected_ast_mode
+        assert (
+            any(
+                "Snowpark python client does not support dataframe requests, downgrading to SQL_AND_AST."
+                in m
+                for m in caplog.messages
+            )
+            == expect_downgrade_log
         )
-        == expect_downgrade_log
-    )
-    assert (
-        any(
-            "Server side dataframe support requires minimum snowpark-python client version."
-            in m
-            for m in caplog.messages
+        assert (
+            any(
+                "Server side dataframe support requires minimum snowpark-python client version."
+                in m
+                for m in caplog.messages
+            )
+            == expect_min_ver_log
         )
-        == expect_min_ver_log
-    )
