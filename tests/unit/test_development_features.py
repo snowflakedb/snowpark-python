@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import threading
 from unittest import mock
 
 import pytest
@@ -22,7 +23,7 @@ def make_session(cleaner_enabled=True):
     # Session.__new__ skips the connection; only the attributes used here are set.
     session = Session.__new__(Session)
     session._auto_clean_up_temp_table_enabled = cleaner_enabled
-    session._auto_clean_up_temp_table_disabled_by_dev_features = False
+    session._auto_clean_up_temp_table_disabled_by_ast = False
     return session
 
 
@@ -169,8 +170,8 @@ def test_ast_enabled_before_the_features_is_not_turned_off(sessions, ast_state):
 
     assert ast_state["enabled"] is True
     assert (AstFlagSource.USER, False) not in ast_state["calls"]
-    # the cleaner was still switched off by the features, so it is restored
-    assert session._auto_clean_up_temp_table_enabled is True
+    # AST was not the features' to turn off, and the cleaner stays as AST left it
+    assert session._auto_clean_up_temp_table_enabled is False
 
 
 def test_cleaner_disabled_by_the_user_is_not_enabled_again(sessions):
@@ -201,7 +202,7 @@ def test_session_created_while_features_are_on_is_restored(sessions, ast_state):
 
     # a session created afterwards enables AST for the features itself
     late_session = make_session()
-    late_session._enable_ast_for_development_features()
+    late_session._set_ast_enabled_internal(True)
     sessions.append(late_session)
     assert ast_state["enabled"] is True
     assert late_session._auto_clean_up_temp_table_enabled is False
@@ -221,3 +222,46 @@ def test_all_active_sessions_are_restored(sessions):
 
     assert first._auto_clean_up_temp_table_enabled is True
     assert second._auto_clean_up_temp_table_enabled is False
+
+
+def test_disabling_ast_restores_the_cleaner_it_disabled(ast_state):
+    session = make_session()
+
+    session._set_ast_enabled_internal(True)
+    assert ast_state["enabled"] is True
+    assert session._auto_clean_up_temp_table_enabled is False
+
+    session._set_ast_enabled_internal(False)
+    assert ast_state["enabled"] is False
+    assert session._auto_clean_up_temp_table_enabled is True
+    assert session._auto_clean_up_temp_table_disabled_by_ast is False
+
+
+def test_disabling_ast_keeps_a_cleaner_that_was_already_off(ast_state):
+    session = make_session(cleaner_enabled=False)
+
+    session._set_ast_enabled_internal(True)
+    session._set_ast_enabled_internal(False)
+
+    assert session._auto_clean_up_temp_table_enabled is False
+
+
+def test_disabling_ast_without_enabling_it_leaves_the_cleaner_alone(ast_state):
+    session = make_session()
+
+    session._set_ast_enabled_internal(False)
+
+    assert session._auto_clean_up_temp_table_enabled is True
+
+
+def test_explicit_cleaner_choice_is_kept_when_ast_is_disabled(ast_state):
+    session = make_session()
+    session._conn = mock.MagicMock()
+    session._session_id = 1
+    session._lock = threading.RLock()
+
+    session._set_ast_enabled_internal(True)
+    session.auto_clean_up_temp_table_enabled = False  # explicit user choice
+    session._set_ast_enabled_internal(False)
+
+    assert session._auto_clean_up_temp_table_enabled is False

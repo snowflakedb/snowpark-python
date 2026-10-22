@@ -223,11 +223,11 @@ def configure_development_features(
         This feature is experimental since 1.33.0. Do not use it in production.
 
         Turning on a tracing feature enables the AST collection and, to avoid a known issue with
-        the AST, disables the automatic clean-up of temporary tables in the sessions. Turning off
-        both tracing features restores what they changed: the automatic clean-up of temporary
-        tables, and the AST collection if it was off before. A setting you changed yourself
-        in the meantime, such as ``session.ast_enabled`` set to ``True`` before enabling the
-        features or ``session.auto_clean_up_temp_table_enabled`` set after enabling them, is kept.
+        the AST, disables the automatic clean-up of temporary tables in the sessions. If the features
+        turned the AST collection on, turning off both tracing features turns it off again and restores
+        the automatic clean-up of temporary tables. If the AST collection was already on, it is left on.
+        A cleaner setting you changed yourself, such as ``session.auto_clean_up_temp_table_enabled``
+        set after enabling the features, is kept.
     """
     _logger.warning(
         "configure_development_features() is experimental since 1.33.0. Do not use it in production.",
@@ -262,11 +262,7 @@ def configure_development_features(
     if metadata_validation is not None:
         _enable_metadata_validation = metadata_validation
 
-    from snowflake.snowpark._internal.utils import (
-        AstFlagSource,
-        is_ast_enabled,
-        set_ast_state,
-    )
+    from snowflake.snowpark._internal.utils import is_ast_enabled
 
     with snowflake.snowpark.session._session_management_lock:
         sessions = snowflake.snowpark.session._get_active_sessions(
@@ -277,16 +273,15 @@ def configure_development_features(
                 _ast_enabled_by_development_features = True
             try:
                 for active_session in sessions:
-                    active_session._enable_ast_for_development_features()
+                    active_session._set_ast_enabled_internal(True)
             except Exception as e:  # pragma: no cover
                 _logger.warning(
                     f"Cannot enable AST collection in the session due to {str(e)}. Some development features may not work as expected.",
                 )
         else:
-            for active_session in sessions:
-                active_session._restore_after_development_features()
             if _ast_enabled_by_development_features:
-                set_ast_state(AstFlagSource.USER, False)
+                for active_session in sessions:
+                    active_session._set_ast_enabled_internal(False)
                 _ast_enabled_by_development_features = False
 
 
