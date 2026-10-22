@@ -14,6 +14,7 @@
 #### Bug Fixes
 
 - Fixed `DataFrameReader.jdbc`(PrPr) timing out on slow external data sources by executing the source query lazily.
+- Fixed a bug that additional debug information was not shown when an error was raised while a DataFrame was being created with debuggability features enabled by `context.configure_development_features`, by passing the DataFrame's AST ids to the underlying plan before it is described.
 
 #### Improvements
 

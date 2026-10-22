@@ -1032,26 +1032,18 @@ class SelectStatement(Selectable):
             or has_nondeterministic_data_generation_exp(self.order_by)
         )
 
-    def _pass_df_ast_ids_to_from(self) -> None:
-        """Gives `from_` the df ast ids of this statement when it has none.
-
-        Column states of a statement without projection and clauses come from `from_`,
-        which may need a describe query. The ids are attached to this statement only, so
-        without this a describe error raised for `from_` has no dataframe to trace back
-        to and loses the lineage and missing-object debug context.
-        """
-        if self.df_ast_ids is None or self.from_.df_ast_ids is not None:
-            return
-        self.from_.df_ast_ids = self.df_ast_ids.copy()
-        snowflake_plan = getattr(self.from_, "_snowflake_plan", None)
-        if snowflake_plan is not None and snowflake_plan.df_ast_ids is None:
-            snowflake_plan.df_ast_ids = self.from_.df_ast_ids
-
     @property
     def column_states(self) -> ColumnStateDict:
         if self._column_states is None:
             if not self.has_projection and not self.has_clause:
-                self._pass_df_ast_ids_to_from()
+                # Column states come from `from_`, which may run a describe query. The df ast
+                # ids are attached to this statement only, so pass them to `from_` (and its
+                # plan) to keep the lineage and missing-object debug context of a describe error.
+                if self.df_ast_ids is not None and self.from_.df_ast_ids is None:
+                    self.from_.df_ast_ids = self.df_ast_ids.copy()
+                    snowflake_plan = getattr(self.from_, "_snowflake_plan", None)
+                    if snowflake_plan is not None and snowflake_plan.df_ast_ids is None:
+                        snowflake_plan.df_ast_ids = self.from_.df_ast_ids
                 self.column_states = self.from_.column_states
             else:
                 super().column_states  # will assign value to self._column_states
