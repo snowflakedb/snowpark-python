@@ -65,65 +65,34 @@ if TYPE_CHECKING:  # pragma: no cover
     from snowflake.snowpark.session import Session
 
 
-_EXTRACTION_MODEL = "claude-opus-5"
+_EXTRACTION_MODEL = "claude-sonnet-5-5"
 
 _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
 
-# Per-model AI_COMPLETE settings.
-# - model_parameters: without max_tokens AI_COMPLETE caps output at 4096, truncating long
-#   answers mid-JSON. temperature 0 makes reads repeatable where the model accepts it;
-#   claude-sonnet-5-5 rejects temperature 0 with a bare "malformed request".
-# - json_mode: claude-sonnet-5-5 also rejects response_format, so its schema goes in the
-#   prompt and the JSON is parsed out of the text answer.
-# - budgets: each call is asked to stop below `target` output tokens and plan the rest of
-#   the pages, and is hard-capped at `max_tokens`. The model overestimates its own output
-#   (1.2-2.6x measured on opus-5), so a target near max_tokens still leaves real headroom.
-#   "first" applies to the first round of documents over 50 pages or 10 MB.
-#   claude-sonnet-5-5's max_tokens ceiling is 128000 (it rejects anything higher).
-#   claude-sonnet-5-5 underestimates instead (real output ~1.3x its estimate), so it skips
-#   the correction (correct_estimates), its first round aims well below max_tokens, and
-#   planned ranges are coalesced only up to merge_target. "large_range" applies to the
-#   planned ranges of the same large documents, so they are planned and run against the
-#   same smaller target as their first round. "plan_first" makes those large documents
-#   start with planning-only calls (segments of at most 50 pages / 10 MB) that choose
-#   ranges under range_target, all of which are then extracted at once.
-_MODEL_SETTINGS = {
-    "claude-opus-5": {
-        "model_parameters": {"temperature": 0},
-        "json_mode": True,
-        "budgets": {
-            "first": {"target": 65000, "max_tokens": 65536},
-            "range": {"target": 65000, "max_tokens": 65536},
-        },
-    },
-    "claude-sonnet-5-5": {
-        "model_parameters": {},
-        "json_mode": False,
-        "budgets": {
-            "first": {"target": 80000, "max_tokens": 128000},
-            "range": {"target": 120000, "max_tokens": 128000},
-            "large_range": {"target": 80000, "max_tokens": 128000},
-            "correct_estimates": False,
-            "merge_target": 60000,
-            "plan_first": {"range_target": 60000, "max_tokens": 64000},
-        },
-    },
+# claude-sonnet-5-5 rejects temperature and response_format (a bare "malformed request"),
+# so the schema goes in the prompt and the JSON is parsed out of the text answer. Without
+# max_tokens AI_COMPLETE caps output at 4096, truncating long answers mid-JSON; 128000 is
+# the model's ceiling.
+_MAX_OUTPUT_TOKENS = 128000
+# Each call is asked to stop below `target` output tokens and plan the rest of its pages,
+# and is hard-capped at `max_tokens`. The model underestimates its own output (real output
+# ~1.3x its estimate), so targets stay well below max_tokens.
+# - "first": the first round of documents over 50 pages or 10 MB, when they are not planned.
+# - "range": ranges planned for smaller documents.
+# - "large_range": ranges planned for the large documents, against the same smaller target.
+# - "merge_target": adjacent planned ranges are coalesced only up to this estimate.
+# - "plan_first": large documents start with planning-only calls (segments of at most
+#   50 pages / 10 MB) that choose ranges under range_target, all then extracted at once.
+_CALL_BUDGETS = {
+    "first": {"target": 80000, "max_tokens": _MAX_OUTPUT_TOKENS},
+    "range": {"target": 120000, "max_tokens": _MAX_OUTPUT_TOKENS},
+    "large_range": {"target": 80000, "max_tokens": _MAX_OUTPUT_TOKENS},
+    "merge_target": 60000,
+    "plan_first": {"range_target": 60000, "max_tokens": 64000},
 }
 # Floor for the per-document call cap; the procedure raises it from the answer size it
 # observes, up to its hard maximum.
 _MAX_CALLS_PER_FILE = 30
-
-
-def model_settings(model: str) -> Dict[str, Any]:
-    return _MODEL_SETTINGS.get(model, _MODEL_SETTINGS[_EXTRACTION_MODEL])
-
-
-def single_call_model_parameters(model: str) -> Dict[str, Any]:
-    settings = model_settings(model)
-    return {
-        **settings["model_parameters"],
-        "max_tokens": settings["budgets"]["range"]["max_tokens"],
-    }
 
 
 _EXTRACT_PROC_FILE_PATH = os.path.join(
@@ -487,7 +456,7 @@ def build_ai_complete_call(input_col: Column, options: DocumentReaderOptions) ->
         return ai_complete(
             _EXTRACTION_MODEL,
             prompt_text,
-            model_parameters=single_call_model_parameters(_EXTRACTION_MODEL),
+            model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},
             response_format=response_format,
             return_error_details=True,
         )
@@ -495,7 +464,7 @@ def build_ai_complete_call(input_col: Column, options: DocumentReaderOptions) ->
         _EXTRACTION_MODEL,
         options.prompt or _DEFAULT_EXTRACTION_PROMPT,
         file=input_col,
-        model_parameters=single_call_model_parameters(_EXTRACTION_MODEL),
+        model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},
         response_format=response_format,
         return_error_details=True,
     )
@@ -552,13 +521,7 @@ def extract_with_split_procedure(
         json.dumps(options.extraction.ai_complete_format),
         options.prompt or _DEFAULT_EXTRACTION_PROMPT,
         _EXTRACTION_MODEL,
-        json.dumps(model_settings(_EXTRACTION_MODEL)["model_parameters"]),
-        json.dumps(
-            {
-                **model_settings(_EXTRACTION_MODEL)["budgets"],
-                "json_mode": model_settings(_EXTRACTION_MODEL)["json_mode"],
-            }
-        ),
+        json.dumps(_CALL_BUDGETS),
         _MAX_CALLS_PER_FILE,
         session.get_session_stage(),
     ]
@@ -712,7 +675,6 @@ def register_extract_proc(session: "Session") -> str:
             ]
         ),
         input_types=[
-            StringType(),
             StringType(),
             StringType(),
             StringType(),

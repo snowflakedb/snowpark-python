@@ -17,6 +17,7 @@ import hashlib
 import io
 import json
 import os
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from snowflake.snowpark import DataFrame, Session
@@ -65,10 +66,10 @@ _STATUS_SCHEMA = {
 }
 
 
-# Keywords Cortex json mode rejects or enforces in ways that discard a whole response.
-# ``required`` is enforced as non-null, which a page range lacking some header field always
-# fails; ``additionalProperties: false`` rejects the envelope opus-5 sometimes wraps its
-# answer in, which unwrap_envelope() would otherwise recover.
+# Keywords dropped from the schema shown to the model: constraints a call covering only
+# some pages cannot always meet (``required`` header fields printed on other pages, size
+# and value bounds, ``additionalProperties: false`` against an envelope unwrap_envelope()
+# would recover) and annotations that only add prompt tokens.
 _UNSUPPORTED_KEYWORDS = frozenset(
     {
         "required",
@@ -130,9 +131,8 @@ EMPTY_ANSWER_ERROR = "AI_COMPLETE returned an empty object"
 
 def is_splittable_error(error: str) -> bool:
     """Errors that fewer pages can fix: a response cut off at max_tokens; an input
-    Cortex rejects as too large, which claude-opus-5 reports only as "malformed
-    request"; or an answer too long to generate, which json mode can return as an
-    empty object with no error at all."""
+    Cortex rejects as too large, which it reports only as "malformed request"; an empty
+    object; or an answer that does not parse as JSON."""
     return (
         "unexpected end of JSON input" in error
         or "malformed request" in error
@@ -146,8 +146,8 @@ def is_empty_answer(value: Any) -> bool:
     return isinstance(value, dict) and all(_is_absent(v) for v in value.values())
 
 
-# The largest scanned PDF claude-opus-5 accepted as one FILE was 12.63 MB; a 15.19 MB one
-# was rejected every time.
+# AI_COMPLETE accepts a FILE up to about 15 MB (claude-sonnet-5-5 took 14.99 MB and
+# rejected 15.19 MB with a bare "malformed request"); parts stay well under that.
 MAX_FILE_BYTES = 12_000_000
 
 
@@ -169,13 +169,10 @@ def first_round_budget(total_pages: int, file_bytes: int) -> str:
     return "first" if is_large_file(total_pages, file_bytes) else "range"
 
 
-def range_budget(total_pages: int, file_bytes: int, budgets: Dict[str, Any]) -> str:
-    """Budget for a file's planned ranges: "large_range" for a large file when the model
-    defines one (so its ranges are sized and run against the same smaller target),
-    otherwise "range"."""
-    if "large_range" in budgets and is_large_file(total_pages, file_bytes):
-        return "large_range"
-    return "range"
+def range_budget(total_pages: int, file_bytes: int) -> str:
+    """Budget for a file's planned ranges: a large file's are sized and run against the
+    same smaller target as its first round."""
+    return "large_range" if is_large_file(total_pages, file_bytes) else "range"
 
 
 def initial_ranges(
@@ -202,8 +199,8 @@ _SUBSCHEMA_LISTS = ("anyOf", "oneOf", "allOf", "prefixItems")
 def nullable_scalars(schema: Any) -> Any:
     """Make every scalar at any depth nullable. A call covering only some pages cannot see
     a value printed elsewhere -- a document total on the last page, or a fund's totals
-    when the range starts mid-schedule -- and json mode rejects the whole response for
-    one null in a non-nullable field."""
+    when the range starts mid-schedule -- and a schema that forbids null pushes the
+    model to write a placeholder instead."""
     if not isinstance(schema, dict):
         return schema
     out = dict(schema)
@@ -281,7 +278,7 @@ def build_predicate(
     )
 
 
-# Plan-first mode (a model's budgets define "plan_first"): a large file is first cut into
+# Plan-first: a large file is first cut into
 # segments that each carry the previous page as context, and one planning call per segment
 # returns -- without extracting -- calibration samples, rows per page and the page ranges to
 # extract; every planned range then runs at once.
@@ -397,9 +394,8 @@ def ranges_from_plan(
 
 
 def unwrap_envelope(value: Any, schema: Dict[str, Any]) -> Any:
-    """claude-opus-5 sometimes nests its whole answer under one undeclared key such as
-    ``{"input": {...}}``. json mode accepts it because ``additionalProperties`` cannot be
-    sent, and every real field then reads as missing."""
+    """An answer nested whole under one undeclared key such as ``{"input": {...}}``,
+    unwrapped; otherwise every real field would read as missing."""
     declared = set((schema.get("properties") or {}).keys())
     if not isinstance(value, dict) or not declared:
         return value
@@ -489,14 +485,13 @@ def next_ranges(
     end: int,
     value: Optional[Dict[str, Any]],
     error: Optional[str],
-    factor: Optional[float] = None,
     target: Optional[int] = None,
     salvaged: Optional[Dict[str, Any]] = None,
 ) -> Tuple[bool, List[Tuple[int, int]]]:
     """Returns (keep_value, ranges_still_to_extract) for one finished call. With a
-    ``factor`` (actual / estimated output tokens) and ``target``, adjacent planned
-    ranges are coalesced up to ``target`` real tokens. A failed call's ``salvaged``
-    status, when usable, re-splits its pages along its own plan instead of in halves."""
+    ``target``, adjacent planned ranges are coalesced up to ``target`` estimated tokens.
+    A failed call's ``salvaged`` status, when usable, re-splits its pages along its own
+    plan instead of in halves."""
     if error is not None or not isinstance(value, dict):
         if end > start and (error is None or is_splittable_error(error)):
             if salvaged is not None:
@@ -534,89 +529,42 @@ def next_ranges(
             if isinstance(estimate, int) and not isinstance(estimate, bool):
                 estimates[(a, b)] = estimate
     covered = _cover(sorted(ranges), last + 1, end)
-    if factor is None or target is None:
+    if target is None:
         return True, covered
     return True, coalesce_ranges(
-        [(a, b, estimates.get((a, b))) for a, b in covered], factor, target
+        [(a, b, estimates.get((a, b))) for a, b in covered], target
     )
 
 
 def coalesce_ranges(
-    ranges: List[Tuple[int, int, Optional[int]]], factor: float, target: int
+    ranges: List[Tuple[int, int, Optional[int]]], target: int
 ) -> List[Tuple[int, int]]:
-    """Merge consecutive ranges while their corrected estimate stays within ``target``.
-    The model overestimates its own output (1.2-2.6x observed), so its plan is far finer
-    than the target asks for; a range without an estimate is never merged."""
-    merged: List[Tuple[int, int, Optional[float]]] = []
+    """Merge consecutive ranges while their summed estimate stays within ``target``, so a
+    plan finer than the target asks for does not cost extra calls; a range without an
+    estimate is never merged."""
+    merged: List[Tuple[int, int, Optional[int]]] = []
     for a, b, estimate in ranges:
-        scaled = estimate * factor if estimate is not None else None
         if (
             merged
-            and scaled is not None
+            and estimate is not None
             and merged[-1][2] is not None
-            and merged[-1][2] + scaled <= target
+            and merged[-1][2] + estimate <= target
         ):
-            merged[-1] = (merged[-1][0], b, merged[-1][2] + scaled)
+            merged[-1] = (merged[-1][0], b, merged[-1][2] + estimate)
         else:
-            merged.append((a, b, scaled))
+            merged.append((a, b, estimate))
     return [(a, b) for a, b, _ in merged]
-
-
-CHARS_PER_OUTPUT_TOKEN = 2.5  # measured on opus-5 JSON answers: 2.51-2.54
-
-
-def observed_factor(value: Any) -> Optional[float]:
-    """Actual / estimated output tokens for the pages one call extracted, or None when the
-    call reported no usable estimate."""
-    if not isinstance(value, dict):
-        return None
-    status = value.get(STATUS_FIELD)
-    if not isinstance(status, dict):
-        return None
-    total = status.get("estimated_total_output_tokens")
-    if not isinstance(total, int) or isinstance(total, bool) or total <= 0:
-        return None
-    remaining = 0
-    if status.get("complete") is False:
-        for planned in status.get("remaining_page_ranges") or []:
-            estimate = (
-                planned.get("estimated_output_tokens")
-                if isinstance(planned, dict)
-                else None
-            )
-            if isinstance(estimate, int) and not isinstance(estimate, bool):
-                remaining += estimate
-    done = total - remaining
-    if done <= 0:
-        return None
-    answer = {k: v for k, v in value.items() if k != STATUS_FIELD}
-    return len(json.dumps(answer)) / CHARS_PER_OUTPUT_TOKEN / done
-
-
-def correction_factor(observed: List[float]) -> float:
-    """Median of a file's observed factors, clamped; 1.0 (trust the model) until known."""
-    if not observed:
-        return 1.0
-    ordered = sorted(observed)
-    middle = (
-        ordered[len(ordered) // 2]
-        if len(ordered) % 2
-        else (ordered[len(ordered) // 2 - 1] + ordered[len(ordered) // 2]) / 2
-    )
-    return min(max(middle, 0.2), 1.5)
 
 
 HARD_MAX_CALLS_PER_FILE = 60
 
 
-def call_cap(
-    floor: int, estimated_total: Optional[int], factor: float, range_target: int
-) -> int:
-    """Calls a file may use: twice the corrected number of target-sized ranges its answer
-    needs, plus slack, never below ``floor`` nor above HARD_MAX_CALLS_PER_FILE."""
+def call_cap(floor: int, estimated_total: Optional[int], range_target: int) -> int:
+    """Calls a file may use: twice the number of target-sized ranges its answer needs,
+    plus slack, never below ``floor`` nor above HARD_MAX_CALLS_PER_FILE."""
     if not estimated_total:
         return floor
-    needed = -(-int(estimated_total * factor) // range_target)
+    needed = -(-estimated_total // range_target)
     return min(HARD_MAX_CALLS_PER_FILE, max(floor, 2 * needed + 4))
 
 
@@ -710,14 +658,9 @@ def qualify_listed_name(path: str, listed_name: str) -> str:
     return f"@{stage}/{relative}"
 
 
+# claude-sonnet-5-5 rejects response_format, so the schema travels in the predicate and
+# the answer comes back as text.
 _AI_COMPLETE_SQL = (
-    "SELECT AI_COMPLETE(model => ?, predicate => ?, file => TO_FILE(?), "
-    "model_parameters => PARSE_JSON(?), response_format => PARSE_JSON(?), "
-    "return_error_details => TRUE)"
-)
-# For models that reject response_format (claude-sonnet-5-5): the schema travels in the
-# predicate and the answer comes back as text.
-_AI_COMPLETE_TEXT_SQL = (
     "SELECT AI_COMPLETE(model => ?, predicate => ?, file => TO_FILE(?), "
     "model_parameters => PARSE_JSON(?), return_error_details => TRUE)"
 )
@@ -758,7 +701,7 @@ def _brackets_close(text: str) -> bool:
 
 def parse_text_answer(text: Any) -> Tuple[Any, Optional[str]]:
     """The JSON object out of a text answer. A JSON document cut off before it closes is
-    reported with the truncation signature so its pages get split, like json mode's."""
+    reported with the truncation signature so its pages get split."""
     if isinstance(text, dict):
         return text, None
     if not isinstance(text, str):
@@ -850,266 +793,297 @@ def ranges_from_salvaged_status(
     return ranges
 
 
+def read_answer(raw: Any) -> Tuple[Any, Optional[str], Optional[Dict[str, Any]]]:
+    """(value, error, salvaged status) from one ``AI_COMPLETE(..., return_error_details =>
+    TRUE)`` result. The status is salvaged only from a text answer that does not parse."""
+    result = json.loads(raw) if isinstance(raw, str) else raw
+    value, error = result.get("value"), result.get("error")
+    if error is not None:
+        return value, error, None
+    parsed, error = parse_text_answer(value)
+    return parsed, error, salvage_status(value) if error is not None else None
+
+
+@dataclass
+class FileState:
+    """One document's progress through the procedure. ``reader`` is None for a file that
+    is not a readable PDF: it is extracted whole, as one page, and never split."""
+
+    path: str
+    reader: Any
+    pages: int
+    size: int
+    cap: int
+    calls: int = 0
+    parts: List[Tuple[int, Dict[str, Any]]] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+
+    @property
+    def splittable(self) -> bool:
+        return self.reader is not None
+
+    @property
+    def range_budget(self) -> str:
+        return range_budget(self.pages, self.size)
+
+
+# A page range waiting for a call: (file, first page, last page, budget name).
+Task = Tuple[FileState, int, int, str]
+
+
+class DocumentExtraction:  # pragma: no cover - exercised against a live account
+    """The calls for every file under a path: plan large files, extract every range,
+    re-split ranges whose answer did not fit, and merge each file's parts."""
+
+    def __init__(
+        self,
+        session: Session,
+        response_format: Dict[str, Any],
+        predicate: str,
+        model: str,
+        budgets: Dict[str, Any],
+        work_stage: str,
+    ) -> None:
+        self.session = session
+        self.schema = response_format["schema"]
+        self.sent_schema = with_status(response_format)["schema"]
+        self.instruction = "\n\n" + schema_instruction(self.sent_schema)
+        self.predicate = predicate
+        self.model = model
+        self.budgets = budgets
+        self.work_stage = work_stage
+
+    def load_files(self, path: str, max_calls_per_file: int) -> List[FileState]:
+        from pypdf import PdfReader
+        from snowflake.snowpark.files import SnowflakeFile
+
+        files = []
+        for row in self.session.sql(f"LIST {path}").collect():
+            name = qualify_listed_name(path, row["name"])
+            with SnowflakeFile.open(name, "rb", require_scoped_url=False) as f:
+                content = f.read()
+            try:
+                reader = PdfReader(io.BytesIO(content))
+                pages = len(reader.pages)
+            except Exception:
+                reader, pages = None, 1
+            files.append(
+                FileState(name, reader, pages, len(content), max_calls_per_file)
+            )
+        return files
+
+    def stage_part(self, file: FileState, start: int, end: int) -> Optional[str]:
+        """Stage the pages, with the previous page as context, as their own PDF; None
+        when the part is still too large."""
+        from pypdf import PdfWriter
+
+        if not file.splittable or (
+            start == 1 and end == file.pages and file.size <= MAX_FILE_BYTES
+        ):
+            return file.path
+        writer = PdfWriter()
+        for index in range(max(start - 2, 0), end):
+            writer.add_page(file.reader.pages[index])
+        buffer = io.BytesIO()
+        writer.write(buffer)
+        if buffer.tell() > MAX_FILE_BYTES and end > start:
+            return None
+        buffer.seek(0)
+        stem = os.path.splitext(os.path.basename(file.path))[0]
+        digest = hashlib.md5(file.path.encode()).hexdigest()[:12]
+        target = f"{self.work_stage}/document_parts/{digest}/{stem}_p{start}_{end}.pdf"
+        self.session.file.put_stream(
+            buffer, target, auto_compress=False, overwrite=True
+        )
+        return target
+
+    def submit(self, file: FileState, predicate: str, staged: str, max_tokens: int):
+        file.calls += 1
+        return self.session.sql(
+            _AI_COMPLETE_SQL,
+            params=[
+                self.model,
+                predicate,
+                staged,
+                json.dumps({"max_tokens": max_tokens}),
+            ],
+        ).collect_nowait()
+
+    @staticmethod
+    def collect(job) -> Tuple[Any, Optional[str], Optional[Dict[str, Any]]]:
+        try:
+            return read_answer(job.result()[0][0])
+        except Exception as exc:
+            return None, str(exc), None
+
+    def plan_large_files(self, files: List[FileState]) -> List[Task]:
+        """The first round of tasks. A large file gets planning-only calls on segments of
+        it, and its tasks are the ranges they plan; a segment whose plan fails, or that is
+        too large to plan, falls back to a first call that extracts and plans its own
+        remainder. Every other file starts with its initial ranges."""
+        plan = self.budgets["plan_first"]
+        tasks: List[Task] = []
+        planned = [f for f in files if f.splittable and is_large_file(f.pages, f.size)]
+        for file in files:
+            if file in planned:
+                continue
+            first = first_round_budget(file.pages, file.size)
+            ranges = (
+                initial_ranges(file.pages, file.size) if file.splittable else [(1, 1)]
+            )
+            tasks += [(file, a, b, first) for a, b in ranges]
+        jobs = []
+        for file in planned:
+            for a, b in planning_segments(file.pages, file.size):
+                staged = self.stage_part(file, a, b)
+                if staged is None:
+                    tasks.append((file, a, b, "first"))
+                    continue
+                prompt = build_plan_predicate(
+                    self.predicate, a, b, file.pages, plan["range_target"], self.schema
+                )
+                jobs.append(
+                    (file, a, b, self.submit(file, prompt, staged, plan["max_tokens"]))
+                )
+        for file, a, b, job in jobs:
+            value, error, _ = self.collect(job)
+            ranges = ranges_from_plan(value, a, b) if error is None else None
+            if ranges:
+                tasks += [(file, x, y, file.range_budget) for x, y in ranges]
+            else:
+                tasks.append((file, a, b, "first"))
+        for file in planned:
+            queued = sum(1 for task in tasks if task[0] is file)
+            file.cap = max(
+                file.cap, min(HARD_MAX_CALLS_PER_FILE, file.calls + 2 * queued + 4)
+            )
+        return tasks
+
+    def extract_until_done(self, tasks: List[Task], max_calls_per_file: int) -> None:
+        """Run every task at once, then the tasks their answers leave (the rest of a
+        range that did not fit, or the halves of one that failed) until none are left."""
+        while tasks:
+            jobs = []
+            oversized: List[Task] = []
+            for file, start, end, budget_name in tasks:
+                if file.calls >= file.cap:
+                    file.errors.append(
+                        f"pages {start}-{end} not extracted: reached {file.cap} calls"
+                    )
+                    continue
+                staged = self.stage_part(file, start, end)
+                if staged is None:
+                    mid = (start + end) // 2
+                    oversized += [
+                        (file, start, mid, budget_name),
+                        (file, mid + 1, end, budget_name),
+                    ]
+                    continue
+                budget = self.budgets[budget_name]
+                prompt = (
+                    build_predicate(
+                        self.predicate,
+                        budget["target"],
+                        start,
+                        end,
+                        file.pages,
+                        plan_target=self.budgets[file.range_budget]["target"],
+                    )
+                    + self.instruction
+                )
+                jobs.append(
+                    (
+                        file,
+                        start,
+                        end,
+                        budget_name,
+                        self.submit(file, prompt, staged, budget["max_tokens"]),
+                    )
+                )
+            tasks = oversized
+            for file, start, end, budget_name, job in jobs:
+                tasks += self.finish(
+                    file, start, end, budget_name, job, max_calls_per_file
+                )
+
+    def finish(
+        self,
+        file: FileState,
+        start: int,
+        end: int,
+        budget_name: str,
+        job,
+        max_calls_per_file: int,
+    ) -> List[Task]:
+        """Record one call's answer and return the tasks it leaves."""
+        value, error, salvaged = self.collect(job)
+        value = unwrap_envelope(value, self.sent_schema)
+        if error is None and is_empty_answer(value):
+            value, error = None, EMPTY_ANSWER_ERROR
+        if not file.splittable:
+            if error is not None:
+                file.errors.append(error)
+            else:
+                file.parts.append((start, value))
+            return []
+        range_target = self.budgets[file.range_budget]["target"]
+        if error is None and isinstance(value, dict):
+            value = shift_page_fields(value, start, end)
+            estimate = document_estimate(value, start, end, file.pages)
+            if estimate is not None:
+                file.cap = max(
+                    file.cap, call_cap(max_calls_per_file, estimate, range_target)
+                )
+        keep, remaining = next_ranges(
+            start,
+            end,
+            value,
+            error,
+            target=self.budgets["merge_target"],
+            salvaged=salvaged,
+        )
+        if keep:
+            file.parts.append((start, value))
+        elif not remaining:
+            file.errors.append(f"pages {start}-{end}: {error}")
+        # Ranges re-split from a failed call (halves, or along its salvaged plan) keep
+        # its budget; ranges a successful call planned get the per-range budget.
+        next_budget = file.range_budget if keep else budget_name
+        return [(file, a, b, next_budget) for a, b in remaining]
+
+
 def run(
     session: Session,
     path: str,
     response_format: str,
     predicate: str,
     model: str,
-    model_parameters: str,
     call_budgets: str,
     max_calls_per_file: int,
     work_stage: str,
 ) -> DataFrame:  # pragma: no cover - exercised against a live account
-    from pypdf import PdfReader, PdfWriter
-    from snowflake.snowpark.files import SnowflakeFile
     from snowflake.snowpark.types import StringType, StructField, StructType
 
-    base_parameters = json.loads(model_parameters)
-    budgets = json.loads(call_budgets)
-    json_mode = budgets.get("json_mode", True)
-    sent_format = with_status(json.loads(response_format))
-    format_with_status = json.dumps(sent_format)
-    instruction = (
-        "" if json_mode else "\n\n" + schema_instruction(sent_format["schema"])
+    extraction = DocumentExtraction(
+        session,
+        json.loads(response_format),
+        predicate,
+        model,
+        json.loads(call_budgets),
+        work_stage,
     )
-    files = [
-        qualify_listed_name(path, row["name"])
-        for row in session.sql(f"LIST {path}").collect()
-    ]
-
-    readers: Dict[str, Any] = {}
-    totals: Dict[str, int] = {}
-    sizes: Dict[str, int] = {}
-    errors: Dict[str, List[str]] = {f: [] for f in files}
-    for file in files:
-        with SnowflakeFile.open(file, "rb", require_scoped_url=False) as f:
-            content = f.read()
-        sizes[file] = len(content)
-        try:
-            readers[file] = PdfReader(io.BytesIO(content))
-            totals[file] = len(readers[file].pages)
-        except Exception:  # not a readable PDF: extract it whole, never split
-            readers[file] = None
-            totals[file] = 1
-
-    def part_file(file: str, start: int, end: int) -> Optional[str]:
-        """Stage the pages as their own PDF; None when the part is still too large."""
-        if start == 1 and end == totals[file] and sizes[file] <= MAX_FILE_BYTES:
-            return file
-        if readers[file] is None:
-            return file
-        writer = PdfWriter()
-        for index in range(max(start - 2, 0), end):
-            writer.add_page(readers[file].pages[index])
-        buffer = io.BytesIO()
-        writer.write(buffer)
-        if buffer.tell() > MAX_FILE_BYTES and end > start:
-            return None
-        buffer.seek(0)
-        stem = os.path.splitext(os.path.basename(file))[0]
-        digest = hashlib.md5(file.encode()).hexdigest()[:12]
-        target = f"{work_stage}/document_parts/{digest}/{stem}_p{start}_{end}.pdf"
-        session.file.put_stream(buffer, target, auto_compress=False, overwrite=True)
-        return target
-
-    calls = {f: 0 for f in files}
-    caps = {f: max_calls_per_file for f in files}
-    observed: Dict[str, List[float]] = {f: [] for f in files}
-    range_budgets = {f: range_budget(totals[f], sizes[f], budgets) for f in files}
-    range_targets = {f: budgets[range_budgets[f]]["target"] for f in files}
-    range_target = budgets["range"]["target"]
-    # Models whose estimates are not measured as overestimates skip the correction, and
-    # planned ranges are only coalesced up to merge_target, leaving headroom under max_tokens.
-    correct_estimates = budgets.get("correct_estimates", True)
-    merge_target = budgets.get("merge_target", range_target)
-
-    def file_factor(file: str) -> float:
-        return correction_factor(observed[file]) if correct_estimates else 1.0
-
-    done: Dict[str, List[Tuple[int, Dict[str, Any]]]] = {f: [] for f in files}
-    pending = [
-        (f, a, b, first_round_budget(totals[f], sizes[f]))
-        for f in files
-        for a, b in (
-            initial_ranges(totals[f], sizes[f]) if readers[f] is not None else [(1, 1)]
-        )
-    ]
-    plan_first = budgets.get("plan_first")
-    planned = [
-        f
-        for f in files
-        if plan_first and readers[f] is not None and is_large_file(totals[f], sizes[f])
-    ]
-    if planned:
-        pending = [item for item in pending if item[0] not in planned]
-        plan_schema = json.loads(response_format)["schema"]
-        plan_jobs = []
-        for file in planned:
-            for a, b in planning_segments(totals[file], sizes[file]):
-                staged = part_file(file, a, b)
-                if staged is None:  # still over the size limit: plan it the old way
-                    pending.append((file, a, b, "first"))
-                    continue
-                calls[file] += 1
-                plan_jobs.append(
-                    (
-                        file,
-                        a,
-                        b,
-                        session.sql(
-                            _AI_COMPLETE_TEXT_SQL,
-                            params=[
-                                model,
-                                build_plan_predicate(
-                                    predicate,
-                                    a,
-                                    b,
-                                    totals[file],
-                                    plan_first["range_target"],
-                                    plan_schema,
-                                ),
-                                staged,
-                                json.dumps(
-                                    {
-                                        **base_parameters,
-                                        "max_tokens": plan_first["max_tokens"],
-                                    }
-                                ),
-                            ],
-                        ).collect_nowait(),
-                    )
-                )
-        for file, a, b, job in plan_jobs:
-            try:
-                raw = job.result()[0][0]
-                result = json.loads(raw) if isinstance(raw, str) else raw
-                value, error = result.get("value"), result.get("error")
-                if error is None:
-                    value, error = parse_text_answer(value)
-            except Exception as exc:
-                value, error = None, str(exc)
-            ranges = ranges_from_plan(value, a, b) if error is None else None
-            if ranges:
-                pending.extend((file, x, y, range_budgets[file]) for x, y in ranges)
-            else:
-                # A failed or unusable plan: this segment's first call extracts and
-                # plans its own remainder, as without plan_first.
-                pending.append((file, a, b, "first"))
-        for file in planned:
-            queued = sum(1 for item in pending if item[0] == file)
-            caps[file] = max(
-                caps[file], min(HARD_MAX_CALLS_PER_FILE, calls[file] + 2 * queued + 4)
-            )
-    while pending:
-        jobs = []
-        oversized = []
-        for file, start, end, budget_name in pending:
-            if calls[file] >= caps[file]:
-                errors[file].append(
-                    f"pages {start}-{end} not extracted: reached {caps[file]} calls"
-                )
-                continue
-            staged = part_file(file, start, end)
-            if staged is None:
-                mid = (start + end) // 2
-                oversized.extend(
-                    [(file, start, mid, budget_name), (file, mid + 1, end, budget_name)]
-                )
-                continue
-            calls[file] += 1
-            budget = budgets[budget_name]
-            # Targets are stated in the model's own (over)estimated units so it stops near
-            # the real target; max_tokens stays in real tokens as the hard bound.
-            factor = file_factor(file)
-            params = [
-                model,
-                build_predicate(
-                    predicate,
-                    int(budget["target"] / factor),
-                    start,
-                    end,
-                    totals[file],
-                    plan_target=int(range_targets[file] / factor),
-                )
-                + instruction,
-                staged,
-                json.dumps({**base_parameters, "max_tokens": budget["max_tokens"]}),
-            ] + ([format_with_status] if json_mode else [])
-            jobs.append(
-                (
-                    file,
-                    start,
-                    end,
-                    budget_name,
-                    session.sql(
-                        _AI_COMPLETE_SQL if json_mode else _AI_COMPLETE_TEXT_SQL,
-                        params=params,
-                    ).collect_nowait(),
-                )
-            )
-        pending = oversized
-        for file, start, end, budget_name, job in jobs:
-            try:
-                raw = job.result()[0][0]
-                result = json.loads(raw) if isinstance(raw, str) else raw
-                value, error = result.get("value"), result.get("error")
-                salvaged = None
-                if error is None and not json_mode:
-                    text = value
-                    value, error = parse_text_answer(text)
-                    if error is not None:
-                        salvaged = salvage_status(text)
-                value = unwrap_envelope(value, sent_format["schema"])
-            except Exception as exc:
-                value, error, salvaged = None, str(exc), None
-            if error is None and is_empty_answer(value):
-                value, error = None, EMPTY_ANSWER_ERROR
-            if readers[file] is None:
-                if error is not None:
-                    errors[file].append(error)
-                else:
-                    done[file].append((start, value))
-                continue
-            factor = observed_factor(value) if error is None else None
-            if factor is not None:
-                observed[file].append(factor)
-            if error is None and isinstance(value, dict):
-                value = shift_page_fields(value, start, end)
-                estimate = document_estimate(value, start, end, totals[file])
-                if estimate is not None:
-                    caps[file] = max(
-                        caps[file],
-                        call_cap(
-                            max_calls_per_file, estimate, 1.0, range_targets[file]
-                        ),
-                    )
-            keep, remaining = next_ranges(
-                start,
-                end,
-                value,
-                error,
-                factor=file_factor(file),
-                target=merge_target,
-                salvaged=salvaged,
-            )
-            if keep:
-                done[file].append((start, value))
-            elif not remaining:
-                errors[file].append(f"pages {start}-{end}: {error}")
-            # Ranges re-split from a failed call (halves, or along its salvaged plan) keep
-            # its budget; ranges a successful call planned get the per-range budget.
-            next_budget = range_budgets[file] if keep else budget_name
-            pending.extend((file, a, b, next_budget) for a, b in remaining)
-
+    files = extraction.load_files(path, max_calls_per_file)
+    extraction.extract_until_done(
+        extraction.plan_large_files(files), max_calls_per_file
+    )
     rows = []
     for file in files:
-        parts = [value for _, value in sorted(done[file], key=lambda item: item[0])]
+        parts = [value for _, value in sorted(file.parts, key=lambda part: part[0])]
         rows.append(
             [
-                file,
+                file.path,
                 json.dumps(merge_values(parts)) if parts else None,
-                "; ".join(errors[file]) if errors[file] else None,
+                "; ".join(file.errors) if file.errors else None,
             ]
         )
     schema = StructType(

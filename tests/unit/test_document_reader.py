@@ -2,18 +2,15 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import copy
 from unittest import mock
 
 from snowflake.snowpark._internal.document_reader import (
+    _CALL_BUDGETS,
     _EXTRACTION_MODEL,
-    _MODEL_SETTINGS,
     build_ai_complete_call,
     cast_extracted_field,
     merge_extract_error,
-    model_settings,
     output_columns,
-    single_call_model_parameters,
 )
 from snowflake.snowpark._internal.document_reader_options import (
     DocumentReaderOptions,
@@ -22,70 +19,23 @@ from snowflake.snowpark._internal.document_reader_options import (
 from snowflake.snowpark.functions import col, lit
 from snowflake.snowpark.types import BooleanType, DoubleType, StringType
 
-# ---------------------------------------------------------------------------
-# model_settings -- the fixed per-model configuration (model_parameters,
-# json_mode, and output-token budgets) that drives every AI_COMPLETE call;
-# an unrecognized model name falls back to _EXTRACTION_MODEL's own settings
-# rather than erroring.
+# _CALL_BUDGETS -- the fixed output-token budgets the split procedure runs
+# claude-sonnet-5-5 with.
 # ---------------------------------------------------------------------------
 
 
-class TestModelSettings:
-    def test_claude_opus_5_uses_json_mode_with_a_zero_temperature_and_small_budgets(
-        self,
-    ):
-        settings = model_settings("claude-opus-5")
-        assert settings["json_mode"] is True
-        assert settings["model_parameters"] == {"temperature": 0}
-        assert settings["budgets"] == {
-            "first": {"target": 65000, "max_tokens": 65536},
-            "range": {"target": 65000, "max_tokens": 65536},
-        }
+class TestCallBudgets:
+    def test_the_extraction_model_is_claude_sonnet_5_5(self):
+        assert _EXTRACTION_MODEL == "claude-sonnet-5-5"
 
-    def test_claude_sonnet_5_5_uses_text_mode_with_no_parameters_and_larger_budgets(
-        self,
-    ):
-        settings = model_settings("claude-sonnet-5-5")
-        assert settings["json_mode"] is False
-        assert settings["model_parameters"] == {}
-        assert settings["budgets"] == {
+    def test_budgets(self):
+        assert _CALL_BUDGETS == {
             "first": {"target": 80000, "max_tokens": 128000},
             "range": {"target": 120000, "max_tokens": 128000},
             "large_range": {"target": 80000, "max_tokens": 128000},
-            "correct_estimates": False,
             "merge_target": 60000,
             "plan_first": {"range_target": 60000, "max_tokens": 64000},
         }
-
-    def test_an_unrecognized_model_falls_back_to_the_extraction_models_settings(self):
-        assert model_settings("some-other-model") == model_settings(_EXTRACTION_MODEL)
-
-
-# ---------------------------------------------------------------------------
-# single_call_model_parameters -- the model_parameters for a call that must
-# finish in one shot (no further splitting possible), with max_tokens set
-# from the model's own "range" budget; built fresh each time, never mutating
-# the shared _MODEL_SETTINGS.
-# ---------------------------------------------------------------------------
-
-
-class TestSingleCallModelParameters:
-    def test_claude_opus_5_adds_max_tokens_to_its_fixed_temperature(self):
-        assert single_call_model_parameters("claude-opus-5") == {
-            "temperature": 0,
-            "max_tokens": 65536,
-        }
-
-    def test_claude_sonnet_5_5_has_only_max_tokens(self):
-        assert single_call_model_parameters("claude-sonnet-5-5") == {
-            "max_tokens": 128000
-        }
-
-    def test_does_not_mutate_the_shared_model_settings(self):
-        original = copy.deepcopy(_MODEL_SETTINGS)
-        single_call_model_parameters("claude-opus-5")
-        single_call_model_parameters("claude-sonnet-5-5")
-        assert _MODEL_SETTINGS == original
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +150,7 @@ class TestMergeExtractError:
 
 
 class TestBuildAiCompleteCall:
-    def test_prompt_only_uses_claude_opus_5_and_omits_response_format(self):
+    def test_prompt_only_uses_claude_sonnet_5_5_and_omits_response_format(self):
         options = DocumentReaderOptions(parse_mode="none", prompt="Summarize this.")
         input_col = col("SOURCE_FILE")
         with mock.patch(
@@ -210,10 +160,10 @@ class TestBuildAiCompleteCall:
 
         mock_ai_complete.assert_called_once()
         args, kwargs = mock_ai_complete.call_args
-        assert args[0] == "claude-opus-5"
+        assert args[0] == "claude-sonnet-5-5"
         assert args[1] == "Summarize this."
         assert kwargs["file"] is input_col
-        assert kwargs["model_parameters"] == {"temperature": 0, "max_tokens": 65536}
+        assert kwargs["model_parameters"] == {"max_tokens": 128000}
         assert kwargs["response_format"] is None
         assert kwargs["return_error_details"] is True
 
@@ -229,8 +179,8 @@ class TestBuildAiCompleteCall:
             build_ai_complete_call(input_col, options)
 
         args, kwargs = mock_ai_complete.call_args
-        assert args[0] == "claude-opus-5"
-        assert kwargs["model_parameters"] == {"temperature": 0, "max_tokens": 65536}
+        assert args[0] == "claude-sonnet-5-5"
+        assert kwargs["model_parameters"] == {"max_tokens": 128000}
         assert kwargs["response_format"] == options.extraction.ai_complete_format
 
 

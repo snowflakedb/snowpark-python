@@ -10,7 +10,6 @@ import pytest
 from snowflake.snowpark._internal.document_extract_proc import (
     BOUNDED_FIRST_CALL_MIN_BYTES,
     BOUNDED_FIRST_CALL_MIN_PAGES,
-    CHARS_PER_OUTPUT_TOKEN,
     EMPTY_ANSWER_ERROR,
     HARD_MAX_CALLS_PER_FILE,
     MAX_FILE_BYTES,
@@ -22,7 +21,6 @@ from snowflake.snowpark._internal.document_extract_proc import (
     call_cap,
     coalesce_ranges,
     continues_across_split,
-    correction_factor,
     document_estimate,
     drop_unsupported,
     first_round_budget,
@@ -32,9 +30,9 @@ from snowflake.snowpark._internal.document_extract_proc import (
     merge_values,
     next_ranges,
     nullable_scalars,
-    observed_factor,
     parse_text_answer,
     qualify_listed_name,
+    read_answer,
     build_plan_predicate,
     planning_segments,
     ranges_from_plan,
@@ -170,10 +168,10 @@ class TestDropUnsupported:
 # ---------------------------------------------------------------------------
 # is_splittable_error -- only an error that fewer pages can fix is worth
 # retrying with a smaller page range: a response cut off mid-JSON (hit
-# max_tokens); an input Cortex rejects as too large (claude-opus-5 reports
-# that only as "malformed request"); or an answer too long to generate, which
-# json mode can return as an empty object with no error at all (see
-# is_empty_answer and EMPTY_ANSWER_ERROR below). Any other error is not.
+# max_tokens); an input Cortex rejects as too large (reported only as
+# "malformed request"); an empty object (see is_empty_answer and
+# EMPTY_ANSWER_ERROR below); or an answer that does not parse as JSON. Any
+# other error is not.
 # ---------------------------------------------------------------------------
 
 
@@ -269,35 +267,22 @@ class TestFirstRoundBudget:
 
 
 # ---------------------------------------------------------------------------
-# range_budget -- a large file's planned ranges use "large_range" when the
-# model defines it, so they are planned and run against the same smaller
-# target; every other file, or a model without it, keeps "range".
+# range_budget -- a large file's planned ranges use "large_range", so they are
+# planned and run against the same smaller target; every other file keeps "range".
 # ---------------------------------------------------------------------------
-
-_WITH_LARGE = {"range": {"target": 120000}, "large_range": {"target": 80000}}
 
 
 class TestRangeBudget:
     def test_small_file_keeps_the_range_budget(self):
-        assert range_budget(10, 1_000_000, _WITH_LARGE) == "range"
+        assert range_budget(10, 1_000_000) == "range"
 
     def test_more_pages_than_the_threshold_gets_the_large_range_budget(self):
         assert (
-            range_budget(BOUNDED_FIRST_CALL_MIN_PAGES + 1, 1_000_000, _WITH_LARGE)
-            == "large_range"
+            range_budget(BOUNDED_FIRST_CALL_MIN_PAGES + 1, 1_000_000) == "large_range"
         )
 
     def test_more_bytes_than_the_threshold_gets_the_large_range_budget(self):
-        assert (
-            range_budget(10, BOUNDED_FIRST_CALL_MIN_BYTES + 1, _WITH_LARGE)
-            == "large_range"
-        )
-
-    def test_large_file_without_a_large_range_budget_keeps_the_range_budget(self):
-        assert (
-            range_budget(BOUNDED_FIRST_CALL_MIN_PAGES + 1, 1_000_000, {"range": {}})
-            == "range"
-        )
+        assert range_budget(10, BOUNDED_FIRST_CALL_MIN_BYTES + 1) == "large_range"
 
 
 # ---------------------------------------------------------------------------
@@ -635,7 +620,7 @@ class TestBuildPredicate:
 
 
 # ---------------------------------------------------------------------------
-# unwrap_envelope -- claude-opus-5 sometimes nests its whole answer under one
+# unwrap_envelope -- a model can nest its whole answer under one
 # undeclared key (e.g. {"input": {...}}); return that inner object instead,
 # but only when it names more declared top-level fields than the top level
 # already does. A declared key is never itself treated as an envelope.
@@ -650,7 +635,7 @@ class TestUnwrapEnvelope:
         assert unwrap_envelope(value, self.SCHEMA) == {"a": 1, "b": 2}
 
     def test_a_dollar_parameter_name_envelope_is_unwrapped(self):
-        # Seen live: claude-opus-5 sometimes names the envelope after the SQL
+        # Seen live (claude-opus-5): an envelope named after the SQL
         # bind parameter rather than anything schema-related.
         value = {"$PARAMETER_NAME": {"a": 1, "b": 2}}
         assert unwrap_envelope(value, self.SCHEMA) == {"a": 1, "b": 2}
@@ -1033,9 +1018,9 @@ class TestNextRanges:
         assert keep is True
         assert ranges == []
 
-    # -- factor/target: without them, behavior is unchanged from above; with them,
-    # the covered ranges are passed through coalesce_ranges using each planned
-    # range's own estimated_output_tokens (see TestCoalesceRanges).
+    # -- target: without it, behavior is unchanged from above; with it, the covered
+    # ranges are passed through coalesce_ranges using each planned range's own
+    # estimated_output_tokens (see TestCoalesceRanges).
 
     REMAINING_WITH_ESTIMATES = {
         STATUS_FIELD: {
@@ -1062,34 +1047,25 @@ class TestNextRanges:
         }
     }
 
-    def test_omitting_factor_and_target_keeps_the_covered_ranges_uncoalesced(self):
+    def test_omitting_target_keeps_the_covered_ranges_uncoalesced(self):
         keep, ranges = next_ranges(1, 50, self.REMAINING_WITH_ESTIMATES, None)
         assert keep is True
         assert ranges == [(10, 20), (21, 30), (31, 40), (41, 50)]
 
-    def test_factor_and_target_coalesce_the_covered_ranges(self):
+    def test_target_coalesces_the_covered_ranges(self):
         keep, ranges = next_ranges(
-            1, 50, self.REMAINING_WITH_ESTIMATES, None, factor=0.5, target=40000
+            1, 50, self.REMAINING_WITH_ESTIMATES, None, target=60000
         )
         assert keep is True
-        # Same shape as the TestCoalesceRanges example: the first three ranges'
-        # corrected estimates (15000 each) merge two at a time under the 40000
-        # target, and the last range (no estimate) never merges.
+        # The first three ranges' estimates (30000 each) merge two at a time under the
+        # 60000 target, and the last range (no estimate) never merges.
         assert ranges == [(10, 30), (31, 40), (41, 50)]
-
-    def test_supplying_only_one_of_factor_or_target_keeps_ranges_uncoalesced(self):
-        keep, ranges = next_ranges(
-            1, 50, self.REMAINING_WITH_ESTIMATES, None, factor=0.5
-        )
-        assert keep is True
-        assert ranges == [(10, 20), (21, 30), (31, 40), (41, 50)]
 
 
 # ---------------------------------------------------------------------------
-# coalesce_ranges -- the model's own plan is far finer than the output-token
-# target asks for (it overestimates by 1.2-2.6x), so adjacent ranges are
-# merged while their corrected (estimate * factor) sum stays within target; a
-# range with no estimate is never merged into, or merged from.
+# coalesce_ranges -- a plan finer than the output-token target asks for is
+# merged while adjacent ranges' summed estimates stay within target; a range
+# with no estimate is never merged into, or merged from.
 # ---------------------------------------------------------------------------
 
 
@@ -1103,179 +1079,53 @@ class TestCoalesceRanges:
             (31, 40, 30000),
             (41, 50, None),
         ]
-        assert coalesce_ranges(ranges, 0.5, 40000) == [(10, 30), (31, 40), (41, 50)]
+        assert coalesce_ranges(ranges, 60000) == [(10, 30), (31, 40), (41, 50)]
 
     def test_a_none_estimate_range_is_never_merged_into_by_the_next_range(self):
         # The None-estimate range is appended on its own; the following range's own
-        # scaled estimate can't be added onto a None running total either.
+        # estimate can't be added onto a None running total either.
         ranges = [(1, 5, None), (6, 10, 1000)]
-        assert coalesce_ranges(ranges, 1.0, 100_000) == [(1, 5), (6, 10)]
+        assert coalesce_ranges(ranges, 100_000) == [(1, 5), (6, 10)]
 
     def test_a_single_range_passes_through_unchanged(self):
-        assert coalesce_ranges([(1, 5, 1000)], 1.0, 100_000) == [(1, 5)]
+        assert coalesce_ranges([(1, 5, 1000)], 100_000) == [(1, 5)]
 
     def test_empty_ranges_gives_an_empty_list(self):
-        assert coalesce_ranges([], 1.0, 100_000) == []
+        assert coalesce_ranges([], 100_000) == []
 
     def test_merging_stops_once_the_target_would_be_exceeded(self):
-        # 20000 * 1.0 + 20000 * 1.0 = 40000 <= 40000 merges; the third range's own
+        # 20000 + 20000 = 40000 <= 40000 merges; the third range's own
         # 20000 would push the running total to 60000, over target, so it starts a
         # new group instead.
         ranges = [(1, 10, 20000), (11, 20, 20000), (21, 30, 20000)]
-        assert coalesce_ranges(ranges, 1.0, 40000) == [(1, 20), (21, 30)]
+        assert coalesce_ranges(ranges, 40000) == [(1, 20), (21, 30)]
 
 
 # ---------------------------------------------------------------------------
-# observed_factor -- actual output tokens (answer length / CHARS_PER_OUTPUT_TOKEN)
-# divided by the tokens the model estimated it would need for the pages it
-# actually finished (its own total minus whatever it still planned, when not
-# complete). None when there is no usable estimate to compare against.
-# ---------------------------------------------------------------------------
-
-
-class TestObservedFactor:
-    def test_complete_call_divides_by_the_total_estimate(self):
-        value = {
-            STATUS_FIELD: {"complete": True, "estimated_total_output_tokens": 100},
-            "name": "hello",
-        }
-        # len(json.dumps({"name": "hello"})) == 17.
-        assert observed_factor(value) == pytest.approx(
-            17 / CHARS_PER_OUTPUT_TOKEN / 100
-        )
-
-    def test_incomplete_call_subtracts_the_remaining_ranges_estimates(self):
-        value = {
-            STATUS_FIELD: {
-                "complete": False,
-                "estimated_total_output_tokens": 1000,
-                "remaining_page_ranges": [{"estimated_output_tokens": 400}],
-            },
-            "name": "hello",
-        }
-        # done = 1000 - 400 = 600; len(json.dumps({"name": "hello"})) == 17.
-        assert observed_factor(value) == pytest.approx(
-            17 / CHARS_PER_OUTPUT_TOKEN / 600
-        )
-
-    def test_non_int_estimates_in_remaining_ranges_are_ignored(self):
-        value = {
-            STATUS_FIELD: {
-                "complete": False,
-                "estimated_total_output_tokens": 1000,
-                "remaining_page_ranges": [
-                    {"estimated_output_tokens": True},
-                    {"estimated_output_tokens": "100"},
-                    {},
-                    "not a dict",
-                ],
-            },
-            "name": "hello",
-        }
-        # None of the remaining entries contribute, so done == the total.
-        assert observed_factor(value) == pytest.approx(
-            17 / CHARS_PER_OUTPUT_TOKEN / 1000
-        )
-
-    def test_done_at_or_below_zero_is_none(self):
-        value = {
-            STATUS_FIELD: {
-                "complete": False,
-                "estimated_total_output_tokens": 100,
-                "remaining_page_ranges": [{"estimated_output_tokens": 150}],
-            },
-            "name": "hello",
-        }
-        assert observed_factor(value) is None
-
-    @pytest.mark.parametrize("total", [None, 0, -5])
-    def test_missing_zero_or_negative_total_is_none(self, total):
-        value = {
-            STATUS_FIELD: {"complete": True, "estimated_total_output_tokens": total}
-        }
-        assert observed_factor(value) is None
-
-    def test_bool_total_is_none(self):
-        value = {
-            STATUS_FIELD: {"complete": True, "estimated_total_output_tokens": True}
-        }
-        assert observed_factor(value) is None
-
-    def test_missing_status_block_is_none(self):
-        assert observed_factor({"name": "hello"}) is None
-
-    def test_non_dict_status_is_none(self):
-        assert observed_factor({STATUS_FIELD: "not a dict"}) is None
-
-    @pytest.mark.parametrize("value", [None, "not a dict", 42, []])
-    def test_non_dict_value_is_none(self, value):
-        assert observed_factor(value) is None
-
-    def test_the_status_blocks_own_size_does_not_affect_the_answer_length(self):
-        # Same answer field ("name") and the same estimate either way -- a bigger
-        # status block (more remaining_page_ranges bookkeeping) must not change the
-        # measured answer length, since the status block is stripped first.
-        small_status = {"complete": True, "estimated_total_output_tokens": 100}
-        big_status = {**small_status, "padding": "x" * 1000}
-        assert observed_factor(
-            {STATUS_FIELD: small_status, "name": "hello"}
-        ) == observed_factor({STATUS_FIELD: big_status, "name": "hello"})
-
-
-# ---------------------------------------------------------------------------
-# correction_factor -- the median of a file's own observed factors so far,
-# clamped to [0.2, 1.5]; 1.0 (trust the model) until there is anything to
-# correct it with.
-# ---------------------------------------------------------------------------
-
-
-class TestCorrectionFactor:
-    def test_empty_list_is_1_0(self):
-        assert correction_factor([]) == 1.0
-
-    def test_single_value_within_range_is_returned_as_is(self):
-        assert correction_factor([0.8]) == 0.8
-
-    def test_odd_length_uses_the_middle_value(self):
-        assert correction_factor([0.9, 0.5, 1.3]) == 0.9
-
-    def test_even_length_uses_the_mean_of_the_middle_two(self):
-        assert correction_factor([0.6, 0.4]) == pytest.approx(0.5)
-
-    def test_clamped_to_the_floor(self):
-        assert correction_factor([0.05]) == 0.2
-
-    def test_clamped_to_the_ceiling(self):
-        assert correction_factor([2.0]) == 1.5
-
-
-# ---------------------------------------------------------------------------
-# call_cap -- the per-file AI_COMPLETE call budget: twice the corrected number
-# of target-sized ranges the estimated answer needs, plus slack, never below
+# call_cap -- the per-file AI_COMPLETE call budget: twice the number of
+# target-sized ranges the estimated answer needs, plus slack, never below
 # the starting floor nor above HARD_MAX_CALLS_PER_FILE.
 # ---------------------------------------------------------------------------
 
 
 class TestCallCap:
     @pytest.mark.parametrize(
-        "floor, estimated_total, factor, range_target, expected",
+        "floor, estimated_total, range_target, expected",
         [
-            (12, 900_000, 0.5, 40_000, 28),
-            (12, 5_000, 1.0, 40_000, 12),
-            (12, 1_400_000, 0.6, 40_000, 46),
+            (12, 450_000, 40_000, 28),
+            (12, 5_000, 40_000, 12),
+            (12, 840_000, 40_000, 46),
         ],
     )
-    def test_worked_examples(
-        self, floor, estimated_total, factor, range_target, expected
-    ):
-        assert call_cap(floor, estimated_total, factor, range_target) == expected
+    def test_worked_examples(self, floor, estimated_total, range_target, expected):
+        assert call_cap(floor, estimated_total, range_target) == expected
 
     def test_a_huge_estimate_is_capped_at_the_hard_max(self):
-        assert call_cap(12, 100_000_000, 1.0, 1000) == HARD_MAX_CALLS_PER_FILE
+        assert call_cap(12, 100_000_000, 1000) == HARD_MAX_CALLS_PER_FILE
 
     @pytest.mark.parametrize("estimated_total", [None, 0])
     def test_a_falsy_estimated_total_returns_the_floor_unchanged(self, estimated_total):
-        assert call_cap(12, estimated_total, 0.5, 40_000) == 12
+        assert call_cap(12, estimated_total, 40_000) == 12
 
 
 # ---------------------------------------------------------------------------
@@ -1741,3 +1591,43 @@ class TestRangesFromPlan:
         assert ranges_from_plan({"ranges": [["a", "b"]]}, 1, 20) is None
         assert ranges_from_plan({"pages": []}, 1, 20) is None
         assert ranges_from_plan(None, 1, 20) is None
+
+
+# ---------------------------------------------------------------------------
+# read_answer -- one AI_COMPLETE(..., return_error_details => TRUE) result,
+# as a JSON string or an object, to (value, error, salvaged status).
+# ---------------------------------------------------------------------------
+
+
+class TestReadAnswer:
+    def test_a_text_answer_is_parsed(self):
+        raw = json.dumps({"value": '{"name": "x"}', "error": None})
+        assert read_answer(raw) == ({"name": "x"}, None, None)
+
+    def test_an_object_result_is_read_like_a_string_one(self):
+        assert read_answer({"value": '{"name": "x"}', "error": None}) == (
+            {"name": "x"},
+            None,
+            None,
+        )
+
+    def test_an_ai_complete_error_is_returned_without_parsing_or_salvage(self):
+        assert read_answer({"value": None, "error": "malformed request"}) == (
+            None,
+            "malformed request",
+            None,
+        )
+
+    def test_a_truncated_answer_salvages_its_status(self):
+        text = (
+            '{"%s": {"complete": false, "last_pdf_page_extracted": 3}, "rows": [{"a"'
+            % (STATUS_FIELD)
+        )
+        value, error, salvaged = read_answer({"value": text, "error": None})
+        assert value is None
+        assert error == TRUNCATED_TEXT_ERROR
+        assert salvaged == {"complete": False, "last_pdf_page_extracted": 3}
+
+    def test_a_result_that_is_not_an_object_raises(self):
+        with pytest.raises(AttributeError):
+            read_answer("[1, 2]")
