@@ -16,6 +16,7 @@
 
 - Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
 - Fixed `DataFrameReader.jdbc`(PrPr) timing out on slow external data sources by executing the source query lazily.
+- Fixed a bug that the dataframe trace and missing-object information were missing from errors raised while a DataFrame is being created, when debuggability features are enabled by `context.configure_development_features`.
 
 #### Improvements
 
