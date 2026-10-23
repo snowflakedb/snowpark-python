@@ -8,15 +8,27 @@
 
 #### Improvements
 
-- Removed the `experimental` tag from `DataFrame.to_polars()`.
-- `DataFrame.to_polars()` now defaults to `transport="parquet"` instead of `transport="arrow"`.
 - Eager schema validation (`context.configure_development_features(enable_eager_schema_validation=True)`) now raises invalid column references in `DataFrame.filter` and `DataFrame.sort` when the DataFrame is created.
 
 #### Bug Fixes
 
 - Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
-- Fixed `DataFrameReader.jdbc`(PrPr) timing out on slow external data sources by executing the source query lazily.
 - Fixed a bug that the dataframe trace and missing-object information were missing from errors raised while a DataFrame is being created, when debuggability features are enabled by `context.configure_development_features`.
+
+## 1.55.3 (2026-10-21)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Improvements
+
+- Removed the `experimental` tag from `DataFrame.to_polars()`.
+- `DataFrame.to_polars()` now defaults to `transport="parquet"` instead of `transport="arrow"`.
+
+#### Bug Fixes
+
+- Fixed `DataFrameReader.jdbc`(PrPr) timing out on slow external data sources by executing the source query lazily.
 
 #### Improvements
 
