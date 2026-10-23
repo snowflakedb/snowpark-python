@@ -262,7 +262,12 @@ def test_missing_table_with_dataframe_operations(
         # from_ is a SetStatement
         ("union_then_select", lambda t, session: t.union(t).select("A")),
         # from_ is a SelectSnowflakePlan
-        ("join_then_select", lambda t, session: t.join(t, "A").select("A")),
+        (
+            "join_then_select",
+            lambda t, session: t.join(session.table("NON_EXISTENT_TABLE"), "A").select(
+                "A"
+            ),
+        ),
         ("limit_then_select", lambda t, session: t.limit(1).select("A")),
         # from_ is a SelectSQL
         (
