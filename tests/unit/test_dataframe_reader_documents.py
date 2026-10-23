@@ -47,17 +47,22 @@ def test_documents_non_stage_path_raises_before_any_query():
 @pytest.mark.parametrize(
     "options",
     [
+        # These used to configure parse/extraction behavior directly; the
+        # private-preview document reader now only accepts SCHEMA and PROMPT, so
+        # every one of them -- valid value or not -- is rejected up front.
         {"parse_mode": "bogus"},
+        {"parse_mode": "layout"},
         {"row_boundary": "chapter"},
         {"mode": "DROPMALFORMED"},
         {"extraction_engine": "ai_agent"},
+        {"model": "claude-sonnet-4-5"},
     ],
 )
-def test_documents_invalid_option_raises_before_any_query(options):
+def test_documents_unsupported_option_raises_before_any_query(options):
     reader = DataFrameReader(_create_fake_session())
     for key, value in options.items():
         reader = reader.option(key, value)
 
     with pytest.raises(SnowparkDataframeReaderException) as exc_info:
         reader._documents("@stage/doc.pdf")
-    assert exc_info.value.error_code == "1116"
+    assert exc_info.value.error_code == "1119"

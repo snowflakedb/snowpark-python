@@ -40,9 +40,28 @@ def _build(options: dict) -> DocumentReaderOptions:
     return DocumentReaderOptions.from_reader_options(options)
 
 
+def _build_direct(**kwargs) -> DocumentReaderOptions:
+    """Private-preview lockdown restricts `from_reader_options` to SCHEMA/PROMPT, so
+    the remaining fields (parse_mode, row_boundary, mode, extraction_engine, ...) are
+    now only reachable by constructing DocumentReaderOptions directly and running
+    validate() ourselves, the way from_reader_options itself does."""
+    options = DocumentReaderOptions(**kwargs)
+    options.validate()
+    return options
+
+
 def _expect_error(error_code: str, options: dict) -> SnowparkDataframeReaderException:
     with pytest.raises(SnowparkDataframeReaderException) as exc_info:
         _build(options)
+    assert exc_info.value.error_code == error_code
+    return exc_info.value
+
+
+def _expect_validate_error(
+    error_code: str, **kwargs
+) -> SnowparkDataframeReaderException:
+    with pytest.raises(SnowparkDataframeReaderException) as exc_info:
+        _build_direct(**kwargs)
     assert exc_info.value.error_code == error_code
     return exc_info.value
 
@@ -61,9 +80,8 @@ class TestDefaults:
         assert options.page_filter is None
         assert options.mode == "PERMISSIVE"
         assert options.corrupt_record_column == _DEFAULT_CORRUPT_RECORD_COLUMN
-        assert options.extraction_engine == "ai_extract"
+        assert options.extraction_engine == "ai_complete"
         assert options.extraction is None
-        assert options.model is None
         assert options.prompt is None
 
     def test_default_corrupt_record_column_differs_from_csv_json(self):
@@ -76,85 +94,131 @@ class TestDefaults:
         options = _build({})
         assert options.parse_enabled is True
         assert options.extract_enabled is False
+        assert options.complete_enabled is False
         assert options.page_rows is False
 
     def test_custom_corrupt_record_column_case_is_preserved(self):
-        # Only the option *key* is upper-cased by `.option()`; the value is the
-        # user's chosen column name and must survive verbatim.
-        options = _build({"COLUMNNAMEOFCORRUPTRECORD": "myErrorCol"})
+        # columnNameOfCorruptRecord is no longer settable through from_reader_options
+        # (see TestUnsupportedOptionsRejected), so this is exercised by constructing
+        # DocumentReaderOptions directly. Only the *key* was ever upper-cased by
+        # .option(); the value is the user's chosen column name and must survive
+        # verbatim.
+        options = _build_direct(corrupt_record_column="myErrorCol")
         assert options.corrupt_record_column == "myErrorCol"
 
     def test_page_filter_passes_through(self):
         page_filter = [{"start": 0, "end": 2}]
-        assert _build({"PAGE_FILTER": page_filter}).page_filter == page_filter
+        options = _build_direct(page_filter=page_filter)
+        assert options.page_filter == page_filter
 
 
 # ---------------------------------------------------------------------------
-# Closed-set enum checks (code 1116) -- the only remaining client-side guard.
-# parse_mode, row_boundary, mode and extraction_engine drive our own Python
-# routing and are never sent to Snowflake, so nothing downstream would catch
-# an unrecognized value. Everything else (response_format, model, prompt,
-# extract_images) is either forwarded to AI_EXTRACT/AI_COMPLETE untouched --
-# theirs to validate -- or silently unused when another option makes it
-# inapplicable.
+# Options no longer reachable through from_reader_options -- private-preview
+# lockdown restricts it to exactly SCHEMA and PROMPT (keys arrive upper-cased via
+# .option()); every other key -- including ones that used to be valid, like
+# PARSE_MODE or MODEL -- now raises before any query is built.
+# ---------------------------------------------------------------------------
+
+
+class TestUnsupportedOptionsRejected:
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "PARSE_MODE",
+            "ROW_BOUNDARY",
+            "EXTRACT_IMAGES",
+            "PAGE_FILTER",
+            "MODE",
+            "COLUMNNAMEOFCORRUPTRECORD",
+            "EXTRACTION_ENGINE",
+            "MODEL",
+        ],
+    )
+    def test_removed_option_raises_1119(self, key):
+        error = _expect_error("1119", {key: "some-value"})
+        assert key in error.message
+        assert "SCHEMA" in error.message
+        assert "PROMPT" in error.message
+
+    def test_unrecognized_option_raises_1119(self):
+        error = _expect_error("1119", {"BOGUS_OPTION": "x"})
+        assert "BOGUS_OPTION" in error.message
+
+    def test_schema_and_prompt_together_are_still_accepted(self):
+        # Does not raise.
+        options = _build({"SCHEMA": FLAT_SCHEMA, "PROMPT": "Extract fields."})
+        assert options.extract_enabled is True
+        assert options.prompt == "Extract fields."
+
+
+# ---------------------------------------------------------------------------
+# complete_enabled (schema or prompt present) is what now decides parse_mode and
+# which stage(s) can error -- see from_reader_options and error_stages.
+# ---------------------------------------------------------------------------
+
+
+class TestCompleteEnabledDefaults:
+    def test_neither_schema_nor_prompt_keeps_todays_default_parse_read(self):
+        options = _build({})
+        assert options.parse_mode == "layout"
+        assert options.extraction is None
+        assert options.complete_enabled is False
+        assert [stage for stage, _ in options.error_stages] == ["parse"]
+
+    def test_schema_switches_to_unparsed_ai_complete(self):
+        options = _build({"SCHEMA": FLAT_SCHEMA})
+        assert options.parse_mode == "none"
+        assert options.parse_enabled is False
+        assert options.extraction_engine == "ai_complete"
+        assert options.complete_enabled is True
+
+    def test_prompt_only_has_no_extraction_but_is_complete_enabled(self):
+        options = _build({"PROMPT": "Summarize this document."})
+        assert options.extraction is None
+        assert options.extract_enabled is False
+        assert options.complete_enabled is True
+        assert options.parse_mode == "none"
+        assert [stage for stage, _ in options.error_stages] == ["extract"]
+
+
+# ---------------------------------------------------------------------------
+# Closed-set enum checks (code 1116) -- the only remaining guards on parse_mode,
+# row_boundary, mode and extraction_engine. They drive our own Python routing and
+# are never sent to Snowflake, so nothing downstream would catch an unrecognized
+# value. Only reachable now by constructing DocumentReaderOptions directly, since
+# from_reader_options() no longer accepts any of these keys.
 # ---------------------------------------------------------------------------
 
 
 class TestClosedSetEnums:
     @pytest.mark.parametrize(
-        "key,valid_value,attribute,expected",
+        "attribute,valid_value",
         [
-            ("PARSE_MODE", "ocr", "parse_mode", "ocr"),
-            ("ROW_BOUNDARY", "page", "row_boundary", "page"),
-            ("MODE", "FAILFAST", "mode", "FAILFAST"),
-            (
-                "EXTRACTION_ENGINE",
-                "ai_complete",
-                "extraction_engine",
-                "ai_complete",
-            ),
+            ("parse_mode", "ocr"),
+            ("row_boundary", "page"),
+            ("mode", "FAILFAST"),
+            ("extraction_engine", "ai_extract"),
         ],
     )
-    def test_valid_value_accepted(self, key, valid_value, attribute, expected):
-        options = _build({key: valid_value})
-        assert getattr(options, attribute) == expected
+    def test_valid_value_accepted(self, attribute, valid_value):
+        options = _build_direct(**{attribute: valid_value})
+        assert getattr(options, attribute) == valid_value
 
     @pytest.mark.parametrize(
-        "key,option_name",
-        [
-            ("PARSE_MODE", "parse_mode"),
-            ("ROW_BOUNDARY", "row_boundary"),
-            ("MODE", "mode"),
-            ("EXTRACTION_ENGINE", "extraction_engine"),
-        ],
+        "attribute",
+        ["parse_mode", "row_boundary", "mode", "extraction_engine"],
     )
-    def test_invalid_value_raises_1116(self, key, option_name):
-        error = _expect_error("1116", {key: "bogus"})
-        assert option_name in error.message
-        # The message echoes the case-normalized value ("mode" is upper-cased,
-        # the other three are lower-cased) rather than the raw input.
+    def test_invalid_value_raises_1116(self, attribute):
+        error = _expect_validate_error("1116", **{attribute: "bogus"})
+        assert attribute in error.message
         assert "bogus" in error.message.lower()
 
     @pytest.mark.parametrize("parse_mode", ["layout", "ocr", "text", "none"])
     def test_every_parse_mode_is_accepted(self, parse_mode):
-        assert _build({"PARSE_MODE": parse_mode}).parse_mode == parse_mode
-
-    @pytest.mark.parametrize(
-        "key,given,attribute,expected",
-        [
-            ("PARSE_MODE", "LAYOUT", "parse_mode", "layout"),
-            ("PARSE_MODE", "Ocr", "parse_mode", "ocr"),
-            ("ROW_BOUNDARY", "PAGE", "row_boundary", "page"),
-            ("MODE", "permissive", "mode", "PERMISSIVE"),
-            ("MODE", "failfast", "mode", "FAILFAST"),
-            ("EXTRACTION_ENGINE", "AI_EXTRACT", "extraction_engine", "ai_extract"),
-        ],
-    )
-    def test_value_case_is_normalized(self, key, given, attribute, expected):
-        assert getattr(_build({key: given}), attribute) == expected
+        assert _build_direct(parse_mode=parse_mode).parse_mode == parse_mode
 
     def test_invalid_value_message_lists_valid_values(self):
-        error = _expect_error("1116", {"ROW_BOUNDARY": "chapter"})
+        error = _expect_validate_error("1116", row_boundary="chapter")
         assert "document" in error.message
         assert "page" in error.message
 
@@ -213,8 +277,9 @@ class TestExtractionSpecFields:
 
     def test_list_with_non_string_items_does_not_raise(self):
         # A malformed response_format (e.g. a stray int) must not blow up with
-        # an AttributeError from field.upper() -- field_name() always returns
-        # a string, even for a shape this reader doesn't otherwise recognize.
+        # an AttributeError from field.upper() -- field_and_question() always
+        # returns a string name, even for a shape this reader doesn't otherwise
+        # recognize.
         assert _fields([42, "city: What city?"]) == ["42", "city"]
         assert _fields([[42, "What is it?"]]) == ["42"]
 
@@ -232,10 +297,15 @@ def _field_types(response_format) -> dict:
 
 
 class TestExtractionSpecFieldTypes:
-    def test_flat_dict_has_no_declared_types(self):
-        # AI_EXTRACT's own flat {name: prompt} shape carries no type contract at
-        # all -- every field maps to None (kept as raw VARIANT).
-        assert _field_types(FLAT_SCHEMA) == {"invoice_number": None, "total": None}
+    def test_flat_dict_fields_resolve_to_string_from_the_converted_schema(self):
+        # AI_EXTRACT's own flat {name: prompt} shape carries no type contract of
+        # its own, but it is now converted into a string-typed JSON Schema for
+        # AI_COMPLETE (see ExtractionSpec.from_response_format) -- field_types is
+        # derived from that converted schema, so every field resolves to
+        # StringType rather than the raw-VARIANT None it used to get.
+        types = _field_types(FLAT_SCHEMA)
+        assert isinstance(types["invoice_number"], StringType)
+        assert isinstance(types["total"], StringType)
 
     def test_json_schema_scalar_types_resolve(self):
         schema = {
@@ -347,11 +417,12 @@ class TestSchemaPassesThroughUnrestricted:
 
 
 # ---------------------------------------------------------------------------
-# ExtractionSpec.ai_complete_format -- AI_COMPLETE's structured-output shape
-# is {"type": "json", "schema": {...}}, stricter than AI_EXTRACT's flat Q&A
-# dicts. The wrap applies only when response_format already looks like a
-# JSON Schema (has a "properties" dict); anything else passes through
-# untouched. Computed once per ExtractionSpec, not per call.
+# ExtractionSpec.ai_complete_format -- AI_COMPLETE only accepts a JSON Schema.
+# A bare JSON-Schema dict (has a "properties" dict) is wrapped as given;
+# AI_EXTRACT's own flat Q&A shapes (dict or list) have no question/answer notion
+# AI_COMPLETE understands, so they are converted into a JSON Schema whose fields
+# are all strings, with the question (if any) carried as "description". Computed
+# once per ExtractionSpec, not per call.
 # ---------------------------------------------------------------------------
 
 
@@ -366,19 +437,63 @@ class TestAiCompleteFormat:
             "schema": PROPERTIES_SCHEMA,
         }
 
-    def test_flat_schema_is_not_wrapped(self):
-        # A flat Q&A dict isn't a JSON Schema at all; wrapping it would not make
-        # it valid, so it passes through for AI_COMPLETE itself to reject.
-        assert _ai_complete_format(FLAT_SCHEMA) == FLAT_SCHEMA
+    def test_flat_dict_is_converted_to_a_string_typed_json_schema(self):
+        assert _ai_complete_format(FLAT_SCHEMA) == {
+            "type": "json",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "invoice_number": {
+                        "type": "string",
+                        "description": "What is the invoice number?",
+                    },
+                    "total": {
+                        "type": "string",
+                        "description": "What is the total amount?",
+                    },
+                },
+            },
+        }
 
-    def test_list_shapes_are_not_wrapped(self):
-        schema = [["name", "What is the name?"]]
-        assert _ai_complete_format(schema) == schema
+    def test_list_of_pairs_is_converted_with_descriptions(self):
+        schema = [["name", "What is the name?"], ["city", "What city?"]]
+        assert _ai_complete_format(schema) == {
+            "type": "json",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "What is the name?"},
+                    "city": {"type": "string", "description": "What city?"},
+                },
+            },
+        }
+
+    def test_list_of_colon_separated_strings_is_converted_with_descriptions(self):
+        schema = ["name: What is the name?"]
+        assert _ai_complete_format(schema) == {
+            "type": "json",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "What is the name?"}
+                },
+            },
+        }
+
+    def test_list_of_bare_prompt_strings_has_no_description(self):
+        # No separate name/question split -- the field has no question to carry
+        # as "description".
+        schema = ["What is the name?"]
+        assert _ai_complete_format(schema) == {
+            "type": "json",
+            "schema": {
+                "type": "object",
+                "properties": {"What is the name?": {"type": "string"}},
+            },
+        }
 
     def test_extraction_spec_precomputes_both_engine_formats(self):
-        options = _build(
-            {"SCHEMA": PROPERTIES_SCHEMA, "EXTRACTION_ENGINE": "ai_complete"}
-        )
+        options = _build({"SCHEMA": PROPERTIES_SCHEMA})
         assert options.extraction.ai_extract_format == {"schema": PROPERTIES_SCHEMA}
         assert options.extraction.ai_complete_format == {
             "type": "json",
@@ -390,7 +505,7 @@ class TestAiCompleteFormat:
 # ExtractionSpec.ai_extract_format -- AI_EXTRACT rejects a bare JSON-Schema
 # dict outright ("invalid response format", confirmed live); it needs
 # {"schema": {...}}. AI_EXTRACT's own flat Q&A dict/array shapes need no
-# wrapping at all -- confirmed live those work exactly as given.
+# wrapping or conversion at all -- confirmed live those work exactly as given.
 # ---------------------------------------------------------------------------
 
 
@@ -429,6 +544,7 @@ class TestSchemaFieldNameCollisions:
             "total_pages",
             "images",
             "extraction_scores",
+            "response",
         ],
     )
     def test_field_colliding_with_a_reserved_column_raises_1117(self, reserved_name):
@@ -436,12 +552,13 @@ class TestSchemaFieldNameCollisions:
         assert reserved_name.upper() in error.message
 
     def test_field_colliding_with_the_corrupt_record_column_raises_1117(self):
-        _expect_error(
+        # columnNameOfCorruptRecord is no longer settable through
+        # from_reader_options, so this collision is exercised via direct
+        # construction instead.
+        _expect_validate_error(
             "1117",
-            {
-                "SCHEMA": {"my_error": "a question"},
-                "COLUMNNAMEOFCORRUPTRECORD": "MY_ERROR",
-            },
+            extraction=ExtractionSpec.from_response_format({"my_error": "a question"}),
+            corrupt_record_column="MY_ERROR",
         )
 
     def test_fields_colliding_with_each_other_after_upper_casing_raises_1117(self):
@@ -462,107 +579,56 @@ class TestSchemaFieldNameCollisions:
 
 # ---------------------------------------------------------------------------
 # A schema that derives zero fields (an unrecognized response_format shape)
-# is harmless everywhere finalize_errors() can anchor on CONTENT or has no
-# FAILFAST check to anchor at all -- except parse_mode="none" + mode="FAILFAST",
-# which has no column left to anchor on and previously raised a bare IndexError.
+# is harmless everywhere finalize_errors() can anchor on CONTENT or RESPONSE,
+# or has no FAILFAST check to anchor at all -- except parse_mode="none" with no
+# prompt and mode="FAILFAST", which has no column left to anchor on and
+# previously raised a bare IndexError. Exercised via direct construction since
+# PARSE_MODE/MODE are no longer settable through from_reader_options.
 # ---------------------------------------------------------------------------
 
 
 class TestSchemaWithNoFields:
     def test_failfast_without_parsing_raises_1118(self):
-        error = _expect_error(
+        error = _expect_validate_error(
             "1118",
-            {"PARSE_MODE": "none", "MODE": "FAILFAST", "SCHEMA": 42},
+            parse_mode="none",
+            mode="FAILFAST",
+            extraction=ExtractionSpec.from_response_format(42),
         )
         assert "did not resolve to any extractable fields" in error.message
 
     def test_permissive_without_parsing_does_not_raise(self):
-        options = _build({"PARSE_MODE": "none", "SCHEMA": {"properties": {}}})
+        options = _build_direct(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"properties": {}}),
+        )
         assert options.extraction.field_columns == []
 
     def test_failfast_with_parsing_does_not_raise(self):
         # parse_mode != "none" means finalize_errors() anchors on CONTENT,
         # regardless of how many fields the schema derived.
-        options = _build({"MODE": "FAILFAST", "SCHEMA": {"properties": {}}})
+        options = _build_direct(
+            mode="FAILFAST",
+            extraction=ExtractionSpec.from_response_format({"properties": {}}),
+        )
         assert options.extraction.field_columns == []
 
 
 # ---------------------------------------------------------------------------
-# Options that are simply inapplicable given another option's value are
-# silently unused, not guarded -- the same convention dataframe_reader.py
-# already uses elsewhere (e.g. "predicates will be ignored if column is
-# specified", "stream ... time travel options will be ignored"), and the same
-# convention row_boundary/page_filter already follow under parse_mode="none".
-# ---------------------------------------------------------------------------
-
-
-class TestInapplicableOptionsAreSilentlyUnused:
-    @pytest.mark.parametrize("parse_mode", ["ocr", "text", "none"])
-    def test_extract_images_outside_layout_is_not_an_error(self, parse_mode):
-        # AI_PARSE_DOCUMENT requires mode=LAYOUT for extract_images; outside
-        # layout the option is either never sent (parse_mode="text"/"none") or
-        # forwarded and left for AI_PARSE_DOCUMENT itself to reject per-row.
-        options = _build({"EXTRACT_IMAGES": True, "PARSE_MODE": parse_mode})
-        assert options.extract_images is True
-
-    def test_extract_images_under_layout_passes(self):
-        options = _build({"EXTRACT_IMAGES": True, "PARSE_MODE": "layout"})
-        assert options.extract_images is True
-
-    @pytest.mark.parametrize(
-        "key,attribute", [("MODEL", "model"), ("PROMPT", "prompt")]
-    )
-    def test_model_or_prompt_with_ai_extract_is_not_an_error(self, key, attribute):
-        # ai_extract has no model/prompt parameters -- the value is stored but
-        # extract_with_ai_extract never reads it.
-        options = _build(
-            {
-                key: "some-value",
-                "SCHEMA": FLAT_SCHEMA,
-                "EXTRACTION_ENGINE": "ai_extract",
-            }
-        )
-        assert getattr(options, attribute) == "some-value"
-        assert options.extraction_engine == "ai_extract"
-
-    @pytest.mark.parametrize(
-        "key,attribute", [("MODEL", "model"), ("PROMPT", "prompt")]
-    )
-    def test_model_or_prompt_without_schema_is_not_an_error(self, key, attribute):
-        # Extract never runs without schema, so model/prompt are stored but unused.
-        options = _build({key: "some-value", "EXTRACTION_ENGINE": "ai_complete"})
-        assert getattr(options, attribute) == "some-value"
-        assert options.extract_enabled is False
-
-    def test_model_and_prompt_with_ai_complete_and_schema_are_used(self):
-        options = _build(
-            {
-                "MODEL": "claude-sonnet-4-5",
-                "PROMPT": "Extract the invoice fields.",
-                "EXTRACTION_ENGINE": "ai_complete",
-                "SCHEMA": FLAT_SCHEMA,
-            }
-        )
-        assert options.model == "claude-sonnet-4-5"
-        assert options.prompt == "Extract the invoice fields."
-        assert options.extract_enabled is True
-
-
-# ---------------------------------------------------------------------------
-# ai_complete no longer requires a parse phase: AI_COMPLETE's file variant
-# extracts directly from SOURCE_FILE via named-argument file + response_format,
-# the same way ai_extract already does -- see extract_with_ai_complete.
+# ai_complete works with or without a parse phase: its file variant extracts
+# directly from SOURCE_FILE via named-argument file + response_format, the same
+# way ai_extract already does -- see extract_with_ai_complete. Exercised via
+# direct construction since EXTRACTION_ENGINE/PARSE_MODE are no longer settable
+# through from_reader_options.
 # ---------------------------------------------------------------------------
 
 
 class TestAiCompleteWorksWithOrWithoutParse:
     def test_ai_complete_with_parse_mode_none_is_not_an_error(self):
-        options = _build(
-            {
-                "EXTRACTION_ENGINE": "ai_complete",
-                "PARSE_MODE": "none",
-                "SCHEMA": FLAT_SCHEMA,
-            }
+        options = _build_direct(
+            extraction_engine="ai_complete",
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format(FLAT_SCHEMA),
         )
         assert options.extraction_engine == "ai_complete"
         assert options.parse_enabled is False
@@ -570,25 +636,27 @@ class TestAiCompleteWorksWithOrWithoutParse:
 
     @pytest.mark.parametrize("parse_mode", ["layout", "ocr", "text"])
     def test_ai_complete_with_a_parse_phase_passes(self, parse_mode):
-        options = _build(
-            {
-                "EXTRACTION_ENGINE": "ai_complete",
-                "PARSE_MODE": parse_mode,
-                "SCHEMA": FLAT_SCHEMA,
-            }
+        options = _build_direct(
+            extraction_engine="ai_complete",
+            parse_mode=parse_mode,
+            extraction=ExtractionSpec.from_response_format(FLAT_SCHEMA),
         )
         assert options.extraction_engine == "ai_complete"
         assert options.parse_enabled is True
 
     def test_ai_extract_with_parse_mode_none_passes(self):
         # ai_extract accepts a FILE input directly, so skipping parse is fine.
-        options = _build({"PARSE_MODE": "none", "SCHEMA": FLAT_SCHEMA})
+        options = _build_direct(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format(FLAT_SCHEMA),
+        )
         assert options.parse_enabled is False
         assert options.extract_enabled is True
 
 
 # ---------------------------------------------------------------------------
-# Documented non-guards
+# Documented non-guards. Exercised via direct construction since ROW_BOUNDARY/
+# PARSE_MODE/PAGE_FILTER are no longer settable through from_reader_options.
 # ---------------------------------------------------------------------------
 
 
@@ -596,12 +664,12 @@ class TestDocumentedNonGuards:
     def test_page_row_boundary_with_parse_mode_none_is_a_no_op(self):
         # Parse is skipped entirely when parse_mode == "none", so row_boundary
         # is simply unused -- explicitly not an error.
-        options = _build({"ROW_BOUNDARY": "page", "PARSE_MODE": "none"})
+        options = _build_direct(row_boundary="page", parse_mode="none")
         assert options.row_boundary == "page"
         assert options.page_rows is False
 
     def test_page_row_boundary_with_a_parse_phase_enables_page_rows(self):
-        options = _build({"ROW_BOUNDARY": "page", "PARSE_MODE": "layout"})
+        options = _build_direct(row_boundary="page", parse_mode="layout")
         assert options.page_rows is True
 
     def test_page_filter_with_parse_mode_none_is_not_an_error(self):
@@ -609,7 +677,5 @@ class TestDocumentedNonGuards:
         # kwarg, or the PDF UDTF's page_filter_json arg); with Parse skipped there is
         # no page-range concept to apply it to, so -- like row_boundary above -- this
         # is a no-op, not a guarded combination.
-        options = _build(
-            {"PAGE_FILTER": [{"start": 0, "end": 1}], "PARSE_MODE": "none"}
-        )
+        options = _build_direct(page_filter=[{"start": 0, "end": 1}], parse_mode="none")
         assert options.parse_enabled is False
