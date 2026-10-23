@@ -205,17 +205,21 @@ def test_negative_case(session, caplog):
     )
     assert "Input event table is converted to fully qualified name:" in caplog.text
 
-    with patch(
-        "snowflake.snowpark._internal.event_table_telemetry.installed_opentelemetry",
-        False,
-    ):
-        external_telemetry.enable_event_table_telemetry_collection(
-            "db.sc.tb", logging.INFO, True
-        )
-        assert (
-            "Opentelemetry dependencies are missing, no telemetry export into event table:"
-            in caplog.text
-        )
+    # both opentelemetry and requests are optional dependencies of the
+    # opentelemetry extra, and a missing one disables telemetry collection
+    for missing_dependency in ("installed_opentelemetry", "installed_requests"):
+        caplog.clear()
+        with patch(
+            f"snowflake.snowpark._internal.event_table_telemetry.{missing_dependency}",
+            False,
+        ):
+            external_telemetry.enable_event_table_telemetry_collection(
+                "db.sc.tb", logging.INFO, True
+            )
+            assert (
+                "Opentelemetry dependencies are missing, no telemetry export into event table:"
+                in caplog.text
+            )
 
 
 def test_external_telemetry_adapter(session):
