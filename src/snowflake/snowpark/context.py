@@ -6,7 +6,6 @@
 """Context module for Snowpark."""
 import logging
 import sys
-import weakref
 from typing import Any, Callable, Optional
 
 import snowflake.snowpark
@@ -172,9 +171,8 @@ _enable_metadata_validation = False
 
 # This is an internal-only global flag, used to determine whether to enable query line tracking for tracing sql compilation errors.
 _enable_trace_sql_errors_to_dataframe = False
-# State from before the development features were first turned on (None while they are off),
-# so that turning them off puts everything back as it was.
-_development_features_snapshot: Optional[dict] = None
+# Whether the development features turned the AST collection on, so turning them off undoes it.
+_ast_enabled_by_development_features = False
 
 # SNOW-2362050: Enable this fix by default.
 # Global flag for fix 2360274. When enabled schema queries will use NULL as a place holder for any values inside structured objects
@@ -225,11 +223,11 @@ def configure_development_features(
         This feature is experimental since 1.33.0. Do not use it in production.
 
         Turning on a tracing feature enables the AST collection and, to avoid a known issue with
-        the AST, disables the automatic clean-up of temporary tables in the sessions. When all the
-        features are turned off again, every setting the features touched, including the feature
-        settings, the AST collection and the automatic clean-up of temporary tables, goes back to
-        what it was before the features were first turned on. A cleaner setting you changed yourself
-        while the features were on, such as ``session.auto_clean_up_temp_table_enabled``, is kept.
+        the AST, disables the automatic clean-up of temporary tables in the sessions. If the features
+        turned the AST collection on, turning off both tracing features turns it off again and restores
+        the automatic clean-up of temporary tables. If the AST collection was already on, it is left on.
+        A cleaner setting you changed yourself, such as ``session.auto_clean_up_temp_table_enabled``
+        set after enabling the features, is kept.
     """
     _logger.warning(
         "configure_development_features() is experimental since 1.33.0. Do not use it in production.",
@@ -238,7 +236,7 @@ def configure_development_features(
     global _enable_dataframe_trace_on_error
     global _enable_trace_sql_errors_to_dataframe
     global _enable_metadata_validation
-    global _development_features_snapshot
+    global _ast_enabled_by_development_features
 
     requested = (
         enable_eager_schema_validation,
@@ -255,39 +253,24 @@ def configure_development_features(
         metadata_validation,
     ) = requested
 
+    if eager_schema_validation is not None:
+        _debug_eager_schema_validation = eager_schema_validation
+    if dataframe_trace_on_error is not None:
+        _enable_dataframe_trace_on_error = dataframe_trace_on_error
+    if trace_sql_errors_to_dataframe is not None:
+        _enable_trace_sql_errors_to_dataframe = trace_sql_errors_to_dataframe
+    if metadata_validation is not None:
+        _enable_metadata_validation = metadata_validation
+
     from snowflake.snowpark._internal.utils import is_ast_enabled
 
     with snowflake.snowpark.session._session_management_lock:
         sessions = snowflake.snowpark.session._get_active_sessions(
             require_at_least_one=False
         )
-        if _development_features_snapshot is None and any(requested):
-            _development_features_snapshot = {
-                "flags": (
-                    _debug_eager_schema_validation,
-                    _enable_dataframe_trace_on_error,
-                    _enable_trace_sql_errors_to_dataframe,
-                    _enable_metadata_validation,
-                ),
-                "ast_enabled": is_ast_enabled(),
-                "cleaners": weakref.WeakKeyDictionary(
-                    {
-                        active_session: active_session._auto_clean_up_temp_table_enabled
-                        for active_session in sessions
-                    }
-                ),
-            }
-
-        if eager_schema_validation is not None:
-            _debug_eager_schema_validation = eager_schema_validation
-        if dataframe_trace_on_error is not None:
-            _enable_dataframe_trace_on_error = dataframe_trace_on_error
-        if trace_sql_errors_to_dataframe is not None:
-            _enable_trace_sql_errors_to_dataframe = trace_sql_errors_to_dataframe
-        if metadata_validation is not None:
-            _enable_metadata_validation = metadata_validation
-
         if _enable_dataframe_trace_on_error or _enable_trace_sql_errors_to_dataframe:
+            if not _ast_enabled_by_development_features and not is_ast_enabled():
+                _ast_enabled_by_development_features = True
             try:
                 for active_session in sessions:
                     active_session._set_ast_enabled_internal(True)
@@ -295,29 +278,11 @@ def configure_development_features(
                 _logger.warning(
                     f"Cannot enable AST collection in the session due to {str(e)}. Some development features may not work as expected.",
                 )
-        elif _development_features_snapshot is not None and not (
-            _debug_eager_schema_validation or _enable_metadata_validation
-        ):
-            snapshot = _development_features_snapshot
-            _development_features_snapshot = None
-            (
-                _debug_eager_schema_validation,
-                _enable_dataframe_trace_on_error,
-                _enable_trace_sql_errors_to_dataframe,
-                _enable_metadata_validation,
-            ) = snapshot["flags"]
-            # only undo AST if the features turned it on; touching it otherwise would pin its state
-            turn_ast_off = not snapshot["ast_enabled"] and is_ast_enabled()
-            for active_session in sessions:
-                if turn_ast_off:
-                    # also gives the cleaner back to the sessions the AST had disabled it for
+        else:
+            if _ast_enabled_by_development_features:
+                for active_session in sessions:
                     active_session._set_ast_enabled_internal(False)
-                elif (
-                    snapshot["cleaners"].get(active_session)
-                    and active_session._auto_clean_up_temp_table_disabled_by_ast
-                ):
-                    active_session._auto_clean_up_temp_table_enabled = True
-                    active_session._auto_clean_up_temp_table_disabled_by_ast = False
+                _ast_enabled_by_development_features = False
 
 
 def _should_use_structured_type_semantics():

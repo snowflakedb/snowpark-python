@@ -61,11 +61,9 @@ def ast_state():
 @pytest.fixture(autouse=True)
 def reset_features(sessions, ast_state):
     context.configure_development_features()
-    context._development_features_snapshot = None
     ast_state["calls"].clear()
     yield
     context.configure_development_features()
-    context._development_features_snapshot = None
 
 
 def current_flags():
@@ -172,22 +170,7 @@ def test_ast_enabled_before_the_features_is_not_turned_off(sessions, ast_state):
 
     assert ast_state["enabled"] is True
     assert (AstFlagSource.USER, False) not in ast_state["calls"]
-    # the cleaner goes back to what it was before the features were turned on
-    assert session._auto_clean_up_temp_table_enabled is True
-
-
-def test_ast_and_cleaner_set_by_the_user_before_the_features_are_kept(
-    sessions, ast_state
-):
-    session = make_session()
-    sessions.append(session)
-    session._set_ast_enabled_internal(True)  # the user's own AST setting
-    assert session._auto_clean_up_temp_table_enabled is False
-
-    context.configure_development_features(enable_dataframe_trace_on_error=True)
-    context.configure_development_features()
-
-    assert ast_state["enabled"] is True
+    # AST was not the features' to turn off, and the cleaner stays as AST left it
     assert session._auto_clean_up_temp_table_enabled is False
 
 
@@ -282,59 +265,3 @@ def test_explicit_cleaner_choice_is_kept_when_ast_is_disabled(ast_state):
     session._set_ast_enabled_internal(False)
 
     assert session._auto_clean_up_temp_table_enabled is False
-
-
-def test_features_go_back_to_the_values_they_had_before(sessions):
-    context._enable_metadata_validation = True  # set before the features are configured
-    try:
-        context.configure_development_features(
-            enable_metadata_validation=False, enable_eager_schema_validation=True
-        )
-        assert context._enable_metadata_validation is False
-
-        context.configure_development_features()
-
-        assert context._enable_metadata_validation is True
-        assert context._debug_eager_schema_validation is False
-    finally:
-        context._enable_metadata_validation = False
-
-
-def test_turning_on_repeatedly_restores_the_original_state_not_the_last_one(
-    sessions, ast_state
-):
-    session = make_session()
-    sessions.append(session)
-
-    context.configure_development_features(enable_eager_schema_validation=True)
-    context.configure_development_features(enable_dataframe_trace_on_error=True)
-    context.configure_development_features(enable_metadata_validation=True)
-    context.configure_development_features()
-
-    assert not any(current_flags().values())
-    assert ast_state["enabled"] is False
-    assert session._auto_clean_up_temp_table_enabled is True
-
-
-def test_nothing_is_restored_while_a_feature_is_still_on(sessions, ast_state):
-    session = make_session()
-    sessions.append(session)
-    context.configure_development_features(
-        enable_dataframe_trace_on_error=True, enable_eager_schema_validation=True
-    )
-
-    context.configure_development_features(enable_dataframe_trace_on_error=False)
-
-    assert context._debug_eager_schema_validation is True
-    assert ast_state["enabled"] is True
-    assert session._auto_clean_up_temp_table_enabled is False
-
-    context.configure_development_features(enable_eager_schema_validation=False)
-    assert ast_state["enabled"] is False
-    assert session._auto_clean_up_temp_table_enabled is True
-
-
-def test_turning_off_without_ever_turning_on_changes_nothing(ast_state):
-    context.configure_development_features()
-    assert ast_state["calls"] == []
-    assert context._development_features_snapshot is None
