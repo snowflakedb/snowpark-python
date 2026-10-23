@@ -10,6 +10,8 @@
 
 #### Improvements
 
+- `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them. Turning the tracing features off now also turns off the AST collection if the features enabled it.
+- Setting `Session.ast_enabled` to `False` now also restores the automatic temporary table clean-up that enabling AST had turned off.
 - Added debuggability improvements to raise `SnowparkPlanException` at the line of `select`, `with_column(s)`, `filter` and `sort` when they reference a column that is missing from the column names the client already holds, without sending extra queries. Enable it using `snowflake.snowpark.context.configure_development_features(enable_metadata_validation=True)`.
 
 ## 1.55.2 (2026-10-13)
