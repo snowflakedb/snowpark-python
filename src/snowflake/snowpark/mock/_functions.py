@@ -1303,7 +1303,11 @@ def mock_to_char(
                 raise_error=NotImplementedError,
             )
 
-    res = column.combine(fmt, convert_char)
+    res = ColumnEmulator(
+        [convert_char(v, f) for v, f in zip(column, fmt)],
+        index=column.index,
+        dtype=object,
+    ).__finalize__(column)
     res.sf_type = ColumnType(StringType(), column.sf_type.nullable)
     return res
 
@@ -1553,11 +1557,14 @@ def mock_parse_json(expr: ColumnEmulator):
     from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
 
     if isinstance(expr.sf_type.datatype, StringType):
-        res = expr.apply(
-            lambda x: try_convert(
-                partial(json.loads, cls=CUSTOM_JSON_DECODER), False, x
-            )
-        )
+        res = ColumnEmulator(
+            [
+                try_convert(partial(json.loads, cls=CUSTOM_JSON_DECODER), False, x)
+                for x in expr
+            ],
+            index=expr.index,
+            dtype=object,
+        ).__finalize__(expr)
     else:
         res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
@@ -1597,6 +1604,8 @@ def mock_to_array(expr: ColumnEmulator):
 def mock_strip_null_value(expr: ColumnEmulator):
     return ColumnEmulator(
         [None if x == "null" else x for x in expr],
+        index=expr.index,
+        dtype=object,
         sf_type=ColumnType(expr.sf_type.datatype, True),
     )
 
@@ -1981,14 +1990,22 @@ def _greatest(x: CompareType, y: Any) -> Union[CompareType, float]:
 
 @patch("greatest")
 def mock_greatest(*exprs: ColumnEmulator):
-    result = reduce(lambda x, y: x.combine(y, _greatest), exprs)
+    result = ColumnEmulator(
+        [reduce(_greatest, row) for row in zip(*exprs)],
+        index=exprs[0].index,
+        dtype=object,
+    ).__finalize__(exprs[0])
     result.sf_type = exprs[0].sf_type
     return result
 
 
 @patch("least")
 def mock_least(*exprs: ColumnEmulator):
-    result = reduce(lambda x, y: x.combine(y, _least), exprs)
+    result = ColumnEmulator(
+        [reduce(_least, row) for row in zip(*exprs)],
+        index=exprs[0].index,
+        dtype=object,
+    ).__finalize__(exprs[0])
     result.sf_type = exprs[0].sf_type
     return result
 
@@ -2032,8 +2049,16 @@ def _initcap(value: Optional[str], delimiters: Optional[str]) -> str:
 
 
 @patch("initcap")
-def mock_initcap(values: ColumnEmulator, delimiters: ColumnEmulator):
-    result = values.combine(delimiters, _initcap)
+def mock_initcap(values: ColumnEmulator, delimiters: ColumnEmulator = None):
+    if delimiters is None:
+        data = [_initcap(v, None) for v in values]
+    else:
+        data = [_initcap(v, d) for v, d in zip(values, delimiters)]
+    result = ColumnEmulator(
+        data,
+        index=values.index,
+        dtype=object,
+    ).__finalize__(values)
     result.sf_type = values.sf_type
     return result
 
@@ -2149,8 +2174,14 @@ def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
             ValueError("concat expects one or more column(s) to be passed in.")
         )
     pdf = pandas.concat(columns, axis=1)
-    result = pdf.T.apply(
-        lambda c: None if c.isnull().values.any() else c.astype(str).str.cat()
+    transposed = pdf.T
+    result = ColumnEmulator(
+        [
+            None if c.isnull().values.any() else c.astype(str).str.cat()
+            for _, c in transposed.items()
+        ],
+        index=transposed.columns,
+        dtype=object,
     )
     result.sf_type = ColumnType(StringType(), result.hasnans)
     return result
@@ -2165,10 +2196,14 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
             )
         )
     pdf = pandas.concat(columns, axis=1)
-    result = pdf.T.apply(
-        lambda c: None
-        if c.isnull().values.any()
-        else c[1:].astype(str).str.cat(sep=c[0])
+    transposed = pdf.T
+    result = ColumnEmulator(
+        [
+            None if c.isnull().values.any() else c[1:].astype(str).str.cat(sep=c[0])
+            for _, c in transposed.items()
+        ],
+        index=transposed.columns,
+        dtype=object,
     )
     result.sf_type = ColumnType(StringType(), result.hasnans)
     return result
