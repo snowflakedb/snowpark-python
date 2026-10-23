@@ -15,7 +15,7 @@ from snowflake.snowpark._internal.options import (
     MissingOptionalDependency,
     ModuleLikeObject,
 )
-from snowflake.snowpark._internal.utils import parse_table_name
+from snowflake.snowpark._internal.utils import IS_V5_DRIVER, parse_table_name
 
 _logger = getLogger(__name__)
 
@@ -93,6 +93,10 @@ class RetryWithTokenRefreshAdapter(requests.adapters.HTTPAdapter):
         self.header = header
         self.retryable_status_code = [401]
 
+    def _refresh_auth_header(self) -> None:
+        telemetry = self.snowpark_session.client_telemetry
+        self.header = telemetry._get_external_telemetry_auth_token()
+
     def send(self, request, **kwargs):
         """Send request with retry logic and token refresh on failure"""
         for attempt in range(self.max_retries + 1):
@@ -106,18 +110,14 @@ class RetryWithTokenRefreshAdapter(requests.adapters.HTTPAdapter):
                     response.status_code in self.retryable_status_code
                     and attempt < self.max_retries
                 ):
-                    self.header = (
-                        self.snowpark_session._get_external_telemetry_auth_token()
-                    )
+                    self._refresh_auth_header()
                     continue
                 else:
                     return response
 
             except (requests.exceptions.RequestException, Exception) as e:
                 if attempt < self.max_retries:
-                    self.header = (
-                        self.snowpark_session._get_external_telemetry_auth_token()
-                    )
+                    self._refresh_auth_header()
                     continue
                 else:
                     # Re-raise the exception if we've exhausted retries
@@ -356,18 +356,31 @@ class EventTableTelemetry:
             self._disable_logger_provider()
 
     def _get_external_telemetry_auth_token(self) -> Dict:
-        from snowflake.connector.wif_util import create_attestation
+        if IS_V5_DRIVER:
+            from snowflake.connector._common.wif_util import (
+                AttestationProvider,
+                create_attestation,
+            )
 
-        self._attestation = create_attestation(
-            self.session.connection.auth_class.provider,
-            self.session.connection.auth_class.entra_resource,
-            self.session.connection.auth_class.token,
-            session_manager=(
-                self.session.connection._session_manager.clone(max_retries=0)
-                if self.session.connection
-                else None
-            ),
-        )
+            config = self.session.connection.config
+            self._attestation = create_attestation(
+                AttestationProvider.from_string(config.workload_identity_provider),
+                config.workload_identity_entra_resource,
+                config.token,
+            )
+        else:
+            from snowflake.connector.wif_util import create_attestation
+
+            self._attestation = create_attestation(
+                self.session.connection.auth_class.provider,
+                self.session.connection.auth_class.entra_resource,
+                self.session.connection.auth_class.token,
+                session_manager=(
+                    self.session.connection._session_manager.clone(max_retries=0)
+                    if self.session.connection
+                    else None
+                ),
+            )
         headers = {
             "Authorization": f"Bearer WIF.AWS.{self._attestation.credential}",
         }
