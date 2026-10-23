@@ -8,7 +8,6 @@ from unittest import mock
 import pytest
 
 import snowflake.snowpark.context as context
-from snowflake.snowpark._internal.utils import AstFlagSource
 from snowflake.snowpark.session import Session
 
 FLAGS = {
@@ -119,34 +118,23 @@ def test_call_without_arguments_turns_everything_off():
     assert not any(current_flags().values())
 
 
-def test_turning_features_off_restores_cleaner_and_ast(sessions, ast_state):
-    session = make_session(cleaner_enabled=True)
-    sessions.append(session)
+def test_tracing_features_enable_ast_in_all_sessions_and_turning_off_leaves_it(
+    sessions, ast_state
+):
+    first, second = make_session(), make_session(cleaner_enabled=False)
+    sessions.extend([first, second])
 
     context.configure_development_features(enable_dataframe_trace_on_error=True)
     assert ast_state["enabled"] is True
-    assert session._auto_clean_up_temp_table_enabled is False
+    assert first._auto_clean_up_temp_table_enabled is False
+    assert second._auto_clean_up_temp_table_enabled is False
 
+    ast_state["calls"].clear()
     context.configure_development_features()
-    assert ast_state["enabled"] is False
-    assert ast_state["calls"][-1] == (AstFlagSource.USER, False)
-    assert session._auto_clean_up_temp_table_enabled is True
-
-
-def test_ast_and_cleaner_stay_on_while_one_tracing_feature_is_left(sessions, ast_state):
-    session = make_session()
-    sessions.append(session)
-    context.configure_development_features(
-        enable_dataframe_trace_on_error=True, enable_trace_sql_errors_to_dataframe=True
-    )
-
-    context.configure_development_features(enable_dataframe_trace_on_error=False)
+    assert not any(current_flags().values())
+    assert ast_state["calls"] == []
     assert ast_state["enabled"] is True
-    assert session._auto_clean_up_temp_table_enabled is False
-
-    context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
-    assert ast_state["enabled"] is False
-    assert session._auto_clean_up_temp_table_enabled is True
+    assert first._auto_clean_up_temp_table_enabled is False
 
 
 def test_features_without_tracing_do_not_touch_ast_or_cleaner(sessions, ast_state):
@@ -158,70 +146,6 @@ def test_features_without_tracing_do_not_touch_ast_or_cleaner(sessions, ast_stat
     context.configure_development_features()
     assert ast_state["calls"] == []
     assert session._auto_clean_up_temp_table_enabled is True
-
-
-def test_ast_enabled_before_the_features_is_not_turned_off(sessions, ast_state):
-    ast_state["enabled"] = True
-    session = make_session()
-    sessions.append(session)
-
-    context.configure_development_features(enable_dataframe_trace_on_error=True)
-    context.configure_development_features()
-
-    assert ast_state["enabled"] is True
-    assert (AstFlagSource.USER, False) not in ast_state["calls"]
-    # AST was not the features' to turn off, and the cleaner stays as AST left it
-    assert session._auto_clean_up_temp_table_enabled is False
-
-
-def test_cleaner_disabled_by_the_user_is_not_enabled_again(sessions):
-    session = make_session(cleaner_enabled=False)
-    sessions.append(session)
-
-    context.configure_development_features(enable_dataframe_trace_on_error=True)
-    context.configure_development_features()
-
-    assert session._auto_clean_up_temp_table_enabled is False
-
-
-def test_enabling_twice_still_restores_the_cleaner(sessions):
-    session = make_session()
-    sessions.append(session)
-
-    context.configure_development_features(enable_dataframe_trace_on_error=True)
-    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
-    context.configure_development_features()
-
-    assert session._auto_clean_up_temp_table_enabled is True
-
-
-def test_session_created_while_features_are_on_is_restored(sessions, ast_state):
-    # no session exists yet, so nothing is enabled when the features are configured
-    context.configure_development_features(enable_dataframe_trace_on_error=True)
-    assert ast_state["enabled"] is False
-
-    # a session created afterwards enables AST for the features itself
-    late_session = make_session()
-    late_session._set_ast_enabled_internal(True)
-    sessions.append(late_session)
-    assert ast_state["enabled"] is True
-    assert late_session._auto_clean_up_temp_table_enabled is False
-
-    context.configure_development_features()
-
-    assert late_session._auto_clean_up_temp_table_enabled is True
-    assert ast_state["enabled"] is False
-
-
-def test_all_active_sessions_are_restored(sessions):
-    first, second = make_session(), make_session(cleaner_enabled=False)
-    sessions.extend([first, second])
-
-    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
-    context.configure_development_features()
-
-    assert first._auto_clean_up_temp_table_enabled is True
-    assert second._auto_clean_up_temp_table_enabled is False
 
 
 def test_disabling_ast_restores_the_cleaner_it_disabled(ast_state):

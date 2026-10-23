@@ -51,7 +51,7 @@ def test_context_configure_development_features():
         assert context._enable_metadata_validation is False
 
 
-def test_development_features_restore_session_settings_when_turned_off(session):
+def test_tracing_features_enable_ast_and_turning_off_leaves_it(session):
     original_ast = session.ast_enabled
     original_cleaner = session._auto_clean_up_temp_table_enabled
     try:
@@ -61,7 +61,12 @@ def test_development_features_restore_session_settings_when_turned_off(session):
         assert context._enable_dataframe_trace_on_error is True
         assert session.ast_enabled is True
         assert session._auto_clean_up_temp_table_enabled is False
+
+        context.configure_development_features()
+        assert context._enable_dataframe_trace_on_error is False
+        assert session.ast_enabled is True
     finally:
         context.configure_development_features()
-    assert session.ast_enabled == original_ast
-    assert session._auto_clean_up_temp_table_enabled == original_cleaner
+        # undo what the features did, so that other tests see the original session
+        session._set_ast_enabled_internal(original_ast)
+        session.auto_clean_up_temp_table_enabled = original_cleaner

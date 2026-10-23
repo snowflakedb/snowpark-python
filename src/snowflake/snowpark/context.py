@@ -171,8 +171,6 @@ _enable_metadata_validation = False
 
 # This is an internal-only global flag, used to determine whether to enable query line tracking for tracing sql compilation errors.
 _enable_trace_sql_errors_to_dataframe = False
-# Whether the development features turned the AST collection on, so turning them off undoes it.
-_ast_enabled_by_development_features = False
 
 # SNOW-2362050: Enable this fix by default.
 # Global flag for fix 2360274. When enabled schema queries will use NULL as a place holder for any values inside structured objects
@@ -223,11 +221,8 @@ def configure_development_features(
         This feature is experimental since 1.33.0. Do not use it in production.
 
         Turning on a tracing feature enables the AST collection and, to avoid a known issue with
-        the AST, disables the automatic clean-up of temporary tables in the sessions. If the features
-        turned the AST collection on, turning off both tracing features turns it off again and restores
-        the automatic clean-up of temporary tables. If the AST collection was already on, it is left on.
-        A cleaner setting you changed yourself, such as ``session.auto_clean_up_temp_table_enabled``
-        set after enabling the features, is kept.
+        the AST, disables the automatic clean-up of temporary tables in the sessions. Turning the
+        features off does not change the AST collection or the clean-up of temporary tables.
     """
     _logger.warning(
         "configure_development_features() is experimental since 1.33.0. Do not use it in production.",
@@ -236,7 +231,6 @@ def configure_development_features(
     global _enable_dataframe_trace_on_error
     global _enable_trace_sql_errors_to_dataframe
     global _enable_metadata_validation
-    global _ast_enabled_by_development_features
 
     requested = (
         enable_eager_schema_validation,
@@ -262,27 +256,17 @@ def configure_development_features(
     if metadata_validation is not None:
         _enable_metadata_validation = metadata_validation
 
-    from snowflake.snowpark._internal.utils import is_ast_enabled
-
     with snowflake.snowpark.session._session_management_lock:
-        sessions = snowflake.snowpark.session._get_active_sessions(
-            require_at_least_one=False
-        )
         if _enable_dataframe_trace_on_error or _enable_trace_sql_errors_to_dataframe:
-            if not _ast_enabled_by_development_features and not is_ast_enabled():
-                _ast_enabled_by_development_features = True
             try:
-                for active_session in sessions:
+                for active_session in snowflake.snowpark.session._get_active_sessions(
+                    require_at_least_one=False
+                ):
                     active_session._set_ast_enabled_internal(True)
             except Exception as e:  # pragma: no cover
                 _logger.warning(
                     f"Cannot enable AST collection in the session due to {str(e)}. Some development features may not work as expected.",
                 )
-        else:
-            if _ast_enabled_by_development_features:
-                for active_session in sessions:
-                    active_session._set_ast_enabled_internal(False)
-                _ast_enabled_by_development_features = False
 
 
 def _should_use_structured_type_semantics():
