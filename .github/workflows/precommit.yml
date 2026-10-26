@@ -18,7 +18,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Skip the whole gate when the latest push to a PR only touches CHANGELOG.md.
+  # Fail-safe: any non-"false" output (push/dispatch events, opened/reopened,
+  # or a detection error) runs everything. Skipped jobs report as passing for
+  # required checks.
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        with:
+          # empty token => diff with git so `base` is honored (the PR API would
+          # return the whole PR); only "synchronize" has a usable `before` sha
+          token: ''
+          base: ${{ github.event.action == 'synchronize' && github.event.before || '' }}
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '**'
+              - '!CHANGELOG.md'
+
   lint:
+    needs: changes
+    if: ${{ needs.changes.outputs.code != 'false' }}
     name: Check linting
     runs-on: ubuntu-latest
     steps:
@@ -44,6 +76,8 @@ jobs:
         run: python -m tox -e fix_lint
 
   type_checking:
+    needs: changes
+    if: ${{ needs.changes.outputs.code != 'false' }}
     name: Type Checking
     runs-on: ubuntu-latest
     steps:
@@ -699,9 +733,10 @@ jobs:
             .tox/coverage.xml
 
   combine-coverage:
-    if: ${{ success() || failure() }}
+    if: ${{ needs.changes.outputs.code != 'false' && (success() || failure()) }}
     name: Combine coverage
     needs:
+      - changes
       - test
       - test-local-testing
       - test-snowpark-pandas
