@@ -1651,6 +1651,12 @@ def snowpark_to_pandas_helper(
                     ret = ret.astype(index_type)
                 except ValueError:  # e.g., Tz-aware datetime.datetime cannot be converted to datetime64
                     pass
+            elif (
+                is_integer_dtype(ret.dtype)
+                and is_integer_dtype(index_type)
+                and ret.dtype != index_type
+            ):
+                ret = ret.astype(index_type)
             return ret
 
     # to_pandas() does not preserve the index information and will just return a

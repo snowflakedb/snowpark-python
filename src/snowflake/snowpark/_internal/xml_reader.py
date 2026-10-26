@@ -38,7 +38,6 @@ except ImportError:
 
 
 DEFAULT_CHUNK_SIZE: int = 1024
-VARIANT_COLUMN_SIZE_LIMIT: int = 16 * 1024 * 1024
 
 
 def replace_entity(match: re.Match) -> str:
@@ -633,8 +632,7 @@ def process_xml_range(
             # doesn't have a closing tag after reaching the end of the file
             except EOFError as e:
                 if mode == "PERMISSIVE":
-                    # read util the end of file or util variant column size limit
-                    record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
+                    record_bytes = f.read()
                     record_str = record_bytes.decode(charset, errors="replace")
                     record_str = re.sub(r"&(\w+);", replace_entity, record_str)
                     yield {column_name_of_corrupt_record: record_str}
@@ -654,8 +652,7 @@ def process_xml_range(
                 # doesn't have a closing tag after reaching the end of the file
                 except EOFError as e:
                     if mode == "PERMISSIVE":
-                        # read util the end of file or util variant column size limit
-                        record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
+                        record_bytes = f.read()
                         record_str = record_bytes.decode(charset, errors="replace")
                         record_str = re.sub(r"&(\w+);", replace_entity, record_str)
                         yield {column_name_of_corrupt_record: record_str}

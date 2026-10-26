@@ -6,13 +6,36 @@
 
 #### New Features
 
-#### Bug Fixes
-
 #### Improvements
 
 - `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them. Turning the tracing features off now also turns off the AST collection if the features enabled it.
 - Setting `Session.ast_enabled` to `False` now also restores the automatic temporary table clean-up that enabling AST had turned off.
 - Added debuggability improvements to raise `SnowparkPlanException` at the line of `select`, `with_column(s)`, `filter` and `sort` when they reference a column that is missing from the column names the client already holds, without sending extra queries. Enable it using `snowflake.snowpark.context.configure_development_features(enable_metadata_validation=True)`.
+- Eager schema validation (`context.configure_development_features(enable_eager_schema_validation=True)`) now raises invalid column references in `DataFrame.filter` and `DataFrame.sort` when the DataFrame is created.
+
+#### Bug Fixes
+
+- Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
+- Fixed a bug that the dataframe trace and missing-object information were missing from errors raised while a DataFrame is being created, when debuggability features are enabled by `context.configure_development_features`.
+
+## 1.55.3 (2026-10-21)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Improvements
+
+- Removed the `experimental` tag from `DataFrame.to_polars()`.
+- `DataFrame.to_polars()` now defaults to `transport="parquet"` instead of `transport="arrow"`.
+
+#### Bug Fixes
+
+- Fixed `DataFrameReader.jdbc`(PrPr) timing out on slow external data sources by executing the source query lazily.
+
+#### Improvements
+
+- Fixed `Index.to_pandas()` returning an integer `Index` whose width (for example `int8` or `int32`) depended on the integer width the server returned, instead of the `int64` that Snowpark pandas uses for all integer types. This also affects `Index.astype` to any integer type.
 
 ## 1.55.2 (2026-10-13)
 
