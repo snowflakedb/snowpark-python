@@ -5,12 +5,27 @@
 """Stored-procedure handler for document extraction that splits a PDF when the answer
 does not fit in one AI_COMPLETE response.
 
-Uploaded and registered as a standalone file, so it imports nothing from snowpark's
-internals. Every function except ``run`` is pure and unit-tested directly.
+Where to start reading: ``run`` at the bottom of the file is the entry point; it calls
+the steps of ``DocumentExtraction`` just above it, in order:
+
+1. ``load_files``: list the files under the path and read each one's page count.
+2. ``plan_large_files``: files over 50 pages or 10 MB get planning-only calls that
+   choose the page ranges to extract; every other file starts as one range (or a few,
+   when it is over the size limit).
+3. ``extract_until_done``: extract every range at once; ``finish`` reads each answer
+   and queues what it leaves (the rest of a range that did not fit, or the halves of a
+   failed one), until nothing is left.
+4. back in ``run``: merge each file's parts, in page order, into one row.
+
+Everything above ``read_answer`` is a pure helper for one of these steps.
 
 Each AI_COMPLETE call is asked to fill an ``extraction_status`` block first: whether
 its answer is complete, and if not, the last page it covered and how to split the
 pages it did not. Pages are always 1-based positions in the original document.
+
+Uploaded and registered as a standalone file, so it imports nothing from snowpark's
+internals. Every function except ``run`` and ``DocumentExtraction`` is pure and
+unit-tested directly.
 """
 
 import hashlib
@@ -1062,6 +1077,24 @@ def run(
     max_calls_per_file: int,
     work_stage: str,
 ) -> DataFrame:  # pragma: no cover - exercised against a live account
+    """Extract the schema's fields from every file under ``path``; one output row per
+    file, however many AI_COMPLETE calls it took.
+
+    Args:
+        path: stage path of a file or folder, e.g. ``@stage/invoices/``.
+        response_format: the user's schema as ``{"schema": <JSON Schema>}``, JSON.
+        predicate: the extraction prompt (the user's, or the default).
+        model: the AI_COMPLETE model name.
+        call_budgets: output-token targets and limits per kind of call, JSON (see
+            ``_CALL_BUDGETS`` in document_reader.py).
+        max_calls_per_file: starting cap on calls per file; raised for files whose
+            answers turn out large, up to HARD_MAX_CALLS_PER_FILE.
+        work_stage: stage where page-range part files are written (the session stage).
+
+    Returns:
+        STAGE_PATH, VALUE (the merged answer as JSON, or None when no part succeeded)
+        and ERROR (every failure for the file, joined with "; ", or None).
+    """
     from snowflake.snowpark.types import StringType, StructField, StructType
 
     extraction = DocumentExtraction(
@@ -1072,10 +1105,14 @@ def run(
         json.loads(call_budgets),
         work_stage,
     )
+    # 1. Read every file once, for its page count and size.
     files = extraction.load_files(path, max_calls_per_file)
-    extraction.extract_until_done(
-        extraction.plan_large_files(files), max_calls_per_file
-    )
+    # 2. Decide the first page ranges: planned for large files, whole for the rest.
+    tasks = extraction.plan_large_files(files)
+    # 3. Extract until no range is left; each file collects its parts and errors.
+    extraction.extract_until_done(tasks, max_calls_per_file)
+    # 4. One row per file: its parts merged in page order, so a table split across
+    #    ranges comes back as one table.
     rows = []
     for file in files:
         parts = [value for _, value in sorted(file.parts, key=lambda part: part[0])]
