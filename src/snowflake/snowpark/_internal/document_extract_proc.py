@@ -717,6 +717,12 @@ _AI_COMPLETE_SQL = (
 )
 
 
+# A model-availability probe: no file, one output token.
+_AI_COMPLETE_PING_SQL = (
+    "SELECT AI_COMPLETE(model => ?, prompt => ?, model_parameters => PARSE_JSON(?))"
+)
+
+
 def schema_instruction(schema: Dict[str, Any]) -> str:
     """The instruction telling the model to answer with one JSON object conforming to
     ``schema`` and nothing else."""
@@ -847,6 +853,24 @@ def ranges_from_salvaged_status(
     return ranges
 
 
+def is_unknown_model_error(message: str) -> bool:
+    """True when AI_COMPLETE failed because the model does not exist or is not enabled
+    for the account or region (``400 unknown model "<name>"``). Only this message ends
+    a read: other failures, such as throttling, can pass and are reported per file."""
+    return "unknown model" in message.lower()
+
+
+def unknown_model_message(model: str, error: str) -> str:
+    """The terminal error for a model AI_COMPLETE does not know."""
+    return (
+        f'The document reader needs the model "{model}", which AI_COMPLETE reports as '
+        "unknown for this account. Check that the model is available in this account's "
+        "region and, if it is hosted in another region, that cross-region inference is "
+        "allowed (the CORTEX_ENABLED_CROSS_REGION account parameter). AI_COMPLETE "
+        f"returned: {error}"
+    )
+
+
 def read_answer(raw: Any) -> Tuple[Any, Optional[str], Optional[Dict[str, Any]]]:
     """(value, error, salvaged status) from one ``AI_COMPLETE(..., return_error_details =>
     TRUE)`` result. The status is salvaged only from a text answer that does not parse."""
@@ -910,6 +934,19 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
         self.model = model
         self.budgets = budgets
         self.work_stage = work_stage
+
+    def check_model(self) -> None:
+        """Stop the read, before any file is touched, when AI_COMPLETE does not know the
+        model: every call would fail the same way. One call with max_tokens 1 and no
+        file; any other failure is left to the per-file calls."""
+        try:
+            self.session.sql(
+                _AI_COMPLETE_PING_SQL,
+                params=[self.model, "Reply with OK.", json.dumps({"max_tokens": 1})],
+            ).collect()
+        except Exception as exc:
+            if is_unknown_model_error(str(exc)):
+                raise RuntimeError(unknown_model_message(self.model, str(exc))) from exc
 
     def load_files(self, path: str, max_calls_per_file: int) -> List[FileState]:
         """List every file under ``path``, read it, and parse it as a PDF when possible;
@@ -1140,6 +1177,10 @@ def run(
             answers turn out large, up to HARD_MAX_CALLS_PER_FILE.
         work_stage: stage where page-range part files are written (the session stage).
 
+    Raises:
+        RuntimeError: AI_COMPLETE does not know ``model`` (not enabled for the account
+            or region); raised before any file is read.
+
     Returns:
         STAGE_PATH, VALUE (the merged answer as JSON, or None when no part succeeded)
         and ERROR (every failure for the file, joined with "; ", or None).
@@ -1154,6 +1195,8 @@ def run(
         json.loads(call_budgets),
         work_stage,
     )
+    # 0. Fail the whole read at once if the model is not available.
+    extraction.check_model()
     # 1. Read every file once, for its page count and size.
     files = extraction.load_files(path, max_calls_per_file)
     # 2. Decide the first page ranges: planned for large files, whole for the rest.

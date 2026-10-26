@@ -27,6 +27,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     initial_ranges,
     is_empty_answer,
     is_splittable_error,
+    is_unknown_model_error,
     merge_values,
     next_ranges,
     nullable_scalars,
@@ -42,6 +43,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     range_budget,
     schema_instruction,
     shift_page_fields,
+    unknown_model_message,
     unwrap_envelope,
     with_status,
 )
@@ -1631,3 +1633,34 @@ class TestReadAnswer:
     def test_a_result_that_is_not_an_object_raises(self):
         with pytest.raises(AttributeError):
             read_answer("[1, 2]")
+
+
+# ---------------------------------------------------------------------------
+# is_unknown_model_error / unknown_model_message -- an unknown or unavailable
+# model ends the whole read with one clear error; other failures do not.
+# ---------------------------------------------------------------------------
+
+
+class TestUnknownModel:
+    def test_the_ai_complete_unknown_model_failure_is_recognized(self):
+        error = (
+            "Request failed for external function COMPLETE with remote service error: "
+            "'400 'unknown model \"claude-x\"''"
+        )
+        assert is_unknown_model_error(error) is True
+
+    def test_it_is_case_insensitive(self):
+        assert is_unknown_model_error("Unknown Model foo") is True
+
+    @pytest.mark.parametrize(
+        "error",
+        ["429 too many requests", "malformed request", "unexpected end of JSON input"],
+    )
+    def test_other_failures_are_not_terminal(self, error):
+        assert is_unknown_model_error(error) is False
+
+    def test_the_message_names_the_model_and_the_cross_region_setting(self):
+        message = unknown_model_message("claude-x", "unknown model")
+        assert '"claude-x"' in message
+        assert "CORTEX_ENABLED_CROSS_REGION" in message
+        assert message.endswith("unknown model")
