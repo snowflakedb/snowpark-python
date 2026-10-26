@@ -39,6 +39,12 @@ from snowflake.snowpark import DataFrame, Session
 
 STATUS_FIELD = "extraction_status"
 
+# A field added at the front of the user's schema in every extraction call, which the model
+# fills before extracting. It is how one call reports whether its answer is complete, and
+# if not, which page it stopped after and how it would split the pages it left; the
+# procedure uses that to queue the next calls (next_ranges). It also carries the model's
+# output-token estimates, which size those ranges and the per-file call cap. The field is
+# never returned to the user: merge_values() drops it from the merged answer.
 _STATUS_SCHEMA = {
     "type": "object",
     "description": (
@@ -81,10 +87,24 @@ _STATUS_SCHEMA = {
 }
 
 
-# Keywords dropped from the schema shown to the model: constraints a call covering only
-# some pages cannot always meet (``required`` header fields printed on other pages, size
-# and value bounds, ``additionalProperties: false`` against an envelope unwrap_envelope()
-# would recover) and annotations that only add prompt tokens.
+# JSON Schema keywords removed from the user's schema before it is put in the prompt.
+#
+# The schema is shown to the model so it knows which fields to extract and their types.
+# But a long document is read in several calls, each seeing only some of its pages, and
+# many keywords state rules about the complete answer that one call cannot satisfy: for
+# example ``required: ["invoice_number"]`` when the invoice number is printed on page 1
+# and this call reads pages 40-60, or ``minItems: 100`` when this call sees 30 of the
+# rows. A model told to meet such a rule may invent a value instead of leaving it out.
+#
+# The removed keywords are of three kinds:
+# - rules on presence, size or value (required, minItems, maximum, pattern, const, ...),
+#   which only the merged answer could meet;
+# - rules that depend on other fields or positions (if/then/else, dependentRequired,
+#   prefixItems, ...), which a partial answer can break the same way;
+# - annotations that do not change what to extract ($schema, $id, examples, readOnly,
+#   deprecated, ...), which only add prompt tokens.
+# ``additionalProperties: false`` goes too: some answers arrive wrapped in one extra key,
+# which unwrap_envelope() removes afterwards.
 _UNSUPPORTED_KEYWORDS = frozenset(
     {
         "required",
@@ -126,6 +146,8 @@ _NAME_MAPS = frozenset({"properties", "$defs", "definitions", "patternProperties
 
 
 def drop_unsupported(schema: Any) -> Any:
+    """``schema`` with every key in ``_UNSUPPORTED_KEYWORDS`` dropped, recursively; keys
+    under ``_NAME_MAPS`` are names, not keywords, and are never dropped."""
     if isinstance(schema, list):
         return [drop_unsupported(v) for v in schema]
     if not isinstance(schema, dict):
@@ -158,6 +180,7 @@ def is_splittable_error(error: str) -> bool:
 
 
 def is_empty_answer(value: Any) -> bool:
+    """True when ``value`` is an object whose every field is absent (see ``_is_absent``)."""
     return isinstance(value, dict) and all(_is_absent(v) for v in value.values())
 
 
@@ -174,6 +197,9 @@ BOUNDED_FIRST_CALL_MIN_BYTES = 10_000_000
 
 
 def is_large_file(total_pages: int, file_bytes: int) -> bool:
+    """True when the file is over ``BOUNDED_FIRST_CALL_MIN_PAGES`` pages or
+    ``BOUNDED_FIRST_CALL_MIN_BYTES``: it is planned first (plan_large_files), and its
+    ranges use the smaller "large_range" budget."""
     return (
         total_pages > BOUNDED_FIRST_CALL_MIN_PAGES
         or file_bytes > BOUNDED_FIRST_CALL_MIN_BYTES
@@ -181,6 +207,8 @@ def is_large_file(total_pages: int, file_bytes: int) -> bool:
 
 
 def first_round_budget(total_pages: int, file_bytes: int) -> str:
+    """Budget name for a file's first round: ``"first"`` for a large file, otherwise the
+    normal ``"range"`` budget."""
     return "first" if is_large_file(total_pages, file_bytes) else "range"
 
 
@@ -234,6 +262,9 @@ def nullable_scalars(schema: Any) -> Any:
 
 
 def with_status(response_format: Dict[str, Any]) -> Dict[str, Any]:
+    """``response_format`` with every scalar made nullable (see ``nullable_scalars``),
+    ``_STATUS_SCHEMA`` added as a leading field, and unsupported keywords dropped -- the
+    schema actually sent to the model."""
     wrapped = nullable_scalars(response_format["schema"])
     wrapped["properties"] = {
         STATUS_FIELD: _STATUS_SCHEMA,
@@ -432,6 +463,9 @@ def file_page_offset(start: int) -> int:
 
 
 def _to_document_page(page: Any, start: int, end: int) -> Optional[int]:
+    """``page``, a 1-based position within the part file for pages ``start``..``end``,
+    converted to a document page; None when it is not an integer or falls outside the
+    part file's range."""
     if not isinstance(page, int) or isinstance(page, bool):
         return None
     document_page = page + file_page_offset(start)
@@ -459,6 +493,7 @@ _PAGE_FIELD_NAMES = frozenset({"page", "page_number", "pdf_page", "page_index"})
 
 
 def _is_page_field(name: str) -> bool:
+    """True when ``name`` looks like a page-number field (see ``_PAGE_FIELD_NAMES``)."""
     lowered = name.lower()
     return lowered in _PAGE_FIELD_NAMES or lowered.endswith("_page")
 
@@ -603,6 +638,7 @@ def _cover(
 
 
 def _is_absent(value: Any) -> bool:
+    """True when ``value`` is None, or an empty string, list or dict."""
     return value is None or value == "" or value == [] or value == {}
 
 
@@ -682,6 +718,8 @@ _AI_COMPLETE_SQL = (
 
 
 def schema_instruction(schema: Dict[str, Any]) -> str:
+    """The instruction telling the model to answer with one JSON object conforming to
+    ``schema`` and nothing else."""
     return (
         "Respond with ONLY one JSON object that conforms to the JSON Schema below: no "
         "prose before or after it and no markdown code fences. Fill extraction_status "
@@ -766,6 +804,7 @@ def salvage_status(text: Any) -> Optional[Dict[str, Any]]:
 
 
 def split_evenly(start: int, end: int, parts: int) -> List[Tuple[int, int]]:
+    """Split pages ``start``..``end`` into ``parts`` consecutive, evenly sized ranges."""
     parts = max(1, min(parts, end - start + 1))
     size = -(-(end - start + 1) // parts)
     return [(a, min(a + size - 1, end)) for a in range(start, end + 1, size)]
@@ -835,10 +874,12 @@ class FileState:
 
     @property
     def splittable(self) -> bool:
+        """Whether this file can be cut into page ranges, i.e. it parsed as a PDF."""
         return self.reader is not None
 
     @property
     def range_budget(self) -> str:
+        """This file's budget name for its ranges after the first round."""
         return range_budget(self.pages, self.size)
 
 
@@ -859,6 +900,8 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
         budgets: Dict[str, Any],
         work_stage: str,
     ) -> None:
+        """Precompute the schema sent to the model (with the status field added and
+        every scalar made nullable) and its instruction text."""
         self.session = session
         self.schema = response_format["schema"]
         self.sent_schema = with_status(response_format)["schema"]
@@ -869,6 +912,8 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
         self.work_stage = work_stage
 
     def load_files(self, path: str, max_calls_per_file: int) -> List[FileState]:
+        """List every file under ``path``, read it, and parse it as a PDF when possible;
+        a file that is not a readable PDF becomes a one-page, unsplittable ``FileState``."""
         from pypdf import PdfReader
         from snowflake.snowpark.files import SnowflakeFile
 
@@ -913,6 +958,8 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
         return target
 
     def submit(self, file: FileState, predicate: str, staged: str, max_tokens: int):
+        """Submit one AI_COMPLETE call for ``staged`` and return its async job; counts
+        against ``file``'s call budget."""
         file.calls += 1
         return self.session.sql(
             _AI_COMPLETE_SQL,
@@ -926,6 +973,8 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
 
     @staticmethod
     def collect(job) -> Tuple[Any, Optional[str], Optional[Dict[str, Any]]]:
+        """``job``'s answer via ``read_answer``, or ``(None, str(exc), None)`` if it
+        raised."""
         try:
             return read_answer(job.result()[0][0])
         except Exception as exc:
@@ -1076,7 +1125,7 @@ def run(
     call_budgets: str,
     max_calls_per_file: int,
     work_stage: str,
-) -> DataFrame:  # pragma: no cover - exercised against a live account
+) -> DataFrame:
     """Extract the schema's fields from every file under ``path``; one output row per
     file, however many AI_COMPLETE calls it took.
 
