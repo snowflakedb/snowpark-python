@@ -9,6 +9,8 @@ from copy import copy
 from unittest.mock import patch, Mock
 
 
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, lit, max
 
 
@@ -102,3 +104,125 @@ def test_early_error(session, transform, debug_mode):
             else:
                 show_mock.assert_called()
                 assert df._plan._metadata.attributes is None
+
+
+def _count_describes(fn):
+    calls = []
+    original = SnowflakePlan._analyze_attributes
+    original_full = SnowflakePlan._describe_full_query
+
+    def counting(self):
+        calls.append(1)
+        return original(self)
+
+    def counting_full(self):
+        calls.append(1)
+        return original_full(self)
+
+    with patch.object(SnowflakePlan, "_analyze_attributes", counting), patch.object(
+        SnowflakePlan, "_describe_full_query", counting_full
+    ):
+        fn()
+    return len(calls)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="debug_mode not used in local testing mode",
+)
+@pytest.mark.parametrize("reduce_describe", [True, False])
+@pytest.mark.parametrize("simplifier", [True, False])
+@pytest.mark.parametrize(
+    "transform",
+    [
+        pytest.param(lambda x: x.filter(col("NOPE") > 1), id="filter"),
+        pytest.param(lambda x: x.sort("NOPE"), id="sort"),
+        pytest.param(lambda x: x.sort(col("NOPE").desc()), id="sort_col"),
+        pytest.param(
+            lambda x: x.select("A").filter(col("NOPE") > 1), id="select_filter"
+        ),
+        pytest.param(lambda x: x.filter(col("A") > 0).sort("NOPE"), id="filter_sort"),
+        pytest.param(lambda x: x.sort("A").filter(col("NOPE") > 1), id="sort_filter"),
+    ],
+)
+def test_eager_validation_catches_missing_column_in_filter_and_sort(
+    session, transform, simplifier, reduce_describe
+):
+    original_simplifier = session.sql_simplifier_enabled
+    original_reduce = session.reduce_describe_query_enabled
+    session.sql_simplifier_enabled = simplifier
+    session.reduce_describe_query_enabled = reduce_describe
+    try:
+        df = session.create_dataframe([(1,), (2,)], ["A"])
+        with patch.object(context, "_debug_eager_schema_validation", True):
+            with pytest.raises(SnowparkSQLException) as ex_info:
+                transform(df)
+        assert "invalid identifier" in str(ex_info.value)
+        assert "There are existing quoted column identifiers" in str(ex_info.value)
+
+        # Without eager validation the error only appears when the query runs.
+        with patch.object(context, "_debug_eager_schema_validation", False):
+            lazy = transform(df)
+        with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+            lazy.collect()
+    finally:
+        session.sql_simplifier_enabled = original_simplifier
+        session.reduce_describe_query_enabled = original_reduce
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="debug_mode not used in local testing mode",
+)
+@pytest.mark.parametrize("simplifier", [True, False])
+def test_eager_validation_keeps_valid_filter_and_sort_working(session, simplifier):
+    original_simplifier = session.sql_simplifier_enabled
+    session.sql_simplifier_enabled = simplifier
+    try:
+        df = session.create_dataframe([(1, "x"), (2, "y")], ["A", "B"])
+        with patch.object(context, "_debug_eager_schema_validation", True):
+            result = df.filter(col("A") > 1).sort(col("A").desc()).select("A")
+            if simplifier:
+                # B is dropped by the select but stays visible to a WHERE that is
+                # flattened into the same statement, so this must keep working.
+                result = result.filter(col("B") == "y")
+        assert [r[0] for r in result.collect()] == [2]
+    finally:
+        session.sql_simplifier_enabled = original_simplifier
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="debug_mode not used in local testing mode",
+)
+def test_eager_validation_adds_one_describe_per_filter_or_sort(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    original_reduce = session.reduce_describe_query_enabled
+    session.reduce_describe_query_enabled = True
+    try:
+        df = session.create_dataframe([(1,), (2,)], ["A"])
+        df.schema  # warm the base schema
+
+        with patch.object(context, "_debug_eager_schema_validation", False):
+            assert _count_describes(lambda: df.filter(col("A") > 0).sort("A")) == 0
+        with patch.object(context, "_debug_eager_schema_validation", True):
+            assert _count_describes(lambda: df.filter(col("A") > 0).sort("A")) == 2
+            # operations without a WHERE or ORDER BY add no full-query describe
+            assert _count_describes(lambda: df.select("A").limit(1)) == 0
+    finally:
+        session.reduce_describe_query_enabled = original_reduce
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="debug_mode not used in local testing mode",
+)
+def test_eager_validation_skips_full_query_describe_with_pre_actions(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    # cache_result() creates a temp table through a pre-action; a filter on top of a
+    # plan that still carries pre-actions must not describe a query that depends on them.
+    cached = session.create_dataframe([(1,), (2,)], ["A"]).cache_result()
+    with patch.object(context, "_debug_eager_schema_validation", True):
+        assert [r[0] for r in cached.filter(col("A") > 1).collect()] == [2]
