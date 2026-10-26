@@ -170,6 +170,81 @@ class SnowflakeFile(RawIOBase):
         This example reads the whole file into memory. Use binary mode
         (``"rb"``) when the consumer expects bytes rather than text.
 
+        **Reading UTF-8 JSON incrementally**
+
+        Text mode does not remove an initial UTF-8 byte order mark (BOM), which
+        can cause JSON parsing errors. To handle UTF-8 files with or without a
+        BOM, read in binary mode and use an incremental ``utf-8-sig`` decoder.
+        The decoder also handles multibyte characters split across reads.
+
+        For large JSON files, use an incremental parser instead of ``json.load``
+        or ``json.loads``, which materialize the whole document. The following
+        UDTF handler reads a top-level array of objects, each with a string
+        ``name`` field, and yields one name per row::
+
+            import codecs
+            import ijson
+            from snowflake.snowpark.files import SnowflakeFile
+
+            class ReadJsonArray:
+                def process(self, url):
+                    records = ijson.sendable_list()
+                    parser = ijson.items_coro(records, "item")
+                    decoder = codecs.getincrementaldecoder("utf-8-sig")()
+                    with SnowflakeFile.open(url, "rb") as source:
+                        for chunk in iter(lambda: source.read(65536), b""):
+                            text = decoder.decode(chunk)
+                            if text:
+                                parser.send(text.encode("utf-8"))
+                            for record in records:
+                                yield (record["name"],)
+                            records.clear()
+                        text = decoder.decode(b"", final=True)
+                        if text:
+                            parser.send(text.encode("utf-8"))
+                        parser.close()
+                        for record in records:
+                            yield (record["name"],)
+
+        For example, upload a UTF-8 file named ``names.json`` to a stage you can
+        read. The file can have an initial BOM and contains::
+
+            [{"name": "Alice"}, {"name": "Bob"}]
+
+        With an existing Snowpark ``session`` and a current database and schema
+        where you can create functions, register the handler as a temporary UDTF::
+
+            from snowflake.snowpark.types import StringType, StructField, StructType
+
+            session.udtf.register(
+                ReadJsonArray,
+                name="read_json_array",
+                input_types=[StringType()],
+                output_schema=StructType([StructField("NAME", StringType())]),
+                packages=["snowflake-snowpark-python", "ijson"],
+                is_permanent=False,
+            )
+
+        Replace ``my_stage`` with your stage name, then call the UDTF::
+
+            rows = session.sql('''
+                SELECT NAME
+                FROM TABLE(read_json_array(
+                    BUILD_SCOPED_FILE_URL(@my_stage, 'names.json')
+                ))
+            ''').collect()
+            print(sorted(row["NAME"] for row in rows))
+
+        Output for this two-record file::
+
+            ['Alice', 'Bob']
+
+        This example retains the parser's current record and the records
+        completed in one input chunk, rather than the entire array. An individual
+        large record can still require substantial memory. Invalid UTF-8 or
+        malformed JSON, including an empty file, raises an error; an empty array
+        yields no rows.
+
         In UDFs and Stored Procedures, the object works like a read-only Python IOBase object and as a wrapper for an IO stream of remote files.
 
         All files are accessed in the context of the UDF owner (with the exception of caller's rights stored procedures which use the caller's context).

@@ -603,6 +603,18 @@ class SnowflakePlan(LogicalPlan):
                 self.schema_query, self.session, self.uuid, query_params
             )
 
+    @Decorator.wrap_exception
+    def _describe_full_query(self) -> None:
+        """Describes the final query so the server validates the whole statement.
+        `schema_query` of a SelectStatement leaves out its WHERE and ORDER BY clauses,
+        so describing it can't surface errors in those clauses."""
+        analyze_attributes(
+            self.queries[-1].sql,
+            self.session,
+            self.uuid,
+            getattr(self.source_plan, "query_params", None),
+        )
+
     @property
     def attributes(self) -> List[Attribute]:
         if self._metadata.attributes is not None:
