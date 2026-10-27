@@ -932,6 +932,7 @@ def schema_instruction(schema: Dict[str, Any]) -> str:
 TRUNCATED_TEXT_ERROR = "unexpected end of JSON input in a text answer"
 UNPARSEABLE_TEXT_ERROR_PREFIX = "answer was not valid JSON"
 NO_JSON_TEXT_ERROR = "answer contained no JSON object"
+NOT_AN_OBJECT_TEXT_ERROR = "answer JSON was not an object"
 
 
 def _brackets_close(text: str) -> bool:
@@ -956,7 +957,8 @@ def _brackets_close(text: str) -> bool:
 
 def parse_text_answer(text: Any) -> Tuple[Any, Optional[str]]:
     """The JSON object out of a text answer. A JSON document cut off before it closes is
-    reported with the truncation signature so its pages get split."""
+    reported with the truncation signature so its pages get split. An answer that is a
+    JSON list instead of an object is an error (``NOT_AN_OBJECT_TEXT_ERROR``), not split."""
     if isinstance(text, dict):
         return text, None
     if not isinstance(text, str):
@@ -967,6 +969,20 @@ def parse_text_answer(text: Any) -> Tuple[Any, Optional[str]]:
         if body.rstrip().endswith("```"):
             body = body.rstrip()[:-3]
     first = body.find("{")
+    bracket = body.find("[")
+    if bracket >= 0 and (first < 0 or bracket < first):
+        # A top-level list, e.g. [{...}, {...}] (even cut off): decoding from its first
+        # "{" would keep the first element and silently drop the rest. A list counts when
+        # the answer starts with it, or when "[" is directly followed by an object; a
+        # bracket in prose before the object (e.g. "[1]") does not.
+        try:
+            listed, _ = json.JSONDecoder(strict=False).raw_decode(body[bracket:])
+        except json.JSONDecodeError:
+            listed = None  # prose such as "[note]", not JSON: look for an object
+        list_of_objects = first > bracket and not body[bracket + 1 : first].strip()
+        at_start = not body[:bracket].strip()
+        if (isinstance(listed, list) and at_start) or list_of_objects:
+            return None, NOT_AN_OBJECT_TEXT_ERROR
     if first < 0:
         return None, NO_JSON_TEXT_ERROR
     candidate = body[first:]
@@ -984,9 +1000,7 @@ def parse_text_answer(text: Any) -> Tuple[Any, Optional[str]]:
         ):
             return None, TRUNCATED_TEXT_ERROR
         return None, f"{UNPARSEABLE_TEXT_ERROR_PREFIX}: {exc.msg}"
-    if not isinstance(value, dict):
-        return None, "answer JSON was not an object"
-    return value, None
+    return value, None  # decoding started at a "{", so this is an object
 
 
 def salvage_status(text: Any) -> Optional[Dict[str, Any]]:

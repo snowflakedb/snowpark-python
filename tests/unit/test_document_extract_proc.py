@@ -23,6 +23,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     MAX_FILE_READ_BYTES,
     MAX_THROTTLE_RETRIES,
     MIN_DOCUMENTS_BEFORE_ABORT,
+    NOT_AN_OBJECT_TEXT_ERROR,
     SCORES_FIELD,
     STATUS_FIELD,
     THROTTLE_BACKOFF_SECONDS,
@@ -1461,10 +1462,7 @@ class TestParseTextAnswer:
         )
 
     def test_a_top_level_array_with_no_object_is_rejected(self):
-        assert parse_text_answer("[1, 2, 3]") == (
-            None,
-            "answer contained no JSON object",
-        )
+        assert parse_text_answer("[1, 2, 3]") == (None, NOT_AN_OBJECT_TEXT_ERROR)
 
     def test_json_cut_off_before_closing_is_reported_as_truncated(self):
         value, error = parse_text_answer('{"a": 1, "b": [1,2')
@@ -3043,3 +3041,33 @@ class TestMalformedRequestSplits:
         file.size = MALFORMED_SPLIT_MIN_BYTES + 1  # the whole file is sent as is
         extraction.extract_until_done([file], [(file, 1, 4, "range")], 30)
         assert session.submitted > 1  # halved down to single pages before giving up
+
+
+# ---------------------------------------------------------------------------
+# parse_text_answer -- an answer that is a JSON list is an error, not silently cut to
+# its first object; a bracket in prose before the object does not count.
+# ---------------------------------------------------------------------------
+
+
+class TestListAnswers:
+    @pytest.mark.parametrize(
+        "text",
+        [
+            '[{"a": 1}, {"a": 2}]',
+            '```json\n[{"a": 1}]\n```',
+            'Here it is:\n[{"a": 1}]',
+            '[{"a": 1}, {"a":',
+            "[1, 2]",
+        ],
+    )
+    def test_a_list_is_not_an_object(self, text):
+        assert parse_text_answer(text) == (None, NOT_AN_OBJECT_TEXT_ERROR)
+
+    @pytest.mark.parametrize(
+        "text", ['Here: {"a": 1}', '[note] {"a": 1}', 'see [1]: {"a": 1}']
+    )
+    def test_prose_before_the_object_still_works(self, text):
+        assert parse_text_answer(text) == ({"a": 1}, None)
+
+    def test_not_an_object_is_not_split(self):
+        assert is_splittable_error(NOT_AN_OBJECT_TEXT_ERROR) is False
