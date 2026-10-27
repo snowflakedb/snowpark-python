@@ -65,7 +65,12 @@ if TYPE_CHECKING:  # pragma: no cover
     from snowflake.snowpark.session import Session
 
 
-_EXTRACTION_MODEL = "claude-sonnet-5-5"
+# Models for schema reads, in order of preference: the extraction procedure uses the first
+# one AI_COMPLETE knows for the account and fails the read when it knows none. Both are
+# cross-region models, so an account or region without them can lack either.
+# The budgets below were tuned on the first.
+_EXTRACTION_MODELS = ["claude-sonnet-5-5", "claude-opus-5"]
+_EXTRACTION_MODEL = _EXTRACTION_MODELS[0]
 
 _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
 
@@ -520,7 +525,7 @@ def extract_with_split_procedure(
         path,
         json.dumps(options.extraction.ai_complete_format),
         options.prompt or _DEFAULT_EXTRACTION_PROMPT,
-        _EXTRACTION_MODEL,
+        json.dumps(_EXTRACTION_MODELS),
         json.dumps(_CALL_BUDGETS),
         _MAX_CALLS_PER_FILE,
         session.get_session_stage(),

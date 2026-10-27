@@ -37,13 +37,14 @@ from snowflake.snowpark._internal.document_extract_proc import (
     build_plan_predicate,
     planning_segments,
     ranges_from_plan,
+    DocumentExtraction,
     ranges_from_salvaged_status,
     salvage_status,
     split_evenly,
     range_budget,
     schema_instruction,
     shift_page_fields,
-    unknown_model_message,
+    no_model_message,
     unwrap_envelope,
     with_status,
 )
@@ -1659,8 +1660,69 @@ class TestUnknownModel:
     def test_other_failures_are_not_terminal(self, error):
         assert is_unknown_model_error(error) is False
 
-    def test_the_message_names_the_model_and_the_cross_region_setting(self):
-        message = unknown_model_message("claude-x", "unknown model")
-        assert '"claude-x"' in message
+    def test_the_message_names_both_models_and_the_cross_region_setting(self):
+        message = no_model_message(["claude-a", "claude-b"])
+        assert '"claude-a" or "claude-b"' in message
         assert "CORTEX_ENABLED_CROSS_REGION" in message
-        assert message.endswith("unknown model")
+
+
+# ---------------------------------------------------------------------------
+# DocumentExtraction.check_model -- the first model AI_COMPLETE knows is used;
+# only when it knows none does the read stop.
+# ---------------------------------------------------------------------------
+
+_UNKNOWN = RuntimeError("Request failed ... 400 'unknown model \"x\"'")
+
+
+class _PingSession:
+    """Answers each ping from ``outcomes`` (model -> exception to raise, or None)."""
+
+    def __init__(self, outcomes) -> None:
+        self.outcomes = outcomes
+        self.pinged = []
+
+    def sql(self, query, params):
+        self.pinged.append(params[0])
+        outcome = self.outcomes[params[0]]
+
+        class _Query:
+            @staticmethod
+            def collect():
+                if outcome is not None:
+                    raise outcome
+
+        return _Query()
+
+
+def _extraction(session, models):
+    schema = {"schema": {"type": "object", "properties": {"a": {"type": "string"}}}}
+    return DocumentExtraction(session, schema, "p", models, {}, "@stage")
+
+
+class TestCheckModel:
+    def test_the_first_model_is_used_when_it_is_available(self):
+        session = _PingSession({"m1": None, "m2": None})
+        extraction = _extraction(session, ["m1", "m2"])
+        extraction.check_model()
+        assert extraction.model == "m1"
+        assert session.pinged == ["m1"]
+
+    def test_the_next_model_is_used_when_the_first_is_unknown(self):
+        session = _PingSession({"m1": _UNKNOWN, "m2": None})
+        extraction = _extraction(session, ["m1", "m2"])
+        extraction.check_model()
+        assert extraction.model == "m2"
+        assert session.pinged == ["m1", "m2"]
+
+    def test_the_read_stops_when_no_model_is_known(self):
+        session = _PingSession({"m1": _UNKNOWN, "m2": _UNKNOWN})
+        extraction = _extraction(session, ["m1", "m2"])
+        with pytest.raises(RuntimeError, match="No model is available"):
+            extraction.check_model()
+
+    def test_another_failure_does_not_rule_a_model_out(self):
+        session = _PingSession({"m1": RuntimeError("429 too many requests")})
+        extraction = _extraction(session, ["m1", "m2"])
+        extraction.check_model()
+        assert extraction.model == "m1"
+        assert session.pinged == ["m1"]

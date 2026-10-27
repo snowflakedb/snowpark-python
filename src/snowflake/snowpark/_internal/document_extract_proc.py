@@ -860,14 +860,14 @@ def is_unknown_model_error(message: str) -> bool:
     return "unknown model" in message.lower()
 
 
-def unknown_model_message(model: str, error: str) -> str:
-    """The terminal error for a model AI_COMPLETE does not know."""
+def no_model_message(models: List[str]) -> str:
+    """The terminal error when AI_COMPLETE knows none of the models the reader can use."""
+    names = " or ".join(f'"{m}"' for m in models)
     return (
-        f'The document reader needs the model "{model}", which AI_COMPLETE reports as '
-        "unknown for this account. Check that the model is available in this account's "
-        "region and, if it is hosted in another region, that cross-region inference is "
-        "allowed (the CORTEX_ENABLED_CROSS_REGION account parameter). AI_COMPLETE "
-        f"returned: {error}"
+        f"No model is available for document extraction: AI_COMPLETE reports {names} as "
+        "unknown for this account. Enable cross-region inference "
+        "(the CORTEX_ENABLED_CROSS_REGION account parameter) or use a region where one "
+        "of these models is available."
     )
 
 
@@ -920,33 +920,40 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
         session: Session,
         response_format: Dict[str, Any],
         predicate: str,
-        model: str,
+        models: List[str],
         budgets: Dict[str, Any],
         work_stage: str,
     ) -> None:
         """Precompute the schema sent to the model (with the status field added and
-        every scalar made nullable) and its instruction text."""
+        every scalar made nullable) and its instruction text. ``models`` are the
+        candidates in order of preference; ``check_model`` picks the one in use."""
         self.session = session
         self.schema = response_format["schema"]
         self.sent_schema = with_status(response_format)["schema"]
         self.instruction = "\n\n" + schema_instruction(self.sent_schema)
         self.predicate = predicate
-        self.model = model
+        self.models = models
+        self.model = models[0]
         self.budgets = budgets
         self.work_stage = work_stage
 
     def check_model(self) -> None:
-        """Stop the read, before any file is touched, when AI_COMPLETE does not know the
-        model: every call would fail the same way. One call with max_tokens 1 and no
-        file; any other failure is left to the per-file calls."""
-        try:
-            self.session.sql(
-                _AI_COMPLETE_PING_SQL,
-                params=[self.model, "Reply with OK.", json.dumps({"max_tokens": 1})],
-            ).collect()
-        except Exception as exc:
-            if is_unknown_model_error(str(exc)):
-                raise RuntimeError(unknown_model_message(self.model, str(exc))) from exc
+        """Choose the model for this read, before any file is touched: the first of
+        ``models`` that AI_COMPLETE knows, found with one call each (no file,
+        max_tokens 1). When it knows none, every call would fail the same way, so the
+        read stops. Any other failure, such as throttling, does not rule a model out."""
+        for model in self.models:
+            try:
+                self.session.sql(
+                    _AI_COMPLETE_PING_SQL,
+                    params=[model, "Reply with OK.", json.dumps({"max_tokens": 1})],
+                ).collect()
+            except Exception as exc:
+                if is_unknown_model_error(str(exc)):
+                    continue
+            self.model = model
+            return
+        raise RuntimeError(no_model_message(self.models))
 
     def load_files(self, path: str, max_calls_per_file: int) -> List[FileState]:
         """List every file under ``path``, read it, and parse it as a PDF when possible;
@@ -1158,7 +1165,7 @@ def run(
     path: str,
     response_format: str,
     predicate: str,
-    model: str,
+    models: str,
     call_budgets: str,
     max_calls_per_file: int,
     work_stage: str,
@@ -1170,7 +1177,8 @@ def run(
         path: stage path of a file or folder, e.g. ``@stage/invoices/``.
         response_format: the user's schema as ``{"schema": <JSON Schema>}``, JSON.
         predicate: the extraction prompt (the user's, or the default).
-        model: the AI_COMPLETE model name.
+        models: the AI_COMPLETE model names the read may use, in order of preference,
+            as a JSON list; the first one AI_COMPLETE knows is used.
         call_budgets: output-token targets and limits per kind of call, JSON (see
             ``_CALL_BUDGETS`` in document_reader.py).
         max_calls_per_file: starting cap on calls per file; raised for files whose
@@ -1178,7 +1186,7 @@ def run(
         work_stage: stage where page-range part files are written (the session stage).
 
     Raises:
-        RuntimeError: AI_COMPLETE does not know ``model`` (not enabled for the account
+        RuntimeError: AI_COMPLETE knows none of ``models`` (not enabled for the account
             or region); raised before any file is read.
 
     Returns:
@@ -1191,11 +1199,11 @@ def run(
         session,
         json.loads(response_format),
         predicate,
-        model,
+        json.loads(models),
         json.loads(call_budgets),
         work_stage,
     )
-    # 0. Fail the whole read at once if the model is not available.
+    # 0. Pick the first available model; fail the whole read at once if none is.
     extraction.check_model()
     # 1. Read every file once, for its page count and size.
     files = extraction.load_files(path, max_calls_per_file)
