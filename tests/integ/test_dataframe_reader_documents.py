@@ -343,6 +343,24 @@ def test_documents_can_be_called_from_inside_a_stored_procedure(session, doc_sta
     from snowflake.snowpark.types import IntegerType
 
     def count_rows(sess: Session, path: str) -> int:
+        import pkgutil
+        import tempfile
+
+        from snowflake.snowpark._internal import document_reader
+
+        # The imported package lives in a zip, so the helper files the reader
+        # uploads by path don't exist on disk (an installed package is a plain
+        # directory). Write them out and point the reader at the copies.
+        out_dir = tempfile.mkdtemp()
+        for attr in ("_EXTRACT_PROC_FILE_PATH", "_PDF_READER_FILE_PATH"):
+            src_path = getattr(document_reader, attr)
+            if os.path.isfile(src_path):
+                continue
+            name = os.path.basename(src_path)
+            data = pkgutil.get_data("snowflake.snowpark._internal", name)
+            with open(os.path.join(out_dir, name), "wb") as f:
+                f.write(data)
+            setattr(document_reader, attr, os.path.join(out_dir, name))
         return len(sess.read.option("schema", INVOICE_SCHEMA).documents(path).collect())
 
     package_dir = os.path.dirname(snowflake.snowpark.__file__)
@@ -352,6 +370,9 @@ def test_documents_can_be_called_from_inside_a_stored_procedure(session, doc_sta
         input_types=[StringType()],
         packages=["snowflake-snowpark-python", "pypdf"],
         imports=[(package_dir, "snowflake.snowpark")],
+        # The reader registers temporary functions and procedures, which an
+        # owner's-rights procedure is not allowed to create.
+        execute_as="caller",
     )
     assert sproc(f"@{doc_stage}/invoice.pdf") == 1
 
