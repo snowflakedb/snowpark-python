@@ -203,3 +203,44 @@ class TestOutputColumnsForPromptOnly:
             "RESPONSE",
             '"_document_error"',
         ]
+
+
+# ---------------------------------------------------------------------------
+# output_columns -- a schema read through the extraction procedure returns the
+# confidence scores after the field columns; prompt-only and parse-only reads
+# have no fields to score.
+# ---------------------------------------------------------------------------
+
+
+class TestOutputColumnsScores:
+    @staticmethod
+    def _schema_options(**kwargs):
+        return DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+            **kwargs,
+        )
+
+    def test_a_schema_read_has_extraction_scores_after_the_fields(self):
+        columns = output_columns(self._schema_options())
+        assert columns.count("EXTRACTION_SCORES") == 1
+        assert columns[columns.index("NAME") + 1] == "EXTRACTION_SCORES"
+        assert columns[-1] == '"_document_error"'
+
+    def test_a_prompt_only_read_has_no_scores(self):
+        options = DocumentReaderOptions(parse_mode="none", prompt="Summarize.")
+        assert "EXTRACTION_SCORES" not in output_columns(options)
+
+    def test_a_parse_only_read_has_no_scores(self):
+        assert "EXTRACTION_SCORES" not in output_columns(DocumentReaderOptions())
+
+    def test_an_ai_extract_read_keeps_its_scores_column(self):
+        options = self._schema_options(extraction_engine="ai_extract")
+        assert output_columns(options).count("EXTRACTION_SCORES") == 1
+
+    def test_a_parsed_ai_complete_schema_read_has_no_scores(self):
+        options = DocumentReaderOptions(
+            parse_mode="layout",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+        )
+        assert "EXTRACTION_SCORES" not in output_columns(options)

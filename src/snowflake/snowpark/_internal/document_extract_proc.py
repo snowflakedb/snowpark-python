@@ -32,6 +32,7 @@ unit-tested directly.
 import hashlib
 import io
 import json
+import math
 import os
 from collections import Counter
 from dataclasses import dataclass, field
@@ -40,6 +41,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from snowflake.snowpark import DataFrame, Session
 
 STATUS_FIELD = "extraction_status"
+SCORES_FIELD = "extraction_scores"
 
 # A field added at the front of the user's schema in every extraction call, which the model
 # fills before extracting. It is how one call reports whether its answer is complete, and
@@ -183,7 +185,9 @@ def is_splittable_error(error: str) -> bool:
 
 def is_empty_answer(value: Any) -> bool:
     """True when ``value`` is an object whose every field is absent (see ``_is_absent``)."""
-    return isinstance(value, dict) and all(_is_absent(v) for v in value.values())
+    return isinstance(value, dict) and all(
+        _is_absent(v) for k, v in value.items() if k != SCORES_FIELD
+    )
 
 
 # AI_COMPLETE accepts a FILE up to about 15 MB (claude-sonnet-5-5 took 14.99 MB and
@@ -263,15 +267,30 @@ def nullable_scalars(schema: Any) -> Any:
     return out
 
 
+def scores_schema(field_names: List[str]) -> Dict[str, Any]:
+    """The ``extraction_scores`` property: one nullable number per top-level field of the
+    user's schema, the model's confidence in that field's extracted value. It is the last
+    property, so the model scores values it has already written."""
+    return {
+        "type": "object",
+        "description": (
+            "Fill this LAST, after every field. For each top-level field, your confidence "
+            "from 0 to 1 that the value you extracted is correct and complete."
+        ),
+        "properties": {name: {"type": ["number", "null"]} for name in field_names},
+    }
+
+
 def with_status(response_format: Dict[str, Any]) -> Dict[str, Any]:
     """``response_format`` with every scalar made nullable (see ``nullable_scalars``),
-    ``_STATUS_SCHEMA`` added as a leading field, and unsupported keywords dropped -- the
-    schema actually sent to the model."""
+    ``_STATUS_SCHEMA`` added as the leading field and ``extraction_scores`` (one number
+    per top-level field) as the last one, and unsupported keywords dropped -- the schema
+    actually sent to the model."""
     wrapped = nullable_scalars(response_format["schema"])
-    wrapped["properties"] = {
-        STATUS_FIELD: _STATUS_SCHEMA,
-        **wrapped.get("properties", {}),
-    }
+    properties = wrapped.get("properties", {})
+    wrapped["properties"] = {STATUS_FIELD: _STATUS_SCHEMA, **properties}
+    if properties:
+        wrapped["properties"][SCORES_FIELD] = scores_schema(list(properties))
     return {**response_format, "schema": drop_unsupported(wrapped)}
 
 
@@ -529,7 +548,10 @@ def shift_page_fields(value: Dict[str, Any], start: int, end: int) -> Dict[str, 
                         row[key] += offset
         return items
 
-    return {k: (v if k == STATUS_FIELD else shift(v)) for k, v in value.items()}
+    return {
+        k: (v if k in (STATUS_FIELD, SCORES_FIELD) else shift(v))
+        for k, v in value.items()
+    }
 
 
 def next_ranges(
@@ -737,8 +759,40 @@ def merge_values(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     merged: Dict[str, Any] = {}
     for part in parts:
-        part = {k: v for k, v in part.items() if k != STATUS_FIELD}
+        part = {k: v for k, v in part.items() if k not in (STATUS_FIELD, SCORES_FIELD)}
         merged = merge(merged, part)
+    return merged
+
+
+def merge_scores(
+    parts: List[Dict[str, Any]], fields: Optional[List[str]] = None
+) -> Dict[str, float]:
+    """One confidence per top-level field from the ``extraction_scores`` of each part (the
+    parts of one document, as answered). Conservative rule: a field's score is the
+    MINIMUM over the parts where the field has a value; when it is empty in every part,
+    the MAXIMUM reported (the confidence that it is really absent). Scores are clamped to
+    [0, 1]; non-numbers, booleans and NaN are ignored; a field with no usable score is
+    left out. With ``fields``, names that are not top-level fields of the schema are
+    ignored."""
+    filled: Dict[str, List[float]] = {}
+    empty: Dict[str, List[float]] = {}
+    for part in parts:
+        scores = part.get(SCORES_FIELD)
+        if not isinstance(scores, dict):
+            continue
+        for name, raw in scores.items():
+            if fields is not None and name not in fields:
+                continue
+            if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+                continue
+            if not math.isfinite(raw):
+                continue
+            score = min(max(float(raw), 0.0), 1.0)
+            target = empty if _is_absent(part.get(name)) else filled
+            target.setdefault(name, []).append(score)
+    merged: Dict[str, float] = {}
+    for name in list(filled) + [n for n in empty if n not in filled]:
+        merged[name] = min(filled[name]) if name in filled else max(empty[name])
     return merged
 
 
@@ -764,13 +818,29 @@ _AI_COMPLETE_PING_SQL = (
 )
 
 
+_SCORES_INSTRUCTION = (
+    " Fill extraction_scores last, after every other field: for each top-level field, a "
+    "number from 0 to 1 for how confident you are that the value you extracted is "
+    "correct and complete (1 is certain, 0 is a guess). For an array or object field "
+    "give one score for the whole value. For a field you returned as null or empty, "
+    "give how confident you are that it is really absent from the pages you were given."
+)
+
+
 def schema_instruction(schema: Dict[str, Any]) -> str:
     """The instruction telling the model to answer with one JSON object conforming to
-    ``schema`` and nothing else."""
+    ``schema`` and nothing else, including the confidence scores when the schema has the
+    ``extraction_scores`` property."""
+    scores = (
+        _SCORES_INSTRUCTION if SCORES_FIELD in (schema.get("properties") or {}) else ""
+    )
     return (
         "Respond with ONLY one JSON object that conforms to the JSON Schema below: no "
         "prose before or after it and no markdown code fences. Fill extraction_status "
-        "first.\n\nJSON Schema:\n" + json.dumps(schema, separators=(",", ":"))
+        "first."
+        + scores
+        + "\n\nJSON Schema:\n"
+        + json.dumps(schema, separators=(",", ":"))
     )
 
 
@@ -955,19 +1025,23 @@ class FileState:
 Task = Tuple[FileState, int, int, str]
 
 
-def result_row(file: FileState) -> List[Any]:
-    """The output row ``[STAGE_PATH, VALUE, ERROR]`` of one file: its parts merged in page
-    order, so a table split across ranges comes back as one table. A failure while
-    merging is that file's error, not the read's."""
+def result_row(file: FileState, fields: Optional[List[str]] = None) -> List[Any]:
+    """The output row ``[STAGE_PATH, VALUE, ERROR, SCORES]`` of one file: its parts merged
+    in page order, so a table split across ranges comes back as one table, and the
+    per-field confidence scores merged by ``merge_scores`` (None when there are none).
+    A failure while merging is that file's error, not the read's."""
     errors = list(file.errors)
-    value = None
+    value = scores = None
     parts = [part for _, part in sorted(file.parts, key=lambda item: item[0])]
     if parts:
         try:
             value = json.dumps(merge_values(parts))
+            merged = merge_scores(parts, fields)
+            scores = json.dumps(merged) if merged else None
         except Exception as exc:
+            value = scores = None
             errors.append(f"could not merge the extracted parts: {exc}")
-    return [file.path, value, "; ".join(errors) if errors else None]
+    return [file.path, value, "; ".join(errors) if errors else None, scores]
 
 
 def document_outcomes(
@@ -1314,8 +1388,9 @@ def run(
             or region), which is raised before any file is read.
 
     Returns:
-        STAGE_PATH, VALUE (the merged answer as JSON, or None when no part succeeded)
-        and ERROR (every failure for the file, joined with "; ", or None). A failure
+        STAGE_PATH, VALUE (the merged answer as JSON, or None when no part succeeded),
+        ERROR (every failure for the file, joined with "; ", or None) and SCORES (the
+        per-field confidence scores as JSON, see ``merge_scores``, or None). A failure
         reading, staging, submitting or merging is a file's own ERROR and does not
         stop the read; only the errors under Raises do.
     """
@@ -1338,12 +1413,14 @@ def run(
     # 3. Extract until no range is left; each file collects its parts and errors.
     extraction.extract_until_done(files, tasks, max_calls_per_file)
     # 4. One row per file (see result_row), including files that failed.
-    rows = [result_row(file) for file in files]
+    fields = list(extraction.schema.get("properties") or {})
+    rows = [result_row(file, fields) for file in files]
     schema = StructType(
         [
             StructField("STAGE_PATH", StringType()),
             StructField("VALUE", StringType()),
             StructField("ERROR", StringType()),
+            StructField("SCORES", StringType()),
         ]
     )
     return session.create_dataframe(rows, schema=schema)

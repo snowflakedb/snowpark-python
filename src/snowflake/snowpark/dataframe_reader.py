@@ -1429,7 +1429,12 @@ class DataFrameReader:
             - no ``schema`` or ``prompt``: ``SOURCE_FILE``, ``TOTAL_PAGES`` and
               ``CONTENT`` (the parsed text); ``PAGE_INDEX`` is added when ``row_boundary``
               is ``"page"``.
-            - ``schema``: ``SOURCE_FILE`` followed by one column per schema field.
+            - ``schema``: ``SOURCE_FILE``, one column per schema field, and
+              ``EXTRACTION_SCORES``. ``EXTRACTION_SCORES`` is an object that maps each
+              top-level schema field to a confidence score between 0 and 1 for its
+              extracted value (one score for a whole array or object field). The model
+              reports the scores itself, so they are not calibrated probabilities, and
+              a field without a score is left out.
             - ``prompt`` only: ``SOURCE_FILE`` and ``RESPONSE``.
 
         Every read also has a ``_document_error`` column. A document that fails does not

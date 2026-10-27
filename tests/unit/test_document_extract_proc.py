@@ -10,48 +10,51 @@ import pytest
 from snowflake.snowpark._internal.document_extract_proc import (
     BOUNDED_FIRST_CALL_MIN_BYTES,
     BOUNDED_FIRST_CALL_MIN_PAGES,
+    DocumentExtraction,
     EMPTY_ANSWER_ERROR,
+    FileState,
     HARD_MAX_CALLS_PER_FILE,
+    MAX_FAILED_FRACTION,
     MAX_FILE_BYTES,
+    MIN_DOCUMENTS_BEFORE_ABORT,
+    SCORES_FIELD,
     STATUS_FIELD,
     TRUNCATED_TEXT_ERROR,
     _cover,
     _to_document_page,
+    abort_message,
+    build_plan_predicate,
     build_predicate,
     call_cap,
     coalesce_ranges,
     continues_across_split,
     document_estimate,
+    document_outcomes,
     drop_unsupported,
     first_round_budget,
     initial_ranges,
     is_empty_answer,
     is_splittable_error,
     is_unknown_model_error,
+    merge_scores,
     merge_values,
     next_ranges,
+    no_model_message,
     nullable_scalars,
     parse_text_answer,
-    qualify_listed_name,
-    read_answer,
-    build_plan_predicate,
     planning_segments,
-    ranges_from_plan,
-    DocumentExtraction,
-    FileState,
-    document_outcomes,
-    result_row,
-    MAX_FAILED_FRACTION,
-    MIN_DOCUMENTS_BEFORE_ABORT,
-    abort_message,
-    should_abort,
-    ranges_from_salvaged_status,
-    salvage_status,
-    split_evenly,
+    qualify_listed_name,
     range_budget,
+    ranges_from_plan,
+    ranges_from_salvaged_status,
+    read_answer,
+    result_row,
+    salvage_status,
     schema_instruction,
+    scores_schema,
     shift_page_fields,
-    no_model_message,
+    should_abort,
+    split_evenly,
     unwrap_envelope,
     with_status,
 )
@@ -1985,7 +1988,7 @@ class TestPerFileFailures:
         good = _pdf_state("@s/b.pdf", pages=2)
         tasks = _doc_extraction(_FakeSession()).plan_large_files([failed, good])
         assert [t[0] for t in tasks] == [good]
-        assert result_row(failed) == ["@s/a.pdf", None, "could not read file: x"]
+        assert result_row(failed) == ["@s/a.pdf", None, "could not read file: x", None]
 
     def test_a_failed_file_counts_as_a_finished_failed_document(self):
         failed = FileState("@s/a.pdf", None, 1, 0, 30, errors=["e"], failed=True)
@@ -2028,6 +2031,7 @@ class TestPerFileFailures:
             "@s/a.pdf",
             None,
             "could not merge the extracted parts: cannot merge",
+            None,
         ]
 
     def test_too_many_failed_documents_still_stops_the_read(self):
@@ -2060,3 +2064,147 @@ class TestPerFileFailures:
             _doc_extraction(_Partial()).extract_until_done(
                 failed + [waiting], [(waiting, 1, 4, "range")], 30
             )
+
+
+# ---------------------------------------------------------------------------
+# Confidence scores -- an `extraction_scores` property (one number per
+# top-level field) is asked for last, kept out of the merged value, merged
+# across page ranges by merge_scores, and returned in the SCORES column.
+# ---------------------------------------------------------------------------
+
+_SCORED_SCHEMA = {
+    "schema": {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string"},
+            "rows": {"type": "array", "items": {"type": "object"}},
+        },
+    }
+}
+
+
+class TestScoresSchema:
+    def test_the_schema_shown_to_the_model_has_one_number_per_top_level_field(self):
+        props = with_status(_SCORED_SCHEMA)["schema"]["properties"]
+        scores = props[SCORES_FIELD]["properties"]
+        assert set(scores) == {"name", "rows"}
+        assert all(v == {"type": ["number", "null"]} for v in scores.values())
+
+    def test_status_comes_first_and_scores_last(self):
+        names = list(with_status(_SCORED_SCHEMA)["schema"]["properties"])
+        assert names == [STATUS_FIELD, "name", "rows", SCORES_FIELD]
+
+    def test_nested_properties_are_not_scored_separately(self):
+        nested = {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "a": {"type": "object", "properties": {"b": {"type": "string"}}}
+                },
+            }
+        }
+        scores = with_status(nested)["schema"]["properties"][SCORES_FIELD]
+        assert set(scores["properties"]) == {"a"}
+
+    def test_a_schema_without_properties_gets_no_scores_field(self):
+        props = with_status({"schema": {"type": "object"}})["schema"]["properties"]
+        assert SCORES_FIELD not in props
+
+    def test_scores_schema_lists_the_given_fields(self):
+        assert set(scores_schema(["x", "y"])["properties"]) == {"x", "y"}
+
+    def test_the_prompt_asks_for_the_scores_last(self):
+        sent = with_status(_SCORED_SCHEMA)["schema"]
+        text = schema_instruction(sent)
+        assert "Fill extraction_scores last" in text
+        assert "number from 0 to 1" in text
+        assert "really absent" in text
+
+    def test_the_prompt_does_not_mention_scores_without_the_property(self):
+        assert "extraction_scores" not in schema_instruction({"type": "object"})
+
+
+class TestScoresStayOutOfTheValue:
+    PART = {
+        STATUS_FIELD: {"complete": True},
+        "name": "a",
+        SCORES_FIELD: {"name": 0.9},
+    }
+
+    def test_merge_values_drops_the_scores(self):
+        assert merge_values([self.PART]) == {"name": "a"}
+
+    def test_scores_alone_are_not_content(self):
+        assert is_empty_answer({SCORES_FIELD: {"name": 0.5}}) is True
+        assert is_empty_answer({"name": "a", SCORES_FIELD: {"name": 0.5}}) is False
+
+    def test_shifting_page_fields_leaves_the_scores_alone(self):
+        value = {"rows": [{"page": 2}], SCORES_FIELD: {"rows": 0.7, "page": 0.5}}
+        out = shift_page_fields(value, 5, 9)
+        assert out[SCORES_FIELD] == {"rows": 0.7, "page": 0.5}
+        assert out["rows"] == [{"page": 5}]
+
+
+class TestMergeScores:
+    def test_one_part_returns_its_scores(self):
+        part = {"a": "x", "b": [1], SCORES_FIELD: {"a": 0.9, "b": 0.4}}
+        assert merge_scores([part]) == {"a": 0.9, "b": 0.4}
+
+    def test_a_field_takes_the_minimum_over_the_parts_that_have_a_value(self):
+        parts = [
+            {"a": "x", SCORES_FIELD: {"a": 0.9}},
+            {"a": "y", SCORES_FIELD: {"a": 0.6}},
+            {"a": None, SCORES_FIELD: {"a": 0.99}},
+        ]
+        assert merge_scores(parts) == {"a": 0.6}
+
+    def test_a_field_empty_everywhere_takes_the_maximum(self):
+        parts = [
+            {"a": None, SCORES_FIELD: {"a": 0.7}},
+            {"a": "", SCORES_FIELD: {"a": 0.95}},
+        ]
+        assert merge_scores(parts) == {"a": 0.95}
+
+    def test_scores_are_clamped_to_zero_and_one(self):
+        part = {"a": "x", "b": "y", SCORES_FIELD: {"a": 1.7, "b": -0.2}}
+        assert merge_scores([part]) == {"a": 1.0, "b": 0.0}
+
+    @pytest.mark.parametrize(
+        "bad", ["0.9", True, None, [0.9], float("nan"), float("inf")]
+    )
+    def test_unusable_scores_are_left_out(self, bad):
+        assert merge_scores([{"a": "x", SCORES_FIELD: {"a": bad}}]) == {}
+
+    def test_a_part_without_scores_or_with_a_non_object_is_skipped(self):
+        parts = [
+            {"a": "x"},
+            {"a": "y", SCORES_FIELD: "high"},
+            {"a": "z", SCORES_FIELD: {"a": 0.8}},
+        ]
+        assert merge_scores(parts) == {"a": 0.8}
+
+    def test_names_outside_the_schema_fields_are_ignored(self):
+        part = {"a": "x", SCORES_FIELD: {"a": 0.9, "made_up": 0.1}}
+        assert merge_scores([part], fields=["a"]) == {"a": 0.9}
+
+    def test_no_parts_gives_no_scores(self):
+        assert merge_scores([]) == {}
+
+
+class TestResultRowScores:
+    def test_the_row_carries_the_merged_scores_as_json(self):
+        file = FileState(
+            "@s/a.pdf",
+            None,
+            1,
+            1,
+            30,
+            parts=[(1, {"a": "x", SCORES_FIELD: {"a": 0.8, "zzz": 0.1}})],
+        )
+        row = result_row(file, ["a"])
+        assert json.loads(row[1]) == {"a": "x"}
+        assert json.loads(row[3]) == {"a": 0.8}
+
+    def test_a_file_whose_answer_had_no_scores_has_a_null_scores_column(self):
+        file = FileState("@s/a.pdf", None, 1, 1, 30, parts=[(1, {"a": "x"})])
+        assert result_row(file, ["a"])[3] is None

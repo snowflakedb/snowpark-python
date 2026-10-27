@@ -143,14 +143,14 @@ def _datatype(df, column_name: str):
 def test_schema_scalar_types_are_cast_not_stringified(session, invoice_path):
     df = session.read.option("schema", TYPED_SCALAR_SCHEMA).documents(invoice_path)
 
-    # No CONTENT/TOTAL_PAGES (parse is skipped for a schema read) and no
-    # EXTRACTION_SCORES (that's an AI_EXTRACT-only output, unreachable now that
-    # schema reads always go through AI_COMPLETE).
+    # No CONTENT/TOTAL_PAGES (parse is skipped for a schema read); EXTRACTION_SCORES
+    # holds the model's confidence for each top-level field.
     assert _unquoted(df) == [
         "SOURCE_FILE",
         "INVOICE_NUMBER",
         "TOTAL_AMOUNT_NUMBER",
         "IS_INVOICE",
+        "EXTRACTION_SCORES",
         "_document_error",
     ]
     assert isinstance(_datatype(df, "INVOICE_NUMBER"), StringType)
@@ -224,12 +224,17 @@ def test_schema_and_prompt_together(session, invoice_path):
         "SOURCE_FILE",
         "INVOICE_NUMBER",
         "TOTAL_AMOUNT",
+        "EXTRACTION_SCORES",
         "_document_error",
     ]
     row = df.collect()[0]
     assert row["INVOICE_NUMBER"]
     assert row["TOTAL_AMOUNT"]
     assert row["_document_error"] is None
+    # One confidence score between 0 and 1 per top-level schema field.
+    scores = json.loads(row["EXTRACTION_SCORES"])
+    assert set(scores) <= {"invoice_number", "total_amount"} and scores
+    assert all(0 <= v <= 1 for v in scores.values())
 
 
 # ---------------------------------------------------------------------------
@@ -283,6 +288,7 @@ def test_long_pdf_goes_through_the_split_procedure(session, resources_path, tmp_
             "SOURCE_FILE",
             "INVOICE_NUMBER",
             "TOTAL_AMOUNT",
+            "EXTRACTION_SCORES",
             "_document_error",
         ]
         rows = df.collect()

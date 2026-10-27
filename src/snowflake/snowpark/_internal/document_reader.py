@@ -157,7 +157,7 @@ def output_columns(options: DocumentReaderOptions) -> List[str]:
             names.append(IMAGES_COLUMN)
     if options.extract_enabled:
         names.extend(options.extraction.field_columns)
-        if options.extraction_engine == "ai_extract":
+        if options.scores_enabled:
             names.append(EXTRACTION_SCORES_COLUMN)
     elif options.complete_enabled:
         names.append(RESPONSE_COLUMN)
@@ -536,6 +536,7 @@ def extract_with_split_procedure(
         to_file(col("STAGE_PATH")).alias(SOURCE_FILE_COLUMN),
         try_parse_json(col("VALUE")).alias(_EXTRACTED_COLUMN),
         col("ERROR").alias(_EXTRACT_ERROR_COLUMN),
+        try_parse_json(col("SCORES")).alias(EXTRACTION_SCORES_COLUMN),
     )
     return project_extracted_fields(
         df, col(_EXTRACTED_COLUMN), col(_EXTRACT_ERROR_COLUMN), options.extraction
@@ -677,6 +678,7 @@ def register_extract_proc(session: "Session") -> str:
                 StructField("STAGE_PATH", StringType()),
                 StructField("VALUE", StringType()),
                 StructField("ERROR", StringType()),
+                StructField("SCORES", StringType()),
             ]
         ),
         input_types=[

@@ -173,6 +173,15 @@ class DocumentReaderOptions:
         return self.extraction is not None
 
     @property
+    def scores_enabled(self) -> bool:
+        """Whether the read returns the EXTRACTION_SCORES column: AI_EXTRACT scores, or
+        the confidence scores of a schema read through the extraction procedure (an
+        AI_COMPLETE schema read that does not parse first)."""
+        return self.extract_enabled and (
+            self.extraction_engine == "ai_extract" or not self.parse_enabled
+        )
+
+    @property
     def complete_enabled(self) -> bool:
         return self.extraction is not None or self.prompt is not None
 
