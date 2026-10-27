@@ -327,26 +327,64 @@ def _long_invoice_pages(count):
     return pages
 
 
+# Fields that appear on one end of the long invoice only: bill_to and invoice_date on
+# page 1, total_amount on page 60. Both ends coming back proves the first and last
+# page ranges were extracted and merged.
+LONG_INVOICE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "invoice_number": {"type": "string"},
+        "bill_to": {"type": "string"},
+        "invoice_date": {"type": "string"},
+        "total_amount": {"type": "string"},
+    },
+}
+
+
+def _ai_complete_calls_in_session(session):
+    """AI_COMPLETE statements run so far in this session, including the ones the
+    extraction procedure issued."""
+    return session.sql(
+        "select count(*) from table(information_schema.query_history_by_session("
+        "result_limit => 10000)) where query_text ilike 'SELECT AI_COMPLETE(%'"
+    ).collect()[0][0]
+
+
 def test_long_pdf_goes_through_the_split_procedure(session, tmp_path):
     """A PDF over 50 pages is planned first (planning-only calls choose the page
-    ranges) and then extracted range by range; the merged result is one row."""
+    ranges) and then extracted range by range; the merged result is one row with
+    values from both the first and the last page."""
     long_pdf = tmp_path / "long.pdf"
     # 60 pages, above the 50-page planning limit.
     long_pdf.write_bytes(_text_pdf(_long_invoice_pages(60)))
 
     stage_name = _stage_with(session, {"": str(long_pdf)})
     try:
-        df = session.read.option("schema", INVOICE_SCHEMA).documents(f"@{stage_name}")
+        calls_before = _ai_complete_calls_in_session(session)
+        df = session.read.option("schema", LONG_INVOICE_SCHEMA).documents(
+            f"@{stage_name}"
+        )
         assert _unquoted(df) == [
             "SOURCE_FILE",
             "INVOICE_NUMBER",
+            "BILL_TO",
+            "INVOICE_DATE",
             "TOTAL_AMOUNT",
             "EXTRACTION_SCORES",
             "_document_error",
         ]
         rows = df.collect()
         assert len(rows) == 1
-        assert rows[0]["_document_error"] is None
+        row = rows[0]
+        assert row["_document_error"] is None
+        assert row["INVOICE_NUMBER"] == "INV-4821"
+        # Page 1 only.
+        assert "Example Supply" in row["BILL_TO"]
+        assert "2026-03-01" in row["INVOICE_DATE"]
+        # Page 60 only.
+        assert "600" in row["TOTAL_AMOUNT"]
+        # Planning plus at least one extraction call, so the file was not sent whole.
+        assert _ai_complete_calls_in_session(session) - calls_before > 1
     finally:
         Utils.drop_stage(session, stage_name)
 
