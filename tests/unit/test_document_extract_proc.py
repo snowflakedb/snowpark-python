@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     HARD_MAX_CALLS_PER_FILE,
     MAX_FAILED_FRACTION,
     MAX_FILE_BYTES,
+    MAX_FILE_READ_BYTES,
     MAX_THROTTLE_RETRIES,
     MIN_DOCUMENTS_BEFORE_ABORT,
     SCORES_FIELD,
@@ -46,6 +47,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     is_splittable_error,
     is_throttle_error,
     is_unknown_model_error,
+    listed_size,
     merge_scores,
     merge_values,
     next_ranges,
@@ -2284,6 +2286,48 @@ class TestPerFileFailures:
         bad, good = extraction.load_files("@s", 30)
         assert bad.failed and bad.errors == ["could not read file: denied"]
         assert not good.failed and good.pages == 3 and good.splittable
+
+    def test_a_file_over_the_read_limit_is_not_read_and_is_a_failed_state(
+        self, monkeypatch
+    ):
+        extraction = _doc_extraction(_FakeSession())
+        reads = []
+        monkeypatch.setattr(extraction, "read_bytes", lambda name: reads.append(name))
+        big = extraction.load_file("@s/big.pdf", 30, MAX_FILE_READ_BYTES + 1)
+        assert reads == []
+        assert big.failed and big.errors == [
+            f"file is {MAX_FILE_READ_BYTES + 1} bytes, larger than the supported "
+            f"maximum of {MAX_FILE_READ_BYTES} bytes"
+        ]
+        assert document_outcomes([big], []) == (0, 0, [])
+
+    def test_a_file_at_the_read_limit_is_read(self, monkeypatch):
+        extraction = _doc_extraction(_FakeSession())
+        monkeypatch.setattr(extraction, "read_bytes", lambda name: _pdf_bytes(2))
+        file = extraction.load_file("@s/a.pdf", 30, MAX_FILE_READ_BYTES)
+        assert not file.failed and file.pages == 2
+
+    def test_load_files_passes_the_listed_size(self, monkeypatch):
+        class _SizedSession(_FakeSession):
+            def sql(self, query, params=None):
+                return _Result(
+                    rows=[
+                        {"name": "s/a.pdf", "size": 10},
+                        {"name": "s/b.pdf", "size": MAX_FILE_READ_BYTES + 1},
+                    ]
+                )
+
+        extraction = _doc_extraction(_SizedSession())
+        monkeypatch.setattr(extraction, "read_bytes", lambda name: _pdf_bytes(1))
+        small, big = extraction.load_files("@s", 30)
+        assert not small.failed and big.failed
+
+    @pytest.mark.parametrize(
+        "row, expected",
+        [({"size": 12}, 12), ({"size": "34"}, 34), ({}, None), ({"size": None}, None)],
+    )
+    def test_listed_size(self, row, expected):
+        assert listed_size(row) == expected
 
     def test_a_failed_file_gets_no_tasks_and_still_has_an_output_row(self):
         failed = FileState(

@@ -233,6 +233,11 @@ def is_empty_answer(value: Any) -> bool:
 # rejected 15.19 MB with a bare "malformed request"); parts stay well under that.
 MAX_FILE_BYTES = 12_000_000
 
+# Every file is read whole into the procedure's memory before it is cut into parts, so a
+# file larger than this (by the size LIST reports) is not read: it gets its own error
+# row instead of exhausting the procedure's memory.
+MAX_FILE_READ_BYTES = 300_000_000
+
 
 # Above these, a first call that ignores its token target can run for many minutes before
 # failing, so the first round gets the small "first" budget; below them a whole answer
@@ -845,6 +850,14 @@ def merge_scores(
     return merged
 
 
+def listed_size(row: Any) -> Optional[int]:
+    """The ``size`` LIST reports for a file, or None when the row has none."""
+    try:
+        return int(row["size"])
+    except (KeyError, IndexError, TypeError, ValueError):
+        return None
+
+
 def qualify_listed_name(path: str, listed_name: str) -> str:
     """LIST returns '<stage name>/<relative path>' without database or schema; rebuild a
     reference that resolves regardless of the session's current schema."""
@@ -1200,13 +1213,29 @@ class DocumentExtraction:
         with SnowflakeFile.open(name, "rb", require_scoped_url=False) as f:
             return f.read()
 
-    def load_file(self, name: str, max_calls_per_file: int) -> FileState:
+    def load_file(
+        self, name: str, max_calls_per_file: int, listed_size: Optional[int] = None
+    ) -> FileState:
         """Read one staged file and parse it as a PDF when possible; a file that is not a
         readable PDF becomes a one-page, unsplittable ``FileState``. A file that cannot
-        be read at all becomes a ``failed`` one carrying the error, so it affects only
+        be read at all, or whose ``listed_size`` is over ``MAX_FILE_READ_BYTES`` (it is
+        then not read), becomes a ``failed`` one carrying the error, so it affects only
         its own output row."""
         from pypdf import PdfReader
 
+        if listed_size is not None and listed_size > MAX_FILE_READ_BYTES:
+            return FileState(
+                name,
+                None,
+                1,
+                listed_size,
+                max_calls_per_file,
+                errors=[
+                    f"file is {listed_size} bytes, larger than the supported maximum "
+                    f"of {MAX_FILE_READ_BYTES} bytes"
+                ],
+                failed=True,
+            )
         try:
             content = self.read_bytes(name)
         except Exception as exc:
@@ -1230,7 +1259,11 @@ class DocumentExtraction:
         """List every file under ``path`` and load each (see ``load_file``). Listing the
         path itself failing stops the read: there is nothing to report per file."""
         return [
-            self.load_file(qualify_listed_name(path, row["name"]), max_calls_per_file)
+            self.load_file(
+                qualify_listed_name(path, row["name"]),
+                max_calls_per_file,
+                listed_size(row),
+            )
             for row in self.session.sql(f"LIST {path}").collect()
         ]
 
