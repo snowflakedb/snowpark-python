@@ -3,7 +3,10 @@
 #
 
 import copy
+import io
 import json
+import sys
+import types
 
 import pytest
 
@@ -1963,12 +1966,44 @@ class TestReadStopsWhenMostDocumentsFail:
 # ---------------------------------------------------------------------------
 
 
+_FAKE_PDF_PREFIX = b"%FAKE-PDF pages="
+
+
+class _FakePdfReader:
+    """Reads the bytes ``_FakePdfWriter`` writes; anything else is not a readable PDF."""
+
+    def __init__(self, stream) -> None:
+        data = stream.read()
+        if not data.startswith(_FAKE_PDF_PREFIX):
+            raise ValueError("not a PDF")
+        self.pages = list(range(int(data[len(_FAKE_PDF_PREFIX) :])))
+
+
+class _FakePdfWriter:
+    def __init__(self) -> None:
+        self.pages = []
+
+    def add_page(self, page) -> None:
+        self.pages.append(page)
+
+    def add_blank_page(self, width=0, height=0) -> None:
+        self.pages.append(len(self.pages))
+
+    def write(self, stream) -> None:
+        stream.write(_FAKE_PDF_PREFIX + str(len(self.pages)).encode())
+
+
+@pytest.fixture(autouse=True)
+def fake_pypdf(monkeypatch):
+    """The procedure imports pypdf, a package of the stored procedure's environment that
+    the client's test environment does not install; these tests use a small stand-in."""
+    module = types.ModuleType("pypdf")
+    module.PdfReader, module.PdfWriter = _FakePdfReader, _FakePdfWriter
+    monkeypatch.setitem(sys.modules, "pypdf", module)
+
+
 def _pdf_bytes(pages):
-    import io
-
-    from pypdf import PdfWriter
-
-    writer = PdfWriter()
+    writer = _FakePdfWriter()
     for _ in range(pages):
         writer.add_blank_page(width=100, height=100)
     buffer = io.BytesIO()
@@ -2038,11 +2073,8 @@ def _doc_extraction(session):
 
 
 def _pdf_state(path, pages=4, cap=30):
-    from pypdf import PdfReader
-    import io
-
     data = _pdf_bytes(pages)
-    return FileState(path, PdfReader(io.BytesIO(data)), pages, len(data), cap)
+    return FileState(path, _FakePdfReader(io.BytesIO(data)), pages, len(data), cap)
 
 
 class TestPerFileFailures:

@@ -267,19 +267,72 @@ def _stage_with(session, files):
     return stage_name
 
 
-def test_long_pdf_goes_through_the_split_procedure(session, resources_path, tmp_path):
+def _text_pdf(page_lines):
+    """A minimal valid PDF with one page per entry of ``page_lines``, each page showing
+    its lines in Helvetica. Written by hand because pypdf is a package of the stored
+    procedure's environment, not of the client's test environment."""
+
+    def escape(text):
+        return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    count = len(page_lines)
+    page_ids = [4 + 2 * i for i in range(count)]
+    objects = {
+        1: "<< /Type /Catalog /Pages 2 0 R >>",
+        2: f"<< /Type /Pages /Kids [{' '.join(f'{i} 0 R' for i in page_ids)}] "
+        f"/Count {count} >>",
+        3: "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    }
+    for page_id, lines in zip(page_ids, page_lines):
+        text = " T* ".join(f"({escape(line)}) Tj" for line in lines)
+        stream = f"BT /F1 12 Tf 14 TL 72 720 Td {text} ET"
+        objects[page_id] = (
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            f"/Resources << /Font << /F1 3 0 R >> >> /Contents {page_id + 1} 0 R >>"
+        )
+        objects[
+            page_id + 1
+        ] = f"<< /Length {len(stream)} >>\nstream\n{stream}\nendstream"
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = {}
+    for number in sorted(objects):
+        offsets[number] = len(out)
+        out += f"{number} 0 obj\n{objects[number]}\nendobj\n".encode("latin-1")
+    xref = len(out)
+    size = max(objects) + 1
+    out += f"xref\n0 {size}\n0000000000 65535 f \n".encode()
+    for number in range(1, size):
+        out += f"{offsets[number]:010d} 00000 n \n".encode()
+    out += (
+        f"trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+    )
+    return bytes(out)
+
+
+def _long_invoice_pages(count):
+    """Text for a ``count``-page invoice: a header, line items on every page, and the
+    total on the last page."""
+    pages = []
+    for page in range(1, count + 1):
+        lines = [f"Invoice number: INV-4821      Page {page} of {count}"]
+        if page == 1:
+            lines += ["Bill to: Example Supply Co.", "Date: 2026-03-01"]
+        lines += [
+            f"Item {page}-{row}: Widget model {row}, quantity {row}, price USD 1.00"
+            for row in range(1, 11)
+        ]
+        if page == count:
+            lines.append("Total amount: USD 600.00")
+        pages.append(lines)
+    return pages
+
+
+def test_long_pdf_goes_through_the_split_procedure(session, tmp_path):
     """A PDF over 50 pages is planned first (planning-only calls choose the page
     ranges) and then extracted range by range; the merged result is one row."""
-    from pypdf import PdfReader, PdfWriter
-
-    source = PdfReader(TestFiles(resources_path).test_doc_pdf)
-    writer = PdfWriter()
-    for _ in range(20):  # 3 pages x 20 = 60 pages, above the 50-page planning limit
-        for page in source.pages:
-            writer.add_page(page)
     long_pdf = tmp_path / "long.pdf"
-    with open(long_pdf, "wb") as f:
-        writer.write(f)
+    # 60 pages, above the 50-page planning limit.
+    long_pdf.write_bytes(_text_pdf(_long_invoice_pages(60)))
 
     stage_name = _stage_with(session, {"": str(long_pdf)})
     try:
