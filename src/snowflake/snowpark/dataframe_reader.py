@@ -1456,6 +1456,12 @@ class DataFrameReader:
             owner's-rights procedure cannot create temporary objects, and the read fails
             with "Unsupported statement type 'temporary FUNCTION'".
 
+        Note:
+            The read is lazy: the documents are read (and the model calls are made, and
+            billed) when an action such as ``collect()`` or ``show()`` runs, and every
+            action runs the whole read again. To use the result more than once, call
+            ``df.cache_result()`` or write the DataFrame to a table first.
+
         Args:
             path: The stage location of a document, or a stage location that has documents.
 
