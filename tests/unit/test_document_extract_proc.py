@@ -15,7 +15,6 @@ import snowflake.snowpark._internal.document_extract_proc as proc
 from snowflake.snowpark._internal.document_extract_proc import (
     BOUNDED_FIRST_CALL_MIN_BYTES,
     BOUNDED_FIRST_CALL_MIN_PAGES,
-    EMPTY_ANSWER_ERROR,
     HARD_MAX_CALLS_PER_FILE,
     MALFORMED_SPLIT_MIN_BYTES,
     MAX_FAILED_FRACTION,
@@ -46,7 +45,6 @@ from snowflake.snowpark._internal.document_extract_proc import (
     drop_unsupported,
     first_round_budget,
     initial_ranges,
-    is_empty_answer,
     is_splittable_error,
     is_throttle_error,
     is_unknown_model_error,
@@ -199,9 +197,8 @@ class TestDropUnsupported:
 # is_splittable_error -- only an error that fewer pages can fix is worth
 # retrying with a smaller page range: a response cut off mid-JSON (hit
 # max_tokens); an input Cortex rejects as too large (reported only as
-# "malformed request"); an empty object (see is_empty_answer and
-# EMPTY_ANSWER_ERROR below); or an answer that does not parse as JSON. Any
-# other error is not.
+# "malformed request"); or an answer that does not parse as JSON. Any other
+# error is not.
 # ---------------------------------------------------------------------------
 
 
@@ -225,38 +222,9 @@ class TestIsSplittableError:
             is_splittable_error("Cortex error: malformed request for this file") is True
         )
 
-    def test_true_when_the_message_is_exactly_the_empty_answer_signature(self):
-        assert is_splittable_error(EMPTY_ANSWER_ERROR) is True
-
-    def test_true_when_the_empty_answer_signature_is_a_substring(self):
-        assert is_splittable_error(f"pages 1-10: {EMPTY_ANSWER_ERROR}") is True
-
     def test_false_for_other_errors(self):
         assert is_splittable_error("rate limited") is False
         assert is_splittable_error("") is False
-
-
-# ---------------------------------------------------------------------------
-# is_empty_answer -- json mode can return an empty-ish object (every field
-# absent) instead of an error when the model's answer would not fit; run()
-# turns that into EMPTY_ANSWER_ERROR so next_ranges treats it like a
-# splittable error instead of a silently "complete" empty result.
-# ---------------------------------------------------------------------------
-
-
-class TestIsEmptyAnswer:
-    def test_an_empty_dict_is_empty(self):
-        assert is_empty_answer({}) is True
-
-    def test_a_dict_of_only_absent_values_is_empty(self):
-        assert is_empty_answer({"a": None, "b": "", "c": [], "d": {}}) is True
-
-    def test_a_dict_with_any_present_value_is_not_empty(self):
-        assert is_empty_answer({"a": 1, "b": None}) is False
-
-    @pytest.mark.parametrize("value", [None, "not a dict", 42, []])
-    def test_non_dict_values_are_not_empty(self, value):
-        assert is_empty_answer(value) is False
 
 
 # ---------------------------------------------------------------------------
@@ -908,18 +876,6 @@ class TestNextRanges:
         keep, ranges = next_ranges(1, 10, {"name": "x"}, "malformed request")
         assert keep is False
         assert ranges == [(1, 5), (6, 10)]
-
-    def test_empty_answer_error_on_a_multi_page_call_halves_the_range(self):
-        # run() converts an error-free empty object into EMPTY_ANSWER_ERROR;
-        # fewer pages per call is also worth retrying for that.
-        keep, ranges = next_ranges(1, 40, None, EMPTY_ANSWER_ERROR)
-        assert keep is False
-        assert ranges == [(1, 20), (21, 40)]
-
-    def test_empty_answer_error_on_a_single_page_call_gives_up_with_no_ranges(self):
-        keep, ranges = next_ranges(5, 5, None, EMPTY_ANSWER_ERROR)
-        assert keep is False
-        assert ranges == []
 
     def test_truncation_error_on_a_single_page_call_gives_up_with_no_ranges(self):
         keep, ranges = next_ranges(5, 5, None, "unexpected end of JSON input")
@@ -2488,10 +2444,6 @@ class TestScoresStayOutOfTheValue:
     def test_merge_values_drops_the_scores(self):
         assert merge_values([self.PART]) == {"name": "a"}
 
-    def test_scores_alone_are_not_content(self):
-        assert is_empty_answer({SCORES_FIELD: {"name": 0.5}}) is True
-        assert is_empty_answer({"name": "a", SCORES_FIELD: {"name": 0.5}}) is False
-
     def test_shifting_page_fields_leaves_the_scores_alone(self):
         value = {"rows": [{"page": 2}], SCORES_FIELD: {"rows": 0.7, "page": 0.5}}
         out = shift_page_fields(value, 5, 9)
@@ -2843,8 +2795,9 @@ class TestExtractionPaths:
         _, rows, _ = _run(monkeypatch, files, answer)
         by_path = {row[0]: row for row in rows}
         assert json.loads(by_path["@s/ok.txt"][1]) == {"invoice": "I"}
-        assert by_path["@s/empty.txt"][1] is None
-        assert by_path["@s/empty.txt"][2] == EMPTY_ANSWER_ERROR
+        # An answer with no fields is a document with nothing to extract, not an error.
+        assert json.loads(by_path["@s/empty.txt"][1]) == {}
+        assert by_path["@s/empty.txt"][2] is None
 
     def test_a_planning_segment_that_cannot_be_staged_falls_back_to_a_first_call(
         self,

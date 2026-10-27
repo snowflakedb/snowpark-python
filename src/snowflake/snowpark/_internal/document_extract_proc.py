@@ -175,9 +175,6 @@ def drop_unsupported(schema: Any) -> Any:
     return out
 
 
-EMPTY_ANSWER_ERROR = "AI_COMPLETE returned an empty object"
-
-
 # A "malformed request" is the only answer AI_COMPLETE gives for a FILE over its input
 # limit (about 15 MB; page count is not a limit), but it is also the answer for a file
 # it cannot read at all. Only a call that sent more than this many bytes is split
@@ -189,15 +186,13 @@ def is_splittable_error(error: str, sent_bytes: Optional[int] = None) -> bool:
     """Errors that fewer pages can fix: a response cut off at max_tokens; an input
     Cortex rejects as too large, which it reports only as "malformed request" (counted
     only when the call sent more than ``MALFORMED_SPLIT_MIN_BYTES``, or when
-    ``sent_bytes`` is unknown); an empty object; or an answer that does not parse as
-    JSON."""
+    ``sent_bytes`` is unknown); or an answer that does not parse as JSON."""
     malformed = "malformed request" in error and (
         sent_bytes is None or sent_bytes > MALFORMED_SPLIT_MIN_BYTES
     )
     return (
         "unexpected end of JSON input" in error
         or malformed
-        or EMPTY_ANSWER_ERROR in error
         or UNPARSEABLE_TEXT_ERROR_PREFIX in error
         or NO_JSON_TEXT_ERROR in error
     )
@@ -232,13 +227,6 @@ def is_throttle_error(error: str) -> bool:
     if "unknown model" in text or "malformed request" in text:
         return False
     return any(pattern.search(text) for pattern in _THROTTLE_PATTERNS)
-
-
-def is_empty_answer(value: Any) -> bool:
-    """True when ``value`` is an object whose every field is absent (see ``_is_absent``)."""
-    return isinstance(value, dict) and all(
-        _is_absent(v) for k, v in value.items() if k != SCORES_FIELD
-    )
 
 
 # AI_COMPLETE accepts a FILE up to about 15 MB (claude-sonnet-5-5 took 14.99 MB and
@@ -1542,8 +1530,6 @@ class DocumentExtraction:
         if self.throttled(file, (id(file), start, end), error):
             return [(file, start, end, budget_name)]
         value = unwrap_envelope(value, self.sent_schema)
-        if error is None and is_empty_answer(value):
-            value, error = None, EMPTY_ANSWER_ERROR
         if not file.splittable:
             if error is not None:
                 file.errors.append(error)
