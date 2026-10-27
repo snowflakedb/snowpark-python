@@ -189,6 +189,8 @@ class DocumentReaderOptions:
         stages = []
         if self.parse_enabled:
             stages.append(("parse", _PARSE_ERROR_COLUMN))
+        # A schema or a prompt alone both run AI_COMPLETE, whose error is the "extract"
+        # stage either way; extract_enabled would miss a prompt-only read's errors.
         if self.complete_enabled:
             stages.append(("extract", _EXTRACT_ERROR_COLUMN))
         return stages
