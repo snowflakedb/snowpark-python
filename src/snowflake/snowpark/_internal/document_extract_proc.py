@@ -606,6 +606,12 @@ def shift_page_fields(value: Dict[str, Any], start: int, end: int) -> Dict[str, 
     }
 
 
+def halves(start: int, end: int) -> List[Tuple[int, int]]:
+    """``start``-``end`` split into two ranges; the first takes the middle page."""
+    mid = (start + end) // 2
+    return [(start, mid), (mid + 1, end)]
+
+
 def next_ranges(
     start: int,
     end: int,
@@ -631,14 +637,12 @@ def next_ranges(
                 ranges = ranges_from_salvaged_status(start, end, salvaged, target)
                 if ranges:
                     return False, ranges
-            mid = (start + end) // 2
-            return False, [(start, mid), (mid + 1, end)]
+            return False, halves(start, end)
         return False, []
     status = value.get(STATUS_FIELD)
     if not isinstance(status, dict):
         if end > start:
-            mid = (start + end) // 2
-            return False, [(start, mid), (mid + 1, end)]
+            return False, halves(start, end)
         return True, []
     if status.get("complete") is not False:
         return True, []
@@ -646,8 +650,7 @@ def next_ranges(
     if last is None or last < start:
         # No usable progress: re-asking for the same pages would loop, so halve them.
         if end > start:
-            mid = (start + end) // 2
-            return False, [(start, mid), (mid + 1, end)]
+            return False, halves(start, end)
         return True, []
     if last >= end:
         return True, []
@@ -1110,6 +1113,11 @@ class FileState:
     errors: List[str] = field(default_factory=list)
     failed: bool = False
 
+    @classmethod
+    def failed_with(cls, path: str, size: int, cap: int, error: str) -> "FileState":
+        """A ``failed`` file: one page, no tasks, and ``error`` as its only error."""
+        return cls(path, None, 1, size, cap, errors=[error], failed=True)
+
     @property
     def splittable(self) -> bool:
         """Whether this file can be cut into page ranges, i.e. it parsed as a PDF."""
@@ -1265,43 +1273,27 @@ class DocumentExtraction:
         from pypdf import PdfReader
 
         if listed_size is not None and listed_size > MAX_FILE_READ_BYTES:
-            return FileState(
+            return FileState.failed_with(
                 name,
-                None,
-                1,
                 listed_size,
                 max_calls_per_file,
-                errors=[
-                    f"file is {listed_size} bytes, larger than the supported maximum "
-                    f"of {MAX_FILE_READ_BYTES} bytes"
-                ],
-                failed=True,
+                f"file is {listed_size} bytes, larger than the supported maximum "
+                f"of {MAX_FILE_READ_BYTES} bytes",
             )
         extension = os.path.splitext(name)[1].lower()
         if extension not in SUPPORTED_FILE_EXTENSIONS:
-            return FileState(
+            return FileState.failed_with(
                 name,
-                None,
-                1,
                 0,
                 max_calls_per_file,
-                errors=[
-                    f"file type {extension or '(none)'} is not supported; supported "
-                    f"types are {', '.join(sorted(SUPPORTED_FILE_EXTENSIONS))}"
-                ],
-                failed=True,
+                f"file type {extension or '(none)'} is not supported; supported "
+                f"types are {', '.join(sorted(SUPPORTED_FILE_EXTENSIONS))}",
             )
         try:
             content = self.read_bytes(name)
         except Exception as exc:
-            return FileState(
-                name,
-                None,
-                1,
-                0,
-                max_calls_per_file,
-                errors=[f"could not read file: {exc}"],
-                failed=True,
+            return FileState.failed_with(
+                name, 0, max_calls_per_file, f"could not read file: {exc}"
             )
         try:
             reader = PdfReader(io.BytesIO(content))
@@ -1309,14 +1301,8 @@ class DocumentExtraction:
         except Exception:
             reader, pages = None, 1
         if reader is not None and pages == 0:
-            return FileState(
-                name,
-                None,
-                1,
-                len(content),
-                max_calls_per_file,
-                errors=["the PDF has no pages"],
-                failed=True,
+            return FileState.failed_with(
+                name, len(content), max_calls_per_file, "the PDF has no pages"
             )
         return FileState(name, reader, pages, len(content), max_calls_per_file)
 
@@ -1537,6 +1523,15 @@ class DocumentExtraction:
     def run_chunk(self, chunk: List[Task], max_calls_per_file: int) -> List[Task]:
         """Submit the calls for ``chunk`` (at most ``MAX_CALLS_IN_FLIGHT`` tasks), collect
         them, and return the tasks they leave for the next round."""
+        jobs, oversized = self.submit_calls(chunk)
+        return oversized + self.collect_calls(jobs, max_calls_per_file)
+
+    def submit_calls(
+        self, chunk: List[Task]
+    ) -> Tuple[List[Tuple[FileState, int, int, str, Submitted]], List[Task]]:
+        """Submit a call for each task in ``chunk``. Returns the submitted calls, and the
+        halves of each range too large to stage. A task whose file is at its cap, or
+        whose part cannot be staged or submitted, gets that as its file's error."""
         jobs = []
         oversized: List[Task] = []
         for file, start, end, budget_name in chunk:
@@ -1553,11 +1548,7 @@ class DocumentExtraction:
                 )
                 continue
             if staged is None:
-                mid = (start + end) // 2
-                oversized += [
-                    (file, start, mid, budget_name),
-                    (file, mid + 1, end, budget_name),
-                ]
+                oversized += [(file, a, b, budget_name) for a, b in halves(start, end)]
                 continue
             budget = self.budgets[budget_name]
             prompt = (
@@ -1579,7 +1570,17 @@ class DocumentExtraction:
                 )
                 continue
             jobs.append((file, start, end, budget_name, job))
-        left = oversized
+        return jobs, oversized
+
+    def collect_calls(
+        self,
+        jobs: List[Tuple[FileState, int, int, str, Submitted]],
+        max_calls_per_file: int,
+    ) -> List[Task]:
+        """Record each submitted call's answer (``finish``) and return the tasks they
+        leave. A failure in processing an answer is that file's error; running out of
+        models stops the read."""
+        left: List[Task] = []
         for file, start, end, budget_name, job in jobs:
             try:
                 left += self.finish(
