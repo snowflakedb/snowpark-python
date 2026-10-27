@@ -66,8 +66,9 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 # Models for schema reads, in order of preference: the extraction procedure uses the first
-# one AI_COMPLETE knows for the account and fails the read when it knows none. Both are
-# cross-region models, so an account or region without them can lack either.
+# until AI_COMPLETE reports it unknown for the account, then the next, and fails the read
+# when it knows none. Both are cross-region models, so an account or region without them
+# can lack either.
 # The budgets below were tuned on the first.
 _EXTRACTION_MODELS = ["claude-sonnet-5-5", "claude-opus-5"]
 _EXTRACTION_MODEL = _EXTRACTION_MODELS[0]

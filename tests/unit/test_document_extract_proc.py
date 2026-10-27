@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     BOUNDED_FIRST_CALL_MIN_BYTES,
     BOUNDED_FIRST_CALL_MIN_PAGES,
     DocumentExtraction,
+    NoModelAvailable,
     EMPTY_ANSWER_ERROR,
     FileState,
     HARD_MAX_CALLS_PER_FILE,
@@ -1697,65 +1698,144 @@ class TestUnknownModel:
 
 
 # ---------------------------------------------------------------------------
-# DocumentExtraction.check_model -- the first model AI_COMPLETE knows is used;
-# only when it knows none does the read stop.
+# DocumentExtraction model fallback -- calls go to the first model with no extra
+# call; a call AI_COMPLETE reports as unknown-model is not a document failure: the
+# read moves on to the next model and sends it again, and stops only when none is left.
 # ---------------------------------------------------------------------------
 
-_UNKNOWN = RuntimeError("Request failed ... 400 'unknown model \"x\"'")
+_BUDGET = {"target": 1000, "max_tokens": 100}
+_BUDGETS = {
+    "first": _BUDGET,
+    "range": _BUDGET,
+    "large_range": _BUDGET,
+    "merge_target": 1000,
+    "plan_first": {"range_target": 1000, "max_tokens": 100},
+}
+_UNKNOWN_TEXT = "Request failed ... 400 'unknown model \"x\"'"
+_GOOD = {"value": '{"a": "x"}', "error": None}
 
 
-class _PingSession:
-    """Answers each ping from ``outcomes`` (model -> exception to raise, or None)."""
+class _ModelSession:
+    """Answers each AI_COMPLETE submission from ``behave(model, predicate)``, which
+    returns a result object or raises."""
 
-    def __init__(self, outcomes) -> None:
-        self.outcomes = outcomes
-        self.pinged = []
+    def __init__(self, behave) -> None:
+        self.behave = behave
+        self.submitted = []
 
     def sql(self, query, params):
-        self.pinged.append(params[0])
-        outcome = self.outcomes[params[0]]
+        model, predicate = params[0], params[1]
+        self.submitted.append(model)
+        behave = self.behave
+
+        class _Job:
+            @staticmethod
+            def result():
+                return [[json.dumps(behave(model, predicate))]]
 
         class _Query:
             @staticmethod
-            def collect():
-                if outcome is not None:
-                    raise outcome
+            def collect_nowait():
+                return _Job()
 
         return _Query()
 
 
 def _extraction(session, models):
     schema = {"schema": {"type": "object", "properties": {"a": {"type": "string"}}}}
-    return DocumentExtraction(session, schema, "p", models, {}, "@stage")
+    return DocumentExtraction(session, schema, "p", models, _BUDGETS, "@stage")
 
 
-class TestCheckModel:
-    def test_the_first_model_is_used_when_it_is_available(self):
-        session = _PingSession({"m1": None, "m2": None})
+def _plain_file(name="@s/f.pdf"):
+    return FileState(name, None, 1, 10, 30)
+
+
+def _run_calls(extraction, files):
+    tasks = extraction.plan_large_files(files)
+    extraction.extract_until_done(files, tasks, 30)
+
+
+class TestModelFallback:
+    def test_the_first_model_is_used_with_no_extra_call(self):
+        session = _ModelSession(lambda model, predicate: _GOOD)
         extraction = _extraction(session, ["m1", "m2"])
-        extraction.check_model()
+        file = _plain_file()
+        _run_calls(extraction, [file])
+        assert session.submitted == ["m1"]
         assert extraction.model == "m1"
-        assert session.pinged == ["m1"]
+        assert file.calls == 1 and file.errors == [] and len(file.parts) == 1
 
-    def test_the_next_model_is_used_when_the_first_is_unknown(self):
-        session = _PingSession({"m1": _UNKNOWN, "m2": None})
+    @pytest.mark.parametrize("as_exception", [True, False])
+    def test_an_unknown_first_model_moves_the_read_to_the_next_one(self, as_exception):
+        def behave(model, predicate):
+            if model == "m1":
+                if as_exception:
+                    raise RuntimeError(_UNKNOWN_TEXT)
+                return {"value": None, "error": _UNKNOWN_TEXT}
+            return _GOOD
+
+        session = _ModelSession(behave)
         extraction = _extraction(session, ["m1", "m2"])
-        extraction.check_model()
+        files = [_plain_file("@s/a.pdf"), _plain_file("@s/b.pdf")]
+        _run_calls(extraction, files)
+        assert session.submitted == ["m1", "m1", "m2", "m2"]
         assert extraction.model == "m2"
-        assert session.pinged == ["m1", "m2"]
+        for file in files:
+            assert file.calls == 1
+            assert file.errors == [] and len(file.parts) == 1
+
+    def test_calls_failing_with_the_old_model_do_not_move_the_read_on_again(self):
+        session = _ModelSession(
+            lambda model, predicate: (
+                {"value": None, "error": _UNKNOWN_TEXT} if model == "m1" else _GOOD
+            )
+        )
+        extraction = _extraction(session, ["m1", "m2", "m3"])
+        files = [
+            _plain_file("@s/a.pdf"),
+            _plain_file("@s/b.pdf"),
+            _plain_file("@s/c.pdf"),
+        ]
+        _run_calls(extraction, files)
+        assert extraction.model == "m2"
+        assert session.submitted == ["m1"] * 3 + ["m2"] * 3
 
     def test_the_read_stops_when_no_model_is_known(self):
-        session = _PingSession({"m1": _UNKNOWN, "m2": _UNKNOWN})
+        session = _ModelSession(
+            lambda model, predicate: {"value": None, "error": _UNKNOWN_TEXT}
+        )
         extraction = _extraction(session, ["m1", "m2"])
-        with pytest.raises(RuntimeError, match="No model is available"):
-            extraction.check_model()
+        with pytest.raises(NoModelAvailable, match="No model is available"):
+            _run_calls(extraction, [_plain_file()])
+        assert session.submitted == ["m1", "m2"]
 
-    def test_another_failure_does_not_rule_a_model_out(self):
-        session = _PingSession({"m1": RuntimeError("429 too many requests")})
+    def test_another_error_is_still_a_per_file_error(self):
+        session = _ModelSession(
+            lambda model, predicate: {"value": None, "error": "429 too many requests"}
+        )
         extraction = _extraction(session, ["m1", "m2"])
-        extraction.check_model()
+        file = _plain_file()
+        _run_calls(extraction, [file])
         assert extraction.model == "m1"
-        assert session.pinged == ["m1"]
+        assert session.submitted == ["m1"]
+        assert file.calls == 1 and file.parts == []
+        assert any("429" in error for error in file.errors)
+
+    def test_planning_calls_are_sent_again_with_the_next_model(self):
+        def behave(model, predicate):
+            if model == "m1":
+                raise RuntimeError(_UNKNOWN_TEXT)
+            return {"value": '{"ranges": [[2, 31]]}', "error": None}
+
+        session = _ModelSession(behave)
+        extraction = _extraction(session, ["m1", "m2"])
+        extraction.stage_part = lambda file, start, end: file.path
+        file = FileState("@s/big.pdf", object(), 60, 1000, 30)
+        tasks = extraction.plan_large_files([file])
+        assert session.submitted == ["m1", "m1", "m2", "m2"]
+        assert extraction.model == "m2"
+        assert file.calls == 2 and file.errors == []
+        assert tasks
 
 
 # ---------------------------------------------------------------------------

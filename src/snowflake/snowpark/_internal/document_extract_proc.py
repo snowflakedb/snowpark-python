@@ -18,6 +18,10 @@ the steps of ``DocumentExtraction`` just above it, in order:
    early instead (``should_abort``).
 4. back in ``run``: merge each file's parts, in page order, into one row.
 
+Calls go to the first of the candidate models. A call AI_COMPLETE reports as
+unknown-model is not a document failure: ``model_missing`` moves the read to the next
+model, the call is sent again, and the read stops only when no model is left.
+
 Everything above ``read_answer`` is a pure helper for one of these steps.
 
 Each AI_COMPLETE call is asked to fill an ``extraction_status`` block first: whether
@@ -812,12 +816,6 @@ _AI_COMPLETE_SQL = (
 )
 
 
-# A model-availability probe: no file, one output token.
-_AI_COMPLETE_PING_SQL = (
-    "SELECT AI_COMPLETE(model => ?, prompt => ?, model_parameters => PARSE_JSON(?))"
-)
-
-
 _SCORES_INSTRUCTION = (
     " Fill extraction_scores last, after every other field: for each top-level field, a "
     "number from 0 to 1 for how confident you are that the value you extracted is "
@@ -971,6 +969,11 @@ def is_unknown_model_error(message: str) -> bool:
     return "unknown model" in message.lower()
 
 
+class NoModelAvailable(RuntimeError):
+    """AI_COMPLETE knows none of the models the reader can use. Terminal: it is never
+    turned into a per-file error."""
+
+
 def no_model_message(models: List[str]) -> str:
     """The terminal error when AI_COMPLETE knows none of the models the reader can use."""
     names = " or ".join(f'"{m}"' for m in models)
@@ -1025,6 +1028,14 @@ class FileState:
 Task = Tuple[FileState, int, int, str]
 
 
+@dataclass
+class Submitted:
+    """An AI_COMPLETE call in flight: its async job and the model it was sent to."""
+
+    job: Any
+    model: str
+
+
 def result_row(file: FileState, fields: Optional[List[str]] = None) -> List[Any]:
     """The output row ``[STAGE_PATH, VALUE, ERROR, SCORES]`` of one file: its parts merged
     in page order, so a table split across ranges comes back as one table, and the
@@ -1073,7 +1084,8 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
     ) -> None:
         """Precompute the schema sent to the model (with the status field added and
         every scalar made nullable) and its instruction text. ``models`` are the
-        candidates in order of preference; ``check_model`` picks the one in use."""
+        candidates in order of preference; calls use the first until AI_COMPLETE reports
+        it unknown (see ``model_missing``)."""
         self.session = session
         self.schema = response_format["schema"]
         self.sent_schema = with_status(response_format)["schema"]
@@ -1084,23 +1096,25 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
         self.budgets = budgets
         self.work_stage = work_stage
 
-    def check_model(self) -> None:
-        """Choose the model for this read, before any file is touched: the first of
-        ``models`` that AI_COMPLETE knows, found with one call each (no file,
-        max_tokens 1). When it knows none, every call would fail the same way, so the
-        read stops. Any other failure, such as throttling, does not rule a model out."""
-        for model in self.models:
-            try:
-                self.session.sql(
-                    _AI_COMPLETE_PING_SQL,
-                    params=[model, "Reply with OK.", json.dumps({"max_tokens": 1})],
-                ).collect()
-            except Exception as exc:
-                if is_unknown_model_error(str(exc)):
-                    continue
-            self.model = model
-            return
-        raise RuntimeError(no_model_message(self.models))
+    def model_missing(
+        self, file: FileState, submitted: Submitted, error: Optional[str]
+    ) -> bool:
+        """Whether ``error`` says AI_COMPLETE does not know the model the call was sent
+        to. Such a call is not a document failure: it is not counted against ``file``'s
+        calls, and the caller sends it again. The first report for the model in use
+        moves the read on to the next candidate, so the rest of the calls already in
+        flight with the old model only need sending again; when no candidate is left the
+        read stops with ``NoModelAvailable``. Costs no extra call when the first model
+        is available."""
+        if error is None or not is_unknown_model_error(error):
+            return False
+        file.calls -= 1
+        if submitted.model == self.model:
+            index = self.models.index(self.model) + 1
+            if index >= len(self.models):
+                raise NoModelAvailable(no_model_message(self.models))
+            self.model = self.models[index]
+        return True
 
     @staticmethod
     def read_bytes(name: str) -> bytes:  # pragma: no cover - needs a staged file
@@ -1169,26 +1183,27 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
         )
         return target
 
-    def submit(self, file: FileState, predicate: str, staged: str, max_tokens: int):
-        """Submit one AI_COMPLETE call for ``staged`` and return its async job; counts
-        against ``file``'s call budget."""
+    def submit(
+        self, file: FileState, predicate: str, staged: str, max_tokens: int
+    ) -> Submitted:
+        """Submit one AI_COMPLETE call for ``staged`` to the model in use and return it
+        in flight; counts against ``file``'s call budget."""
         file.calls += 1
-        return self.session.sql(
+        model = self.model
+        job = self.session.sql(
             _AI_COMPLETE_SQL,
-            params=[
-                self.model,
-                predicate,
-                staged,
-                json.dumps({"max_tokens": max_tokens}),
-            ],
+            params=[model, predicate, staged, json.dumps({"max_tokens": max_tokens})],
         ).collect_nowait()
+        return Submitted(job, model)
 
     @staticmethod
-    def collect(job) -> Tuple[Any, Optional[str], Optional[Dict[str, Any]]]:
-        """``job``'s answer via ``read_answer``, or ``(None, str(exc), None)`` if it
+    def collect(
+        submitted: Submitted,
+    ) -> Tuple[Any, Optional[str], Optional[Dict[str, Any]]]:
+        """The call's answer via ``read_answer``, or ``(None, str(exc), None)`` if it
         raised."""
         try:
-            return read_answer(job.result()[0][0])
+            return read_answer(submitted.job.result()[0][0])
         except Exception as exc:
             return None, str(exc), None
 
@@ -1208,9 +1223,14 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
                 initial_ranges(file.pages, file.size) if file.splittable else [(1, 1)]
             )
             tasks += [(file, a, b, first) for a, b in ranges]
-        jobs = []
-        for file in planned:
-            for a, b in planning_segments(file.pages, file.size):
+        segments = [
+            (file, a, b)
+            for file in planned
+            for a, b in planning_segments(file.pages, file.size)
+        ]
+        while segments:
+            jobs = []
+            for file, a, b in segments:
                 prompt = build_plan_predicate(
                     self.predicate, a, b, file.pages, plan["range_target"], self.schema
                 )
@@ -1227,13 +1247,19 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
                     tasks.append((file, a, b, "first"))
                     continue
                 jobs.append((file, a, b, job))
-        for file, a, b, job in jobs:
-            value, error, _ = self.collect(job)
-            ranges = ranges_from_plan(value, a, b) if error is None else None
-            if ranges:
-                tasks += [(file, x, y, file.range_budget) for x, y in ranges]
-            else:
-                tasks.append((file, a, b, "first"))
+            segments = []
+            for file, a, b, submitted in jobs:
+                value, error, _ = self.collect(submitted)
+                if self.model_missing(file, submitted, error):
+                    segments.append(
+                        (file, a, b)
+                    )  # plan it again with the model now in use
+                    continue
+                ranges = ranges_from_plan(value, a, b) if error is None else None
+                if ranges:
+                    tasks += [(file, x, y, file.range_budget) for x, y in ranges]
+                else:
+                    tasks.append((file, a, b, "first"))
         for file in planned:
             queued = sum(1 for task in tasks if task[0] is file)
             file.cap = max(
@@ -1300,6 +1326,8 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
                     tasks += self.finish(
                         file, start, end, budget_name, job, max_calls_per_file
                     )
+                except NoModelAvailable:
+                    raise
                 except Exception as exc:
                     file.errors.append(
                         f"pages {start}-{end}: could not process the answer: {exc}"
@@ -1315,11 +1343,14 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
         start: int,
         end: int,
         budget_name: str,
-        job,
+        submitted: Submitted,
         max_calls_per_file: int,
     ) -> List[Task]:
-        """Record one call's answer and return the tasks it leaves."""
-        value, error, salvaged = self.collect(job)
+        """Record one call's answer and return the tasks it leaves. A call whose model
+        AI_COMPLETE does not know leaves its own task, to be sent again."""
+        value, error, salvaged = self.collect(submitted)
+        if self.model_missing(file, submitted, error):
+            return [(file, start, end, budget_name)]
         value = unwrap_envelope(value, self.sent_schema)
         if error is None and is_empty_answer(value):
             value, error = None, EMPTY_ANSWER_ERROR
@@ -1373,7 +1404,8 @@ def run(
         response_format: the user's schema as ``{"schema": <JSON Schema>}``, JSON.
         predicate: the extraction prompt (the user's, or the default).
         models: the AI_COMPLETE model names the read may use, in order of preference,
-            as a JSON list; the first one AI_COMPLETE knows is used.
+            as a JSON list; the first is used until AI_COMPLETE reports it unknown, then
+            the next, with the calls that failed sent again.
         call_budgets: output-token targets and limits per kind of call, JSON (see
             ``_CALL_BUDGETS`` in document_reader.py).
         max_calls_per_file: starting cap on calls per file; raised for files whose
@@ -1384,8 +1416,8 @@ def run(
         RuntimeError: more than ``MAX_FAILED_FRACTION`` of the documents finished so far
             failed, once ``MIN_DOCUMENTS_BEFORE_ABORT`` have finished (the read is
             stopped, and the documents still waiting are not processed); or
-            AI_COMPLETE knows none of ``models`` (not enabled for the account
-            or region), which is raised before any file is read.
+            ``NoModelAvailable`` (a RuntimeError): AI_COMPLETE knows none of ``models``
+            (not enabled for the account or region).
 
     Returns:
         STAGE_PATH, VALUE (the merged answer as JSON, or None when no part succeeded),
@@ -1404,8 +1436,6 @@ def run(
         json.loads(call_budgets),
         work_stage,
     )
-    # 0. Pick the first available model; fail the whole read at once if none is.
-    extraction.check_model()
     # 1. Read every file once, for its page count and size.
     files = extraction.load_files(path, max_calls_per_file)
     # 2. Decide the first page ranges: planned for large files, whole for the rest.
