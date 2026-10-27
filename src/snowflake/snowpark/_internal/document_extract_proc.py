@@ -1391,15 +1391,36 @@ class DocumentExtraction:
         against the file's call cap like any other: a segment of a file at its cap gets
         no planning call and goes on as a first call, which the extraction loop reports
         as over the cap. At most ``MAX_CALLS_IN_FLIGHT`` planning calls are in flight."""
-        plan = self.budgets["plan_first"]
-        tasks: List[Task] = []
         planned = [f for f in files if f.splittable and is_large_file(f.pages, f.size)]
-        segments = []
+        tasks, segments = self.initial_tasks(files, planned)
+        # A segment is planned again only after a throttled answer (at most
+        # MAX_THROTTLE_RETRIES times) or an unknown model (at most once per model), so
+        # these rounds plan every segment; any left over goes on as a first call.
+        for _ in range(1 + MAX_THROTTLE_RETRIES + len(self.models)):
+            if not segments:
+                break
+            self.wait_if_throttled()
+            again: List[Tuple[FileState, int, int]] = []
+            for chunk in chunks(segments, MAX_CALLS_IN_FLIGHT):
+                jobs = self.submit_plans(chunk, tasks)
+                again += self.collect_plans(jobs, tasks)
+            segments = again
+        tasks += [(file, a, b, "first") for file, a, b in segments]
+        self.raise_planned_caps(planned, tasks)
+        return tasks
+
+    @staticmethod
+    def initial_tasks(
+        files: List[FileState], planned: List[FileState]
+    ) -> Tuple[List[Task], List[Tuple[FileState, int, int]]]:
+        """The tasks of every file that is not ``planned`` (its initial ranges), and the
+        planning segments of every file that is. A file whose first round cannot be
+        worked out gets that as its error, not the read's."""
+        tasks: List[Task] = []
+        segments: List[Tuple[FileState, int, int]] = []
         for file in files:
             if file.failed:
                 continue
-            # A file whose first round cannot be worked out is that file's error, not the
-            # read's.
             try:
                 if file in planned:
                     segments += [
@@ -1417,64 +1438,76 @@ class DocumentExtraction:
                 file.errors.append(f"could not plan the file: {exc}")
                 continue
             tasks += [(file, a, b, first) for a, b in ranges]
-        # A segment is planned again only after a throttled answer (at most
-        # MAX_THROTTLE_RETRIES times) or an unknown model (at most once per model), so
-        # these rounds plan every segment; any left over goes on as a first call.
-        for _ in range(1 + MAX_THROTTLE_RETRIES + len(self.models)):
-            if not segments:
-                break
-            self.wait_if_throttled()
-            again = []
-            for chunk in chunks(segments, MAX_CALLS_IN_FLIGHT):
-                jobs = []
-                for file, a, b in chunk:
-                    if file.calls >= file.cap:
-                        # Like a failed plan: the extraction loop gets the segment and
-                        # records the cap error for it.
-                        tasks.append((file, a, b, "first"))
-                        continue
-                    prompt = build_plan_predicate(
-                        self.predicate,
-                        a,
-                        b,
-                        file.pages,
-                        plan["range_target"],
-                        self.schema,
-                    )
-                    try:
-                        staged = self.stage_part(file, a, b)
-                        job = (
-                            self.submit(file, prompt, staged, plan["max_tokens"])
-                            if staged is not None
-                            else None
-                        )
-                    except Exception:
-                        job = None  # the fallback below records the error if it recurs
-                    if job is None:
-                        tasks.append((file, a, b, "first"))
-                        continue
-                    jobs.append((file, a, b, job))
-                for file, a, b, submitted in jobs:
-                    value, error, _ = self.collect(submitted)
-                    if self.model_missing(file, submitted, error):
-                        again.append((file, a, b))  # plan it again with the new model
-                        continue
-                    if self.throttled(file, (id(file), a, b, 0), error):
-                        again.append((file, a, b))  # plan it again after the wait
-                        continue
-                    ranges = ranges_from_plan(value, a, b) if error is None else None
-                    if ranges:
-                        tasks += [(file, x, y, file.range_budget) for x, y in ranges]
-                    else:
-                        tasks.append((file, a, b, "first"))
-            segments = again
-        tasks += [(file, a, b, "first") for file, a, b in segments]
+        return tasks, segments
+
+    def submit_plans(
+        self, chunk: List[Tuple[FileState, int, int]], tasks: List[Task]
+    ) -> List[Tuple[FileState, int, int, Submitted]]:
+        """Submit a planning call for each segment in ``chunk``. A segment that gets no
+        call (its file is at its cap, or staging or submitting it fails) goes on to
+        ``tasks`` as a first call."""
+        plan = self.budgets["plan_first"]
+        jobs = []
+        for file, a, b in chunk:
+            if file.calls >= file.cap:
+                # Like a failed plan: the extraction loop gets the segment and records
+                # the cap error for it.
+                tasks.append((file, a, b, "first"))
+                continue
+            prompt = build_plan_predicate(
+                self.predicate,
+                a,
+                b,
+                file.pages,
+                plan["range_target"],
+                self.schema,
+            )
+            try:
+                staged = self.stage_part(file, a, b)
+                job = (
+                    self.submit(file, prompt, staged, plan["max_tokens"])
+                    if staged is not None
+                    else None
+                )
+            except Exception:
+                job = None  # the fallback below records the error if it recurs
+            if job is None:
+                tasks.append((file, a, b, "first"))
+                continue
+            jobs.append((file, a, b, job))
+        return jobs
+
+    def collect_plans(
+        self, jobs: List[Tuple[FileState, int, int, Submitted]], tasks: List[Task]
+    ) -> List[Tuple[FileState, int, int]]:
+        """Add the ranges each planning call planned to ``tasks``, or the segment as a
+        first call when the plan failed. Returns the segments to plan again: those
+        throttled, or sent to a model AI_COMPLETE did not know."""
+        again = []
+        for file, a, b, submitted in jobs:
+            value, error, _ = self.collect(submitted)
+            if self.model_missing(file, submitted, error):
+                again.append((file, a, b))  # plan it again with the new model
+                continue
+            if self.throttled(file, (id(file), a, b, 0), error):
+                again.append((file, a, b))  # plan it again after the wait
+                continue
+            ranges = ranges_from_plan(value, a, b) if error is None else None
+            if ranges:
+                tasks += [(file, x, y, file.range_budget) for x, y in ranges]
+            else:
+                tasks.append((file, a, b, "first"))
+        return again
+
+    @staticmethod
+    def raise_planned_caps(planned: List[FileState], tasks: List[Task]) -> None:
+        """Raise the call cap of each planned file to cover the tasks its plan queued,
+        up to ``HARD_MAX_CALLS_PER_FILE``."""
         for file in planned:
             queued = sum(1 for task in tasks if task[0] is file)
             file.cap = max(
                 file.cap, min(HARD_MAX_CALLS_PER_FILE, file.calls + 2 * queued + 4)
             )
-        return tasks
 
     def extract_until_done(
         self, files: List[FileState], tasks: List[Task], max_calls_per_file: int
