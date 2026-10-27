@@ -78,6 +78,20 @@ def test_documents_invalid_parse_option_raises_before_any_query(options):
     assert exc_info.value.error_code == "1116"
 
 
+@pytest.mark.parametrize(
+    "options",
+    [{"schema": "invoice_no"}, {"schema": 42}, {"prompt": ""}, {"prompt": "   "}],
+)
+def test_documents_invalid_schema_or_prompt_raises_before_any_query(options):
+    reader = DataFrameReader(_create_fake_session())
+    for key, value in options.items():
+        reader = reader.option(key, value)
+
+    with pytest.raises(SnowparkDataframeReaderException) as exc_info:
+        reader.documents("@stage/doc.pdf")
+    assert exc_info.value.error_code == "1120"
+
+
 def test_documents_is_a_public_private_preview_method():
     doc = DataFrameReader.documents.__doc__
     assert "in private preview since 1.56.0" in doc

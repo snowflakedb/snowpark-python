@@ -498,6 +498,53 @@ class TestSchemaPassesThroughUnrestricted:
 
 
 # ---------------------------------------------------------------------------
+# SCHEMA and PROMPT types: a schema that is not a dict or a list, or a prompt
+# that is not a non-empty string, is refused before any query.
+# ---------------------------------------------------------------------------
+
+
+class TestSchemaTypeValidation:
+    @pytest.mark.parametrize("value", ["invoice_no", 42, 3.14, True, ("a", "b")])
+    def test_a_schema_that_is_not_a_dict_or_list_raises_1120(self, value):
+        error = _expect_error("1120", {"SCHEMA": value})
+        assert "schema" in error.message
+        assert repr(value) in error.message
+
+    @pytest.mark.parametrize("value", [None, False, 0, "", [], {}])
+    def test_an_empty_schema_is_no_schema(self, value):
+        assert _build({"SCHEMA": value}).extraction is None
+
+
+class TestPromptTypeValidation:
+    def test_no_prompt_key_is_fine(self):
+        assert _build({}).prompt is None
+
+    def test_prompt_none_is_fine(self):
+        assert _build({"PROMPT": None}).prompt is None
+
+    def test_non_empty_prompt_is_accepted(self):
+        assert _build({"PROMPT": "Summarize this document."}).prompt == (
+            "Summarize this document."
+        )
+
+    @pytest.mark.parametrize("value", ["", "   ", "\t\n"])
+    def test_empty_or_blank_prompt_raises_1120(self, value):
+        error = _expect_error("1120", {"PROMPT": value})
+        assert "prompt" in error.message
+
+    @pytest.mark.parametrize("value", [42, True, ["Summarize this."], {"a": "b"}])
+    def test_non_string_prompt_raises_1120(self, value):
+        error = _expect_error("1120", {"PROMPT": value})
+        assert "prompt" in error.message
+        assert repr(value) in error.message
+
+    def test_schema_and_non_empty_prompt_together_still_work(self):
+        options = _build({"SCHEMA": FLAT_SCHEMA, "PROMPT": "Extract fields."})
+        assert options.extraction.fields == ["invoice_number", "total"]
+        assert options.prompt == "Extract fields."
+
+
+# ---------------------------------------------------------------------------
 # ExtractionSpec.ai_complete_format -- AI_COMPLETE only accepts a JSON Schema.
 # A bare JSON-Schema dict (has a "properties" dict) is wrapped as given;
 # AI_EXTRACT's own flat Q&A shapes (dict or list) have no question/answer notion

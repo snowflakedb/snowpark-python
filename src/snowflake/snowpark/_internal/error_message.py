@@ -254,6 +254,15 @@ class SnowparkClientExceptionMessages:
             error_code="1119",
         )
 
+    @staticmethod
+    def DF_DOCUMENTS_INVALID_OPTION_TYPE(
+        option_name: str, value: Any, expected: str
+    ) -> SnowparkDataframeReaderException:
+        return SnowparkDataframeReaderException(
+            f"Invalid value {value!r} for option '{option_name}': expected {expected}.",
+            error_code="1120",
+        )
+
     # Plan Analysis error codes 02XX
 
     @staticmethod

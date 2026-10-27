@@ -206,8 +206,10 @@ class DocumentReaderOptions:
         the reader. PARSE_MODE, ROW_BOUNDARY and EXTRACT_IMAGES only apply to a read with
         neither a schema nor a prompt, and EXTRACT_IMAGES needs parse_mode "layout"."""
         options = cls(
-            extraction=ExtractionSpec.from_response_format(cur_options.get("SCHEMA")),
-            prompt=cur_options.get("PROMPT"),
+            extraction=ExtractionSpec.from_response_format(
+                cls._validated_schema(cur_options.get("SCHEMA"))
+            ),
+            prompt=cls._validated_prompt(cur_options),
         )
         # With a schema or prompt the document goes to AI_COMPLETE as a FILE: parsing
         # flattens layout (table columns, printed section numbers) that the page image keeps.
@@ -228,6 +230,29 @@ class DocumentReaderOptions:
                 )
         options.validate()
         return options
+
+    @staticmethod
+    def _validated_schema(value: Any) -> Any:
+        """The SCHEMA option, unchanged. A given schema that is not a dict or a list
+        would give no fields and run the model without one, so it is refused."""
+        if value and not isinstance(value, (dict, list)):
+            raise SnowparkClientExceptionMessages.DF_DOCUMENTS_INVALID_OPTION_TYPE(
+                "schema", value, "a dict or a list"
+            )
+        return value
+
+    @staticmethod
+    def _validated_prompt(cur_options: Dict[str, Any]) -> Optional[str]:
+        """The PROMPT option, unchanged, or None when it is not set. A prompt that is
+        not a string, or is empty or blank, is refused."""
+        value = cur_options.get("PROMPT")
+        if value is None:
+            return None
+        if not isinstance(value, str) or not value.strip():
+            raise SnowparkClientExceptionMessages.DF_DOCUMENTS_INVALID_OPTION_TYPE(
+                "prompt", value, "a non-empty string"
+            )
+        return value
 
     @staticmethod
     def user_choice(
