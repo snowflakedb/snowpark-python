@@ -244,6 +244,16 @@ class SnowparkClientExceptionMessages:
             error_code="1118",
         )
 
+    @staticmethod
+    def DF_DOCUMENTS_EXTRACT_IMAGES_NEEDS_LAYOUT(
+        parse_mode: str,
+    ) -> SnowparkDataframeReaderException:
+        return SnowparkDataframeReaderException(
+            f"The 'extract_images' option requires parse_mode 'layout', but parse_mode "
+            f"is {parse_mode!r}. Remove 'extract_images' or set parse_mode to 'layout'.",
+            error_code="1119",
+        )
+
     # Plan Analysis error codes 02XX
 
     @staticmethod

@@ -1419,16 +1419,21 @@ class DataFrameReader:
               ``"layout"`` (the default), ``"ocr"`` or ``"text"``.
             - ``row_boundary``: ``"document"`` (the default) returns one row per file;
               ``"page"`` returns one row per page. Used with ``parse_mode`` only.
+            - ``extract_images``: ``True`` or ``False`` (the default). When ``True`` the
+              images embedded in the documents are extracted too. It needs
+              ``parse_mode`` ``"layout"`` and raises an error with any other mode.
 
-        ``parse_mode`` and ``row_boundary`` are ignored when a ``schema`` or ``prompt`` is
-        set: the file is then sent to the model directly, which keeps layout such as table
+        ``parse_mode``, ``row_boundary`` and ``extract_images`` are ignored when a
+        ``schema`` or ``prompt`` is set: the file is then sent to the model directly, which keeps layout such as table
         columns that parsing would flatten.
 
         The returned DataFrame has these columns:
 
             - no ``schema`` or ``prompt``: ``SOURCE_FILE``, ``TOTAL_PAGES`` and
               ``CONTENT`` (the parsed text); ``PAGE_INDEX`` is added when ``row_boundary``
-              is ``"page"``.
+              is ``"page"``. ``IMAGES`` is added when ``extract_images`` is ``True``: an
+              array of objects with an ``id``, the bounding-box coordinates of the image
+              and its data as base64 text, so rows of image-heavy documents can be large.
             - ``schema``: ``SOURCE_FILE``, one column per schema field, and
               ``EXTRACTION_SCORES``. ``EXTRACTION_SCORES`` is an object that maps each
               top-level schema field to a confidence score between 0 and 1 for its
@@ -1472,6 +1477,10 @@ class DataFrameReader:
 
             >>> # Read one row per page.
             >>> df = session.read.option("row_boundary", "page").documents("@mystage/docs/")  # doctest: +SKIP
+
+            >>> # Also extract the images embedded in the documents.
+            >>> df = session.read.option("extract_images", True).documents("@mystage/docs/")  # doctest: +SKIP
+            >>> df.select("SOURCE_FILE", "IMAGES").show()  # doctest: +SKIP
         """
         path = _validate_stage_path(path)
         options = document_reader.DocumentReaderOptions.from_reader_options(

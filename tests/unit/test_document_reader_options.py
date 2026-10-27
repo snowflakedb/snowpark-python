@@ -125,7 +125,6 @@ class TestUserOptions:
     @pytest.mark.parametrize(
         "key",
         [
-            "EXTRACT_IMAGES",
             "PAGE_FILTER",
             "MODE",
             "COLUMNNAMEOFCORRUPTRECORD",
@@ -177,6 +176,54 @@ class TestUserOptions:
         options = _build({"PARSE_MODE": "ocr", "ROW_BOUNDARY": "page", **extra})
         assert options.parse_mode == "none"
         assert options.row_boundary == "document"
+
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (True, True),
+            (False, False),
+            ("true", True),
+            ("True", True),
+            ("FALSE", False),
+        ],
+    )
+    def test_extract_images_accepts_booleans_in_any_case(self, value, expected):
+        assert _build({"EXTRACT_IMAGES": value}).extract_images is expected
+
+    def test_extract_images_is_off_by_default(self):
+        assert _build({}).extract_images is False
+
+    @pytest.mark.parametrize("value", ["yes", "1", 1, None, "truee"])
+    def test_extract_images_rejects_other_values_with_1116(self, value):
+        error = _expect_error("1116", {"EXTRACT_IMAGES": value})
+        assert "extract_images" in error.message
+        assert "true" in error.message and "false" in error.message
+
+    def test_extract_images_works_with_layout_and_page_rows(self):
+        options = _build({"EXTRACT_IMAGES": True, "ROW_BOUNDARY": "page"})
+        assert options.extract_images is True
+        assert options.parse_mode == "layout"
+        assert options.page_rows is True
+
+    @pytest.mark.parametrize("mode", ["ocr", "text", "OCR"])
+    def test_extract_images_needs_layout_mode(self, mode):
+        error = _expect_error("1119", {"EXTRACT_IMAGES": True, "PARSE_MODE": mode})
+        assert "layout" in error.message and mode.lower() in error.message
+
+    def test_extract_images_false_is_fine_with_any_parse_mode(self):
+        assert (
+            _build({"EXTRACT_IMAGES": False, "PARSE_MODE": "ocr"}).extract_images
+            is False
+        )
+
+    @pytest.mark.parametrize(
+        "extra", [{"SCHEMA": FLAT_SCHEMA}, {"PROMPT": "Extract fields."}]
+    )
+    def test_extract_images_is_ignored_with_a_schema_or_prompt(self, extra):
+        # Not even validated, like PARSE_MODE and ROW_BOUNDARY: such a read skips parsing.
+        options = _build({"EXTRACT_IMAGES": True, "PARSE_MODE": "ocr", **extra})
+        assert options.extract_images is False
+        assert options.parse_mode == "none"
 
     def test_schema_and_prompt_together_are_still_accepted(self):
         # Does not raise.

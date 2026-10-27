@@ -21,7 +21,7 @@ _EXTRACTION_ENGINES = frozenset({"ai_extract", "ai_complete"})
 # The options a user can set. Everything else (the model, the fail mode, the extraction
 # engine, ...) is chosen by the reader and cannot be set through .option().
 _SUPPORTED_READER_OPTIONS = frozenset(
-    {"SCHEMA", "PROMPT", "PARSE_MODE", "ROW_BOUNDARY"}
+    {"SCHEMA", "PROMPT", "PARSE_MODE", "ROW_BOUNDARY", "EXTRACT_IMAGES"}
 )
 # parse_mode values a user can choose; "none" (do not parse) is set by the reader itself
 # whenever a schema or prompt is given.
@@ -206,9 +206,10 @@ class DocumentReaderOptions:
     def from_reader_options(
         cls, cur_options: Dict[str, Any]
     ) -> "DocumentReaderOptions":
-        """The user options are SCHEMA, PROMPT, PARSE_MODE and ROW_BOUNDARY; any other key
-        is ignored, because everything else is chosen by the reader. PARSE_MODE and
-        ROW_BOUNDARY only apply to a read with neither a schema nor a prompt."""
+        """The user options are SCHEMA, PROMPT, PARSE_MODE, ROW_BOUNDARY and
+        EXTRACT_IMAGES; any other key is ignored, because everything else is chosen by
+        the reader. PARSE_MODE, ROW_BOUNDARY and EXTRACT_IMAGES only apply to a read with
+        neither a schema nor a prompt, and EXTRACT_IMAGES needs parse_mode "layout"."""
         options = cls(
             extraction=ExtractionSpec.from_response_format(cur_options.get("SCHEMA")),
             prompt=cur_options.get("PROMPT"),
@@ -225,6 +226,11 @@ class DocumentReaderOptions:
             options.row_boundary = cls.user_choice(
                 cur_options, "ROW_BOUNDARY", "document", _ROW_BOUNDARIES
             )
+            options.extract_images = cls.user_bool(cur_options, "EXTRACT_IMAGES")
+            if options.extract_images and options.parse_mode != "layout":
+                raise SnowparkClientExceptionMessages.DF_DOCUMENTS_EXTRACT_IMAGES_NEEDS_LAYOUT(
+                    options.parse_mode
+                )
         options.validate()
         return options
 
@@ -242,6 +248,22 @@ class DocumentReaderOptions:
                 key.lower(), cur_options[key], valid_values
             )
         return value
+
+    @staticmethod
+    def user_bool(cur_options: Dict[str, Any], key: str) -> bool:
+        """The boolean the user set for ``key`` (a bool, or "true"/"false" in any case),
+        or False when it is not set; any other value raises."""
+        if key not in cur_options:
+            return False
+        value = cur_options[key]
+        if isinstance(value, bool):
+            return value
+        text = str(value).lower()
+        if text not in ("true", "false"):
+            raise SnowparkClientExceptionMessages.DF_DOCUMENTS_INVALID_OPTION_VALUE(
+                key.lower(), value, ("true", "false")
+            )
+        return text == "true"
 
     def validate(self) -> None:
         # parse_mode/row_boundary/mode/extraction_engine drive our own Python routing

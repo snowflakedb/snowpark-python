@@ -206,6 +206,41 @@ class TestOutputColumnsForPromptOnly:
 
 
 # ---------------------------------------------------------------------------
+# output_columns -- IMAGES is returned only by a parse-only read that asked for
+# extract_images.
+# ---------------------------------------------------------------------------
+
+
+class TestOutputColumnsImages:
+    def test_images_follow_the_content_when_extract_images_is_on(self):
+        options = DocumentReaderOptions(extract_images=True)
+        assert output_columns(options) == [
+            "SOURCE_FILE",
+            "TOTAL_PAGES",
+            "CONTENT",
+            "IMAGES",
+            '"_document_error"',
+        ]
+
+    def test_page_rows_list_images_after_the_content(self):
+        options = DocumentReaderOptions(extract_images=True, row_boundary="page")
+        assert output_columns(options)[:5] == [
+            "SOURCE_FILE",
+            "PAGE_INDEX",
+            "TOTAL_PAGES",
+            "CONTENT",
+            "IMAGES",
+        ]
+
+    def test_no_images_column_by_default(self):
+        assert "IMAGES" not in output_columns(DocumentReaderOptions())
+
+    def test_no_images_column_without_parsing(self):
+        options = DocumentReaderOptions(parse_mode="none", prompt="Summarize.")
+        assert "IMAGES" not in output_columns(options)
+
+
+# ---------------------------------------------------------------------------
 # output_columns -- a schema read through the extraction procedure returns the
 # confidence scores after the field columns; prompt-only and parse-only reads
 # have no fields to score.

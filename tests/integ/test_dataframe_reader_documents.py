@@ -521,6 +521,37 @@ def test_options_chosen_by_the_reader_are_ignored(session, invoice_path, key, va
     assert columns == session.read.documents(invoice_path).columns
 
 
+def test_extract_images_adds_an_images_column(session, invoice_path):
+    df = session.read.option("extract_images", True).documents(invoice_path)
+    assert _unquoted(df) == [
+        "SOURCE_FILE",
+        "TOTAL_PAGES",
+        "CONTENT",
+        "IMAGES",
+        "_document_error",
+    ]
+    rows = df.collect()
+    assert len(rows) == 1
+    assert rows[0]["_document_error"] is None
+
+
+def test_extract_images_with_page_rows(session, invoice_path):
+    df = (
+        session.read.option("extract_images", True)
+        .option("row_boundary", "page")
+        .documents(invoice_path)
+    )
+    assert "IMAGES" in _unquoted(df) and "PAGE_INDEX" in _unquoted(df)
+    assert df.collect()[0]["_document_error"] is None
+
+
+def test_extract_images_needs_layout_mode(session, invoice_path):
+    with pytest.raises(SnowparkDataframeReaderException, match="layout"):
+        session.read.option("extract_images", True).option(
+            "parse_mode", "ocr"
+        ).documents(invoice_path)
+
+
 def test_non_stage_path_raises(session):
     with pytest.raises(ValueError, match="invalid Snowflake stage location"):
         session.read.documents("/local/path/doc.pdf")
