@@ -1498,19 +1498,7 @@ class DataFrameReader:
         options = document_reader.DocumentReaderOptions.from_reader_options(
             self._cur_options
         )
-        # The reader's own queries (listing, parsing, the extraction procedure) are not
-        # recorded in the AST: one read_documents statement stands for the whole read.
-        df = document_reader.read_documents(
-            self._session, path, options, _emit_ast=False
-        )
-
-        # AST.
-        if _emit_ast and self._ast is not None:
-            stmt = self._session._ast_batch.bind()
-            ast = with_src_position(stmt.expr.read_documents, stmt)
-            ast.path = path
-            ast.reader.CopyFrom(self._ast)
-            df._ast_id = stmt.uid
+        df = document_reader.read_documents(self._session, path, options)
 
         set_api_call_source(df, "DataFrameReader.documents")
         return df

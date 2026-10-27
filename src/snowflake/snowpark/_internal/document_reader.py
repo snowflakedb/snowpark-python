@@ -124,30 +124,27 @@ _UDTF_ERROR_COLUMN = "UDTF_ERROR"
 
 
 def read_documents(
-    session: "Session", path: str, options: DocumentReaderOptions, *, _emit_ast: bool
+    session: "Session", path: str, options: DocumentReaderOptions
 ) -> "DataFrame":
-    """Build the read. ``_emit_ast`` is passed to every DataFrame operation the reader
-    makes; DataFrameReader.documents passes False, since its own read_documents AST
-    statement stands for the whole read."""
     if (
         options.extract_enabled
         and not options.parse_enabled
         and options.extraction_engine == "ai_complete"
     ):
-        df = extract_with_split_procedure(session, path, options, _emit_ast=_emit_ast)
-        df = finalize_errors(session, df, options, _emit_ast=_emit_ast)
-        return df.select(output_columns(options), _emit_ast=_emit_ast)
+        df = extract_with_split_procedure(session, path, options)
+        df = finalize_errors(session, df, options)
+        return df.select(output_columns(options))
 
-    df = access(session, path, _emit_ast=_emit_ast)
+    df = access(session, path)
 
     if options.parse_enabled:
-        df = parse(session, df, options, _emit_ast=_emit_ast)
+        df = parse(session, df, options)
 
     if options.complete_enabled:
-        df = extract(df, options, _emit_ast=_emit_ast)
+        df = extract(df, options)
 
-    df = finalize_errors(session, df, options, _emit_ast=_emit_ast)
-    return df.select(output_columns(options), _emit_ast=_emit_ast)
+    df = finalize_errors(session, df, options)
+    return df.select(output_columns(options))
 
 
 def output_columns(options: DocumentReaderOptions) -> List[str]:
@@ -187,16 +184,13 @@ def quote_stage_path(path: str) -> str:
     return "'" + path.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
-def access(session: "Session", path: str, *, _emit_ast: bool) -> "DataFrame":
+def access(session: "Session", path: str) -> "DataFrame":
     # The plain string path is kept as its own column because the PDF UDTF takes a
     # path string, not a FILE value.
     stage_path = concat(lit(STAGE_PREFIX), col('"name"'))
-    files_df = session.sql(
-        f"LIST {quote_stage_path(path)}", _emit_ast=_emit_ast
-    ).select(
+    files_df = session.sql(f"LIST {quote_stage_path(path)}").select(
         to_file(stage_path).alias(SOURCE_FILE_COLUMN),
         stage_path.alias(_STAGE_PATH_COLUMN),
-        _emit_ast=_emit_ast,
     )
     # LIST, like DIRECTORY(@stage), carries no cardinality statistics for the
     # optimizer, which otherwise defaults every downstream AI_PARSE_DOCUMENT/
@@ -204,24 +198,18 @@ def access(session: "Session", path: str, *, _emit_ast: bool) -> "DataFrame":
     # regardless of warehouse size. sort(random()) forces a shuffle that
     # redistributes rows -- and therefore the AI calls made per row -- across
     # every thread the warehouse has.
-    return files_df.sort(random(), _emit_ast=_emit_ast)
+    return files_df.sort(random())
 
 
 def parse(
-    session: "Session",
-    files_df: "DataFrame",
-    options: DocumentReaderOptions,
-    *,
-    _emit_ast: bool,
+    session: "Session", files_df: "DataFrame", options: DocumentReaderOptions
 ) -> "DataFrame":
     if options.parse_mode == "text":
-        return parse_text(session, files_df, options, _emit_ast=_emit_ast)
-    return parse_ai(files_df, options, _emit_ast=_emit_ast)
+        return parse_text(session, files_df, options)
+    return parse_ai(files_df, options)
 
 
-def parse_ai(
-    files_df: "DataFrame", options: DocumentReaderOptions, *, _emit_ast: bool
-) -> "DataFrame":
+def parse_ai(files_df: "DataFrame", options: DocumentReaderOptions) -> "DataFrame":
     parse_kwargs: Dict[str, Any] = {
         "mode": options.parse_mode.upper(),
         # AI_PARSE_DOCUMENT rejects page_filter unless page_split is also true,
@@ -241,17 +229,14 @@ def parse_ai(
                 col(SOURCE_FILE_COLUMN), return_error_details=True, **parse_kwargs
             )
         ),
-        _emit_ast=_emit_ast,
     )
     parsed = col(_PARSED_COLUMN)
     # return_error_details=True wraps content/pages/images under `value`, sibling to
     # `error` and `metadata` -- not at the top level.
     payload = parsed["value"]
-    df = df.with_column(
-        _PARSE_ERROR_COLUMN, parsed["error"].cast(StringType()), _emit_ast=_emit_ast
-    )
+    df = df.with_column(_PARSE_ERROR_COLUMN, parsed["error"].cast(StringType()))
     if options.extract_images:
-        df = df.with_column(IMAGES_COLUMN, payload["images"], _emit_ast=_emit_ast)
+        df = df.with_column(IMAGES_COLUMN, payload["images"])
 
     page_count = parsed["metadata"]["pageCount"].cast(IntegerType())
 
@@ -261,36 +246,32 @@ def parse_ai(
         return df.with_columns(
             [TOTAL_PAGES_COLUMN, CONTENT_COLUMN],
             [page_count, payload["content"].cast(StringType())],
-            _emit_ast=_emit_ast,
         )
 
     # Resolved before the explode so the parsed document isn't referenced above the
     # join and replicated once per page.
     df = df.with_column(
-        TOTAL_PAGES_COLUMN,
-        coalesce(page_count, array_size(payload["pages"])),
-        _emit_ast=_emit_ast,
+        TOTAL_PAGES_COLUMN, coalesce(page_count, array_size(payload["pages"]))
     )
 
     # outer=True keeps exactly one row for a file whose parse failed and therefore has
     # no `pages` array to expand.
     exploded = df.join_table_function(
-        flatten(payload["pages"], outer=True), _emit_ast=_emit_ast
+        flatten(payload["pages"], outer=True)
     ).with_columns(
         [PAGE_INDEX_COLUMN, CONTENT_COLUMN],
         [
             col("VALUE")["index"].cast(IntegerType()),
             col("VALUE")["content"].cast(StringType()),
         ],
-        _emit_ast=_emit_ast,
     )
     if options.row_boundary == "page":
         return exploded
-    return aggregate_pages(exploded, options, _emit_ast=_emit_ast)
+    return aggregate_pages(exploded, options)
 
 
 def aggregate_pages(
-    exploded: "DataFrame", options: DocumentReaderOptions, *, _emit_ast: bool
+    exploded: "DataFrame", options: DocumentReaderOptions
 ) -> "DataFrame":
     """Collapse a page-shaped response back to one row per file, needed when a
     page_filter narrows the document but the caller asked for document rows."""
@@ -306,22 +287,16 @@ def aggregate_pages(
 
     # SOURCE_FILE is rebuilt rather than aggregated because FILE is not a groupable type.
     return (
-        exploded.group_by(_STAGE_PATH_COLUMN, _emit_ast=_emit_ast)
-        .agg(*aggregations, _emit_ast=_emit_ast)
-        .with_column(
-            SOURCE_FILE_COLUMN, to_file(col(_STAGE_PATH_COLUMN)), _emit_ast=_emit_ast
-        )
+        exploded.group_by(_STAGE_PATH_COLUMN)
+        .agg(*aggregations)
+        .with_column(SOURCE_FILE_COLUMN, to_file(col(_STAGE_PATH_COLUMN)))
     )
 
 
 def parse_text(
-    session: "Session",
-    files_df: "DataFrame",
-    options: DocumentReaderOptions,
-    *,
-    _emit_ast: bool,
+    session: "Session", files_df: "DataFrame", options: DocumentReaderOptions
 ) -> "DataFrame":
-    pdf_udtf = register_pdf_udtf(session, _emit_ast=_emit_ast)
+    pdf_udtf = register_pdf_udtf(session)
     # is not None, not truthy: page_filter=[] means "select zero pages" here too,
     # matching parse_ai, rather than falling back to "no filter".
     page_filter_json = (
@@ -333,10 +308,8 @@ def parse_text(
             lit(options.row_boundary),
             lit(page_filter_json),
             lit(options.mode),
-            _emit_ast=_emit_ast,
-        ),
-        _emit_ast=_emit_ast,
-    ).with_column(_PARSE_ERROR_COLUMN, col(_UDTF_ERROR_COLUMN), _emit_ast=_emit_ast)
+        )
+    ).with_column(_PARSE_ERROR_COLUMN, col(_UDTF_ERROR_COLUMN))
 
 
 # ---------------------------------------------------------------------------
@@ -388,9 +361,7 @@ def merge_extract_error(
     return coalesce(native_error.cast(StringType()), mismatch_message)
 
 
-def extract(
-    df: "DataFrame", options: DocumentReaderOptions, *, _emit_ast: bool
-) -> "DataFrame":
+def extract(df: "DataFrame", options: DocumentReaderOptions) -> "DataFrame":
     input_col = (
         col(CONTENT_COLUMN) if options.parse_enabled else col(SOURCE_FILE_COLUMN)
     )
@@ -407,14 +378,14 @@ def extract(
             # against the account. The tradeoff: this forces read_documents() to execute
             # immediately for this one combination, rather than staying lazy until the
             # caller's own collect().
-            df = materialize_parsed_content(df, options, _emit_ast=_emit_ast)
+            df = materialize_parsed_content(df, options)
             input_col = col(CONTENT_COLUMN)
-        return extract_with_ai_complete(df, input_col, options, _emit_ast=_emit_ast)
-    return extract_with_ai_extract(df, input_col, options, _emit_ast=_emit_ast)
+        return extract_with_ai_complete(df, input_col, options)
+    return extract_with_ai_extract(df, input_col, options)
 
 
 def materialize_parsed_content(
-    df: "DataFrame", options: DocumentReaderOptions, *, _emit_ast: bool
+    df: "DataFrame", options: DocumentReaderOptions
 ) -> "DataFrame":
     columns = [_STAGE_PATH_COLUMN, TOTAL_PAGES_COLUMN, CONTENT_COLUMN]
     fields = [
@@ -431,32 +402,26 @@ def materialize_parsed_content(
     columns.append(_PARSE_ERROR_COLUMN)
     fields.append(StructField(_PARSE_ERROR_COLUMN, StringType()))
 
-    rows = [[row[name] for name in columns] for row in df.collect(_emit_ast=_emit_ast)]
-    materialized = df._session.create_dataframe(
-        rows, schema=StructType(fields), _emit_ast=_emit_ast
-    )
+    rows = [[row[name] for name in columns] for row in df.collect()]
+    materialized = df._session.create_dataframe(rows, schema=StructType(fields))
     # SOURCE_FILE (a FILE value) can't round-trip through create_dataframe as a
     # literal, so it is rebuilt from the stage path -- the same trick
     # aggregate_pages() already relies on for the same reason.
     materialized = materialized.with_column(
-        SOURCE_FILE_COLUMN, to_file(col(_STAGE_PATH_COLUMN)), _emit_ast=_emit_ast
+        SOURCE_FILE_COLUMN, to_file(col(_STAGE_PATH_COLUMN))
     )
     if options.extract_images:
         materialized = materialized.with_column(
-            IMAGES_COLUMN, try_parse_json(col(IMAGES_COLUMN)), _emit_ast=_emit_ast
+            IMAGES_COLUMN, try_parse_json(col(IMAGES_COLUMN))
         )
     # Re-applies the same warehouse-parallelism fix as access(): a literal VALUES
     # source generally carries real cardinality, but shuffle regardless so this
     # doesn't silently regress if that ever isn't true.
-    return materialized.sort(random(), _emit_ast=_emit_ast)
+    return materialized.sort(random())
 
 
 def extract_with_ai_extract(
-    df: "DataFrame",
-    input_col: Column,
-    options: DocumentReaderOptions,
-    *,
-    _emit_ast: bool,
+    df: "DataFrame", input_col: Column, options: DocumentReaderOptions
 ) -> "DataFrame":
     extraction = options.extraction
     df = df.with_column(
@@ -466,7 +431,6 @@ def extract_with_ai_extract(
                 input_col, response_format=extraction.ai_extract_format, scores=True
             )
         ),
-        _emit_ast=_emit_ast,
     )
     extracted = col(_EXTRACTED_COLUMN)
     response = extracted["response"]
@@ -483,7 +447,7 @@ def extract_with_ai_extract(
             [mismatch for _, mismatch in cast_results],
         ),
     ]
-    return df.with_columns(names, values, _emit_ast=_emit_ast)
+    return df.with_columns(names, values)
 
 
 def build_ai_complete_call(input_col: Column, options: DocumentReaderOptions) -> Column:
@@ -519,18 +483,14 @@ def build_ai_complete_call(input_col: Column, options: DocumentReaderOptions) ->
 
 
 def extract_with_ai_complete(
-    df: "DataFrame",
-    input_col: Column,
-    options: DocumentReaderOptions,
-    *,
-    _emit_ast: bool,
+    df: "DataFrame", input_col: Column, options: DocumentReaderOptions
 ) -> "DataFrame":
     call = build_ai_complete_call(input_col, options)
     # Unlike AI_PARSE_DOCUMENT/AI_EXTRACT, AI_COMPLETE(..., return_error_details=True)
     # returns a native OBJECT rather than a JSON string -- CAST(... AS VARCHAR), which
     # as_variant() always applies, fails to compile for it. Bracket access works
     # directly on the raw result, so it skips as_variant() here.
-    df = df.with_column(_EXTRACTED_COLUMN, call, _emit_ast=_emit_ast)
+    df = df.with_column(_EXTRACTED_COLUMN, call)
     extracted = col(_EXTRACTED_COLUMN)
     value = extracted["value"]
     extraction = options.extraction
@@ -538,20 +498,12 @@ def extract_with_ai_complete(
         return df.with_columns(
             [RESPONSE_COLUMN, _EXTRACT_ERROR_COLUMN],
             [value.cast(StringType()), extracted["error"].cast(StringType())],
-            _emit_ast=_emit_ast,
         )
-    return project_extracted_fields(
-        df, value, extracted["error"], extraction, _emit_ast=_emit_ast
-    )
+    return project_extracted_fields(df, value, extracted["error"], extraction)
 
 
 def project_extracted_fields(
-    df: "DataFrame",
-    value: Column,
-    error: Column,
-    extraction: ExtractionSpec,
-    *,
-    _emit_ast: bool,
+    df: "DataFrame", value: Column, error: Column, extraction: ExtractionSpec
 ) -> "DataFrame":
     cast_results = [
         cast_extracted_field(value[field], field, extraction)
@@ -565,17 +517,17 @@ def project_extracted_fields(
             [mismatch for _, mismatch in cast_results],
         )
     ]
-    return df.with_columns(names, values, _emit_ast=_emit_ast)
+    return df.with_columns(names, values)
 
 
 def extract_with_split_procedure(
-    session: "Session", path: str, options: DocumentReaderOptions, *, _emit_ast: bool
+    session: "Session", path: str, options: DocumentReaderOptions
 ) -> "DataFrame":
     """Schema extraction straight from the FILE, splitting the PDF across several
     AI_COMPLETE calls when one response cannot hold the whole answer. The loop needs each
     call's answer before planning the next, so it runs in a stored procedure; the CALL
     still stays lazy because Snowpark defers it to RESULT_SCAN at collect time."""
-    proc_name = register_extract_proc(session, _emit_ast=_emit_ast)
+    proc_name = register_extract_proc(session)
     args = [
         path,
         json.dumps(options.extraction.ai_complete_format),
@@ -586,22 +538,15 @@ def extract_with_split_procedure(
         session.get_session_stage(),
     ]
     df = session.sql(
-        f"CALL {proc_name}({', '.join(['?'] * len(args))})",
-        params=args,
-        _emit_ast=_emit_ast,
+        f"CALL {proc_name}({', '.join(['?'] * len(args))})", params=args
     ).select(
         to_file(col("STAGE_PATH")).alias(SOURCE_FILE_COLUMN),
         try_parse_json(col("VALUE")).alias(_EXTRACTED_COLUMN),
         col("ERROR").alias(_EXTRACT_ERROR_COLUMN),
         try_parse_json(col("SCORES")).alias(EXTRACTION_SCORES_COLUMN),
-        _emit_ast=_emit_ast,
     )
     return project_extracted_fields(
-        df,
-        col(_EXTRACTED_COLUMN),
-        col(_EXTRACT_ERROR_COLUMN),
-        options.extraction,
-        _emit_ast=_emit_ast,
+        df, col(_EXTRACTED_COLUMN), col(_EXTRACT_ERROR_COLUMN), options.extraction
     )
 
 
@@ -611,11 +556,7 @@ def extract_with_split_procedure(
 
 
 def finalize_errors(
-    session: "Session",
-    df: "DataFrame",
-    options: DocumentReaderOptions,
-    *,
-    _emit_ast: bool,
+    session: "Session", df: "DataFrame", options: DocumentReaderOptions
 ) -> "DataFrame":
     error_stages = options.error_stages
     if not error_stages:
@@ -639,7 +580,6 @@ def finalize_errors(
         return df.with_column(
             quote_name_without_upper_casing(options.corrupt_record_column),
             when(array_size(errors) > 0, errors),
-            _emit_ast=_emit_ast,
         )
 
     # FAILFAST: every AI call captures its errors in-band, so aborting the read takes
@@ -651,11 +591,9 @@ def finalize_errors(
         anchor = options.extraction.field_columns[0]
     else:
         anchor = RESPONSE_COLUMN
-    guard = register_error_guard_udf(session, _emit_ast=_emit_ast)
+    guard = register_error_guard_udf(session)
     raw_error = merge_error_expressions([col(name) for _, name in error_stages])
-    return df.with_column(
-        anchor, guard(raw_error, col(anchor), _emit_ast=_emit_ast), _emit_ast=_emit_ast
-    )
+    return df.with_column(anchor, guard(raw_error, col(anchor)))
 
 
 def merge_error_expressions(expressions: List[Column]) -> Column:
@@ -670,7 +608,7 @@ def merge_error_expressions(expressions: List[Column]) -> Column:
 # ---------------------------------------------------------------------------
 
 
-def register_pdf_udtf(session: "Session", *, _emit_ast: bool):
+def register_pdf_udtf(session: "Session"):
     """Register a session-scoped PDF text-extraction UDTF, mirroring
     DataFrameReader._register_xml_udtf."""
     if is_in_stored_procedure():  # pragma: no cover
@@ -714,11 +652,10 @@ def register_pdf_udtf(session: "Session", *, _emit_ast: bool):
         if_not_exists=True,
         skip_upload_on_content_match=True,
         _suppress_local_package_warnings=True,
-        _emit_ast=_emit_ast,
     )
 
 
-def register_extract_proc(session: "Session", *, _emit_ast: bool) -> str:
+def register_extract_proc(session: "Session") -> str:
     if is_in_stored_procedure():  # pragma: no cover
         import_stage_name = session.get_fully_qualified_name_if_possible(
             "SNOWPARK_TEMP_STAGE_PDFIMPORTS"
@@ -768,12 +705,11 @@ def register_extract_proc(session: "Session", *, _emit_ast: bool) -> str:
         execute_as="caller",
         skip_upload_on_content_match=True,
         _suppress_local_package_warnings=True,
-        _emit_ast=_emit_ast,
     )
     return name
 
 
-def register_error_guard_udf(session: "Session", *, _emit_ast: bool):
+def register_error_guard_udf(session: "Session"):
     def raise_if_document_error(
         error: Optional[str], passthrough: Optional[str]
     ) -> Optional[str]:
@@ -787,5 +723,4 @@ def register_error_guard_udf(session: "Session", *, _emit_ast: bool):
         input_types=[StringType(), StringType()],
         name=session.get_fully_qualified_name_if_possible(_ERROR_GUARD_UDF_NAME),
         if_not_exists=True,
-        _emit_ast=_emit_ast,
     )
