@@ -236,6 +236,11 @@ MAX_FILE_BYTES = 12_000_000
 # Every file is read whole into the procedure's memory before it is cut into parts, so a
 # file larger than this (by the size LIST reports) is not read: it gets its own error
 # row instead of exhausting the procedure's memory.
+# File types AI_COMPLETE accepts for Claude models. Other files are rejected before their
+# bytes are read, so they are never sent to the model.
+SUPPORTED_FILE_EXTENSIONS = frozenset(
+    {".txt", ".md", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".xhtml"}
+)
 MAX_FILE_READ_BYTES = 300_000_000
 
 
@@ -1269,6 +1274,20 @@ class DocumentExtraction:
                 errors=[
                     f"file is {listed_size} bytes, larger than the supported maximum "
                     f"of {MAX_FILE_READ_BYTES} bytes"
+                ],
+                failed=True,
+            )
+        extension = os.path.splitext(name)[1].lower()
+        if extension not in SUPPORTED_FILE_EXTENSIONS:
+            return FileState(
+                name,
+                None,
+                1,
+                0,
+                max_calls_per_file,
+                errors=[
+                    f"file type {extension or '(none)'} is not supported; supported "
+                    f"types are {', '.join(sorted(SUPPORTED_FILE_EXTENSIONS))}"
                 ],
                 failed=True,
             )

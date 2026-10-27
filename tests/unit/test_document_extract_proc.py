@@ -2244,6 +2244,29 @@ class TestPerFileFailures:
         assert bad.failed and bad.errors == ["could not read file: denied"]
         assert not good.failed and good.pages == 3 and good.splittable
 
+    @pytest.mark.parametrize(
+        "name", ["s/run.exe", "s/archive.zip", "s/image.png", "s/no_extension"]
+    )
+    def test_an_unsupported_file_type_is_refused_before_it_is_read(
+        self, monkeypatch, name
+    ):
+        extraction = _doc_extraction(_FakeSession())
+        reads = []
+        monkeypatch.setattr(extraction, "read_bytes", lambda name: reads.append(name))
+        state = extraction.load_file(f"@{name}", 30, None)
+        assert reads == []
+        assert state.failed and "is not supported" in state.errors[0]
+        assert document_outcomes([state], []) == (0, 0, [])
+
+    @pytest.mark.parametrize(
+        "name", ["s/a.PDF", "s/notes.txt", "s/data.XLSX", "s/t.docx"]
+    )
+    def test_a_supported_file_type_is_read_whatever_the_case(self, monkeypatch, name):
+        extraction = _doc_extraction(_FakeSession())
+        monkeypatch.setattr(extraction, "read_bytes", lambda name: b"plain text")
+        state = extraction.load_file(f"@{name}", 30, None)
+        assert not state.failed
+
     def test_a_file_over_the_read_limit_is_not_read_and_is_a_failed_state(
         self, monkeypatch
     ):
