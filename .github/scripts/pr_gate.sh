@@ -64,17 +64,21 @@ is_non_gate() {
   return 1
 }
 
-# Newest PR commit that is not changelog-only; empty when every commit is.
+# Prints the newest PR commit that is not changelog-only, or "NONE" when every commit is.
+# Any API failure or inconsistent data returns non-zero so the gate fails instead of passing.
 find_tested_sha() {
-  local sha
+  local commits sha
+  commits=$(gh api --paginate "repos/$repo/pulls/${PR_NUMBER:?}/commits?per_page=100" --jq '.[].sha') || return 1
+  [[ -n "$commits" ]] || return 1
+  # The PR head must be the newest commit in the list, otherwise the list is stale or wrong.
+  [[ "$(printf '%s\n' "$commits" | tail -n 1)" == "$head_sha" ]] || return 1
   while read -r sha; do
     if ! commit_is_changelog_only "$sha"; then
       echo "$sha"
       return 0
     fi
-  done < <(gh api --paginate "repos/$repo/pulls/${PR_NUMBER:?}/commits?per_page=100" --jq '.[].sha' \
-            | awk '{a[NR]=$0} END{for(i=NR;i>=1;i--) print a[i]}')
-  return 0
+  done < <(printf '%s\n' "$commits" | awk '{a[NR]=$0} END{for(i=NR;i>=1;i--) print a[i]}')
+  echo NONE
 }
 
 # Writes TSV lines "kind<TAB>name<TAB>state<TAB>url" where state is pass|fail|pending|missing.
@@ -83,14 +87,18 @@ collect() {
   : > "$gates"
 
   if [[ -n "$run_id" ]]; then
+    local jobs
+    # Fetch first: a failure inside a process substitution would be silently ignored.
+    jobs=$(gh api --paginate "repos/$repo/actions/runs/$run_id/jobs?per_page=100" \
+      --jq '.jobs[] | [.name, .status, (.conclusion // ""), .html_url] | @tsv') || return 1
+    [[ -n "$jobs" ]] || return 1
     while IFS=$'\t' read -r name status conclusion url; do
       is_non_gate "$name" && continue
       if [[ "$status" != "completed" ]]; then state=pending
       elif [[ "$conclusion" == "success" ]]; then state=pass
       else state="fail($conclusion)"; fi
       printf 'precommit\t%s\t%s\t%s\n' "$name" "$state" "$url" >> "$gates"
-    done < <(gh api --paginate "repos/$repo/actions/runs/$run_id/jobs?per_page=100" \
-              --jq '.jobs[] | [.name, .status, (.conclusion // ""), .html_url] | @tsv')
+    done <<< "$jobs"
   else
     printf 'precommit\t%s\t%s\t%s\n' "precommit workflow run" "missing" "" >> "$gates"
   fi
@@ -145,9 +153,14 @@ report() {
   local tested run_id gates deadline timeout_min failed pending kind name state url
   timeout_min="${PR_GATE_TIMEOUT_MIN:-90}"
   gates=$(mktemp)
-  tested=$(find_tested_sha)
+  if ! tested=$(find_tested_sha) || [[ -z "$tested" ]]; then
+    echo "::error::PR Gate: could not determine the tested commit (GitHub API failure or unexpected commit list)."
+    echo "### PR Gate" >> "$summary"
+    echo "**Result: FAIL** (could not determine the tested commit)" >> "$summary"
+    return 1
+  fi
 
-  if [[ -z "$tested" ]]; then
+  if [[ "$tested" == "NONE" ]]; then
     {
       echo "### PR Gate"
       echo "Every commit in this PR is changelog-only, so there is no code to gate."
@@ -167,7 +180,7 @@ report() {
 
   deadline=$(( $(date +%s) + timeout_min * 60 ))
   while true; do
-    collect "$tested" "$run_id" "$gates"
+    collect "$tested" "$run_id" "$gates" || { echo "::error::PR Gate: could not read gate state from the GitHub API."; echo "**Result: FAIL** (GitHub API error while reading gates)" >> "$summary"; return 1; }
     pending=0
     while IFS=$'\t' read -r kind name state url; do
       is_blocking "$kind" "$name" || continue
