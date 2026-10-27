@@ -14,7 +14,8 @@ the steps of ``DocumentExtraction`` just above it, in order:
    when it is over the size limit).
 3. ``extract_until_done``: extract every range at once; ``finish`` reads each answer
    and queues what it leaves (the rest of a range that did not fit, or the halves of a
-   failed one), until nothing is left.
+   failed one), until nothing is left. If most documents are failing, the read stops
+   early instead (``should_abort``).
 4. back in ``run``: merge each file's parts, in page order, into one row.
 
 Everything above ``read_answer`` is a pure helper for one of these steps.
@@ -32,6 +33,7 @@ import hashlib
 import io
 import json
 import os
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -609,6 +611,35 @@ def coalesce_ranges(
 HARD_MAX_CALLS_PER_FILE = 60
 
 
+# A read that is failing across the board stops instead of spending calls on the rest:
+# once this many documents have finished, it is aborted when more than this fraction of
+# them failed (see ``should_abort``).
+MIN_DOCUMENTS_BEFORE_ABORT = 10
+MAX_FAILED_FRACTION = 0.75
+
+
+def should_abort(finished: int, failed: int) -> bool:
+    """True when at least ``MIN_DOCUMENTS_BEFORE_ABORT`` documents have finished and more
+    than ``MAX_FAILED_FRACTION`` of the finished ones failed (exactly that fraction does
+    not abort)."""
+    return (
+        finished >= MIN_DOCUMENTS_BEFORE_ABORT
+        and failed > MAX_FAILED_FRACTION * finished
+    )
+
+
+def abort_message(finished: int, failed: int, errors: List[str]) -> str:
+    """The error that ends a read stopped by ``should_abort``: how many of the finished
+    documents failed, and the most common first error among them."""
+    common = Counter(errors).most_common(1)
+    reason = f" Most common error: {common[0][0][:500]}" if common else ""
+    return (
+        f"Stopped early: {failed} of the {finished} documents finished so far failed, "
+        f"which is more than {MAX_FAILED_FRACTION:.0%}; the remaining documents were "
+        f"not processed.{reason}"
+    )
+
+
 def call_cap(floor: int, estimated_total: Optional[int], range_target: int) -> int:
     """Calls a file may use: twice the number of target-sized ranges its answer needs,
     plus slack, never below ``floor`` nor above HARD_MAX_CALLS_PER_FILE."""
@@ -911,6 +942,20 @@ class FileState:
 Task = Tuple[FileState, int, int, str]
 
 
+def document_outcomes(
+    files: List[FileState], tasks: List[Task]
+) -> Tuple[int, int, List[str]]:
+    """``(finished, failed, errors)`` over ``files`` given the ``tasks`` still waiting.
+    A document has finished when none of its page ranges is waiting. It has failed when
+    it finished with no successful part, so a document that was only partly extracted
+    counts as succeeded (its errors still appear in its own error column). ``errors``
+    holds the first error of each failed document."""
+    waiting = {id(task[0]) for task in tasks}
+    done = [f for f in files if id(f) not in waiting]
+    failed = [f for f in done if not f.parts]
+    return len(done), len(failed), [f.errors[0] for f in failed if f.errors]
+
+
 class DocumentExtraction:  # pragma: no cover - exercised against a live account
     """The calls for every file under a path: plan large files, extract every range,
     re-split ranges whose answer did not fit, and merge each file's parts."""
@@ -1067,9 +1112,14 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
             )
         return tasks
 
-    def extract_until_done(self, tasks: List[Task], max_calls_per_file: int) -> None:
+    def extract_until_done(
+        self, files: List[FileState], tasks: List[Task], max_calls_per_file: int
+    ) -> None:
         """Run every task at once, then the tasks their answers leave (the rest of a
-        range that did not fit, or the halves of one that failed) until none are left."""
+        range that did not fit, or the halves of one that failed) until none are left.
+        After each round, while work is still waiting, the read is stopped with a
+        RuntimeError if ``should_abort`` says too many finished documents failed; when
+        nothing is waiting, the results are complete and are returned as they are."""
         while tasks:
             jobs = []
             oversized: List[Task] = []
@@ -1113,6 +1163,10 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
                 tasks += self.finish(
                     file, start, end, budget_name, job, max_calls_per_file
                 )
+            if tasks:
+                finished, failed, errors = document_outcomes(files, tasks)
+                if should_abort(finished, failed):
+                    raise RuntimeError(abort_message(finished, failed, errors))
 
     def finish(
         self,
@@ -1186,8 +1240,11 @@ def run(
         work_stage: stage where page-range part files are written (the session stage).
 
     Raises:
-        RuntimeError: AI_COMPLETE knows none of ``models`` (not enabled for the account
-            or region); raised before any file is read.
+        RuntimeError: more than ``MAX_FAILED_FRACTION`` of the documents finished so far
+            failed, once ``MIN_DOCUMENTS_BEFORE_ABORT`` have finished (the read is
+            stopped, and the documents still waiting are not processed); or
+            AI_COMPLETE knows none of ``models`` (not enabled for the account
+            or region), which is raised before any file is read.
 
     Returns:
         STAGE_PATH, VALUE (the merged answer as JSON, or None when no part succeeded)
@@ -1210,7 +1267,7 @@ def run(
     # 2. Decide the first page ranges: planned for large files, whole for the rest.
     tasks = extraction.plan_large_files(files)
     # 3. Extract until no range is left; each file collects its parts and errors.
-    extraction.extract_until_done(tasks, max_calls_per_file)
+    extraction.extract_until_done(files, tasks, max_calls_per_file)
     # 4. One row per file: its parts merged in page order, so a table split across
     #    ranges comes back as one table.
     rows = []

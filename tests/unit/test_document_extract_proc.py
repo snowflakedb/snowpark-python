@@ -38,6 +38,12 @@ from snowflake.snowpark._internal.document_extract_proc import (
     planning_segments,
     ranges_from_plan,
     DocumentExtraction,
+    FileState,
+    MAX_FAILED_FRACTION,
+    MIN_DOCUMENTS_BEFORE_ABORT,
+    abort_message,
+    document_outcomes,
+    should_abort,
     ranges_from_salvaged_status,
     salvage_status,
     split_evenly,
@@ -1726,3 +1732,121 @@ class TestCheckModel:
         extraction.check_model()
         assert extraction.model == "m1"
         assert session.pinged == ["m1"]
+
+
+# ---------------------------------------------------------------------------
+# should_abort / abort_message / document_outcomes -- a read stops early when,
+# once enough documents have finished, most of them failed.
+# ---------------------------------------------------------------------------
+
+
+class TestShouldAbort:
+    def test_the_thresholds(self):
+        assert MIN_DOCUMENTS_BEFORE_ABORT == 10
+        assert MAX_FAILED_FRACTION == 0.75
+
+    def test_below_the_minimum_never_aborts(self):
+        assert should_abort(9, 9) is False
+
+    def test_the_minimum_with_more_than_the_fraction_failed_aborts(self):
+        assert should_abort(10, 8) is True
+
+    def test_exactly_the_fraction_does_not_abort(self):
+        assert should_abort(12, 9) is False
+        assert should_abort(20, 15) is False
+
+    def test_just_over_the_fraction_aborts(self):
+        assert should_abort(12, 10) is True
+
+    def test_few_failures_do_not_abort(self):
+        assert should_abort(100, 1) is False
+
+    def test_all_failed_at_the_minimum_aborts(self):
+        assert should_abort(10, 10) is True
+
+
+class TestAbortMessage:
+    def test_it_states_the_counts_and_the_most_common_error(self):
+        message = abort_message(12, 11, ["boom", "boom", "other"])
+        assert "11 of the 12 documents" in message
+        assert "Stopped early" in message
+        assert "Most common error: boom" in message
+
+    def test_it_works_without_any_error_text(self):
+        assert "Most common error" not in abort_message(12, 11, [])
+
+
+def _file(name, pages=1, parts=(), errors=()):
+    state = FileState(name, object(), pages, 1000, 30)
+    state.parts.extend(parts)
+    state.errors.extend(errors)
+    return state
+
+
+class TestDocumentOutcomes:
+    def test_a_document_with_a_waiting_range_has_not_finished(self):
+        waiting = _file("a")
+        assert document_outcomes([waiting], [(waiting, 1, 1, "range")]) == (0, 0, [])
+
+    def test_a_document_with_no_successful_part_failed(self):
+        failed = _file("a", errors=["boom", "later"])
+        assert document_outcomes([failed], []) == (1, 1, ["boom"])
+
+    def test_a_partly_extracted_document_succeeded(self):
+        partial = _file("a", parts=[(1, {"x": 1})], errors=["pages 5-9: boom"])
+        assert document_outcomes([partial], []) == (1, 0, [])
+
+
+class _FakeExtraction(DocumentExtraction):
+    """No stage, no AI_COMPLETE: a call on a file named "splittable" fails in a way that
+    fewer pages can fix, every other call fails for good."""
+
+    def stage_part(self, file, start, end):
+        return file.path
+
+    def submit(self, file, predicate, staged, max_tokens):
+        file.calls += 1
+        return file.path
+
+    @staticmethod
+    def collect(job):
+        return None, "malformed request" if job == "splittable" else "boom", None
+
+
+def _run_fake(failing, with_splittable):
+    budgets = {
+        "first": {"target": 1, "max_tokens": 1},
+        "range": {"target": 1, "max_tokens": 1},
+        "large_range": {"target": 1, "max_tokens": 1},
+        "merge_target": 1,
+    }
+    schema = {"schema": {"type": "object", "properties": {"a": {"type": "string"}}}}
+    extraction = _FakeExtraction(None, schema, "p", ["m"], budgets, "@stage")
+    files = [_file(f"f{i}") for i in range(failing)]
+    if with_splittable:
+        files.append(_file("splittable", pages=4))
+    tasks = [(f, 1, f.pages, "range") for f in files]
+    extraction.extract_until_done(files, tasks, 30)
+    return files
+
+
+class TestReadStopsWhenMostDocumentsFail:
+    def test_it_stops_while_work_is_still_waiting(self):
+        # 11 documents fail for good in round one; the 12th has pages left to retry.
+        with pytest.raises(RuntimeError, match="Stopped early: 11 of the 11"):
+            _run_fake(failing=11, with_splittable=True)
+
+    def test_the_error_names_the_most_common_failure(self):
+        with pytest.raises(RuntimeError, match="Most common error: pages 1-1: boom"):
+            _run_fake(failing=11, with_splittable=True)
+
+    def test_it_does_not_stop_below_the_minimum(self):
+        files = _run_fake(failing=9, with_splittable=True)
+        assert all(not f.parts for f in files)
+        assert all(f.errors for f in files)
+
+    def test_it_does_not_stop_when_nothing_is_waiting(self):
+        # Every document failed, but the read is already complete: the per-document
+        # errors are returned instead of discarding the result.
+        files = _run_fake(failing=12, with_splittable=False)
+        assert all(f.errors for f in files)
