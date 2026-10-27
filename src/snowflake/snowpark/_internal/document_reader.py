@@ -65,13 +65,14 @@ if TYPE_CHECKING:  # pragma: no cover
     from snowflake.snowpark.session import Session
 
 
-# Models for schema reads, in order of preference: the extraction procedure uses the first
+# Models for schema reads, in order of preference: the extraction procedure uses the preferred
 # until AI_COMPLETE reports it unknown for the account, then the next, and fails the read
 # when it knows none. Both are cross-region models, so an account or region without them
 # can lack either.
-# The budgets below were tuned on the first.
-_EXTRACTION_MODELS = ["claude-sonnet-5-5", "claude-opus-5"]
-_EXTRACTION_MODEL = _EXTRACTION_MODELS[0]
+# The budgets below were tuned on the preferred model.
+_PREFERRED_EXTRACTION_MODEL = "claude-sonnet-5-5"
+_FALLBACK_EXTRACTION_MODEL = "claude-opus-5"
+_EXTRACTION_MODELS = [_PREFERRED_EXTRACTION_MODEL, _FALLBACK_EXTRACTION_MODEL]
 
 _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
 
@@ -466,14 +467,14 @@ def build_ai_complete_call(input_col: Column, options: DocumentReaderOptions) ->
             else concat(lit(options.prompt), lit("\n\n"), input_col)
         )
         return ai_complete(
-            _EXTRACTION_MODEL,
+            _PREFERRED_EXTRACTION_MODEL,
             prompt_text,
             model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},
             response_format=response_format,
             return_error_details=True,
         )
     return ai_complete(
-        _EXTRACTION_MODEL,
+        _PREFERRED_EXTRACTION_MODEL,
         options.prompt or _DEFAULT_EXTRACTION_PROMPT,
         file=input_col,
         model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},

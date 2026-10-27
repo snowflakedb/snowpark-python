@@ -8,7 +8,8 @@ import pytest
 
 from snowflake.snowpark._internal.document_reader import (
     _CALL_BUDGETS,
-    _EXTRACTION_MODEL,
+    _FALLBACK_EXTRACTION_MODEL,
+    _PREFERRED_EXTRACTION_MODEL,
     _EXTRACTION_MODELS,
     build_ai_complete_call,
     cast_extracted_field,
@@ -30,7 +31,8 @@ from snowflake.snowpark.types import BooleanType, DoubleType, StringType
 
 class TestCallBudgets:
     def test_the_extraction_model_is_claude_sonnet_5_5(self):
-        assert _EXTRACTION_MODEL == "claude-sonnet-5-5"
+        assert _PREFERRED_EXTRACTION_MODEL == "claude-sonnet-5-5"
+        assert _FALLBACK_EXTRACTION_MODEL == "claude-opus-5"
 
     def test_schema_reads_fall_back_to_claude_opus_5(self):
         assert _EXTRACTION_MODELS == ["claude-sonnet-5-5", "claude-opus-5"]
