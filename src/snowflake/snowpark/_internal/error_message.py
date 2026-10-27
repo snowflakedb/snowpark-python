@@ -244,6 +244,8 @@ class SnowparkClientExceptionMessages:
             error_code="1118",
         )
 
+    # Plan Analysis error codes 02XX
+
     @staticmethod
     def PLAN_ANALYZER_INVALID_IDENTIFIER(name: str) -> SnowparkPlanException:
         return SnowparkPlanException(f"Invalid identifier {name}", error_code="1200")
