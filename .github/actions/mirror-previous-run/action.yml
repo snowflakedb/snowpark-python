@@ -1,0 +1,15 @@
+name: Mirror previous run
+description: Copy this job's result from the previous push's run (CHANGELOG-only pushes).
+outputs:
+  skip:
+    description: "'true' when the previous success was copied; tests can be skipped"
+    value: ${{ steps.m.outputs.skip }}
+runs:
+  using: composite
+  steps:
+    - id: m
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BEFORE: ${{ github.event.before }}
+      run: ${{ github.action_path }}/../../scripts/mirror_previous_run.sh
