@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.document_reader import (
     cast_extracted_field,
     merge_extract_error,
     output_columns,
+    prompt_model,
     quote_stage_path,
 )
 from snowflake.snowpark._internal.document_reader_options import (
@@ -152,6 +153,47 @@ class TestMergeExtractError:
         mismatch = lit(True)
         result = merge_extract_error(native_error, ["AMOUNT"], [mismatch])
         assert type(result._expression).__name__ != "Cast"
+
+
+# ---------------------------------------------------------------------------
+# prompt_model -- a prompt read checks once per session whether AI_COMPLETE knows
+# the preferred model, and uses the fallback when it reports it unknown.
+# ---------------------------------------------------------------------------
+
+
+class _CheckSession:
+    def __init__(self, error=None) -> None:
+        self.error = error
+        self.checks = 0
+
+    def sql(self, query, params=None):
+        self.checks += 1
+        assert params == [_PREFERRED_EXTRACTION_MODEL]
+        result = mock.Mock()
+        result.collect.side_effect = self.error
+        return result
+
+
+class TestPromptModel:
+    def test_known_preferred_model_is_used_and_checked_once(self):
+        session = _CheckSession()
+        assert prompt_model(session) == _PREFERRED_EXTRACTION_MODEL
+        assert prompt_model(session) == _PREFERRED_EXTRACTION_MODEL
+        assert session.checks == 1
+
+    def test_unknown_preferred_model_uses_the_fallback(self):
+        session = _CheckSession(
+            Exception('remote service error: 400 unknown model "claude-sonnet-5-5"')
+        )
+        assert prompt_model(session) == _FALLBACK_EXTRACTION_MODEL
+        assert prompt_model(session) == _FALLBACK_EXTRACTION_MODEL
+        assert session.checks == 1
+
+    def test_other_failure_keeps_the_preferred_model_and_checks_again(self):
+        session = _CheckSession(Exception("429 too many requests"))
+        assert prompt_model(session) == _PREFERRED_EXTRACTION_MODEL
+        assert prompt_model(session) == _PREFERRED_EXTRACTION_MODEL
+        assert session.checks == 2
 
 
 # ---------------------------------------------------------------------------

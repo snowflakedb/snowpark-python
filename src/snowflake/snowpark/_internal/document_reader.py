@@ -4,6 +4,7 @@
 
 import json
 import os
+import weakref
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -67,9 +68,9 @@ if TYPE_CHECKING:  # pragma: no cover
     from snowflake.snowpark.session import Session
 
 
-# Models for schema reads, in order of preference: the extraction procedure uses the preferred
-# until AI_COMPLETE reports it unknown for the account, then the next, and fails the read
-# when it knows none. Both are cross-region models, so an account or region without them
+# Models in order of preference. For schema reads the extraction procedure uses the
+# preferred until AI_COMPLETE reports it unknown for the account, then the next, and fails
+# the read when it knows none; prompt reads choose one up front (prompt_model). Both are cross-region models, so an account or region without them
 # can lack either.
 # The budgets below were tuned on the preferred model.
 _PREFERRED_EXTRACTION_MODEL = "claude-sonnet-5-5"
@@ -488,7 +489,39 @@ def extract_with_ai_extract(
     return df.with_columns(names, values)
 
 
-def build_ai_complete_call(input_col: Column, options: DocumentReaderOptions) -> Column:
+# Whether AI_COMPLETE knows the preferred model, per session (see prompt_model).
+_PREFERRED_MODEL_KNOWN: "weakref.WeakKeyDictionary[Session, bool]" = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def prompt_model(session: "Session") -> str:
+    """The model for a prompt read: the preferred one, or the fallback when AI_COMPLETE
+    reports the preferred one unknown for the account or region. A prompt read is one
+    query, and an unknown model fails the whole query rather than one document, so it is
+    checked up front with one call of a single output token, once per session. Any other
+    failure of the check keeps the preferred model for this read and is not remembered."""
+    known = _PREFERRED_MODEL_KNOWN.get(session)
+    if known is None:
+        try:
+            session.sql(
+                "SELECT AI_COMPLETE(?, 'Reply with OK.', {'max_tokens': 1})",
+                params=[_PREFERRED_EXTRACTION_MODEL],
+            ).collect()
+            known = True
+        except Exception as exc:
+            if "unknown model" not in str(exc).lower():
+                return _PREFERRED_EXTRACTION_MODEL
+            known = False
+        _PREFERRED_MODEL_KNOWN[session] = known
+    return _PREFERRED_EXTRACTION_MODEL if known else _FALLBACK_EXTRACTION_MODEL
+
+
+def build_ai_complete_call(
+    input_col: Column,
+    options: DocumentReaderOptions,
+    model: str = _PREFERRED_EXTRACTION_MODEL,
+) -> Column:
     # Parse ran: input_col is parsed CONTENT text, folded into AI_COMPLETE's
     # single-string variant. Parse didn't run: input_col is SOURCE_FILE, passed to
     # AI_COMPLETE's file variant instead -- whose prompt argument must then be a plain
@@ -504,14 +537,14 @@ def build_ai_complete_call(input_col: Column, options: DocumentReaderOptions) ->
             else concat(lit(options.prompt), lit("\n\n"), input_col)
         )
         return ai_complete(
-            _PREFERRED_EXTRACTION_MODEL,
+            model,
             prompt_text,
             model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},
             response_format=response_format,
             return_error_details=True,
         )
     return ai_complete(
-        _PREFERRED_EXTRACTION_MODEL,
+        model,
         options.prompt or _DEFAULT_EXTRACTION_PROMPT,
         file=input_col,
         model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},
@@ -523,7 +556,7 @@ def build_ai_complete_call(input_col: Column, options: DocumentReaderOptions) ->
 def extract_with_ai_complete(
     df: "DataFrame", input_col: Column, options: DocumentReaderOptions
 ) -> "DataFrame":
-    call = build_ai_complete_call(input_col, options)
+    call = build_ai_complete_call(input_col, options, prompt_model(df.session))
     # Unlike AI_PARSE_DOCUMENT/AI_EXTRACT, AI_COMPLETE(..., return_error_details=True)
     # returns a native OBJECT rather than a JSON string -- CAST(... AS VARCHAR), which
     # as_variant() always applies, fails to compile for it. Bracket access works
