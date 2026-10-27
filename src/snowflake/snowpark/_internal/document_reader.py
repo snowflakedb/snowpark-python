@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
+from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.document_reader_options import (
     CONTENT_COLUMN,
     DocumentReaderOptions,
@@ -180,9 +181,10 @@ def as_variant(column: Column) -> Column:
 
 
 def quote_stage_path(path: str) -> str:
-    """``path`` as a single-quoted SQL string literal for LIST, with backslashes and
-    single quotes escaped, so nothing in it can add a clause to the statement."""
-    return "'" + path.replace("\\", "\\\\").replace("'", "\\'") + "'"
+    """``path`` as the repo's SQL string literal for LIST, with backslashes, single
+    quotes and newlines escaped (see ``str_to_sql``), so nothing in it can add a
+    clause to the statement."""
+    return str_to_sql(path)
 
 
 def access(session: "Session", path: str) -> "DataFrame":

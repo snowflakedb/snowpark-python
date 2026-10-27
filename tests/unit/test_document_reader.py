@@ -6,6 +6,7 @@ from unittest import mock
 
 import pytest
 
+from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.document_reader import (
     _CALL_BUDGETS,
     _FALLBACK_EXTRACTION_MODEL,
@@ -298,12 +299,25 @@ class TestQuoteStagePath:
         [
             ("@stage/docs/", "'@stage/docs/'"),
             ("@db.sch.stage/a b/", "'@db.sch.stage/a b/'"),
-            ("@s/it's/", "'@s/it\\'s/'"),
+            ("@s/it's/", "'@s/it''s/'"),
             ("@s/a\\b/", "'@s/a\\\\b/'"),
             ("@s/x; DROP TABLE t", "'@s/x; DROP TABLE t'"),
             ("@s/x -- c", "'@s/x -- c'"),
-            ("@s/x' PATTERN='.*", "'@s/x\\' PATTERN=\\'.*'"),
+            ("@s/x' PATTERN='.*", "'@s/x'' PATTERN=''.*'"),
+            ("@s/a\nb", "'@s/a\\nb'"),
+            ("@s/a'b", "'@s/a''b'"),
+            ("@s/a\\'b", "'@s/a\\\\''b'"),
         ],
     )
     def test_quotes_and_escapes(self, path, expected):
         assert quote_stage_path(path) == expected
+
+    def test_matches_str_to_sql(self):
+        for path in (
+            "@s/it's/",
+            "@s/a\\b/",
+            "@s/a\nb",
+            "@s/a\\'b",
+            "@s/x' PATTERN='.*",
+        ):
+            assert quote_stage_path(path) == str_to_sql(path)

@@ -873,9 +873,13 @@ def merge_scores(
 
 
 def quote_stage_path(path: str) -> str:
-    """``path`` as a single-quoted SQL string literal for LIST, with backslashes and
-    single quotes escaped, so nothing in it can add a clause to the statement."""
-    return "'" + path.replace("\\", "\\\\").replace("'", "\\'") + "'"
+    """``path`` as a single-quoted SQL string literal for LIST, with backslashes,
+    single quotes and newlines escaped, so nothing in it can add a clause to the
+    statement. A copy of ``str_to_sql`` in ``_internal/analyzer/datatype_mapper.py``,
+    since this file is uploaded standalone and must not import snowpark internals."""
+    return (
+        "'" + path.replace("\\", "\\\\").replace("'", "''").replace("\n", "\\n") + "'"
+    )
 
 
 def listed_size(row: Any) -> Optional[int]:
