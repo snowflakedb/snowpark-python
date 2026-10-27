@@ -100,10 +100,54 @@ _CALL_BUDGETS = {
 _MAX_CALLS_PER_FILE = 30
 
 
+# Settings of the parsing procedure (document_parse_proc.py), used for reads with neither
+# a schema nor a prompt.
+# - max_tokens / retries: every follow-up AI_COMPLETE call; a failed or empty answer is
+#   retried this many times, then that part of the page keeps AI_PARSE_DOCUMENT's output.
+# - transcribe_scans / repair_text / repair_tables / charts: which follow-up steps run.
+# - scan_min_words: a page with fewer text-layer words is a scan and is transcribed whole.
+# - degenerate_transcribe / degenerate_threshold: a page whose tables look invented (the
+#   same value or row repeated, see degeneracy()) is transcribed whole instead.
+# - transcribe_missed / coverage_min / coverage_min_chars: a page where the parser returned
+#   under coverage_min of the PDF text layer's characters (the layer having at least
+#   coverage_min_chars) is transcribed whole: the parser dropped part of it. A page with
+#   images uses coverage_min_with_images, since charts' labels are missing by design.
+# - transcribe_max_tokens: max_tokens of those whole-page transcriptions.
+# - tokens_per_word / row_range_tokens / rows_per_call / row_range_max_calls: a page to
+#   transcribe whose answer is estimated (tokens_per_word x text-layer words) over
+#   row_range_tokens is transcribed in row ranges of rows_per_call table rows.
+# - chart_context_chars: page text sent with each image to the chart call.
+_PARSE_SETTINGS = {
+    "max_tokens": 64000,
+    "retries": 1,
+    "transcribe_scans": True,
+    "repair_text": True,
+    "repair_tables": True,
+    "charts": True,
+    "scan_min_words": 20,
+    "degenerate_transcribe": False,
+    "degenerate_threshold": 0.5,
+    "transcribe_missed": True,
+    "coverage_min": 0.5,
+    "coverage_min_with_images": 0.15,
+    "coverage_min_chars": 200,
+    "transcribe_max_tokens": 64000,
+    "tokens_per_word": 21,
+    "row_range_tokens": 56000,
+    "rows_per_call": 40,
+    "row_range_max_calls": 12,
+    "chart_context_chars": 3000,
+}
+
+_PARSE_PROC_FILE_PATH = os.path.join(
+    os.path.dirname(__file__), "document_parse_proc.py"
+)
+_PARSE_PROC_NAME = "SNOWPARK_TEMP_PROCEDURE_DOCUMENT_PARSE"
+
 _EXTRACT_PROC_FILE_PATH = os.path.join(
     os.path.dirname(__file__), "document_extract_proc.py"
 )
-_EXTRACT_PROC_HANDLER = "run"
+_PROC_HANDLER = "run"
 _EXTRACT_PROC_NAME = "SNOWPARK_TEMP_PROCEDURE_DOCUMENT_EXTRACT"
 
 _PDF_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "pdf_reader.py")
@@ -133,6 +177,10 @@ def read_documents(
         df = extract_with_split_procedure(session, path, options)
         df = finalize_errors(session, df, options)
         return df.select(output_columns(options))
+    if uses_parse_procedure(options):
+        df = parse_with_procedure(session, path)
+        df = finalize_errors(session, df, options)
+        return df.select(output_columns(options))
 
     df = access(session, path)
 
@@ -144,6 +192,42 @@ def read_documents(
 
     df = finalize_errors(session, df, options)
     return df.select(output_columns(options))
+
+
+def uses_parse_procedure(options: DocumentReaderOptions) -> bool:
+    """A parse-only read with the default parse settings, which is every read with
+    neither a schema nor a prompt: it runs the parsing procedure. Other parse settings
+    can only be set internally and keep the single AI_PARSE_DOCUMENT call."""
+    return (
+        options.parse_enabled
+        and not options.complete_enabled
+        and options.parse_mode == "layout"
+        and options.row_boundary == "document"
+        and options.page_filter is None
+        and not options.extract_images
+    )
+
+
+def parse_with_procedure(session: "Session", path: str) -> "DataFrame":
+    """Every file under ``path`` parsed to Markdown by AI_PARSE_DOCUMENT, with each page
+    improved by AI_COMPLETE where the parser is weak (scans, tables, formatting, charts).
+    The follow-up calls depend on each page's parse, so they run in a stored procedure;
+    the CALL stays lazy until the DataFrame is collected."""
+    proc_name = register_parse_proc(session)
+    args = [
+        path,
+        _EXTRACTION_MODEL,
+        json.dumps(_PARSE_SETTINGS),
+        session.get_session_stage(),
+    ]
+    return session.sql(
+        f"CALL {proc_name}({', '.join(['?'] * len(args))})", params=args
+    ).select(
+        to_file(col("STAGE_PATH")).alias(SOURCE_FILE_COLUMN),
+        col("TOTAL_PAGES").alias(TOTAL_PAGES_COLUMN),
+        col("CONTENT").alias(CONTENT_COLUMN),
+        col("ERROR").alias(_PARSE_ERROR_COLUMN),
+    )
 
 
 def output_columns(options: DocumentReaderOptions) -> List[str]:
@@ -647,7 +731,61 @@ def register_pdf_udtf(session: "Session"):
     )
 
 
+def register_parse_proc(session: "Session") -> str:
+    """Register the parsing procedure for this session; returns its name."""
+    return _register_proc(
+        session,
+        _PARSE_PROC_FILE_PATH,
+        _PARSE_PROC_NAME,
+        StructType(
+            [
+                StructField("STAGE_PATH", StringType()),
+                StructField("TOTAL_PAGES", IntegerType()),
+                StructField("CONTENT", StringType()),
+                StructField("ERROR", StringType()),
+                StructField("TRACE", StringType()),
+            ]
+        ),
+        [StringType(), StringType(), StringType(), StringType()],
+        ["snowflake-snowpark-python", "pypdf", "pdfminer.six"],
+    )
+
+
 def register_extract_proc(session: "Session") -> str:
+    """Register the extraction procedure for this session; returns its name."""
+    return _register_proc(
+        session,
+        _EXTRACT_PROC_FILE_PATH,
+        _EXTRACT_PROC_NAME,
+        StructType(
+            [
+                StructField("STAGE_PATH", StringType()),
+                StructField("VALUE", StringType()),
+                StructField("ERROR", StringType()),
+            ]
+        ),
+        [
+            StringType(),
+            StringType(),
+            StringType(),
+            StringType(),
+            StringType(),
+            IntegerType(),
+            StringType(),
+        ],
+        ["snowflake-snowpark-python", "pypdf"],
+    )
+
+
+def _register_proc(
+    session: "Session",
+    file_path: str,
+    proc_name: str,
+    return_type: StructType,
+    input_types: List[Any],
+    packages: List[str],
+) -> str:
+    """Register a temporary procedure whose handler is ``run`` in ``file_path``."""
     if is_in_stored_procedure():  # pragma: no cover
         import_stage_name = session.get_fully_qualified_name_if_possible(
             "SNOWPARK_TEMP_STAGE_PDFIMPORTS"
@@ -658,38 +796,24 @@ def register_extract_proc(session: "Session") -> str:
         )
         import_stage = f"{STAGE_PREFIX}{import_stage_name}"
         session._conn.upload_file(
-            _EXTRACT_PROC_FILE_PATH,
+            file_path,
             import_stage,
             compress_data=False,
             overwrite=True,
             skip_upload_on_content_match=True,
         )
-        python_file_path = f"{import_stage}/{os.path.basename(_EXTRACT_PROC_FILE_PATH)}"
+        python_file_path = f"{import_stage}/{os.path.basename(file_path)}"
     else:
-        python_file_path = _EXTRACT_PROC_FILE_PATH
+        python_file_path = file_path
 
-    name = session.get_fully_qualified_name_if_possible(_EXTRACT_PROC_NAME)
+    name = session.get_fully_qualified_name_if_possible(proc_name)
     session.sproc.register_from_file(
         python_file_path,
-        _EXTRACT_PROC_HANDLER,
-        return_type=StructType(
-            [
-                StructField("STAGE_PATH", StringType()),
-                StructField("VALUE", StringType()),
-                StructField("ERROR", StringType()),
-            ]
-        ),
-        input_types=[
-            StringType(),
-            StringType(),
-            StringType(),
-            StringType(),
-            StringType(),
-            IntegerType(),
-            StringType(),
-        ],
+        _PROC_HANDLER,
+        return_type=return_type,
+        input_types=input_types,
         name=name,
-        packages=["snowflake-snowpark-python", "pypdf"],
+        packages=packages,
         if_not_exists=True,
         # Caller's rights: the proc reads the caller's stages and writes page parts to
         # the caller's session stage.

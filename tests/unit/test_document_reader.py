@@ -12,6 +12,7 @@ from snowflake.snowpark._internal.document_reader import (
     cast_extracted_field,
     merge_extract_error,
     output_columns,
+    uses_parse_procedure,
 )
 from snowflake.snowpark._internal.document_reader_options import (
     DocumentReaderOptions,
@@ -203,3 +204,27 @@ class TestOutputColumnsForPromptOnly:
             "RESPONSE",
             '"_document_error"',
         ]
+
+
+# ---------------------------------------------------------------------------
+# uses_parse_procedure -- every read with neither a schema nor a prompt runs the
+# parsing procedure; other parse settings (internal only) keep AI_PARSE_DOCUMENT.
+# ---------------------------------------------------------------------------
+
+
+class TestUsesParseProcedure:
+    def test_a_read_with_no_options_uses_the_procedure(self):
+        assert uses_parse_procedure(DocumentReaderOptions.from_reader_options({}))
+
+    def test_a_schema_or_prompt_read_does_not(self):
+        options = DocumentReaderOptions.from_reader_options({"PROMPT": "Summarize."})
+        assert not uses_parse_procedure(options)
+
+    def test_internal_parse_settings_keep_the_single_parse_call(self):
+        for options in (
+            DocumentReaderOptions(parse_mode="ocr"),
+            DocumentReaderOptions(row_boundary="page"),
+            DocumentReaderOptions(page_filter=[{"start": 0, "end": 1}]),
+            DocumentReaderOptions(extract_images=True),
+        ):
+            assert not uses_parse_procedure(options)
