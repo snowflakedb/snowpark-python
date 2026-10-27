@@ -4,6 +4,8 @@
 
 from unittest import mock
 
+import pytest
+
 from snowflake.snowpark._internal.document_reader import (
     _CALL_BUDGETS,
     _EXTRACTION_MODEL,
@@ -12,6 +14,7 @@ from snowflake.snowpark._internal.document_reader import (
     cast_extracted_field,
     merge_extract_error,
     output_columns,
+    quote_stage_path,
 )
 from snowflake.snowpark._internal.document_reader_options import (
     DocumentReaderOptions,
@@ -279,3 +282,26 @@ class TestOutputColumnsScores:
             extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
         )
         assert "EXTRACTION_SCORES" not in output_columns(options)
+
+
+# ---------------------------------------------------------------------------
+# quote_stage_path -- LIST gets the path as one escaped string literal, so nothing in
+# it can add a clause (a PATTERN, another statement) to the statement.
+# ---------------------------------------------------------------------------
+
+
+class TestQuoteStagePath:
+    @pytest.mark.parametrize(
+        "path, expected",
+        [
+            ("@stage/docs/", "'@stage/docs/'"),
+            ("@db.sch.stage/a b/", "'@db.sch.stage/a b/'"),
+            ("@s/it's/", "'@s/it\\'s/'"),
+            ("@s/a\\b/", "'@s/a\\\\b/'"),
+            ("@s/x; DROP TABLE t", "'@s/x; DROP TABLE t'"),
+            ("@s/x -- c", "'@s/x -- c'"),
+            ("@s/x' PATTERN='.*", "'@s/x\\' PATTERN=\\'.*'"),
+        ],
+    )
+    def test_quotes_and_escapes(self, path, expected):
+        assert quote_stage_path(path) == expected

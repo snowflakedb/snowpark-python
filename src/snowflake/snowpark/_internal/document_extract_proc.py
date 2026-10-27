@@ -859,6 +859,12 @@ def merge_scores(
     return merged
 
 
+def quote_stage_path(path: str) -> str:
+    """``path`` as a single-quoted SQL string literal for LIST, with backslashes and
+    single quotes escaped, so nothing in it can add a clause to the statement."""
+    return "'" + path.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
 def listed_size(row: Any) -> Optional[int]:
     """The ``size`` LIST reports for a file, or None when the row has none."""
     try:
@@ -1273,7 +1279,7 @@ class DocumentExtraction:
                 max_calls_per_file,
                 listed_size(row),
             )
-            for row in self.session.sql(f"LIST {path}").collect()
+            for row in self.session.sql(f"LIST {quote_stage_path(path)}").collect()
         ]
 
     def stage_part(self, file: FileState, start: int, end: int) -> Optional[str]:

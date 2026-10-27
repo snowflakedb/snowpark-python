@@ -57,6 +57,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     parse_text_answer,
     planning_segments,
     qualify_listed_name,
+    quote_stage_path,
     range_budget,
     ranges_from_plan,
     ranges_from_salvaged_status,
@@ -2968,3 +2969,26 @@ class TestCallsInFlight:
         assert big.cap <= HARD_MAX_CALLS_PER_FILE
         extraction.extract_until_done([big], tasks, 30)
         assert big.calls <= big.cap
+
+
+# ---------------------------------------------------------------------------
+# quote_stage_path -- LIST gets the path as one escaped string literal, so nothing in
+# it can add a clause (a PATTERN, another statement) to the statement.
+# ---------------------------------------------------------------------------
+
+
+class TestQuoteStagePath:
+    @pytest.mark.parametrize(
+        "path, expected",
+        [
+            ("@stage/docs/", "'@stage/docs/'"),
+            ("@db.sch.stage/a b/", "'@db.sch.stage/a b/'"),
+            ("@s/it's/", "'@s/it\\'s/'"),
+            ("@s/a\\b/", "'@s/a\\\\b/'"),
+            ("@s/x; DROP TABLE t", "'@s/x; DROP TABLE t'"),
+            ("@s/x -- c", "'@s/x -- c'"),
+            ("@s/x' PATTERN='.*", "'@s/x\\' PATTERN=\\'.*'"),
+        ],
+    )
+    def test_quotes_and_escapes(self, path, expected):
+        assert quote_stage_path(path) == expected

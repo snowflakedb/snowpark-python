@@ -181,11 +181,19 @@ def as_variant(column: Column) -> Column:
 # ---------------------------------------------------------------------------
 
 
+def quote_stage_path(path: str) -> str:
+    """``path`` as a single-quoted SQL string literal for LIST, with backslashes and
+    single quotes escaped, so nothing in it can add a clause to the statement."""
+    return "'" + path.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
 def access(session: "Session", path: str, *, _emit_ast: bool) -> "DataFrame":
     # The plain string path is kept as its own column because the PDF UDTF takes a
     # path string, not a FILE value.
     stage_path = concat(lit(STAGE_PREFIX), col('"name"'))
-    files_df = session.sql(f"LIST {path}", _emit_ast=_emit_ast).select(
+    files_df = session.sql(
+        f"LIST {quote_stage_path(path)}", _emit_ast=_emit_ast
+    ).select(
         to_file(stage_path).alias(SOURCE_FILE_COLUMN),
         stage_path.alias(_STAGE_PATH_COLUMN),
         _emit_ast=_emit_ast,
