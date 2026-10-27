@@ -686,6 +686,15 @@ def coalesce_ranges(
 
 HARD_MAX_CALLS_PER_FILE = 60
 
+# The most AI_COMPLETE calls a read keeps in flight at once: a round with more tasks is
+# submitted and collected in chunks of this size, planning calls included.
+MAX_CALLS_IN_FLIGHT = 64
+
+
+def chunks(items: List[Any], size: int) -> List[List[Any]]:
+    """``items`` in consecutive lists of at most ``size``."""
+    return [items[i : i + size] for i in range(0, len(items), size)]
+
 
 # A read that is failing across the board stops submitting instead of spending calls on
 # the rest: once this many documents have finished, it stops when more than this fraction
@@ -1320,7 +1329,10 @@ class DocumentExtraction:
         """The first round of tasks. A large file gets planning-only calls on segments of
         it, and its tasks are the ranges they plan; a segment whose plan fails, or that is
         too large to plan, falls back to a first call that extracts and plans its own
-        remainder. Every other file starts with its initial ranges."""
+        remainder. Every other file starts with its initial ranges. Planning calls count
+        against the file's call cap like any other: a segment of a file at its cap gets
+        no planning call and goes on as a first call, which the extraction loop reports
+        as over the cap. At most ``MAX_CALLS_IN_FLIGHT`` planning calls are in flight."""
         plan = self.budgets["plan_first"]
         tasks: List[Task] = []
         planned = [f for f in files if f.splittable and is_large_file(f.pages, f.size)]
@@ -1339,40 +1351,50 @@ class DocumentExtraction:
         ]
         while segments:
             self.wait_if_throttled()
-            jobs = []
-            for file, a, b in segments:
-                prompt = build_plan_predicate(
-                    self.predicate, a, b, file.pages, plan["range_target"], self.schema
-                )
-                try:
-                    staged = self.stage_part(file, a, b)
-                    job = (
-                        self.submit(file, prompt, staged, plan["max_tokens"])
-                        if staged is not None
-                        else None
+            again = []
+            for chunk in chunks(segments, MAX_CALLS_IN_FLIGHT):
+                jobs = []
+                for file, a, b in chunk:
+                    if file.calls >= file.cap:
+                        # Like a failed plan: the extraction loop gets the segment and
+                        # records the cap error for it.
+                        tasks.append((file, a, b, "first"))
+                        continue
+                    prompt = build_plan_predicate(
+                        self.predicate,
+                        a,
+                        b,
+                        file.pages,
+                        plan["range_target"],
+                        self.schema,
                     )
-                except Exception:
-                    job = None  # the fallback below records the error if it recurs
-                if job is None:
-                    tasks.append((file, a, b, "first"))
-                    continue
-                jobs.append((file, a, b, job))
-            segments = []
-            for file, a, b, submitted in jobs:
-                value, error, _ = self.collect(submitted)
-                if self.model_missing(file, submitted, error):
-                    segments.append(
-                        (file, a, b)
-                    )  # plan it again with the model now in use
-                    continue
-                if self.throttled(file, (id(file), a, b, 0), error):
-                    segments.append((file, a, b))  # plan it again after the wait
-                    continue
-                ranges = ranges_from_plan(value, a, b) if error is None else None
-                if ranges:
-                    tasks += [(file, x, y, file.range_budget) for x, y in ranges]
-                else:
-                    tasks.append((file, a, b, "first"))
+                    try:
+                        staged = self.stage_part(file, a, b)
+                        job = (
+                            self.submit(file, prompt, staged, plan["max_tokens"])
+                            if staged is not None
+                            else None
+                        )
+                    except Exception:
+                        job = None  # the fallback below records the error if it recurs
+                    if job is None:
+                        tasks.append((file, a, b, "first"))
+                        continue
+                    jobs.append((file, a, b, job))
+                for file, a, b, submitted in jobs:
+                    value, error, _ = self.collect(submitted)
+                    if self.model_missing(file, submitted, error):
+                        again.append((file, a, b))  # plan it again with the new model
+                        continue
+                    if self.throttled(file, (id(file), a, b, 0), error):
+                        again.append((file, a, b))  # plan it again after the wait
+                        continue
+                    ranges = ranges_from_plan(value, a, b) if error is None else None
+                    if ranges:
+                        tasks += [(file, x, y, file.range_budget) for x, y in ranges]
+                    else:
+                        tasks.append((file, a, b, "first"))
+            segments = again
         for file in planned:
             queued = sum(1 for task in tasks if task[0] is file)
             file.cap = max(
@@ -1383,8 +1405,9 @@ class DocumentExtraction:
     def extract_until_done(
         self, files: List[FileState], tasks: List[Task], max_calls_per_file: int
     ) -> None:
-        """Run every task at once, then the tasks their answers leave (the rest of a
-        range that did not fit, or the halves of one that failed) until none are left.
+        """Run every task, at most ``MAX_CALLS_IN_FLIGHT`` calls at a time
+        (``run_chunk``), then the tasks their answers leave (the rest of a range that did
+        not fit, or the halves of one that failed) until none are left.
         A failure in staging a part, submitting a call or processing an answer is that
         file's error, and the other files go on; a throttled call is sent again after a
         wait (``throttled``). After each round, while work is still waiting, the read
@@ -1394,65 +1417,74 @@ class DocumentExtraction:
         nothing is waiting there is nothing to stop and the results are complete."""
         while tasks:
             self.wait_if_throttled()
-            jobs = []
-            oversized: List[Task] = []
-            for file, start, end, budget_name in tasks:
-                if file.calls >= file.cap:
-                    file.errors.append(
-                        f"pages {start}-{end} not extracted: reached {file.cap} calls"
-                    )
-                    continue
-                try:
-                    staged = self.stage_part(file, start, end)
-                except Exception as exc:
-                    file.errors.append(
-                        f"pages {start}-{end}: could not stage part file: {exc}"
-                    )
-                    continue
-                if staged is None:
-                    mid = (start + end) // 2
-                    oversized += [
-                        (file, start, mid, budget_name),
-                        (file, mid + 1, end, budget_name),
-                    ]
-                    continue
-                budget = self.budgets[budget_name]
-                prompt = (
-                    build_predicate(
-                        self.predicate,
-                        budget["target"],
-                        start,
-                        end,
-                        file.pages,
-                        plan_target=self.budgets[file.range_budget]["target"],
-                    )
-                    + self.instruction
-                )
-                try:
-                    job = self.submit(file, prompt, staged, budget["max_tokens"])
-                except Exception as exc:
-                    file.errors.append(
-                        f"pages {start}-{end}: could not submit the AI_COMPLETE call: {exc}"
-                    )
-                    continue
-                jobs.append((file, start, end, budget_name, job))
-            tasks = oversized
-            for file, start, end, budget_name, job in jobs:
-                try:
-                    tasks += self.finish(
-                        file, start, end, budget_name, job, max_calls_per_file
-                    )
-                except NoModelAvailable:
-                    raise
-                except Exception as exc:
-                    file.errors.append(
-                        f"pages {start}-{end}: could not process the answer: {exc}"
-                    )
+            next_round: List[Task] = []
+            for chunk in chunks(tasks, MAX_CALLS_IN_FLIGHT):
+                next_round += self.run_chunk(chunk, max_calls_per_file)
+            tasks = next_round
             if tasks:
                 finished, failed, errors = document_outcomes(files, tasks)
                 if should_abort(finished, failed):
                     stop_waiting(tasks, abort_message(finished, failed, errors))
                     return
+
+    def run_chunk(self, chunk: List[Task], max_calls_per_file: int) -> List[Task]:
+        """Submit the calls for ``chunk`` (at most ``MAX_CALLS_IN_FLIGHT`` tasks), collect
+        them, and return the tasks they leave for the next round."""
+        jobs = []
+        oversized: List[Task] = []
+        for file, start, end, budget_name in chunk:
+            if file.calls >= file.cap:
+                file.errors.append(
+                    f"pages {start}-{end} not extracted: reached {file.cap} calls"
+                )
+                continue
+            try:
+                staged = self.stage_part(file, start, end)
+            except Exception as exc:
+                file.errors.append(
+                    f"pages {start}-{end}: could not stage part file: {exc}"
+                )
+                continue
+            if staged is None:
+                mid = (start + end) // 2
+                oversized += [
+                    (file, start, mid, budget_name),
+                    (file, mid + 1, end, budget_name),
+                ]
+                continue
+            budget = self.budgets[budget_name]
+            prompt = (
+                build_predicate(
+                    self.predicate,
+                    budget["target"],
+                    start,
+                    end,
+                    file.pages,
+                    plan_target=self.budgets[file.range_budget]["target"],
+                )
+                + self.instruction
+            )
+            try:
+                job = self.submit(file, prompt, staged, budget["max_tokens"])
+            except Exception as exc:
+                file.errors.append(
+                    f"pages {start}-{end}: could not submit the AI_COMPLETE call: {exc}"
+                )
+                continue
+            jobs.append((file, start, end, budget_name, job))
+        left = oversized
+        for file, start, end, budget_name, job in jobs:
+            try:
+                left += self.finish(
+                    file, start, end, budget_name, job, max_calls_per_file
+                )
+            except NoModelAvailable:
+                raise
+            except Exception as exc:
+                file.errors.append(
+                    f"pages {start}-{end}: could not process the answer: {exc}"
+                )
+        return left
 
     def finish(
         self,

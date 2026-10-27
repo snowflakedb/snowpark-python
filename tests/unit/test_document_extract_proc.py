@@ -36,6 +36,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     build_plan_predicate,
     build_predicate,
     call_cap,
+    chunks,
     coalesce_ranges,
     continues_across_split,
     document_estimate,
@@ -2887,3 +2888,83 @@ class TestExtractionPaths:
         file = _pdf_state("@s/a.pdf", pages=1, cap=3)
         extraction.extract_until_done([file], [(file, 1, 1, "range")], 3)
         assert file.cap > 3
+
+
+# ---------------------------------------------------------------------------
+# chunks / MAX_CALLS_IN_FLIGHT -- a round is submitted and collected in chunks, so
+# no more than MAX_CALLS_IN_FLIGHT calls are outstanding; planning calls also count
+# against the per-file call cap.
+# ---------------------------------------------------------------------------
+
+
+class _CountingSession(_FakeSession):
+    """Answers every call completely and records the most calls outstanding at once."""
+
+    def __init__(self, answer=_COMPLETE_ANSWER) -> None:
+        super().__init__()
+        self.answer, self.outstanding, self.most, self.submitted = answer, 0, 0, 0
+        session = self
+
+        class _CountingJob:
+            def __init__(self, raw) -> None:
+                self.raw = raw
+
+            def result(self):
+                session.outstanding -= 1
+                return [[self.raw]]
+
+        self._job = _CountingJob
+
+    def sql(self, query, params=None):
+        session = self
+
+        class _Pending:
+            @staticmethod
+            def collect_nowait():
+                session.submitted += 1
+                session.outstanding += 1
+                session.most = max(session.most, session.outstanding)
+                return session._job(session.answer)
+
+        return _Pending()
+
+
+class TestCallsInFlight:
+    def test_chunks(self):
+        assert chunks([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]]
+        assert chunks([], 3) == []
+
+    def test_a_round_never_has_more_than_the_limit_in_flight(self, monkeypatch):
+        monkeypatch.setattr(proc, "MAX_CALLS_IN_FLIGHT", 2)
+        session = _CountingSession()
+        extraction = _doc_extraction(session)
+        files = [_pdf_state(f"@s/{i}.pdf", pages=1) for i in range(5)]
+        tasks = extraction.plan_large_files(files)
+        extraction.extract_until_done(files, tasks, 30)
+        assert session.submitted == 5 and session.most == 2
+        assert all(len(f.parts) == 1 and not f.errors for f in files)
+
+    def test_planning_calls_never_have_more_than_the_limit_in_flight(self, monkeypatch):
+        monkeypatch.setattr(proc, "MAX_CALLS_IN_FLIGHT", 1)
+        plan_answer = json.dumps(
+            {"value": json.dumps({"ranges": [[1, 60, 1000]]}), "error": None}
+        )
+        session = _CountingSession(plan_answer)
+        extraction = _doc_extraction(session)
+        big = [_pdf_state(f"@s/{i}.pdf", pages=120) for i in range(2)]
+        extraction.plan_large_files(big)
+        assert session.submitted >= 4 and session.most == 1
+
+    def test_a_file_at_its_cap_gets_no_planning_call(self):
+        session = _CountingSession()
+        extraction = _doc_extraction(session)
+        big = _pdf_state("@s/big.pdf", pages=60)
+        big.calls = big.cap
+        tasks = extraction.plan_large_files([big])
+        assert session.submitted == 0
+        assert tasks and all(t[0] is big and t[3] == "first" for t in tasks)
+        # The fallback first calls then run under the cap raised for the planned file,
+        # which stays within the hard maximum.
+        assert big.cap <= HARD_MAX_CALLS_PER_FILE
+        extraction.extract_until_done([big], tasks, 30)
+        assert big.calls <= big.cap
