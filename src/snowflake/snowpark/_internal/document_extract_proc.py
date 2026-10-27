@@ -709,6 +709,33 @@ def chunks(items: List[Any], size: int) -> List[List[Any]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
+# Files are read and extracted in batches whose listed sizes add up to at most this, so
+# the procedure holds one batch of PDFs in memory at a time rather than the whole path.
+# MAX_FILE_READ_BYTES keeps any one file that is read below it.
+MAX_BATCH_BYTES = 500_000_000
+
+
+def batches(
+    listed: List[Tuple[str, Optional[int]]], max_bytes: int
+) -> List[List[Tuple[str, Optional[int]]]]:
+    """``listed`` ``(name, size)`` pairs in consecutive batches whose sizes add up to at
+    most ``max_bytes``. A file that is not read (over ``MAX_FILE_READ_BYTES``) or whose
+    size is unknown counts as 0; a file larger than ``max_bytes`` is a batch of its own."""
+    result: List[List[Tuple[str, Optional[int]]]] = []
+    batch: List[Tuple[str, Optional[int]]] = []
+    total = 0
+    for name, size in listed:
+        read = size if size is not None and size <= MAX_FILE_READ_BYTES else 0
+        if batch and total + read > max_bytes:
+            result.append(batch)
+            batch, total = [], 0
+        batch.append((name, size))
+        total += read
+    if batch:
+        result.append(batch)
+    return result
+
+
 # A read that is failing across the board stops submitting instead of spending calls on
 # the rest: once this many documents have finished, it stops when more than this fraction
 # of them failed (see ``should_abort``); what is finished is still returned.
@@ -1103,9 +1130,11 @@ def read_answer(raw: Any) -> Tuple[Any, Optional[str], Optional[Dict[str, Any]]]
 @dataclass
 class FileState:
     """One document's progress through the procedure. ``reader`` is None for a file that
-    is not a readable PDF: it is extracted whole, as one page, and never split.
-    ``failed`` marks a file whose bytes could not be read at all: it has its error, no
-    tasks, and still gets an output row."""
+    is not a readable PDF: it is extracted whole, as one page, and never split
+    (``splittable`` is False). The reader is dropped once the file's batch is done, to
+    free its bytes; ``splittable`` still says whether it was a PDF. ``failed`` marks a
+    file whose bytes could not be read at all: it has its error, no tasks, and still
+    gets an output row."""
 
     path: str
     reader: Any
@@ -1116,16 +1145,17 @@ class FileState:
     parts: List[Tuple[int, Dict[str, Any]]] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     failed: bool = False
+    splittable: bool = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Record whether this file can be cut into page ranges, i.e. it parsed as a
+        PDF, so that stays known after its reader is dropped."""
+        self.splittable = self.reader is not None
 
     @classmethod
     def failed_with(cls, path: str, size: int, cap: int, error: str) -> "FileState":
         """A ``failed`` file: one page, no tasks, and ``error`` as its only error."""
         return cls(path, None, 1, size, cap, errors=[error], failed=True)
-
-    @property
-    def splittable(self) -> bool:
-        """Whether this file can be cut into page ranges, i.e. it parsed as a PDF."""
-        return self.reader is not None
 
     @property
     def range_budget(self) -> str:
@@ -1310,17 +1340,50 @@ class DocumentExtraction:
             )
         return FileState(name, reader, pages, len(content), max_calls_per_file)
 
-    def load_files(self, path: str, max_calls_per_file: int) -> List[FileState]:
-        """List every file under ``path`` and load each (see ``load_file``). Listing the
+    def list_files(self, path: str) -> List[Tuple[str, Optional[int]]]:
+        """Every file under ``path`` as ``(stage reference, listed size)``. Listing the
         path itself failing stops the read: there is nothing to report per file."""
         return [
-            self.load_file(
-                qualify_listed_name(path, row["name"]),
-                max_calls_per_file,
-                listed_size(row),
-            )
+            (qualify_listed_name(path, row["name"]), listed_size(row))
             for row in self.session.sql(f"LIST {quote_stage_path(path)}").collect()
         ]
+
+    def load_files(
+        self, listed: List[Tuple[str, Optional[int]]], max_calls_per_file: int
+    ) -> List[FileState]:
+        """Load each listed file (see ``load_file``)."""
+        return [self.load_file(name, max_calls_per_file, size) for name, size in listed]
+
+    def extract_in_batches(
+        self, listed: List[Tuple[str, Optional[int]]], max_calls_per_file: int
+    ) -> List[FileState]:
+        """Every listed file's ``FileState``, extracted one batch at a time (``batches``,
+        ``MAX_BATCH_BYTES``): load the batch, plan it, extract it, then drop its readers
+        before the next batch is read. The early stop (``should_abort``) counts the
+        documents of every batch so far. Once the read has stopped, the files of the
+        batches left are not read: each gets an error saying so."""
+        files: List[FileState] = []
+        stopped: Optional[str] = None
+        for batch in batches(listed, MAX_BATCH_BYTES):
+            if stopped is None:
+                finished, failed, errors = document_outcomes(files, [])
+                if should_abort(finished, failed):
+                    stopped = abort_message(finished, failed, errors)
+            if stopped is not None:
+                files += [
+                    FileState.failed_with(
+                        name, size or 0, max_calls_per_file, f"not extracted: {stopped}"
+                    )
+                    for name, size in batch
+                ]
+                continue
+            loaded = self.load_files(batch, max_calls_per_file)
+            files += loaded
+            tasks = self.plan_large_files(loaded)
+            stopped = self.extract_until_done(files, tasks, max_calls_per_file)
+            for file in loaded:
+                file.reader = None
+        return files
 
     def stage_part(self, file: FileState, start: int, end: int) -> Optional[str]:
         """Stage the pages, with the previous page as context, as their own PDF; None
@@ -1501,7 +1564,7 @@ class DocumentExtraction:
 
     def extract_until_done(
         self, files: List[FileState], tasks: List[Task], max_calls_per_file: int
-    ) -> None:
+    ) -> Optional[str]:
         """Run every task, at most ``MAX_CALLS_IN_FLIGHT`` calls at a time
         (``run_chunk``), then the tasks their answers leave (the rest of a range that did
         not fit, or the halves of one that failed) until none are left.
@@ -1511,7 +1574,8 @@ class DocumentExtraction:
         stops submitting if ``should_abort`` says too many finished documents failed: the
         files with ranges still waiting get an error for them (``stop_waiting``) and
         everything finished is kept, so the caller still gets one row per file. When
-        nothing is waiting there is nothing to stop and the results are complete."""
+        nothing is waiting there is nothing to stop and the results are complete.
+        Returns why the read stopped, or None when it did not."""
         while tasks:
             self.wait_if_throttled()
             next_round: List[Task] = []
@@ -1521,8 +1585,10 @@ class DocumentExtraction:
             if tasks:
                 finished, failed, errors = document_outcomes(files, tasks)
                 if should_abort(finished, failed):
-                    stop_waiting(tasks, abort_message(finished, failed, errors))
-                    return
+                    reason = abort_message(finished, failed, errors)
+                    stop_waiting(tasks, reason)
+                    return reason
+        return None
 
     def run_chunk(self, chunk: List[Task], max_calls_per_file: int) -> List[Task]:
         """Submit the calls for ``chunk`` (at most ``MAX_CALLS_IN_FLIGHT`` tasks), collect
@@ -1686,8 +1752,8 @@ def run(
         reading, staging, submitting or merging is a file's own ERROR and does not
         stop the read. When more than ``MAX_FAILED_FRACTION`` of the readable PDFs finished
         so far failed (once ``MIN_DOCUMENTS_BEFORE_ABORT`` have), the read stops
-        submitting: files with page ranges still waiting say so in their ERROR, and every
-        finished row is returned as it is.
+        submitting: files with page ranges still waiting, and files of batches not yet
+        read, say so in their ERROR, and every finished row is returned as it is.
     """
     from snowflake.snowpark.types import StringType, StructField, StructType
 
@@ -1699,13 +1765,13 @@ def run(
         json.loads(call_budgets),
         work_stage,
     )
-    # 1. Read every file once, for its page count and size.
-    files = extraction.load_files(path, max_calls_per_file)
-    # 2. Decide the first page ranges: planned for large files, whole for the rest.
-    tasks = extraction.plan_large_files(files)
-    # 3. Extract until no range is left; each file collects its parts and errors.
-    extraction.extract_until_done(files, tasks, max_calls_per_file)
-    # 4. One row per file (see result_row), including files that failed.
+    # 1. List the files under the path, with their sizes.
+    listed = extraction.list_files(path)
+    # 2. For each batch of files: read them, plan the first page ranges (planned for
+    # large files, whole for the rest), and extract until no range is left; each file
+    # collects its parts and errors. Only one batch's bytes are held at a time.
+    files = extraction.extract_in_batches(listed, max_calls_per_file)
+    # 3. One row per file (see result_row), including files that failed.
     fields = list(extraction.schema.get("properties") or {})
     rows = [result_row(file, fields) for file in files]
     schema = StructType(

@@ -2257,7 +2257,7 @@ class TestPerFileFailures:
             return _pdf_bytes(3)
 
         monkeypatch.setattr(extraction, "read_bytes", read_bytes)
-        bad, good = extraction.load_files("@s", 30)
+        bad, good = extraction.load_files(extraction.list_files("@s"), 30)
         assert bad.failed and bad.errors == ["could not read file: denied"]
         assert not good.failed and good.pages == 3 and good.splittable
 
@@ -2316,7 +2316,7 @@ class TestPerFileFailures:
 
         extraction = _doc_extraction(_SizedSession())
         monkeypatch.setattr(extraction, "read_bytes", lambda name: _pdf_bytes(1))
-        small, big = extraction.load_files("@s", 30)
+        small, big = extraction.load_files(extraction.list_files("@s"), 30)
         assert not small.failed and big.failed
 
     @pytest.mark.parametrize(
@@ -2759,6 +2759,107 @@ class TestRun:
 
 
 # ---------------------------------------------------------------------------
+# Batches -- files are read and extracted a batch at a time (MAX_BATCH_BYTES of
+# listed size), so only one batch of PDFs is held in memory.
+# ---------------------------------------------------------------------------
+
+
+class _SizedRunSession(_RunSession):
+    """``_RunSession`` whose LIST also reports each file's size."""
+
+    def sql(self, query, params=None):
+        if query.startswith("LIST"):
+            return _Result(
+                rows=[
+                    {"name": f"s/{name}", "size": len(data)}
+                    for name, data in self.files.items()
+                ]
+            )
+        return super().sql(query, params)
+
+
+def _run_in_batches(monkeypatch, files, answer, batch_bytes):
+    """``_run`` with sizes in the listing and ``MAX_BATCH_BYTES`` set to ``batch_bytes``;
+    also returns the names of each batch as it was loaded."""
+    monkeypatch.setattr(proc, "MAX_BATCH_BYTES", batch_bytes)
+    session = _SizedRunSession(files, answer)
+    monkeypatch.setattr(
+        DocumentExtraction,
+        "read_bytes",
+        staticmethod(lambda name: session.files[name.rsplit("/", 1)[-1]]),
+    )
+    loaded_batches, loaded_states = [], []
+    load_files = DocumentExtraction.load_files
+
+    def recording_load_files(self, listed, max_calls_per_file):
+        # Every earlier batch has dropped its readers before this one is read.
+        assert all(state.reader is None for state in loaded_states)
+        loaded_batches.append([name.rsplit("/", 1)[-1] for name, _ in listed])
+        states = load_files(self, listed, max_calls_per_file)
+        loaded_states.extend(states)
+        return states
+
+    monkeypatch.setattr(DocumentExtraction, "load_files", recording_load_files)
+    rows, _ = proc.run(
+        session,
+        "@s",
+        json.dumps(_RUN_SCHEMA),
+        "Extract.",
+        json.dumps(["m1"]),
+        json.dumps(_BUDGETS),
+        30,
+        "@stage",
+    )
+    return session, rows, loaded_batches
+
+
+class TestBatches:
+    def test_batches_add_up_to_at_most_the_limit_in_order(self):
+        listed = [("a", 4), ("b", 4), ("c", 3), ("d", 9), ("e", 1)]
+        assert proc.batches(listed, 8) == [
+            [("a", 4), ("b", 4)],
+            [("c", 3)],
+            [("d", 9)],
+            [("e", 1)],
+        ]
+
+    def test_unread_and_unknown_sizes_count_as_nothing(self):
+        listed = [("a", 5), ("big", MAX_FILE_READ_BYTES + 1), ("x", None), ("b", 5)]
+        assert proc.batches(listed, 10) == [listed]
+
+    def test_no_files_is_no_batches(self):
+        assert proc.batches([], 10) == []
+
+    def test_each_batch_is_read_after_the_last_one_drops_its_readers(self, monkeypatch):
+        good = _answer({STATUS_FIELD: {"complete": True}, "invoice": "I", "rows": []})
+        files = {f"{n}.pdf": _pdf_bytes(1) for n in "abcde"}
+        size = len(_pdf_bytes(1))
+        _, rows, loaded = _run_in_batches(monkeypatch, files, lambda s: good, 2 * size)
+        assert loaded == [["a.pdf", "b.pdf"], ["c.pdf", "d.pdf"], ["e.pdf"]]
+        assert [row[0] for row in rows] == [f"@s/{n}.pdf" for n in "abcde"]
+        assert all(json.loads(row[1])["invoice"] == "I" for row in rows)
+        assert all(row[2] is None for row in rows)
+
+    def test_a_stopped_read_does_not_read_the_batches_left(self, monkeypatch):
+        names = [f"f{n:02}.pdf" for n in range(MIN_DOCUMENTS_BEFORE_ABORT + 3)]
+        files = {name: _pdf_bytes(1) for name in names}
+        size = len(_pdf_bytes(1))
+        session, rows, loaded = _run_in_batches(
+            monkeypatch,
+            files,
+            lambda staged: _answer(error="boom"),
+            MIN_DOCUMENTS_BEFORE_ABORT * size,
+        )
+        # The first batch fails across the board, so the second is never read.
+        assert loaded == [names[:MIN_DOCUMENTS_BEFORE_ABORT]]
+        assert len(session.calls) == MIN_DOCUMENTS_BEFORE_ABORT
+        assert len(rows) == len(names)
+        for row in rows[MIN_DOCUMENTS_BEFORE_ABORT:]:
+            assert row[1] is None
+            assert row[2].startswith("not extracted: the read stopped early")
+
+
+# ---------------------------------------------------------------------------
 # Small branches of the helpers that the tests above do not reach.
 # ---------------------------------------------------------------------------
 
@@ -2822,7 +2923,7 @@ class TestExtractionPaths:
     def test_a_file_that_is_not_a_pdf_is_one_unsplittable_page(self, monkeypatch):
         extraction = _doc_extraction(_FakeSession(["s/a.txt"]))
         monkeypatch.setattr(extraction, "read_bytes", lambda name: b"plain text")
-        [file] = extraction.load_files("@s", 30)
+        [file] = extraction.load_files(extraction.list_files("@s"), 30)
         assert file.reader is None and file.pages == 1 and not file.splittable
 
     def test_a_non_pdf_keeps_its_answer_or_its_error(self, monkeypatch):
