@@ -11,10 +11,10 @@ import snowflake.snowpark.session
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.ast.batch import AstBatch
-from snowflake.snowpark._internal.server_connection import ServerConnection
-from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark._internal.proto.generated import ast_pb2 as proto
+from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.utils import AstFlagSource, set_ast_state
+from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.functions import col
 
