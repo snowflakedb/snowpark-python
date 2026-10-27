@@ -49,6 +49,7 @@ from snowflake.snowpark.functions import (
     max as max_,
     object_construct_keep_null,
     random,
+    substring,
     to_file,
     try_cast,
     try_parse_json,
@@ -187,10 +188,44 @@ def quote_stage_path(path: str) -> str:
     return str_to_sql(path)
 
 
+def split_stage(path: str) -> Tuple[str, int]:
+    """The stage part of ``path`` (``@`` and everything before the first ``/`` outside
+    double quotes), and how many leading characters of a name LIST returns for it are the
+    stage's own name. LIST names a file of a named stage '<stage name>/<relative path>',
+    with no database or schema and the name lower-cased, but a file of the user stage
+    (``@~``) or a table stage (``@%t``) by its relative path alone. A copy of
+    ``split_stage`` in ``document_extract_proc.py``, which is uploaded standalone."""
+    in_quotes = False
+    end = len(path)
+    for i, char in enumerate(path):
+        if char == '"':
+            in_quotes = not in_quotes
+        elif char == "/" and not in_quotes:
+            end = i
+            break
+    stage = "@" + path[:end].lstrip("@")
+    in_quotes = False
+    name_start = 0
+    for i, char in enumerate(stage):
+        if char == '"':
+            in_quotes = not in_quotes
+        elif char in "@." and not in_quotes:
+            name_start = i + 1
+    name = stage[name_start:]
+    if name == "~" or name.startswith("%"):
+        return stage, 0
+    if name.startswith('"') and name.endswith('"') and len(name) > 1:
+        name = name[1:-1].replace('""', '"')
+    return stage, len(name) + 1
+
+
 def access(session: "Session", path: str) -> "DataFrame":
     # The plain string path is kept as its own column because the PDF UDTF takes a
-    # path string, not a FILE value.
-    stage_path = concat(lit(STAGE_PREFIX), col('"name"'))
+    # path string, not a FILE value. Each file is referenced through the stage as the
+    # user wrote it (see split_stage), so it resolves for user and table stages, quoted
+    # names and stages outside the current schema.
+    stage, listed_prefix = split_stage(path)
+    stage_path = concat(lit(f"{stage}/"), substring(col('"name"'), listed_prefix + 1))
     files_df = session.sql(f"LIST {quote_stage_path(path)}").select(
         to_file(stage_path).alias(SOURCE_FILE_COLUMN),
         stage_path.alias(_STAGE_PATH_COLUMN),

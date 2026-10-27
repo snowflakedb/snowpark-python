@@ -124,6 +124,35 @@ def test_documents_default_options(session, invoice_path):
     assert rows[0]["_document_error"] is None
 
 
+@pytest.mark.parametrize("stage_kind", ["user", "quoted"])
+def test_user_stage_and_quoted_stage_names(session, resources_path, stage_kind):
+    # LIST names a user-stage file by its relative path alone, and a quoted stage's
+    # file by the lower-cased stage name; both must resolve back to the file.
+    folder = Utils.random_alphanumeric_str(8)
+    if stage_kind == "user":
+        path = f"@~/{folder}/"
+    else:
+        stage_name = f'"{Utils.random_alphanumeric_str(6)} Docs"'
+        session.sql(
+            f"CREATE OR REPLACE TEMP STAGE {stage_name} "
+            "ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+        ).collect()
+        path = f"@{stage_name}/{folder}/"
+    session.file.put(
+        TestFiles(resources_path).test_invoice_pdf, path, auto_compress=False
+    )
+    try:
+        rows = session.read.documents(path).collect()
+        assert len(rows) == 1
+        assert rows[0]["CONTENT"]
+        assert rows[0]["_document_error"] is None
+    finally:
+        if stage_kind == "user":
+            session.sql(f"REMOVE {path}").collect()
+        else:
+            Utils.drop_stage(session, stage_name)
+
+
 def test_multiple_files_produce_one_row_each(session, doc_stage):
     rows = session.read.documents(f"@{doc_stage}").collect()
 

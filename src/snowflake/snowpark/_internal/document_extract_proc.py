@@ -917,12 +917,42 @@ def listed_size(row: Any) -> Optional[int]:
         return None
 
 
+def split_stage(path: str) -> Tuple[str, int]:
+    """The stage part of ``path`` (``@`` and everything before the first ``/`` outside
+    double quotes), and how many leading characters of a name LIST returns for it are the
+    stage's own name. LIST names a file of a named stage '<stage name>/<relative path>',
+    with no database or schema and the name lower-cased, but a file of the user stage
+    (``@~``) or a table stage (``@%t``) by its relative path alone. A copy of
+    ``split_stage`` in ``document_reader.py``, which cannot import this file."""
+    in_quotes = False
+    end = len(path)
+    for i, char in enumerate(path):
+        if char == '"':
+            in_quotes = not in_quotes
+        elif char == "/" and not in_quotes:
+            end = i
+            break
+    stage = "@" + path[:end].lstrip("@")
+    in_quotes = False
+    name_start = 0
+    for i, char in enumerate(stage):
+        if char == '"':
+            in_quotes = not in_quotes
+        elif char in "@." and not in_quotes:
+            name_start = i + 1
+    name = stage[name_start:]
+    if name == "~" or name.startswith("%"):
+        return stage, 0
+    if name.startswith('"') and name.endswith('"') and len(name) > 1:
+        name = name[1:-1].replace('""', '"')
+    return stage, len(name) + 1
+
+
 def qualify_listed_name(path: str, listed_name: str) -> str:
-    """LIST returns '<stage name>/<relative path>' without database or schema; rebuild a
-    reference that resolves regardless of the session's current schema."""
-    stage = path.lstrip("@").split("/", 1)[0]
-    relative = listed_name.split("/", 1)[1] if "/" in listed_name else listed_name
-    return f"@{stage}/{relative}"
+    """A reference to a file LIST returned for ``path`` (see ``split_stage``) that
+    resolves regardless of the session's current database and schema."""
+    stage, listed_prefix = split_stage(path)
+    return f"{stage}/{listed_name[listed_prefix:]}"
 
 
 # claude-sonnet-5-5 rejects response_format, so the schema travels in the predicate and

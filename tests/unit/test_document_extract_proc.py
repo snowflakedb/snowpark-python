@@ -1330,6 +1330,34 @@ class TestQualifyListedName:
     def test_unqualified_stage(self):
         assert qualify_listed_name("@mystage", "mystage/a.pdf") == "@mystage/a.pdf"
 
+    # LIST names below are as observed live for each stage kind.
+    @pytest.mark.parametrize(
+        "path, listed_name, expected",
+        [
+            ("@~/docs/", "docs/a.pdf", "@~/docs/a.pdf"),
+            ("@%tbl/sub/", "sub/a.pdf", "@%tbl/sub/a.pdf"),
+            ("@DB.SCH.%tbl/sub/", "sub/a.pdf", "@DB.SCH.%tbl/sub/a.pdf"),
+            ('@"My Stage"/sub/', "my stage/sub/a.pdf", '@"My Stage"/sub/a.pdf'),
+            (
+                '@"DB"."SCH"."My Stage"/sub/',
+                "my stage/sub/a.pdf",
+                '@"DB"."SCH"."My Stage"/sub/a.pdf',
+            ),
+            ('@"a/b"/sub/', "a/b/sub/a.pdf", '@"a/b"/sub/a.pdf'),
+            ('@"a.b"/x.pdf', "a.b/x.pdf", '@"a.b"/x.pdf'),
+            ("@MixedStg/sub/", "mixedstg/sub/a.pdf", "@MixedStg/sub/a.pdf"),
+            ("mystage/a.pdf", "mystage/a.pdf", "@mystage/a.pdf"),
+        ],
+    )
+    def test_every_stage_kind(self, path, listed_name, expected):
+        assert qualify_listed_name(path, listed_name) == expected
+
+    def test_matches_the_reader_copy(self):
+        from snowflake.snowpark._internal import document_reader
+
+        for path in ["@~/d/", "@%t", '@"a/b"/c', "@DB.SCH.S/x", '@"x""y"/z', "@s"]:
+            assert proc.split_stage(path) == document_reader.split_stage(path)
+
 
 # ---------------------------------------------------------------------------
 # schema_instruction -- the fixed instruction text sent to claude-sonnet-5-5
