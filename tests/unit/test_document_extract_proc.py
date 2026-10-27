@@ -10,6 +10,7 @@ import types
 
 import pytest
 
+import snowflake.snowpark._internal.document_extract_proc as proc
 from snowflake.snowpark._internal.document_extract_proc import (
     BOUNDED_FIRST_CALL_MIN_BYTES,
     BOUNDED_FIRST_CALL_MIN_PAGES,
@@ -20,9 +21,11 @@ from snowflake.snowpark._internal.document_extract_proc import (
     HARD_MAX_CALLS_PER_FILE,
     MAX_FAILED_FRACTION,
     MAX_FILE_BYTES,
+    MAX_THROTTLE_RETRIES,
     MIN_DOCUMENTS_BEFORE_ABORT,
     SCORES_FIELD,
     STATUS_FIELD,
+    THROTTLE_BACKOFF_SECONDS,
     TRUNCATED_TEXT_ERROR,
     _cover,
     _to_document_page,
@@ -39,6 +42,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     initial_ranges,
     is_empty_answer,
     is_splittable_error,
+    is_throttle_error,
     is_unknown_model_error,
     merge_scores,
     merge_values,
@@ -59,6 +63,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     shift_page_fields,
     should_abort,
     split_evenly,
+    stop_waiting,
     unwrap_envelope,
     with_status,
 )
@@ -1814,7 +1819,7 @@ class TestModelFallback:
 
     def test_another_error_is_still_a_per_file_error(self):
         session = _ModelSession(
-            lambda model, predicate: {"value": None, "error": "429 too many requests"}
+            lambda model, predicate: {"value": None, "error": "boom for good"}
         )
         extraction = _extraction(session, ["m1", "m2"])
         file = _plain_file()
@@ -1822,7 +1827,7 @@ class TestModelFallback:
         assert extraction.model == "m1"
         assert session.submitted == ["m1"]
         assert file.calls == 1 and file.parts == []
-        assert any("429" in error for error in file.errors)
+        assert any("boom for good" in error for error in file.errors)
 
     def test_planning_calls_are_sent_again_with_the_next_model(self):
         def behave(model, predicate):
@@ -1876,7 +1881,7 @@ class TestAbortMessage:
     def test_it_states_the_counts_and_the_most_common_error(self):
         message = abort_message(12, 11, ["boom", "boom", "other"])
         assert "11 of the 12 documents" in message
-        assert "Stopped early" in message
+        assert "the read stopped early" in message
         assert "Most common error: boom" in message
 
     def test_it_works_without_any_error_text(self):
@@ -1902,6 +1907,48 @@ class TestDocumentOutcomes:
     def test_a_partly_extracted_document_succeeded(self):
         partial = _file("a", parts=[(1, {"x": 1})], errors=["pages 5-9: boom"])
         assert document_outcomes([partial], []) == (1, 0, [])
+
+    def test_a_file_that_is_not_a_pdf_is_not_a_document(self):
+        not_a_pdf = FileState("@s/n.txt", None, 1, 10, 30, errors=["boom"])
+        assert document_outcomes([not_a_pdf], []) == (0, 0, [])
+
+    def test_a_file_that_could_not_be_read_is_not_a_document(self):
+        unreadable = FileState("@s/u.pdf", None, 1, 0, 30, errors=["e"], failed=True)
+        assert document_outcomes([unreadable], []) == (0, 0, [])
+
+    def test_ten_failing_pdfs_stay_ten_however_many_non_documents_fail(self):
+        files = [_file(f"p{i}", errors=["boom"]) for i in range(10)]
+        files += [
+            FileState(f"@s/n{i}", None, 1, 10, 30, errors=["x"]) for i in range(5)
+        ]
+        finished, failed, _ = document_outcomes(files, [])
+        assert (finished, failed) == (10, 10)
+        assert should_abort(finished, failed)
+
+    def test_failing_non_documents_never_trip_the_stop(self):
+        files = [_file(f"p{i}", errors=["boom"]) for i in range(3)]
+        files += [
+            FileState(f"@s/n{i}", None, 1, 10, 30, errors=["x"]) for i in range(20)
+        ]
+        finished, failed, _ = document_outcomes(files, [])
+        assert (finished, failed) == (3, 3)
+        assert not should_abort(finished, failed)
+
+
+class TestStopWaiting:
+    def test_each_file_with_waiting_ranges_gets_one_error_naming_them(self):
+        a, b = _file("a", parts=[(1, {"x": 1})], errors=["old"]), _file("b")
+        stop_waiting(
+            [(a, 5, 9, "range"), (b, 1, 2, "range"), (a, 20, 30, "range")], "why"
+        )
+        assert a.errors == ["old", "pages 5-9, 20-30 not extracted: why"]
+        assert b.errors == ["pages 1-2 not extracted: why"]
+        assert a.parts == [(1, {"x": 1})]
+
+    def test_a_file_with_nothing_waiting_is_untouched(self):
+        done = _file("done", errors=["e"])
+        stop_waiting([(_file("w"), 1, 1, "range")], "why")
+        assert done.errors == ["e"]
 
 
 class _FakeExtraction(DocumentExtraction):
@@ -1938,25 +1985,151 @@ def _run_fake(failing, with_splittable):
 
 
 class TestReadStopsWhenMostDocumentsFail:
-    def test_it_stops_while_work_is_still_waiting(self):
+    def test_it_stops_submitting_and_returns_every_row(self):
         # 11 documents fail for good in round one; the 12th has pages left to retry.
-        with pytest.raises(RuntimeError, match="Stopped early: 11 of the 11"):
-            _run_fake(failing=11, with_splittable=True)
+        files = _run_fake(failing=11, with_splittable=True)
+        waiting = files[-1]
+        assert "not extracted: the read stopped early because 11 of the 11" in (
+            waiting.errors[-1]
+        )
+        assert "pages 1-2, 3-4" in waiting.errors[-1]
+        assert files[0].errors == ["pages 1-1: boom"]  # finished rows are untouched
 
-    def test_the_error_names_the_most_common_failure(self):
-        with pytest.raises(RuntimeError, match="Most common error: pages 1-1: boom"):
-            _run_fake(failing=11, with_splittable=True)
+    def test_the_stop_names_the_most_common_failure(self):
+        files = _run_fake(failing=11, with_splittable=True)
+        assert "Most common error: pages 1-1: boom" in files[-1].errors[-1]
 
     def test_it_does_not_stop_below_the_minimum(self):
         files = _run_fake(failing=9, with_splittable=True)
         assert all(not f.parts for f in files)
-        assert all(f.errors for f in files)
+        assert not any("stopped early" in e for f in files for e in f.errors)
 
-    def test_it_does_not_stop_when_nothing_is_waiting(self):
+    def test_it_has_nothing_to_stop_when_nothing_is_waiting(self):
         # Every document failed, but the read is already complete: the per-document
-        # errors are returned instead of discarding the result.
+        # errors are returned as they are.
         files = _run_fake(failing=12, with_splittable=False)
         assert all(f.errors for f in files)
+        assert not any("stopped early" in e for f in files for e in f.errors)
+
+    def test_non_pdfs_failing_do_not_stop_the_read(self):
+        budgets = {
+            "first": {"target": 1, "max_tokens": 1},
+            "range": {"target": 1, "max_tokens": 1},
+            "large_range": {"target": 1, "max_tokens": 1},
+            "merge_target": 1,
+        }
+        schema = {"schema": {"type": "object", "properties": {"a": {"type": "string"}}}}
+        extraction = _FakeExtraction(None, schema, "p", ["m"], budgets, "@stage")
+        non_pdfs = [FileState(f"n{i}", None, 1, 10, 30) for i in range(15)]
+        waiting = _file("splittable", pages=4)
+        files = non_pdfs + [waiting]
+        tasks = [(f, 1, f.pages, "range") for f in files]
+        extraction.extract_until_done(files, tasks, 30)
+        assert all(f.errors for f in non_pdfs)
+        assert not any("stopped early" in e for f in files for e in f.errors)
+
+
+class TestThrottling:
+    @pytest.mark.parametrize(
+        "error",
+        [
+            "429 Too Many Requests",
+            "Request failed: '429 throttled'",
+            "rate limit exceeded",
+            "Rate-limit hit",
+            "ratelimit",
+            "the model is overloaded",
+            "503 Service Unavailable",
+            "service unavailable",
+            "no capacity for the model",
+            "insufficient capacity",
+        ],
+    )
+    def test_load_refusals_are_throttling(self, error):
+        assert is_throttle_error(error) is True
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            "malformed request",
+            '400 unknown model "x"',
+            "unexpected end of JSON input",
+            "query 01c800c4-0a1b-e95c-4290-a91512d070ef failed",
+            "pages 1-4: boom",
+            "the document exceeds the model capacity",
+        ],
+    )
+    def test_other_errors_are_not(self, error):
+        assert is_throttle_error(error) is False
+
+    def test_a_throttled_call_is_sent_again_and_succeeds(self, monkeypatch):
+        sleeps = []
+        monkeypatch.setattr(proc, "_sleep", sleeps.append)
+        answers = iter([{"value": None, "error": "429 too many requests"}, _GOOD])
+        session = _ModelSession(lambda model, predicate: next(answers))
+        extraction = _extraction(session, ["m1"])
+        file = _plain_file()
+        _run_calls(extraction, [file])
+        assert session.submitted == ["m1", "m1"]
+        assert file.calls == 1 and file.errors == [] and len(file.parts) == 1
+        assert sleeps == [THROTTLE_BACKOFF_SECONDS[0]]
+
+    def test_retries_are_bounded_and_the_last_answer_is_the_error(self, monkeypatch):
+        sleeps = []
+        monkeypatch.setattr(proc, "_sleep", sleeps.append)
+        session = _ModelSession(
+            lambda model, predicate: {"value": None, "error": "429 too many requests"}
+        )
+        extraction = _extraction(session, ["m1"])
+        file = _plain_file()
+        _run_calls(extraction, [file])
+        assert len(session.submitted) == 1 + MAX_THROTTLE_RETRIES
+        assert sleeps == list(THROTTLE_BACKOFF_SECONDS[:MAX_THROTTLE_RETRIES])
+        assert file.parts == [] and any("429" in e for e in file.errors)
+        assert file.calls == 1  # the throttled attempts are not counted
+
+    def test_a_throttled_call_is_not_a_failed_document(self, monkeypatch):
+        monkeypatch.setattr(proc, "_sleep", lambda seconds: None)
+        extraction = _extraction(_ModelSession(lambda m, p: _GOOD), ["m1"])
+        file = _plain_file()
+        file.calls = 1
+        assert extraction.throttled(file, (id(file), 1, 1), "429 too many requests")
+        assert file.calls == 0 and file.errors == [] and extraction.throttle_wait == 5
+        extraction.wait_if_throttled()
+        assert extraction.throttle_wait == 0
+
+    def test_the_wait_grows_with_each_retry_of_the_same_range(self):
+        extraction = _extraction(_ModelSession(lambda m, p: _GOOD), ["m1"])
+        file = _plain_file()
+        key = (id(file), 1, 1)
+        waits = []
+        for _ in range(MAX_THROTTLE_RETRIES):
+            assert extraction.throttled(file, key, "rate limit")
+            waits.append(extraction.throttle_wait)
+            extraction.throttle_wait = 0
+        assert waits == list(THROTTLE_BACKOFF_SECONDS[:MAX_THROTTLE_RETRIES])
+        assert not extraction.throttled(file, key, "rate limit")
+
+    def test_a_throttled_planning_call_is_planned_again(self, monkeypatch):
+        sleeps = []
+        monkeypatch.setattr(proc, "_sleep", sleeps.append)
+        seen = {}
+
+        def behave(model, predicate):
+            seen[predicate] = seen.get(predicate, 0) + 1
+            if seen[predicate] == 1:  # each segment is throttled once
+                return {"value": None, "error": "503 service unavailable"}
+            return {"value": '{"ranges": [[2, 31]]}', "error": None}
+
+        session = _ModelSession(behave)
+        extraction = _extraction(session, ["m1"])
+        extraction.stage_part = lambda file, start, end: file.path
+        file = FileState("@s/big.pdf", object(), 60, 1000, 30)
+        tasks = extraction.plan_large_files([file])
+        # Two segments, both throttled in the same round: one wait, then both again.
+        assert len(session.submitted) == 4
+        assert sleeps == [THROTTLE_BACKOFF_SECONDS[0]]
+        assert file.errors == [] and tasks
 
 
 # ---------------------------------------------------------------------------
@@ -2102,9 +2275,9 @@ class TestPerFileFailures:
         assert [t[0] for t in tasks] == [good]
         assert result_row(failed) == ["@s/a.pdf", None, "could not read file: x", None]
 
-    def test_a_failed_file_counts_as_a_finished_failed_document(self):
+    def test_a_failed_file_is_not_counted_as_a_document(self):
         failed = FileState("@s/a.pdf", None, 1, 0, 30, errors=["e"], failed=True)
-        assert document_outcomes([failed], []) == (1, 1, ["e"])
+        assert document_outcomes([failed], []) == (0, 0, [])
 
     def test_a_staging_failure_is_that_files_error_and_the_other_file_goes_on(self):
         bad, good = _pdf_state("@s/bad.pdf"), _pdf_state("@s/good.pdf", pages=2)
@@ -2146,11 +2319,10 @@ class TestPerFileFailures:
             None,
         ]
 
-    def test_too_many_failed_documents_still_stops_the_read(self):
-        failed = [
-            FileState(f"@s/{i}.pdf", None, 1, 0, 30, errors=["e"], failed=True)
-            for i in range(10)
-        ]
+    def test_too_many_failed_documents_stop_the_read_but_keep_every_row(self):
+        failed = [_pdf_state(f"@s/{i}.pdf", pages=1) for i in range(10)]
+        for file in failed:
+            file.errors.append("e")
         waiting = _pdf_state("@s/w.pdf", pages=4)
         remaining = {
             "value": json.dumps(
@@ -2172,10 +2344,15 @@ class TestPerFileFailures:
             def sql(self, query, params=None):
                 return _Result(raw=json.dumps(remaining))
 
-        with pytest.raises(RuntimeError, match="Stopped early"):
-            _doc_extraction(_Partial()).extract_until_done(
-                failed + [waiting], [(waiting, 1, 4, "range")], 30
-            )
+        files = failed + [waiting]
+        _doc_extraction(_Partial()).extract_until_done(
+            files, [(waiting, 1, 4, "range")], 30
+        )
+        assert waiting.parts and waiting.errors[-1].startswith(
+            "pages 3-4 not extracted"
+        )
+        assert "stopped early because 10 of the 10" in waiting.errors[-1]
+        assert [result_row(f)[2] for f in failed] == ["e"] * 10
 
 
 # ---------------------------------------------------------------------------

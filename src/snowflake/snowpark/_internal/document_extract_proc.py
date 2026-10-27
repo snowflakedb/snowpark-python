@@ -14,8 +14,10 @@ the steps of ``DocumentExtraction`` just above it, in order:
    when it is over the size limit).
 3. ``extract_until_done``: extract every range at once; ``finish`` reads each answer
    and queues what it leaves (the rest of a range that did not fit, or the halves of a
-   failed one), until nothing is left. If most documents are failing, the read stops
-   early instead (``should_abort``).
+   failed one), until nothing is left. A throttled call is sent again after a short wait
+   (``is_throttle_error``). If most documents are failing, no further rounds are
+   submitted (``should_abort``): the documents still waiting get an error and the
+   finished rows are returned.
 4. back in ``run``: merge each file's parts, in page order, into one row.
 
 Calls go to the first of the candidate models. A call AI_COMPLETE reports as
@@ -38,6 +40,8 @@ import io
 import json
 import math
 import os
+import re
+import time
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
@@ -185,6 +189,37 @@ def is_splittable_error(error: str) -> bool:
         or UNPARSEABLE_TEXT_ERROR_PREFIX in error
         or NO_JSON_TEXT_ERROR in error
     )
+
+
+# Signatures of a call the service refused for load, not for its content: sending it
+# again later can succeed. Matched case-insensitively on the error text; the bare codes
+# need word boundaries so a query id or a number never matches.
+_THROTTLE_PATTERNS = (
+    re.compile(r"\b429\b"),
+    re.compile(r"too many requests"),
+    re.compile(r"throttl"),
+    re.compile(r"rate[ -]?limit"),
+    re.compile(r"(at|insufficient|no) capacity"),
+    re.compile(r"overloaded"),
+    re.compile(r"service unavailable"),
+    re.compile(r"\b503\b"),
+)
+
+# How often one page range is sent again after a throttled answer, and how long the next
+# round waits first (seconds, by retry number).
+MAX_THROTTLE_RETRIES = 3
+THROTTLE_BACKOFF_SECONDS = (5, 15, 45)
+_sleep = time.sleep  # replaced in tests
+
+
+def is_throttle_error(error: str) -> bool:
+    """True when ``error`` says the service refused the call because of load (rate limit,
+    429/503, overloaded, no capacity) rather than because of the document. An unknown
+    model and a "malformed request" (an input that is too large) are never throttling."""
+    text = error.lower()
+    if "unknown model" in text or "malformed request" in text:
+        return False
+    return any(pattern.search(text) for pattern in _THROTTLE_PATTERNS)
 
 
 def is_empty_answer(value: Any) -> bool:
@@ -647,9 +682,9 @@ def coalesce_ranges(
 HARD_MAX_CALLS_PER_FILE = 60
 
 
-# A read that is failing across the board stops instead of spending calls on the rest:
-# once this many documents have finished, it is aborted when more than this fraction of
-# them failed (see ``should_abort``).
+# A read that is failing across the board stops submitting instead of spending calls on
+# the rest: once this many documents have finished, it stops when more than this fraction
+# of them failed (see ``should_abort``); what is finished is still returned.
 MIN_DOCUMENTS_BEFORE_ABORT = 10
 MAX_FAILED_FRACTION = 0.75
 
@@ -665,15 +700,25 @@ def should_abort(finished: int, failed: int) -> bool:
 
 
 def abort_message(finished: int, failed: int, errors: List[str]) -> str:
-    """The error that ends a read stopped by ``should_abort``: how many of the finished
-    documents failed, and the most common first error among them."""
+    """Why a read was stopped by ``should_abort``: how many of the finished documents
+    failed, and the most common first error among them."""
     common = Counter(errors).most_common(1)
-    reason = f" Most common error: {common[0][0][:500]}" if common else ""
+    reason = f" Most common error: {common[0][0][:200]}" if common else ""
     return (
-        f"Stopped early: {failed} of the {finished} documents finished so far failed, "
-        f"which is more than {MAX_FAILED_FRACTION:.0%}; the remaining documents were "
-        f"not processed.{reason}"
+        f"the read stopped early because {failed} of the {finished} documents finished "
+        f"so far failed, which is more than {MAX_FAILED_FRACTION:.0%}.{reason}"
     )
+
+
+def stop_waiting(tasks: List[Any], reason: str) -> None:
+    """End the read for the files that still have page ranges waiting: each gets one error
+    naming its ranges that were not extracted and ``reason``. Parts a file already holds
+    and the errors it already has are kept, so its row is returned as it stands."""
+    ranges: Dict[int, Tuple[Any, List[str]]] = {}
+    for file, start, end, *_ in tasks:
+        ranges.setdefault(id(file), (file, []))[1].append(f"{start}-{end}")
+    for file, spans in ranges.values():
+        file.errors.append(f"pages {', '.join(spans)} not extracted: {reason}")
 
 
 def call_cap(floor: int, estimated_total: Optional[int], range_target: int) -> int:
@@ -1058,13 +1103,16 @@ def result_row(file: FileState, fields: Optional[List[str]] = None) -> List[Any]
 def document_outcomes(
     files: List[FileState], tasks: List[Task]
 ) -> Tuple[int, int, List[str]]:
-    """``(finished, failed, errors)`` over ``files`` given the ``tasks`` still waiting.
-    A document has finished when none of its page ranges is waiting. It has failed when
-    it finished with no successful part, so a document that was only partly extracted
-    counts as succeeded (its errors still appear in its own error column). ``errors``
-    holds the first error of each failed document."""
+    """``(finished, failed, errors)`` over the documents in ``files`` given the ``tasks``
+    still waiting. Only readable PDFs are documents here: a file that is not a PDF
+    (extracted whole) and a file that could not be read at all are left out of both
+    counts, since they say nothing about whether the model and the schema work. A
+    document has finished when none of its page ranges is waiting. It has failed when it
+    finished with no successful part, so a document that was only partly extracted counts
+    as succeeded (its errors still appear in its own error column). ``errors`` holds the
+    first error of each failed document."""
     waiting = {id(task[0]) for task in tasks}
-    done = [f for f in files if id(f) not in waiting]
+    done = [f for f in files if f.splittable and not f.failed and id(f) not in waiting]
     failed = [f for f in done if not f.parts]
     return len(done), len(failed), [f.errors[0] for f in failed if f.errors]
 
@@ -1095,6 +1143,10 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
         self.model = models[0]
         self.budgets = budgets
         self.work_stage = work_stage
+        # Times each page range was sent again after a throttled answer, and the wait
+        # before the next round (see ``throttled``).
+        self.throttle_retries: Dict[Tuple[int, ...], int] = {}
+        self.throttle_wait = 0
 
     def model_missing(
         self, file: FileState, submitted: Submitted, error: Optional[str]
@@ -1115,6 +1167,30 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
                 raise NoModelAvailable(no_model_message(self.models))
             self.model = self.models[index]
         return True
+
+    def throttled(
+        self, file: FileState, key: Tuple[int, ...], error: Optional[str]
+    ) -> bool:
+        """Whether ``error`` is a throttled answer to send again. Such a call is not a
+        document failure and is not counted against ``file``'s calls. Each page range
+        (``key``) is sent again at most ``MAX_THROTTLE_RETRIES`` times; the next round
+        waits first (``THROTTLE_BACKOFF_SECONDS``, once however many calls were throttled).
+        After the last retry the throttled answer is that range's error like any other."""
+        if error is None or not is_throttle_error(error):
+            return False
+        retries = self.throttle_retries.get(key, 0)
+        if retries >= MAX_THROTTLE_RETRIES:
+            return False
+        self.throttle_retries[key] = retries + 1
+        file.calls -= 1
+        self.throttle_wait = max(self.throttle_wait, THROTTLE_BACKOFF_SECONDS[retries])
+        return True
+
+    def wait_if_throttled(self) -> None:
+        """Wait before the next round if a call in the last one was throttled."""
+        if self.throttle_wait:
+            _sleep(self.throttle_wait)
+            self.throttle_wait = 0
 
     @staticmethod
     def read_bytes(name: str) -> bytes:  # pragma: no cover - needs a staged file
@@ -1229,6 +1305,7 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
             for a, b in planning_segments(file.pages, file.size)
         ]
         while segments:
+            self.wait_if_throttled()
             jobs = []
             for file, a, b in segments:
                 prompt = build_plan_predicate(
@@ -1255,6 +1332,9 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
                         (file, a, b)
                     )  # plan it again with the model now in use
                     continue
+                if self.throttled(file, (id(file), a, b, 0), error):
+                    segments.append((file, a, b))  # plan it again after the wait
+                    continue
                 ranges = ranges_from_plan(value, a, b) if error is None else None
                 if ranges:
                     tasks += [(file, x, y, file.range_budget) for x, y in ranges]
@@ -1273,11 +1353,14 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
         """Run every task at once, then the tasks their answers leave (the rest of a
         range that did not fit, or the halves of one that failed) until none are left.
         A failure in staging a part, submitting a call or processing an answer is that
-        file's error, and the other files go on. After each round, while work is still
-        waiting, the read is stopped with a RuntimeError if ``should_abort`` says too
-        many finished documents failed; when nothing is waiting, the results are complete
-        and are returned as they are."""
+        file's error, and the other files go on; a throttled call is sent again after a
+        wait (``throttled``). After each round, while work is still waiting, the read
+        stops submitting if ``should_abort`` says too many finished documents failed: the
+        files with ranges still waiting get an error for them (``stop_waiting``) and
+        everything finished is kept, so the caller still gets one row per file. When
+        nothing is waiting there is nothing to stop and the results are complete."""
         while tasks:
+            self.wait_if_throttled()
             jobs = []
             oversized: List[Task] = []
             for file, start, end, budget_name in tasks:
@@ -1335,7 +1418,8 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
             if tasks:
                 finished, failed, errors = document_outcomes(files, tasks)
                 if should_abort(finished, failed):
-                    raise RuntimeError(abort_message(finished, failed, errors))
+                    stop_waiting(tasks, abort_message(finished, failed, errors))
+                    return
 
     def finish(
         self,
@@ -1347,9 +1431,12 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
         max_calls_per_file: int,
     ) -> List[Task]:
         """Record one call's answer and return the tasks it leaves. A call whose model
-        AI_COMPLETE does not know leaves its own task, to be sent again."""
+        AI_COMPLETE does not know, or that was throttled, leaves its own task, to be sent
+        again."""
         value, error, salvaged = self.collect(submitted)
         if self.model_missing(file, submitted, error):
+            return [(file, start, end, budget_name)]
+        if self.throttled(file, (id(file), start, end), error):
             return [(file, start, end, budget_name)]
         value = unwrap_envelope(value, self.sent_schema)
         if error is None and is_empty_answer(value):
@@ -1413,18 +1500,18 @@ def run(
         work_stage: stage where page-range part files are written (the session stage).
 
     Raises:
-        RuntimeError: more than ``MAX_FAILED_FRACTION`` of the documents finished so far
-            failed, once ``MIN_DOCUMENTS_BEFORE_ABORT`` have finished (the read is
-            stopped, and the documents still waiting are not processed); or
-            ``NoModelAvailable`` (a RuntimeError): AI_COMPLETE knows none of ``models``
-            (not enabled for the account or region).
+        NoModelAvailable (a RuntimeError): AI_COMPLETE knows none of ``models`` (not
+            enabled for the account or region); raised before any extraction is returned.
 
     Returns:
         STAGE_PATH, VALUE (the merged answer as JSON, or None when no part succeeded),
         ERROR (every failure for the file, joined with "; ", or None) and SCORES (the
         per-field confidence scores as JSON, see ``merge_scores``, or None). A failure
         reading, staging, submitting or merging is a file's own ERROR and does not
-        stop the read; only the errors under Raises do.
+        stop the read. When more than ``MAX_FAILED_FRACTION`` of the readable PDFs finished
+        so far failed (once ``MIN_DOCUMENTS_BEFORE_ABORT`` have), the read stops
+        submitting: files with page ranges still waiting say so in their ERROR, and every
+        finished row is returned as it is.
     """
     from snowflake.snowpark.types import StringType, StructField, StructType
 
