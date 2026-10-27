@@ -16,6 +16,9 @@ from snowflake.snowpark.functions import col, try_parse_json
 from snowflake.snowpark.types import BooleanType, DoubleType, StringType, VariantType
 from tests.utils import TestFiles, Utils
 
+# Tests that make the reader register server-side Python (the extraction procedure for
+# schema reads, or a stored procedure of their own) carry @pytest.mark.udf, so the
+# test runs that exclude server-side Python ("not udf") skip them.
 pytestmark = [
     pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
@@ -140,6 +143,7 @@ def _datatype(df, column_name: str):
     )
 
 
+@pytest.mark.udf
 def test_schema_scalar_types_are_cast_not_stringified(session, invoice_path):
     df = session.read.option("schema", TYPED_SCALAR_SCHEMA).documents(invoice_path)
 
@@ -168,6 +172,7 @@ def test_schema_scalar_types_are_cast_not_stringified(session, invoice_path):
     assert row["_document_error"] is None
 
 
+@pytest.mark.udf
 def test_schema_array_field_stays_variant_not_stringified(session, invoice_path):
     df = session.read.option("schema", ARRAY_FIELD_SCHEMA).documents(invoice_path)
 
@@ -184,6 +189,7 @@ def test_schema_array_field_stays_variant_not_stringified(session, invoice_path)
     assert row["_document_error"] is None
 
 
+@pytest.mark.udf
 def test_flat_schema_field_returns_a_string_column(session, invoice_path):
     # A flat {name: question} dict/list schema used to pass straight through to
     # AI_EXTRACT and come back as an untyped VARIANT. Now it's converted to a
@@ -209,6 +215,7 @@ def test_prompt_only_read_returns_a_response_column(session, invoice_path):
     assert row["_document_error"] is None
 
 
+@pytest.mark.udf
 def test_schema_and_prompt_together(session, invoice_path):
     # schema drives response_format as usual; prompt replaces the default
     # extraction instruction that would otherwise be sent alongside it.
@@ -350,6 +357,7 @@ def _ai_complete_calls_in_session(session):
     ).collect()[0][0]
 
 
+@pytest.mark.udf
 def test_long_pdf_goes_through_the_split_procedure(session, tmp_path):
     """A PDF over 50 pages is planned first (planning-only calls choose the page
     ranges) and then extracted range by range; the merged result is one row with
@@ -389,6 +397,7 @@ def test_long_pdf_goes_through_the_split_procedure(session, tmp_path):
         Utils.drop_stage(session, stage_name)
 
 
+@pytest.mark.udf
 def test_an_unreadable_file_does_not_stop_the_other_files(
     session, resources_path, tmp_path
 ):
@@ -421,6 +430,7 @@ def test_an_unreadable_file_does_not_stop_the_other_files(
     "config.getoption('local_testing_mode', default=False)",
     reason="Stored procedures are not supported in local testing mode.",
 )
+@pytest.mark.udf
 def test_documents_can_be_called_from_inside_a_stored_procedure(session, doc_stage):
     """Calling documents() inside a user's stored procedure registers and calls the
     extraction procedure from within a procedure. This is the
