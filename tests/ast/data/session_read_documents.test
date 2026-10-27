@@ -33,13 +33,19 @@ body {
         reader {
           dataframe_reader {
             src {
+              end_column: 26
+              end_line: 25
               file: 2
+              start_column: 14
               start_line: 25
             }
           }
         }
         src {
+          end_column: 52
+          end_line: 25
           file: 2
+          start_column: 14
           start_line: 25
         }
       }
@@ -63,7 +69,10 @@ body {
               _2 {
                 string_val {
                   src {
+                    end_column: 54
+                    end_line: 27
                     file: 2
+                    start_column: 14
                     start_line: 27
                   }
                   v: "ocr"
@@ -75,7 +84,10 @@ body {
               _2 {
                 string_val {
                   src {
+                    end_column: 85
+                    end_line: 27
                     file: 2
+                    start_column: 14
                     start_line: 27
                   }
                   v: "page"
@@ -83,13 +95,19 @@ body {
               }
             }
             src {
+              end_column: 26
+              end_line: 27
               file: 2
+              start_column: 14
               start_line: 27
             }
           }
         }
         src {
+          end_column: 111
+          end_line: 27
           file: 2
+          start_column: 14
           start_line: 27
         }
       }
@@ -113,7 +131,10 @@ body {
               _2 {
                 string_val {
                   src {
+                    end_column: 71
+                    end_line: 29
                     file: 2
+                    start_column: 14
                     start_line: 29
                   }
                   v: "Summarize this document."
@@ -121,13 +142,19 @@ body {
               }
             }
             src {
+              end_column: 26
+              end_line: 29
               file: 2
+              start_column: 14
               start_line: 29
             }
           }
         }
         src {
+          end_column: 97
+          end_line: 29
           file: 2
+          start_column: 14
           start_line: 29
         }
       }
