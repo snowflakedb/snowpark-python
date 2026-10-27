@@ -18,6 +18,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Sets code=false when the pushed commits only change CHANGELOG.md; the test
+  # steps then skip while jobs still report (required checks must be reported).
+  # Any other outcome (incl. errors, force-push, non-PR events) runs everything.
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        with:
+          # empty token => diff with git so `base` is honored (the PR API would
+          # return the whole PR); only "synchronize" has a usable `before` sha
+          token: ''
+          base: ${{ github.event.action == 'synchronize' && github.event.before || '' }}
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '**'
+              - '!CHANGELOG.md'
+
   lint:
     name: Check linting
     runs-on: ubuntu-latest
@@ -69,7 +98,9 @@ jobs:
         run: python -m tox -e pyright
 
   build:
-    needs: lint
+    needs: [lint, changes]
+    outputs:
+      code: ${{ needs.changes.outputs.code }}
     name: Build Wheel File
     runs-on: ubuntu-latest
     steps:
@@ -181,9 +212,10 @@ jobs:
       - name: Upgrade setuptools, pip and wheel
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: uv pip install tox --system
       # we only run doctest on macos
-      - if: ${{ matrix.os == 'macos-latest' }}
+      - if: ${{ needs.build.outputs.code != 'false' && (matrix.os == 'macos-latest') }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -195,7 +227,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version != '3.14' }}
+      - if: ${{ needs.build.outputs.code != 'false' && (matrix.os != 'macos-latest' && matrix.python-version != '3.14') }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest${EXTRA_TOX_FACTORS}-ci"
         env:
@@ -210,7 +242,7 @@ jobs:
       # SNOW-4145327: 3.14 live UDF/sproc install Snowpark from PyPI, which
       # still pins the old cloudpickle. Hold those tests until the next
       # client is published. Same as daily_precommit.yml / #681.
-      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version == '3.14' }}
+      - if: ${{ needs.build.outputs.code != 'false' && (matrix.os != 'macos-latest' && matrix.python-version == '3.14') }}
         name: Run tests (excluding udf, doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest${EXTRA_TOX_FACTORS}-ci"
         env:
@@ -231,7 +263,7 @@ jobs:
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
         shell: bash
       - name: Run data source tests
-        if: ${{ !(matrix.python-version == '3.14') }}
+        if: ${{ needs.build.outputs.code != 'false' && (!(matrix.python-version == '3.14')) }}
         run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -240,6 +272,7 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
@@ -299,8 +332,10 @@ jobs:
       - name: Upgrade setuptools, pip and wheel
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: uv pip install tox --system
       - name: Run tests
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: python -m tox -e "py${PYTHON_VERSION/\./}-local"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -310,6 +345,7 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
@@ -370,6 +406,7 @@ jobs:
       - name: Install protobuf
         run: uv pip install protobuf==${{ matrix.protobuf-version }} --system
       - name: Install tox
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: uv pip install tox --system
       - name: Set up Windows environment
         if: runner.os == 'Windows'
@@ -379,6 +416,7 @@ jobs:
             echo "TZ=EST" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Run tests
+        if: ${{ needs.build.outputs.code != 'false' }}
         # TODO: SNOW-1763186 use pytest marker to test multiple TZs
         run: TZ=EST python -m tox -e "py${PYTHON_VERSION/\./}-ast"
         env:
@@ -390,6 +428,7 @@ jobs:
           TZ: EST
         shell: bash
       - name: Combine coverages
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
@@ -445,8 +484,10 @@ jobs:
       - name: Upgrade setuptools, pip and wheel
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: uv pip install tox --system
       - name: Run doctests for AST (I/II)
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -498,8 +539,10 @@ jobs:
       - name: Upgrade setuptools, pip and wheel
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: uv pip install tox --system
       - name: Run tests for AST (II/II)
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -510,6 +553,7 @@ jobs:
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       - name: Combine coverages
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
@@ -587,8 +631,9 @@ jobs:
       - name: Upgrade setuptools, pip and wheel
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: uv pip install tox --system
-      - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
+      - if: ${{ needs.build.outputs.code != 'false' && (matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws') }}
         name: Check AutoSwitchBackend default value
         # SNOW-2389912: Ensure hybrid is correctly enabled by default. We can't use pytest because
         # our test suite sets the AutoSwitchBackend variable explicitly.
@@ -599,7 +644,7 @@ jobs:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
         # only run doctest for macos on aws
-      - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
+      - if: ${{ needs.build.outputs.code != 'false' && (matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws') }}
         name: Run Snowpark pandas API doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-snowparkpandasdoctest-modin-ci"
         env:
@@ -611,7 +656,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
         # do not run other tests for macos on aws
-      - if: ${{ !(matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws') }}
+      - if: ${{ needs.build.outputs.code != 'false' && (!(matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws')) }}
         name: Run Snowpark pandas API tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci"
         env:
@@ -621,6 +666,7 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
@@ -678,8 +724,10 @@ jobs:
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Install tox
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: uv pip install tox --system
       - name: Run all tests
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: python -m tox -e "modin_extra_without_pandas_extra"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -688,6 +736,7 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: ${{ needs.build.outputs.code != 'false' }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
       - uses: actions/upload-artifact@v4
@@ -699,9 +748,10 @@ jobs:
             .tox/coverage.xml
 
   combine-coverage:
-    if: ${{ success() || failure() }}
+    if: ${{ needs.changes.outputs.code != 'false' && (success() || failure()) }}
     name: Combine coverage
     needs:
+      - changes
       - test
       - test-local-testing
       - test-snowpark-pandas
