@@ -47,22 +47,32 @@ def test_documents_non_stage_path_raises_before_any_query():
 @pytest.mark.parametrize(
     "options",
     [
-        # These used to configure parse/extraction behavior directly; the
-        # private-preview document reader now only accepts SCHEMA and PROMPT, so
-        # every one of them -- valid value or not -- is rejected up front.
-        {"parse_mode": "bogus"},
-        {"parse_mode": "layout"},
-        {"row_boundary": "chapter"},
+        # Chosen by the reader, so these are not options at all and are ignored.
         {"mode": "DROPMALFORMED"},
         {"extraction_engine": "ai_agent"},
         {"model": "claude-sonnet-4-5"},
+        {"bogus_option": "anything"},
     ],
 )
-def test_documents_unsupported_option_raises_before_any_query(options):
+def test_documents_options_chosen_by_the_reader_are_ignored(options):
+    reader = DataFrameReader(_create_fake_session())
+    for key, value in options.items():
+        reader = reader.option(key, value)
+    with mock.patch("snowflake.snowpark.dataframe_reader.document_reader") as module:
+        module.DocumentReaderOptions.from_reader_options.return_value = "options"
+        reader._documents("@stage/doc.pdf")
+    module.read_documents.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "options",
+    [{"parse_mode": "bogus"}, {"row_boundary": "chapter"}, {"parse_mode": "none"}],
+)
+def test_documents_invalid_parse_option_raises_before_any_query(options):
     reader = DataFrameReader(_create_fake_session())
     for key, value in options.items():
         reader = reader.option(key, value)
 
     with pytest.raises(SnowparkDataframeReaderException) as exc_info:
         reader._documents("@stage/doc.pdf")
-    assert exc_info.value.error_code == "1119"
+    assert exc_info.value.error_code == "1116"

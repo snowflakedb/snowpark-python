@@ -312,26 +312,32 @@ def test_extract_type_mismatch_is_surfaced_not_silently_dropped(session):
 @pytest.mark.parametrize(
     "key,value",
     [
-        pytest.param("parse_mode", "layout", id="parse_mode"),
-        pytest.param("row_boundary", "page", id="row_boundary"),
+        pytest.param("parse_mode", "bogus", id="parse_mode"),
+        pytest.param("row_boundary", "chapter", id="row_boundary"),
+    ],
+)
+def test_invalid_parse_option_raises_before_any_query(
+    session, invoice_path, key, value
+):
+    with pytest.raises(SnowparkDataframeReaderException) as exc_info:
+        session.read.option(key, value)._documents(invoice_path)
+    assert exc_info.value.error_code == "1116"
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
         pytest.param("mode", "FAILFAST", id="mode"),
         pytest.param("extraction_engine", "ai_extract", id="extraction_engine"),
         pytest.param("model", "claude-sonnet-4-5", id="model"),
-        pytest.param("extract_images", True, id="extract_images"),
-        pytest.param("page_filter", [{"start": 0, "end": 1}], id="page_filter"),
-        pytest.param(
-            "columnNameOfCorruptRecord", "docError", id="corrupt_record_column"
-        ),
         pytest.param("bogus_option", "anything", id="unknown_option"),
     ],
 )
-def test_unsupported_option_raises_before_any_query(session, invoice_path, key, value):
-    # Private preview locks `.option()` down to just `schema` and `prompt` -- every
-    # other option that used to drive this reader (including ones that used to be
-    # valid, like parse_mode/mode/extraction_engine) is now rejected outright.
-    with pytest.raises(SnowparkDataframeReaderException) as exc_info:
-        session.read.option(key, value)._documents(invoice_path)
-    assert exc_info.value.error_code == "1119"
+def test_options_chosen_by_the_reader_are_ignored(session, invoice_path, key, value):
+    # Same read as without the option: the reader chooses the model, fail mode and
+    # engine itself, so these keys do nothing.
+    columns = session.read.option(key, value)._documents(invoice_path).columns
+    assert columns == session.read._documents(invoice_path).columns
 
 
 def test_non_stage_path_raises(session):

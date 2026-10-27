@@ -18,7 +18,14 @@ _PARSE_MODES = frozenset({"layout", "ocr", "text", "none"})
 _ROW_BOUNDARIES = frozenset({"document", "page"})
 _MODES = frozenset({"PERMISSIVE", "FAILFAST"})
 _EXTRACTION_ENGINES = frozenset({"ai_extract", "ai_complete"})
-_SUPPORTED_READER_OPTIONS = frozenset({"SCHEMA", "PROMPT"})
+# The options a user can set. Everything else (the model, the fail mode, the extraction
+# engine, ...) is chosen by the reader and cannot be set through .option().
+_SUPPORTED_READER_OPTIONS = frozenset(
+    {"SCHEMA", "PROMPT", "PARSE_MODE", "ROW_BOUNDARY"}
+)
+# parse_mode values a user can choose; "none" (do not parse) is set by the reader itself
+# whenever a schema or prompt is given.
+_USER_PARSE_MODES = frozenset({"layout", "ocr", "text"})
 
 # JSON Schema scalar types mapped to Snowpark equivalents; "array"/"object" are omitted since AI_EXTRACT/AI_COMPLETE already return them as structured VARIANT.
 _JSON_SCHEMA_SCALAR_TYPES: Dict[str, DataType] = {
@@ -190,11 +197,9 @@ class DocumentReaderOptions:
     def from_reader_options(
         cls, cur_options: Dict[str, Any]
     ) -> "DocumentReaderOptions":
-        for key in cur_options:
-            if key not in _SUPPORTED_READER_OPTIONS:
-                raise SnowparkClientExceptionMessages.DF_DOCUMENTS_UNSUPPORTED_OPTION(
-                    key, _SUPPORTED_READER_OPTIONS
-                )
+        """The user options are SCHEMA, PROMPT, PARSE_MODE and ROW_BOUNDARY; any other key
+        is ignored, because everything else is chosen by the reader. PARSE_MODE and
+        ROW_BOUNDARY only apply to a read with neither a schema nor a prompt."""
         options = cls(
             extraction=ExtractionSpec.from_response_format(cur_options.get("SCHEMA")),
             prompt=cur_options.get("PROMPT"),
@@ -204,8 +209,30 @@ class DocumentReaderOptions:
         # With neither, the parsed text is the read's only output, so parsing stays on.
         if options.complete_enabled:
             options.parse_mode = "none"
+        else:
+            options.parse_mode = cls.user_choice(
+                cur_options, "PARSE_MODE", "layout", _USER_PARSE_MODES
+            )
+            options.row_boundary = cls.user_choice(
+                cur_options, "ROW_BOUNDARY", "document", _ROW_BOUNDARIES
+            )
         options.validate()
         return options
+
+    @staticmethod
+    def user_choice(
+        cur_options: Dict[str, Any], key: str, default: str, valid_values: Iterable[str]
+    ) -> str:
+        """The lower-cased value the user set for ``key``, or ``default`` when it is not
+        set; a value outside ``valid_values`` raises."""
+        if key not in cur_options:
+            return default
+        value = str(cur_options[key]).lower()
+        if value not in valid_values:
+            raise SnowparkClientExceptionMessages.DF_DOCUMENTS_INVALID_OPTION_VALUE(
+                key.lower(), cur_options[key], valid_values
+            )
+        return value
 
     def validate(self) -> None:
         # parse_mode/row_boundary/mode/extraction_engine drive our own Python routing
