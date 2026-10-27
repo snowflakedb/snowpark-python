@@ -18,11 +18,6 @@ _PARSE_MODES = frozenset({"layout", "ocr", "text", "none"})
 _ROW_BOUNDARIES = frozenset({"document", "page"})
 _MODES = frozenset({"PERMISSIVE", "FAILFAST"})
 _EXTRACTION_ENGINES = frozenset({"ai_extract", "ai_complete"})
-# The options a user can set. Everything else (the model, the fail mode, the extraction
-# engine, ...) is chosen by the reader and cannot be set through .option().
-_SUPPORTED_READER_OPTIONS = frozenset(
-    {"SCHEMA", "PROMPT", "PARSE_MODE", "ROW_BOUNDARY", "EXTRACT_IMAGES"}
-)
 # parse_mode values a user can choose; "none" (do not parse) is set by the reader itself
 # whenever a schema or prompt is given.
 _USER_PARSE_MODES = _PARSE_MODES - {"none"}
