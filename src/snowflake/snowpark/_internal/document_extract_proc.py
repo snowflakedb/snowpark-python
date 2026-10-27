@@ -178,13 +178,25 @@ def drop_unsupported(schema: Any) -> Any:
 EMPTY_ANSWER_ERROR = "AI_COMPLETE returned an empty object"
 
 
-def is_splittable_error(error: str) -> bool:
+# A "malformed request" is the only answer AI_COMPLETE gives for a FILE over its input
+# limit (about 15 MB; page count is not a limit), but it is also the answer for a file
+# it cannot read at all. Only a call that sent more than this many bytes is split
+# for it: splitting a small part that was rejected only multiplies the calls.
+MALFORMED_SPLIT_MIN_BYTES = 10_000_000
+
+
+def is_splittable_error(error: str, sent_bytes: Optional[int] = None) -> bool:
     """Errors that fewer pages can fix: a response cut off at max_tokens; an input
-    Cortex rejects as too large, which it reports only as "malformed request"; an empty
-    object; or an answer that does not parse as JSON."""
+    Cortex rejects as too large, which it reports only as "malformed request" (counted
+    only when the call sent more than ``MALFORMED_SPLIT_MIN_BYTES``, or when
+    ``sent_bytes`` is unknown); an empty object; or an answer that does not parse as
+    JSON."""
+    malformed = "malformed request" in error and (
+        sent_bytes is None or sent_bytes > MALFORMED_SPLIT_MIN_BYTES
+    )
     return (
         "unexpected end of JSON input" in error
-        or "malformed request" in error
+        or malformed
         or EMPTY_ANSWER_ERROR in error
         or UNPARSEABLE_TEXT_ERROR_PREFIX in error
         or NO_JSON_TEXT_ERROR in error
@@ -605,18 +617,20 @@ def next_ranges(
     error: Optional[str],
     target: Optional[int] = None,
     salvaged: Optional[Dict[str, Any]] = None,
+    sent_bytes: Optional[int] = None,
 ) -> Tuple[bool, List[Tuple[int, int]]]:
     """Returns (keep_value, ranges_still_to_extract) for one finished call. With a
     ``target``, adjacent planned ranges are coalesced up to ``target`` estimated tokens.
     A failed call's ``salvaged`` status, when usable, re-splits its pages along its own
-    plan instead of in halves.
+    plan instead of in halves. ``sent_bytes`` is the size of the file or part the call
+    sent, for ``is_splittable_error``.
 
     A successful answer over more than one page whose ``extraction_status`` is missing
     or not an object is not trusted: the model may have stopped early without saying so,
     so the answer is discarded and its pages retried in halves. On a single page, which
     cannot be split, the answer is kept."""
     if error is not None or not isinstance(value, dict):
-        if end > start and (error is None or is_splittable_error(error)):
+        if end > start and (error is None or is_splittable_error(error, sent_bytes)):
             if salvaged is not None:
                 ranges = ranges_from_salvaged_status(start, end, salvaged, target)
                 if ranges:
@@ -1175,6 +1189,8 @@ class DocumentExtraction:
         # before the next round (see ``throttled``).
         self.throttle_retries: Dict[Tuple[int, ...], int] = {}
         self.throttle_wait = 0
+        # Bytes of the file or part last staged for each (file, start, end) range.
+        self.sent_bytes: Dict[Tuple[int, int, int], int] = {}
 
     def model_missing(
         self, file: FileState, submitted: Submitted, error: Optional[str]
@@ -1290,6 +1306,7 @@ class DocumentExtraction:
         if not file.splittable or (
             start == 1 and end == file.pages and file.size <= MAX_FILE_BYTES
         ):
+            self.sent_bytes[(id(file), start, end)] = file.size
             return file.path
         writer = PdfWriter()
         for index in range(max(start - 2, 0), end):
@@ -1298,6 +1315,7 @@ class DocumentExtraction:
         writer.write(buffer)
         if buffer.tell() > MAX_FILE_BYTES and end > start:
             return None
+        self.sent_bytes[(id(file), start, end)] = buffer.tell()
         buffer.seek(0)
         stem = os.path.splitext(os.path.basename(file.path))[0]
         digest = hashlib.md5(file.path.encode()).hexdigest()[:12]
@@ -1533,6 +1551,7 @@ class DocumentExtraction:
             error,
             target=self.budgets["merge_target"],
             salvaged=salvaged,
+            sent_bytes=self.sent_bytes.get((id(file), start, end)),
         )
         if keep:
             file.parts.append((start, value))

@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     BOUNDED_FIRST_CALL_MIN_PAGES,
     EMPTY_ANSWER_ERROR,
     HARD_MAX_CALLS_PER_FILE,
+    MALFORMED_SPLIT_MIN_BYTES,
     MAX_FAILED_FRACTION,
     MAX_FILE_BYTES,
     MAX_FILE_READ_BYTES,
@@ -2992,3 +2993,53 @@ class TestQuoteStagePath:
     )
     def test_quotes_and_escapes(self, path, expected):
         assert quote_stage_path(path) == expected
+
+
+# ---------------------------------------------------------------------------
+# "malformed request" -- split only when the call sent more than
+# MALFORMED_SPLIT_MIN_BYTES; a small part that was rejected ends as an error.
+# ---------------------------------------------------------------------------
+
+_MALFORMED = json.dumps({"value": None, "error": "malformed request"})
+
+
+class TestMalformedRequestSplits:
+    @pytest.mark.parametrize(
+        "sent_bytes, splittable",
+        [
+            (None, True),
+            (MALFORMED_SPLIT_MIN_BYTES + 1, True),
+            (MALFORMED_SPLIT_MIN_BYTES, False),
+            (5_000, False),
+        ],
+    )
+    def test_the_boundary(self, sent_bytes, splittable):
+        assert is_splittable_error("malformed request", sent_bytes) is splittable
+
+    def test_other_splittable_errors_do_not_depend_on_the_size(self):
+        assert is_splittable_error("unexpected end of JSON input", 10) is True
+
+    def test_next_ranges_stops_on_a_small_rejected_range(self):
+        assert next_ranges(1, 10, None, "malformed request", sent_bytes=5_000) == (
+            False,
+            [],
+        )
+        assert next_ranges(
+            1, 10, None, "malformed request", sent_bytes=MALFORMED_SPLIT_MIN_BYTES + 1
+        ) == (False, [(1, 5), (6, 10)])
+
+    def test_a_small_part_rejected_as_malformed_is_an_error_not_split(self):
+        session = _CountingSession(_MALFORMED)
+        extraction = _doc_extraction(session)
+        file = _pdf_state("@s/a.pdf", pages=4)
+        extraction.extract_until_done([file], [(file, 1, 4, "range")], 30)
+        assert session.submitted == 1
+        assert file.parts == [] and file.errors == ["pages 1-4: malformed request"]
+
+    def test_a_large_part_rejected_as_malformed_is_split(self):
+        session = _CountingSession(_MALFORMED)
+        extraction = _doc_extraction(session)
+        file = _pdf_state("@s/a.pdf", pages=4)
+        file.size = MALFORMED_SPLIT_MIN_BYTES + 1  # the whole file is sent as is
+        extraction.extract_until_done([file], [(file, 1, 4, "range")], 30)
+        assert session.submitted > 1  # halved down to single pages before giving up
