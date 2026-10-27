@@ -404,7 +404,10 @@ def planning_segments(
     max_bytes: int = PLAN_SEGMENT_MAX_BYTES,
 ) -> List[Tuple[int, int]]:
     """The fewest equal page segments whose part files, with one context page in front,
-    stay within ``max_pages`` pages and (from the average page size) ``max_bytes``."""
+    stay within ``max_pages`` pages and (from the average page size) ``max_bytes``; none
+    for a file with no pages."""
+    if total_pages <= 0:
+        return []
     by_pages = max(1, max_pages - 1)
     by_size = max(1, int(max_bytes / (file_bytes / max(total_pages, 1))) - 1)
     limit = min(by_pages, by_size)
@@ -1251,9 +1254,9 @@ class DocumentExtraction:
     ) -> FileState:
         """Read one staged file and parse it as a PDF when possible; a file that is not a
         readable PDF becomes a one-page, unsplittable ``FileState``. A file that cannot
-        be read at all, or whose ``listed_size`` is over ``MAX_FILE_READ_BYTES`` (it is
-        then not read), becomes a ``failed`` one carrying the error, so it affects only
-        its own output row."""
+        be read at all, whose ``listed_size`` is over ``MAX_FILE_READ_BYTES`` (it is then
+        not read), or that is a PDF with no pages becomes a ``failed`` one carrying the
+        error, so it affects only its own output row."""
         from pypdf import PdfReader
 
         if listed_size is not None and listed_size > MAX_FILE_READ_BYTES:
@@ -1286,6 +1289,16 @@ class DocumentExtraction:
             pages = len(reader.pages)
         except Exception:
             reader, pages = None, 1
+        if reader is not None and pages == 0:
+            return FileState(
+                name,
+                None,
+                1,
+                len(content),
+                max_calls_per_file,
+                errors=["the PDF has no pages"],
+                failed=True,
+            )
         return FileState(name, reader, pages, len(content), max_calls_per_file)
 
     def load_files(self, path: str, max_calls_per_file: int) -> List[FileState]:
@@ -1362,19 +1375,29 @@ class DocumentExtraction:
         plan = self.budgets["plan_first"]
         tasks: List[Task] = []
         planned = [f for f in files if f.splittable and is_large_file(f.pages, f.size)]
+        segments = []
         for file in files:
-            if file in planned or file.failed:
+            if file.failed:
                 continue
-            first = first_round_budget(file.pages, file.size)
-            ranges = (
-                initial_ranges(file.pages, file.size) if file.splittable else [(1, 1)]
-            )
+            # A file whose first round cannot be worked out is that file's error, not the
+            # read's.
+            try:
+                if file in planned:
+                    segments += [
+                        (file, a, b)
+                        for a, b in planning_segments(file.pages, file.size)
+                    ]
+                    continue
+                first = first_round_budget(file.pages, file.size)
+                ranges = (
+                    initial_ranges(file.pages, file.size)
+                    if file.splittable
+                    else [(1, 1)]
+                )
+            except Exception as exc:
+                file.errors.append(f"could not plan the file: {exc}")
+                continue
             tasks += [(file, a, b, first) for a, b in ranges]
-        segments = [
-            (file, a, b)
-            for file in planned
-            for a, b in planning_segments(file.pages, file.size)
-        ]
         while segments:
             self.wait_if_throttled()
             again = []

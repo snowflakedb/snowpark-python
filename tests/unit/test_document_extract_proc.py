@@ -3024,3 +3024,47 @@ class TestListAnswers:
 
     def test_not_an_object_is_not_split(self):
         assert is_splittable_error(NOT_AN_OBJECT_TEXT_ERROR) is False
+
+
+# ---------------------------------------------------------------------------
+# Zero-page PDFs and planning errors -- a PDF with no pages, or a file whose first
+# round cannot be worked out, is that file's error and does not fail the read.
+# ---------------------------------------------------------------------------
+
+
+class TestZeroPagesAndPlanningErrors:
+    def test_planning_segments_of_a_file_with_no_pages(self):
+        assert planning_segments(0, 20_000_000) == []
+
+    def test_a_pdf_with_no_pages_is_a_failed_file(self, monkeypatch):
+        extraction = _doc_extraction(_FakeSession())
+        monkeypatch.setattr(extraction, "read_bytes", lambda name: _pdf_bytes(0))
+        file = extraction.load_file("@s/empty.pdf", 30)
+        assert file.failed and file.errors == ["the PDF has no pages"]
+        assert document_outcomes([file], []) == (0, 0, [])
+
+    def test_a_large_file_with_no_pages_does_not_fail_the_read(self):
+        file = FileState("@s/big.pdf", object(), 0, 20_000_000, 30)
+        good = _pdf_state("@s/good.pdf", pages=1)
+        tasks = _doc_extraction(_FakeSession()).plan_large_files([file, good])
+        assert [t[0] for t in tasks] == [good]
+
+    def test_an_error_planning_one_file_is_that_files_error(self, monkeypatch):
+        def broken(total_pages, file_bytes):
+            raise ValueError("boom")
+
+        monkeypatch.setattr(proc, "planning_segments", broken)
+        big = _pdf_state("@s/big.pdf", pages=60)
+        good = _pdf_state("@s/good.pdf", pages=1)
+        tasks = _doc_extraction(_FakeSession()).plan_large_files([big, good])
+        assert [t[0] for t in tasks] == [good]
+        assert big.errors == ["could not plan the file: boom"]
+
+    def test_an_error_working_out_initial_ranges_is_that_files_error(self, monkeypatch):
+        def broken(total_pages, file_bytes):
+            raise ValueError("bad sizes")
+
+        monkeypatch.setattr(proc, "initial_ranges", broken)
+        file = _pdf_state("@s/a.pdf", pages=3)
+        assert _doc_extraction(_FakeSession()).plan_large_files([file]) == []
+        assert file.errors == ["could not plan the file: bad sizes"]
