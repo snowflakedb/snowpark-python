@@ -212,8 +212,8 @@ _THROTTLE_PATTERNS = (
     re.compile(r"\b503\b"),
 )
 
-# How often one page range is sent again after a throttled answer, and how long the next
-# round waits first (seconds, by retry number).
+# Retries per page range: a range whose answer is throttled is sent again up to this
+# many times. Each round waits once before its retries, by THROTTLE_BACKOFF_SECONDS.
 MAX_THROTTLE_RETRIES = 3
 THROTTLE_BACKOFF_SECONDS = (5, 15, 45)
 _sleep = time.sleep  # replaced in tests
