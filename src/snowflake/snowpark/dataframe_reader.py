@@ -1442,7 +1442,8 @@ class DataFrameReader:
               a field without a score is left out.
             - ``prompt`` only: ``SOURCE_FILE`` and ``RESPONSE``.
 
-        Every read also has a ``_document_error`` column. A document that fails does not
+        Every read also has a case-sensitive ``"_document_error"`` column (quote the name
+        when you select it). A document that fails does not
         fail the read: its row holds an array of ``{stage, message}`` entries describing
         what went wrong, and ``NULL`` when the document succeeded. A read stops early with
         an error when most of its documents fail, or when no supported model is available
@@ -1473,7 +1474,7 @@ class DataFrameReader:
             ...     },
             ... }
             >>> df = session.read.option("schema", schema).documents("@mystage/invoices/")  # doctest: +SKIP
-            >>> df.select("SOURCE_FILE", "INVOICE_NUMBER", "TOTAL", "_document_error").show()  # doctest: +SKIP
+            >>> df.select("SOURCE_FILE", "INVOICE_NUMBER", "TOTAL", '"_document_error"').show()  # doctest: +SKIP
 
             >>> # Read one row per page.
             >>> df = session.read.option("row_boundary", "page").documents("@mystage/docs/")  # doctest: +SKIP
