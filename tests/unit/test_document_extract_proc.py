@@ -2092,6 +2092,22 @@ class TestThrottling:
         assert sleeps == [THROTTLE_BACKOFF_SECONDS[0]]
         assert file.errors == [] and tasks
 
+    def test_planning_rounds_are_bounded_when_every_call_is_throttled(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(proc, "_sleep", lambda seconds: None)
+        session = _ModelSession(
+            lambda model, predicate: {"value": None, "error": "429 too many requests"}
+        )
+        extraction = _extraction(session, ["m1"])
+        extraction.stage_part = lambda file, start, end: file.path
+        file = FileState("@s/big.pdf", object(), 60, 1000, 30)
+        tasks = extraction.plan_large_files([file])
+        # Two segments, each sent once and retried MAX_THROTTLE_RETRIES times, then
+        # passed on as first calls.
+        assert len(session.submitted) == 2 * (1 + MAX_THROTTLE_RETRIES)
+        assert len(tasks) == 2 and all(task[3] == "first" for task in tasks)
+
 
 # ---------------------------------------------------------------------------
 # Per-file failures -- reading, staging, submitting, processing or merging one

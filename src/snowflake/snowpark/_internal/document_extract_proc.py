@@ -1417,7 +1417,12 @@ class DocumentExtraction:
                 file.errors.append(f"could not plan the file: {exc}")
                 continue
             tasks += [(file, a, b, first) for a, b in ranges]
-        while segments:
+        # A segment is planned again only after a throttled answer (at most
+        # MAX_THROTTLE_RETRIES times) or an unknown model (at most once per model), so
+        # these rounds plan every segment; any left over goes on as a first call.
+        for _ in range(1 + MAX_THROTTLE_RETRIES + len(self.models)):
+            if not segments:
+                break
             self.wait_if_throttled()
             again = []
             for chunk in chunks(segments, MAX_CALLS_IN_FLIGHT):
@@ -1463,6 +1468,7 @@ class DocumentExtraction:
                     else:
                         tasks.append((file, a, b, "first"))
             segments = again
+        tasks += [(file, a, b, "first") for file, a, b in segments]
         for file in planned:
             queued = sum(1 for task in tasks if task[0] is file)
             file.cap = max(
