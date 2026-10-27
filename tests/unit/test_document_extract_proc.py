@@ -3,6 +3,7 @@
 #
 
 import copy
+import hashlib
 import io
 import json
 import sys
@@ -27,6 +28,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     DocumentExtraction,
     FileState,
     NoModelAvailable,
+    _brackets_close,
     _cover,
     _to_document_page,
     abort_message,
@@ -2149,7 +2151,10 @@ class _FakePdfReader:
         data = stream.read()
         if not data.startswith(_FAKE_PDF_PREFIX):
             raise ValueError("not a PDF")
-        self.pages = list(range(int(data[len(_FAKE_PDF_PREFIX) :])))
+        count, _, ids = data[len(_FAKE_PDF_PREFIX) :].partition(b"|")
+        self.pages = [int(i) for i in ids.split(b",")] if ids else []
+        if len(self.pages) != int(count):
+            self.pages = list(range(int(count)))
 
 
 class _FakePdfWriter:
@@ -2163,7 +2168,8 @@ class _FakePdfWriter:
         self.pages.append(len(self.pages))
 
     def write(self, stream) -> None:
-        stream.write(_FAKE_PDF_PREFIX + str(len(self.pages)).encode())
+        ids = ",".join(str(page) for page in self.pages)
+        stream.write(_FAKE_PDF_PREFIX + f"{len(self.pages)}|{ids}".encode())
 
 
 @pytest.fixture(autouse=True)
@@ -2212,16 +2218,29 @@ class _Result:
 
 
 class _File:
-    def put_stream(self, *args, **kwargs):
-        raise OSError("stage is full")
+    """Records every staged part as ``(target, bytes, kwargs)``; raises ``error`` instead
+    when one is set."""
+
+    def __init__(self, error=None) -> None:
+        self.error, self.staged = error, []
+
+    def put_stream(self, stream, target, **kwargs) -> None:
+        if self.error is not None:
+            raise self.error
+        self.staged.append((target, stream.read(), kwargs))
+
+
+def _staged_pages(data):
+    """The page ids inside a part written by ``_FakePdfWriter``."""
+    return _FakePdfReader(io.BytesIO(data)).pages
 
 
 class _FakeSession:
     """LIST returns ``names``; AI_COMPLETE answers every call with a complete answer."""
 
-    def __init__(self, names=(), submit_error=None) -> None:
+    def __init__(self, names=(), submit_error=None, stage_error=None) -> None:
         self.names, self.submit_error = names, submit_error
-        self.file = _File()
+        self.file = _File(stage_error)
 
     def sql(self, query, params=None):
         if query.startswith("LIST"):
@@ -2282,7 +2301,8 @@ class TestPerFileFailures:
     def test_a_staging_failure_is_that_files_error_and_the_other_file_goes_on(self):
         bad, good = _pdf_state("@s/bad.pdf"), _pdf_state("@s/good.pdf", pages=2)
         tasks = [(bad, 2, 3, "range"), (good, 1, 2, "range")]
-        _doc_extraction(_FakeSession()).extract_until_done([bad, good], tasks, 30)
+        session = _FakeSession(stage_error=OSError("stage is full"))
+        _doc_extraction(session).extract_until_done([bad, good], tasks, 30)
         assert bad.parts == []
         assert "could not stage part file: stage is full" in bad.errors[0]
         assert [start for start, _ in good.parts] == [1] and good.errors == []
@@ -2497,3 +2517,329 @@ class TestResultRowScores:
     def test_a_file_whose_answer_had_no_scores_has_a_null_scores_column(self):
         file = FileState("@s/a.pdf", None, 1, 1, 30, parts=[(1, {"a": "x"})])
         assert result_row(file, ["a"])[3] is None
+
+
+# ---------------------------------------------------------------------------
+# DocumentExtraction.stage_part -- a page range becomes its own part file on the
+# work stage, with the previous page in front as context.
+# ---------------------------------------------------------------------------
+
+
+def _part_target(path, start, end):
+    digest = hashlib.md5(path.encode()).hexdigest()[:12]
+    stem = path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    return f"@stage/document_parts/{digest}/{stem}_p{start}_{end}.pdf"
+
+
+class TestStagePart:
+    def test_a_middle_range_is_staged_with_the_previous_page_as_context(self):
+        session = _FakeSession()
+        file = _pdf_state("@s/a.pdf", pages=6)
+        target = _doc_extraction(session).stage_part(file, 3, 5)
+        assert target == _part_target("@s/a.pdf", 3, 5)
+        [(staged_to, data, kwargs)] = session.file.staged
+        assert staged_to == target
+        # Positions 2-5: page 2 is the context page in front of pages 3-5.
+        assert _staged_pages(data) == [1, 2, 3, 4]
+        assert kwargs == {"auto_compress": False, "overwrite": True}
+
+    def test_a_range_from_the_first_page_has_no_context_page(self):
+        session = _FakeSession()
+        file = _pdf_state("@s/a.pdf", pages=6)
+        _doc_extraction(session).stage_part(file, 1, 2)
+        [(_, data, _)] = session.file.staged
+        assert _staged_pages(data) == [0, 1]
+
+    def test_the_whole_small_file_is_sent_as_it_is(self):
+        session = _FakeSession()
+        file = _pdf_state("@s/a.pdf", pages=6)
+        assert _doc_extraction(session).stage_part(file, 1, 6) == "@s/a.pdf"
+        assert session.file.staged == []
+
+    def test_a_file_that_is_not_a_pdf_is_sent_as_it_is(self):
+        session = _FakeSession()
+        file = FileState("@s/a.txt", None, 1, 10, 30)
+        assert _doc_extraction(session).stage_part(file, 1, 1) == "@s/a.txt"
+        assert session.file.staged == []
+
+    def test_a_part_still_over_the_size_limit_is_not_staged(self, monkeypatch):
+        monkeypatch.setattr(proc, "MAX_FILE_BYTES", 5)
+        session = _FakeSession()
+        file = _pdf_state("@s/a.pdf", pages=6)
+        assert _doc_extraction(session).stage_part(file, 2, 4) is None
+        assert session.file.staged == []
+
+    def test_a_single_page_over_the_size_limit_is_still_staged(self, monkeypatch):
+        monkeypatch.setattr(proc, "MAX_FILE_BYTES", 5)
+        session = _FakeSession()
+        file = _pdf_state("@s/a.pdf", pages=6)
+        target = _doc_extraction(session).stage_part(file, 4, 4)
+        assert target == _part_target("@s/a.pdf", 4, 4)
+        assert len(session.file.staged) == 1
+
+
+class TestReadBytes:
+    def test_it_reads_the_staged_file(self, monkeypatch):
+        import snowflake.snowpark.files as files
+
+        opened = []
+
+        class _Opened:
+            def __enter__(self):
+                return io.BytesIO(b"content")
+
+            def __exit__(self, *args):
+                return False
+
+        def fake_open(name, mode, **kwargs):
+            opened.append((name, mode, kwargs))
+            return _Opened()
+
+        monkeypatch.setattr(files.SnowflakeFile, "open", staticmethod(fake_open))
+        assert DocumentExtraction.read_bytes("@s/a.pdf") == b"content"
+        assert opened == [("@s/a.pdf", "rb", {"require_scoped_url": False})]
+
+
+# ---------------------------------------------------------------------------
+# run -- the stored procedure end to end, with a fake session: LIST, reading the
+# files, AI_COMPLETE answers per staged file, part staging and the output table.
+# ---------------------------------------------------------------------------
+
+
+def _answer(value=None, error=None):
+    return json.dumps(
+        {"value": json.dumps(value) if value is not None else None, "error": error}
+    )
+
+
+class _RunSession:
+    """LIST returns ``files``' names; AI_COMPLETE answers come from ``answer(staged)``,
+    keyed by the staged path each call was sent; ``create_dataframe`` returns its
+    arguments."""
+
+    def __init__(self, files, answer) -> None:
+        self.files, self.answer = files, answer
+        self.file = _File()
+        self.calls = []
+
+    def sql(self, query, params=None):
+        if query.startswith("LIST"):
+            return _Result(rows=[{"name": f"s/{name}"} for name in self.files])
+        self.calls.append(params[2])
+        return _Result(raw=self.answer(params[2]))
+
+    def create_dataframe(self, rows, schema):
+        return rows, schema
+
+
+_RUN_SCHEMA = {
+    "schema": {
+        "type": "object",
+        "properties": {
+            "invoice": {"type": "string"},
+            "rows": {
+                "type": "array",
+                "items": {"type": "object", "properties": {"n": {"type": "integer"}}},
+            },
+        },
+    }
+}
+
+
+def _run(monkeypatch, files, answer):
+    session = _RunSession(files, answer)
+    monkeypatch.setattr(
+        DocumentExtraction,
+        "read_bytes",
+        staticmethod(lambda name: session.files[name.rsplit("/", 1)[-1]]),
+    )
+    rows, schema = proc.run(
+        session,
+        "@s",
+        json.dumps(_RUN_SCHEMA),
+        "Extract.",
+        json.dumps(["m1"]),
+        json.dumps(_BUDGETS),
+        30,
+        "@stage",
+    )
+    return session, rows, schema
+
+
+class TestRun:
+    def test_one_row_per_file_with_values_errors_and_scores(self, monkeypatch):
+        def answer(staged):
+            if staged == "@s/good.pdf":
+                return _answer(
+                    {
+                        STATUS_FIELD: {"complete": True},
+                        "invoice": "INV-1",
+                        "rows": [{"n": 1}],
+                        SCORES_FIELD: {"invoice": 0.9, "rows": 0.8},
+                    }
+                )
+            return _answer(error="boom")
+
+        files = {"good.pdf": _pdf_bytes(1), "bad.pdf": _pdf_bytes(1)}
+        _, rows, schema = _run(monkeypatch, files, answer)
+        assert [field.name for field in schema.fields] == [
+            "STAGE_PATH",
+            "VALUE",
+            "ERROR",
+            "SCORES",
+        ]
+        by_path = {row[0]: row for row in rows}
+        good, bad = by_path["@s/good.pdf"], by_path["@s/bad.pdf"]
+        assert json.loads(good[1]) == {"invoice": "INV-1", "rows": [{"n": 1}]}
+        assert good[2] is None
+        assert json.loads(good[3]) == {"invoice": 0.9, "rows": 0.8}
+        assert bad[1] is None and "boom" in bad[2] and bad[3] is None
+
+    def test_a_file_that_does_not_fit_is_split_and_merged(self, monkeypatch):
+        def answer(staged):
+            if staged == "@s/long.pdf":
+                status = {
+                    "complete": False,
+                    "last_pdf_page_extracted": 2,
+                    "remaining_page_ranges": [{"start_pdf_page": 3, "end_pdf_page": 4}],
+                }
+                return _answer(
+                    {STATUS_FIELD: status, "invoice": "INV-2", "rows": [{"n": 1}]}
+                )
+            assert staged == _part_target("@s/long.pdf", 3, 4)
+            return _answer(
+                {STATUS_FIELD: {"complete": True}, "invoice": None, "rows": [{"n": 2}]}
+            )
+
+        session, rows, _ = _run(monkeypatch, {"long.pdf": _pdf_bytes(4)}, answer)
+        [(path, value, error, _)] = rows
+        assert path == "@s/long.pdf" and error is None
+        assert json.loads(value) == {"invoice": "INV-2", "rows": [{"n": 1}, {"n": 2}]}
+        assert session.calls == ["@s/long.pdf", _part_target("@s/long.pdf", 3, 4)]
+        # The part for pages 3-4 carries page 2 in front as context.
+        [(_, data, _)] = session.file.staged
+        assert _staged_pages(data) == [1, 2, 3]
+
+
+# ---------------------------------------------------------------------------
+# Small branches of the helpers that the tests above do not reach.
+# ---------------------------------------------------------------------------
+
+
+class TestHelperBranches:
+    def test_the_planning_prompt_for_a_whole_document(self):
+        prompt = build_plan_predicate("p", 1, 5, 5, 1000, {"type": "object"})
+        assert "This file is the whole document: pages 1 to 5" in prompt
+
+    def test_next_ranges_skips_unusable_planned_ranges(self):
+        status = {
+            "complete": False,
+            "last_pdf_page_extracted": 2,
+            "remaining_page_ranges": [
+                "not a range",
+                {"start_pdf_page": None, "end_pdf_page": 4},
+                {"start_pdf_page": 1, "end_pdf_page": 1},
+                {"start_pdf_page": 3, "end_pdf_page": 5},
+            ],
+        }
+        keep, ranges = next_ranges(1, 5, {STATUS_FIELD: status}, None)
+        assert keep is True
+        assert ranges == [(3, 5)]
+
+    def test_cover_skips_a_range_already_covered(self):
+        assert _cover([(1, 4), (2, 3), (5, 6)], 1, 6) == [(1, 4), (5, 6)]
+
+    def test_merge_keeps_the_first_value_when_the_second_is_absent(self):
+        assert merge_values([{"a": "x"}, {"a": None}]) == {"a": "x"}
+
+    def test_a_truncated_answer_with_escaped_quotes_is_still_truncated(self):
+        value, error = parse_text_answer('{"a": "say \\"hi\\" ok", "b": [1, 2')
+        assert value is None
+        assert error == TRUNCATED_TEXT_ERROR
+
+    def test_a_salvaged_status_skips_unusable_planned_ranges(self):
+        status = {
+            "last_pdf_page_extracted": 2,
+            "estimated_total_output_tokens": 300,
+            "remaining_page_ranges": [
+                "not a range",
+                {"start_pdf_page": None, "end_pdf_page": 4},
+                {"start_pdf_page": 1, "end_pdf_page": 1},
+                {
+                    "start_pdf_page": 3,
+                    "end_pdf_page": 6,
+                    "estimated_output_tokens": "many",
+                },
+            ],
+        }
+        ranges = ranges_from_salvaged_status(1, 6, status, 100)
+        assert ranges[-1] == (3, 6)
+        assert ranges[0][0] == 1
+
+    def test_brackets_inside_strings_and_escaped_quotes_are_ignored(self):
+        assert _brackets_close('{"a": "has } and \\" inside"}') is True
+        assert _brackets_close('{"a": "has { and \\" inside"') is False
+
+
+class TestExtractionPaths:
+    def test_a_file_that_is_not_a_pdf_is_one_unsplittable_page(self, monkeypatch):
+        extraction = _doc_extraction(_FakeSession(["s/a.txt"]))
+        monkeypatch.setattr(extraction, "read_bytes", lambda name: b"plain text")
+        [file] = extraction.load_files("@s", 30)
+        assert file.reader is None and file.pages == 1 and not file.splittable
+
+    def test_a_non_pdf_keeps_its_answer_or_its_error(self, monkeypatch):
+        def answer(staged):
+            if staged == "@s/ok.txt":
+                return _answer({STATUS_FIELD: {"complete": True}, "invoice": "I"})
+            return _answer({})
+
+        files = {"ok.txt": b"text", "empty.txt": b"text"}
+        _, rows, _ = _run(monkeypatch, files, answer)
+        by_path = {row[0]: row for row in rows}
+        assert json.loads(by_path["@s/ok.txt"][1]) == {"invoice": "I"}
+        assert by_path["@s/empty.txt"][1] is None
+        assert by_path["@s/empty.txt"][2] == EMPTY_ANSWER_ERROR
+
+    def test_a_planning_segment_that_cannot_be_staged_falls_back_to_a_first_call(
+        self,
+    ):
+        session = _FakeSession(stage_error=OSError("stage is full"))
+        large = _pdf_state("@s/big.pdf", pages=BOUNDED_FIRST_CALL_MIN_PAGES + 10)
+        tasks = _doc_extraction(session).plan_large_files([large])
+        assert tasks and all(budget == "first" for _, _, _, budget in tasks)
+        assert large.calls == 0
+
+    def test_a_file_at_its_call_cap_gets_an_error_and_no_call(self):
+        session = _FakeSession()
+        file = _pdf_state("@s/a.pdf", pages=2, cap=0)
+        _doc_extraction(session).extract_until_done([file], [(file, 1, 2, "range")], 0)
+        assert file.errors == ["pages 1-2 not extracted: reached 0 calls"]
+        assert file.parts == []
+
+    def test_a_part_still_too_large_is_cut_in_half(self, monkeypatch):
+        monkeypatch.setattr(proc, "MAX_FILE_BYTES", 5)
+        session = _FakeSession()
+        file = _pdf_state("@s/a.pdf", pages=4)
+        _doc_extraction(session).extract_until_done([file], [(file, 1, 4, "range")], 30)
+        # Pages 1-4 and 1-2 are too large; single pages are staged and answered.
+        assert [start for start, _ in file.parts] == [1, 2, 3, 4]
+        assert file.errors == []
+
+    def test_a_large_estimate_raises_the_files_call_cap(self, monkeypatch):
+        def answer(staged):
+            return _answer(
+                {
+                    STATUS_FIELD: {
+                        "complete": True,
+                        "estimated_total_output_tokens": 10_000_000,
+                    },
+                    "invoice": "I",
+                }
+            )
+
+        session = _RunSession({"a.pdf": _pdf_bytes(1)}, answer)
+        extraction = _doc_extraction(session)
+        file = _pdf_state("@s/a.pdf", pages=1, cap=3)
+        extraction.extract_until_done([file], [(file, 1, 1, "range")], 3)
+        assert file.cap > 3

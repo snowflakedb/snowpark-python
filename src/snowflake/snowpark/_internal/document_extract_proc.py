@@ -1117,7 +1117,7 @@ def document_outcomes(
     return len(done), len(failed), [f.errors[0] for f in failed if f.errors]
 
 
-class DocumentExtraction:  # pragma: no cover - exercised against a live account
+class DocumentExtraction:
     """The calls for every file under a path: plan large files, extract every range,
     re-split ranges whose answer did not fit, and merge each file's parts."""
 
@@ -1193,7 +1193,7 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
             self.throttle_wait = 0
 
     @staticmethod
-    def read_bytes(name: str) -> bytes:  # pragma: no cover - needs a staged file
+    def read_bytes(name: str) -> bytes:
         """The bytes of the staged file ``name``."""
         from snowflake.snowpark.files import SnowflakeFile
 
