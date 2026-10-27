@@ -6,6 +6,8 @@ import pytest
 
 from snowflake.snowpark._internal.document_reader_options import (
     _DEFAULT_CORRUPT_RECORD_COLUMN,
+    _PARSE_MODES,
+    _USER_PARSE_MODES,
     DocumentReaderOptions,
     ExtractionSpec,
 )
@@ -155,6 +157,10 @@ class TestUserOptions:
     def test_parse_mode_none_is_not_a_user_choice(self):
         error = _expect_error("1116", {"PARSE_MODE": "none"})
         assert "parse_mode" in error.message
+
+    def test_user_parse_modes_are_every_parse_mode_but_none(self):
+        assert _USER_PARSE_MODES == _PARSE_MODES - {"none"}
+        assert _USER_PARSE_MODES == {"layout", "ocr", "text"}
 
     def test_invalid_parse_mode_raises_1116(self):
         error = _expect_error("1116", {"PARSE_MODE": "bogus"})

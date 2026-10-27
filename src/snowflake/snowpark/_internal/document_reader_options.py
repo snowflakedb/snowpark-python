@@ -25,7 +25,7 @@ _SUPPORTED_READER_OPTIONS = frozenset(
 )
 # parse_mode values a user can choose; "none" (do not parse) is set by the reader itself
 # whenever a schema or prompt is given.
-_USER_PARSE_MODES = frozenset({"layout", "ocr", "text"})
+_USER_PARSE_MODES = _PARSE_MODES - {"none"}
 
 # JSON Schema scalar types mapped to Snowpark equivalents; "array"/"object" are omitted since AI_EXTRACT/AI_COMPLETE already return them as structured VARIANT.
 _JSON_SCHEMA_SCALAR_TYPES: Dict[str, DataType] = {
