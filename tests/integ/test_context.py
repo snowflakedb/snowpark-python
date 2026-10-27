@@ -45,7 +45,23 @@ def test_context_configure_development_features():
         context.configure_development_features(enable_metadata_validation=True)
         assert context._enable_metadata_validation is True
     finally:
-        context.configure_development_features(
-            enable_trace_sql_errors_to_dataframe=False
-        )
+        # a call without arguments turns every development feature off
+        context.configure_development_features()
+        assert context._enable_trace_sql_errors_to_dataframe is False
         assert context._enable_metadata_validation is False
+
+
+def test_development_features_restore_session_settings_when_turned_off(session):
+    original_ast = session.ast_enabled
+    original_cleaner = session._auto_clean_up_temp_table_enabled
+    try:
+        context.configure_development_features(enable_dataframe_trace_on_error=True)
+        context.configure_development_features(enable_eager_schema_validation=True)
+        # a call that only passes other features keeps the tracing feature on
+        assert context._enable_dataframe_trace_on_error is True
+        assert session.ast_enabled is True
+        assert session._auto_clean_up_temp_table_enabled is False
+    finally:
+        context.configure_development_features()
+    assert session.ast_enabled == original_ast
+    assert session._auto_clean_up_temp_table_enabled == original_cleaner

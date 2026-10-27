@@ -735,6 +735,8 @@ class Session:
                 _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION
             )
         )
+        # Set when enabling AST turned the automatic temp table clean-up off, so disabling AST restores it.
+        self._auto_clean_up_temp_table_disabled_by_ast: bool = False
         self._reduce_describe_query_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED, False
@@ -1118,6 +1120,11 @@ class Session:
                 " Disabling auto temp cleaner for full test suite due to buggy behavior."
             )
             self._auto_clean_up_temp_table_enabled = False
+            self._auto_clean_up_temp_table_disabled_by_ast = True
+        elif not value and self._auto_clean_up_temp_table_disabled_by_ast:
+            # Restore the clean-up that enabling AST turned off.
+            self._auto_clean_up_temp_table_enabled = True
+            self._auto_clean_up_temp_table_disabled_by_ast = False
         set_ast_state(AstFlagSource.USER, value)
 
     @ast_enabled.setter
@@ -1293,6 +1300,8 @@ class Session:
                     self._session_id, value
                 )
                 self._auto_clean_up_temp_table_enabled = value
+                # An explicit user choice replaces what the development features did.
+                self._auto_clean_up_temp_table_disabled_by_ast = False
         else:
             raise ValueError(
                 "value for auto_clean_up_temp_table_enabled must be True or False!"
@@ -3054,7 +3063,6 @@ class Session:
             self._conn, NopConnection
         ):
             if self._conn._suppress_not_implemented_error:
-
                 # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here.
                 ans = self.createDataFrame(
                     [],
