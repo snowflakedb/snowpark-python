@@ -18,39 +18,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # mirror=true when the pushed commits change CHANGELOG.md and nothing else.
-  # Then each gated job copies its result from the previous push's run instead
-  # of re-testing (see .github/scripts/mirror_previous_run.sh). An empty commit,
-  # errors, force-pushes and non-PR events all give mirror=false (run for real).
-  changes:
-    name: Detect code changes
+  # Decides whether the other gates run for this push. Skipping is off until
+  # the repo variable PR_GATE_SKIP_ENABLED is set to 'true'.
+  pr_gate_precheck:
+    name: PR Gate Precheck
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
-      mirror: ${{ steps.filter.outputs.changelog == 'true' && steps.filter.outputs.other == 'false' }}
+      skip_other_gates: ${{ steps.precheck.outputs.skip_other_gates }}
     steps:
       - uses: actions/checkout@v4
-        if: github.event_name == 'pull_request'
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        id: filter
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        with:
-          # empty token => diff with git so `base` is honored (the PR API would
-          # return the whole PR); only "synchronize" has a usable `before` sha
-          token: ''
-          base: ${{ github.event.action == 'synchronize' && github.event.before || '' }}
-          predicate-quantifier: every
-          filters: |
-            changelog:
-              - 'CHANGELOG.md'
-            other:
-              - '**'
-              - '!CHANGELOG.md'
+      - id: precheck
+        run: .github/scripts/pr_gate.sh precheck
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          BEFORE: ${{ github.event.before }}
+          SKIP_ENABLED: ${{ vars.PR_GATE_SKIP_ENABLED }}
 
   lint:
+    # Every other job descends from lint, type_checking, combine-coverage or doc,
+    # so guarding these skips the whole workflow when skip_other_gates is true.
+    needs: pr_gate_precheck
+    if: ${{ needs.pr_gate_precheck.outputs.skip_other_gates != 'true' }}
     name: Check linting
     runs-on: ubuntu-latest
     steps:
@@ -76,6 +70,8 @@ jobs:
         run: python -m tox -e fix_lint
 
   type_checking:
+    needs: pr_gate_precheck
+    if: ${{ needs.pr_gate_precheck.outputs.skip_other_gates != 'true' }}
     name: Type Checking
     runs-on: ubuntu-latest
     steps:
@@ -101,9 +97,7 @@ jobs:
         run: python -m tox -e pyright
 
   build:
-    needs: [lint, changes]
-    outputs:
-      mirror: ${{ needs.changes.outputs.mirror }}
+    needs: lint
     name: Build Wheel File
     runs-on: ubuntu-latest
     steps:
@@ -181,9 +175,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      - id: mirror
-        if: ${{ needs.build.outputs.mirror == 'true' && github.run_attempt == 1 }}
-        uses: ./.github/actions/mirror-previous-run
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -218,10 +209,9 @@ jobs:
       - name: Upgrade setuptools, pip and wheel
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: uv pip install tox --system
       # we only run doctest on macos
-      - if: ${{ steps.mirror.outputs.skip != 'true' && (matrix.os == 'macos-latest') }}
+      - if: ${{ matrix.os == 'macos-latest' }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -233,7 +223,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ steps.mirror.outputs.skip != 'true' && (matrix.os != 'macos-latest' && matrix.python-version != '3.14') }}
+      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version != '3.14' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest${EXTRA_TOX_FACTORS}-ci"
         env:
@@ -248,7 +238,7 @@ jobs:
       # SNOW-4145327: 3.14 live UDF/sproc install Snowpark from PyPI, which
       # still pins the old cloudpickle. Hold those tests until the next
       # client is published. Same as daily_precommit.yml / #681.
-      - if: ${{ steps.mirror.outputs.skip != 'true' && (matrix.os != 'macos-latest' && matrix.python-version == '3.14') }}
+      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version == '3.14' }}
         name: Run tests (excluding udf, doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest${EXTRA_TOX_FACTORS}-ci"
         env:
@@ -269,7 +259,7 @@ jobs:
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
         shell: bash
       - name: Run data source tests
-        if: ${{ steps.mirror.outputs.skip != 'true' && (!(matrix.python-version == '3.14')) }}
+        if: ${{ !(matrix.python-version == '3.14') }}
         run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -278,7 +268,6 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
@@ -304,9 +293,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      - id: mirror
-        if: ${{ needs.build.outputs.mirror == 'true' && github.run_attempt == 1 }}
-        uses: ./.github/actions/mirror-previous-run
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -341,10 +327,8 @@ jobs:
       - name: Upgrade setuptools, pip and wheel
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: uv pip install tox --system
       - name: Run tests
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: python -m tox -e "py${PYTHON_VERSION/\./}-local"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -354,7 +338,6 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
@@ -383,9 +366,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      - id: mirror
-        if: ${{ needs.build.outputs.mirror == 'true' && github.run_attempt == 1 }}
-        uses: ./.github/actions/mirror-previous-run
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -418,7 +398,6 @@ jobs:
       - name: Install protobuf
         run: uv pip install protobuf==${{ matrix.protobuf-version }} --system
       - name: Install tox
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: uv pip install tox --system
       - name: Set up Windows environment
         if: runner.os == 'Windows'
@@ -428,7 +407,6 @@ jobs:
             echo "TZ=EST" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Run tests
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         # TODO: SNOW-1763186 use pytest marker to test multiple TZs
         run: TZ=EST python -m tox -e "py${PYTHON_VERSION/\./}-ast"
         env:
@@ -440,7 +418,6 @@ jobs:
           TZ: EST
         shell: bash
       - name: Combine coverages
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
@@ -466,9 +443,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      - id: mirror
-        if: ${{ needs.build.outputs.mirror == 'true' && github.run_attempt == 1 }}
-        uses: ./.github/actions/mirror-previous-run
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -499,10 +473,8 @@ jobs:
       - name: Upgrade setuptools, pip and wheel
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: uv pip install tox --system
       - name: Run doctests for AST (I/II)
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -524,9 +496,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      - id: mirror
-        if: ${{ needs.build.outputs.mirror == 'true' && github.run_attempt == 1 }}
-        uses: ./.github/actions/mirror-previous-run
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -557,10 +526,8 @@ jobs:
       - name: Upgrade setuptools, pip and wheel
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: uv pip install tox --system
       - name: Run tests for AST (II/II)
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -571,7 +538,6 @@ jobs:
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       - name: Combine coverages
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
@@ -615,9 +581,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      - id: mirror
-        if: ${{ needs.build.outputs.mirror == 'true' && github.run_attempt == 1 }}
-        uses: ./.github/actions/mirror-previous-run
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -652,9 +615,8 @@ jobs:
       - name: Upgrade setuptools, pip and wheel
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: uv pip install tox --system
-      - if: ${{ steps.mirror.outputs.skip != 'true' && (matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws') }}
+      - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
         name: Check AutoSwitchBackend default value
         # SNOW-2389912: Ensure hybrid is correctly enabled by default. We can't use pytest because
         # our test suite sets the AutoSwitchBackend variable explicitly.
@@ -665,7 +627,7 @@ jobs:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
         # only run doctest for macos on aws
-      - if: ${{ steps.mirror.outputs.skip != 'true' && (matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws') }}
+      - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
         name: Run Snowpark pandas API doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-snowparkpandasdoctest-modin-ci"
         env:
@@ -677,7 +639,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
         # do not run other tests for macos on aws
-      - if: ${{ steps.mirror.outputs.skip != 'true' && (!(matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws')) }}
+      - if: ${{ !(matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws') }}
         name: Run Snowpark pandas API tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci"
         env:
@@ -687,7 +649,6 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
@@ -715,9 +676,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      - id: mirror
-        if: ${{ needs.build.outputs.mirror == 'true' && github.run_attempt == 1 }}
-        uses: ./.github/actions/mirror-previous-run
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -748,10 +706,8 @@ jobs:
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Install tox
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: uv pip install tox --system
       - name: Run all tests
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: python -m tox -e "modin_extra_without_pandas_extra"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -760,7 +716,6 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
       - uses: actions/upload-artifact@v4
@@ -772,10 +727,10 @@ jobs:
             .tox/coverage.xml
 
   combine-coverage:
-    if: ${{ (needs.changes.outputs.mirror != 'true' || github.run_attempt > 1) && (success() || failure()) }}
+    if: ${{ (success() || failure()) && needs.pr_gate_precheck.outputs.skip_other_gates != 'true' }}
     name: Combine coverage
     needs:
-      - changes
+      - pr_gate_precheck
       - test
       - test-local-testing
       - test-snowpark-pandas
@@ -846,15 +801,12 @@ jobs:
           diff-cover .tox/coverage.xml --compare-branch=main --fail-under=95
 
   doc:
-    needs: [lint, changes]
+    needs: lint
     name: Build Doc
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      - id: mirror
-        if: ${{ needs.changes.outputs.mirror == 'true' && github.run_attempt == 1 }}
-        uses: ./.github/actions/mirror-previous-run
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -871,7 +823,6 @@ jobs:
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Build document
-        if: ${{ steps.mirror.outputs.skip != 'true' }}
         run: python -m tox -e docs
       - name: Upload html files
         uses: actions/upload-artifact@v4
@@ -879,3 +830,37 @@ jobs:
           include-hidden-files: true
           name: docs
           path: .tox/docs_out
+
+  # Records the status of every gate and reports the state of the latest
+  # non-changelog-only commit. Not a required check yet.
+  pr_gate:
+    name: PR Gate
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs:
+      - pr_gate_precheck
+      - lint
+      - type_checking
+      - build
+      - test
+      - test-local-testing
+      - test-ast-encoding
+      - doctest-ast-phase0
+      - test-ast-phase0
+      - test-snowpark-pandas
+      - test-modin-extra-without-pandas-extra
+      - doc
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      pull-requests: read
+      statuses: read
+    steps:
+      - uses: actions/checkout@v4
+      - run: .github/scripts/pr_gate.sh report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
