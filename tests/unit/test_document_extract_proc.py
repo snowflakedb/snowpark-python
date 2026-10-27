@@ -923,12 +923,32 @@ class TestNextRanges:
         assert keep is False
         assert ranges == [(1, 5), (6, 10)]
 
-    def test_missing_status_block_is_treated_as_complete(self):
+    def test_missing_status_block_on_a_multi_page_call_halves_the_range(self):
+        # The model may have stopped early without saying so: don't trust the answer.
         keep, ranges = next_ranges(1, 10, {"name": "x"}, None)
-        assert keep is True
-        assert ranges == []
+        assert keep is False
+        assert ranges == [(1, 5), (6, 10)]
 
-    def test_complete_true_or_missing_is_treated_as_complete(self):
+    def test_non_dict_status_on_a_multi_page_call_halves_the_range(self):
+        keep, ranges = next_ranges(1, 10, {STATUS_FIELD: "not a dict"}, None)
+        assert keep is False
+        assert ranges == [(1, 5), (6, 10)]
+
+    def test_missing_status_halves_an_odd_page_count_without_losing_a_page(self):
+        keep, ranges = next_ranges(3, 9, {"name": "x"}, None)
+        assert keep is False
+        assert ranges == [(3, 6), (7, 9)]
+
+    def test_missing_status_on_a_two_page_call_gives_one_page_halves(self):
+        keep, ranges = next_ranges(4, 5, {"name": "x"}, None)
+        assert keep is False
+        assert ranges == [(4, 4), (5, 5)]
+
+    def test_missing_or_non_dict_status_on_a_single_page_call_is_kept(self):
+        assert next_ranges(5, 5, {"name": "x"}, None) == (True, [])
+        assert next_ranges(5, 5, {STATUS_FIELD: "not a dict"}, None) == (True, [])
+
+    def test_complete_true_or_absent_in_a_status_object_is_treated_as_complete(self):
         assert next_ranges(1, 10, {STATUS_FIELD: {"complete": True}}, None) == (
             True,
             [],

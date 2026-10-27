@@ -543,7 +543,12 @@ def next_ranges(
     """Returns (keep_value, ranges_still_to_extract) for one finished call. With a
     ``target``, adjacent planned ranges are coalesced up to ``target`` estimated tokens.
     A failed call's ``salvaged`` status, when usable, re-splits its pages along its own
-    plan instead of in halves."""
+    plan instead of in halves.
+
+    A successful answer over more than one page whose ``extraction_status`` is missing
+    or not an object is not trusted: the model may have stopped early without saying so,
+    so the answer is discarded and its pages retried in halves. On a single page, which
+    cannot be split, the answer is kept."""
     if error is not None or not isinstance(value, dict):
         if end > start and (error is None or is_splittable_error(error)):
             if salvaged is not None:
@@ -554,7 +559,12 @@ def next_ranges(
             return False, [(start, mid), (mid + 1, end)]
         return False, []
     status = value.get(STATUS_FIELD)
-    if not isinstance(status, dict) or status.get("complete") is not False:
+    if not isinstance(status, dict):
+        if end > start:
+            mid = (start + end) // 2
+            return False, [(start, mid), (mid + 1, end)]
+        return True, []
+    if status.get("complete") is not False:
         return True, []
     last = _to_document_page(status.get("last_pdf_page_extracted"), start, end)
     if last is None or last < start:
