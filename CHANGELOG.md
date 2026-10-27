@@ -6,6 +6,8 @@
 
 #### New Features
 
+- Added `DataFrameReader.documents` (private preview) to read documents from a stage: parse them to text, or extract structured values with a `schema` and/or a `prompt` option. Long documents are split across several model calls automatically.
+
 #### Improvements
 
 - Eager schema validation (`context.configure_development_features(enable_eager_schema_validation=True)`) now raises invalid column references in `DataFrame.filter` and `DataFrame.sort` when the DataFrame is created.

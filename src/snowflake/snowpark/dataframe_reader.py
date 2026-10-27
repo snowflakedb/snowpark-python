@@ -1399,14 +1399,80 @@ class DataFrameReader:
         result = df.select(cols)
         return result
 
-    def _documents(self, path: str) -> DataFrame:
+    @private_preview(version="1.56.0")
+    @publicapi
+    def documents(self, path: str, _emit_ast: bool = True) -> DataFrame:
+        """Specify the path of the document(s) to read: the files are parsed to text, or
+        a schema or a prompt turns the read into an extraction of structured values.
+
+        The reader chooses the model and how a long document is split across model calls;
+        none of that is configurable. Options set with :meth:`option` or :meth:`options`
+        (names are case-insensitive, any other option is ignored):
+
+            - ``schema``: the fields to extract. A JSON Schema dict (with a ``properties``
+              dict), a dict of ``{field: question}``, or a list of field names or
+              ``"field: question"`` strings. The result has one column per field,
+              named in upper case.
+            - ``prompt``: instructions for the model. With a ``schema`` it guides the
+              extraction. Without one the model's answer is returned as text.
+            - ``parse_mode``: how files are parsed when there is no ``schema`` or ``prompt``:
+              ``"layout"`` (the default), ``"ocr"`` or ``"text"``.
+            - ``row_boundary``: ``"document"`` (the default) returns one row per file;
+              ``"page"`` returns one row per page. Used with ``parse_mode`` only.
+
+        ``parse_mode`` and ``row_boundary`` are ignored when a ``schema`` or ``prompt`` is
+        set: the file is then sent to the model directly, which keeps layout such as table
+        columns that parsing would flatten.
+
+        The returned DataFrame has these columns:
+
+            - no ``schema`` or ``prompt``: ``SOURCE_FILE``, ``TOTAL_PAGES`` and
+              ``CONTENT`` (the parsed text); ``PAGE_INDEX`` is added when ``row_boundary``
+              is ``"page"``.
+            - ``schema``: ``SOURCE_FILE`` followed by one column per schema field.
+            - ``prompt`` only: ``SOURCE_FILE`` and ``RESPONSE``.
+
+        Every read also has a ``_document_error`` column. A document that fails does not
+        fail the read: its row holds an array of ``{stage, message}`` entries describing
+        what went wrong, and ``NULL`` when the document succeeded. A read stops early with
+        an error when most of its documents fail, or when no supported model is available
+        to the account.
+
+        Args:
+            path: The stage location of a document, or a stage location that has documents.
+
+        Example::
+
+            >>> # Parse every document in a stage to text.
+            >>> df = session.read.documents("@mystage/docs/")  # doctest: +SKIP
+            >>> df.select("SOURCE_FILE", "TOTAL_PAGES", "CONTENT").show()  # doctest: +SKIP
+
+            >>> # Extract fields from every document in a stage.
+            >>> schema = {  # doctest: +SKIP
+            ...     "type": "object",
+            ...     "properties": {
+            ...         "invoice_number": {"type": "string"},
+            ...         "total": {"type": "number"},
+            ...     },
+            ... }
+            >>> df = session.read.option("schema", schema).documents("@mystage/invoices/")  # doctest: +SKIP
+            >>> df.select("SOURCE_FILE", "INVOICE_NUMBER", "TOTAL", "_document_error").show()  # doctest: +SKIP
+
+            >>> # Read one row per page.
+            >>> df = session.read.option("row_boundary", "page").documents("@mystage/docs/")  # doctest: +SKIP
+        """
         path = _validate_stage_path(path)
         options = document_reader.DocumentReaderOptions.from_reader_options(
             self._cur_options
         )
         df = document_reader.read_documents(self._session, path, options)
-        set_api_call_source(df, "DataFrameReader._documents")
+        set_api_call_source(df, "DataFrameReader.documents")
         return df
+
+    def _documents(self, path: str) -> DataFrame:
+        """Kept so callers of the earlier private name keep working; use
+        :meth:`documents`."""
+        return self.documents(path)
 
     @publicapi
     def option(self, key: str, value: Any, _emit_ast: bool = True) -> "DataFrameReader":

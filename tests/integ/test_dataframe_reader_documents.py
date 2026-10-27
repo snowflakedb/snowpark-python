@@ -104,7 +104,7 @@ def invoice_path(doc_stage):
 
 
 def test_documents_default_options(session, invoice_path):
-    df = session.read._documents(invoice_path)
+    df = session.read.documents(invoice_path)
 
     assert _unquoted(df) == [
         "SOURCE_FILE",
@@ -122,7 +122,7 @@ def test_documents_default_options(session, invoice_path):
 
 
 def test_multiple_files_produce_one_row_each(session, doc_stage):
-    rows = session.read._documents(f"@{doc_stage}").collect()
+    rows = session.read.documents(f"@{doc_stage}").collect()
 
     assert len(rows) == 2
     assert all(row["CONTENT"] for row in rows)
@@ -141,7 +141,7 @@ def _datatype(df, column_name: str):
 
 
 def test_schema_scalar_types_are_cast_not_stringified(session, invoice_path):
-    df = session.read.option("schema", TYPED_SCALAR_SCHEMA)._documents(invoice_path)
+    df = session.read.option("schema", TYPED_SCALAR_SCHEMA).documents(invoice_path)
 
     # No CONTENT/TOTAL_PAGES (parse is skipped for a schema read) and no
     # EXTRACTION_SCORES (that's an AI_EXTRACT-only output, unreachable now that
@@ -169,7 +169,7 @@ def test_schema_scalar_types_are_cast_not_stringified(session, invoice_path):
 
 
 def test_schema_array_field_stays_variant_not_stringified(session, invoice_path):
-    df = session.read.option("schema", ARRAY_FIELD_SCHEMA)._documents(invoice_path)
+    df = session.read.option("schema", ARRAY_FIELD_SCHEMA).documents(invoice_path)
 
     assert isinstance(_datatype(df, "INVOICE_NUMBER"), StringType)
     assert isinstance(_datatype(df, "LINE_ITEM_DESCRIPTIONS"), VariantType)
@@ -188,7 +188,7 @@ def test_flat_schema_field_returns_a_string_column(session, invoice_path):
     # A flat {name: question} dict/list schema used to pass straight through to
     # AI_EXTRACT and come back as an untyped VARIANT. Now it's converted to a
     # string-typed JSON Schema so AI_COMPLETE (the only engine left) can use it.
-    df = session.read.option("schema", FLAT_NL_SCHEMA)._documents(invoice_path)
+    df = session.read.option("schema", FLAT_NL_SCHEMA).documents(invoice_path)
 
     assert isinstance(_datatype(df, "INVOICE_NUMBER"), StringType)
     row = df.collect()[0]
@@ -201,7 +201,7 @@ def test_prompt_only_read_returns_a_response_column(session, invoice_path):
     # in a RESPONSE column instead of a per-field extraction.
     df = session.read.option(
         "prompt", "Summarize this document in one sentence."
-    )._documents(invoice_path)
+    ).documents(invoice_path)
 
     assert _unquoted(df) == ["SOURCE_FILE", "RESPONSE", "_document_error"]
     row = df.collect()[0]
@@ -217,7 +217,7 @@ def test_schema_and_prompt_together(session, invoice_path):
             "prompt", "Extract the invoice number and total amount due."
         )
         .option("schema", INVOICE_SCHEMA)
-        ._documents(invoice_path)
+        .documents(invoice_path)
     )
 
     assert _unquoted(df) == [
@@ -238,7 +238,7 @@ def test_schema_and_prompt_together(session, invoice_path):
 
 
 def test_permissive_captures_a_parse_error_without_aborting(session, unsupported_stage):
-    rows = session.read._documents(f"@{unsupported_stage}").collect()
+    rows = session.read.documents(f"@{unsupported_stage}").collect()
 
     assert len(rows) == 1
     # _document_error is an array, one entry per phase that failed -- not a single
@@ -320,7 +320,7 @@ def test_invalid_parse_option_raises_before_any_query(
     session, invoice_path, key, value
 ):
     with pytest.raises(SnowparkDataframeReaderException) as exc_info:
-        session.read.option(key, value)._documents(invoice_path)
+        session.read.option(key, value).documents(invoice_path)
     assert exc_info.value.error_code == "1116"
 
 
@@ -336,10 +336,20 @@ def test_invalid_parse_option_raises_before_any_query(
 def test_options_chosen_by_the_reader_are_ignored(session, invoice_path, key, value):
     # Same read as without the option: the reader chooses the model, fail mode and
     # engine itself, so these keys do nothing.
-    columns = session.read.option(key, value)._documents(invoice_path).columns
-    assert columns == session.read._documents(invoice_path).columns
+    columns = session.read.option(key, value).documents(invoice_path).columns
+    assert columns == session.read.documents(invoice_path).columns
 
 
 def test_non_stage_path_raises(session):
     with pytest.raises(ValueError, match="invalid Snowflake stage location"):
-        session.read._documents("/local/path/doc.pdf")
+        session.read.documents("/local/path/doc.pdf")
+
+
+def test_private_documents_alias_still_works(session, invoice_path):
+    df = session.read._documents(invoice_path)
+    assert _unquoted(df) == [
+        "SOURCE_FILE",
+        "TOTAL_PAGES",
+        "CONTENT",
+        "_document_error",
+    ]
