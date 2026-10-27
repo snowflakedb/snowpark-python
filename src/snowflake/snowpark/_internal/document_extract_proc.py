@@ -926,7 +926,9 @@ def read_answer(raw: Any) -> Tuple[Any, Optional[str], Optional[Dict[str, Any]]]
 @dataclass
 class FileState:
     """One document's progress through the procedure. ``reader`` is None for a file that
-    is not a readable PDF: it is extracted whole, as one page, and never split."""
+    is not a readable PDF: it is extracted whole, as one page, and never split.
+    ``failed`` marks a file whose bytes could not be read at all: it has its error, no
+    tasks, and still gets an output row."""
 
     path: str
     reader: Any
@@ -936,6 +938,7 @@ class FileState:
     calls: int = 0
     parts: List[Tuple[int, Dict[str, Any]]] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
+    failed: bool = False
 
     @property
     def splittable(self) -> bool:
@@ -950,6 +953,21 @@ class FileState:
 
 # A page range waiting for a call: (file, first page, last page, budget name).
 Task = Tuple[FileState, int, int, str]
+
+
+def result_row(file: FileState) -> List[Any]:
+    """The output row ``[STAGE_PATH, VALUE, ERROR]`` of one file: its parts merged in page
+    order, so a table split across ranges comes back as one table. A failure while
+    merging is that file's error, not the read's."""
+    errors = list(file.errors)
+    value = None
+    parts = [part for _, part in sorted(file.parts, key=lambda item: item[0])]
+    if parts:
+        try:
+            value = json.dumps(merge_values(parts))
+        except Exception as exc:
+            errors.append(f"could not merge the extracted parts: {exc}")
+    return [file.path, value, "; ".join(errors) if errors else None]
 
 
 def document_outcomes(
@@ -1010,26 +1028,47 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
             return
         raise RuntimeError(no_model_message(self.models))
 
-    def load_files(self, path: str, max_calls_per_file: int) -> List[FileState]:
-        """List every file under ``path``, read it, and parse it as a PDF when possible;
-        a file that is not a readable PDF becomes a one-page, unsplittable ``FileState``."""
-        from pypdf import PdfReader
+    @staticmethod
+    def read_bytes(name: str) -> bytes:  # pragma: no cover - needs a staged file
+        """The bytes of the staged file ``name``."""
         from snowflake.snowpark.files import SnowflakeFile
 
-        files = []
-        for row in self.session.sql(f"LIST {path}").collect():
-            name = qualify_listed_name(path, row["name"])
-            with SnowflakeFile.open(name, "rb", require_scoped_url=False) as f:
-                content = f.read()
-            try:
-                reader = PdfReader(io.BytesIO(content))
-                pages = len(reader.pages)
-            except Exception:
-                reader, pages = None, 1
-            files.append(
-                FileState(name, reader, pages, len(content), max_calls_per_file)
+        with SnowflakeFile.open(name, "rb", require_scoped_url=False) as f:
+            return f.read()
+
+    def load_file(self, name: str, max_calls_per_file: int) -> FileState:
+        """Read one staged file and parse it as a PDF when possible; a file that is not a
+        readable PDF becomes a one-page, unsplittable ``FileState``. A file that cannot
+        be read at all becomes a ``failed`` one carrying the error, so it affects only
+        its own output row."""
+        from pypdf import PdfReader
+
+        try:
+            content = self.read_bytes(name)
+        except Exception as exc:
+            return FileState(
+                name,
+                None,
+                1,
+                0,
+                max_calls_per_file,
+                errors=[f"could not read file: {exc}"],
+                failed=True,
             )
-        return files
+        try:
+            reader = PdfReader(io.BytesIO(content))
+            pages = len(reader.pages)
+        except Exception:
+            reader, pages = None, 1
+        return FileState(name, reader, pages, len(content), max_calls_per_file)
+
+    def load_files(self, path: str, max_calls_per_file: int) -> List[FileState]:
+        """List every file under ``path`` and load each (see ``load_file``). Listing the
+        path itself failing stops the read: there is nothing to report per file."""
+        return [
+            self.load_file(qualify_listed_name(path, row["name"]), max_calls_per_file)
+            for row in self.session.sql(f"LIST {path}").collect()
+        ]
 
     def stage_part(self, file: FileState, start: int, end: int) -> Optional[str]:
         """Stage the pages, with the previous page as context, as their own PDF; None
@@ -1088,7 +1127,7 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
         tasks: List[Task] = []
         planned = [f for f in files if f.splittable and is_large_file(f.pages, f.size)]
         for file in files:
-            if file in planned:
+            if file in planned or file.failed:
                 continue
             first = first_round_budget(file.pages, file.size)
             ranges = (
@@ -1098,16 +1137,22 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
         jobs = []
         for file in planned:
             for a, b in planning_segments(file.pages, file.size):
-                staged = self.stage_part(file, a, b)
-                if staged is None:
-                    tasks.append((file, a, b, "first"))
-                    continue
                 prompt = build_plan_predicate(
                     self.predicate, a, b, file.pages, plan["range_target"], self.schema
                 )
-                jobs.append(
-                    (file, a, b, self.submit(file, prompt, staged, plan["max_tokens"]))
-                )
+                try:
+                    staged = self.stage_part(file, a, b)
+                    job = (
+                        self.submit(file, prompt, staged, plan["max_tokens"])
+                        if staged is not None
+                        else None
+                    )
+                except Exception:
+                    job = None  # the fallback below records the error if it recurs
+                if job is None:
+                    tasks.append((file, a, b, "first"))
+                    continue
+                jobs.append((file, a, b, job))
         for file, a, b, job in jobs:
             value, error, _ = self.collect(job)
             ranges = ranges_from_plan(value, a, b) if error is None else None
@@ -1127,9 +1172,11 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
     ) -> None:
         """Run every task at once, then the tasks their answers leave (the rest of a
         range that did not fit, or the halves of one that failed) until none are left.
-        After each round, while work is still waiting, the read is stopped with a
-        RuntimeError if ``should_abort`` says too many finished documents failed; when
-        nothing is waiting, the results are complete and are returned as they are."""
+        A failure in staging a part, submitting a call or processing an answer is that
+        file's error, and the other files go on. After each round, while work is still
+        waiting, the read is stopped with a RuntimeError if ``should_abort`` says too
+        many finished documents failed; when nothing is waiting, the results are complete
+        and are returned as they are."""
         while tasks:
             jobs = []
             oversized: List[Task] = []
@@ -1139,7 +1186,13 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
                         f"pages {start}-{end} not extracted: reached {file.cap} calls"
                     )
                     continue
-                staged = self.stage_part(file, start, end)
+                try:
+                    staged = self.stage_part(file, start, end)
+                except Exception as exc:
+                    file.errors.append(
+                        f"pages {start}-{end}: could not stage part file: {exc}"
+                    )
+                    continue
                 if staged is None:
                     mid = (start + end) // 2
                     oversized += [
@@ -1159,20 +1212,24 @@ class DocumentExtraction:  # pragma: no cover - exercised against a live account
                     )
                     + self.instruction
                 )
-                jobs.append(
-                    (
-                        file,
-                        start,
-                        end,
-                        budget_name,
-                        self.submit(file, prompt, staged, budget["max_tokens"]),
+                try:
+                    job = self.submit(file, prompt, staged, budget["max_tokens"])
+                except Exception as exc:
+                    file.errors.append(
+                        f"pages {start}-{end}: could not submit the AI_COMPLETE call: {exc}"
                     )
-                )
+                    continue
+                jobs.append((file, start, end, budget_name, job))
             tasks = oversized
             for file, start, end, budget_name, job in jobs:
-                tasks += self.finish(
-                    file, start, end, budget_name, job, max_calls_per_file
-                )
+                try:
+                    tasks += self.finish(
+                        file, start, end, budget_name, job, max_calls_per_file
+                    )
+                except Exception as exc:
+                    file.errors.append(
+                        f"pages {start}-{end}: could not process the answer: {exc}"
+                    )
             if tasks:
                 finished, failed, errors = document_outcomes(files, tasks)
                 if should_abort(finished, failed):
@@ -1258,7 +1315,9 @@ def run(
 
     Returns:
         STAGE_PATH, VALUE (the merged answer as JSON, or None when no part succeeded)
-        and ERROR (every failure for the file, joined with "; ", or None).
+        and ERROR (every failure for the file, joined with "; ", or None). A failure
+        reading, staging, submitting or merging is a file's own ERROR and does not
+        stop the read; only the errors under Raises do.
     """
     from snowflake.snowpark.types import StringType, StructField, StructType
 
@@ -1278,18 +1337,8 @@ def run(
     tasks = extraction.plan_large_files(files)
     # 3. Extract until no range is left; each file collects its parts and errors.
     extraction.extract_until_done(files, tasks, max_calls_per_file)
-    # 4. One row per file: its parts merged in page order, so a table split across
-    #    ranges comes back as one table.
-    rows = []
-    for file in files:
-        parts = [value for _, value in sorted(file.parts, key=lambda part: part[0])]
-        rows.append(
-            [
-                file.path,
-                json.dumps(merge_values(parts)) if parts else None,
-                "; ".join(file.errors) if file.errors else None,
-            ]
-        )
+    # 4. One row per file (see result_row), including files that failed.
+    rows = [result_row(file) for file in files]
     schema = StructType(
         [
             StructField("STAGE_PATH", StringType()),

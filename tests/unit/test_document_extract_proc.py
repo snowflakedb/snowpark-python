@@ -39,10 +39,11 @@ from snowflake.snowpark._internal.document_extract_proc import (
     ranges_from_plan,
     DocumentExtraction,
     FileState,
+    document_outcomes,
+    result_row,
     MAX_FAILED_FRACTION,
     MIN_DOCUMENTS_BEFORE_ABORT,
     abort_message,
-    document_outcomes,
     should_abort,
     ranges_from_salvaged_status,
     salvage_status,
@@ -1870,3 +1871,192 @@ class TestReadStopsWhenMostDocumentsFail:
         # errors are returned instead of discarding the result.
         files = _run_fake(failing=12, with_splittable=False)
         assert all(f.errors for f in files)
+
+
+# ---------------------------------------------------------------------------
+# Per-file failures -- reading, staging, submitting, processing or merging one
+# file goes wrong: that file's error, never the whole read. The terminal errors
+# (no model; too many documents failed) still stop it.
+# ---------------------------------------------------------------------------
+
+
+def _pdf_bytes(pages):
+    import io
+
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    for _ in range(pages):
+        writer.add_blank_page(width=100, height=100)
+    buffer = io.BytesIO()
+    writer.write(buffer)
+    return buffer.getvalue()
+
+
+_COMPLETE_ANSWER = json.dumps(
+    {
+        "value": json.dumps({STATUS_FIELD: {"complete": True}, "a": "x"}),
+        "error": None,
+    }
+)
+
+
+class _Job:
+    def __init__(self, raw) -> None:
+        self.raw = raw
+
+    def result(self):
+        return [[self.raw]]
+
+
+class _Result:
+    def __init__(self, rows=None, raw=None) -> None:
+        self.rows, self.raw = rows or [], raw
+
+    def collect(self):
+        return self.rows
+
+    def collect_nowait(self):
+        return _Job(self.raw)
+
+
+class _File:
+    def put_stream(self, *args, **kwargs):
+        raise OSError("stage is full")
+
+
+class _FakeSession:
+    """LIST returns ``names``; AI_COMPLETE answers every call with a complete answer."""
+
+    def __init__(self, names=(), submit_error=None) -> None:
+        self.names, self.submit_error = names, submit_error
+        self.file = _File()
+
+    def sql(self, query, params=None):
+        if query.startswith("LIST"):
+            return _Result(rows=[{"name": n} for n in self.names])
+        if self.submit_error is not None:
+            raise self.submit_error
+        return _Result(raw=_COMPLETE_ANSWER)
+
+
+_BUDGETS = {
+    "first": {"target": 80000, "max_tokens": 1000},
+    "range": {"target": 80000, "max_tokens": 1000},
+    "large_range": {"target": 80000, "max_tokens": 1000},
+    "merge_target": 60000,
+    "plan_first": {"range_target": 60000, "max_tokens": 1000},
+}
+
+
+def _doc_extraction(session):
+    schema = {"schema": {"type": "object", "properties": {"a": {"type": "string"}}}}
+    return DocumentExtraction(session, schema, "p", ["m1"], _BUDGETS, "@stage")
+
+
+def _pdf_state(path, pages=4, cap=30):
+    from pypdf import PdfReader
+    import io
+
+    data = _pdf_bytes(pages)
+    return FileState(path, PdfReader(io.BytesIO(data)), pages, len(data), cap)
+
+
+class TestPerFileFailures:
+    def test_a_file_that_cannot_be_read_is_a_failed_state_and_the_other_loads(
+        self, monkeypatch
+    ):
+        extraction = _doc_extraction(_FakeSession(["s/a.pdf", "s/b.pdf"]))
+
+        def read_bytes(name):
+            if name.endswith("a.pdf"):
+                raise OSError("denied")
+            return _pdf_bytes(3)
+
+        monkeypatch.setattr(extraction, "read_bytes", read_bytes)
+        bad, good = extraction.load_files("@s", 30)
+        assert bad.failed and bad.errors == ["could not read file: denied"]
+        assert not good.failed and good.pages == 3 and good.splittable
+
+    def test_a_failed_file_gets_no_tasks_and_still_has_an_output_row(self):
+        failed = FileState(
+            "@s/a.pdf", None, 1, 0, 30, errors=["could not read file: x"], failed=True
+        )
+        good = _pdf_state("@s/b.pdf", pages=2)
+        tasks = _doc_extraction(_FakeSession()).plan_large_files([failed, good])
+        assert [t[0] for t in tasks] == [good]
+        assert result_row(failed) == ["@s/a.pdf", None, "could not read file: x"]
+
+    def test_a_failed_file_counts_as_a_finished_failed_document(self):
+        failed = FileState("@s/a.pdf", None, 1, 0, 30, errors=["e"], failed=True)
+        assert document_outcomes([failed], []) == (1, 1, ["e"])
+
+    def test_a_staging_failure_is_that_files_error_and_the_other_file_goes_on(self):
+        bad, good = _pdf_state("@s/bad.pdf"), _pdf_state("@s/good.pdf", pages=2)
+        tasks = [(bad, 2, 3, "range"), (good, 1, 2, "range")]
+        _doc_extraction(_FakeSession()).extract_until_done([bad, good], tasks, 30)
+        assert bad.parts == []
+        assert "could not stage part file: stage is full" in bad.errors[0]
+        assert [start for start, _ in good.parts] == [1] and good.errors == []
+
+    def test_a_submit_failure_is_that_files_error(self):
+        file = _pdf_state("@s/a.pdf", pages=2)
+        session = _FakeSession(submit_error=RuntimeError("no slots"))
+        _doc_extraction(session).extract_until_done([file], [(file, 1, 2, "range")], 30)
+        assert "could not submit the AI_COMPLETE call: no slots" in file.errors[0]
+
+    def test_an_answer_that_cannot_be_processed_is_that_files_error(self, monkeypatch):
+        file = _pdf_state("@s/a.pdf", pages=2)
+        extraction = _doc_extraction(_FakeSession())
+
+        def boom(*args, **kwargs):
+            raise ValueError("odd answer")
+
+        monkeypatch.setattr(extraction, "finish", boom)
+        extraction.extract_until_done([file], [(file, 1, 2, "range")], 30)
+        assert file.errors == ["pages 1-2: could not process the answer: odd answer"]
+
+    def test_a_merge_failure_is_that_files_error_with_no_value(self, monkeypatch):
+        from snowflake.snowpark._internal import document_extract_proc as proc
+
+        def boom(parts):
+            raise ValueError("cannot merge")
+
+        monkeypatch.setattr(proc, "merge_values", boom)
+        file = FileState("@s/a.pdf", None, 1, 1, 30, parts=[(1, {"a": 1})])
+        assert result_row(file) == [
+            "@s/a.pdf",
+            None,
+            "could not merge the extracted parts: cannot merge",
+        ]
+
+    def test_too_many_failed_documents_still_stops_the_read(self):
+        failed = [
+            FileState(f"@s/{i}.pdf", None, 1, 0, 30, errors=["e"], failed=True)
+            for i in range(10)
+        ]
+        waiting = _pdf_state("@s/w.pdf", pages=4)
+        remaining = {
+            "value": json.dumps(
+                {
+                    STATUS_FIELD: {
+                        "complete": False,
+                        "last_pdf_page_extracted": 2,
+                        "remaining_page_ranges": [
+                            {"start_pdf_page": 3, "end_pdf_page": 4}
+                        ],
+                    },
+                    "a": "x",
+                }
+            ),
+            "error": None,
+        }
+
+        class _Partial(_FakeSession):
+            def sql(self, query, params=None):
+                return _Result(raw=json.dumps(remaining))
+
+        with pytest.raises(RuntimeError, match="Stopped early"):
+            _doc_extraction(_Partial()).extract_until_done(
+                failed + [waiting], [(waiting, 1, 4, "range")], 30
+            )
