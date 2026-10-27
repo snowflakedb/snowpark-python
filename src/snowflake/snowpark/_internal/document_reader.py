@@ -531,6 +531,8 @@ def extract_with_split_procedure(
     call's answer before planning the next, so it runs in a stored procedure; the CALL
     still stays lazy because Snowpark defers it to RESULT_SCAN at collect time."""
     proc_name = register_extract_proc(session)
+    # In the order of run()'s parameters (document_extract_proc.py) and of
+    # register_extract_proc()'s input_types.
     args = [
         path,
         json.dumps(options.extraction.ai_complete_format),
@@ -691,14 +693,16 @@ def register_extract_proc(session: "Session") -> str:
                 StructField("SCORES", StringType()),
             ]
         ),
+        # In the order of run()'s parameters after the session, and of the args
+        # extract_with_split_procedure() passes to the CALL.
         input_types=[
-            StringType(),
-            StringType(),
-            StringType(),
-            StringType(),
-            StringType(),
-            IntegerType(),
-            StringType(),
+            StringType(),  # path
+            StringType(),  # response_format: the JSON schema, as JSON
+            StringType(),  # predicate: the prompt
+            StringType(),  # models: candidates in order of preference, as JSON
+            StringType(),  # call_budgets: as JSON
+            IntegerType(),  # max_calls_per_file
+            StringType(),  # work_stage: where page ranges are staged
         ],
         name=name,
         packages=["snowflake-snowpark-python", "pypdf"],
