@@ -1483,11 +1483,29 @@ class DataFrameReader:
             >>> df = session.read.option("extract_images", True).documents("@mystage/docs/")  # doctest: +SKIP
             >>> df.select("SOURCE_FILE", "IMAGES").show()  # doctest: +SKIP
         """
+        if isinstance(self._session._conn, MockServerConnection):
+            self._session._conn.log_not_supported_error(
+                external_feature_name="DataFrameReader.documents",
+                raise_error=NotImplementedError,
+            )
         path = _validate_stage_path(path)
         options = document_reader.DocumentReaderOptions.from_reader_options(
             self._cur_options
         )
-        df = document_reader.read_documents(self._session, path, options)
+        # The reader's own queries (listing, parsing, the extraction procedure) are not
+        # recorded in the AST: one read_documents statement stands for the whole read.
+        df = document_reader.read_documents(
+            self._session, path, options, _emit_ast=False
+        )
+
+        # AST.
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.read_documents, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+            df._ast_id = stmt.uid
+
         set_api_call_source(df, "DataFrameReader.documents")
         return df
 
