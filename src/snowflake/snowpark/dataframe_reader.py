@@ -1443,6 +1443,13 @@ class DataFrameReader:
         an error when most of its documents fail, or when no supported model is available
         to the account.
 
+        Note:
+            The reader registers temporary procedures and functions in the current
+            session. When ``documents()`` is called from inside a stored procedure, that
+            procedure must run with caller's rights (``execute_as="caller"``): an
+            owner's-rights procedure cannot create temporary objects, and the read fails
+            with "Unsupported statement type 'temporary FUNCTION'".
+
         Args:
             path: The stage location of a document, or a stage location that has documents.
 
