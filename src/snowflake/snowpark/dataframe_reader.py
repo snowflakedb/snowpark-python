@@ -1462,8 +1462,15 @@ class DataFrameReader:
             action runs the whole read again. To use the result more than once, call
             ``df.cache_result()`` or write the DataFrame to a table first.
 
+        Note:
+            Supported file types are ``.txt``, ``.md``, ``.pdf``, ``.doc``, ``.docx``,
+            ``.xls``, ``.xlsx``, ``.csv`` and ``.xhtml``. Other files in the path are
+            not sent to the model; each gets an error in its ``_document_error``. Only
+            PDFs are split into page ranges, so a large file of another type can exceed
+            the model's input size and fail as a whole.
+
         Args:
-            path: The stage location of a document, or a stage location that has documents.
+            path: The stage location of a document, or a stage location that has documents., or a stage location that has documents.
 
         Example::
 
