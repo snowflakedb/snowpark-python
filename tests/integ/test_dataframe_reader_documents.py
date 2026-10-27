@@ -249,6 +249,107 @@ def test_permissive_captures_a_parse_error_without_aborting(session, unsupported
     assert errors[0]["message"]
 
 
+def _stage_with(session, files):
+    """A temp stage with SNOWFLAKE_SSE encryption holding ``files`` ({name: path})."""
+    stage_name = Utils.random_stage_name()
+    session.sql(
+        f"CREATE OR REPLACE TEMP STAGE {stage_name} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
+    for name, path in files.items():
+        session.file.put(
+            path, f"@{stage_name}/{name}", auto_compress=False, overwrite=True
+        )
+    return stage_name
+
+
+def test_long_pdf_goes_through_the_split_procedure(session, resources_path, tmp_path):
+    """A PDF over 50 pages is planned first (planning-only calls choose the page
+    ranges) and then extracted range by range; the merged result is one row."""
+    from pypdf import PdfReader, PdfWriter
+
+    source = PdfReader(TestFiles(resources_path).test_doc_pdf)
+    writer = PdfWriter()
+    for _ in range(20):  # 3 pages x 20 = 60 pages, above the 50-page planning limit
+        for page in source.pages:
+            writer.add_page(page)
+    long_pdf = tmp_path / "long.pdf"
+    with open(long_pdf, "wb") as f:
+        writer.write(f)
+
+    stage_name = _stage_with(session, {"": str(long_pdf)})
+    try:
+        df = session.read.option("schema", INVOICE_SCHEMA).documents(f"@{stage_name}")
+        assert _unquoted(df) == [
+            "SOURCE_FILE",
+            "INVOICE_NUMBER",
+            "TOTAL_AMOUNT",
+            "_document_error",
+        ]
+        rows = df.collect()
+        assert len(rows) == 1
+        assert rows[0]["_document_error"] is None
+    finally:
+        Utils.drop_stage(session, stage_name)
+
+
+def test_an_unreadable_file_does_not_stop_the_other_files(
+    session, resources_path, tmp_path
+):
+    """One bad file among good ones: every file still gets a row, only the bad row
+    carries an error (permissive)."""
+    bad = tmp_path / "bad.pdf"
+    bad.write_bytes(b"this is not a pdf")
+    stage_name = _stage_with(
+        session,
+        {"": TestFiles(resources_path).test_invoice_pdf},
+    )
+    session.file.put(str(bad), f"@{stage_name}", auto_compress=False, overwrite=True)
+    try:
+        rows = (
+            session.read.option("schema", INVOICE_SCHEMA)
+            .documents(f"@{stage_name}")
+            .collect()
+        )
+        assert len(rows) == 2
+        failed = [r for r in rows if r["_document_error"] is not None]
+        good = [r for r in rows if r["_document_error"] is None]
+        assert len(failed) == 1 and len(good) == 1
+        assert failed[0]["INVOICE_NUMBER"] is None
+        assert good[0]["INVOICE_NUMBER"] is not None
+    finally:
+        Utils.drop_stage(session, stage_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Stored procedures are not supported in local testing mode.",
+)
+def test_documents_can_be_called_from_inside_a_stored_procedure(session, doc_stage):
+    """Calling documents() inside a user's stored procedure registers and calls the
+    extraction procedure from within a procedure. This is the
+    is_in_stored_procedure() branch of document_reader._register_proc, which uploads
+    the procedure file to a temporary import stage first. It needs the client code under
+    test inside the procedure, so the snowpark package directory is imported."""
+    import os
+
+    import snowflake.snowpark
+    from snowflake.snowpark import Session
+    from snowflake.snowpark.types import IntegerType
+
+    def count_rows(sess: Session, path: str) -> int:
+        return len(sess.read.option("schema", INVOICE_SCHEMA).documents(path).collect())
+
+    package_dir = os.path.dirname(snowflake.snowpark.__file__)
+    sproc = session.sproc.register(
+        count_rows,
+        return_type=IntegerType(),
+        input_types=[StringType()],
+        packages=["snowflake-snowpark-python", "pypdf"],
+        imports=[(package_dir, "snowflake.snowpark")],
+    )
+    assert sproc(f"@{doc_stage}/invoice.pdf") == 1
+
+
 def test_extract_type_mismatch_is_surfaced_not_silently_dropped(session):
     # AI_COMPLETE's own schema validation normally catches a genuine type mismatch
     # before it ever reaches this reader's TRY_CAST layer (verified separately,
