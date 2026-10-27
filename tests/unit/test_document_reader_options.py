@@ -672,6 +672,7 @@ class TestSchemaFieldNameCollisions:
             "total_pages",
             "images",
             "extraction_scores",
+            "extraction_status",
             "response",
         ],
     )

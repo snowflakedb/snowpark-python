@@ -43,6 +43,10 @@ RESPONSE_COLUMN = "RESPONSE"
 _PARSE_ERROR_COLUMN = "_DOC_PARSE_ERROR"
 _EXTRACT_ERROR_COLUMN = "_DOC_EXTRACT_ERROR"
 
+# The status block the extraction procedure adds to every schema it sends (STATUS_FIELD in
+# document_extract_proc.py); a user field of that name would replace it and then be dropped.
+_EXTRACTION_STATUS_FIELD = "EXTRACTION_STATUS"
+
 _RESERVED_OUTPUT_COLUMNS = frozenset(
     {
         SOURCE_FILE_COLUMN,
@@ -52,6 +56,7 @@ _RESERVED_OUTPUT_COLUMNS = frozenset(
         IMAGES_COLUMN,
         EXTRACTION_SCORES_COLUMN,
         RESPONSE_COLUMN,
+        _EXTRACTION_STATUS_FIELD,
     }
 )
 

@@ -1463,14 +1463,16 @@ class DataFrameReader:
             ``df.cache_result()`` or write the DataFrame to a table first.
 
         Note:
-            Supported file types are ``.txt``, ``.md``, ``.pdf``, ``.doc``, ``.docx``,
-            ``.xls``, ``.xlsx``, ``.csv`` and ``.xhtml``. Other files in the path are
-            not sent to the model; each gets an error in its ``_document_error``. Only
-            PDFs are split into page ranges, so a large file of another type can exceed
-            the model's input size and fail as a whole.
+            With a ``schema``, the supported file types are ``.txt``, ``.md``, ``.pdf``,
+            ``.doc``, ``.docx``, ``.xls``, ``.xlsx``, ``.csv`` and ``.xhtml``. Other files
+            in the path are not sent to the model; each gets an error in its
+            ``_document_error``. Only PDFs are split into page ranges, so a large file of
+            another type can exceed the model's input size and fail as a whole. With a
+            ``prompt`` only, every file in the path is sent to the model, and a file it
+            cannot read gets an error in its ``_document_error``.
 
         Args:
-            path: The stage location of a document, or a stage location that has documents., or a stage location that has documents.
+            path: The stage location of a document, or a stage location that has documents.
 
         Example::
 
