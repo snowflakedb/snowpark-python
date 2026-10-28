@@ -200,6 +200,7 @@ setup(
         "snowflake.snowpark._internal.ast",
         "snowflake.snowpark._internal.compiler",
         "snowflake.snowpark._internal.data_source",
+        "snowflake.snowpark._internal.data_source.custom",
         "snowflake.snowpark._internal.data_source.dbms_dialects",
         "snowflake.snowpark._internal.data_source.drivers",
         "snowflake.snowpark._internal.proto.generated",
