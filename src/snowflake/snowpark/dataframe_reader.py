@@ -1512,13 +1512,7 @@ class DataFrameReader:
         set_api_call_source(
             df,
             "DataFrameReader.documents",
-            {
-                TelemetryField.KEY_READ_TYPE.value: options.read_type,
-                TelemetryField.KEY_PARSE_MODE.value: options.parse_mode,
-                TelemetryField.KEY_ROW_BOUNDARY.value: options.row_boundary,
-                TelemetryField.KEY_EXTRACTION_ENGINE.value: options.extraction_engine,
-                TelemetryField.KEY_EXTRACT_IMAGES.value: options.extract_images,
-            },
+            {TelemetryField.KEY_READ_TYPE.value: options.read_type},
         )
         return df
 
