@@ -356,7 +356,7 @@ class EventTableTelemetry:
             self._disable_logger_provider()
 
     def _get_external_telemetry_auth_token(self) -> Dict:
-        # Precommit coverage installs the v4 connector, so this branch cannot run there.
+        # The coverage report is produced from a single connector version, v4 or v5.
         if IS_V5_DRIVER:  # pragma: no cover
             from snowflake.connector._common.wif_util import (
                 AttestationProvider,
@@ -369,7 +369,7 @@ class EventTableTelemetry:
                 config.workload_identity_entra_resource,
                 config.token,
             )
-        else:
+        else:  # pragma: no cover
             from snowflake.connector.wif_util import create_attestation
 
             self._attestation = create_attestation(
