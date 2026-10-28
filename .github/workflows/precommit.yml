@@ -13,12 +13,45 @@ on:
         tags:
           description: "Test scenario tags"
 
+# While PR_GATE_SKIP_ENABLED is unset, a newer push cancels the older run of the same ref (original
+# behavior). Once it is 'true', every run gets its own group and PR Gate Precheck cancels only the
+# runs a push with code supersedes, so a changelog-only push never cancels the run it points at.
 concurrency:
-  group: ${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ vars.PR_GATE_SKIP_ENABLED == 'true' && format('{0}-{1}', github.ref, github.run_id) || github.ref }}
+  cancel-in-progress: ${{ vars.PR_GATE_SKIP_ENABLED != 'true' }}
 
 jobs:
+  # Decides whether the other gates run for this push. Skipping is off until
+  # the repo variable PR_GATE_SKIP_ENABLED is set to 'true'.
+  pr_gate_precheck:
+    name: PR Gate Precheck
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    outputs:
+      skip_other_gates: ${{ steps.precheck.outputs.skip_other_gates }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: precheck
+        run: .github/scripts/pr_gate.sh precheck
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          BEFORE: ${{ github.event.before }}
+          SKIP_ENABLED: ${{ vars.PR_GATE_SKIP_ENABLED }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+
   lint:
+    # Every other job descends from lint, type_checking, combine-coverage or doc,
+    # so guarding these skips the whole workflow when skip_other_gates is true.
+    needs: pr_gate_precheck
+    if: ${{ needs.pr_gate_precheck.outputs.skip_other_gates != 'true' }}
     name: Check linting
     runs-on: ubuntu-latest
     steps:
@@ -44,6 +77,8 @@ jobs:
         run: python -m tox -e fix_lint
 
   type_checking:
+    needs: pr_gate_precheck
+    if: ${{ needs.pr_gate_precheck.outputs.skip_other_gates != 'true' }}
     name: Type Checking
     runs-on: ubuntu-latest
     steps:
@@ -699,9 +734,10 @@ jobs:
             .tox/coverage.xml
 
   combine-coverage:
-    if: ${{ success() || failure() }}
+    if: ${{ (success() || failure()) && needs.pr_gate_precheck.outputs.skip_other_gates != 'true' }}
     name: Combine coverage
     needs:
+      - pr_gate_precheck
       - test
       - test-local-testing
       - test-snowpark-pandas
@@ -801,3 +837,39 @@ jobs:
           include-hidden-files: true
           name: docs
           path: .tox/docs_out
+
+  # Records the status of every gate and reports the state of the latest
+  # non-changelog-only commit. Not a required check yet.
+  pr_gate:
+    name: PR Gate
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    needs:
+      - pr_gate_precheck
+      - lint
+      - type_checking
+      - build
+      - test
+      - test-local-testing
+      - test-ast-encoding
+      - doctest-ast-phase0
+      - test-ast-phase0
+      - test-snowpark-pandas
+      - test-modin-extra-without-pandas-extra
+      - doc
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      pull-requests: read
+      statuses: read
+    steps:
+      - uses: actions/checkout@v4
+      - run: .github/scripts/pr_gate.sh report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_GATE_REQUIRED_CHECKS: ${{ vars.PR_GATE_REQUIRED_CHECKS }}
