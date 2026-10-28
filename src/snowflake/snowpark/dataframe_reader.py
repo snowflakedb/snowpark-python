@@ -48,7 +48,7 @@ from snowflake.snowpark._internal.data_source.utils import (
     get_jdbc_dbms,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import set_api_call_source
+from snowflake.snowpark._internal.telemetry import TelemetryField, set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sf_to_sp_type,
@@ -1509,7 +1509,17 @@ class DataFrameReader:
         )
         df = document_reader.read_documents(self._session, path, options)
 
-        set_api_call_source(df, "DataFrameReader.documents")
+        set_api_call_source(
+            df,
+            "DataFrameReader.documents",
+            {
+                TelemetryField.KEY_READ_TYPE.value: options.read_type,
+                TelemetryField.KEY_PARSE_MODE.value: options.parse_mode,
+                TelemetryField.KEY_ROW_BOUNDARY.value: options.row_boundary,
+                TelemetryField.KEY_EXTRACTION_ENGINE.value: options.extraction_engine,
+                TelemetryField.KEY_EXTRACT_IMAGES.value: options.extract_images,
+            },
+        )
         return df
 
     def _documents(self, path: str) -> DataFrame:

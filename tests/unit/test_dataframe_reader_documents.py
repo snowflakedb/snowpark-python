@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.ast.batch import AstBatch
 from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 
@@ -59,7 +60,9 @@ def test_documents_options_chosen_by_the_reader_are_ignored(options):
     for key, value in options.items():
         reader = reader.option(key, value)
     with mock.patch("snowflake.snowpark.dataframe_reader.document_reader") as module:
-        module.DocumentReaderOptions.from_reader_options.return_value = "options"
+        # A MagicMock, not a plain string: documents() reads read_type/parse_mode/...
+        # off the options object for telemetry after the read is built.
+        module.DocumentReaderOptions.from_reader_options.return_value = mock.MagicMock()
         reader.documents("@stage/doc.pdf")
     module.read_documents.assert_called_once()
 
@@ -104,7 +107,9 @@ def test_documents_warns_that_it_is_in_private_preview():
         with mock.patch(
             "snowflake.snowpark.dataframe_reader.document_reader"
         ) as module:
-            module.DocumentReaderOptions.from_reader_options.return_value = "options"
+            module.DocumentReaderOptions.from_reader_options.return_value = (
+                mock.MagicMock()
+            )
             reader.documents("@stage/doc.pdf")
     assert "in private preview since 1.56.0" in warn.call_args[0][1]
 
@@ -112,15 +117,64 @@ def test_documents_warns_that_it_is_in_private_preview():
 def test_documents_reads_through_the_reader_module():
     reader = DataFrameReader(_create_fake_session()).option("prompt", "p")
     with mock.patch("snowflake.snowpark.dataframe_reader.document_reader") as module:
-        module.DocumentReaderOptions.from_reader_options.return_value = "options"
+        # A MagicMock, not a plain string: documents() reads read_type/parse_mode/...
+        # off the options object for telemetry after the read is built.
+        fake_options = mock.MagicMock()
+        module.DocumentReaderOptions.from_reader_options.return_value = fake_options
         df = reader.documents("@stage/doc.pdf")
     module.DocumentReaderOptions.from_reader_options.assert_called_once_with(
         {"PROMPT": "p"}
     )
     module.read_documents.assert_called_once_with(
-        reader._session, "@stage/doc.pdf", "options"
+        reader._session, "@stage/doc.pdf", fake_options
     )
     assert df is module.read_documents.return_value
+
+
+def _read_with_real_options(reader: DataFrameReader, path: str):
+    """Runs documents() with a real DocumentReaderOptions (so read_type and the
+    other derived fields reflect the actual user options) while stubbing out
+    read_documents() itself, which needs a live session."""
+    fake_df = mock.MagicMock()
+    fake_df._select_statement = None
+    with mock.patch(
+        "snowflake.snowpark.dataframe_reader.document_reader.read_documents",
+        return_value=fake_df,
+    ):
+        df = reader.documents(path)
+    assert df is fake_df
+    return fake_df._plan.api_calls[0]
+
+
+class TestDocumentsApiCallTelemetry:
+    def test_a_parse_read_carries_read_type_and_parse_shape(self):
+        reader = DataFrameReader(_create_fake_session())
+        api_call = _read_with_real_options(reader, "@stage/docs/")
+        assert api_call[TelemetryField.NAME.value] == "DataFrameReader.documents"
+        assert api_call[TelemetryField.KEY_READ_TYPE.value] == "parse"
+        assert api_call[TelemetryField.KEY_PARSE_MODE.value] == "layout"
+        assert api_call[TelemetryField.KEY_ROW_BOUNDARY.value] == "document"
+        assert api_call[TelemetryField.KEY_EXTRACTION_ENGINE.value] == "ai_complete"
+        assert api_call[TelemetryField.KEY_EXTRACT_IMAGES.value] is False
+
+    def test_a_prompt_read_carries_read_type_prompt_and_no_prompt_text(self):
+        reader = DataFrameReader(_create_fake_session()).option(
+            "prompt", "Summarize this. Secret account number: 12345."
+        )
+        api_call = _read_with_real_options(reader, "@stage/docs/")
+        assert api_call[TelemetryField.KEY_READ_TYPE.value] == "prompt"
+        assert api_call[TelemetryField.KEY_PARSE_MODE.value] == "none"
+        assert "Secret" not in str(api_call) and "12345" not in str(api_call)
+
+    def test_a_schema_read_carries_read_type_schema_and_no_schema_contents(self):
+        reader = DataFrameReader(_create_fake_session()).option(
+            "schema", {"ssn": "What is the social security number?"}
+        )
+        api_call = _read_with_real_options(reader, "@stage/docs/")
+        assert api_call[TelemetryField.KEY_READ_TYPE.value] == "schema"
+        assert api_call[TelemetryField.KEY_PARSE_MODE.value] == "none"
+        assert api_call[TelemetryField.KEY_EXTRACTION_ENGINE.value] == "ai_complete"
+        assert "ssn" not in str(api_call) and "social security" not in str(api_call)
 
 
 def test_private_documents_alias_delegates_to_documents():
