@@ -24,7 +24,7 @@ If you already have a PySpark data source, including third-party libraries such 
 ## 1. Install
 
 Install the preview build of Snowpark from its branch. The `pandas` extra installs `pyarrow`, which
-custom data sources need. Python 3.9 or later is required.
+custom data sources need. Python 3.10 or later is required.
 
 ```bash
 pip install "snowflake-snowpark-python[pandas] @ git+https://github.com/snowflakedb/snowpark-python.git@worktree-custom-data-source-phase1"
