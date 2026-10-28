@@ -2,8 +2,11 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from collections import defaultdict
+import os as _os
 import sys
+import sys as _sys
+import threading
+from collections import defaultdict
 from typing import Tuple
 from unittest import mock
 
@@ -11,6 +14,8 @@ import pytest
 
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Session
+import snowflake.snowpark.session as session_module
+from snowflake.snowpark._internal.udf_utils import resolve_imports_and_packages
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     set_ast_state,
@@ -118,3 +123,81 @@ def test_do_register_udtf_sandbox(session_sandbox, cleanup_registration_patch):
         "schema": "some_schema",
         "application_roles": ["app_viewer"],
     }
+
+
+# SNOW-4174500: session-imported stage paths must be re-staged, not forwarded verbatim.
+_APP_STAGE_PATH = '@SAMOOHA_APP_PKG."APP_ARTIFACTS_V1_0_82".APP_FILES/pandas_helper.py'
+
+
+def test_bug_reproduced_imports_none_inherits_all_session_paths():
+    """Bug baseline: imports=None inherits all session stage paths (002003/093023 trigger)."""
+    session = mock.MagicMock()
+    session._import_paths = {_APP_STAGE_PATH: (None, None)}
+    session._lock = threading.RLock()
+    session._resolve_imports.return_value = [_APP_STAGE_PATH]
+    session.get_session_stage.return_value = "@TEMP_SESSION_STAGE"
+    session._get_default_artifact_repository.return_value = "conda_channel"
+    session._get_packages_by_artifact_repository.return_value = {}
+    session._resolve_packages.return_value = ["'cloudpickle>=3.1.1'"]
+    session._runtime_version_from_requirement = None
+
+    _, _, all_imports, _, _, _ = resolve_imports_and_packages(
+        session=session,
+        object_type=TempObjectType.TABLE_FUNCTION,
+        func=lambda pdf: pdf,
+        arg_names=["pdf"],
+        udf_name="test_udtf",
+        stage_location=None,
+        imports=None,
+        packages=None,
+    )
+    assert _APP_STAGE_PATH in all_imports
+
+
+def test_fix_redirect_is_called_for_session_level_imports(tmp_path):
+    """Fix: session-level imports are re-staged; the original stage path must not appear."""
+    (tmp_path / "pandas_helper.py").write_text("SCALE = 1\n")
+    import_dir = f"{tmp_path}{_os.sep}"
+
+    with Session.builder.config("local_testing", True).create() as real_session:
+        real_session._import_paths[_APP_STAGE_PATH] = (None, None)
+        with mock.patch.object(
+            session_module, "is_in_stored_procedure", return_value=True
+        ), mock.patch.dict(
+            _sys._xoptions, {"snowflake_import_directory": import_dir}
+        ), mock.patch.object(
+            real_session, "_list_files_in_stage", return_value=set()
+        ), mock.patch.object(
+            real_session._conn, "upload_stream"
+        ):
+            resolved = real_session._resolve_imports("@TEMP_STAGE", "@TEMP_STAGE")
+        real_session._import_paths.pop(_APP_STAGE_PATH, None)
+
+    assert all(_APP_STAGE_PATH not in r for r in resolved)
+    assert any("pandas_helper" in r for r in resolved)
+
+
+def test_fix_explicit_udf_imports_bypass_redirect(tmp_path):
+    """Explicit imports= are the caller's choice and must not be redirected."""
+    (tmp_path / "pandas_helper.py").write_text("SCALE = 1\n")
+    import_dir = f"{tmp_path}{_os.sep}"
+
+    with Session.builder.config("local_testing", True).create() as real_session:
+        with mock.patch.object(
+            session_module, "is_in_stored_procedure", return_value=True
+        ), mock.patch.dict(
+            _sys._xoptions, {"snowflake_import_directory": import_dir}
+        ), mock.patch.object(
+            real_session,
+            "_redirect_inherited_stage_imports",
+            wraps=real_session._redirect_inherited_stage_imports,
+        ) as mock_redirect, mock.patch.object(
+            real_session, "_list_files_in_stage", return_value=set()
+        ), mock.patch.object(
+            real_session._conn, "upload_stream"
+        ):
+            real_session._resolve_imports(
+                "@TEMP_STAGE", "@TEMP_STAGE", {_APP_STAGE_PATH: (None, None)}
+            )
+
+    mock_redirect.assert_not_called()

@@ -8,7 +8,6 @@ import datetime
 
 import pytest
 
-from snowflake.snowpark._internal.options import installed_pandas
 from snowflake.snowpark import (
     DeleteResult,
     MergeResult,
@@ -40,7 +39,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC, TestData, Utils
+from tests.utils import IS_IN_STORED_PROC, TestData, Utils, installed_pandas
 
 table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)

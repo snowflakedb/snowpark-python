@@ -4,6 +4,7 @@
 import json
 import logging
 import os
+import sys
 import types
 from typing import Optional
 from unittest import mock
@@ -1108,3 +1109,72 @@ def test_vsc_history_exporter_not_registered_when_env_var_unset(monkeypatch):
 
     assert session._vsc_history_exporter is None
     fake_connection.add_query_listener.assert_not_called()
+
+
+# SNOW-4174500: _redirect_inherited_stage_imports
+_APP_PACKAGE_IMPORT = (
+    '@APP_PKG_DB."APP_ARTIFACTS_V1_0.82".APP_FILES/helpers/pandas_helper.py'
+)
+
+
+def _make_import_dir(tmp_path_factory, *file_names):
+    d = tmp_path_factory.mktemp("import_dir")
+    for f in file_names:
+        (d / f).write_text("SCALE = 1\n")
+    return d
+
+
+def test_redirect_rewrites_stage_import_inside_stored_procedure(
+    tmp_path_factory, mock_server_connection, monkeypatch
+):
+    session = Session(mock_server_connection)
+    import_dir = _make_import_dir(tmp_path_factory, "pandas_helper.py")
+    local_copy = str(import_dir / "pandas_helper.py")
+    monkeypatch.setitem(
+        sys._xoptions, "snowflake_import_directory", f"{import_dir}{os.sep}"
+    )
+
+    with mock.patch.object(
+        snowflake.snowpark.session, "is_in_stored_procedure", return_value=True
+    ):
+        redirected = session._redirect_inherited_stage_imports(
+            {_APP_PACKAGE_IMPORT: (None, None)}
+        )
+
+    assert list(redirected) == [local_copy]
+    assert redirected[local_copy][0]  # checksum set
+    assert redirected[local_copy][1] is None
+
+
+@pytest.mark.parametrize(
+    "setup,import_paths_fn",
+    [
+        # Not in a stored procedure — no rewrite regardless of local copy.
+        ("not_in_sproc", lambda d: {_APP_PACKAGE_IMPORT: (None, None)}),
+        # In sproc but no local copy exists for the stage file.
+        ("no_local_copy", lambda d: {"@other_stage/missing.py": (None, None)}),
+        # Local (non-stage) imports must never be rewritten.
+        ("local_import", lambda d: {str(d / "pandas_helper.py"): ("cksum", None)}),
+        # Config flag disables the fix.
+        ("disabled", lambda d: {_APP_PACKAGE_IMPORT: (None, None)}),
+    ],
+)
+def test_redirect_is_noop(
+    setup, import_paths_fn, tmp_path_factory, mock_server_connection, monkeypatch
+):
+    session = Session(mock_server_connection)
+    import_dir = _make_import_dir(tmp_path_factory, "pandas_helper.py")
+    monkeypatch.setitem(
+        sys._xoptions, "snowflake_import_directory", f"{import_dir}{os.sep}"
+    )
+    if setup == "disabled":
+        session.conf.set("restage_stored_procedure_imports", False)
+
+    import_paths = import_paths_fn(import_dir)
+    in_sproc = setup != "not_in_sproc"
+    with mock.patch.object(
+        snowflake.snowpark.session, "is_in_stored_procedure", return_value=in_sproc
+    ):
+        result = session._redirect_inherited_stage_imports(import_paths)
+
+    assert result == import_paths

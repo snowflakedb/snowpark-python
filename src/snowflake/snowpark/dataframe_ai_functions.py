@@ -130,7 +130,7 @@ class DataFrameAIFunctions:
             ...         col("question")
             ...     ],
             ...     output_column="answer",
-            ...     model="claude-4-sonnet"
+            ...     model="claude-sonnet-4-5"
             ... )
             >>> result_df.columns
             ['IMAGE_PATH', 'QUESTION', 'ANSWER']
@@ -1393,7 +1393,7 @@ class DataFrameAIFunctions:
             ...     response_format=[["name", "What is the first name?"], ["city", "What city do they work in?"]],
             ...     output_column="info",
             ... )
-            >>> result_df.show()
+            >>> result_df.sort("text").show()
             ------------------------------------------------------------
             |"TEXT"                          |"INFO"                   |
             ------------------------------------------------------------
@@ -2094,7 +2094,7 @@ class DataFrameAIFunctions:
         Returns:
             A new DataFrame with an appended output column. In ``'redact'`` mode the
             column contains the redacted VARCHAR. In ``'detect'`` mode it contains an
-            OBJECT with a ``spans`` array describing each detected PII span.
+            ARRAY of span OBJECTs (``category``, ``start``, ``end``, ``text``).
             When ``return_error_details=True``, the column contains an OBJECT with
             ``value`` and ``error`` fields.
 
@@ -2118,7 +2118,11 @@ class DataFrameAIFunctions:
             ...     output_column="pii_spans"
             ... )
             >>> results = result_df.collect()
-            >>> 'spans' in results[0]["PII_SPANS"]
+            >>> pii = results[0]["PII_SPANS"]
+            >>> import json
+            >>> spans = json.loads(pii) if isinstance(pii, str) else pii
+            >>> spans = spans['spans'] if isinstance(spans, dict) else spans
+            >>> isinstance(spans, list) and spans[0]['category'] in ('NAME', 'EMAIL', 'PHONE_NUMBER', 'ADDRESS', 'NATIONAL_ID')
             True
         """
         output_column_name = output_column or "AI_REDACT_OUTPUT"

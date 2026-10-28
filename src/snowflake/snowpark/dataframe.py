@@ -735,6 +735,14 @@ class DataFrame:
             # Getting the plan attributes may run a describe query
             # and populates the schema for the dataframe.
             self._plan.attributes
+            # Without the SQL simplifier, Filter and Sort plans inherit the attributes
+            # of their child when reduce_describe_query_enabled is on, so no describe
+            # runs. Describe the full query to validate the clause.
+            if (
+                isinstance(self._plan.source_plan, (Filter, Sort))
+                and len(self._plan.queries) == 1
+            ):
+                self._plan._describe_full_query()
 
     def _set_ast_ref(self, dataframe_expr_builder: Any) -> None:
         """
@@ -814,6 +822,22 @@ class DataFrame:
 
         See also:
             :meth:`collect_nowait()`
+
+        The default blocking call retrieves all result rows into client memory.
+        For large results, consider :meth:`to_local_iterator` instead of
+        materializing a list. Use :meth:`sort` before collecting when the order
+        of rows matters.
+
+        Example::
+
+            >>> df = session.create_dataframe([(2, "Bob"), (1, "Alice")], schema=["id", "name"])
+            >>> rows = df.sort("id").collect()
+            >>> rows
+            [Row(ID=1, NAME='Alice'), Row(ID=2, NAME='Bob')]
+            >>> rows[0]["NAME"]
+            'Alice'
+            >>> rows[1].ID
+            2
         """
 
         kwargs = {}
@@ -1137,10 +1161,70 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
 
-            3. For TIMESTAMP columns:
-            - TIMESTAMP_LTZ and TIMESTAMP_TZ are both converted to `datetime64[ns, tz]` in pandas,
-            as pandas cannot distinguish between the two.
-            - TIMESTAMP_NTZ is converted to `datetime64[ns]` (without timezone).
+        Data type mapping:
+            Conversion uses pandas representations rather than preserving the Snowflake schema
+            exactly. The following table describes typical mappings for Arrow query results.
+            Numeric widths can depend on the returned values; results can also vary with the
+            pandas and Python Connector versions.
+
+            .. list-table:: Snowflake to pandas mappings
+                :header-rows: 1
+                :widths: 30 40 30
+
+                * - Snowflake type
+                  - pandas dtype / Python value
+                  - SQL NULL representation
+                * - NUMBER with scale 0
+                  - Integer dtype when values fit; can become float64 for larger values
+                  - Can become float64 with NaN
+                * - NUMBER with scale greater than 0
+                  - float64
+                  - NaN
+                * - FLOAT / DOUBLE
+                  - float64
+                  - NaN
+                * - BOOLEAN
+                  - bool; object when NULLs are present
+                  - None
+                * - VARCHAR
+                  - object containing str
+                  - None
+                * - BINARY
+                  - object containing bytes
+                  - None
+                * - DATE
+                  - object containing datetime.date
+                  - None
+                * - TIME
+                  - object containing datetime.time
+                  - None
+                * - TIMESTAMP_NTZ
+                  - datetime64[ns] (without timezone)
+                  - NaT
+                * - TIMESTAMP_LTZ / TIMESTAMP_TZ
+                  - datetime64[ns, tz] (timezone-aware)
+                  - NaT
+                * - Semi-structured VARIANT / ARRAY / OBJECT
+                  - object containing JSON strings
+                  - None
+
+            Floating-point conversion can lose precision for decimals and large integers,
+            including integer columns containing NULLs. Casting the pandas column afterward
+            cannot recover precision already lost. Python datetime.time has microsecond
+            precision, so TIME values with finer precision are truncated. pandas does not
+            preserve the distinction between TIMESTAMP_LTZ and TIMESTAMP_TZ.
+
+        Example:
+            Inspect the Snowpark schema and the pandas dtypes before relying on a conversion:
+
+            >>> df = session.sql("SELECT 42::NUMBER(10,0) AS N, 'hello'::VARCHAR AS S")
+            >>> df.schema
+            StructType([StructField('N', LongType(), nullable=False), StructField('S', StringType(), nullable=False)])
+            >>> pdf = df.to_pandas()
+            >>> print(pdf.dtypes)
+            N      int8
+            S    object
+            dtype: object
         """
 
         if _emit_ast:
@@ -1374,13 +1458,12 @@ class DataFrame:
             **kwargs,
         )
 
-    @experimental(version="1.55.0")
     @df_collect_api_telemetry
     @publicapi
     def to_polars(
         self,
         *,
-        transport: typing.Literal["arrow", "parquet"] = "arrow",
+        transport: typing.Literal["arrow", "parquet"] = "parquet",
         max_workers: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> "polars.DataFrame":
@@ -1393,15 +1476,14 @@ class DataFrame:
         ==========  ============================================
         transport   Description
         ==========  ============================================
-        "arrow"     Arrow (default; full Snowflake type fidelity)
-        "parquet"   Parquet unload + eager parallel read
+        "parquet"   Parquet unload + eager parallel read (default)
+        "arrow"     Arrow (full Snowflake type fidelity)
         ==========  ============================================
 
         Usage Notes:
             - **Transport selection**:
-                - ``"parquet"``:
-                  Recommended when the result set is large and the type-fidelity
-                  caveats are acceptable. Snowflake's ``COPY INTO`` splits the
+                - ``"parquet"`` (default):
+                  The default transport. Snowflake's ``COPY INTO`` splits the
                   result into multiple Parquet files that are opened and read
                   concurrently. In server-side environments such as stored
                   procedures, each file open is a parallelizable I/O operation,
@@ -1411,7 +1493,7 @@ class DataFrame:
                   modest; for small or medium result sets the ``COPY INTO``
                   setup cost may outweigh the gain, making Arrow the more
                   efficient choice.
-                - ``"arrow"`` (default):
+                - ``"arrow"``:
                   Streams result batches directly from the cursor without
                   staging to disk. Preserves full Snowflake type fidelity.
                   Use when type accuracy is required, or when the result set is
@@ -1430,7 +1512,7 @@ class DataFrame:
             (2, 2)
 
         Args:
-            transport: Either ``"arrow"`` (default) or ``"parquet"``. When
+            transport: Either ``"parquet"`` (default) or ``"arrow"``. When
                 ``"parquet"``, unload the result to Parquet on the session
                 stage and read the files back in parallel. Can be faster than
                 the ``"arrow"`` transport for large, data-transfer-dominated
@@ -1451,13 +1533,13 @@ class DataFrame:
 
                - ``TIMESTAMP_LTZ`` and ``TIMESTAMP_TZ`` columns cause the
                  unload to error.
-               - ``TIMESTAMP_NTZ`` values with nanosecond precision are
-                 truncated to milliseconds.
+               - ``TIMESTAMP_NTZ`` values with sub-millisecond precision
+                 (microseconds or nanoseconds) are rounded to milliseconds.
                - ``FLOAT`` (double) columns are downcast to ``float32``.
 
             See the `COPY INTO <location> usage notes
             <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location#usage-notes>`_
-            for the full unload type mapping. Use the Arrow default when
+            for the full unload type mapping. Use ``transport="arrow"`` when
             full type fidelity is required.
         """
         from snowflake.snowpark._internal.polars_backend import (
@@ -1728,7 +1810,25 @@ class DataFrame:
 
     @publicapi
     def col(self, col_name: str, _emit_ast: bool = True) -> Column:
-        """Returns a reference to a column in the DataFrame."""
+        """Returns a reference to a column in the DataFrame.
+
+        Use the returned :class:`Column` expression in operations such as
+        :meth:`select` and :meth:`filter`. This method doesn't retrieve the
+        column's values; call an action such as :meth:`collect` on the resulting
+        DataFrame to retrieve rows.
+
+        Args:
+            col_name: The name of a column in this DataFrame, or ``"*"`` to
+                reference all columns.
+
+        Examples::
+
+            >>> df = session.create_dataframe([(1, 10), (2, 20)], schema=["id", "amount"])
+            >>> df.select(df.col("id"), (df.col("amount") + 5).alias("adjusted")).sort("id").collect()
+            [Row(ID=1, ADJUSTED=15), Row(ID=2, ADJUSTED=25)]
+            >>> df.filter(df.col("amount") > 10).select(df.col("id")).collect()
+            [Row(ID=2)]
+        """
         expr = None
         if _emit_ast:
             expr = proto.Expr()
@@ -2681,8 +2781,16 @@ class DataFrame:
         This method returns a :class:`RelationalGroupedDataFrame` that you can use to
         perform aggregations on each group of data.
 
+        With no columns (``df.group_by()`` or ``df.group_by([])``), the entire
+        DataFrame forms one group for aggregation. With one or more columns,
+        rows that have the same values for those columns form a group. Calling
+        this method defines the groups; call an aggregation method such as
+        :meth:`RelationalGroupedDataFrame.agg` to produce a result DataFrame.
+
         Args:
-            *cols: The columns to group by.
+            *cols: Column names or expressions that define the groups. Omit
+                this argument or pass an empty list to aggregate all rows
+                together.
 
         Valid inputs are:
 
@@ -2841,6 +2949,18 @@ class DataFrame:
         from the current DataFrame.
 
         This is equivalent to performing a SELECT DISTINCT in SQL.
+
+        Duplicate rows are compared across all columns. To return distinct values
+        for selected columns, call :meth:`select` before calling this method.
+        The result has no guaranteed row order; use :meth:`sort` when order matters.
+
+        Examples::
+
+            >>> df = session.create_dataframe([(1, "a"), (1, "a"), (1, "b"), (2, "a")], schema=["id", "value"])
+            >>> df.distinct().sort("id", "value").collect()
+            [Row(ID=1, VALUE='a'), Row(ID=1, VALUE='b'), Row(ID=2, VALUE='a')]
+            >>> df.select("id").distinct().sort("id").collect()
+            [Row(ID=1), Row(ID=2)]
         """
 
         # AST.
@@ -6146,14 +6266,33 @@ class DataFrame:
         n: Optional[int] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
-        """Samples rows based on either the number of rows to be returned or a
-        percentage of rows to be returned.
+        """Returns a random sample of rows using Snowflake's SQL SAMPLE clause.
+
+        Specify either ``frac`` or ``n``. Fractional sampling includes each row
+        with the given probability, so the number of returned rows can vary.
+        Fixed-size sampling returns the requested number of rows, or all rows
+        if the input contains fewer rows. Neither form guarantees row order.
+        Repeated executions can return different samples; this method has no
+        seed parameter. For seeded sampling of a table, see :meth:`Table.sample`.
+
+        See `SAMPLE <https://docs.snowflake.com/en/sql-reference/constructs/sample>`_
+        for SQL sampling semantics.
 
         Args:
-            frac: the percentage of rows to be sampled.
+            frac: The probability of selecting each row, from 0.0 to 1.0
+                inclusive. For example, 0.1 requests approximately 10 percent
+                of the rows, not exactly 10 percent.
             n: the number of rows to sample in the range of 0 to 1,000,000 (inclusive).
+
         Returns:
             a :class:`DataFrame` containing the sample of rows.
+
+        Examples::
+
+            >>> df = session.range(100)
+            >>> fractional_sample = df.sample(frac=0.1)
+            >>> fixed_sample = df.sample(n=5)
+            >>> assert fixed_sample.count() == 5
         """
         DataFrame._validate_sample_input(frac, n)
 
@@ -6209,6 +6348,15 @@ class DataFrame:
         """
         Returns a :class:`DataFrameAIFunctions` object that provides AI-powered functions
         for the DataFrame.
+
+        Access this namespace through an existing DataFrame, for example
+        ``df.ai``. It is not a column and accessing it does not itself execute
+        an AI function. Call a method on the namespace to build an AI operation.
+
+        See :meth:`DataFrameAIFunctions.classify`,
+        :meth:`DataFrameAIFunctions.extract`, and
+        :meth:`DataFrameAIFunctions.sentiment` for parameters and examples.
+        The :class:`DataFrameAIFunctions` reference lists the available methods.
         """
         return self._ai
 
@@ -6867,6 +7015,25 @@ class DataFrame:
         Returns a ``dict`` that contains a list of queries that will be executed to
         evaluate this DataFrame with the key `queries`, and a list of post-execution
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
+
+        ``queries`` contains SQL statements in the DataFrame's execution plan;
+        a plan can contain more than one statement. ``post_actions`` contains
+        cleanup statements associated with that plan and can be empty. These
+        lists aren't result rows or a history of previously executed queries.
+
+        Use :meth:`explain` for a printed query list and, when available, a
+        database execution plan. Use :meth:`Session.query_history` to record
+        queries executed through a session. Generated SQL can change between
+        library versions and configurations; don't rely on exact SQL text.
+
+        Example::
+
+            >>> df = session.range(3)
+            >>> planned_sql = df.queries
+            >>> sorted(planned_sql)
+            ['post_actions', 'queries']
+            >>> isinstance(planned_sql["queries"], list)
+            True
         """
         plan_queries = self._plan.execution_queries
         return {

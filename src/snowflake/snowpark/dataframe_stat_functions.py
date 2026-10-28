@@ -74,7 +74,9 @@ class DataFrameStatFunctions:
 
         Args:
             col: The name of the numeric column.
-            percentile: A list of float values greater than or equal to 0.0 and less than 1.0.
+            percentile: A list of float values between 0.0 and 1.0, inclusive.
+                For example, 0.5 requests the approximate median and 1.0 requests
+                the approximate maximum.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Returns:
@@ -425,6 +427,12 @@ class DataFrameStatFunctions:
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """Returns a DataFrame containing a stratified sample without replacement, based on a ``dict`` that specifies the fraction for each stratum.
+
+        ``df.stat`` is the :class:`DataFrameStatFunctions` accessor for ``df``;
+        it groups statistical operations and doesn't select a column named
+        ``stat``. ``df.stat.sample_by(...)``, ``df.sample_by(...)``, and
+        ``df.sampleBy(...)`` call the same sampling operation. Separate calls
+        can return different random samples.
 
         Example::
 

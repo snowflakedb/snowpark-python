@@ -2096,7 +2096,7 @@ def to_decimal(
 def to_double(
     e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None, _emit_ast: bool = True
 ) -> Column:
-    """Converts an input expression to a decimal.
+    """Converts an input expression to a double-precision floating-point number.
 
     Example::
         >>> df = session.create_dataframe(['12', '11.3', '-90.12345'], schema=['a'])
@@ -7005,6 +7005,16 @@ def array_agg(
     """Returns the input values, pivoted into an ARRAY. If the input is empty, an empty
     ARRAY is returned.
 
+    Element order is unpredictable unless you specify :meth:`Column.within_group`
+    on the aggregate expression. Sorting the result DataFrame orders result
+    rows, not the elements inside each array. This also applies to the
+    ``collect_list`` alias. When ``is_distinct=True``, the ordering expression
+    must refer to the same column as the aggregate input.
+
+    For example, this expression orders elements within each array by ``a``::
+
+        >>> ordered_values = array_agg("a").within_group("a")
+
     Example::
         >>> df = session.create_dataframe([[1], [2], [3], [1]], schema=["a"])
         >>> df.select(array_agg("a", True).within_group("a").alias("result")).show()
@@ -7018,6 +7028,18 @@ def array_agg(
         |]         |
         ------------
         <BLANKLINE>
+
+    ``collect_list`` is an alias of ``array_agg`` with the same arguments and
+    behavior. The two names share this documentation, which is why the example
+    above uses ``array_agg``. By default, duplicates are retained.
+
+    This example produces an array containing ``[1, 2, 2]``:
+
+    Example using the alias::
+
+        >>> from snowflake.snowpark.functions import collect_list
+        >>> df = session.create_dataframe([[2], [1], [2]], schema=["a"])
+        >>> result = df.select(collect_list("a").within_group("a").alias("values")).collect()
     """
     ast = build_function_expr("array_agg", [col, is_distinct]) if _emit_ast else None
     c = _to_col_if_str(col, "array_agg")
@@ -7334,7 +7356,10 @@ def array_insert(
 def array_position(
     variant: ColumnOrName, array: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
-    """Returns the index of the first occurrence of an element in an ARRAY.
+    """Returns the zero-based index of the first occurrence of an element in an ARRAY.
+
+    The first element has index 0. If the value is not present, returns SQL NULL
+    (represented by ``None`` in a collected Row), not -1.
 
     Args:
         variant: Column containing the VARIANT value that you want to find. The function
@@ -7342,16 +7367,16 @@ def array_position(
         array: Column containing the ARRAY to be searched.
 
     Example::
-        >>> from snowflake.snowpark import Row
-        >>> df = session.create_dataframe([Row([2, 1]), Row([1, 3])], schema=["a"])
-        >>> df.select(array_position(lit(1), "a").alias("result")).show()
-        ------------
-        |"RESULT"  |
-        ------------
-        |1         |
-        |0         |
-        ------------
-        <BLANKLINE>
+        >>> from snowflake.snowpark.functions import array_position, lit
+        >>> df = session.create_dataframe(
+        ...     [(1, [2, 1, 1]), (2, [1, 3]), (3, [4, 5])],
+        ...     schema=["id", "values"])
+        >>> df.select("id", array_position(lit(1), "values").alias("position")).sort("id").collect()
+        [Row(ID=1, POSITION=1), Row(ID=2, POSITION=0), Row(ID=3, POSITION=None)]
+
+    In the first row, 1 appears twice; the result is the position of its first
+    occurrence. Use :func:`lit` to search for a literal value rather than a
+    column name.
     """
     v = _to_col_if_str(variant, "array_position")
     a = _to_col_if_str(array, "array_position")
@@ -8812,13 +8837,20 @@ def iff(
         expr1: A :class:`Column` expression or a literal value, which will be returned
             if ``condition`` is true.
         expr2: A :class:`Column` expression or a literal value, which will be returned
-            if ``condition`` is false.
+            if ``condition`` is false or NULL.
 
     Examples::
 
-        >>> df = session.create_dataframe([True, False, None], schema=["a"])
-        >>> df.select(iff(df["a"], lit("true"), lit("false")).alias("iff")).collect()
-        [Row(IFF='true'), Row(IFF='false'), Row(IFF='false')]
+        >>> from snowflake.snowpark.functions import iff, lit
+        >>> df = session.create_dataframe(
+        ...     [(1, True), (2, False), (3, None)], schema=["id", "approved"])
+        >>> df.select(
+        ...     "id", iff(df["approved"], lit("ship"), lit("hold")).alias("action")
+        ... ).sort("id").collect()
+        [Row(ID=1, ACTION='ship'), Row(ID=2, ACTION='hold'), Row(ID=3, ACTION='hold')]
+
+    Only an approved row selects ``"ship"``. Both false and unknown (NULL)
+    approval select ``"hold"``.
     """
     ast = build_function_expr("iff", [condition, expr1, expr2]) if _emit_ast else None
     return _call_function(
@@ -13040,7 +13072,7 @@ def ai_extract(
         ...     col("text"),
         ...     ai_extract(col("text"), [['name', 'What is the first name?'], ['city', 'What city do they work in?']]).alias("info")
         ... )
-        >>> extracted_df.show()
+        >>> extracted_df.sort(col("text")).show()
         ------------------------------------------------------------
         |"TEXT"                          |"INFO"                   |
         ------------------------------------------------------------
@@ -13239,7 +13271,7 @@ def ai_filter(
         ...     ai_filter(prompt("Is {0} in Europe?", col("country"))).as_("europe"),
         ...     ai_filter(prompt("Is {0} in North America?", col("country"))).as_("north_america"),
         ...     ai_filter(prompt("Is {0} in Central America?", col("country"))).as_("central_america"),
-        ... ).show()
+        ... ).sort("asia").show()
         -----------------------------------------------------------
         |"ASIA"  |"EUROPE"  |"NORTH_AMERICA"  |"CENTRAL_AMERICA"  |
         -----------------------------------------------------------
@@ -14018,7 +14050,7 @@ def ai_complete(
         >>> _ = session.file.put("tests/resources/kitchen.png", "@mystage", auto_compress=False)
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='claude-4-sonnet',
+        ...         model='claude-sonnet-4-5',
         ...         prompt='Extract the kitchen appliances identified in this image. Respond in JSON only with the identified appliances.',
         ...         file=to_file('@mystage/kitchen.png'),
         ...     )
@@ -14053,7 +14085,7 @@ def ai_complete(
         >>> # Using prompt object from prompt() function
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='claude-4-sonnet',
+        ...         model='claude-sonnet-4-5',
         ...         prompt=prompt("Extract the kitchen appliances identified in this image. Respond in JSON only with the identified appliances? {0}", to_file('@mystage/kitchen.png')),
         ...     )
         ... )
@@ -14257,30 +14289,10 @@ def ai_sentiment(
         ...     ["The food was delicious but the service was slow."],
         ...     ["The movie was great, but the acting was terrible."]
         ... ], schema=["review"])
-        >>> df.select("review", ai_sentiment(col("review"), ['plot', 'visual effects', 'acting']).alias("sentiment")).show()
+        >>> df.select("review", ai_sentiment(col("review"), ['plot', 'visual effects', 'acting']).alias("sentiment")).sort("review").show()
         ----------------------------------------------------------------------------------------
         |"REVIEW"                                            |"SENTIMENT"                      |
         ----------------------------------------------------------------------------------------
-        |The movie had amazing visual effects but the pl...  |{                                |
-        |                                                    |  "categories": [                |
-        |                                                    |    {                            |
-        |                                                    |      "name": "overall",         |
-        |                                                    |      "sentiment": "mixed"       |
-        |                                                    |    },                           |
-        |                                                    |    {                            |
-        |                                                    |      "name": "acting",          |
-        |                                                    |      "sentiment": "neutral"     |
-        |                                                    |    },                           |
-        |                                                    |    {                            |
-        |                                                    |      "name": "plot",            |
-        |                                                    |      "sentiment": "negative"    |
-        |                                                    |    },                           |
-        |                                                    |    {                            |
-        |                                                    |      "name": "visual effects",  |
-        |                                                    |      "sentiment": "positive"    |
-        |                                                    |    }                            |
-        |                                                    |  ]                              |
-        |                                                    |}                                |
         |The food was delicious but the service was slow.    |{                                |
         |                                                    |  "categories": [                |
         |                                                    |    {                            |
@@ -14298,6 +14310,26 @@ def ai_sentiment(
         |                                                    |    {                            |
         |                                                    |      "name": "visual effects",  |
         |                                                    |      "sentiment": "unknown"     |
+        |                                                    |    }                            |
+        |                                                    |  ]                              |
+        |                                                    |}                                |
+        |The movie had amazing visual effects but the pl...  |{                                |
+        |                                                    |  "categories": [                |
+        |                                                    |    {                            |
+        |                                                    |      "name": "overall",         |
+        |                                                    |      "sentiment": "mixed"       |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "acting",          |
+        |                                                    |      "sentiment": "neutral"     |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "plot",            |
+        |                                                    |      "sentiment": "negative"    |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "visual effects",  |
+        |                                                    |      "sentiment": "positive"    |
         |                                                    |    }                            |
         |                                                    |  ]                              |
         |                                                    |}                                |
@@ -14621,16 +14653,15 @@ def ai_redact(
             all supported PII categories are redacted. Example categories include
             ``'NAME'``, ``'EMAIL'``, ``'PHONE_NUMBER'``, ``'ADDRESS'``, ``'NATIONAL_ID'``.
         mode: Operating mode. Either ``'redact'`` (default) to replace PII with
-            placeholder labels (e.g. ``[NAME]``), or ``'detect'`` to return an
-            object with metadata about each detected PII span without modifying
-            the text.
+            placeholder labels (e.g. ``[NAME]``), or ``'detect'`` to return
+            metadata about each detected PII span without modifying the text.
         return_error_details: When ``True``, returns an OBJECT with ``value`` and
             ``error`` fields instead of returning NULL on failure.
 
     Returns:
         In ``'redact'`` mode (default): a VARCHAR with PII replaced by placeholder labels.
 
-        In ``'detect'`` mode: an OBJECT with a ``spans`` array, where each entry contains:
+        In ``'detect'`` mode: an ARRAY of OBJECTs, where each entry contains:
 
             - ``category``: The PII category name.
             - ``start`` / ``end``: Character offsets of the PII span in the original text.
@@ -14665,7 +14696,10 @@ def ai_redact(
         ...     ai_redact('Contact John at 555-1234', mode='detect').alias("detected")
         ... )
         >>> result = df.collect()[0][0]
-        >>> 'spans' in result
+        >>> import json
+        >>> spans = json.loads(result) if isinstance(result, str) else result
+        >>> spans = spans['spans'] if isinstance(spans, dict) else spans
+        >>> isinstance(spans, list) and spans[0]['category'] in ('NAME', 'PHONE_NUMBER')
         True
     """
     sql_func_name = "ai_redact"

@@ -1036,6 +1036,14 @@ class SelectStatement(Selectable):
     def column_states(self) -> ColumnStateDict:
         if self._column_states is None:
             if not self.has_projection and not self.has_clause:
+                # Column states come from `from_`, which may run a describe query. The df ast
+                # ids are attached to this statement only, so pass them to `from_` (and its
+                # plan) to keep the lineage and missing-object debug context of a describe error.
+                if self.df_ast_ids is not None and self.from_.df_ast_ids is None:
+                    self.from_.df_ast_ids = self.df_ast_ids.copy()
+                    snowflake_plan = getattr(self.from_, "_snowflake_plan", None)
+                    if snowflake_plan is not None and snowflake_plan.df_ast_ids is None:
+                        snowflake_plan.df_ast_ids = self.from_.df_ast_ids
                 self.column_states = self.from_.column_states
             else:
                 super().column_states  # will assign value to self._column_states
@@ -1710,6 +1718,10 @@ class SelectStatement(Selectable):
             )
         if self._session.reduce_describe_query_enabled:
             new.attributes = self.attributes
+        # schema_query omits the WHERE clause, so describe the full query to validate it.
+        # Skipped with pre-actions, since the query may depend on temp objects.
+        if context._debug_eager_schema_validation and not new.pre_actions:
+            new.snowflake_plan._describe_full_query()
 
         return new
 
@@ -1744,6 +1756,10 @@ class SelectStatement(Selectable):
             )
         if self._session.reduce_describe_query_enabled:
             new.attributes = self.attributes
+        # schema_query omits the ORDER BY clause, so describe the full query to validate it.
+        # Skipped with pre-actions, since the query may depend on temp objects.
+        if context._debug_eager_schema_validation and not new.pre_actions:
+            new.snowflake_plan._describe_full_query()
 
         return new
 

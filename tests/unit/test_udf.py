@@ -188,3 +188,43 @@ def test_artifact_repository_adds_cloudpickle():
         assert (
             cloudpickle_count == 1
         ), f"For {packages}, cloudpickle should appear exactly once, found {cloudpickle_count} times"
+
+
+def _ar_package_names(all_packages):
+    return [
+        pkg.strip().strip("'").split(">")[0].split("=")[0].split("<")[0].lower()
+        for pkg in (all_packages.split(",") if all_packages else [])
+        if pkg.strip()
+    ]
+
+
+def test_artifact_repository_pandas_udf_includes_pandas():
+    """SNOW-4130609: pandas_udf on a non-conda AR injects pandas when packages are set."""
+    from snowflake.snowpark._internal.udf_utils import resolve_imports_and_packages
+
+    def _resolve(packages, is_pandas_udf):
+        _, _, _, all_packages, _, _ = resolve_imports_and_packages(
+            session=None,
+            object_type=TempObjectType.FUNCTION,
+            func=lambda: 1,
+            arg_names=[],
+            udf_name="test_pandas_udf",
+            stage_location=None,
+            imports=None,
+            packages=packages,
+            is_pandas_udf=is_pandas_udf,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        )
+        return all_packages
+
+    names = _ar_package_names(_resolve(["numpy"], True))
+    assert "pandas" in names
+    assert names.count("pandas") == 1
+
+    all_packages = _resolve(["numpy", "pandas==2.2.0"], True)
+    names = _ar_package_names(all_packages)
+    assert names.count("pandas") == 1
+    assert "pandas==2.2.0" in all_packages
+
+    names = _ar_package_names(_resolve(["numpy"], False))
+    assert "pandas" not in names

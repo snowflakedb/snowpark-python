@@ -6,11 +6,61 @@
 
 #### New Features
 
+#### Improvements
+
+- Eager schema validation (`context.configure_development_features(enable_eager_schema_validation=True)`) now raises invalid column references in `DataFrame.filter` and `DataFrame.sort` when the DataFrame is created.
+
 #### Bug Fixes
 
+- Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
+- Fixed a bug that the dataframe trace and missing-object information were missing from errors raised while a DataFrame is being created, when debuggability features are enabled by `context.configure_development_features`.
+- Fixed `Session.client_telemetry` failing to obtain a workload-identity auth token on the v5 / universal-driver connector, which does not expose `auth_class`, `_session_manager`, or top-level `wif_util`.
+
+## 1.55.3 (2026-10-21)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Improvements
+
+- Removed the `experimental` tag from `DataFrame.to_polars()`.
+- `DataFrame.to_polars()` now defaults to `transport="parquet"` instead of `transport="arrow"`.
+
+#### Bug Fixes
+
+- Fixed `DataFrameReader.jdbc`(PrPr) timing out on slow external data sources by executing the source query lazily.
+
+#### Improvements
+
+- Fixed `Index.to_pandas()` returning an integer `Index` whose width (for example `int8` or `int32`) depended on the integer width the server returned, instead of the `int64` that Snowpark pandas uses for all integer types. This also affects `Index.astype` to any integer type.
+
+## 1.55.2 (2026-10-13)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+- Fixed nested UDxF registration inside a stored procedure inheriting inaccessible app-package stage paths from the procedure's `IMPORTS` clause.
+
+#### Improvements
+- Bumped cloudpickle dependency to also support `cloudpickle==3.1.2` in addition to previous versions.
+
+## 1.55.1 (2026-10-05)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed `pandas_udf` with an explicit `packages` list omitting pandas when using a non-conda artifact repository (PyPI / Python 3.14 default).
+- Fixed `Session.write_pandas` raising a raw connector error instead of Snowpark's table-does-not-exist message when the target table was missing and `auto_create_table=False`.
 - Fixed `ai_extract` misrouting FILE-type inputs to the TEXT overload when `scores` or `config` were also supplied.
 - Fixed the nullable `FILE` column schema expression.
-- Fixed `Session.client_telemetry` failing to obtain a workload-identity auth token on the v5 / universal-driver connector, which does not expose `auth_class`, `_session_manager`, or top-level `wif_util`.
+
+#### Documentation
+
+- Updated `ai_redact(..., mode="detect")` and `DataFrame.ai.redact(..., mode="detect")` to document that detect mode returns an ARRAY of span objects, not an OBJECT with a `spans` field.
+
+#### Improvements
 
 ## 1.55.0 (2026-09-10)
 

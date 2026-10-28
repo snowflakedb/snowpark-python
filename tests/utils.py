@@ -78,6 +78,15 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 
+# Prefer the snowpark shim (connector v5 drops connector.options). Fall back
+# so prepared tests still collect against released snowpark (e.g. 1.55.0).
+try:
+    from snowflake.snowpark._internal.options import installed_pandas
+except ModuleNotFoundError:
+    from snowflake.connector import options as connector_options
+
+    installed_pandas = connector_options.installed_pandas
+
 IS_WINDOWS = platform.system() == "Windows"
 IS_MACOS = platform.system() == "Darwin"
 IS_LINUX = platform.system() == "Linux"
@@ -1632,6 +1641,10 @@ class TestFiles:
     @property
     def test_table_sp_py_file(self):
         return os.path.join(self.test_sp_directory, "test_table_sp_file.py")
+
+    @property
+    def test_pandas_apply_helper_py_file(self):
+        return os.path.join(self.resources_path, "test_pandas_apply_helper.py")
 
     @property
     def test_pandas_udf_py_file(self):

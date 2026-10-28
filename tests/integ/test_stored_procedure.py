@@ -8,10 +8,13 @@ import importlib.metadata
 import logging
 import os
 import re
+import shutil
+import sys as _sys
 import time
-from typing import Dict, List, Optional, Union
-from unittest.mock import patch
 from textwrap import dedent
+from typing import Dict, Iterable, List, Optional, Tuple, Union
+from unittest import mock
+from unittest.mock import patch
 
 import pytest
 
@@ -25,6 +28,7 @@ try:
 except ImportError:
     is_pandas_available = False
 
+import snowflake.snowpark.session as _session_module
 from snowflake.snowpark import Session, AsyncJob
 from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
@@ -2796,3 +2800,141 @@ def test_sproc_yearmonth_interval(session, interval_udf_enabled):
     ]
     # 14 months + 12 = 26 months → '+2-02'
     assert result == "+2-02"
+
+
+# SNOW-4174500: nested UDxF registration must not forward IMPORTS stage paths verbatim.
+def _snow4174500_setup(session, resources_path, tmp_path):
+    """Upload helper to a temp stage; copy locally; drop stage (makes path inaccessible).
+    Returns (abs_stage_path, import_dir)."""
+    test_files = TestFiles(resources_path)
+    stage = Utils.random_stage_name()
+    Utils.create_stage(session, stage, is_temporary=True)
+    Utils.upload_to_stage(
+        session, stage, test_files.test_pandas_apply_helper_py_file, compress=False
+    )
+    db = session.get_current_database().strip('"')
+    schema = session.get_current_schema().strip('"')
+    abs_stage_path = f"@{db}.{schema}.{stage}/test_pandas_apply_helper.py"
+    shutil.copy(
+        test_files.test_pandas_apply_helper_py_file,
+        tmp_path / "test_pandas_apply_helper.py",
+    )
+    Utils.drop_stage(session, stage)
+    return abs_stage_path, str(tmp_path) + os.sep
+
+
+def _run_apply_in_pandas(session, module):
+    rows = (
+        session.create_dataframe([(1, 5), (1, 10), (2, 20)], schema=["GRP", "V"])
+        .group_by("GRP")
+        .apply_in_pandas(
+            module.double_col,
+            output_schema=StructType(
+                [StructField("GRP", IntegerType()), StructField("V", IntegerType())]
+            ),
+        )
+        .collect()
+    )
+    assert len(rows) == 3 and all(r["V"] in (10, 20, 40) for r in rows)
+
+
+def _run_udf(session, module):
+    scale = session.udf.register(
+        module.double_scalar, return_type=IntegerType(), input_types=[IntegerType()]
+    )
+    result = (
+        session.create_dataframe([[21]], schema=["X"])
+        .select(scale(col("X")))
+        .collect()[0][0]
+    )
+    assert result == 42
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)", reason="local testing mode"
+)
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="not meaningful inside a stored proc")
+@pytest.mark.parametrize(
+    "run_fn,need_pandas",
+    [
+        (_run_udf, False),
+        pytest.param(
+            _run_apply_in_pandas,
+            True,
+            marks=pytest.mark.skipif(not is_pandas_available, reason="pandas required"),
+        ),
+    ],
+)
+def test_nested_udxf_restages_inaccessible_inherited_import(
+    session, resources_path, tmp_path, run_fn, need_pandas
+):
+    """SNOW-4174500: a UDxF registered with an inaccessible inherited stage import must
+    succeed. The stage is dropped so the path is genuinely unreachable; the fix re-stages
+    from the local copy in import_dir."""
+    abs_stage_path, import_dir = _snow4174500_setup(session, resources_path, tmp_path)
+    _sys.path.insert(0, str(tmp_path))
+    try:
+        import test_pandas_apply_helper  # noqa: F401 — importable from tmp_path; cloudpickle by-ref
+
+        session._import_paths[abs_stage_path] = (None, None)
+        try:
+            with mock.patch.object(
+                _session_module, "is_in_stored_procedure", return_value=True
+            ), mock.patch.dict(
+                _sys._xoptions, {"snowflake_import_directory": import_dir}
+            ):
+                run_fn(session, test_pandas_apply_helper)
+        finally:
+            session._import_paths.pop(abs_stage_path, None)
+    finally:
+        _sys.path.remove(str(tmp_path))
+        _sys.modules.pop("test_pandas_apply_helper", None)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)", reason="local testing mode"
+)
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="not meaningful inside a stored proc")
+def test_nested_udtf_import_rewritten_to_session_stage_fix_vs_bug(
+    session, resources_path, tmp_path
+):
+    """SNOW-4174500: fix enabled → UDTF DDL uses session temp stage; fix disabled → 002003 (bug)."""
+    abs_stage_path, import_dir = _snow4174500_setup(session, resources_path, tmp_path)
+    stage_token = abs_stage_path.split("/")[-2].split(".")[-1]
+
+    session._import_paths[abs_stage_path] = (None, None)
+    try:
+
+        class Echo:
+            def process(self, x: int) -> Iterable[Tuple[int]]:
+                yield (x,)
+
+        output_schema = StructType([StructField("v", IntegerType())])
+
+        with mock.patch.object(
+            _session_module, "is_in_stored_procedure", return_value=True
+        ), mock.patch.dict(_sys._xoptions, {"snowflake_import_directory": import_dir}):
+            udtf_obj = session.udtf.register(
+                Echo, output_schema=output_schema, input_types=[IntegerType()]
+            )
+
+        ddl = session.sql(
+            f"SELECT GET_DDL('function', '{udtf_obj.name}(INT)')"
+        ).collect()[0][0]
+        assert stage_token.upper() not in ddl.upper()
+
+        session.conf.set("restage_stored_procedure_imports", False)
+        try:
+            with mock.patch.object(
+                _session_module, "is_in_stored_procedure", return_value=True
+            ), mock.patch.dict(
+                _sys._xoptions, {"snowflake_import_directory": import_dir}
+            ):
+                with pytest.raises(Exception, match="002003|093023|does not exist"):
+                    session.udtf.register(
+                        Echo, output_schema=output_schema, input_types=[IntegerType()]
+                    )
+        finally:
+            session.conf.set("restage_stored_procedure_imports", True)
+    finally:
+        session._import_paths.pop(abs_stage_path, None)

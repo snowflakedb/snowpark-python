@@ -3104,6 +3104,38 @@ def test_register_artifact_repository_with_packages_includes_cloudpickle(session
         session._run_query(f"drop function if exists {temp_func_name}()")
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+def test_pandas_udf_artifact_repository_injects_pandas(session):
+    """SNOW-4130609: pandas_udf + packages=['numpy'] on PyPI AR must import pandas."""
+
+    def add_one(x):
+        import pandas as pd  # noqa: F401
+
+        return x + 1
+
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    try:
+        pandas_udf(
+            add_one,
+            name=temp_func_name,
+            return_type=PandasSeriesType(IntegerType()),
+            input_types=[PandasSeriesType(IntegerType())],
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            packages=["numpy"],
+        )
+        df = session.create_dataframe([1, 2]).to_df(["a"])
+        Utils.check_answer(
+            df.select(call_udf(temp_func_name, col("a"))), [Row(2), Row(3)]
+        )
+    finally:
+        session._run_query(f"drop function if exists {temp_func_name}(int)")
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",

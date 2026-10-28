@@ -446,7 +446,9 @@ class Table(DataFrame):
         This is the main difference between :meth:`DataFrame.sample` and this method.
 
         Args:
-            frac: The percentage of rows to be sampled.
+            frac: The fraction of rows to sample, from 0.0 to 1.0 inclusive.
+                For example, ``0.25`` requests approximately 25 percent of rows,
+                not exactly one quarter of the table. Specify either ``frac`` or ``n``.
             n: The fixed number of rows to sample in the range of 0 to 1,000,000 (inclusive). Either ``frac`` or ``n`` should be provided.
             seed: Specifies a seed value to make the sampling deterministic. Can be any integer between 0 and 2147483647 inclusive.
                 Default value is ``None``.
@@ -460,6 +462,18 @@ class Table(DataFrame):
             - Sampling without a seed is often faster than sampling with a seed.
             - Fixed-size sampling can be slower than equivalent fraction-based sampling because fixed-size sampling prevents some query optimization.
             - Fixed-size sampling doesn't work with SYSTEM | BLOCK sampling.
+
+        These examples require an existing table named ``sample_source``.
+        Sampling doesn't guarantee row order, and fraction-based sampling
+        doesn't guarantee a particular row count.
+
+        Examples::
+
+            >>> table = session.table("sample_source")  # doctest: +SKIP
+            >>> fraction_sample = table.sample(frac=0.25, seed=7)  # doctest: +SKIP
+            >>> fixed_sample = table.sample(n=5)  # doctest: +SKIP
+            >>> len(fixed_sample.collect()) <= 5  # doctest: +SKIP
+            True
 
         """
         DataFrame._validate_sample_input(frac, n)

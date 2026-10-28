@@ -1250,39 +1250,66 @@ def resolve_imports_and_packages(
 
     if artifact_repository != _ANACONDA_SHARED_REPOSITORY:
         # Non-conda artifact repository - skip conda-based package resolution
-        resolved_packages = []
-        if packages is None and session:
-            resolved_packages = list(
+        if packages is not None and not all(
+            isinstance(package, str) for package in packages
+        ):
+            raise TypeError(
+                "Non-conda artifact repository requires that all packages be passed as str."
+            )
+        if session is None:
+            resolved_packages = []
+            if packages is not None:
+                try:
+                    has_cloudpickle = bool(
+                        any(
+                            Requirement(pkg).name.lower() == "cloudpickle"
+                            for pkg in packages
+                        )
+                    )
+                except BaseException:
+                    # backward compatibility, we don't raise an error here
+                    # based on PyPI search (https://pypi.org/search/?q=cloudpickle), and Anaconda search (https://anaconda.org/search?q=cloudpickle),
+                    # "cloudpickle" is the only package with this prefix, making startswith() check safe.
+                    has_cloudpickle = bool(
+                        any(pkg.startswith("cloudpickle") for pkg in packages)
+                    )
+                resolved_packages = packages + (
+                    [f"cloudpickle>={cloudpickle.__version__}"]
+                    if not has_cloudpickle
+                    else []
+                )
+                if is_pandas_udf:
+                    try:
+                        has_pandas = any(
+                            Requirement(pkg).name.lower() == "pandas"
+                            for pkg in resolved_packages
+                        )
+                    except BaseException:
+                        has_pandas = any(
+                            pkg.startswith("pandas") for pkg in resolved_packages
+                        )
+                    if not has_pandas:
+                        resolved_packages.append("pandas")
+        else:
+            # Same resolution as conda: inject cloudpickle, and pandas for pandas_udf.
+            resolved_packages = (
                 session._resolve_packages(
+                    packages,
+                    artifact_repository=artifact_repository,
+                    existing_packages_dict={},
+                    include_pandas=is_pandas_udf,
+                    statement_params=statement_params,
+                    _suppress_local_package_warnings=_suppress_local_package_warnings,
+                )
+                if packages is not None
+                else session._resolve_packages(
                     [],
                     artifact_repository=artifact_repository,
                     existing_packages_dict=existing_packages_dict,
                     include_pandas=is_pandas_udf,
+                    statement_params=statement_params,
+                    _suppress_local_package_warnings=_suppress_local_package_warnings,
                 )
-            )
-        elif packages is not None:
-            if not all(isinstance(package, str) for package in packages):
-                raise TypeError(
-                    "Non-conda artifact repository requires that all packages be passed as str."
-                )
-            try:
-                has_cloudpickle = bool(
-                    any(
-                        Requirement(pkg).name.lower() == "cloudpickle"
-                        for pkg in packages
-                    )
-                )
-            except BaseException:
-                # backward compatibility, we don't raise an error here
-                # based on PyPI search (https://pypi.org/search/?q=cloudpickle), and Anaconda search (https://anaconda.org/search?q=cloudpickle),
-                # "cloudpickle" is the only package with this prefix, making startswith() check safe.
-                has_cloudpickle = bool(
-                    any(pkg.startswith("cloudpickle") for pkg in packages)
-                )
-            resolved_packages = packages + (
-                [f"cloudpickle>={cloudpickle.__version__}"]
-                if not has_cloudpickle
-                else []
             )
 
     else:
