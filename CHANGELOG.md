@@ -16,6 +16,7 @@
 
 - Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
 - Fixed a bug that the dataframe trace and missing-object information were missing from errors raised while a DataFrame is being created, when debuggability features are enabled by `context.configure_development_features`.
+- Fixed `Session.client_telemetry` failing to obtain a workload-identity auth token on the v5 / universal-driver connector, which does not expose `auth_class`, `_session_manager`, or top-level `wif_util`.
 
 ## 1.55.3 (2026-10-21)
 
