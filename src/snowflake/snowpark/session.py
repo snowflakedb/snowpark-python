@@ -237,6 +237,7 @@ from snowflake.snowpark.types import (
 from snowflake.snowpark.udaf import UDAFRegistration
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
+from snowflake.snowpark.datasource import DataSourceRegistration
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
@@ -690,6 +691,7 @@ class Session:
             self._sp_registration = StoredProcedureRegistration(self)
             self._udtf_registration = UDTFRegistration(self)
             self._udaf_registration = UDAFRegistration(self)
+        self._data_source_registration = DataSourceRegistration(self)
 
         self._plan_builder = (
             SnowflakePlanBuilder(self)
@@ -4631,6 +4633,15 @@ class Session:
         """
         # TODO: Test udtf support properly.
         return self._udtf_registration
+
+    @property
+    def data_source(self) -> DataSourceRegistration:
+        """
+        Returns a :class:`datasource.DataSourceRegistration` object that you can use to register
+        custom data sources, which are read with :meth:`DataFrameReader.format`.
+        See details in :mod:`snowflake.snowpark.datasource`.
+        """
+        return self._data_source_registration
 
     @property
     def udaf(self) -> UDAFRegistration:

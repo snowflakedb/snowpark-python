@@ -8,7 +8,18 @@ import time
 from collections import defaultdict
 from collections.abc import Iterable
 from logging import getLogger
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    Callable,
+)
 from datetime import datetime
 
 import snowflake.snowpark
@@ -104,6 +115,9 @@ from snowflake.snowpark.types import (
     VariantType,
     StructField,
 )
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.datasource import DataSource
 
 logger = getLogger(__name__)
 
@@ -654,6 +668,9 @@ class DataFrameReader:
         self._infer_schema_target_columns: Optional[List[str]] = None
         self.__format: Optional[str] = None
         self._data_source_format = ["jdbc", "dbapi"]
+        # options as set by the user, without upper-casing or aliasing, for custom data sources
+        self._raw_options: Dict[str, Any] = {}
+        self._custom_data_source_cls: Optional[Type["DataSource"]] = None
         self._xml_inferred_schema: Optional[StructType] = None
 
         self._ast = None
@@ -881,15 +898,21 @@ class DataFrameReader:
         return table
 
     @publicapi
-    def schema(self, schema: StructType, _emit_ast: bool = True) -> "DataFrameReader":
-        """Define the schema for CSV, JSON, Parquet, or XML files that you want to read.
+    def schema(
+        self, schema: Union[StructType, str], _emit_ast: bool = True
+    ) -> "DataFrameReader":
+        """Define the schema for CSV, JSON, Parquet, or XML files that you want to read,
+        or for a custom data source.
 
         Args:
-            schema: Schema configuration for the file to be read.
+            schema: Schema configuration for the file to be read. A DDL string such as
+                ``"id INT, name STRING"`` is also accepted.
 
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
+        if isinstance(schema, str):
+            schema = DataSourcePartitioner.formatting_custom_schema(schema)
 
         # AST.
         if _emit_ast and self._ast is not None:
@@ -949,17 +972,31 @@ class DataFrameReader:
             "xml",
         ]
         allowed_formats.extend(self._data_source_format)
-        if canon_format not in allowed_formats:
+        if canon_format in allowed_formats:
+            self._custom_data_source_cls = None
+            self.__format = canon_format
+            return
+        custom_data_source_cls = self._session.data_source._get(canon_format)
+        if custom_data_source_cls is None:
+            registered = self._session.data_source.registered_names()
             raise ValueError(
-                f"Invalid format '{value}'. Supported formats are {allowed_formats}."
+                f"Invalid format '{value}'. Supported formats are {allowed_formats}"
+                + (
+                    f", and the registered custom data sources {registered}."
+                    if registered
+                    else ". Register a custom data source with session.data_source.register()."
+                )
             )
+        self._custom_data_source_cls = custom_data_source_cls
         self.__format = canon_format
 
     @publicapi
     def format(
         self,
-        format: Literal[
-            "csv", "json", "avro", "parquet", "orc", "xml", "dbapi", "jdbc"
+        format: Union[
+            Literal["csv", "json", "avro", "parquet", "orc", "xml", "dbapi", "jdbc"],
+            str,
+            Type["DataSource"],
         ],
         _emit_ast: bool = True,
     ) -> "DataFrameReader":
@@ -968,11 +1005,21 @@ class DataFrameReader:
         Args:
             format: The format of the file(s) to load. Supported formats are csv, json, avro, parquet, orc, and xml.
                 Snowpark data source type is also supported, currently support dbapi and jdbc.
+                It can also be the name of a custom data source registered with
+                :attr:`Session.data_source <snowflake.snowpark.Session.data_source>`, or a
+                subclass of :class:`~snowflake.snowpark.datasource.DataSource`. See
+                :mod:`snowflake.snowpark.datasource` for details.
 
         Returns:
             a :class:`DataFrameReader` instance that is set up to load data from the specified file format in a Snowflake stage.
         """
-        self._format = format
+        if isinstance(format, type):
+            from snowflake.snowpark.datasource import _validate_data_source_class
+
+            self.__format = _validate_data_source_class(format)
+            self._custom_data_source_cls = format
+        else:
+            self._format = format
         # AST.
         if _emit_ast and self._ast is not None:
             self._ast.dataframe_reader.format.value = self._format
@@ -993,6 +1040,9 @@ class DataFrameReader:
             raise ValueError(
                 "Please specify the format of the file(s) to load using the format() method."
             )
+
+        if self._custom_data_source_cls is not None:
+            return self._load_custom_data_source(path, _emit_ast=_emit_ast)
 
         format_str = self._format.lower()
         if format_str in self._data_source_format and path is not None:
@@ -1555,7 +1605,36 @@ class DataFrameReader:
 
         aliased_key = get_aliased_option_name(key, READER_OPTIONS_ALIAS_MAP)
         self._cur_options[aliased_key] = value
+        self._raw_options[key] = value
         return self
+
+    def _load_custom_data_source(
+        self, path: Optional[str], _emit_ast: bool = True
+    ) -> DataFrame:
+        from snowflake.snowpark._internal.data_source.custom.ingestion import (
+            read_custom_data_source,
+        )
+
+        options = dict(self._raw_options)
+        if path is not None:
+            # follows PySpark, which passes the path to the data source as the "path" option
+            options["path"] = path
+        df = read_custom_data_source(
+            self._session,
+            self._custom_data_source_cls,
+            options,
+            self._user_schema,
+            _emit_ast=False,
+        )
+        # AST.
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.read_load, stmt)
+            ast.reader.CopyFrom(self._ast)
+            if path is not None:
+                ast.path = path
+            df._ast_id = stmt.uid
+        return df
 
     @publicapi
     def options(
@@ -2769,8 +2848,8 @@ class DataFrameReader:
 
         local_ingestion(
             session=self._session,
-            partitioner=partitioner,
-            partitioned_queries=partitioned_queries,
+            create_reader=partitioner.reader,
+            partitions=partitioned_queries,
             max_workers=max_workers,
             fetch_with_process=fetch_with_process,
             snowflake_stage_name=snowflake_stage_name,

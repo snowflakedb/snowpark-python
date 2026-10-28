@@ -260,17 +260,12 @@ def _task_fetch_data_from_source(
     """
 
     def convert_to_parquet_bytesio(fetched_data, fetch_idx):
-        df = worker.data_source_data_to_pandas_df(fetched_data)
-        if df.empty:
+        parquet_buffer = worker.data_to_parquet_bytesio(fetched_data)
+        if parquet_buffer is None:
             logger.debug(
-                f"The DataFrame is empty, no parquet BytesIO is generated for partition {partition_idx} fetch {fetch_idx}."
+                f"The fetched data is empty, no parquet BytesIO is generated for partition {partition_idx} fetch {fetch_idx}."
             )
             return
-
-        # Create BytesIO object and write parquet data to it
-        parquet_buffer = BytesIO()
-        df.to_parquet(parquet_buffer)
-        parquet_buffer.seek(0)  # Reset position to beginning
 
         # Create a unique identifier for this parquet data
         parquet_id = f"data_partition{partition_idx}_fetch{fetch_idx}.parquet"
@@ -695,8 +690,8 @@ def track_data_source_statement_params(
 
 def local_ingestion(
     session: "snowflake.snowpark.Session",
-    partitioner: "snowflake.snowpark._internal.data_source.datasource_partitioner.DataSourcePartitioner",
-    partitioned_queries: List[str],
+    create_reader: Callable[[], Any],
+    partitions: List[Any],
     max_workers: int,
     snowflake_stage_name: str,
     snowflake_table_name: str,
@@ -719,8 +714,8 @@ def local_ingestion(
         # Set max size for parquet_queue to prevent overfilling when thread consumers are slower than process producers
         # process workers will block on this queue if it's full until the upload threads consume the BytesIO objects
         parquet_queue = queue_class(_MAX_WORKER_SCALE * max_workers)
-        for partition_idx, query in enumerate(partitioned_queries):
-            partition_queue.put((partition_idx, query))
+        for partition_idx, partition in enumerate(partitions):
+            partition_queue.put((partition_idx, partition))
 
         # Start worker processes
         logger.debug(
@@ -738,7 +733,7 @@ def local_ingestion(
                         partition_queue,
                         parquet_queue,
                         process_or_thread_error_indicator,
-                        partitioner.reader(),
+                        create_reader(),
                     ),
                 )
                 process.start()
@@ -754,7 +749,7 @@ def local_ingestion(
                     partition_queue,
                     parquet_queue,
                     process_or_thread_error_indicator,
-                    partitioner.reader(),
+                    create_reader(),
                     data_fetching_thread_stop_event,
                 )
                 for _worker_id in range(max_workers)
@@ -770,7 +765,7 @@ def local_ingestion(
             parquet_queue=parquet_queue,
             process_or_thread_error_indicator=process_or_thread_error_indicator,
             workers=workers,
-            total_partitions=len(partitioned_queries),
+            total_partitions=len(partitions),
             snowflake_stage_name=snowflake_stage_name,
             snowflake_table_name=snowflake_table_name,
             max_workers=max_workers,

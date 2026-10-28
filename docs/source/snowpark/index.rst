@@ -20,6 +20,7 @@ Snowpark APIs
    udf
    udaf
    udtf
+   datasource
    secrets
    observability
    files

@@ -89,6 +89,7 @@ Snowpark Session
 
     Session.builder
     Session.custom_package_usage_config
+    Session.data_source
     Session.file
     Session.query_tag
     Session.lineage

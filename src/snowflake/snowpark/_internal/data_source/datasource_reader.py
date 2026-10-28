@@ -4,6 +4,7 @@
 import pickle
 import cloudpickle
 from enum import Enum
+from io import BytesIO
 
 from typing import List, Any, Iterator, Type, Callable, Optional
 
@@ -112,6 +113,16 @@ class DataSourceReader:
                 logger.debug(
                     f"Failed to close connection after reading data due to error: {exc!r}"
                 )
+
+    def data_to_parquet_bytesio(self, data: List[Any]) -> Optional[BytesIO]:
+        """Converts fetched data to an in-memory Parquet file, or returns None if there is no data."""
+        df = self.data_source_data_to_pandas_df(data)
+        if df.empty:
+            return None
+        parquet_buffer = BytesIO()
+        df.to_parquet(parquet_buffer)
+        parquet_buffer.seek(0)
+        return parquet_buffer
 
     def data_source_data_to_pandas_df(self, data: List[Any]) -> "pd.DataFrame":
         # self.driver is guaranteed to be initialized in self.read() which is called prior to this method
