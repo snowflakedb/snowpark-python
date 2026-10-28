@@ -13,9 +13,12 @@ on:
         tags:
           description: "Test scenario tags"
 
+# While PR_GATE_SKIP_ENABLED is unset, a newer push cancels the older run of the same ref (original
+# behavior). Once it is 'true', every run gets its own group and PR Gate Precheck cancels only the
+# runs a push with code supersedes, so a changelog-only push never cancels the run it points at.
 concurrency:
-  group: ${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ vars.PR_GATE_SKIP_ENABLED == 'true' && format('{0}-{1}', github.ref, github.run_id) || github.ref }}
+  cancel-in-progress: ${{ vars.PR_GATE_SKIP_ENABLED != 'true' }}
 
 jobs:
   # Decides whether the other gates run for this push. Skipping is off until
@@ -24,6 +27,7 @@ jobs:
     name: PR Gate Precheck
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: read
       pull-requests: read
     outputs:
@@ -39,6 +43,9 @@ jobs:
           EVENT_ACTION: ${{ github.event.action }}
           BEFORE: ${{ github.event.before }}
           SKIP_ENABLED: ${{ vars.PR_GATE_SKIP_ENABLED }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
 
   lint:
     # Every other job descends from lint, type_checking, combine-coverage or doc,
@@ -864,3 +871,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_GATE_REQUIRED_CHECKS: ${{ vars.PR_GATE_REQUIRED_CHECKS }}

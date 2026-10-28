@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
 # Logic for the "PR Gate Precheck" and "PR Gate" jobs in precommit.yml.
 #
-#   pr_gate.sh precheck   decide whether the latest push is CHANGELOG.md-only
-#   pr_gate.sh report     report the gate state of the latest non-changelog-only commit
+#   pr_gate.sh precheck   decide whether the latest push is CHANGELOG.md-only; when it is not
+#                         (and skipping is enabled) cancel the runs it supersedes
+#   pr_gate.sh report     report the state of the required gates of the newest executed run whose
+#                         code equals the PR head's code (ignoring CHANGELOG.md)
+#
+# "Code state": two commits have the same code state when the diff between them touches nothing
+# except CHANGELOG.md (added/modified). Both modes use this single definition.
 #
 # Required env: GH_TOKEN, GITHUB_REPOSITORY, HEAD_SHA (PR head commit).
-# precheck env: EVENT_NAME, EVENT_ACTION, BEFORE, SKIP_ENABLED
-# report env:   PR_NUMBER, GITHUB_RUN_ID, optional PR_GATE_TIMEOUT_MIN (default 90),
-#               PR_GATE_EXTERNAL_BLOCKING (space separated, default "snowpark-connect-tests")
+# precheck env: EVENT_NAME, EVENT_ACTION, BEFORE, SKIP_ENABLED, GITHUB_RUN_ID, PR_NUMBER,
+#               HEAD_REF, HEAD_REPO
+# report env:   PR_NUMBER, BASE_REF, GITHUB_RUN_ID, optional PR_GATE_REQUIRED_CHECKS (newline or
+#               comma separated; overrides branch protection, needed once "PR Gate" is the only
+#               required check), optional PR_GATE_TIMEOUT_MIN (default 90)
 set -euo pipefail
 
 MODE="${1:?usage: pr_gate.sh precheck|report}"
@@ -16,31 +23,56 @@ head_sha="${HEAD_SHA:?}"
 summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
 output="${GITHUB_OUTPUT:-/dev/null}"
 
-# Jobs of the precommit workflow that never count as gates.
-NON_GATE_JOBS=("PR Gate" "PR Gate Precheck" "Combine coverage")
+# Prints "<compare status> <changed files> <files that are not a plain CHANGELOG.md edit>".
+diff_summary() {
+  gh api "repos/$repo/compare/$1...$2" --jq '[.status, ((.files // []) | length),
+    ((.files // []) | map(select(.filename != "CHANGELOG.md"
+      or (.status != "added" and .status != "modified"))) | length)] | @tsv'
+}
 
-# Prints "<parent count><TAB><first parent sha><TAB><true|false changelog-only>" for a commit.
-# A commit is "changelog-only" when its diff against its parent is exactly CHANGELOG.md; merge
-# commits are never changelog-only. Fails on any API error.
-commit_info() {
-  gh api "repos/$repo/commits/$1" --jq '[(.parents | length), (.parents[0].sha // ""),
-    (((.parents | length) == 1) and ([.files[].filename] == ["CHANGELOG.md"])
-      and ([.files[] | select(.status == "added" or .status == "modified" | not)] | length == 0))] | @tsv'
+# 0: same code state as the head, 1: different, 2: API error.
+same_code_state() {
+  local out st nf nb
+  out=$(diff_summary "$1" "$head_sha") || return 2
+  IFS=$'\t' read -r st nf nb <<< "$out"
+  if [[ ( "$st" == "ahead" || "$st" == "identical" ) && "${nb:-1}" -eq 0 ]]; then
+    return 0
+  fi
+  return 1
+}
+
+cancel_superseded() {
+  local id
+  while read -r id; do
+    [[ -n "$id" ]] || continue
+    echo "cancelling superseded run $id"
+    gh api -X POST "repos/$repo/actions/runs/$id/cancel" > /dev/null || echo "::warning::could not cancel run $id"
+  done < <(gh api "repos/$repo/actions/workflows/precommit.yml/runs?event=pull_request&per_page=100" \
+    --jq ".workflow_runs[] | select(.head_branch == \"${HEAD_REF:?}\"
+      and .head_repository.full_name == \"${HEAD_REPO:?}\"
+      and (.status == \"in_progress\" or .status == \"queued\" or .status == \"waiting\" or .status == \"pending\")
+      and .id < ${GITHUB_RUN_ID:?}) | .id" || true)
 }
 
 precheck() {
-  local changelog_only=false skip=false files=""
+  local changelog_only=false skip=false cancelled=false out st nf nb
   if [[ "${EVENT_NAME:-}" == "pull_request" && "${EVENT_ACTION:-}" == "synchronize" \
         && -n "${BEFORE:-}" && ! "${BEFORE}" =~ ^0+$ ]]; then
-    # Only a push that fast-forwards the PR is diffed; force-pushes fall through to "code".
-    files=$(gh api "repos/$repo/compare/${BEFORE}...${head_sha}" \
-      --jq 'select(.status=="ahead") | select([.files[] | select(.status == "added" or .status == "modified" | not)] | length == 0) | .files[].filename' 2>/dev/null || true)
-    if [[ "$files" == "CHANGELOG.md" ]]; then
+    # Only a fast-forward push that changes CHANGELOG.md and nothing else is changelog-only.
+    # An empty push, a force-push or any API error is treated as code.
+    out=$(diff_summary "$BEFORE" "$head_sha" 2>/dev/null || true)
+    IFS=$'\t' read -r st nf nb <<< "$out"
+    if [[ "$st" == "ahead" && "${nf:-0}" -ge 1 && "${nb:-1}" -eq 0 ]]; then
       changelog_only=true
     fi
   fi
   if [[ "$changelog_only" == "true" && "${SKIP_ENABLED:-}" == "true" ]]; then
     skip=true
+  fi
+  # A push with code supersedes every older run of this PR; a changelog-only push supersedes none.
+  if [[ "$changelog_only" == "false" && "${SKIP_ENABLED:-}" == "true" && "${EVENT_NAME:-}" == "pull_request" ]]; then
+    cancel_superseded
+    cancelled=true
   fi
   echo "changelog_only=$changelog_only skip_other_gates=$skip"
   {
@@ -52,39 +84,59 @@ precheck() {
     echo "- latest push changelog-only: \`$changelog_only\`"
     echo "- skipping enabled (\`PR_GATE_SKIP_ENABLED\`): \`${SKIP_ENABLED:-unset}\`"
     echo "- skip other gates: \`$skip\`"
+    echo "- superseded runs cancelled by this job: \`$cancelled\`"
   } >> "$summary"
 }
 
-is_non_gate() {
-  local n
-  for n in "${NON_GATE_JOBS[@]}"; do
-    [[ "$1" == "$n" ]] && return 0
-  done
-  return 1
+# Run id of the executed precommit run for a commit. A run whose "Check linting" job was skipped
+# (skipped by the precheck) does not count. 0: found (id printed), 1: none, 2: API error.
+executed_run_for() {
+  local sha="$1" id lint
+  if [[ "$sha" == "$head_sha" ]]; then
+    id="${GITHUB_RUN_ID:?}"
+  else
+    id=$(gh api "repos/$repo/actions/workflows/precommit.yml/runs?head_sha=$sha&event=pull_request&per_page=30" \
+      --jq '.workflow_runs | sort_by(.created_at) | last | .id // empty') || return 2
+    [[ -n "$id" ]] || return 1
+  fi
+  lint=$(gh api --paginate "repos/$repo/actions/runs/$id/jobs?per_page=100" \
+    --jq '.jobs[] | select(.name == "Check linting") | .conclusion // "running"') || return 2
+  [[ -n "$lint" && "$lint" != "skipped" ]] || return 1
+  echo "$id"
 }
 
-# Walks first-parent from the PR head (no reliance on the commit list order) and fills:
-#   CHAIN  commits from head down to the newest non-changelog-only commit T (newest first)
-#   TESTED T, or NONE when every commit in the PR is changelog-only
-# Any API failure or inconsistent data returns non-zero so the gate fails instead of passing.
-resolve_tested() {
-  local commits sha info n parent flag
+# Walks first-parent from the PR head. Every commit with the same code state as the head is a
+# candidate; the first one with an executed run wins. Fills RUN_ID (empty when none) and RUN_SHA.
+# Returns non-zero on any API failure or inconsistent data so the gate fails instead of passing.
+resolve_run() {
+  local commits sha parent id rc
+  RUN_ID=""
+  RUN_SHA=""
   commits=$(gh api --paginate "repos/$repo/pulls/${PR_NUMBER:?}/commits?per_page=100" --jq '.[].sha') || return 1
   [[ -n "$commits" ]] || return 1
   # The PR head must be the newest commit in the list, otherwise the list is stale or wrong.
   [[ "$(printf '%s\n' "$commits" | tail -n 1)" == "$head_sha" ]] || return 1
-  CHAIN=()
-  TESTED=NONE
   sha="$head_sha"
   while true; do
-    CHAIN+=("$sha")
-    info=$(commit_info "$sha") || return 1
-    IFS=$'\t' read -r n parent flag <<< "$info"
-    if [[ "$flag" != "true" ]]; then
-      TESTED="$sha"
-      return 0
+    if [[ "$sha" != "$head_sha" ]]; then
+      if same_code_state "$sha"; then
+        :
+      else
+        rc=$?
+        [[ "$rc" -eq 2 ]] && return 1
+        return 0 # different code state: no older commit can vouch for the head
+      fi
     fi
-    # Left the PR (first parent is not one of its commits): everything was changelog-only.
+    if id=$(executed_run_for "$sha"); then
+      RUN_ID="$id"
+      RUN_SHA="$sha"
+      return 0
+    else
+      rc=$?
+      [[ "$rc" -eq 2 ]] && return 1
+    fi
+    parent=$(gh api "repos/$repo/commits/$sha" --jq '.parents[0].sha // ""') || return 1
+    # Left the PR: nothing older belongs to it.
     if [[ -z "$parent" ]] || ! grep -qx "$parent" <<< "$commits"; then
       return 0
     fi
@@ -92,173 +144,149 @@ resolve_tested() {
   done
 }
 
-# Run id of the first executed precommit run at TESTED or after it (towards the head).
-# A push with several commits only runs for its head, so TESTED itself may have no run;
-# the run of the later commit then covers it. Runs whose gates were skipped do not count.
-resolve_run() {
-  local i sha id lint
-  RUN_ID=""
-  for (( i=${#CHAIN[@]}-1; i>=0; i-- )); do
-    sha="${CHAIN[$i]}"
-    if [[ "$sha" == "$head_sha" ]]; then
-      id="${GITHUB_RUN_ID:?}"
-    else
-      id=$(gh api "repos/$repo/actions/workflows/precommit.yml/runs?head_sha=$sha&event=pull_request&per_page=30" \
-        --jq '.workflow_runs | sort_by(.created_at) | last | .id // empty') || return 1
-      [[ -n "$id" ]] || continue
-      lint=$(gh api --paginate "repos/$repo/actions/runs/$id/jobs?per_page=100" \
-        --jq '.jobs[] | select(.name == "Check linting") | .conclusion // "running"') || return 1
-      [[ -n "$lint" && "$lint" != "skipped" ]] || continue
-    fi
-    RUN_ID="$id"
-    RUN_SHA="$sha"
-    return 0
-  done
+# True when the whole PR only adds/modifies CHANGELOG.md (nothing to gate).
+pr_only_changelog() {
+  local files
+  files=$(gh api --paginate "repos/$repo/pulls/${PR_NUMBER:?}/files?per_page=100" \
+    --jq '.[] | [.filename, .status] | @tsv') || return 1
+  [[ -n "$files" ]] || return 1
+  while IFS=$'\t' read -r name status; do
+    [[ "$name" == "CHANGELOG.md" && ( "$status" == "added" || "$status" == "modified" ) ]] || return 1
+  done <<< "$files"
 }
 
-# Writes TSV lines "kind<TAB>name<TAB>state<TAB>url" where state is pass|fail|pending|missing.
-collect() {
-  local tested="$1" run_id="$2" gates="$3" line name status conclusion url state ext
-  : > "$gates"
-
-  if [[ -n "$run_id" ]]; then
-    local jobs
-    # Fetch first: a failure inside a process substitution would be silently ignored.
-    jobs=$(gh api --paginate "repos/$repo/actions/runs/$run_id/jobs?per_page=100" \
-      --jq '.jobs[] | [.name, .status, (.conclusion // ""), .html_url] | @tsv') || return 1
-    [[ -n "$jobs" ]] || return 1
-    while IFS=$'\t' read -r name status conclusion url; do
-      is_non_gate "$name" && continue
-      if [[ "$status" != "completed" ]]; then state=pending
-      elif [[ "$conclusion" == "success" ]]; then state=pass
-      else state="fail($conclusion)"; fi
-      printf 'precommit\t%s\t%s\t%s\n' "$name" "$state" "$url" >> "$gates"
-    done <<< "$jobs"
+# One required check name per line. Excludes this gate's own jobs. Fails on API errors.
+required_checks() {
+  local raw
+  if [[ -n "${PR_GATE_REQUIRED_CHECKS:-}" ]]; then
+    raw=$(printf '%s\n' "$PR_GATE_REQUIRED_CHECKS" | tr ',' '\n')
   else
-    printf 'precommit\t%s\t%s\t%s\n' "precommit workflow run" "missing" "" >> "$gates"
+    raw=$(gh api "repos/$repo/branches/${BASE_REF:?}" \
+      --jq '.protection.required_status_checks.contexts[]?') || return 1
   fi
-
-  # External checks and commit statuses (Jenkins, other workflows, ...).
-  local ext_all="$gates.ext"
-  : > "$ext_all"
-  gh api --paginate "repos/$repo/commits/$tested/check-runs?per_page=100" \
-    --jq '.check_runs[] | [.name, .status, (.conclusion // ""), (.html_url // "")] | @tsv' \
-    | while IFS=$'\t' read -r name status conclusion url; do
-        if [[ "$status" != "completed" ]]; then state=pending
-        elif [[ "$conclusion" == "success" || "$conclusion" == "neutral" ]]; then state=pass
-        else state="fail($conclusion)"; fi
-        printf 'external\t%s\t%s\t%s\n' "$name" "$state" "$url"
-      done >> "$ext_all"
-  gh api "repos/$repo/commits/$tested/status" \
-    --jq '.statuses[] | [.context, .state, (.target_url // "")] | @tsv' \
-    | while IFS=$'\t' read -r name status url; do
-        case "$status" in
-          success) state=pass ;;
-          pending) state=pending ;;
-          *) state="fail($status)" ;;
-        esac
-        printf 'external\t%s\t%s\t%s\n' "$name" "$state" "$url"
-      done >> "$ext_all"
-  # Skip external entries that merely repeat a precommit job, then add the rest.
-  while IFS=$'\t' read -r line name state url; do
-    if ! awk -F'\t' -v n="$name" '$1=="precommit" && $2==n {f=1} END{exit !f}' "$gates"; then
-      printf '%s\t%s\t%s\t%s\n' "$line" "$name" "$state" "$url" >> "$gates"
-    fi
-  done < "$ext_all"
-  rm -f "$ext_all"
-
-  # Blocking external gates that never reported are "missing" (treated as pending while waiting).
-  for ext in ${PR_GATE_EXTERNAL_BLOCKING:-snowpark-connect-tests}; do
-    if ! awk -F'\t' -v n="$ext" '$1=="external" && $2==n {f=1} END{exit !f}' "$gates"; then
-      printf 'external\t%s\tmissing\t\n' "$ext" >> "$gates"
-    fi
-  done
+  printf '%s\n' "$raw" | sed 's/^ *//;s/ *$//' | grep -v '^$' \
+    | grep -vxF -e "PR Gate" -e "PR Gate Precheck" || true
 }
 
-is_blocking() { # kind name
-  local ext
-  [[ "$1" == "precommit" ]] && return 0
-  for ext in ${PR_GATE_EXTERNAL_BLOCKING:-snowpark-connect-tests}; do
-    [[ "$2" == "$ext" ]] && return 0
-  done
+# Writes TSV lines "name<TAB>state<TAB>url" for every check of RUN_SHA's run, plus a "missing"
+# line for every required check that was not reported. state: pass|fail(...)|pending|missing.
+collect() {
+  local gates="$1" req="$2" jobs checks statuses name status conclusion url state
+  jobs=$(gh api --paginate "repos/$repo/actions/runs/$RUN_ID/jobs?per_page=100" \
+    --jq '.jobs[] | [.name, .status, (.conclusion // ""), .html_url] | @tsv') || return 1
+  [[ -n "$jobs" ]] || return 1
+  checks=$(gh api --paginate "repos/$repo/commits/$RUN_SHA/check-runs?per_page=100" \
+    --jq '.check_runs[] | [.name, .status, (.conclusion // ""), (.html_url // "")] | @tsv') || return 1
+  statuses=$(gh api "repos/$repo/commits/$RUN_SHA/status" \
+    --jq '.statuses[] | [.context, .state, (.target_url // "")] | @tsv') || return 1
+
+  : > "$gates"
+  # Jobs of the chosen run win over same-named check-runs; both win over commit statuses.
+  while IFS=$'\t' read -r name status conclusion url; do
+    [[ "$name" == "PR Gate" || "$name" == "PR Gate Precheck" ]] && continue
+    if [[ "$status" != "completed" ]]; then state=pending
+    elif [[ "$conclusion" == "success" ]]; then state=pass
+    else state="fail($conclusion)"; fi
+    printf '%s\t%s\t%s\n' "$name" "$state" "$url" >> "$gates"
+  done <<< "$jobs"
+  while IFS=$'\t' read -r name status conclusion url; do
+    [[ -n "$name" ]] || continue
+    cut -f1 "$gates" | grep -qxF -- "$name" && continue
+    if [[ "$status" != "completed" ]]; then state=pending
+    elif [[ "$conclusion" == "success" || "$conclusion" == "neutral" ]]; then state=pass
+    else state="fail($conclusion)"; fi
+    printf '%s\t%s\t%s\n' "$name" "$state" "$url" >> "$gates"
+  done <<< "$checks"
+  while IFS=$'\t' read -r name status url; do
+    [[ -n "$name" ]] || continue
+    cut -f1 "$gates" | grep -qxF -- "$name" && continue
+    case "$status" in
+      success) state=pass ;;
+      pending) state=pending ;;
+      *) state="fail($status)" ;;
+    esac
+    printf '%s\t%s\t%s\n' "$name" "$state" "$url" >> "$gates"
+  done <<< "$statuses"
+  while read -r name; do
+    cut -f1 "$gates" | grep -qxF -- "$name" && continue
+    printf '%s\tmissing\t\n' "$name" >> "$gates"
+  done < "$req"
+}
+
+fail_report() {
+  echo "::error::PR Gate: $1"
+  {
+    echo "### PR Gate"
+    echo "**Result: FAIL** ($1)"
+  } >> "$summary"
   return 1
 }
 
 report() {
-  local tested run_id gates deadline timeout_min failed pending kind name state url
+  local gates req timeout_min deadline pending failed name state url blocking
   timeout_min="${PR_GATE_TIMEOUT_MIN:-90}"
   gates=$(mktemp)
-  if ! resolve_tested; then
-    echo "::error::PR Gate: could not determine the tested commit (GitHub API failure or unexpected commit list)."
-    {
-      echo "### PR Gate"
-      echo "**Result: FAIL** (could not determine the tested commit)"
-    } >> "$summary"
+  req=$(mktemp)
+
+  required_checks > "$req" || { fail_report "could not read the required checks (GitHub API failure)"; return 1; }
+  [[ -s "$req" ]] || { fail_report "the list of required checks is empty; set the PR_GATE_REQUIRED_CHECKS repo variable"; return 1; }
+
+  resolve_run || { fail_report "could not determine the tested commit (GitHub API failure or unexpected commit list)"; return 1; }
+
+  if [[ -z "$RUN_ID" ]]; then
+    if pr_only_changelog; then
+      {
+        echo "### PR Gate"
+        echo "This PR only changes CHANGELOG.md, so there is no code to gate."
+      } | tee -a "$summary"
+      echo "tested_sha=" >> "$output"
+      return 0
+    fi
+    fail_report "no executed run covers the current code (every candidate run is missing or was skipped); re-run the workflow"
     return 1
   fi
-  tested="$TESTED"
-
-  if [[ "$tested" == "NONE" ]]; then
-    {
-      echo "### PR Gate"
-      echo "Every commit in this PR is changelog-only, so there is no code to gate."
-    } | tee -a "$summary"
-    echo "tested_sha=" >> "$output"
-    return 0
-  fi
-
-  if ! resolve_run; then
-    echo "::error::PR Gate: could not look up the workflow run (GitHub API failure)."
-    {
-      echo "### PR Gate"
-      echo "**Result: FAIL** (could not look up the workflow run)"
-    } >> "$summary"
-    return 1
-  fi
-  echo "tested_sha=$tested run_id=${RUN_ID:-none} run_sha=${RUN_SHA:-none}"
-  echo "tested_sha=$tested" >> "$output"
-  run_id="$RUN_ID"
+  echo "tested_sha=$RUN_SHA run_id=$RUN_ID"
+  echo "tested_sha=$RUN_SHA" >> "$output"
 
   deadline=$(( $(date +%s) + timeout_min * 60 ))
   while true; do
-    collect "${RUN_SHA:-$tested}" "$run_id" "$gates" || { echo "::error::PR Gate: could not read gate state from the GitHub API."; echo "**Result: FAIL** (GitHub API error while reading gates)" >> "$summary"; return 1; }
+    collect "$gates" "$req" || { fail_report "could not read gate state from the GitHub API"; return 1; }
     pending=0
-    while IFS=$'\t' read -r kind name state url; do
-      is_blocking "$kind" "$name" || continue
-      if [[ "$state" == "pending" ]] || { [[ "$state" == "missing" ]] && [[ "$kind" == "external" ]]; }; then
+    while IFS=$'\t' read -r name state url; do
+      grep -qxF -- "$name" "$req" || continue
+      if [[ "$state" == "pending" || "$state" == "missing" ]]; then
         pending=$((pending + 1))
       fi
     done < "$gates"
     if [[ "$pending" -eq 0 || "$(date +%s)" -ge "$deadline" ]]; then
       break
     fi
-    echo "$pending blocking gate(s) still pending at $tested, waiting..."
+    echo "$pending required gate(s) still pending at $RUN_SHA, waiting..."
     sleep 60
   done
 
   failed=0
   {
     echo "### PR Gate"
-    echo "Reporting gate state of the latest non-changelog-only commit: \`$tested\`"
-    [[ "$tested" == "$head_sha" ]] || echo "(head \`$head_sha\` is changelog-only)"
-    [[ -z "${RUN_SHA:-}" || "$RUN_SHA" == "$tested" ]] || echo "(gates read from the run of \`$RUN_SHA\`, the push that contained it)"
+    echo "Reporting the newest executed run with the same code as the head: \`$RUN_SHA\` (run $RUN_ID)"
+    [[ "$RUN_SHA" == "$head_sha" ]] || echo "(head \`$head_sha\` has the same code, ignoring CHANGELOG.md)"
     echo
-    echo "| Gate | Blocking | State | Link |"
+    echo "| Gate | Required | State | Link |"
     echo "|---|---|---|---|"
   } >> "$summary"
-  while IFS=$'\t' read -r kind name state url; do
-    local blocking=no
-    if is_blocking "$kind" "$name"; then
+  while IFS=$'\t' read -r name state url; do
+    blocking=no
+    if grep -qxF -- "$name" "$req"; then
       blocking=yes
       [[ "$state" == "pass" ]] || failed=$((failed + 1))
     fi
     echo "| $name | $blocking | $state | ${url:+[link]($url)} |" >> "$summary"
   done < "$gates"
 
-  rm -f "$gates"
+  rm -f "$gates" "$req"
   if [[ "$failed" -gt 0 ]]; then
-    echo "::error::PR Gate: $failed blocking gate(s) of $tested are not green (see job summary)."
-    echo "**Result: FAIL** ($failed blocking gate(s) not green)" >> "$summary"
+    echo "::error::PR Gate: $failed required gate(s) of $RUN_SHA are not green (see job summary)."
+    echo "**Result: FAIL** ($failed required gate(s) not green)" >> "$summary"
     return 1
   fi
   echo "**Result: PASS**" >> "$summary"
