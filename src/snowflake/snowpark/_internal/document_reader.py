@@ -4,11 +4,13 @@
 
 import json
 import os
+import weakref
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
+from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.document_reader_options import (
     CONTENT_COLUMN,
     DocumentReaderOptions,
@@ -16,6 +18,7 @@ from snowflake.snowpark._internal.document_reader_options import (
     ExtractionSpec,
     IMAGES_COLUMN,
     PAGE_INDEX_COLUMN,
+    RESPONSE_COLUMN,
     SOURCE_FILE_COLUMN,
     TOTAL_PAGES_COLUMN,
     _EXTRACT_ERROR_COLUMN,
@@ -47,6 +50,7 @@ from snowflake.snowpark.functions import (
     max as max_,
     object_construct_keep_null,
     random,
+    substring,
     to_file,
     try_cast,
     try_parse_json,
@@ -64,8 +68,48 @@ if TYPE_CHECKING:  # pragma: no cover
     from snowflake.snowpark.session import Session
 
 
-_DEFAULT_EXTRACTION_MODEL = "claude-sonnet-4-5"
+# Models in order of preference. For schema reads the extraction procedure uses the
+# preferred until AI_COMPLETE reports it unknown for the account, then the next, and fails
+# the read when it knows none; prompt reads choose one up front (prompt_model). Both are cross-region models, so an account or region without them
+# can lack either.
+# The budgets below were tuned on the preferred model.
+_PREFERRED_EXTRACTION_MODEL = "claude-sonnet-5-5"
+_FALLBACK_EXTRACTION_MODEL = "claude-opus-5"
+_EXTRACTION_MODELS = [_PREFERRED_EXTRACTION_MODEL, _FALLBACK_EXTRACTION_MODEL]
+
 _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
+
+# claude-sonnet-5-5 rejects temperature and response_format (a bare "malformed request"),
+# so the schema goes in the prompt and the JSON is parsed out of the text answer. Without
+# max_tokens AI_COMPLETE caps output at 4096, truncating long answers mid-JSON; 128000 is
+# the model's ceiling.
+_MAX_OUTPUT_TOKENS = 128000
+# Each call is asked to stop below `target` output tokens and plan the rest of its pages,
+# and is hard-capped at `max_tokens`. The model underestimates its own output (real output
+# ~1.3x its estimate), so targets stay well below max_tokens.
+# - "first": the first round of documents over 50 pages or 10 MB, when they are not planned.
+# - "range": ranges planned for smaller documents.
+# - "large_range": ranges planned for the large documents, against the same smaller target.
+# - "merge_target": adjacent planned ranges are coalesced only up to this estimate.
+# - "plan_first": large documents start with planning-only calls (segments of at most
+#   50 pages / 10 MB) that choose ranges under range_target, all then extracted at once.
+_CALL_BUDGETS = {
+    "first": {"target": 80000, "max_tokens": _MAX_OUTPUT_TOKENS},
+    "range": {"target": 120000, "max_tokens": _MAX_OUTPUT_TOKENS},
+    "large_range": {"target": 80000, "max_tokens": _MAX_OUTPUT_TOKENS},
+    "merge_target": 60000,
+    "plan_first": {"range_target": 60000, "max_tokens": 64000},
+}
+# Floor for the per-document call cap; the procedure raises it from the answer size it
+# observes, up to its hard maximum.
+_MAX_CALLS_PER_FILE = 30
+
+
+_EXTRACT_PROC_FILE_PATH = os.path.join(
+    os.path.dirname(__file__), "document_extract_proc.py"
+)
+_EXTRACT_PROC_HANDLER = "run"
+_EXTRACT_PROC_NAME = "SNOWPARK_TEMP_PROCEDURE_DOCUMENT_EXTRACT"
 
 _PDF_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "pdf_reader.py")
 _PDF_READER_HANDLER = "PDFTextReader"
@@ -86,12 +130,21 @@ _UDTF_ERROR_COLUMN = "UDTF_ERROR"
 def read_documents(
     session: "Session", path: str, options: DocumentReaderOptions
 ) -> "DataFrame":
+    if (
+        options.extract_enabled
+        and not options.parse_enabled
+        and options.extraction_engine == "ai_complete"
+    ):
+        df = extract_with_split_procedure(session, path, options)
+        df = finalize_errors(session, df, options)
+        return df.select(output_columns(options))
+
     df = access(session, path)
 
     if options.parse_enabled:
         df = parse(session, df, options)
 
-    if options.extract_enabled:
+    if options.complete_enabled:
         df = extract(df, options)
 
     df = finalize_errors(session, df, options)
@@ -109,8 +162,10 @@ def output_columns(options: DocumentReaderOptions) -> List[str]:
             names.append(IMAGES_COLUMN)
     if options.extract_enabled:
         names.extend(options.extraction.field_columns)
-        if options.extraction_engine == "ai_extract":
+        if options.scores_enabled:
             names.append(EXTRACTION_SCORES_COLUMN)
+    elif options.complete_enabled:
+        names.append(RESPONSE_COLUMN)
     if options.has_corrupt_record_column:
         names.append(quote_name_without_upper_casing(options.corrupt_record_column))
     return names
@@ -127,11 +182,52 @@ def as_variant(column: Column) -> Column:
 # ---------------------------------------------------------------------------
 
 
+def quote_stage_path(path: str) -> str:
+    """``path`` as the repo's SQL string literal for LIST, with backslashes, single
+    quotes and newlines escaped (see ``str_to_sql``), so nothing in it can add a
+    clause to the statement."""
+    return str_to_sql(path)
+
+
+def split_stage(path: str) -> Tuple[str, int]:
+    """The stage part of ``path`` (``@`` and everything before the first ``/`` outside
+    double quotes), and how many leading characters of a name LIST returns for it are the
+    stage's own name. LIST names a file of a named stage '<stage name>/<relative path>',
+    with no database or schema and the name lower-cased, but a file of the user stage
+    (``@~``) or a table stage (``@%t``) by its relative path alone. A copy of
+    ``split_stage`` in ``document_extract_proc.py``, which is uploaded standalone."""
+    in_quotes = False
+    end = len(path)
+    for i, char in enumerate(path):
+        if char == '"':
+            in_quotes = not in_quotes
+        elif char == "/" and not in_quotes:
+            end = i
+            break
+    stage = "@" + path[:end].lstrip("@")
+    in_quotes = False
+    name_start = 0
+    for i, char in enumerate(stage):
+        if char == '"':
+            in_quotes = not in_quotes
+        elif char in "@." and not in_quotes:
+            name_start = i + 1
+    name = stage[name_start:]
+    if name == "~" or name.startswith("%"):
+        return stage, 0
+    if name.startswith('"') and name.endswith('"') and len(name) > 1:
+        name = name[1:-1].replace('""', '"')
+    return stage, len(name) + 1
+
+
 def access(session: "Session", path: str) -> "DataFrame":
     # The plain string path is kept as its own column because the PDF UDTF takes a
-    # path string, not a FILE value.
-    stage_path = concat(lit(STAGE_PREFIX), col('"name"'))
-    files_df = session.sql(f"LIST {path}").select(
+    # path string, not a FILE value. Each file is referenced through the stage as the
+    # user wrote it (see split_stage), so it resolves for user and table stages, quoted
+    # names and stages outside the current schema.
+    stage, listed_prefix = split_stage(path)
+    stage_path = concat(lit(f"{stage}/"), substring(col('"name"'), listed_prefix + 1))
+    files_df = session.sql(f"LIST {quote_stage_path(path)}").select(
         to_file(stage_path).alias(SOURCE_FILE_COLUMN),
         stage_path.alias(_STAGE_PATH_COLUMN),
     )
@@ -393,14 +489,47 @@ def extract_with_ai_extract(
     return df.with_columns(names, values)
 
 
+# Whether AI_COMPLETE knows the preferred model, per session (see prompt_model).
+_PREFERRED_MODEL_KNOWN: "weakref.WeakKeyDictionary[Session, bool]" = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def prompt_model(session: "Session") -> str:
+    """The model for a prompt read: the preferred one, or the fallback when AI_COMPLETE
+    reports the preferred one unknown for the account or region. A prompt read is one
+    query, and an unknown model fails the whole query rather than one document, so it is
+    checked up front with one call of a single output token, once per session. Any other
+    failure of the check keeps the preferred model for this read and is not remembered."""
+    known = _PREFERRED_MODEL_KNOWN.get(session)
+    if known is None:
+        try:
+            session.sql(
+                "SELECT AI_COMPLETE(?, 'Reply with OK.', {'max_tokens': 1})",
+                params=[_PREFERRED_EXTRACTION_MODEL],
+            ).collect()
+            known = True
+        except Exception as exc:
+            if "unknown model" not in str(exc).lower():
+                return _PREFERRED_EXTRACTION_MODEL
+            known = False
+        _PREFERRED_MODEL_KNOWN[session] = known
+    return _PREFERRED_EXTRACTION_MODEL if known else _FALLBACK_EXTRACTION_MODEL
+
+
 def build_ai_complete_call(
-    model: str, input_col: Column, options: DocumentReaderOptions
+    input_col: Column,
+    options: DocumentReaderOptions,
+    model: str = _PREFERRED_EXTRACTION_MODEL,
 ) -> Column:
     # Parse ran: input_col is parsed CONTENT text, folded into AI_COMPLETE's
     # single-string variant. Parse didn't run: input_col is SOURCE_FILE, passed to
     # AI_COMPLETE's file variant instead -- whose prompt argument must then be a plain
-    # string, not a Column, so there is no CONTENT to fold in.
-    response_format = options.extraction.ai_complete_format
+    # string, not a Column, so there is no CONTENT to fold in. With no schema there is
+    # no response_format and AI_COMPLETE answers the prompt as free text.
+    response_format = (
+        options.extraction.ai_complete_format if options.extract_enabled else None
+    )
     if options.parse_enabled:
         prompt_text = (
             input_col
@@ -410,6 +539,7 @@ def build_ai_complete_call(
         return ai_complete(
             model,
             prompt_text,
+            model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},
             response_format=response_format,
             return_error_details=True,
         )
@@ -417,6 +547,7 @@ def build_ai_complete_call(
         model,
         options.prompt or _DEFAULT_EXTRACTION_PROMPT,
         file=input_col,
+        model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},
         response_format=response_format,
         return_error_details=True,
     )
@@ -425,8 +556,7 @@ def build_ai_complete_call(
 def extract_with_ai_complete(
     df: "DataFrame", input_col: Column, options: DocumentReaderOptions
 ) -> "DataFrame":
-    model = options.model or _DEFAULT_EXTRACTION_MODEL
-    call = build_ai_complete_call(model, input_col, options)
+    call = build_ai_complete_call(input_col, options, prompt_model(df.session))
     # Unlike AI_PARSE_DOCUMENT/AI_EXTRACT, AI_COMPLETE(..., return_error_details=True)
     # returns a native OBJECT rather than a JSON string -- CAST(... AS VARCHAR), which
     # as_variant() always applies, fails to compile for it. Bracket access works
@@ -435,6 +565,17 @@ def extract_with_ai_complete(
     extracted = col(_EXTRACTED_COLUMN)
     value = extracted["value"]
     extraction = options.extraction
+    if extraction is None:
+        return df.with_columns(
+            [RESPONSE_COLUMN, _EXTRACT_ERROR_COLUMN],
+            [value.cast(StringType()), extracted["error"].cast(StringType())],
+        )
+    return project_extracted_fields(df, value, extracted["error"], extraction)
+
+
+def project_extracted_fields(
+    df: "DataFrame", value: Column, error: Column, extraction: ExtractionSpec
+) -> "DataFrame":
     cast_results = [
         cast_extracted_field(value[field], field, extraction)
         for field in extraction.fields
@@ -442,12 +583,44 @@ def extract_with_ai_complete(
     names = extraction.field_columns + [_EXTRACT_ERROR_COLUMN]
     values = [column for column, _ in cast_results] + [
         merge_extract_error(
-            extracted["error"],
+            error,
             extraction.field_columns,
             [mismatch for _, mismatch in cast_results],
         )
     ]
     return df.with_columns(names, values)
+
+
+def extract_with_split_procedure(
+    session: "Session", path: str, options: DocumentReaderOptions
+) -> "DataFrame":
+    """Schema extraction straight from the FILE, splitting the PDF across several
+    AI_COMPLETE calls when one response cannot hold the whole answer. The loop needs each
+    call's answer before planning the next, so it runs in a stored procedure; the CALL
+    still stays lazy because Snowpark defers it to RESULT_SCAN at collect time."""
+    proc_name = register_extract_proc(session)
+    # In the order of run()'s parameters (document_extract_proc.py) and of
+    # register_extract_proc()'s input_types.
+    args = [
+        path,
+        json.dumps(options.extraction.ai_complete_format),
+        options.prompt or _DEFAULT_EXTRACTION_PROMPT,
+        json.dumps(_EXTRACTION_MODELS),
+        json.dumps(_CALL_BUDGETS),
+        _MAX_CALLS_PER_FILE,
+        session.get_session_stage(),
+    ]
+    df = session.sql(
+        f"CALL {proc_name}({', '.join(['?'] * len(args))})", params=args
+    ).select(
+        to_file(col("STAGE_PATH")).alias(SOURCE_FILE_COLUMN),
+        try_parse_json(col("VALUE")).alias(_EXTRACTED_COLUMN),
+        col("ERROR").alias(_EXTRACT_ERROR_COLUMN),
+        try_parse_json(col("SCORES")).alias(EXTRACTION_SCORES_COLUMN),
+    )
+    return project_extracted_fields(
+        df, col(_EXTRACTED_COLUMN), col(_EXTRACT_ERROR_COLUMN), options.extraction
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -485,9 +658,12 @@ def finalize_errors(
     # FAILFAST: every AI call captures its errors in-band, so aborting the read takes
     # an explicit raise, anchored to a real returned column -- an unused/dropped one
     # could be optimized away and the check with it.
-    anchor = (
-        CONTENT_COLUMN if options.parse_enabled else options.extraction.field_columns[0]
-    )
+    if options.parse_enabled:
+        anchor = CONTENT_COLUMN
+    elif options.extract_enabled:
+        anchor = options.extraction.field_columns[0]
+    else:
+        anchor = RESPONSE_COLUMN
     guard = register_error_guard_udf(session)
     raw_error = merge_error_expressions([col(name) for _, name in error_stages])
     return df.with_column(anchor, guard(raw_error, col(anchor)))
@@ -550,6 +726,62 @@ def register_pdf_udtf(session: "Session"):
         skip_upload_on_content_match=True,
         _suppress_local_package_warnings=True,
     )
+
+
+def register_extract_proc(session: "Session") -> str:
+    if is_in_stored_procedure():  # pragma: no cover
+        import_stage_name = session.get_fully_qualified_name_if_possible(
+            "SNOWPARK_TEMP_STAGE_PDFIMPORTS"
+        )
+        session._run_query(
+            f"CREATE TEMPORARY STAGE IF NOT EXISTS {import_stage_name}",
+            is_ddl_on_temp_object=True,
+        )
+        import_stage = f"{STAGE_PREFIX}{import_stage_name}"
+        session._conn.upload_file(
+            _EXTRACT_PROC_FILE_PATH,
+            import_stage,
+            compress_data=False,
+            overwrite=True,
+            skip_upload_on_content_match=True,
+        )
+        python_file_path = f"{import_stage}/{os.path.basename(_EXTRACT_PROC_FILE_PATH)}"
+    else:
+        python_file_path = _EXTRACT_PROC_FILE_PATH
+
+    name = session.get_fully_qualified_name_if_possible(_EXTRACT_PROC_NAME)
+    session.sproc.register_from_file(
+        python_file_path,
+        _EXTRACT_PROC_HANDLER,
+        return_type=StructType(
+            [
+                StructField("STAGE_PATH", StringType()),
+                StructField("VALUE", StringType()),
+                StructField("ERROR", StringType()),
+                StructField("SCORES", StringType()),
+            ]
+        ),
+        # In the order of run()'s parameters after the session, and of the args
+        # extract_with_split_procedure() passes to the CALL.
+        input_types=[
+            StringType(),  # path
+            StringType(),  # response_format: the JSON schema, as JSON
+            StringType(),  # predicate: the prompt
+            StringType(),  # models: candidates in order of preference, as JSON
+            StringType(),  # call_budgets: as JSON
+            IntegerType(),  # max_calls_per_file
+            StringType(),  # work_stage: where page ranges are staged
+        ],
+        name=name,
+        packages=["snowflake-snowpark-python", "pypdf"],
+        if_not_exists=True,
+        # Caller's rights: the proc reads the caller's stages and writes page parts to
+        # the caller's session stage.
+        execute_as="caller",
+        skip_upload_on_content_match=True,
+        _suppress_local_package_warnings=True,
+    )
+    return name
 
 
 def register_error_guard_udf(session: "Session"):

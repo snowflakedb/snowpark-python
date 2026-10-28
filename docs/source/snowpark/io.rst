@@ -25,6 +25,7 @@ Input/Output
     DataFrameReader.csv
     DataFrameReader.dbapi
     DataFrameReader.directory
+    DataFrameReader.documents
     DataFrameReader.file
     DataFrameReader.format
     DataFrameReader.jdbc
