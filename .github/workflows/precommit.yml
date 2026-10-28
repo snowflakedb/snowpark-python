@@ -835,7 +835,7 @@ jobs:
   # non-changelog-only commit. Not a required check yet.
   pr_gate:
     name: PR Gate
-    if: ${{ always() && github.event_name == 'pull_request' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     needs:
       - pr_gate_precheck
       - lint

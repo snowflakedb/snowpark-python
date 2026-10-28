@@ -24,7 +24,8 @@ NON_GATE_JOBS=("PR Gate" "PR Gate Precheck" "Combine coverage")
 # commits are never changelog-only. Fails on any API error.
 commit_info() {
   gh api "repos/$repo/commits/$1" --jq '[(.parents | length), (.parents[0].sha // ""),
-    (((.parents | length) == 1) and ([.files[].filename] == ["CHANGELOG.md"]))] | @tsv'
+    (((.parents | length) == 1) and ([.files[].filename] == ["CHANGELOG.md"])
+      and ([.files[] | select(.status == "added" or .status == "modified" | not)] | length == 0))] | @tsv'
 }
 
 precheck() {
@@ -33,7 +34,7 @@ precheck() {
         && -n "${BEFORE:-}" && ! "${BEFORE}" =~ ^0+$ ]]; then
     # Only a push that fast-forwards the PR is diffed; force-pushes fall through to "code".
     files=$(gh api "repos/$repo/compare/${BEFORE}...${head_sha}" \
-      --jq 'select(.status=="ahead") | .files[].filename' 2>/dev/null || true)
+      --jq 'select(.status=="ahead") | select([.files[] | select(.status == "added" or .status == "modified" | not)] | length == 0) | .files[].filename' 2>/dev/null || true)
     if [[ "$files" == "CHANGELOG.md" ]]; then
       changelog_only=true
     fi
@@ -220,7 +221,7 @@ report() {
 
   deadline=$(( $(date +%s) + timeout_min * 60 ))
   while true; do
-    collect "$tested" "$run_id" "$gates" || { echo "::error::PR Gate: could not read gate state from the GitHub API."; echo "**Result: FAIL** (GitHub API error while reading gates)" >> "$summary"; return 1; }
+    collect "${RUN_SHA:-$tested}" "$run_id" "$gates" || { echo "::error::PR Gate: could not read gate state from the GitHub API."; echo "**Result: FAIL** (GitHub API error while reading gates)" >> "$summary"; return 1; }
     pending=0
     while IFS=$'\t' read -r kind name state url; do
       is_blocking "$kind" "$name" || continue
