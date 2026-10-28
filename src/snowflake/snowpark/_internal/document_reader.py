@@ -62,6 +62,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
+from snowflake.snowpark.version import VERSION
 
 if TYPE_CHECKING:  # pragma: no cover
     from snowflake.snowpark.dataframe import DataFrame
@@ -139,7 +140,7 @@ def read_documents(
         df = finalize_errors(session, df, options)
         return df.select(output_columns(options))
 
-    df = access(session, path)
+    df = access(session, path, options)
 
     if options.parse_enabled:
         df = parse(session, df, options)
@@ -189,6 +190,22 @@ def quote_stage_path(path: str) -> str:
     return str_to_sql(path)
 
 
+# Trailing (not leading) so Snowpark's own statement-type detection, which looks at
+# the start of the text, is unaffected. Only enum-like values go in here -- never a
+# path, prompt or schema, which could leak user data into QUERY_HISTORY.
+_USAGE_COMMENT_FORMAT = (
+    "/* Snowpark:DataFrameReader.documents read_type={read_type} version={version} */"
+)
+
+
+def usage_comment(options: DocumentReaderOptions) -> str:
+    """A trailing SQL comment identifying a documents() read's entry query in
+    QUERY_HISTORY, server-side counterpart to the read_type telemetry
+    dataframe_reader.py adds to the client-side api_call."""
+    version = ".".join(str(part) for part in VERSION if part is not None)
+    return _USAGE_COMMENT_FORMAT.format(read_type=options.read_type, version=version)
+
+
 def split_stage(path: str) -> Tuple[str, int]:
     """The stage part of ``path`` (``@`` and everything before the first ``/`` outside
     double quotes), and how many leading characters of a name LIST returns for it are the
@@ -220,14 +237,18 @@ def split_stage(path: str) -> Tuple[str, int]:
     return stage, len(name) + 1
 
 
-def access(session: "Session", path: str) -> "DataFrame":
+def access(
+    session: "Session", path: str, options: DocumentReaderOptions
+) -> "DataFrame":
     # The plain string path is kept as its own column because the PDF UDTF takes a
     # path string, not a FILE value. Each file is referenced through the stage as the
     # user wrote it (see split_stage), so it resolves for user and table stages, quoted
     # names and stages outside the current schema.
     stage, listed_prefix = split_stage(path)
     stage_path = concat(lit(f"{stage}/"), substring(col('"name"'), listed_prefix + 1))
-    files_df = session.sql(f"LIST {quote_stage_path(path)}").select(
+    files_df = session.sql(
+        f"LIST {quote_stage_path(path)} {usage_comment(options)}"
+    ).select(
         to_file(stage_path).alias(SOURCE_FILE_COLUMN),
         stage_path.alias(_STAGE_PATH_COLUMN),
     )
@@ -611,7 +632,8 @@ def extract_with_split_procedure(
         session.get_session_stage(),
     ]
     df = session.sql(
-        f"CALL {proc_name}({', '.join(['?'] * len(args))})", params=args
+        f"CALL {proc_name}({', '.join(['?'] * len(args))}) {usage_comment(options)}",
+        params=args,
     ).select(
         to_file(col("STAGE_PATH")).alias(SOURCE_FILE_COLUMN),
         try_parse_json(col("VALUE")).alias(_EXTRACTED_COLUMN),
