@@ -491,11 +491,31 @@ from snowflake.snowpark.datasource import DataSource, DataSourceReader, InputPar
 | `schema()` returns `pyspark.sql.types.StructType` | accepted | Changed to Snowpark types with a mapping, if pyspark is installed. |
 | `read()` yields `pyspark.sql.Row` | accepted | Duck-typed. |
 
-**Phase 2 adapter.** `register()` also accepts `pyspark.sql.datasource.DataSource` subclasses. It wraps
-them so that the Snowpark `StructType` given to `reader()` / `writer()` is first converted to a PySpark
-`StructType`. This lets existing PySpark sources run unchanged when pyspark is installed locally (and on
-the server, via `snowpark.packages=["pyspark"]`). **Snowpark Connect** can use this adapter to handle
-`spark.dataSource.register` from Spark Connect clients.
+**Running PySpark data sources unchanged (implemented).** `register()` and `format()` also accept
+`pyspark.sql.datasource.DataSource` subclasses, such as third-party PySpark data source libraries.
+Snowpark does **not** depend on PySpark:
+
+- The accepted API is the structural protocol `DataSourceLike` / `DataSourceReaderLike`
+  (`typing.Protocol`). Validation is duck-typed: a class with callable `name` and `reader`.
+- PySpark classes are detected by the module names in the MRO (`pyspark.*`), never by `isinstance`
+  against an imported PySpark class. `snowflake/snowpark/_internal/data_source/custom/pyspark_compat.py`
+  never imports `pyspark`.
+- Schemas are converted through Spark's JSON schema format (`StructType.jsonValue()` /
+  `StructType.fromJson()`), using the `pyspark.sql.types` module that the data source already imported
+  (`sys.modules`). A `StructType` returned by `schema()` is passed to `reader()` as is; a DDL string or a
+  `DataFrameReader.schema()` schema is converted to a PySpark `StructType` with the original field names
+  (from `StructField._name`, so `userId` stays `userId`, not `USERID`).
+- Spark's `TIMESTAMP` means local time zone, so it maps to `TIMESTAMP_LTZ` (also for DDL strings);
+  `TIMESTAMP_NTZ` maps to `TIMESTAMP_NTZ`.
+- `pyspark.sql.Row` (`__fields__`) and `pyspark.sql.types.VariantVal` (`toJson()`) are duck-typed in `read()`
+  output. A `VariantVal` of JSON null is loaded as SQL NULL.
+- `partitions()` raising `NotImplementedError` (older PySpark) falls back to a single `None` partition.
+  A stream-only source (`reader()` not implemented) gets a clear "only batch reads" error.
+- In UDTF mode, `pyspark` is added to the UDTF packages automatically when the source, reader or
+  partitions are PySpark classes (Snowflake's Anaconda channel has `pyspark`). PySpark classes are pickled
+  by reference; the user's own modules are still pickled by value.
+
+**Snowpark Connect** can use the same path to handle `spark.dataSource.register` from Spark Connect clients.
 
 ## 13. Alternatives Considered
 

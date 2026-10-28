@@ -226,14 +226,24 @@ def _to_json_compatible(value: Any) -> Any:
     if isinstance(value, dict):
         return {k: _to_json_compatible(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
+        fields = getattr(value, "__fields__", None)  # pyspark.sql.Row
+        if fields:
+            return {k: _to_json_compatible(v) for k, v in zip(fields, value)}
         return [_to_json_compatible(v) for v in value]
+    if type(value).__name__ == "VariantVal" and callable(
+        getattr(value, "toJson", None)
+    ):  # pyspark.sql.types.VariantVal
+        return json.loads(value.toJson())
     return value
 
 
 def _json_dumps(value: Any) -> Optional[str]:
-    if value is None:
+    value = _to_json_compatible(value)
+    if (
+        value is None
+    ):  # including a VariantVal of JSON null, like in server-side ingestion
         return None
-    return json.dumps(_to_json_compatible(value), cls=PythonObjJSONEncoder)
+    return json.dumps(value, cls=PythonObjJSONEncoder)
 
 
 def _to_date(value: Any) -> Any:

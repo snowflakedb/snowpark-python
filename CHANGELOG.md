@@ -7,7 +7,7 @@
 #### New Features
 
 - Added `DataFrameReader.documents` (private preview) to read documents from a stage: parse them to text, or extract structured values with a `schema` and/or a `prompt` option. Long documents are split across several model calls automatically. Schema reads also return an `EXTRACTION_SCORES` column with a model-reported confidence score (0 to 1) for each top-level field.
-- Added Python custom data sources (private preview), following PySpark's Python Data Source API. Implement `snowflake.snowpark.datasource.DataSource` and `DataSourceReader`, register the data source with `Session.data_source.register()`, and read it with `session.read.format(...).load()`. `read()` runs on the client by default, or inside Snowflake in a UDTF when the `snowpark.external_access_integration` option is set.
+- Added Python custom data sources (private preview), following PySpark's Python Data Source API. Implement `snowflake.snowpark.datasource.DataSource` and `DataSourceReader`, register the data source with `Session.data_source.register()`, and read it with `session.read.format(...).load()`. `read()` runs on the client by default, or inside Snowflake in a UDTF when the `snowpark.external_access_integration` option is set. Data sources written with PySpark (`pyspark.sql.datasource.DataSource`), including third-party PySpark data source libraries, can be read without changes; Snowpark does not depend on PySpark.
 
 #### Improvements
 

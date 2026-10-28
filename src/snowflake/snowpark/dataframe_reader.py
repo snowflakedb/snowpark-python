@@ -117,7 +117,7 @@ from snowflake.snowpark.types import (
 )
 
 if TYPE_CHECKING:
-    from snowflake.snowpark.datasource import DataSource
+    from snowflake.snowpark.datasource import DataSourceLike
 
 logger = getLogger(__name__)
 
@@ -670,7 +670,7 @@ class DataFrameReader:
         self._data_source_format = ["jdbc", "dbapi"]
         # options as set by the user, without upper-casing or aliasing, for custom data sources
         self._raw_options: Dict[str, Any] = {}
-        self._custom_data_source_cls: Optional[Type["DataSource"]] = None
+        self._custom_data_source_cls: Optional[Type["DataSourceLike"]] = None
         self._xml_inferred_schema: Optional[StructType] = None
 
         self._ast = None
@@ -906,13 +906,21 @@ class DataFrameReader:
 
         Args:
             schema: Schema configuration for the file to be read. A DDL string such as
-                ``"id INT, name STRING"`` is also accepted.
+                ``"id INT, name STRING"`` is also accepted, and for a custom data source, a
+                ``pyspark.sql.types.StructType``.
 
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
+        from snowflake.snowpark._internal.data_source.custom.pyspark_compat import (
+            is_pyspark_struct_type,
+            pyspark_struct_type_to_snowpark,
+        )
+
         if isinstance(schema, str):
             schema = DataSourcePartitioner.formatting_custom_schema(schema)
+        elif is_pyspark_struct_type(schema):
+            schema = pyspark_struct_type_to_snowpark(schema)
 
         # AST.
         if _emit_ast and self._ast is not None:
@@ -996,7 +1004,7 @@ class DataFrameReader:
         format: Union[
             Literal["csv", "json", "avro", "parquet", "orc", "xml", "dbapi", "jdbc"],
             str,
-            Type["DataSource"],
+            Type["DataSourceLike"],
         ],
         _emit_ast: bool = True,
     ) -> "DataFrameReader":
@@ -1007,8 +1015,9 @@ class DataFrameReader:
                 Snowpark data source type is also supported, currently support dbapi and jdbc.
                 It can also be the name of a custom data source registered with
                 :attr:`Session.data_source <snowflake.snowpark.Session.data_source>`, or a
-                subclass of :class:`~snowflake.snowpark.datasource.DataSource`. See
-                :mod:`snowflake.snowpark.datasource` for details.
+                subclass of :class:`~snowflake.snowpark.datasource.DataSource` or
+                ``pyspark.sql.datasource.DataSource``. See :mod:`snowflake.snowpark.datasource`
+                for details.
 
         Returns:
             a :class:`DataFrameReader` instance that is set up to load data from the specified file format in a Snowflake stage.

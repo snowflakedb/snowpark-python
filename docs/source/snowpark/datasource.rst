@@ -17,7 +17,9 @@ Custom Data Sources
     :toctree: api/
 
     DataSource
+    DataSourceLike
     DataSourceReader
+    DataSourceReaderLike
     DataSourceRegistration
     InputPartition
 
