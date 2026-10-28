@@ -32,6 +32,7 @@ try:
     )
     from opentelemetry.exporter.otlp.proto.http import Compression  # noqa: F401
     from opentelemetry.sdk._logs._internal.export import LogExportResult
+
     if IS_V5_DRIVER:
         from snowflake.connector._common.wif_util import (  # noqa: F401
             create_attestation,
