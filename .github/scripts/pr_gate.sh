@@ -19,14 +19,12 @@ output="${GITHUB_OUTPUT:-/dev/null}"
 # Jobs of the precommit workflow that never count as gates.
 NON_GATE_JOBS=("PR Gate" "PR Gate Precheck" "Combine coverage")
 
-# A commit is "changelog-only" when its diff against its parent is exactly CHANGELOG.md.
-# Merge commits, empty diffs and API errors are treated as code.
-commit_is_changelog_only() {
-  local sha="$1" parents files
-  parents=$(gh api "repos/$repo/commits/$sha" --jq '.parents | length' 2>/dev/null) || return 1
-  [[ "$parents" == "1" ]] || return 1
-  files=$(gh api "repos/$repo/commits/$sha" --jq '.files[].filename' 2>/dev/null) || return 1
-  [[ "$files" == "CHANGELOG.md" ]]
+# Prints "<parent count><TAB><first parent sha><TAB><true|false changelog-only>" for a commit.
+# A commit is "changelog-only" when its diff against its parent is exactly CHANGELOG.md; merge
+# commits are never changelog-only. Fails on any API error.
+commit_info() {
+  gh api "repos/$repo/commits/$1" --jq '[(.parents | length), (.parents[0].sha // ""),
+    (((.parents | length) == 1) and ([.files[].filename] == ["CHANGELOG.md"]))] | @tsv'
 }
 
 precheck() {
@@ -64,21 +62,57 @@ is_non_gate() {
   return 1
 }
 
-# Prints the newest PR commit that is not changelog-only, or "NONE" when every commit is.
+# Walks first-parent from the PR head (no reliance on the commit list order) and fills:
+#   CHAIN  commits from head down to the newest non-changelog-only commit T (newest first)
+#   TESTED T, or NONE when every commit in the PR is changelog-only
 # Any API failure or inconsistent data returns non-zero so the gate fails instead of passing.
-find_tested_sha() {
-  local commits sha
+resolve_tested() {
+  local commits sha info n parent flag
   commits=$(gh api --paginate "repos/$repo/pulls/${PR_NUMBER:?}/commits?per_page=100" --jq '.[].sha') || return 1
   [[ -n "$commits" ]] || return 1
   # The PR head must be the newest commit in the list, otherwise the list is stale or wrong.
   [[ "$(printf '%s\n' "$commits" | tail -n 1)" == "$head_sha" ]] || return 1
-  while read -r sha; do
-    if ! commit_is_changelog_only "$sha"; then
-      echo "$sha"
+  CHAIN=()
+  TESTED=NONE
+  sha="$head_sha"
+  while true; do
+    CHAIN+=("$sha")
+    info=$(commit_info "$sha") || return 1
+    IFS=$'\t' read -r n parent flag <<< "$info"
+    if [[ "$flag" != "true" ]]; then
+      TESTED="$sha"
       return 0
     fi
-  done < <(printf '%s\n' "$commits" | awk '{a[NR]=$0} END{for(i=NR;i>=1;i--) print a[i]}')
-  echo NONE
+    # Left the PR (first parent is not one of its commits): everything was changelog-only.
+    if [[ -z "$parent" ]] || ! grep -qx "$parent" <<< "$commits"; then
+      return 0
+    fi
+    sha="$parent"
+  done
+}
+
+# Run id of the first executed precommit run at TESTED or after it (towards the head).
+# A push with several commits only runs for its head, so TESTED itself may have no run;
+# the run of the later commit then covers it. Runs whose gates were skipped do not count.
+resolve_run() {
+  local i sha id lint
+  RUN_ID=""
+  for (( i=${#CHAIN[@]}-1; i>=0; i-- )); do
+    sha="${CHAIN[$i]}"
+    if [[ "$sha" == "$head_sha" ]]; then
+      id="${GITHUB_RUN_ID:?}"
+    else
+      id=$(gh api "repos/$repo/actions/workflows/precommit.yml/runs?head_sha=$sha&event=pull_request&per_page=30" \
+        --jq '.workflow_runs | sort_by(.created_at) | last | .id // empty') || return 1
+      [[ -n "$id" ]] || continue
+      lint=$(gh api --paginate "repos/$repo/actions/runs/$id/jobs?per_page=100" \
+        --jq '.jobs[] | select(.name == "Check linting") | .conclusion // "running"') || return 1
+      [[ -n "$lint" && "$lint" != "skipped" ]] || continue
+    fi
+    RUN_ID="$id"
+    RUN_SHA="$sha"
+    return 0
+  done
 }
 
 # Writes TSV lines "kind<TAB>name<TAB>state<TAB>url" where state is pass|fail|pending|missing.
@@ -153,12 +187,15 @@ report() {
   local tested run_id gates deadline timeout_min failed pending kind name state url
   timeout_min="${PR_GATE_TIMEOUT_MIN:-90}"
   gates=$(mktemp)
-  if ! tested=$(find_tested_sha) || [[ -z "$tested" ]]; then
+  if ! resolve_tested; then
     echo "::error::PR Gate: could not determine the tested commit (GitHub API failure or unexpected commit list)."
-    echo "### PR Gate" >> "$summary"
-    echo "**Result: FAIL** (could not determine the tested commit)" >> "$summary"
+    {
+      echo "### PR Gate"
+      echo "**Result: FAIL** (could not determine the tested commit)"
+    } >> "$summary"
     return 1
   fi
+  tested="$TESTED"
 
   if [[ "$tested" == "NONE" ]]; then
     {
@@ -169,14 +206,17 @@ report() {
     return 0
   fi
 
-  if [[ "$tested" == "$head_sha" ]]; then
-    run_id="${GITHUB_RUN_ID:?}"
-  else
-    run_id=$(gh api "repos/$repo/actions/workflows/precommit.yml/runs?head_sha=$tested&event=pull_request&per_page=30" \
-      --jq '.workflow_runs | sort_by(.created_at) | last | .id // empty')
+  if ! resolve_run; then
+    echo "::error::PR Gate: could not look up the workflow run (GitHub API failure)."
+    {
+      echo "### PR Gate"
+      echo "**Result: FAIL** (could not look up the workflow run)"
+    } >> "$summary"
+    return 1
   fi
-  echo "tested_sha=$tested run_id=${run_id:-none}"
+  echo "tested_sha=$tested run_id=${RUN_ID:-none} run_sha=${RUN_SHA:-none}"
   echo "tested_sha=$tested" >> "$output"
+  run_id="$RUN_ID"
 
   deadline=$(( $(date +%s) + timeout_min * 60 ))
   while true; do
@@ -200,6 +240,7 @@ report() {
     echo "### PR Gate"
     echo "Reporting gate state of the latest non-changelog-only commit: \`$tested\`"
     [[ "$tested" == "$head_sha" ]] || echo "(head \`$head_sha\` is changelog-only)"
+    [[ -z "${RUN_SHA:-}" || "$RUN_SHA" == "$tested" ]] || echo "(gates read from the run of \`$RUN_SHA\`, the push that contained it)"
     echo
     echo "| Gate | Blocking | State | Link |"
     echo "|---|---|---|---|"
