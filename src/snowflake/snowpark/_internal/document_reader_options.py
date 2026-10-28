@@ -18,6 +18,9 @@ _PARSE_MODES = frozenset({"layout", "ocr", "text", "none"})
 _ROW_BOUNDARIES = frozenset({"document", "page"})
 _MODES = frozenset({"PERMISSIVE", "FAILFAST"})
 _EXTRACTION_ENGINES = frozenset({"ai_extract", "ai_complete"})
+# parse_mode values a user can choose; "none" (do not parse) is set by the reader itself
+# whenever a schema or prompt is given.
+_USER_PARSE_MODES = _PARSE_MODES - {"none"}
 
 # JSON Schema scalar types mapped to Snowpark equivalents; "array"/"object" are omitted since AI_EXTRACT/AI_COMPLETE already return them as structured VARIANT.
 _JSON_SCHEMA_SCALAR_TYPES: Dict[str, DataType] = {
@@ -35,9 +38,14 @@ TOTAL_PAGES_COLUMN = "TOTAL_PAGES"
 CONTENT_COLUMN = "CONTENT"
 IMAGES_COLUMN = "IMAGES"
 EXTRACTION_SCORES_COLUMN = "EXTRACTION_SCORES"
+RESPONSE_COLUMN = "RESPONSE"
 
 _PARSE_ERROR_COLUMN = "_DOC_PARSE_ERROR"
 _EXTRACT_ERROR_COLUMN = "_DOC_EXTRACT_ERROR"
+
+# The status block the extraction procedure adds to every schema it sends (STATUS_FIELD in
+# document_extract_proc.py); a user field of that name would replace it and then be dropped.
+_EXTRACTION_STATUS_FIELD = "EXTRACTION_STATUS"
 
 _RESERVED_OUTPUT_COLUMNS = frozenset(
     {
@@ -47,6 +55,8 @@ _RESERVED_OUTPUT_COLUMNS = frozenset(
         CONTENT_COLUMN,
         IMAGES_COLUMN,
         EXTRACTION_SCORES_COLUMN,
+        RESPONSE_COLUMN,
+        _EXTRACTION_STATUS_FIELD,
     }
 )
 
@@ -58,8 +68,9 @@ class ExtractionSpec:
     needs its own envelope for each engine -- AI_EXTRACT wants {"schema": {...}}, AI_COMPLETE
     wants {"type": "json", "schema": {...}} (see its docstring's "Structured output with
     response format" example) -- confirmed live against both engines, since neither's
-    own docstring documents this shape. Every other shape (AI_EXTRACT's own flat Q&A
-    dict/array forms) is passed to both engines exactly as given."""
+    own docstring documents this shape. AI_EXTRACT's own flat Q&A dict/array forms are
+    passed to AI_EXTRACT as given and converted to a string-typed JSON Schema for
+    AI_COMPLETE."""
 
     fields: List[str]
     field_columns: List[str]
@@ -87,37 +98,50 @@ class ExtractionSpec:
         if not response_format:
             return None
 
-        def field_name(item: Any) -> str:
+        def field_and_question(item: Any) -> Tuple[str, Optional[str]]:
             if isinstance(item, (list, tuple)) and item:
-                return str(item[0])
+                return str(item[0]), (str(item[1]) if len(item) > 1 else None)
             if isinstance(item, str) and ":" in item:
-                return item.split(":", 1)[0].strip()
-            return str(item)
+                name, question = item.split(":", 1)
+                return name.strip(), question.strip()
+            return str(item), None
 
         is_json_schema = isinstance(response_format, dict) and isinstance(
             response_format.get("properties"), dict
         )
 
         if is_json_schema:
+            json_schema = response_format
             fields = list(response_format["properties"])
-        elif isinstance(response_format, dict):
-            fields = list(response_format)
-        elif isinstance(response_format, list):
-            fields = [field_name(item) for item in response_format]
-        else:
-            fields = []
-
-        ai_extract_format = response_format
-        ai_complete_format = response_format
-        if is_json_schema:
             ai_extract_format = {"schema": response_format}
-            ai_complete_format = {"type": "json", "schema": response_format}
-            properties = response_format["properties"]
-            field_types = {
-                field: cls._scalar_type(properties[field]) for field in fields
-            }
         else:
-            field_types = {field: None for field in fields}
+            if isinstance(response_format, dict):
+                pairs = [(str(k), str(v)) for k, v in response_format.items()]
+            elif isinstance(response_format, list):
+                pairs = [field_and_question(item) for item in response_format]
+            else:
+                pairs = []
+            # Kept from pairs, not the properties dict, so an exact duplicate name still
+            # reaches validate_field_names() instead of collapsing silently.
+            fields = [name for name, _ in pairs]
+            # AI_COMPLETE only accepts a JSON Schema, so AI_EXTRACT's flat Q&A shapes are
+            # converted; AI_EXTRACT itself still gets the shape exactly as given.
+            json_schema = {
+                "type": "object",
+                "properties": {
+                    name: (
+                        {"type": "string", "description": question}
+                        if question
+                        else {"type": "string"}
+                    )
+                    for name, question in pairs
+                },
+            }
+            ai_extract_format = response_format
+
+        properties = json_schema["properties"]
+        ai_complete_format = {"type": "json", "schema": json_schema}
+        field_types = {field: cls._scalar_type(properties[field]) for field in fields}
 
         return cls(
             fields=fields,
@@ -136,9 +160,8 @@ class DocumentReaderOptions:
     page_filter: Optional[list] = None
     mode: str = "PERMISSIVE"
     corrupt_record_column: str = _DEFAULT_CORRUPT_RECORD_COLUMN
-    extraction_engine: str = "ai_extract"
+    extraction_engine: str = "ai_complete"
     extraction: Optional[ExtractionSpec] = None
-    model: Optional[str] = None
     prompt: Optional[str] = None
 
     @property
@@ -150,6 +173,19 @@ class DocumentReaderOptions:
         return self.extraction is not None
 
     @property
+    def scores_enabled(self) -> bool:
+        """Whether the read returns the EXTRACTION_SCORES column: AI_EXTRACT scores, or
+        the confidence scores of a schema read through the extraction procedure (an
+        AI_COMPLETE schema read that does not parse first)."""
+        return self.extract_enabled and (
+            self.extraction_engine == "ai_extract" or not self.parse_enabled
+        )
+
+    @property
+    def complete_enabled(self) -> bool:
+        return self.extraction is not None or self.prompt is not None
+
+    @property
     def page_rows(self) -> bool:
         return self.parse_enabled and self.row_boundary == "page"
 
@@ -158,7 +194,9 @@ class DocumentReaderOptions:
         stages = []
         if self.parse_enabled:
             stages.append(("parse", _PARSE_ERROR_COLUMN))
-        if self.extract_enabled:
+        # A schema or a prompt alone both run AI_COMPLETE, whose error is the "extract"
+        # stage either way; extract_enabled would miss a prompt-only read's errors.
+        if self.complete_enabled:
             stages.append(("extract", _EXTRACT_ERROR_COLUMN))
         return stages
 
@@ -170,38 +208,96 @@ class DocumentReaderOptions:
     def from_reader_options(
         cls, cur_options: Dict[str, Any]
     ) -> "DocumentReaderOptions":
-        defaults = cls()
+        """The user options are SCHEMA, PROMPT, PARSE_MODE, ROW_BOUNDARY and
+        EXTRACT_IMAGES; any other key is ignored, because everything else is chosen by
+        the reader. PARSE_MODE, ROW_BOUNDARY and EXTRACT_IMAGES only apply to a read with
+        neither a schema nor a prompt, and EXTRACT_IMAGES needs parse_mode "layout"."""
         options = cls(
-            parse_mode=str(cur_options.get("PARSE_MODE", defaults.parse_mode)).lower(),
-            row_boundary=str(
-                cur_options.get("ROW_BOUNDARY", defaults.row_boundary)
-            ).lower(),
-            extract_images=bool(
-                cur_options.get("EXTRACT_IMAGES", defaults.extract_images)
+            extraction=ExtractionSpec.from_response_format(
+                cls._validated_schema(cur_options.get("SCHEMA"))
             ),
-            page_filter=cur_options.get("PAGE_FILTER", defaults.page_filter),
-            mode=str(cur_options.get("MODE", defaults.mode)).upper(),
-            corrupt_record_column=str(
-                cur_options.get(
-                    "COLUMNNAMEOFCORRUPTRECORD", defaults.corrupt_record_column
-                )
-            ),
-            extraction_engine=str(
-                cur_options.get("EXTRACTION_ENGINE", defaults.extraction_engine)
-            ).lower(),
-            extraction=ExtractionSpec.from_response_format(cur_options.get("SCHEMA")),
-            model=cur_options.get("MODEL", defaults.model),
-            prompt=cur_options.get("PROMPT", defaults.prompt),
+            prompt=cls._validated_prompt(cur_options),
         )
+        # With a schema or prompt the document goes to AI_COMPLETE as a FILE: parsing
+        # flattens layout (table columns, printed section numbers) that the page image keeps.
+        # With neither, the parsed text is the read's only output, so parsing stays on.
+        if options.complete_enabled:
+            options.parse_mode = "none"
+        else:
+            options.parse_mode = cls.user_choice(
+                cur_options, "PARSE_MODE", "layout", _USER_PARSE_MODES
+            )
+            options.row_boundary = cls.user_choice(
+                cur_options, "ROW_BOUNDARY", "document", _ROW_BOUNDARIES
+            )
+            options.extract_images = cls.user_bool(cur_options, "EXTRACT_IMAGES")
+            if options.extract_images and options.parse_mode != "layout":
+                raise SnowparkClientExceptionMessages.DF_DOCUMENTS_EXTRACT_IMAGES_NEEDS_LAYOUT(
+                    options.parse_mode
+                )
         options.validate()
         return options
+
+    @staticmethod
+    def _validated_schema(value: Any) -> Any:
+        """The SCHEMA option, unchanged. A given schema that is not a dict or a list
+        would give no fields and run the model without one, so it is refused."""
+        if value and not isinstance(value, (dict, list)):
+            raise SnowparkClientExceptionMessages.DF_DOCUMENTS_INVALID_OPTION_TYPE(
+                "schema", value, "a dict or a list"
+            )
+        return value
+
+    @staticmethod
+    def _validated_prompt(cur_options: Dict[str, Any]) -> Optional[str]:
+        """The PROMPT option, unchanged, or None when it is not set. A prompt that is
+        not a string, or is empty or blank, is refused."""
+        value = cur_options.get("PROMPT")
+        if value is None:
+            return None
+        if not isinstance(value, str) or not value.strip():
+            raise SnowparkClientExceptionMessages.DF_DOCUMENTS_INVALID_OPTION_TYPE(
+                "prompt", value, "a non-empty string"
+            )
+        return value
+
+    @staticmethod
+    def user_choice(
+        cur_options: Dict[str, Any], key: str, default: str, valid_values: Iterable[str]
+    ) -> str:
+        """The lower-cased value the user set for ``key``, or ``default`` when it is not
+        set; a value outside ``valid_values`` raises."""
+        if key not in cur_options:
+            return default
+        value = str(cur_options[key]).lower()
+        if value not in valid_values:
+            raise SnowparkClientExceptionMessages.DF_DOCUMENTS_INVALID_OPTION_VALUE(
+                key.lower(), cur_options[key], valid_values
+            )
+        return value
+
+    @staticmethod
+    def user_bool(cur_options: Dict[str, Any], key: str) -> bool:
+        """The boolean the user set for ``key`` (a bool, or "true"/"false" in any case),
+        or False when it is not set; any other value raises."""
+        if key not in cur_options:
+            return False
+        value = cur_options[key]
+        if isinstance(value, bool):
+            return value
+        text = str(value).lower()
+        if text not in ("true", "false"):
+            raise SnowparkClientExceptionMessages.DF_DOCUMENTS_INVALID_OPTION_VALUE(
+                key.lower(), value, ("true", "false")
+            )
+        return text == "true"
 
     def validate(self) -> None:
         # parse_mode/row_boundary/mode/extraction_engine drive our own Python routing
         # and are never sent to Snowflake, so nothing downstream catches an
         # unrecognized value -- everything else is either AISQL's to validate or
         # silently unused when inapplicable (row_boundary/page_filter under
-        # parse_mode="none", model/prompt with no extraction phase, etc.).
+        # parse_mode="none", etc.).
         closed_sets: Tuple[Tuple[str, str, Iterable[str]], ...] = (
             ("parse_mode", self.parse_mode, _PARSE_MODES),
             ("row_boundary", self.row_boundary, _ROW_BOUNDARIES),

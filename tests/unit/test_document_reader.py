@@ -2,13 +2,52 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from unittest import mock
+
+import pytest
+
+from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.document_reader import (
+    _CALL_BUDGETS,
+    _FALLBACK_EXTRACTION_MODEL,
+    _PREFERRED_EXTRACTION_MODEL,
+    _EXTRACTION_MODELS,
+    build_ai_complete_call,
     cast_extracted_field,
     merge_extract_error,
+    output_columns,
+    prompt_model,
+    quote_stage_path,
 )
-from snowflake.snowpark._internal.document_reader_options import ExtractionSpec
+from snowflake.snowpark._internal.document_reader_options import (
+    DocumentReaderOptions,
+    ExtractionSpec,
+)
 from snowflake.snowpark.functions import col, lit
 from snowflake.snowpark.types import BooleanType, DoubleType, StringType
+
+# _CALL_BUDGETS -- the fixed output-token budgets the split procedure runs
+# claude-sonnet-5-5 with.
+# ---------------------------------------------------------------------------
+
+
+class TestCallBudgets:
+    def test_the_extraction_model_is_claude_sonnet_5_5(self):
+        assert _PREFERRED_EXTRACTION_MODEL == "claude-sonnet-5-5"
+        assert _FALLBACK_EXTRACTION_MODEL == "claude-opus-5"
+
+    def test_schema_reads_fall_back_to_claude_opus_5(self):
+        assert _EXTRACTION_MODELS == ["claude-sonnet-5-5", "claude-opus-5"]
+
+    def test_budgets(self):
+        assert _CALL_BUDGETS == {
+            "first": {"target": 80000, "max_tokens": 128000},
+            "range": {"target": 120000, "max_tokens": 128000},
+            "large_range": {"target": 80000, "max_tokens": 128000},
+            "merge_target": 60000,
+            "plan_first": {"range_target": 60000, "max_tokens": 64000},
+        }
+
 
 # ---------------------------------------------------------------------------
 # cast_extracted_field -- an extracted field's declared JSON-Schema type (if any)
@@ -114,3 +153,213 @@ class TestMergeExtractError:
         mismatch = lit(True)
         result = merge_extract_error(native_error, ["AMOUNT"], [mismatch])
         assert type(result._expression).__name__ != "Cast"
+
+
+# ---------------------------------------------------------------------------
+# prompt_model -- a prompt read checks once per session whether AI_COMPLETE knows
+# the preferred model, and uses the fallback when it reports it unknown.
+# ---------------------------------------------------------------------------
+
+
+class _CheckSession:
+    def __init__(self, error=None) -> None:
+        self.error = error
+        self.checks = 0
+
+    def sql(self, query, params=None):
+        self.checks += 1
+        assert params == [_PREFERRED_EXTRACTION_MODEL]
+        result = mock.Mock()
+        result.collect.side_effect = self.error
+        return result
+
+
+class TestPromptModel:
+    def test_known_preferred_model_is_used_and_checked_once(self):
+        session = _CheckSession()
+        assert prompt_model(session) == _PREFERRED_EXTRACTION_MODEL
+        assert prompt_model(session) == _PREFERRED_EXTRACTION_MODEL
+        assert session.checks == 1
+
+    def test_unknown_preferred_model_uses_the_fallback(self):
+        session = _CheckSession(
+            Exception('remote service error: 400 unknown model "claude-sonnet-5-5"')
+        )
+        assert prompt_model(session) == _FALLBACK_EXTRACTION_MODEL
+        assert prompt_model(session) == _FALLBACK_EXTRACTION_MODEL
+        assert session.checks == 1
+
+    def test_other_failure_keeps_the_preferred_model_and_checks_again(self):
+        session = _CheckSession(Exception("429 too many requests"))
+        assert prompt_model(session) == _PREFERRED_EXTRACTION_MODEL
+        assert prompt_model(session) == _PREFERRED_EXTRACTION_MODEL
+        assert session.checks == 2
+
+
+# ---------------------------------------------------------------------------
+# build_ai_complete_call -- a prompt-only read sends no response_format.
+# ---------------------------------------------------------------------------
+
+
+class TestBuildAiCompleteCall:
+    def test_prompt_only_uses_claude_sonnet_5_5_and_omits_response_format(self):
+        options = DocumentReaderOptions(parse_mode="none", prompt="Summarize this.")
+        input_col = col("SOURCE_FILE")
+        with mock.patch(
+            "snowflake.snowpark._internal.document_reader.ai_complete"
+        ) as mock_ai_complete:
+            build_ai_complete_call(input_col, options)
+
+        mock_ai_complete.assert_called_once()
+        args, kwargs = mock_ai_complete.call_args
+        assert args[0] == "claude-sonnet-5-5"
+        assert args[1] == "Summarize this."
+        assert kwargs["file"] is input_col
+        assert kwargs["model_parameters"] == {"max_tokens": 128000}
+        assert kwargs["response_format"] is None
+        assert kwargs["return_error_details"] is True
+
+    def test_schema_present_still_sends_the_fixed_model_and_parameters(self):
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+        )
+        input_col = col("SOURCE_FILE")
+        with mock.patch(
+            "snowflake.snowpark._internal.document_reader.ai_complete"
+        ) as mock_ai_complete:
+            build_ai_complete_call(input_col, options)
+
+        args, kwargs = mock_ai_complete.call_args
+        assert args[0] == "claude-sonnet-5-5"
+        assert kwargs["model_parameters"] == {"max_tokens": 128000}
+        assert kwargs["response_format"] == options.extraction.ai_complete_format
+
+
+# ---------------------------------------------------------------------------
+# output_columns -- a prompt-only read (complete_enabled but not extract_enabled)
+# has no schema fields to list, so RESPONSE is the one AI_COMPLETE output column
+# instead.
+# ---------------------------------------------------------------------------
+
+
+class TestOutputColumnsForPromptOnly:
+    def test_prompt_only_outputs_source_file_response_and_corrupt_record(self):
+        options = DocumentReaderOptions(parse_mode="none", prompt="Summarize this.")
+        assert output_columns(options) == [
+            "SOURCE_FILE",
+            "RESPONSE",
+            '"_document_error"',
+        ]
+
+
+# ---------------------------------------------------------------------------
+# output_columns -- IMAGES is returned only by a parse-only read that asked for
+# extract_images.
+# ---------------------------------------------------------------------------
+
+
+class TestOutputColumnsImages:
+    def test_images_follow_the_content_when_extract_images_is_on(self):
+        options = DocumentReaderOptions(extract_images=True)
+        assert output_columns(options) == [
+            "SOURCE_FILE",
+            "TOTAL_PAGES",
+            "CONTENT",
+            "IMAGES",
+            '"_document_error"',
+        ]
+
+    def test_page_rows_list_images_after_the_content(self):
+        options = DocumentReaderOptions(extract_images=True, row_boundary="page")
+        assert output_columns(options)[:5] == [
+            "SOURCE_FILE",
+            "PAGE_INDEX",
+            "TOTAL_PAGES",
+            "CONTENT",
+            "IMAGES",
+        ]
+
+    def test_no_images_column_by_default(self):
+        assert "IMAGES" not in output_columns(DocumentReaderOptions())
+
+    def test_no_images_column_without_parsing(self):
+        options = DocumentReaderOptions(parse_mode="none", prompt="Summarize.")
+        assert "IMAGES" not in output_columns(options)
+
+
+# ---------------------------------------------------------------------------
+# output_columns -- a schema read through the extraction procedure returns the
+# confidence scores after the field columns; prompt-only and parse-only reads
+# have no fields to score.
+# ---------------------------------------------------------------------------
+
+
+class TestOutputColumnsScores:
+    @staticmethod
+    def _schema_options(**kwargs):
+        return DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+            **kwargs,
+        )
+
+    def test_a_schema_read_has_extraction_scores_after_the_fields(self):
+        columns = output_columns(self._schema_options())
+        assert columns.count("EXTRACTION_SCORES") == 1
+        assert columns[columns.index("NAME") + 1] == "EXTRACTION_SCORES"
+        assert columns[-1] == '"_document_error"'
+
+    def test_a_prompt_only_read_has_no_scores(self):
+        options = DocumentReaderOptions(parse_mode="none", prompt="Summarize.")
+        assert "EXTRACTION_SCORES" not in output_columns(options)
+
+    def test_a_parse_only_read_has_no_scores(self):
+        assert "EXTRACTION_SCORES" not in output_columns(DocumentReaderOptions())
+
+    def test_an_ai_extract_read_keeps_its_scores_column(self):
+        options = self._schema_options(extraction_engine="ai_extract")
+        assert output_columns(options).count("EXTRACTION_SCORES") == 1
+
+    def test_a_parsed_ai_complete_schema_read_has_no_scores(self):
+        options = DocumentReaderOptions(
+            parse_mode="layout",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+        )
+        assert "EXTRACTION_SCORES" not in output_columns(options)
+
+
+# ---------------------------------------------------------------------------
+# quote_stage_path -- LIST gets the path as one escaped string literal, so nothing in
+# it can add a clause (a PATTERN, another statement) to the statement.
+# ---------------------------------------------------------------------------
+
+
+class TestQuoteStagePath:
+    @pytest.mark.parametrize(
+        "path, expected",
+        [
+            ("@stage/docs/", "'@stage/docs/'"),
+            ("@db.sch.stage/a b/", "'@db.sch.stage/a b/'"),
+            ("@s/it's/", "'@s/it''s/'"),
+            ("@s/a\\b/", "'@s/a\\\\b/'"),
+            ("@s/x; DROP TABLE t", "'@s/x; DROP TABLE t'"),
+            ("@s/x -- c", "'@s/x -- c'"),
+            ("@s/x' PATTERN='.*", "'@s/x'' PATTERN=''.*'"),
+            ("@s/a\nb", "'@s/a\\nb'"),
+            ("@s/a'b", "'@s/a''b'"),
+            ("@s/a\\'b", "'@s/a\\\\''b'"),
+        ],
+    )
+    def test_quotes_and_escapes(self, path, expected):
+        assert quote_stage_path(path) == expected
+
+    def test_matches_str_to_sql(self):
+        for path in (
+            "@s/it's/",
+            "@s/a\\b/",
+            "@s/a\nb",
+            "@s/a\\'b",
+            "@s/x' PATTERN='.*",
+        ):
+            assert quote_stage_path(path) == str_to_sql(path)
