@@ -31,6 +31,7 @@ import cloudpickle
 
 import snowflake.snowpark.datasource as datasource_module
 from snowflake.snowpark._internal.data_source.custom import conversion
+from snowflake.snowpark._internal.data_source.custom import options as options_module
 from snowflake.snowpark._internal.data_source.custom.conversion import (
     FieldMatcher,
     arrow_table_to_parquet_bytesio,
@@ -90,8 +91,9 @@ _PARTITION_COLUMN = "SNOWPARK_DATA_SOURCE_PARTITION"
 _SNOWPARK_PACKAGE = "snowflake-snowpark-python"
 
 # Modules pickled by value in server-side ingestion, so that the UDTF does not depend on
-# the Snowpark version available in Snowflake having them.
-_PICKLE_BY_VALUE_MODULES = (datasource_module, conversion)
+# the Snowpark version available in Snowflake having them. options is included because readers
+# commonly keep DataSource.options, a CaseInsensitiveDict.
+_PICKLE_BY_VALUE_MODULES = (datasource_module, conversion, options_module)
 _pickle_by_value_lock = threading.Lock()
 
 
@@ -399,7 +401,17 @@ def _build_udtf_handler(pickled_reader: bytes, schema: StructType) -> type:
 
     class CustomDataSourceIngestion:
         def __init__(self) -> None:
-            self._reader = cloudpickle.loads(pickled_reader)
+            try:
+                self._reader = cloudpickle.loads(pickled_reader)
+            except ModuleNotFoundError as exc:
+                # installed packages are pickled by reference, so they must be available in the UDTF
+                raise ModuleNotFoundError(
+                    f"{exc}. The custom data source reader uses the package '{exc.name}', which is "
+                    "not available in the UDTF. Add it to the 'snowpark.packages' option (with "
+                    "'snowpark.artifact_repository' for packages from PyPI), or upload it with the "
+                    "'snowpark.imports' option.",
+                    name=exc.name,
+                ) from exc
 
         def process(self, partition_idx: int, partition: bytes):
             try:

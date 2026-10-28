@@ -485,6 +485,7 @@ def test_pickle_by_value():
         registered = cloudpickle.list_registry_pickle_by_value()
         assert "snowflake.snowpark.datasource" in registered
         assert conversion.__name__ in registered
+        assert CaseInsensitiveDict.__module__ in registered
         data = cloudpickle.dumps(InputPartition(1))
     assert "snowflake.snowpark.datasource" not in (
         cloudpickle.list_registry_pickle_by_value()

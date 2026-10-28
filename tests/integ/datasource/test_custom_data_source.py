@@ -428,3 +428,30 @@ def test_udtf_ingestion_failing_partition(session, external_access_integration):
     )
     with pytest.raises(SnowparkSQLException, match="partition 1 .*cannot read 4"):
         df.collect()
+
+
+class OptionsDataSource(DataSource):
+    def schema(self):
+        return "key STRING, value STRING"
+
+    def reader(self, schema):
+        return OptionsReader(self.options)
+
+
+class OptionsReader(DataSourceReader):
+    def __init__(self, options) -> None:
+        # a common pattern: the reader keeps the options, a Snowpark CaseInsensitiveDict
+        self.options = options
+
+    def read(self, partition):
+        yield ("prefix", self.options["PREFIX"])
+
+
+def test_udtf_ingestion_reader_keeps_options(session, external_access_integration):
+    df = (
+        session.read.format(OptionsDataSource)
+        .option("prefix", "abc")
+        .option("snowpark.external_access_integration", external_access_integration)
+        .load()
+    )
+    assert df.collect() == [Row(KEY="prefix", VALUE="abc")]

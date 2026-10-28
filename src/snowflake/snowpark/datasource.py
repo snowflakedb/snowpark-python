@@ -71,6 +71,10 @@ subclass works as is. For these data sources:
 - ``TIMESTAMP`` is read as ``TIMESTAMP_LTZ``, following Spark.
 - ``pyspark.sql.Row`` and ``pyspark.sql.types.VariantVal`` values are supported in ``read()``.
 - In server-side ingestion, the ``pyspark`` package is added to ``snowpark.packages`` automatically.
+  Installed libraries that define the data source, such as ``pyspark-data-sources``, and their
+  dependencies must also be available in the UDTF: add them to ``snowpark.packages`` (with
+  ``snowpark.artifact_repository`` for packages from PyPI), or upload them with ``snowpark.imports``.
+  Classes defined in your own local modules are uploaded automatically.
 
 Only batch reads are supported. Streaming readers and writers are not.
 """
