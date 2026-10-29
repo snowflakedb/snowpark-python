@@ -226,3 +226,60 @@ def test_eager_validation_skips_full_query_describe_with_pre_actions(session):
     cached = session.create_dataframe([(1,), (2,)], ["A"]).cache_result()
     with patch.object(context, "_debug_eager_schema_validation", True):
         assert [r[0] for r in cached.filter(col("A") > 1).collect()] == [2]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="debug_mode not used in local testing mode",
+)
+def test_session_eager_schema_validation_overrides_the_global_setting(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    original_reduce = session.reduce_describe_query_enabled
+    session.reduce_describe_query_enabled = True
+    eager = session.eager_schema_validation
+    try:
+        df = session.create_dataframe([(1,), (2,)], ["A"])
+        df.schema  # warm the base schema
+
+        def build():
+            return df.filter(col("A") > 0).sort("A")
+
+        with patch.object(context, "_debug_eager_schema_validation", False):
+            assert eager.enabled is False
+            with eager:
+                assert eager.enabled is True
+                assert _count_describes(build) == 2
+            assert eager.enabled is False
+            assert _count_describes(build) == 0
+
+        with patch.object(context, "_debug_eager_schema_validation", True):
+            # the global setting is only the fallback
+            assert eager.enabled is True
+            eager.disable()
+            assert _count_describes(build) == 0
+    finally:
+        eager._set(None)
+        session.reduce_describe_query_enabled = original_reduce
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="debug_mode not used in local testing mode",
+)
+def test_session_debug_turns_all_debugging_features_on_and_off(session):
+    try:
+        session.debug.enable_all()
+        assert session.eager_schema_validation.enabled is True
+        assert context._enable_dataframe_trace_on_error is True
+        assert context._enable_trace_sql_errors_to_dataframe is True
+        with pytest.raises(SnowparkSQLException):
+            session.create_dataframe([(1,)], ["A"]).select("NOPE").collect()
+
+        session.debug.disable_all()
+        assert session.eager_schema_validation.enabled is False
+        assert context._enable_dataframe_trace_on_error is False
+        assert context._enable_trace_sql_errors_to_dataframe is False
+    finally:
+        session.eager_schema_validation._set(None)
+        context.configure_development_features()
