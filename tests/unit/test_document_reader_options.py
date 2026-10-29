@@ -789,6 +789,25 @@ class TestAiCompleteWorksWithOrWithoutParse:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# read_type -- the read shape used by both the SQL usage comment
+# (document_reader.usage_comment) and the client telemetry api_call
+# (DataFrameReader.documents), so it is derived in exactly one place.
+# ---------------------------------------------------------------------------
+
+
+class TestReadType:
+    def test_no_schema_or_prompt_is_a_parse_read(self):
+        assert _build({}).read_type == "parse"
+
+    def test_prompt_without_a_schema_is_a_prompt_read(self):
+        assert _build({"PROMPT": "Summarize this."}).read_type == "prompt"
+
+    def test_schema_is_a_schema_read_even_with_a_prompt_too(self):
+        options = _build({"SCHEMA": FLAT_SCHEMA, "PROMPT": "Extract fields."})
+        assert options.read_type == "schema"
+
+
 class TestDocumentedNonGuards:
     def test_page_row_boundary_with_parse_mode_none_is_a_no_op(self):
         # Parse is skipped entirely when parse_mode == "none", so row_boundary

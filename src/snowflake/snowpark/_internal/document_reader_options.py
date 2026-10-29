@@ -186,6 +186,18 @@ class DocumentReaderOptions:
         return self.extraction is not None or self.prompt is not None
 
     @property
+    def read_type(self) -> str:
+        """The read shape, for usage tracking (the SQL comment marker in
+        document_reader.py and the client telemetry api_call in dataframe_reader.py):
+        "schema" with a schema, "prompt" with a prompt and no schema, "parse"
+        otherwise."""
+        if self.extract_enabled:
+            return "schema"
+        if self.prompt is not None:
+            return "prompt"
+        return "parse"
+
+    @property
     def page_rows(self) -> bool:
         return self.parse_enabled and self.row_boundary == "page"
 

@@ -107,6 +107,8 @@ class TelemetryField(Enum):
     KEY_SFQIDS = "sfqids"
     KEY_SUBCALLS = "subcalls"
     KEY_SAVED_TABLE_NAME = "saved_table_name"
+    # DataFrameReader.documents read type
+    KEY_READ_TYPE = "read_type"
     # function categories
     FUNC_CAT_ACTION = "action"
     FUNC_CAT_USAGE = "usage"
@@ -277,9 +279,11 @@ def add_api_call(df, func_name: str, resource_usage: Optional[Dict] = None) -> N
     plan.api_calls.append({TelemetryField.NAME.value: func_name, **resource_usage})
 
 
-def set_api_call_source(df, func_name: str) -> None:
+def set_api_call_source(
+    df, func_name: str, extra_fields: Optional[Dict[str, Any]] = None
+) -> None:
     plan = df._select_statement or df._plan
-    plan.api_calls = [{TelemetryField.NAME.value: func_name}]
+    plan.api_calls = [{TelemetryField.NAME.value: func_name, **(extra_fields or {})}]
 
 
 # A decorator to use in the Telemetry client to make sure operations

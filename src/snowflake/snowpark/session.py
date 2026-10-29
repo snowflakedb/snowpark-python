@@ -3063,6 +3063,7 @@ class Session:
             self._conn, NopConnection
         ):
             if self._conn._suppress_not_implemented_error:
+
                 # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here.
                 ans = self.createDataFrame(
                     [],

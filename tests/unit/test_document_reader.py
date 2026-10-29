@@ -9,15 +9,18 @@ import pytest
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.document_reader import (
     _CALL_BUDGETS,
+    _EXTRACTION_MODELS,
     _FALLBACK_EXTRACTION_MODEL,
     _PREFERRED_EXTRACTION_MODEL,
-    _EXTRACTION_MODELS,
+    access,
     build_ai_complete_call,
     cast_extracted_field,
+    extract_with_split_procedure,
     merge_extract_error,
     output_columns,
     prompt_model,
     quote_stage_path,
+    usage_comment,
 )
 from snowflake.snowpark._internal.document_reader_options import (
     DocumentReaderOptions,
@@ -25,6 +28,7 @@ from snowflake.snowpark._internal.document_reader_options import (
 )
 from snowflake.snowpark.functions import col, lit
 from snowflake.snowpark.types import BooleanType, DoubleType, StringType
+from snowflake.snowpark.version import VERSION
 
 # _CALL_BUDGETS -- the fixed output-token budgets the split procedure runs
 # claude-sonnet-5-5 with.
@@ -363,3 +367,105 @@ class TestQuoteStagePath:
             "@s/x' PATTERN='.*",
         ):
             assert quote_stage_path(path) == str_to_sql(path)
+
+
+# ---------------------------------------------------------------------------
+# usage_comment -- a trailing SQL comment identifying a documents() read's entry
+# query in QUERY_HISTORY. Enum-like values only (read_type, version); never the
+# path, prompt or schema, which would leak user data into QUERY_HISTORY.
+# ---------------------------------------------------------------------------
+
+_VERSION_STRING = ".".join(str(part) for part in VERSION if part is not None)
+
+
+class TestUsageComment:
+    def test_is_a_trailing_comment_with_read_type_and_version(self):
+        options = DocumentReaderOptions()
+        assert usage_comment(options) == (
+            "/* Snowpark:DataFrameReader.documents read_type=parse "
+            f"version={_VERSION_STRING} */"
+        )
+
+    def test_prompt_read_reports_read_type_prompt(self):
+        options = DocumentReaderOptions(parse_mode="none", prompt="Summarize this.")
+        assert usage_comment(options) == (
+            "/* Snowpark:DataFrameReader.documents read_type=prompt "
+            f"version={_VERSION_STRING} */"
+        )
+
+    def test_schema_read_reports_read_type_schema(self):
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+        )
+        assert usage_comment(options) == (
+            "/* Snowpark:DataFrameReader.documents read_type=schema "
+            f"version={_VERSION_STRING} */"
+        )
+
+    def test_prompt_text_never_appears_in_the_comment(self):
+        options = DocumentReaderOptions(
+            parse_mode="none", prompt="Summarize this. Secret account: 12345."
+        )
+        comment = usage_comment(options)
+        assert "Secret" not in comment and "12345" not in comment
+
+    def test_schema_contents_never_appear_in_the_comment(self):
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format(
+                {"ssn": "What is the social security number?"}
+            ),
+        )
+        comment = usage_comment(options)
+        assert "ssn" not in comment and "social security" not in comment
+
+
+# ---------------------------------------------------------------------------
+# access -- the LIST entry query carries a trailing usage_comment and no other
+# change, so QUERY_HISTORY can be grouped by read_type without the path or
+# prompt leaking into it.
+# ---------------------------------------------------------------------------
+
+
+class TestAccessUsageComment:
+    def test_list_statement_ends_with_the_usage_comment(self):
+        session = mock.MagicMock()
+        options = DocumentReaderOptions()
+        access(session, "@stage/docs/", options)
+        query = session.sql.call_args[0][0]
+        assert query == f"LIST '@stage/docs/' {usage_comment(options)}"
+
+    def test_comment_does_not_repeat_the_path(self):
+        session = mock.MagicMock()
+        options = DocumentReaderOptions()
+        access(session, "@stage/secret_docs/", options)
+        query = session.sql.call_args[0][0]
+        # The path appears exactly once, inside the LIST clause -- not duplicated
+        # into the trailing comment.
+        assert query.count("secret_docs") == 1
+
+
+# ---------------------------------------------------------------------------
+# extract_with_split_procedure -- the CALL entry query carries the same trailing
+# usage_comment as access(), for the one other read shape (schema extraction
+# through the split procedure) that issues its own entry query.
+# ---------------------------------------------------------------------------
+
+
+class TestExtractWithSplitProcedureUsageComment:
+    def test_call_statement_ends_with_the_usage_comment(self):
+        session = mock.MagicMock()
+        session.get_session_stage.return_value = "@~/session_stage"
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+        )
+        with mock.patch(
+            "snowflake.snowpark._internal.document_reader.register_extract_proc",
+            return_value="MY_PROC",
+        ):
+            extract_with_split_procedure(session, "@stage/invoices/", options)
+        query = session.sql.call_args[0][0]
+        assert query.startswith("CALL MY_PROC(")
+        assert query.endswith(usage_comment(options))
