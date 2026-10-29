@@ -10,6 +10,7 @@
 
 #### Improvements
 
+- `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them. Turning the tracing features off now also turns off the AST collection if the features enabled it.
 - Eager schema validation (`context.configure_development_features(enable_eager_schema_validation=True)`) now raises invalid column references in `DataFrame.filter` and `DataFrame.sort` when the DataFrame is created.
 
 #### Bug Fixes
