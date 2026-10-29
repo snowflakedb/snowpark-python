@@ -10,6 +10,7 @@
 
 #### Improvements
 
+- Added debuggability improvements to show which Python lines dropped or renamed a column for "invalid identifier" SQL errors that carry no line number. Enable it using `snowflake.snowpark.context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)`.
 - Eager schema validation (`context.configure_development_features(enable_eager_schema_validation=True)`) now raises invalid column references in `DataFrame.filter` and `DataFrame.sort` when the DataFrame is created.
 
 #### Bug Fixes

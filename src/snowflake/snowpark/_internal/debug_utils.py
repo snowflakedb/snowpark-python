@@ -222,12 +222,17 @@ def _format_source_location(src: Optional[proto.SrcPosition]) -> str:
     return lines_info
 
 
-def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
+def _extract_source_locations_from_plan(
+    plan: "SnowflakePlan", only_transformations: bool = False
+) -> List[str]:
     """
     Extract source locations from a SnowflakePlan's AST IDs.
 
     Args:
         plan: The SnowflakePlan object to extract source locations from
+        only_transformations: If True, skip the statements that create a DataFrame
+            (such as create_dataframe) and keep the operations applied to it, unless
+            there are none.
 
     Returns:
         List of unique source location strings (e.g., "file.py: line 42")
@@ -235,6 +240,7 @@ def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
     source_locations = []
     found_locations = set()
 
+    transformation_locations = []
     if plan.df_ast_ids is not None:
         for ast_id in plan.df_ast_ids:
             bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
@@ -244,7 +250,13 @@ def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
                 if location and location not in found_locations:
                     found_locations.add(location)
                     source_locations.append(location)
+                    if bind_stmt.bind.expr.WhichOneof("variant").startswith(
+                        "dataframe_"
+                    ):
+                        transformation_locations.append(location)
 
+    if only_transformations and transformation_locations:
+        return transformation_locations
     return source_locations
 
 
@@ -286,6 +298,100 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
             locations_str = "\n  - ".join(source_locations)
             return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
     return ""
+
+
+_INVALID_IDENTIFIER_REGEX = re.compile(
+    r"""invalid identifier\s+(?:'([^']*)'|(\S+))""", re.IGNORECASE
+)
+_MAX_PLAN_NODES_TO_INSPECT = 50
+
+
+def get_invalid_identifier_context(top_plan: "SnowflakePlan", error_msg: str) -> str:
+    """
+    Find the DataFrame operation that dropped or renamed the column named in an
+    "invalid identifier" error, for errors that carry no line number. The culprit is
+    the closest plan node to the failing one whose output does not contain the column
+    while one of its children's outputs does. If no node ever produced the column,
+    the sources of the plan are reported instead.
+
+    Column names come from the plan nodes' `quoted_identifiers`, which can send a describe
+    query when they are not cached; a node whose names cannot be obtained is skipped.
+
+    Args:
+        top_plan: The top level SnowflakePlan object that raised the error.
+        error_msg: The error message from the SQL compilation error.
+
+    Returns:
+        A message with the Python lines of the operation if found, otherwise an empty string.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+    from snowflake.snowpark._internal.utils import quote_name
+
+    match = _INVALID_IDENTIFIER_REGEX.search(error_msg)
+    if not match:
+        return ""
+    raw_name = (match.group(1) or match.group(2)).strip(".,;")
+    if not raw_name:
+        return ""
+    identifier = quote_name(raw_name)
+
+    outputs: Dict[int, Optional[Set[str]]] = {}
+
+    def output_names(plan: "SnowflakePlan") -> Optional[Set[str]]:
+        if id(plan) not in outputs:
+            try:
+                outputs[id(plan)] = set(plan.quoted_identifiers)
+            except Exception:
+                outputs[id(plan)] = None
+        return outputs[id(plan)]
+
+    def child_plans(plan: "SnowflakePlan") -> List["SnowflakePlan"]:
+        return [
+            node.snowflake_plan if isinstance(node, Selectable) else node
+            for node in plan.children_plan_nodes
+        ]
+
+    visited: Set[int] = set()
+    sources: List["SnowflakePlan"] = []
+    culprit: Optional["SnowflakePlan"] = None
+    stack = [top_plan]
+    while stack and culprit is None and len(visited) < _MAX_PLAN_NODES_TO_INSPECT:
+        plan = stack.pop()
+        if id(plan) in visited:
+            continue
+        visited.add(id(plan))
+        children = child_plans(plan)
+        if not children:
+            sources.append(plan)
+            continue
+        names = output_names(plan)
+        if (
+            names is not None
+            and identifier not in names
+            and any(identifier in (output_names(c) or ()) for c in children)
+        ):
+            culprit = plan
+            break
+        stack.extend(reversed(children))
+
+    if culprit is not None:
+        locations = _extract_source_locations_from_plan(
+            culprit, only_transformations=True
+        )
+        what = "was dropped or renamed by the DataFrame operation at"
+    else:
+        locations = []
+        for source in sources:
+            for location in _extract_source_locations_from_plan(source):
+                if location not in locations:
+                    locations.append(location)
+        what = "is not produced by any source of this DataFrame; its sources are at"
+    if not locations:
+        return ""
+    if len(locations) == 1:
+        return f"\nColumn {identifier} {what} {locations[0]}.\n"
+    locations_str = "\n  - ".join(locations)
+    return f"\nColumn {identifier} {what} one of:\n  - {locations_str}\n"
 
 
 def get_missing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> str:

@@ -36,6 +36,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.debug_utils import (
     get_df_transform_trace_message,
+    get_invalid_identifier_context,
     get_python_source_from_sql_error,
     get_existing_object_context,
     get_missing_object_context,
@@ -202,8 +203,26 @@ class SnowflakePlan(LogicalPlan):
                                 top_plan, e.msg
                             ):
                                 debug_context_arr.append(error_source_context)
+                        line_less_invalid_identifier = (
+                            "invalid identifier" in e.msg.lower()
+                            and "error line" not in e.msg
+                            and top_plan is not None
+                            and _enable_trace_sql_errors_to_dataframe
+                        )
+                        if line_less_invalid_identifier:
+                            if identifier_context := get_invalid_identifier_context(
+                                top_plan, e.msg
+                            ):
+                                debug_context_arr.append(identifier_context)
                         if (
-                            _enable_dataframe_trace_on_error
+                            (
+                                _enable_dataframe_trace_on_error
+                                # without a line to point at, still show where the dataframe came from
+                                or (
+                                    line_less_invalid_identifier
+                                    and not debug_context_arr
+                                )
+                            )
                             and df_ast_id is not None
                             and stmt_cache is not None
                         ):
