@@ -6,7 +6,7 @@
 
 #### New Features
 
-- Added `DataFrameReader.documents` (private preview) to read documents from a stage: parse them to text, or extract structured values with a `schema` and/or a `prompt` option. Long documents are split across several model calls automatically. Schema reads also return an `EXTRACTION_SCORES` column with a model-reported confidence score (0 to 1) for each top-level field.
+- Added `DataFrameReader.documents()` (private preview) to read staged documents into DataFrames. Provide a schema to extract structured fields, or omit it to return parsed document content. Schema-based reads also return an EXTRACTION_SCORES column with model-reported scores from 0 to 1 for each top-level field. The reader can process a single file or a document directory, automatically configures token limits, and splits long documents across model calls. It also parallelizes processing across documents, and isolates single-file failures so other documents in the directory can continue processing.
 
 #### Improvements
 
