@@ -84,11 +84,12 @@ def test_only_passed_features_change(flag):
 def test_later_calls_keep_features_that_are_not_passed():
     context.configure_development_features(enable_dataframe_trace_on_error=True)
     context.configure_development_features(enable_eager_schema_validation=True)
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
     context.configure_development_features(enable_metadata_validation=True)
     assert current_flags() == {
         "enable_eager_schema_validation": True,
         "enable_dataframe_trace_on_error": True,
-        "enable_trace_sql_errors_to_dataframe": False,
+        "enable_trace_sql_errors_to_dataframe": True,
         "enable_metadata_validation": True,
     }
 
@@ -97,13 +98,14 @@ def test_passing_false_turns_off_only_that_feature():
     context.configure_development_features(
         enable_eager_schema_validation=True,
         enable_dataframe_trace_on_error=True,
+        enable_trace_sql_errors_to_dataframe=True,
         enable_metadata_validation=True,
     )
     context.configure_development_features(enable_eager_schema_validation=False)
     assert current_flags() == {
         "enable_eager_schema_validation": False,
         "enable_dataframe_trace_on_error": True,
-        "enable_trace_sql_errors_to_dataframe": False,
+        "enable_trace_sql_errors_to_dataframe": True,
         "enable_metadata_validation": True,
     }
 

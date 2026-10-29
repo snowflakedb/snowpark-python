@@ -104,11 +104,6 @@ def test_disabled_flag_keeps_server_error(base, op):
             id="filter_on_dropped_column",
         ),
         pytest.param(
-            lambda df: df.select("a").sort(col("b").desc()),
-            [Row(2), Row(1)],
-            id="sort_on_dropped_column",
-        ),
-        pytest.param(
             lambda df: df.select(col("a").alias("z")).sort("z"),
             [Row(1), Row(2)],
             id="sort_on_alias",

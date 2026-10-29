@@ -120,28 +120,19 @@ def test_projection_noop_when_states_unavailable_or_aliased():
 
 def test_clause_missing_column_raises():
     with pytest.raises(SnowparkPlanException) as ex_info:
-        validate_clause_columns(
-            [Add(attr('"A"'), attr('"C"'))], make_states(), defaultdict(dict)
-        )
+        validate_clause_columns([Add(attr('"A"'), attr('"C"'))], make_states())
     assert ex_info.value.error_code == "1200"
     assert 'Invalid identifier "C"' in str(ex_info.value)
 
 
 def test_clause_accepts_dropped_columns():
     # the clause may be flattened into the same select, where dropped columns are visible
-    validate_clause_columns(
-        [attr('"D"')], make_states(dropped=('"D"',)), defaultdict(dict)
-    )
+    validate_clause_columns([attr('"D"')], make_states(dropped=('"D"',)))
 
 
 def test_clause_valid_or_uncertain_does_not_raise():
-    validate_clause_columns([attr('"A"')], make_states(), defaultdict(dict))
-    validate_clause_columns([attr('"C"')], None, defaultdict(dict))
+    validate_clause_columns([attr('"A"')], make_states())
+    validate_clause_columns([attr('"C"')], None)
     validate_clause_columns(
-        [attr('"C"')], make_states(), defaultdict(dict, {"df1": {"a": '"A"'}})
-    )
-    validate_clause_columns(
-        [UnresolvedAttribute("a + 1", is_sql_text=True)],
-        make_states(),
-        defaultdict(dict),
+        [UnresolvedAttribute("a + 1", is_sql_text=True)], make_states()
     )

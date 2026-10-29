@@ -1712,12 +1712,11 @@ class SelectStatement(Selectable):
             )  # sum(col) as new_col, new_col can not be flattened in where clause
             and not (self.order_by and self.limit_ is not None)
         )
-        if context._enable_metadata_validation:
-            validate_clause_columns(
-                [col],
-                self._column_states,
-                self.df_aliased_col_name_to_real_col_name,
-            )
+        if (
+            context._enable_metadata_validation
+            and not self.df_aliased_col_name_to_real_col_name
+        ):
+            validate_clause_columns([col], self._column_states)
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
@@ -1754,12 +1753,11 @@ class SelectStatement(Selectable):
             )
             and not has_data_generator_exp(self.projection)
         )
-        if context._enable_metadata_validation:
-            validate_clause_columns(
-                cols,
-                self._column_states,
-                self.df_aliased_col_name_to_real_col_name,
-            )
+        if (
+            context._enable_metadata_validation
+            and not self.df_aliased_col_name_to_real_col_name
+        ):
+            validate_clause_columns(cols, self._column_states)
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()

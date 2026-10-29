@@ -181,18 +181,16 @@ def validate_projection_columns(
 def validate_clause_columns(
     exprs: List[Expression],
     column_states: Optional["ColumnStateDict"],
-    df_aliased_col_name_to_real_col_name: Union[
-        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
-    ],
 ) -> None:
     """
     Raises SnowparkPlanException if a filter or sort expression references a column that is
     not in `column_states`. Dropped columns are accepted because the clause may be flattened
-    into the same select. Does nothing when the check can't be made with certainty.
+    into the same select. Does nothing when the check can't be made with certainty. The caller
+    skips it for dataframes with aliases.
     """
     from snowflake.snowpark._internal.debug_utils import get_existing_identifiers_hint
 
-    if column_states is None or df_aliased_col_name_to_real_col_name:
+    if column_states is None:
         return
     missing = find_missing_column(
         derive_dependent_columns(*exprs), set(column_states.keys())
