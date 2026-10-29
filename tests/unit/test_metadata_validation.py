@@ -19,8 +19,11 @@ from snowflake.snowpark._internal.analyzer.metadata_utils import (
     validate_clause_columns,
     validate_projection_columns,
 )
+from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.select_statement import ColumnStateDict
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark.exceptions import SnowparkPlanException
+from snowflake.snowpark.types import IntegerType
 
 KNOWN = {'"A"', '"B"'}
 
@@ -51,49 +54,48 @@ def attr(name):
     return UnresolvedAttribute(name)
 
 
-def test_projection_missing_column_raises_with_hint():
+def make_states(projection=('"A"', '"B"'), dropped=()):
+    states = ColumnStateDict()
+    states.projection = [Attribute(n, IntegerType()) for n in projection]
+    states.active_columns = set(projection)
+    states.data = {n: object() for n in (*projection, *dropped)}
+    return states
+
+
+def test_projection_missing_column_raises_with_hint_in_column_order():
     with pytest.raises(SnowparkPlanException) as ex_info:
         validate_projection_columns(
             [attr('"A"'), attr('"C"')],
-            KNOWN,
+            make_states(projection=('"B"', '"A"')),
             mock.Mock(),
             defaultdict(dict),
-            ['"A"', '"B"'],
         )
     assert ex_info.value.error_code == "1200"
     assert 'Invalid identifier "C"' in str(ex_info.value)
-    assert "existing quoted column identifiers: ['\"A\"', '\"B\"']" in str(
+    assert "existing quoted column identifiers: ['\"B\"', '\"A\"']" in str(
         ex_info.value
     )
 
 
-def test_projection_valid_columns_do_not_raise():
-    validate_projection_columns(
-        [attr('"A"'), Alias(Add(attr('"B"'), Literal(1)), '"N"')],
-        KNOWN,
-        mock.Mock(),
-        defaultdict(dict),
-    )
-
-
-def test_projection_lateral_alias_is_allowed():
+def test_projection_valid_columns_and_lateral_alias_do_not_raise():
     cols = [
-        Alias(Add(attr('"A"'), Literal(1)), '"X"'),
+        attr('"A"'),
+        Alias(Add(attr('"B"'), Literal(1)), '"X"'),
         Alias(Add(attr('"X"'), Literal(1)), '"Y"'),
     ]
-    validate_projection_columns(cols, KNOWN, mock.Mock(), defaultdict(dict))
+    validate_projection_columns(cols, make_states(), mock.Mock(), defaultdict(dict))
 
 
 def test_projection_column_does_not_satisfy_itself():
     # a plain missing column must not count as produced by itself
     with pytest.raises(SnowparkPlanException):
         validate_projection_columns(
-            [attr('"C"')], KNOWN, mock.Mock(), defaultdict(dict)
+            [attr('"C"')], make_states(), mock.Mock(), defaultdict(dict)
         )
     with pytest.raises(SnowparkPlanException):
         validate_projection_columns(
             [Alias(Add(attr('"C"'), Literal(1)), '"C"')],
-            KNOWN,
+            make_states(),
             mock.Mock(),
             defaultdict(dict),
         )
@@ -104,33 +106,42 @@ def test_projection_plain_missing_column_is_not_a_producer():
     with pytest.raises(SnowparkPlanException):
         validate_projection_columns(
             [Alias(attr('"C"'), '"D"'), attr('"C"')],
-            KNOWN,
+            make_states(),
             mock.Mock(),
             defaultdict(dict),
         )
 
 
-def test_projection_noop_when_names_unavailable_or_aliased():
+def test_projection_noop_when_states_unavailable_or_aliased():
     validate_projection_columns([attr('"C"')], None, mock.Mock(), defaultdict(dict))
     aliased = defaultdict(dict, {"df1": {"a": '"A"'}})
-    validate_projection_columns([attr('"C"')], KNOWN, mock.Mock(), aliased)
+    validate_projection_columns([attr('"C"')], make_states(), mock.Mock(), aliased)
 
 
 def test_clause_missing_column_raises():
     with pytest.raises(SnowparkPlanException) as ex_info:
         validate_clause_columns(
-            [Add(attr('"A"'), attr('"C"'))], KNOWN, defaultdict(dict)
+            [Add(attr('"A"'), attr('"C"'))], make_states(), defaultdict(dict)
         )
     assert ex_info.value.error_code == "1200"
     assert 'Invalid identifier "C"' in str(ex_info.value)
 
 
+def test_clause_accepts_dropped_columns():
+    # the clause may be flattened into the same select, where dropped columns are visible
+    validate_clause_columns(
+        [attr('"D"')], make_states(dropped=('"D"',)), defaultdict(dict)
+    )
+
+
 def test_clause_valid_or_uncertain_does_not_raise():
-    validate_clause_columns([attr('"A"')], KNOWN, defaultdict(dict))
+    validate_clause_columns([attr('"A"')], make_states(), defaultdict(dict))
     validate_clause_columns([attr('"C"')], None, defaultdict(dict))
     validate_clause_columns(
-        [attr('"C"')], KNOWN, defaultdict(dict, {"df1": {"a": '"A"'}})
+        [attr('"C"')], make_states(), defaultdict(dict, {"df1": {"a": '"A"'}})
     )
     validate_clause_columns(
-        [UnresolvedAttribute("a + 1", is_sql_text=True)], KNOWN, defaultdict(dict)
+        [UnresolvedAttribute("a + 1", is_sql_text=True)],
+        make_states(),
+        defaultdict(dict),
     )

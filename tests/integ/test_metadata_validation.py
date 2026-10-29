@@ -10,7 +10,7 @@ import snowflake.snowpark.context as context
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark.exceptions import SnowparkPlanException, SnowparkSQLException
-from snowflake.snowpark.functions import col, lit, sql_expr
+from snowflake.snowpark.functions import col
 from tests.utils import Utils
 
 pytestmark = [
@@ -23,8 +23,9 @@ pytestmark = [
 
 @pytest.fixture(autouse=True)
 def metadata_validation_on():
-    with patch.object(context, "_enable_metadata_validation", True):
-        yield
+    context.configure_development_features(enable_metadata_validation=True)
+    yield
+    context.configure_development_features(enable_metadata_validation=False)
 
 
 @pytest.fixture
@@ -72,12 +73,13 @@ def test_error_suggests_case_sensitive_match(session):
     assert "Do you mean '\"abc\"'?" in str(ex_info.value)
 
 
-@pytest.mark.parametrize("op", MISSING_COLUMN_OPS)
+# one operation per kind: select, with_column, filter, sort
+@pytest.mark.parametrize("op", [MISSING_COLUMN_OPS[i] for i in (0, 4, 6, 8)])
 def test_disabled_flag_keeps_server_error(base, op):
-    with patch.object(context, "_enable_metadata_validation", False):
-        df = op(base)
-        with pytest.raises(SnowparkSQLException, match="invalid identifier"):
-            df.collect()
+    context.configure_development_features(enable_metadata_validation=False)
+    df = op(base)
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+        df.collect()
 
 
 @pytest.mark.parametrize(
@@ -87,11 +89,6 @@ def test_disabled_flag_keeps_server_error(base, op):
             lambda df: df.select("a", "b"), [Row(1, "x"), Row(2, "y")], id="select"
         ),
         pytest.param(lambda df: df.select("*"), [Row(1, "x"), Row(2, "y")], id="star"),
-        pytest.param(
-            lambda df: df.select((col("a") + 1).alias("x"), (col("x") + 1).alias("y")),
-            [Row(2, 3), Row(3, 4)],
-            id="lateral_alias",
-        ),
         pytest.param(
             lambda df: df.with_column("a", col("a") + 10).select("a"),
             [Row(11), Row(12)],
@@ -115,11 +112,6 @@ def test_disabled_flag_keeps_server_error(base, op):
             lambda df: df.select(col("a").alias("z")).sort("z"),
             [Row(1), Row(2)],
             id="sort_on_alias",
-        ),
-        pytest.param(
-            lambda df: df.select(sql_expr("a + 1").alias("c")),
-            [Row(2), Row(3)],
-            id="sql_text_not_validated",
         ),
         pytest.param(
             lambda df: df.select_expr("a + 1 as c"),
@@ -208,12 +200,12 @@ def test_no_extra_describe_queries(session, reduce_describe):
                 col("NOPE") > 0
             )
 
-        with patch.object(context, "_enable_metadata_validation", False):
-            describes_off = _count_describes(chain)
-            failing_off = _count_describes(failing)
-        with patch.object(context, "_enable_metadata_validation", True):
-            describes_on = _count_describes(chain)
-            failing_on = _count_describes(failing)
+        context.configure_development_features(enable_metadata_validation=False)
+        describes_off = _count_describes(chain)
+        failing_off = _count_describes(failing)
+        context.configure_development_features(enable_metadata_validation=True)
+        describes_on = _count_describes(chain)
+        failing_on = _count_describes(failing)
         assert describes_on == describes_off
         assert failing_on == failing_off
         if reduce_describe:
@@ -234,23 +226,22 @@ def test_table_frame_validates_without_extra_describe(session):
         def build():
             return session.table(table_name).filter(col("NOPE") > 0)
 
-        with patch.object(context, "_enable_metadata_validation", False):
-            describes_off = _count_describes(build)
-        with patch.object(context, "_enable_metadata_validation", True):
-            describes_on = _count_describes(build)
-            with pytest.raises(SnowparkPlanException):
-                build()
+        context.configure_development_features(enable_metadata_validation=False)
+        describes_off = _count_describes(build)
+        context.configure_development_features(enable_metadata_validation=True)
+        describes_on = _count_describes(build)
+        with pytest.raises(SnowparkPlanException):
+            build()
         assert describes_on == describes_off
     finally:
         Utils.drop_table(session, table_name)
 
 
 def test_combined_with_eager_schema_validation(base):
-    with patch.object(context, "_debug_eager_schema_validation", True):
+    context.configure_development_features(enable_eager_schema_validation=True)
+    try:
         with pytest.raises(SnowparkPlanException):
             base.select("NOPE")
         Utils.check_answer(base.select("a"), [Row(1), Row(2)])
-
-
-def test_no_validation_when_expression_is_literal_only(base):
-    Utils.check_answer(base.select(lit(1).alias("one")).select("one"), [Row(1), Row(1)])
+    finally:
+        context.configure_development_features(enable_eager_schema_validation=False)

@@ -8,7 +8,6 @@ from typing import (
     AbstractSet,
     DefaultDict,
     Dict,
-    Iterable,
     List,
     Optional,
     Union,
@@ -38,6 +37,7 @@ from snowflake.snowpark._internal.utils import ExprAliasUpdateDict
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+    from snowflake.snowpark._internal.analyzer.select_statement import ColumnStateDict
 
 
 class DescribeQueryTelemetryField(Enum):
@@ -133,44 +133,32 @@ def find_missing_column(
     return None
 
 
-def _is_plain_column(expr: Expression) -> bool:
-    return isinstance(expr, Attribute) or (
-        isinstance(expr, UnresolvedAttribute) and not expr.is_sql_text
-    )
-
-
-def _raise_invalid_identifier(name: str, known_columns: Iterable[str]) -> None:
-    from snowflake.snowpark._internal.debug_utils import get_existing_identifiers_hint
-
-    hint = get_existing_identifiers_hint(name.strip('"'), list(known_columns))
-    raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name, hint)
-
-
 def validate_projection_columns(
     cols: List[Expression],
-    known_columns: Optional[AbstractSet[str]],
+    column_states: Optional["ColumnStateDict"],
     analyzer: "Analyzer",
     df_aliased_col_name_to_real_col_name: Union[
         DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
     ],
-    ordered_known_columns: Optional[Iterable[str]] = None,
 ) -> None:
     """
-    Raises SnowparkPlanException if a projection references a column that is not in
-    `known_columns`. Does nothing when the check can't be made with certainty.
+    Raises SnowparkPlanException if a projection references a column that is not in the
+    active columns of `column_states`. Does nothing when the check can't be made with certainty.
     """
     from snowflake.snowpark._internal.analyzer.select_statement import (
         parse_column_name,
     )
+    from snowflake.snowpark._internal.debug_utils import get_existing_identifiers_hint
     from snowflake.snowpark._internal.utils import quote_name
 
-    if known_columns is None or df_aliased_col_name_to_real_col_name:
+    if column_states is None or df_aliased_col_name_to_real_col_name:
         return
     # Names of computed or aliased columns can be referenced by other columns of the same select.
     produced_by: List[Optional[str]] = []
     for c in cols:
-        if _is_plain_column(c) or (
-            isinstance(c, UnresolvedAlias) and _is_plain_column(c.child)
+        child = c.child if isinstance(c, UnresolvedAlias) else c
+        if isinstance(child, Attribute) or (
+            isinstance(child, UnresolvedAttribute) and not child.is_sql_text
         ):
             produced_by.append(None)
             continue
@@ -179,36 +167,42 @@ def validate_projection_columns(
     for i, c in enumerate(cols):
         produced = {n for j, n in enumerate(produced_by) if j != i and n is not None}
         missing = find_missing_column(
-            derive_dependent_columns(c), known_columns, produced
+            derive_dependent_columns(c), column_states.active_columns, produced
         )
         if missing is not None:
-            _raise_invalid_identifier(
-                missing,
-                known_columns
-                if ordered_known_columns is None
-                else ordered_known_columns,
+            hint = get_existing_identifiers_hint(
+                missing.strip('"'), [attr.name for attr in column_states.projection]
+            )
+            raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(
+                missing, hint
             )
 
 
 def validate_clause_columns(
     exprs: List[Expression],
-    known_columns: Optional[AbstractSet[str]],
+    column_states: Optional["ColumnStateDict"],
     df_aliased_col_name_to_real_col_name: Union[
         DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
     ],
-    ordered_known_columns: Optional[Iterable[str]] = None,
 ) -> None:
     """
     Raises SnowparkPlanException if a filter or sort expression references a column that is
-    not in `known_columns`. Does nothing when the check can't be made with certainty.
+    not in `column_states`. Dropped columns are accepted because the clause may be flattened
+    into the same select. Does nothing when the check can't be made with certainty.
     """
-    if known_columns is None or df_aliased_col_name_to_real_col_name:
+    from snowflake.snowpark._internal.debug_utils import get_existing_identifiers_hint
+
+    if column_states is None or df_aliased_col_name_to_real_col_name:
         return
-    missing = find_missing_column(derive_dependent_columns(*exprs), known_columns)
+    missing = find_missing_column(
+        derive_dependent_columns(*exprs), set(column_states.keys())
+    )
     if missing is not None:
-        _raise_invalid_identifier(
-            missing,
-            known_columns if ordered_known_columns is None else ordered_known_columns,
+        hint = get_existing_identifiers_hint(
+            missing.strip('"'), [attr.name for attr in column_states.projection]
+        )
+        raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(
+            missing, hint
         )
 
 
