@@ -6,6 +6,7 @@
 
 #### New Features
 
+- Added `Session.eager_schema_validation` (experimental) to turn eager schema validation on or off for a session with `enable()`, `disable()` or a `with` block, or with the environment variable `SNOWPARK_EAGER_SCHEMA_VALIDATION`. Added `Session.debug` (experimental) with `enable_all()` and `disable_all()` to turn eager schema validation and the tracing features of `context.configure_development_features` on or off together. The setting made by `configure_development_features(enable_eager_schema_validation=...)` is used when a session has no setting of its own.
 - Added `DataFrameReader.documents` (private preview) to read documents from a stage: parse them to text, or extract structured values with a `schema` and/or a `prompt` option. Long documents are split across several model calls automatically. Schema reads also return an `EXTRACTION_SCORES` column with a model-reported confidence score (0 to 1) for each top-level field.
 
 #### Improvements

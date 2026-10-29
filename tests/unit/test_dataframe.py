@@ -119,6 +119,7 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
         return name
 
     fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
+    fake_session.eager_schema_validation.enabled = False
     fake_session.sql_simplifier_enabled = sql_simplifier_enabled
     fake_session._cte_optimization_enabled = False
     fake_session._query_compilation_stage_enabled = False
@@ -151,6 +152,7 @@ def _create_fake_session(sql_simplifier_enabled=True):
         return name
 
     fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
+    fake_session.eager_schema_validation.enabled = False
     fake_session.sql_simplifier_enabled = sql_simplifier_enabled
     fake_session._cte_optimization_enabled = False
     fake_session._query_compilation_stage_enabled = False
@@ -239,6 +241,7 @@ def test_select_negative():
     AST_ENABLED = False
     set_ast_state(AstFlagSource.TEST, AST_ENABLED)
     fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
+    fake_session.eager_schema_validation.enabled = False
     fake_session.ast_enabled = AST_ENABLED
     fake_session._analyzer = mock.MagicMock()
     fake_session._ast_batch = mock.create_autospec(AstBatch)
@@ -411,6 +414,7 @@ def test_dataFrame_printSchema(capfd, mock_server_connection):
 
 def test_session():
     fake_session = mock.create_autospec(Session, _session_id=123456)
+    fake_session.eager_schema_validation.enabled = False
     fake_session._analyzer = mock.Mock()
     df = DataFrame(fake_session)
 

@@ -206,6 +206,7 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
 from snowflake.snowpark.dataframe_profiler import DataframeProfiler
+from snowflake.snowpark.debug_mode import DebugMode, EagerSchemaValidation
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -905,6 +906,8 @@ class Session:
         self._sp_profiler = StoredProcedureProfiler(session=self)
         self._udf_profiler = UDFProfiler(session=self)
         self._dataframe_profiler = DataframeProfiler(session=self)
+        self._eager_schema_validation = EagerSchemaValidation(session=self)
+        self._debug = DebugMode(session=self)
         self._catalog = None
         self._client_telemetry = EventTableTelemetry(session=self)
 
@@ -4723,6 +4726,29 @@ class Session:
         See details of how to use this object in :class:`dataframe_profiler.DataframeProfiler`.
         """
         return self._dataframe_profiler
+
+    @property
+    def eager_schema_validation(self) -> EagerSchemaValidation:
+        """
+        Returns an :class:`debug_mode.EagerSchemaValidation` object that controls eager schema
+        validation for this session. It is disabled by default. Use ``enable()`` and ``disable()``,
+        or a ``with`` block, or set the environment variable ``SNOWPARK_EAGER_SCHEMA_VALIDATION``
+        to ``true`` before creating the session.
+
+        This feature is experimental. Do not use it in production.
+        """
+        return self._eager_schema_validation
+
+    @property
+    def debug(self) -> DebugMode:
+        """
+        Returns a :class:`debug_mode.DebugMode` object that turns eager schema validation and the
+        tracing features of ``configure_development_features`` on or off together with
+        ``enable_all()`` and ``disable_all()``.
+
+        This feature is experimental. Do not use it in production.
+        """
+        return self._debug
 
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
