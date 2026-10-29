@@ -11,9 +11,11 @@ import snowflake.snowpark.context as context
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
+    cast,
     col,
     sum,
 )
+from snowflake.snowpark.types import IntegerType
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.window import Window
 from tests.utils import Utils
@@ -552,3 +554,54 @@ def test_existing_view_with_all_dataframe_methods(session, view_method):
     ), f"Expected object reference not found in debug context for {view_method}: {ex.value.debug_context}"
 
     Utils.drop_view(session, view_name)
+
+
+def test_line_less_invalid_identifier_points_to_renaming_operation(session):
+    df = session.create_dataframe(
+        [("cat", "1"), ("dog", "1")], schema=["object", "type"]
+    )
+    lookup = session.create_dataframe([(1, "Animal")], schema=["type", "category"])
+    # the cast is not aliased, so the select renames TYPE
+    normalized = df.select("OBJECT", cast(df.TYPE, IntegerType()))
+    normalized_line = Utils.get_current_line_number_sys() - 1
+    filtered = normalized.where(col("TYPE") < 3)
+    filtered_line = Utils.get_current_line_number_sys() - 1
+    joined = filtered.join(lookup, on="TYPE")
+    with pytest.raises(SnowparkSQLException) as ex:
+        joined.collect()
+    assert "error line" not in str(ex.value)
+    assert 'Column "TYPE" was dropped or renamed by' in ex.value.debug_context
+    # the select and the filter that were flattened into it, not the line creating the dataframe
+    assert f"line {normalized_line}" in ex.value.debug_context
+    assert f"line {filtered_line}" in ex.value.debug_context
+    assert ex.value.debug_context.count(": line ") == 2
+
+
+def test_line_less_invalid_identifier_after_drop(session):
+    df = session.create_dataframe([(1, "a")], schema=["id", "name"])
+    other = session.create_dataframe([(1, "b")], schema=["id", "other"])
+    dropped = df.drop("ID")
+    dropped_line = Utils.get_current_line_number_sys() - 1
+    with pytest.raises(SnowparkSQLException) as ex:
+        dropped.join(other, on="ID").collect()
+    assert 'Column "ID" was dropped or renamed by' in ex.value.debug_context
+    assert f"line {dropped_line}" in ex.value.debug_context
+
+
+def test_line_less_invalid_identifier_falls_back_to_lineage_trace(session):
+    df = session.create_dataframe([(1, "a")], schema=["id", "name"])
+    other = session.create_dataframe([(1, "b")], schema=["id", "other"])
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.join(other, on="NOPE").collect()
+    # no operation ever had the column, so the lineage trace is the best answer
+    assert "dropped or renamed" not in ex.value.debug_context
+    assert "Trace of the most recent dataframe operations" in ex.value.debug_context
+
+
+def test_line_less_invalid_identifier_without_trace_flag_has_no_context(session):
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
+    df = session.create_dataframe([(1, "a")], schema=["id", "name"])
+    other = session.create_dataframe([(1, "b")], schema=["id", "other"])
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.drop("ID").join(other, on="ID").collect()
+    assert "dropped or renamed" not in str(ex.value)
