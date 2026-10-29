@@ -209,7 +209,7 @@ class SnowflakePlan(LogicalPlan):
                             and top_plan is not None
                             and _enable_trace_sql_errors_to_dataframe
                         )
-                        if line_less_invalid_identifier:
+                        if line_less_invalid_identifier and top_plan is not None:
                             if identifier_context := get_invalid_identifier_context(
                                 top_plan, e.msg
                             ):
