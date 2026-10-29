@@ -783,12 +783,7 @@ class Analyzer:
             expr_str = self.analyze(
                 child, df_aliased_col_name_to_real_col_name, parse_local_name
             )
-            # The server preserves the case of a plain column reference, so only
-            # generated names of computed expressions are upper-cased.
-            is_plain_column = isinstance(
-                child, (Attribute, UnresolvedAttribute)
-            ) and not getattr(child, "is_sql_text", False)
-            if parse_local_name and not is_plain_column:
+            if parse_local_name:
                 expr_str = expr_str.upper()
             return expr_str
         elif isinstance(expr, Cast):
