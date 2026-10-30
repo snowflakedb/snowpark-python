@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import re
 from enum import Enum
 from dataclasses import dataclass
 from typing import (
@@ -129,6 +130,8 @@ def find_missing_column(
             continue
         if "." in name or "$" in name or "*" in name:
             return None
+        if _is_ambiguous_join_column(name, known_columns):
+            return None
         return name
     return None
 
@@ -141,13 +144,36 @@ def _references_aliased_attribute(
     if not expr_to_alias:
         return False
     stack = [expr]
+    seen = set()
     while stack:
         node = stack.pop()
-        if node is None:
+        if node is None or id(node) in seen:
             continue
+        seen.add(id(node))
         if isinstance(node, Attribute) and node.expr_id in expr_to_alias:
             return True
-        stack.extend(getattr(node, "children", None) or [])
+        # Not every expression lists its inputs in `children` (e.g. window functions),
+        # so look at all expression-valued attributes.
+        for value in vars(node).values():
+            if isinstance(value, Expression):
+                stack.append(value)
+            elif isinstance(value, (list, tuple)):
+                stack.extend(v for v in value if isinstance(v, Expression))
+    return False
+
+
+# Join sides with the same column names are renamed to e.g. "l_ab12_ID" / "r_cd34_ID".
+_JOIN_RENAMED_COLUMN = re.compile(r'^"?[a-zA-Z]_[a-zA-Z0-9]{4}_(.*?)"?$')
+
+
+def _is_ambiguous_join_column(name: str, known_columns: AbstractSet[str]) -> bool:
+    """True if `name` is only missing because the join renamed its same-named columns.
+    The server reports that as an ambiguous join, which is more helpful than a missing column."""
+    bare = name.strip('"')
+    for known in known_columns:
+        match = _JOIN_RENAMED_COLUMN.match(known)
+        if match and match.group(1) == bare:
+            return True
     return False
 
 

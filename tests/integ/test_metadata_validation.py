@@ -9,8 +9,13 @@ import pytest
 import snowflake.snowpark.context as context
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-from snowflake.snowpark.exceptions import SnowparkPlanException, SnowparkSQLException
-from snowflake.snowpark.functions import col
+from snowflake.snowpark import Window
+from snowflake.snowpark.exceptions import (
+    SnowparkPlanException,
+    SnowparkSQLAmbiguousJoinException,
+    SnowparkSQLException,
+)
+from snowflake.snowpark.functions import col, row_number
 from tests.utils import Utils
 
 pytestmark = [
@@ -155,6 +160,27 @@ def test_same_name_join_columns_are_not_rejected(session):
     )
     assert joined.filter(df1["v"] == "x").count() == 1
     assert joined.sort(df2["v"]).count() == 1
+
+
+def test_join_edge_cases_keep_server_behavior(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df1 = session.create_dataframe([(1, "x", 10)], schema=["id", "v", "n"])
+    df2 = session.create_dataframe([(1, "y", 20)], schema=["id", "v", "n"])
+    joined = df1.join(df2, df1["id"] == df2["id"])
+    # DataFrame columns referenced inside a window specification
+    windowed = joined.select(
+        df1["v"], row_number().over(Window.order_by(df2["n"])).alias("r")
+    ).filter(col("r") == 1)
+    assert windowed.count() == 1
+    # A name that only exists as a renamed join column is an ambiguous join, as the server reports
+    for op in (
+        lambda: joined.select("v"),
+        lambda: joined.filter(col("id") == 1),
+        lambda: joined.sort("id"),
+    ):
+        with pytest.raises(SnowparkSQLAmbiguousJoinException):
+            op().collect()
 
 
 def test_simplifier_disabled_is_noop(session):
