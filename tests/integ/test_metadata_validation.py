@@ -144,6 +144,19 @@ def test_join_and_aliased_dataframes_are_not_validated(session):
     Utils.check_answer(aliased.select(col("l", "v1"), col("r", "v2")), [Row("x", "y")])
 
 
+def test_same_name_join_columns_are_not_rejected(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df1 = session.create_dataframe([(1, "x")], schema=["id", "v"])
+    df2 = session.create_dataframe([(1, "y")], schema=["id", "v"])
+    joined = df1.join(df2, df1["id"] == df2["id"])
+    Utils.check_answer(
+        joined.select(df1["v"], df2["v"]).to_df("a", "b"), [Row("x", "y")]
+    )
+    assert joined.filter(df1["v"] == "x").count() == 1
+    assert joined.sort(df2["v"]).count() == 1
+
+
 def test_simplifier_disabled_is_noop(session):
     original = session.sql_simplifier_enabled
     session.sql_simplifier_enabled = False
