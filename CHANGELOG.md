@@ -11,7 +11,7 @@
 #### Improvements
 
 - `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them. Turning the tracing features off now also turns off the AST collection if the features enabled it.
-- Added debuggability improvements to raise `SnowparkPlanException` at the line of `select`, `with_column(s)`, `filter` and `sort` when they reference a column that is missing from the column names the client already holds, without sending extra queries. Enable it using `snowflake.snowpark.context.configure_development_features(enable_metadata_validation=True)`.
+- With `context.configure_development_features(enable_metadata_validation=True)`, `select`, `with_column(s)`, `filter` and `sort` raise `SnowparkPlanException` on a missing column without sending a query.
 - Eager schema validation (`context.configure_development_features(enable_eager_schema_validation=True)`) now raises invalid column references in `DataFrame.filter` and `DataFrame.sort` when the DataFrame is created.
 
 #### Bug Fixes
