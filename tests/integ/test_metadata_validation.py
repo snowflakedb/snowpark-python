@@ -2,20 +2,24 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
 import snowflake.snowpark.context as context
-from snowflake.snowpark import Row
+from snowflake.snowpark import Row, Window
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-from snowflake.snowpark import Window
-from snowflake.snowpark.exceptions import (
-    SnowparkPlanException,
-    SnowparkSQLAmbiguousJoinException,
-    SnowparkSQLException,
+from snowflake.snowpark.exceptions import SnowparkPlanException, SnowparkSQLException
+from snowflake.snowpark.functions import (
+    col,
+    count,
+    lit,
+    parse_json,
+    row_number,
+    sql_expr,
+    sum as sum_,
 )
-from snowflake.snowpark.functions import col, row_number
 from tests.utils import Utils
 
 pytestmark = [
@@ -72,10 +76,13 @@ def test_missing_column_raises_at_construction(base, op, derived):
 def test_error_suggests_case_sensitive_match(session):
     if not session.sql_simplifier_enabled:
         pytest.skip("SQL simplifier must be enabled for this test")
-    df = session.sql('select 1 as "abc", 2 as "def"')
+    df = session.sql('select 1 as "abc", 2 as "Mixed"')
     with pytest.raises(SnowparkPlanException) as ex_info:
         df.select("ABC")
     assert "Do you mean '\"abc\"'?" in str(ex_info.value)
+    # quoted names are case sensitive
+    with pytest.raises(SnowparkPlanException):
+        df.select('"mixed"')
 
 
 # one operation per kind: select, with_column, filter, sort
@@ -87,100 +94,140 @@ def test_disabled_flag_keeps_server_error(base, op):
         df.collect()
 
 
-@pytest.mark.parametrize(
-    "op, expected",
-    [
-        pytest.param(
-            lambda df: df.select("a", "b"), [Row(1, "x"), Row(2, "y")], id="select"
-        ),
-        pytest.param(lambda df: df.select("*"), [Row(1, "x"), Row(2, "y")], id="star"),
-        pytest.param(
-            lambda df: df.with_column("a", col("a") + 10).select("a"),
-            [Row(11), Row(12)],
-            id="with_column_replace",
-        ),
-        pytest.param(
-            lambda df: df.filter(col("a") > 1), [Row(2, "y")], id="filter_valid"
-        ),
-        pytest.param(
-            # the dropped column is still visible to the flattened WHERE
-            lambda df: df.select("a").filter(col("b") == "y"),
-            [Row(2)],
-            id="filter_on_dropped_column",
-        ),
-        pytest.param(
-            lambda df: df.select(col("a").alias("z")).sort("z"),
-            [Row(1), Row(2)],
-            id="sort_on_alias",
-        ),
-        pytest.param(
-            lambda df: df.select_expr("a + 1 as c"),
-            [Row(2), Row(3)],
-            id="select_expr_not_validated",
-        ),
-    ],
-)
-def test_valid_operations_do_not_raise(base, op, expected):
-    Utils.check_answer(op(base), expected)
-
-
-def test_quoted_mixed_case_names_are_not_rejected(session):
+@pytest.fixture
+def frames(session):
     if not session.sql_simplifier_enabled:
         pytest.skip("SQL simplifier must be enabled for this test")
-    df = session.sql('select 1 as "Mixed", 2 as x')
-    grouped = df.group_by('"Mixed"').count()
-    Utils.check_answer(grouped.select('"Mixed"'), [Row(1)])
-    Utils.check_answer(grouped.filter(col('"Mixed"') > 0).select("COUNT"), [Row(1)])
-    with pytest.raises(SnowparkPlanException):
-        df.select('"mixed"')
-
-
-def test_join_and_aliased_dataframes_are_not_validated(session):
-    if not session.sql_simplifier_enabled:
-        pytest.skip("SQL simplifier must be enabled for this test")
-    df1 = session.create_dataframe([(1, "x")], schema=["id", "v1"])
-    df2 = session.create_dataframe([(1, "y")], schema=["id", "v2"])
-    joined = df1.join(df2, on="id")
-    Utils.check_answer(joined.select("id", "v1", "v2"), [Row(1, "x", "y")])
-
-    a1 = df1.alias("l")
-    a2 = df2.alias("r")
-    aliased = a1.join(a2, col("l", "id") == col("r", "id"))
-    Utils.check_answer(aliased.select(col("l", "v1"), col("r", "v2")), [Row("x", "y")])
-
-
-def test_same_name_join_columns_are_not_rejected(session):
-    if not session.sql_simplifier_enabled:
-        pytest.skip("SQL simplifier must be enabled for this test")
-    df1 = session.create_dataframe([(1, "x")], schema=["id", "v"])
-    df2 = session.create_dataframe([(1, "y")], schema=["id", "v"])
-    joined = df1.join(df2, df1["id"] == df2["id"])
-    Utils.check_answer(
-        joined.select(df1["v"], df2["v"]).to_df("a", "b"), [Row("x", "y")]
+    d1 = session.create_dataframe([(1, "x", 10), (2, "y", 20)], schema=["id", "v", "n"])
+    d2 = session.create_dataframe([(1, "p", 30), (2, "q", 40)], schema=["id", "v", "n"])
+    d3 = session.create_dataframe([(1, "z", 50)], schema=["id", "v", "n"])
+    return SimpleNamespace(
+        session=session,
+        d1=d1,
+        d2=d2,
+        d3=d3,
+        j=d1.join(d2, d1["id"] == d2["id"]),
+        mixed=session.sql('select 1 as "Mixed", 2 as x'),
     )
-    assert joined.filter(df1["v"] == "x").count() == 1
-    assert joined.sort(df2["v"]).count() == 1
 
 
-def test_join_edge_cases_keep_server_behavior(session):
-    if not session.sql_simplifier_enabled:
-        pytest.skip("SQL simplifier must be enabled for this test")
-    df1 = session.create_dataframe([(1, "x", 10)], schema=["id", "v", "n"])
-    df2 = session.create_dataframe([(1, "y", 20)], schema=["id", "v", "n"])
-    joined = df1.join(df2, df1["id"] == df2["id"])
-    # DataFrame columns referenced inside a window specification
-    windowed = joined.select(
-        df1["v"], row_number().over(Window.order_by(df2["n"])).alias("r")
-    ).filter(col("r") == 1)
-    assert windowed.count() == 1
-    # A name that only exists as a renamed join column is an ambiguous join, as the server reports
-    for op in (
-        lambda: joined.select("v"),
-        lambda: joined.filter(col("id") == 1),
-        lambda: joined.sort("id"),
-    ):
-        with pytest.raises(SnowparkSQLAmbiguousJoinException):
-            op().collect()
+# Operations that are valid or fail on the server. The flag must not change their outcome, so
+# each is run with it off and on. A name only the join renamed stays a server-side ambiguous-join
+# error. Missing columns are the only intended difference and are covered separately.
+UNCHANGED_OPS = {
+    "select": lambda f: f.d1.select("id", "v"),
+    "select_star": lambda f: f.d1.select("*").filter(col("n") > 10),
+    "select_expr": lambda f: f.d1.select_expr("n + 1 as c").filter(sql_expr("c > 11")),
+    "select_dollar": lambda f: f.d1.select(col("$1")),
+    "lateral_alias": lambda f: f.d1.select((col("n") + 1).alias("x"), col("x") + 1),
+    "with_column_replace": lambda f: f.d1.with_column("n", col("n") + 1).select("n"),
+    "with_columns_chain": lambda f: f.d1.with_column("c", col("n") + 1)
+    .with_column("d", col("c") + 1)
+    .filter(col("d") > 0)
+    .sort("d"),
+    "filter_dropped_column": lambda f: f.d1.select("id").filter(col("v") == "y"),
+    "sort_alias": lambda f: f.d1.select(col("n").alias("z")).sort("z"),
+    "sort_dropped_column": lambda f: f.d1.select("id").sort("n"),
+    "rename_then_filter": lambda f: f.d1.with_column_renamed("n", "z").filter(
+        col("z") > 0
+    ),
+    "drop_then_filter": lambda f: f.d1.drop("v").filter(col("n") > 0).sort("id"),
+    "to_df": lambda f: f.d1.to_df("a", "b", "c").select("a", "c").filter(col("c") > 0),
+    "lower_case_names": lambda f: f.d1.select("id", "v")
+    .filter(col("id") > 0)
+    .sort("v"),
+    "quoted_mixed_case": lambda f: f.mixed.group_by('"Mixed"')
+    .count()
+    .filter(col('"Mixed"') > 0)
+    .select('"Mixed"', "COUNT"),
+    "variant_path": lambda f: f.session.sql("select parse_json('{\"k\":1}') as V")
+    .select(col("V")["k"])
+    .filter(col("V")["k"] > 0),
+    "group_by_agg": lambda f: f.d1.group_by("id")
+    .agg(sum_("n").alias("s"))
+    .select("s")
+    .filter(col("s") > 0),
+    "window": lambda f: f.d1.select(
+        "id", row_number().over(Window.order_by("n")).alias("r")
+    ).filter(col("r") == 1),
+    "union": lambda f: f.d1.union(f.d1).select("id").filter(col("id") > 0),
+    "pivot": lambda f: f.d1.pivot("v", ["x", "y"]).sum("n").select("id").sort("id"),
+    "table_function": lambda f: f.d1.join_table_function(
+        "flatten", parse_json(lit("[1,2]"))
+    )
+    .select("id", "VALUE")
+    .filter(col("VALUE") > 0),
+    "join_using": lambda f: f.d1.join(f.d2.select("id", "n"), "id").select("id", "v"),
+    "join_lsuffix": lambda f: f.d1.join(
+        f.d2, f.d1["id"] == f.d2["id"], lsuffix="_l", rsuffix="_r"
+    )
+    .select("V_L", "V_R")
+    .filter(col("V_L") == "x"),
+    "natural_join": lambda f: f.d1.natural_join(f.d3).filter(col("id") == 1),
+    "cross_join": lambda f: f.d1.cross_join(f.d3.select(col("n").alias("m")))
+    .select("v", "m")
+    .filter(col("m") > 0),
+    "join_then_agg_then_join": lambda f: f.d1.group_by("id")
+    .agg(count("*").alias("c"))
+    .join(f.d2.select("id", "n"), "id")
+    .select("id", "c", "n")
+    .filter(col("c") > 0),
+    "same_name_join_select": lambda f: f.j.select(f.d1["v"], f.d2["v"]).filter(
+        f.d1["v"] == "x"
+    ),
+    "same_name_join_clauses": lambda f: f.j.filter(f.d1["v"] == "x").sort(f.d2["v"]),
+    "same_name_join_with_column": lambda f: f.j.with_column(
+        "z", f.d1["n"] + f.d2["n"]
+    ).filter(f.d2["n"] > 0),
+    "same_name_join_alias": lambda f: f.j.select(f.d1["v"].alias("a")).filter(
+        col("a") == "x"
+    ),
+    "same_name_join_group_by": lambda f: f.j.group_by(f.d1["v"])
+    .agg(sum_(f.d2["n"]).alias("s"))
+    .filter(col("s") > 0),
+    "same_name_join_window": lambda f: f.j.select(
+        f.d1["v"], row_number().over(Window.order_by(f.d2["n"])).alias("r")
+    ).filter(col("r") == 1),
+    "same_name_join_drop": lambda f: f.j.drop(f.d1["v"]).select(f.d2["v"]),
+    "same_name_join_renamed_column": lambda f: f.j.with_column_renamed(
+        f.d1["v"], "VV"
+    ).select("VV"),
+    "three_way_join": lambda f: f.j.join(f.d3, f.d1["id"] == f.d3["id"])
+    .select(f.d1["v"], f.d2["v"], f.d3["v"])
+    .filter(f.d3["v"] == "z"),
+    "union_of_joins": lambda f: f.j.select(f.d1["v"].alias("V"))
+    .union_all(f.j.select(f.d2["v"].alias("V")))
+    .filter(col("V") == "x"),
+    "parent_column_after_select": lambda f: f.d1.select(
+        (col("n") + 1).alias("m")
+    ).filter(f.d1["n"] > 0),
+    "aliased_dataframes": lambda f: f.d1.alias("l")
+    .join(f.d2.alias("r"), col("l", "id") == col("r", "id"))
+    .select(col("l", "v"), col("r", "v")),
+    "ambiguous_join_select": lambda f: f.j.select("v"),
+    "ambiguous_join_filter": lambda f: f.j.filter(col("id") == 1),
+    "ambiguous_join_sort": lambda f: f.j.sort("id"),
+}
+
+
+def _outcome(build, frames):
+    try:
+        return "ok", sorted(str(row) for row in build(frames).collect())
+    except Exception as ex:
+        return "error", type(ex).__name__
+
+
+@pytest.mark.parametrize("name", UNCHANGED_OPS)
+def test_flag_does_not_change_outcome(frames, name):
+    build = UNCHANGED_OPS[name]
+    context.configure_development_features(enable_metadata_validation=False)
+    expected = _outcome(build, frames)
+    context.configure_development_features(enable_metadata_validation=True)
+    assert _outcome(build, frames) == expected
+    if name.startswith("ambiguous_join"):
+        assert expected == ("error", "SnowparkSQLAmbiguousJoinException")
+    else:
+        assert expected[0] == "ok"
 
 
 def test_simplifier_disabled_is_noop(session):
