@@ -133,6 +133,24 @@ def find_missing_column(
     return None
 
 
+def _references_aliased_attribute(
+    expr: Optional[Expression], expr_to_alias: Optional[Dict]
+) -> bool:
+    """True if `expr` has an Attribute that the analyzer renames through `expr_to_alias`,
+    such as a column of a join side, whose stored name differs from the Attribute's name."""
+    if not expr_to_alias:
+        return False
+    stack = [expr]
+    while stack:
+        node = stack.pop()
+        if node is None:
+            continue
+        if isinstance(node, Attribute) and node.expr_id in expr_to_alias:
+            return True
+        stack.extend(getattr(node, "children", None) or [])
+    return False
+
+
 def validate_projection_columns(
     cols: List[Expression],
     column_states: Optional["ColumnStateDict"],
@@ -140,6 +158,7 @@ def validate_projection_columns(
     df_aliased_col_name_to_real_col_name: Union[
         DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
     ],
+    expr_to_alias: Optional[Dict] = None,
 ) -> None:
     """
     Raises SnowparkPlanException if a projection references a column that is not in the
@@ -165,6 +184,8 @@ def validate_projection_columns(
         name = parse_column_name(c, analyzer, df_aliased_col_name_to_real_col_name)
         produced_by.append(None if name is None else quote_name(name))
     for i, c in enumerate(cols):
+        if _references_aliased_attribute(c, expr_to_alias):
+            continue
         produced = {n for j, n in enumerate(produced_by) if j != i and n is not None}
         missing = find_missing_column(
             derive_dependent_columns(c), column_states.active_columns, produced
@@ -181,6 +202,7 @@ def validate_projection_columns(
 def validate_clause_columns(
     exprs: List[Expression],
     column_states: Optional["ColumnStateDict"],
+    expr_to_alias: Optional[Dict] = None,
 ) -> None:
     """
     Raises SnowparkPlanException if a filter or sort expression references a column that is
@@ -190,7 +212,9 @@ def validate_clause_columns(
     """
     from snowflake.snowpark._internal.debug_utils import get_existing_identifiers_hint
 
-    if column_states is None:
+    if column_states is None or any(
+        _references_aliased_attribute(e, expr_to_alias) for e in exprs
+    ):
         return
     missing = find_missing_column(
         derive_dependent_columns(*exprs), set(column_states.keys())

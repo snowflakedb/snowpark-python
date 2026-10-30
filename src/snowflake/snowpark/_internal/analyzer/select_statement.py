@@ -1422,6 +1422,7 @@ class SelectStatement(Selectable):
                 self._column_states,
                 self.analyzer,
                 self.df_aliased_col_name_to_real_col_name,
+                self.expr_to_alias,
             )
         if new_column_states is None:
             can_be_flattened = False
@@ -1716,7 +1717,7 @@ class SelectStatement(Selectable):
             context._enable_metadata_validation
             and not self.df_aliased_col_name_to_real_col_name
         ):
-            validate_clause_columns([col], self._column_states)
+            validate_clause_columns([col], self._column_states, self.expr_to_alias)
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
@@ -1757,7 +1758,7 @@ class SelectStatement(Selectable):
             context._enable_metadata_validation
             and not self.df_aliased_col_name_to_real_col_name
         ):
-            validate_clause_columns(cols, self._column_states)
+            validate_clause_columns(cols, self._column_states, self.expr_to_alias)
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
