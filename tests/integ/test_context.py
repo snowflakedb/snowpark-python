@@ -23,6 +23,7 @@ def test_context_configure_development_features():
             assert context._enable_trace_sql_errors_to_dataframe is True
             assert context._enable_dataframe_trace_on_error is False
             assert context._debug_eager_schema_validation is False
+            assert context._enable_metadata_validation is False
 
         # Test when _get_active_sessions() returns a valid session
         mock_session1 = mock.MagicMock()
@@ -41,10 +42,13 @@ def test_context_configure_development_features():
             mock_session1._set_ast_enabled_internal.assert_called_once_with(True)
             mock_session2._set_ast_enabled_internal.assert_called_once_with(True)
 
+        context.configure_development_features(enable_metadata_validation=True)
+        assert context._enable_metadata_validation is True
     finally:
         # a call without arguments turns every development feature off
         context.configure_development_features()
         assert context._enable_trace_sql_errors_to_dataframe is False
+        assert context._enable_metadata_validation is False
 
 
 def test_development_features_restore_session_settings_when_turned_off(session):

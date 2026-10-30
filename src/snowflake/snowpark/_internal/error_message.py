@@ -266,8 +266,13 @@ class SnowparkClientExceptionMessages:
     # Plan Analysis error codes 02XX
 
     @staticmethod
-    def PLAN_ANALYZER_INVALID_IDENTIFIER(name: str) -> SnowparkPlanException:
-        return SnowparkPlanException(f"Invalid identifier {name}", error_code="1200")
+    def PLAN_ANALYZER_INVALID_IDENTIFIER(
+        name: str, hint: Optional[str] = None
+    ) -> SnowparkPlanException:
+        message = f"Invalid identifier {name}"
+        if hint:
+            message = f"{message}\n{hint}"
+        return SnowparkPlanException(message, error_code="1200")
 
     @staticmethod
     def PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(

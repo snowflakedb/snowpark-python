@@ -87,6 +87,10 @@ from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
     is_sql_select_statement,
 )
+from snowflake.snowpark._internal.analyzer.metadata_utils import (
+    validate_clause_columns,
+    validate_projection_columns,
+)
 import snowflake.snowpark.context as context
 
 from collections.abc import Iterable
@@ -1412,6 +1416,14 @@ class SelectStatement(Selectable):
             return new
         disable_next_level_flatten = False
         new_column_states = derive_column_states_from_subquery(cols, self)
+        if context._enable_metadata_validation:
+            validate_projection_columns(
+                cols,
+                self._column_states,
+                self.analyzer,
+                self.df_aliased_col_name_to_real_col_name,
+                self.expr_to_alias,
+            )
         if new_column_states is None:
             can_be_flattened = False
             disable_next_level_flatten = True
@@ -1701,6 +1713,11 @@ class SelectStatement(Selectable):
             )  # sum(col) as new_col, new_col can not be flattened in where clause
             and not (self.order_by and self.limit_ is not None)
         )
+        if (
+            context._enable_metadata_validation
+            and not self.df_aliased_col_name_to_real_col_name
+        ):
+            validate_clause_columns([col], self._column_states, self.expr_to_alias)
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
@@ -1737,6 +1754,11 @@ class SelectStatement(Selectable):
             )
             and not has_data_generator_exp(self.projection)
         )
+        if (
+            context._enable_metadata_validation
+            and not self.df_aliased_col_name_to_real_col_name
+        ):
+            validate_clause_columns(cols, self._column_states, self.expr_to_alias)
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()

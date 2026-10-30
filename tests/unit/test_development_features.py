@@ -15,6 +15,7 @@ FLAGS = {
     "enable_eager_schema_validation": "_debug_eager_schema_validation",
     "enable_dataframe_trace_on_error": "_enable_dataframe_trace_on_error",
     "enable_trace_sql_errors_to_dataframe": "_enable_trace_sql_errors_to_dataframe",
+    "enable_metadata_validation": "_enable_metadata_validation",
 }
 
 
@@ -84,10 +85,12 @@ def test_later_calls_keep_features_that_are_not_passed():
     context.configure_development_features(enable_dataframe_trace_on_error=True)
     context.configure_development_features(enable_eager_schema_validation=True)
     context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
+    context.configure_development_features(enable_metadata_validation=True)
     assert current_flags() == {
         "enable_eager_schema_validation": True,
         "enable_dataframe_trace_on_error": True,
         "enable_trace_sql_errors_to_dataframe": True,
+        "enable_metadata_validation": True,
     }
 
 
@@ -96,12 +99,14 @@ def test_passing_false_turns_off_only_that_feature():
         enable_eager_schema_validation=True,
         enable_dataframe_trace_on_error=True,
         enable_trace_sql_errors_to_dataframe=True,
+        enable_metadata_validation=True,
     )
     context.configure_development_features(enable_eager_schema_validation=False)
     assert current_flags() == {
         "enable_eager_schema_validation": False,
         "enable_dataframe_trace_on_error": True,
         "enable_trace_sql_errors_to_dataframe": True,
+        "enable_metadata_validation": True,
     }
 
 
@@ -110,6 +115,7 @@ def test_call_without_arguments_turns_everything_off():
         enable_eager_schema_validation=True,
         enable_dataframe_trace_on_error=True,
         enable_trace_sql_errors_to_dataframe=True,
+        enable_metadata_validation=True,
     )
     context.configure_development_features()
     assert not any(current_flags().values())
@@ -148,7 +154,9 @@ def test_ast_and_cleaner_stay_on_while_one_tracing_feature_is_left(sessions, ast
 def test_features_without_tracing_do_not_touch_ast_or_cleaner(sessions, ast_state):
     session = make_session()
     sessions.append(session)
-    context.configure_development_features(enable_eager_schema_validation=True)
+    context.configure_development_features(
+        enable_eager_schema_validation=True, enable_metadata_validation=True
+    )
     context.configure_development_features()
     assert ast_state["calls"] == []
     assert session._auto_clean_up_temp_table_enabled is True

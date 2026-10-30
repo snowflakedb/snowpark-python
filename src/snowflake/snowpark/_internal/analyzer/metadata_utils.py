@@ -1,17 +1,31 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import re
 from enum import Enum
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
+from typing import (
+    TYPE_CHECKING,
+    AbstractSet,
+    DefaultDict,
+    Dict,
+    List,
+    Optional,
+    Union,
+)
 from snowflake.snowpark.types import DataType
 
 from snowflake.snowpark._internal.analyzer.expression import (
+    COLUMN_DEPENDENCY_ALL,
+    COLUMN_DEPENDENCY_DOLLAR,
     Attribute,
     Expression,
     Literal,
     Star,
+    UnresolvedAttribute,
+    derive_dependent_columns,
 )
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -24,6 +38,7 @@ from snowflake.snowpark._internal.utils import ExprAliasUpdateDict
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+    from snowflake.snowpark._internal.analyzer.select_statement import ColumnStateDict
 
 
 class DescribeQueryTelemetryField(Enum):
@@ -82,6 +97,161 @@ def infer_quoted_identifiers_from_expressions(
         else:
             return None
     return result
+
+
+def find_missing_column(
+    dependent_columns: Optional[AbstractSet[str]],
+    known_columns: Optional[AbstractSet[str]],
+    produced_columns: AbstractSet[str] = frozenset(),
+) -> Optional[str]:
+    """
+    Returns the first referenced column that is missing from the known columns, or None.
+
+    The stored column names are trusted when present. This is a no-op (returns None) whenever
+    the answer is uncertain: the known names are unavailable, the referenced columns can't be
+    derived (SQL text, `*`, `$n`), or a name looks like a qualified or path reference.
+
+    Args:
+        dependent_columns: columns referenced by the expressions, from `derive_dependent_columns`.
+        known_columns: quoted names of the columns in scope, or None if not stored.
+        produced_columns: names produced by other expressions in the same projection, which
+            can be referenced at the same level (lateral alias).
+    """
+    if known_columns is None:
+        return None
+    if (
+        dependent_columns is COLUMN_DEPENDENCY_ALL
+        or dependent_columns == COLUMN_DEPENDENCY_DOLLAR
+    ):
+        return None
+    assert dependent_columns is not None
+    for name in sorted(dependent_columns):
+        if name in known_columns or name in produced_columns:
+            continue
+        if "." in name or "$" in name or "*" in name:
+            return None
+        if _is_ambiguous_join_column(name, known_columns):
+            return None
+        return name
+    return None
+
+
+def _references_aliased_attribute(
+    expr: Optional[Expression], expr_to_alias: Optional[Dict]
+) -> bool:
+    """True if `expr` has an Attribute that the analyzer renames through `expr_to_alias`,
+    such as a column of a join side, whose stored name differs from the Attribute's name."""
+    if not expr_to_alias:
+        return False
+    stack = [expr]
+    seen = set()
+    while stack:
+        node = stack.pop()
+        if node is None or id(node) in seen:
+            continue
+        seen.add(id(node))
+        if isinstance(node, Attribute) and node.expr_id in expr_to_alias:
+            return True
+        # Not every expression lists its inputs in `children` (e.g. window functions),
+        # so look at all expression-valued attributes.
+        for value in vars(node).values():
+            if isinstance(value, Expression):
+                stack.append(value)
+            elif isinstance(value, (list, tuple)):
+                stack.extend(v for v in value if isinstance(v, Expression))
+    return False
+
+
+# Join sides with the same column names are renamed to e.g. "l_ab12_ID" / "r_cd34_ID".
+_JOIN_RENAMED_COLUMN = re.compile(r'^"?[a-zA-Z]_[a-zA-Z0-9]{4}_(.*?)"?$')
+
+
+def _is_ambiguous_join_column(name: str, known_columns: AbstractSet[str]) -> bool:
+    """True if `name` is only missing because the join renamed its same-named columns.
+    The server reports that as an ambiguous join, which is more helpful than a missing column."""
+    bare = name.strip('"')
+    for known in known_columns:
+        match = _JOIN_RENAMED_COLUMN.match(known)
+        if match and match.group(1) == bare:
+            return True
+    return False
+
+
+def validate_projection_columns(
+    cols: List[Expression],
+    column_states: Optional["ColumnStateDict"],
+    analyzer: "Analyzer",
+    df_aliased_col_name_to_real_col_name: Union[
+        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+    ],
+    expr_to_alias: Optional[Dict] = None,
+) -> None:
+    """
+    Raises SnowparkPlanException if a projection references a column that is not in the
+    active columns of `column_states`. Does nothing when the check can't be made with certainty.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        parse_column_name,
+    )
+    from snowflake.snowpark._internal.debug_utils import get_existing_identifiers_hint
+    from snowflake.snowpark._internal.utils import quote_name
+
+    if column_states is None or df_aliased_col_name_to_real_col_name:
+        return
+    # Names of computed or aliased columns can be referenced by other columns of the same select.
+    produced_by: List[Optional[str]] = []
+    for c in cols:
+        child = c.child if isinstance(c, UnresolvedAlias) else c
+        if isinstance(child, Attribute) or (
+            isinstance(child, UnresolvedAttribute) and not child.is_sql_text
+        ):
+            produced_by.append(None)
+            continue
+        name = parse_column_name(c, analyzer, df_aliased_col_name_to_real_col_name)
+        produced_by.append(None if name is None else quote_name(name))
+    for i, c in enumerate(cols):
+        if _references_aliased_attribute(c, expr_to_alias):
+            continue
+        produced = {n for j, n in enumerate(produced_by) if j != i and n is not None}
+        missing = find_missing_column(
+            derive_dependent_columns(c), column_states.active_columns, produced
+        )
+        if missing is not None:
+            hint = get_existing_identifiers_hint(
+                missing.strip('"'), [attr.name for attr in column_states.projection]
+            )
+            raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(
+                missing, hint
+            )
+
+
+def validate_clause_columns(
+    exprs: List[Expression],
+    column_states: Optional["ColumnStateDict"],
+    expr_to_alias: Optional[Dict] = None,
+) -> None:
+    """
+    Raises SnowparkPlanException if a filter or sort expression references a column that is
+    not in `column_states`. Dropped columns are accepted because the clause may be flattened
+    into the same select. Does nothing when the check can't be made with certainty. The caller
+    skips it for dataframes with aliases.
+    """
+    from snowflake.snowpark._internal.debug_utils import get_existing_identifiers_hint
+
+    if column_states is None or any(
+        _references_aliased_attribute(e, expr_to_alias) for e in exprs
+    ):
+        return
+    missing = find_missing_column(
+        derive_dependent_columns(*exprs), set(column_states.keys())
+    )
+    if missing is not None:
+        hint = get_existing_identifiers_hint(
+            missing.strip('"'), [attr.name for attr in column_states.projection]
+        )
+        raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(
+            missing, hint
+        )
 
 
 def _extract_inferable_attribute_names(
