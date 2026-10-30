@@ -134,7 +134,7 @@ jobs:
           path: dist/
 
   test:
-    name: Test py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+    name: Test py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}${{ matrix.connector-label && format(' {0}', matrix.connector-label) || '' }}
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -151,6 +151,13 @@ jobs:
           - python-version: "3.11"
             cloud-provider: azure
             os: windows-latest-64-cores
+          # Pin snowflake-connector-python 5.0. Requires Python >= 3.11, so this
+          # cannot ride along with the 3.10 leg (that leg stays on connector 4.x).
+          - python-version: "3.11"
+            cloud-provider: aws
+            os: ubuntu-latest-64-cores
+            tox-extra-factors: "-connector5"
+            connector-label: connector-5.0
           # only run azure tests with latest python and ubuntu
           - cloud-provider: azure
             python-version: "3.12"

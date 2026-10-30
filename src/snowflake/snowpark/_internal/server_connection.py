@@ -65,6 +65,7 @@ from snowflake.snowpark._internal.utils import (
     measure_time,
     normalize_local_file,
     normalize_remote_file_or_dir,
+    normalize_windows_put_get_file_uri,
     result_set_to_iter,
     result_set_to_rows,
     unwrap_stage_location_single_quote,
@@ -294,6 +295,7 @@ class ServerConnection:
         query_params: Optional[Sequence[Any]] = None,
         **kwargs: dict,
     ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
+        query = normalize_windows_put_get_file_uri(query)
         result_metadata = run_new_describe(cursor, query, query_params)
 
         with self._lock:
@@ -448,6 +450,7 @@ class ServerConnection:
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
+        query = normalize_windows_put_get_file_uri(query)
         notify_kwargs = {}
         if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
@@ -478,6 +481,7 @@ class ServerConnection:
     def execute_async_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
+        query = normalize_windows_put_get_file_uri(query)
         notify_kwargs = {}
 
         if "_statement_params" in kwargs and kwargs["_statement_params"]:
