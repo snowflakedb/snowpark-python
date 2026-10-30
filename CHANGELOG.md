@@ -1,24 +1,36 @@
 # Release History
 
-## 1.56.0 (TBD)
+## 1.57.0 (TBD)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
-- Added `DataFrameReader.documents` (private preview) to read documents from a stage: parse them to text, or extract structured values with a `schema` and/or a `prompt` option. Long documents are split across several model calls automatically. Schema reads also return an `EXTRACTION_SCORES` column with a model-reported confidence score (0 to 1) for each top-level field.
-
 #### Improvements
 
 - `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them. Turning the tracing features off now also turns off the AST collection if the features enabled it.
-- Eager schema validation (`context.configure_development_features(enable_eager_schema_validation=True)`) now raises invalid column references in `DataFrame.filter` and `DataFrame.sort` when the DataFrame is created.
 
 #### Bug Fixes
 
 - Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
+- Fixed a bug where importing Snowpark failed if the `requests` package was not installed. Event table telemetry now treats `requests` as an optional dependency of the `opentelemetry` extra.
+
+## 1.56.0 (2026-10-29)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added `DataFrameReader.documents()` (private preview) to read staged documents into DataFrames. Provide a schema to extract structured fields, or omit it to return parsed document content. Schema-based reads also return an EXTRACTION_SCORES column with model-reported scores from 0 to 1 for each top-level field. The reader can process a single file or a document directory, automatically configures token limits, and splits long documents across model calls. It also parallelizes processing across documents, and isolates single-file failures so other documents in the directory can continue processing.
+
+#### Improvements
+
+- Eager schema validation (`context.configure_development_features(enable_eager_schema_validation=True)`) now raises invalid column references in `DataFrame.filter` and `DataFrame.sort` when the DataFrame is created.
+
+#### Bug Fixes
+
 - Fixed a bug that the dataframe trace and missing-object information were missing from errors raised while a DataFrame is being created, when debuggability features are enabled by `context.configure_development_features`.
 - Fixed `Session.client_telemetry` failing to obtain a workload-identity auth token on the v5 / universal-driver connector, which does not expose `auth_class`, `_session_manager`, or top-level `wif_util`.
-- Fixed a bug where importing Snowpark failed if the `requests` package was not installed. Event table telemetry now treats `requests` as an optional dependency of the `opentelemetry` extra.
 
 ## 1.55.3 (2026-10-21)
 
