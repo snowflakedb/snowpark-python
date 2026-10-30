@@ -136,3 +136,9 @@ def test_clause_valid_or_uncertain_does_not_raise():
     validate_clause_columns(
         [UnresolvedAttribute("a + 1", is_sql_text=True)], make_states()
     )
+
+
+def test_find_missing_column_skips_renamed_join_columns():
+    known = {'"l_ab12_V"', '"r_cd34_V"', '"l_ab12_ID"', '"r_cd34_ID"'}
+    assert find_missing_column({'"V"'}, known) is None
+    assert find_missing_column({'"OTHER"'}, known) == '"OTHER"'
