@@ -507,7 +507,9 @@ class Session:
             self._format_json = format_json
             return self
 
-        def config(self, key: str, value: Union[int, str]) -> "Session.SessionBuilder":
+        def config(
+            self, key: str, value: Union[int, str, bytes]
+        ) -> "Session.SessionBuilder":
             """
             Adds the specified connection parameter to the :class:`SessionBuilder` configuration.
             """
@@ -515,7 +517,7 @@ class Session:
             return self
 
         def configs(
-            self, options: Dict[str, Union[int, str]]
+            self, options: Dict[str, Union[int, str, bytes]]
         ) -> "Session.SessionBuilder":
             """
             Adds the specified :class:`dict` of connection parameters to
