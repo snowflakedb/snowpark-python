@@ -19,6 +19,7 @@
 - Fixed a bug that the dataframe trace and missing-object information were missing from errors raised while a DataFrame is being created, when debuggability features are enabled by `context.configure_development_features`.
 - Fixed `Session.client_telemetry` failing to obtain a workload-identity auth token on the v5 / universal-driver connector, which does not expose `auth_class`, `_session_manager`, or top-level `wif_util`.
 - Fixed a bug where importing Snowpark failed if the `requests` package was not installed. Event table telemetry now treats `requests` as an optional dependency of the `opentelemetry` extra.
+- Fixed the type hints of `Session.SessionBuilder.config` and `Session.SessionBuilder.configs` to accept `bytes` values, such as a `private_key` passed as bytes.
 
 ## 1.55.3 (2026-10-21)
 
