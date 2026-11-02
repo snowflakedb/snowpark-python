@@ -167,6 +167,7 @@ _cte_error_threshold = 3  # 0 to disable auto-cte-disable, otherwise the number 
 # Following are internal-only global flags, used to enable development features.
 _enable_dataframe_trace_on_error = False
 _debug_eager_schema_validation = False
+_enable_metadata_validation = False
 
 # This is an internal-only global flag, used to determine whether to enable query line tracking for tracing sql compilation errors.
 _enable_trace_sql_errors_to_dataframe = False
@@ -199,6 +200,7 @@ def configure_development_features(
     enable_eager_schema_validation: Optional[bool] = None,
     enable_dataframe_trace_on_error: Optional[bool] = None,
     enable_trace_sql_errors_to_dataframe: Optional[bool] = None,
+    enable_metadata_validation: Optional[bool] = None,
 ) -> None:
     """
     Configure development features for the session.
@@ -214,6 +216,9 @@ def configure_development_features(
             operations to the error trace. This enables the AST collection in the session.
         enable_trace_sql_errors_to_dataframe: If True, we will enable tracing sql compilation errors
             to the associated dataframe operations. This enables the AST collection in the session.
+        enable_metadata_validation: If True, select, with_column(s), filter and sort raise an error
+            when they reference a column that is missing from the column names the client already
+            holds. No query is sent for this check; it is skipped when those names are not available.
     Note:
         This feature is experimental since 1.33.0. Do not use it in production.
 
@@ -230,19 +235,22 @@ def configure_development_features(
     global _debug_eager_schema_validation
     global _enable_dataframe_trace_on_error
     global _enable_trace_sql_errors_to_dataframe
+    global _enable_metadata_validation
     global _ast_enabled_by_development_features
 
     requested = (
         enable_eager_schema_validation,
         enable_dataframe_trace_on_error,
         enable_trace_sql_errors_to_dataframe,
+        enable_metadata_validation,
     )
     if all(value is None for value in requested):
-        requested = (False, False, False)
+        requested = (False, False, False, False)
     (
         eager_schema_validation,
         dataframe_trace_on_error,
         trace_sql_errors_to_dataframe,
+        metadata_validation,
     ) = requested
 
     if eager_schema_validation is not None:
@@ -251,6 +259,8 @@ def configure_development_features(
         _enable_dataframe_trace_on_error = dataframe_trace_on_error
     if trace_sql_errors_to_dataframe is not None:
         _enable_trace_sql_errors_to_dataframe = trace_sql_errors_to_dataframe
+    if metadata_validation is not None:
+        _enable_metadata_validation = metadata_validation
 
     from snowflake.snowpark._internal.utils import is_ast_enabled
 
