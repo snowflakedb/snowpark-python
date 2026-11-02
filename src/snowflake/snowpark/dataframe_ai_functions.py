@@ -1487,18 +1487,15 @@ class DataFrameAIFunctions:
             ...     response_format=[["date", "What is the invoice date?"], ["amount", "What is the amount?"]],
             ...     output_column="info",
             ... )
-            >>> result_df.select("INFO").show()
-            --------------------------------
-            |"INFO"                        |
-            --------------------------------
-            |{                             |
-            |  "error": null,              |
-            |  "response": {               |
-            |    "amount": "USD $950.00",  |
-            |    "date": "Nov 26, 2016"    |
-            |  }                           |
-            |}                             |
-            --------------------------------
+            >>> result_df.select(col("INFO")["response"].alias("INFO")).show()
+            ------------------------------
+            |"INFO"                      |
+            ------------------------------
+            |{                           |
+            |  "amount": "USD $950.00",  |
+            |  "date": "Nov 26, 2016"    |
+            |}                           |
+            ------------------------------
             <BLANKLINE>
 
         """

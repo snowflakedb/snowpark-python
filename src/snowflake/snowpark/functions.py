@@ -13157,20 +13157,17 @@ def ai_extract(
         ...     ai_extract(
         ...         to_file('@mystage/invoice.pdf'),
         ...         [['date', 'What is the date of the invoice?'], ['amount', 'What is the amount of the invoice?']]
-        ...     ).alias("extracted")
+        ...     )["response"].alias("extracted")
         ... )
         >>> df.show()
-        --------------------------------
-        |"EXTRACTED"                   |
-        --------------------------------
-        |{                             |
-        |  "error": null,              |
-        |  "response": {               |
-        |    "amount": "USD $950.00",  |
-        |    "date": "Nov 26, 2016"    |
-        |  }                           |
-        |}                             |
-        --------------------------------
+        ------------------------------
+        |"EXTRACTED"                 |
+        ------------------------------
+        |{                           |
+        |  "amount": "USD $950.00",  |
+        |  "date": "Nov 26, 2016"    |
+        |}                           |
+        ------------------------------
         <BLANKLINE>
 
         >>> # Extract with confidence scores
