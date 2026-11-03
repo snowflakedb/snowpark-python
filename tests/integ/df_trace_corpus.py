@@ -57,6 +57,8 @@ class Workload:
     # False for workloads whose failure is raised while the dataframe is being built.
     fails_at_action: bool = True
     needs_simplifier: bool = False
+    # Set when the AST backend cannot run the workload, so there is no oracle to compare with.
+    no_ast_oracle: str = ""
     notes: str = ""
 
 
@@ -686,3 +688,299 @@ def _(s, c):
     d.write.mode("overwrite").save_as_table(name, table_type="temp")
     d.write.mode("errorifexists").save_as_table(name, table_type="temp")
     return d
+
+
+# ----------------------------------------------------------------------------- GAP-1: dataframes inside expressions
+@workload("expr_isin_subquery_in_filter")
+def _(s, c):
+    a, b = _base(s), _other(s).select("ID")
+    return _fail(a.filter(col("ID").isin(b)))
+
+
+@workload("expr_isin_nested_in_boolean")
+def _(s, c):
+    a, b = _base(s), _other(s).select("ID")
+    return _fail(a.filter((col("ID").isin(b)) & (col("V") > 0) | (col("ID") == 3)))
+
+
+@workload("expr_isin_in_when_otherwise")
+def _(s, c):
+    from snowflake.snowpark.functions import when
+
+    a, b = _base(s), _other(s).select("ID")
+    return _fail(a.with_column("F", when(col("ID").isin(b), lit(1)).otherwise(lit(0))))
+
+
+@workload("expr_isin_in_select")
+def _(s, c):
+    a, b = _base(s), _other(s).select("ID")
+    return _fail(a.select("ID", col("ID").isin(b).alias("IN_B")))
+
+
+@workload("expr_isin_in_join_condition")
+def _(s, c):
+    a, b, sub = _base(s), _other(s), _other(s).select(col("ID").alias("X"))
+    return _fail(a.join(b, (a["ID"] == b["ID"]) & a["ID"].isin(sub)))
+
+
+@workload("expr_subquery_reused_in_later_operation")
+def _(s, c):
+    a, b = _base(s), _other(s).select("ID")
+    filtered = a.filter(col("ID").isin(b))
+    return _fail(filtered.select("ID", "NAME").sort("ID"))
+
+
+@workload("expr_same_dataframe_as_receiver_and_subquery")
+def _(s, c):
+    a = _base(s)
+    return _fail(a.filter(col("ID").isin(a.select("ID"))))
+
+
+@workload("expr_two_subqueries_one_call")
+def _(s, c):
+    a = _base(s)
+    b, d = _other(s).select("ID"), _other(s).select(col("ID").alias("ID"))
+    return _fail(a.filter(col("ID").isin(b) | col("ID").isin(d)))
+
+
+@workload("expr_isin_in_sort")
+def _(s, c):
+    a, b = _base(s), _other(s).select("ID")
+    return _fail(a.sort(col("ID").isin(b)))
+
+
+# ----------------------------------------------------------------------------- GAP-2: functions applied by the operation
+@workload("fn_udf_lambda")
+def _(s, c):
+    f = udf(lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()])
+    return _fail(_base(s).with_column("U", f(col("ID"))))
+
+
+@workload("fn_udf_decorator")
+def _(s, c):
+    @udf(return_type=IntegerType(), input_types=[IntegerType()])
+    def plus_one(x):
+        return x + 1
+
+    return _fail(_base(s).select(plus_one(col("ID")).alias("U")))
+
+
+@workload("fn_udf_register_named")
+def _(s, c):
+    f = s.udf.register(
+        lambda x: x * 2,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        name=_name("DF_TRACE_UDF"),
+        is_permanent=False,
+        replace=True,
+    )
+    return _fail(_base(s).filter(f(col("ID")) > 0))
+
+
+@workload("fn_udf_vectorized")
+def _(s, c):
+    from snowflake.snowpark.functions import pandas_udf
+    from snowflake.snowpark.types import PandasSeriesType
+
+    f = pandas_udf(
+        lambda x: x + 1,
+        return_type=PandasSeriesType(IntegerType()),
+        input_types=[PandasSeriesType(IntegerType())],
+    )
+    return _fail(_base(s).with_column("U", f(col("ID"))))
+
+
+@workload("fn_udf_used_twice")
+def _(s, c):
+    f = udf(lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()])
+    df = _base(s).with_column("U", f(col("ID")))
+    return _fail(df.filter(f(col("U")) > 0))
+
+
+@workload("fn_udf_nested_in_expression")
+def _(s, c):
+    f = udf(lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()])
+    return _fail(_base(s).with_column("U", (f(col("ID")) * 2 + 1).cast("int")))
+
+
+@workload("fn_udtf_join_table_function")
+def _(s, c):
+    from snowflake.snowpark.functions import udtf
+    from snowflake.snowpark.types import StructField, StructType
+
+    class Echo:
+        def process(self, x):
+            yield (x,)
+
+    t = udtf(
+        Echo,
+        output_schema=StructType([StructField("E", IntegerType())]),
+        input_types=[IntegerType()],
+    )
+    return _fail(_base(s).join_table_function(t(col("ID"))))
+
+
+@workload("fn_udtf_session_table_function")
+def _(s, c):
+    from snowflake.snowpark.functions import udtf
+    from snowflake.snowpark.types import StructField, StructType
+
+    class Count:
+        def process(self, n):
+            for i in range(n):
+                yield (i,)
+
+    t = udtf(
+        Count,
+        output_schema=StructType([StructField("I", IntegerType())]),
+        input_types=[IntegerType()],
+    )
+    return _fail(s.table_function(t(lit(3))))
+
+
+@workload("fn_udaf_in_agg")
+def _(s, c):
+    from snowflake.snowpark.functions import udaf
+
+    class Summer:
+        def __init__(self) -> None:
+            self._s = 0
+
+        @property
+        def aggregate_state(self):
+            return self._s
+
+        def accumulate(self, x):
+            self._s += x
+
+        def merge(self, other):
+            self._s += other
+
+        def finish(self):
+            return self._s
+
+    agg = udaf(Summer, return_type=IntegerType(), input_types=[IntegerType()])
+    return _fail(_base(s).group_by("NAME").agg(agg(col("ID")).alias("S")))
+
+
+# ----------------------------------------------------------------------------- GAP-3: reused plans under CTE
+@workload("cte_union_all_self")
+def _(s, c):
+    a = _other(s).filter(col("ID") > 0)
+    return _fail(a.union_all(a))
+
+
+@workload("cte_self_join_reused")
+def _(s, c):
+    a = _base(s).filter(col("ID") > 0)
+    return _fail(a.join(a.select(col("ID").alias("I2")), col("ID") == col("I2")))
+
+
+@workload("cte_describe_reused")
+def _(s, c):
+    d = _base(s).describe()
+    return _fail(d.union_all(d))
+
+
+@workload("cte_large_create_dataframe_reused")
+def _(s, c):
+    big = s.create_dataframe([(i, str(i)) for i in range(20000)], schema=["ID", "NAME"])
+    return _fail(big.union_all(big.filter(col("ID") > 5)))
+
+
+@workload("cte_three_way_reuse")
+def _(s, c):
+    a = _other(s).with_column("K", lit(1))
+    return _fail(a.union_all(a).union_all(a))
+
+
+@workload("cte_crosstab_reused")
+def _(s, c):
+    x = _base(s).stat.crosstab("ID", "NAME")
+    return _fail(x.union_all(x))
+
+
+@workload("fn_udf_register_from_file")
+def _(s, c):
+    import os
+    import tempfile
+
+    path = os.path.join(tempfile.mkdtemp(), "df_trace_udf.py")
+    with open(path, "w") as f:
+        f.write("def plus_one(x):\n    return x + 1\n")
+    f = s.udf.register_from_file(
+        path, "plus_one", return_type=IntegerType(), input_types=[IntegerType()]
+    )
+    return _fail(_base(s).with_column("U", f(col("ID"))))
+
+
+@workload(
+    "fn_udf_registration_describe",
+    no_ast_oracle="udf.describe raises missing-AST errors when the AST is enabled",
+)
+def _(s, c):
+    f = s.udf.register(
+        lambda x: x + 1,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        name=_name("DF_TRACE_UDF_D"),
+        is_permanent=False,
+        replace=True,
+    )
+    return _fail(s.udf.describe(f))
+
+
+_UDTF_SOURCE = "class Echo:\n    def process(self, x):\n        yield (x,)\n"
+_UDAF_SOURCE = (
+    "class Summer:\n"
+    "    def __init__(self):\n        self._s = 0\n"
+    "    @property\n    def aggregate_state(self):\n        return self._s\n"
+    "    def accumulate(self, x):\n        self._s += x\n"
+    "    def merge(self, other):\n        self._s += other\n"
+    "    def finish(self):\n        return self._s\n"
+)
+
+
+def _source_file(name, text):
+    import os
+    import tempfile
+
+    path = os.path.join(tempfile.mkdtemp(), name)
+    with open(path, "w") as f:
+        f.write(text)
+    return path
+
+
+@workload("fn_udtf_register_from_file_and_describe")
+def _(s, c):
+    from snowflake.snowpark.types import StructField, StructType
+
+    t = s.udtf.register_from_file(
+        _source_file("df_trace_udtf.py", _UDTF_SOURCE),
+        "Echo",
+        output_schema=StructType([StructField("E", IntegerType())]),
+        input_types=[IntegerType()],
+        name=_name("DF_TRACE_UDTF"),
+        is_permanent=False,
+        replace=True,
+    )
+    return _fail(_base(s).join_table_function(t(col("ID"))))
+
+
+@workload(
+    "fn_udaf_register_from_file_and_describe",
+    no_ast_oracle="udaf.describe raises missing-AST errors when the AST is enabled",
+)
+def _(s, c):
+    agg = s.udaf.register_from_file(
+        _source_file("df_trace_udaf.py", _UDAF_SOURCE),
+        "Summer",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        name=_name("DF_TRACE_UDAF"),
+        is_permanent=False,
+        replace=True,
+    )
+    s.udaf.describe(agg).collect()
+    return _fail(_base(s).group_by("NAME").agg(agg(col("ID")).alias("S")))

@@ -13,6 +13,7 @@ import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
+from snowflake.snowpark._internal.df_trace import registration_trace_node
 from snowflake.snowpark._internal.ast.utils import (
     build_udaf,
     build_udaf_apply,
@@ -86,6 +87,8 @@ class UserDefinedAggregateFunction:
         # If None, no ast will be emitted. Else, passed whenever udf is invoked.
         self._ast = _ast
         self._ast_id = _ast_id
+        # The registration call, a dependency of the dataframes that apply the function.
+        self._trace_node = registration_trace_node("udaf")
 
     @publicapi
     def __call__(
@@ -118,13 +121,15 @@ class UserDefinedAggregateFunction:
                 f"Incorrect number of arguments passed to the UDAF:"
                 f" Expected: {len(self._input_types)}, Found: {len(exprs)}"
             )
-        return SnowflakeUDF(
+        expr = SnowflakeUDF(
             self.name,
             exprs,
             self._return_type,
             api_call_source="UserDefinedAggregateFunction.__call__",
             is_aggregate_function=True,
         )
+        expr._df_trace_node = self._trace_node
+        return expr
 
 
 class UDAFRegistration:

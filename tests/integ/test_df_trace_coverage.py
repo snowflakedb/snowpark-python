@@ -25,6 +25,9 @@ from snowflake.snowpark import (
     Table,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.udaf import UDAFRegistration
+from snowflake.snowpark.udf import UDFRegistration
+from snowflake.snowpark.udtf import UDTFRegistration
 from tests.integ import df_trace_corpus
 from tests.integ.df_trace_corpus import WORKLOADS, Ctx
 from tests.integ.df_trace_harness import DebugFeatures
@@ -49,6 +52,9 @@ SESSION_FACTORIES = {
 }
 
 CLASSES = [
+    UDFRegistration,
+    UDTFRegistration,
+    UDAFRegistration,
     DataFrame,
     Table,
     RelationalGroupedDataFrame,

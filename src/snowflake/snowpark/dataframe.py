@@ -118,6 +118,7 @@ from snowflake.snowpark._internal.df_trace import (
     collect_input_nodes,
     is_tracing_enabled,
     record_object_creation,
+    register_created_dataframe,
 )
 from snowflake.snowpark._internal.ast.utils import (
     add_intermediate_stmt,
@@ -696,7 +697,7 @@ class DataFrame:
 
         # Track the user code that created this dataframe for the debug features.
         self._trace_node: Optional[TraceNode] = None
-        if is_tracing_enabled() and self._plan is not None:
+        if self._plan is not None and is_tracing_enabled(self._session):
             self._attach_trace_node()
 
         self._statement_params = None
@@ -764,6 +765,7 @@ class DataFrame:
         )
         node = TraceNode(capture_user_src_position(), inputs)
         self._trace_node = node
+        register_created_dataframe(self)
         self._plan.add_df_trace_node(node)
         if self._select_statement is not None:
             self._select_statement.add_df_trace_node(node)

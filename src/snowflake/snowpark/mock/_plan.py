@@ -213,7 +213,6 @@ class MockExecutionPlan(LogicalPlan):
         self.api_calls = []
         self._attributes = None
         self.df_ast_ids = None
-        self.df_trace_nodes = None
 
     @property
     def attributes(self) -> List[Attribute]:
@@ -252,12 +251,6 @@ class MockExecutionPlan(LogicalPlan):
             self.df_ast_ids = [ast_id]
         elif self.df_ast_ids[-1] != ast_id:
             self.df_ast_ids.append(ast_id)
-
-    def add_df_trace_node(self, node) -> None:
-        if self.df_trace_nodes is None:
-            self.df_trace_nodes = [node]
-        elif self.df_trace_nodes[-1] is not node:
-            self.df_trace_nodes.append(node)
 
 
 class MockFileOperation(MockExecutionPlan):

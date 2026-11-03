@@ -1181,6 +1181,12 @@ def set_ast_state(source: AstFlagSource, enabled: bool) -> None:
 CallableT = TypeVar("CallableT", bound=Callable)
 
 
+from snowflake.snowpark._internal.df_trace import (  # noqa: E402
+    trace_public_call,
+    tracing_flags_on,
+)
+
+
 def publicapi(func: CallableT) -> CallableT:
     """decorator to safeguard public APIs with global feature flags."""
 
@@ -1191,18 +1197,13 @@ def publicapi(func: CallableT) -> CallableT:
     def call_wrapper(*args, **kwargs):
         # warning(func.__qualname__, warning_text)
 
-        if not has_emit_ast:
-            # This callee doesn't have a _emit_ast parameter.
-            return func(*args, **kwargs)
+        if has_emit_ast and "_emit_ast" not in kwargs:
+            # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
+            kwargs["_emit_ast"] = is_ast_enabled()
 
-        if "_emit_ast" in kwargs:
-            # The caller provided _emit_ast explicitly.
-            return func(*args, **kwargs)
-
-        kwargs["_emit_ast"] = is_ast_enabled()
-
-        # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
-
+        if tracing_flags_on():
+            # The debug features record the inputs of the call in the dataframe trace.
+            return trace_public_call(func, args, kwargs)
         return func(*args, **kwargs)
 
     return call_wrapper
@@ -2541,7 +2542,7 @@ def get_plan_from_line_numbers(
             node = node.get_snowflake_plan(skip_schema_query=False)
         if node.df_ast_ids is not None:
             df_ast_ids = node.df_ast_ids
-        if node.df_trace_nodes is not None:
+        if node.df_trace_nodes:
             df_trace_nodes = node.df_trace_nodes
         query_line_intervals = node.queries[-1].query_line_intervals
         idx = find_interval_containing_line(query_line_intervals, line_number)

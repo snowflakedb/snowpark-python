@@ -854,7 +854,7 @@ class SnowflakePlan(LogicalPlan):
 
         if self.df_trace_nodes is None:
             self.df_trace_nodes = [node]
-        elif self.df_trace_nodes[-1] is not node:
+        elif not self.df_trace_nodes or self.df_trace_nodes[-1] is not node:
             self.df_trace_nodes.append(node)
         for child in self.children_plan_nodes:
             if isinstance(child, SelectSQL):

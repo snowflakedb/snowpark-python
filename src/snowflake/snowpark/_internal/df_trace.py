@@ -128,14 +128,24 @@ def capture_user_src_position(
         del frame
 
 
-def is_tracing_enabled() -> bool:
-    """Whether a debug feature that needs the DataFrame trace is on."""
+def is_tracing_enabled(session=None) -> bool:
+    """Whether a debug feature that needs the DataFrame trace is on.
+
+    The trace is not supported for local testing sessions.
+    """
     from snowflake.snowpark import context
 
-    return bool(
+    if not (
         context._enable_dataframe_trace_on_error
         or context._enable_trace_sql_errors_to_dataframe
-    )
+    ):
+        return False
+    if session is not None:
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        if isinstance(getattr(session, "_conn", None), MockServerConnection):
+            return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -179,7 +189,7 @@ def _object_name(name) -> str:
 
 def record_object_creation(session, kind: str, name_or_query) -> None:
     """Remembers a call that may create a Snowflake object, if tracing is enabled."""
-    if not is_tracing_enabled():
+    if not is_tracing_enabled(session):
         return
     registry = getattr(session, "_df_trace_registry", None)
     if registry is None:
@@ -274,4 +284,220 @@ def collect_input_nodes(*plans) -> List[TraceNode]:
             result.append(cand)
     # Visit the inputs in the order they were created, like the order of their statements.
     result.sort(key=lambda n: n.node_id)
+    return result
+
+
+def registration_trace_node(kind: str) -> Optional[TraceNode]:
+    """A node for the registration of a UDF, UDTF or UDAF, if tracing is enabled."""
+    if not tracing_flags_on():
+        return None
+    return TraceNode(capture_user_src_position(), [], kind=kind)
+
+
+# ----------------------------------------------------------------------------- public api calls
+# State of the public API calls of the current thread, used while tracing is enabled.
+_call_state = threading.local()
+
+_MAX_EXPRESSION_NODES = 10000
+
+
+_context_module = None
+
+
+def tracing_flags_on() -> bool:
+    """Fast check of the tracing flags for the public API wrapper."""
+    global _context_module
+    if _context_module is None:
+        from snowflake.snowpark import context
+
+        _context_module = context
+    return (
+        _context_module._enable_dataframe_trace_on_error
+        or _context_module._enable_trace_sql_errors_to_dataframe
+    )
+
+
+def public_call_depth() -> int:
+    return getattr(_call_state, "depth", 0)
+
+
+def register_created_dataframe(df) -> None:
+    """Remembers a dataframe created during the current outermost public API call."""
+    created = getattr(_call_state, "created", None)
+    if created is not None:
+        created.append(df)
+
+
+_attribute_names_by_class: dict = {}
+
+
+def _attribute_names(expr) -> tuple:
+    """The attribute names of an expression class, read once per class.
+
+    ``vars()`` creates a ``__dict__`` for every instance it is called on (Python 3.11+ keeps
+    instance attributes inline), which would keep extra memory on each scanned expression.
+    """
+    cls = type(expr)
+    names = _attribute_names_by_class.get(cls)
+    if names is None:
+        names = tuple(vars(expr))
+        _attribute_names_by_class[cls] = names
+    return names
+
+
+def _expression_inputs(expression) -> List[TraceNode]:
+    """Trace nodes referenced by an expression: dataframes used as subqueries and functions
+    (UDF, UDTF, UDAF) that carry the node of their registration."""
+    from snowflake.snowpark._internal.analyzer.expression import (
+        Expression,
+        ScalarSubquery,
+    )
+
+    found: List[TraceNode] = []
+    seen = set()
+    stack = [expression]
+    while stack and len(seen) < _MAX_EXPRESSION_NODES:
+        expr = stack.pop()
+        if id(expr) in seen:
+            continue
+        seen.add(id(expr))
+        node = getattr(expr, "_df_trace_node", None)
+        if node is not None:
+            found.append(node)
+        if isinstance(expr, ScalarSubquery):
+            found.extend(collect_input_nodes(expr.plan))
+            continue
+        pending = [getattr(expr, name, None) for name in _attribute_names(expr)]
+        while pending:
+            value = pending.pop()
+            if isinstance(value, Expression):
+                stack.append(value)
+            elif isinstance(value, (list, tuple)):
+                pending.extend(
+                    value
+                )  # e.g. the (condition, value) branches of CASE WHEN
+            elif isinstance(value, dict):
+                pending.extend(value.values())
+    return found
+
+
+def _argument_inputs(args, kwargs) -> List[TraceNode]:
+    """Trace nodes referenced by the column arguments of a public API call."""
+    from snowflake.snowpark.column import Column
+    from snowflake.snowpark.table_function import TableFunctionCall
+
+    found: List[TraceNode] = []
+    values = list(args) + list(kwargs.values())
+    for value in values:
+        items = value if isinstance(value, (list, tuple)) else [value]
+        if isinstance(value, dict):
+            items = list(value.keys()) + list(value.values())
+        for item in items:
+            # Only columns and table function calls: getattr on a DataFrame resolves column names.
+            if isinstance(item, Column):
+                found.extend(_expression_inputs(item._expression))
+            elif isinstance(item, TableFunctionCall):
+                node = getattr(item, "_df_trace_node", None)
+                if node is not None:
+                    found.append(node)
+    return found
+
+
+def note_trace_seed(container) -> None:
+    """Remembers a plan whose trace list was seeded while its dataframe was being created."""
+    seeds = getattr(_call_state, "seeds", None)
+    if seeds is not None:
+        seeds.append((container, container.df_trace_nodes))
+
+
+def _has_user_input(node: TraceNode) -> bool:
+    """Whether the node was derived from an operation at another source position."""
+    seen, stack = set(), list(node.parents)
+    while stack and len(seen) < _MAX_ANCESTOR_SEARCH:
+        cur = stack.pop()
+        if id(cur) in seen:
+            continue
+        seen.add(id(cur))
+        if cur.source_id != node.source_id:
+            return True
+        stack.extend(cur.parents)
+    return False
+
+
+def _undo_source_seeds(seeds, returned) -> None:
+    """Undoes the trace lists seeded while a source api created its dataframe.
+
+    A source api (create_dataframe, table, sql, readers) gets its AST id after the dataframe is
+    created, so the AST never seeds the plans of its construction. Seeds of calls that derive from
+    other dataframes stay, and so do seeds of calls that raised: they carry the context of
+    construction-time errors.
+    """
+    if not seeds or any(_has_user_input(df._trace_node) for df in returned):
+        return
+    for container, seeded in seeds:
+        if container.df_trace_nodes is seeded:
+            container.df_trace_nodes = None
+
+
+def _returned_dataframes(result) -> list:
+    items = result if isinstance(result, (list, tuple)) else [result]
+    return [item for item in items if getattr(item, "_trace_node", None) is not None]
+
+
+def _strip_internal_nodes(created, returned) -> None:
+    """Removes the nodes of the dataframes an API call created internally from the plans.
+
+    Only the dataframes returned to the user are operations of the call; the AST never gave the
+    internal ones an id, so their nodes must not appear in the plans' lists either. The lineage
+    graph keeps them (their position is the one of the call).
+    """
+    returned_nodes = {id(df._trace_node) for df in returned}
+    internal = {
+        id(df._trace_node)
+        for df in created
+        if df._trace_node is not None and id(df._trace_node) not in returned_nodes
+    }
+    if not internal:
+        return
+    for df in created:
+        for container in (df._plan, df._select_statement):
+            nodes = getattr(container, "df_trace_nodes", None)
+            if nodes:
+                nodes[:] = [n for n in nodes if id(n) not in internal]
+                if not nodes:
+                    container.df_trace_nodes = None
+
+
+def trace_public_call(func, args, kwargs):
+    """Runs a public API call while tracing is enabled.
+
+    For the outermost call it links the returned dataframes to the dataframes and functions used
+    in its column arguments, and removes the nodes of internal dataframes from the plans.
+    """
+    depth = public_call_depth()
+    _call_state.depth = depth + 1
+    if depth == 0:
+        _call_state.created = []
+        _call_state.seeds = []
+    try:
+        result = func(*args, **kwargs)
+    except BaseException:
+        if depth == 0:
+            _call_state.created = None
+            _call_state.seeds = None
+        raise
+    finally:
+        _call_state.depth = depth
+    if depth == 0:
+        created, _call_state.created = _call_state.created, None
+        seeds, _call_state.seeds = _call_state.seeds, None
+        returned = _returned_dataframes(result)
+        if returned:
+            inputs = _argument_inputs(args, kwargs)
+            for df in returned:
+                for node in inputs:
+                    if node is not df._trace_node:
+                        add_parent(df._trace_node, node)
+            _strip_internal_nodes(created or [], returned)
+            _undo_source_seeds(seeds, returned)
     return result

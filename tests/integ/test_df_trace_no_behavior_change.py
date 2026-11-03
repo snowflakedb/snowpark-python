@@ -34,7 +34,7 @@ pytestmark = [
 ]
 
 _COMMENT = re.compile(r"/\*.*?\*/", re.S)
-_TEMP_NAME = re.compile(r"SNOWPARK_TEMP_(CTE|TABLE|VIEW)_[A-Z0-9]+")
+_TEMP_NAME = re.compile(r"SNOWPARK_TEMP_(CTE|TABLE|VIEW|FUNCTION)_[A-Z0-9]+")
 _WHITESPACE = re.compile(r"\s+")
 
 
@@ -56,6 +56,13 @@ def _a(s):
 
 def _b(s):
     return s.create_dataframe([(1, "x"), (2, "y")], schema=["ID", "TAG"])
+
+
+def _plus_one():
+    from snowflake.snowpark.functions import udf
+    from snowflake.snowpark.types import IntegerType
+
+    return udf(lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()])
 
 
 PIPELINES = {
@@ -107,6 +114,16 @@ PIPELINES = {
     .filter(col("ID") < 5)
     .sort("ID"),
     "cache_result": lambda s, t: _a(s).filter(col("ID") > 1).cache_result().sort("ID"),
+    "isin_subquery": lambda s, t: _a(s)
+    .filter(col("ID").isin(_b(s).select("ID")))
+    .sort("ID"),
+    "udf_applied": lambda s, t: _a(s)
+    .with_column("U", _plus_one()(col("ID")))
+    .sort("ID"),
+    "describe": lambda s, t: _a(s).describe().sort("SUMMARY"),
+    "self_union": lambda s, t: (lambda d: d.union_all(d).sort("ID"))(
+        _b(s).filter(col("ID") > 0)
+    ),
     "na_and_sample_free": lambda s, t: _a(s).na.fill(0).dropna().distinct().sort("ID"),
 }
 

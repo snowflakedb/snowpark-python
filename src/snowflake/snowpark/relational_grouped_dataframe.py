@@ -186,7 +186,7 @@ class RelationalGroupedDataFrame:
         self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
         # Track the user code that created this grouped dataframe for the debug features.
         self._trace_node: Optional[TraceNode] = None
-        if is_tracing_enabled():
+        if is_tracing_enabled(df._session):
             self._trace_node = TraceNode(
                 capture_user_src_position(),
                 _inputs_of_dataframe(df),

@@ -6,7 +6,7 @@
 
 For every workload of the corpus the AST backend (a frozen copy of the original debug_utils, the
 oracle) and the lightweight backend compute the debug output of the same error on the same plan.
-They must be equal, or the difference must be a documented gap (``KNOWN_GAPS``).
+They must be equal, or the lightweight output must be a documented superset (``LITE_SUPERSET``).
 """
 
 import re
@@ -14,6 +14,7 @@ import re
 import pytest
 
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ import df_trace_corpus
 from tests.integ.df_trace_corpus import WORKLOADS, Ctx
 from tests.integ.df_trace_harness import DebugFeatures, observe
@@ -26,28 +27,6 @@ pytestmark = [
         run=False,
     ),
 ]
-
-# Workloads where the AST lineage contains entries that the lightweight lineage lacks (strict xfail).
-KNOWN_GAPS = {
-    "shape_same_df_twice_in_expression": (
-        "GAP-1: a dataframe used inside a column expression (isin/subquery) is not an input of the "
-        "operation in the lightweight trace; the AST records it as a reference"
-    ),
-    "shape_udf_in_pipeline": (
-        "GAP-2: the registration of a UDF used by the operation is a dependency in the AST lineage; "
-        "the lightweight trace does not track UDF registration"
-    ),
-}
-
-# (workload, setting id) -> reason, for differences that only show with one setting.
-KNOWN_SETTING_GAPS = {
-    ("op_describe", "simplifier-cte-multiline"): "GAP-3",
-    ("op_to_df_then_union_with_self", "simplifier-cte-multiline"): "GAP-3",
-}
-GAP_3 = (
-    "GAP-3: with CTE optimization the SQL line maps to a leaf plan that the AST list carries the "
-    "operations of the dataframe that consumed it, the lightweight list carries only the leaf's own"
-)
 
 # Workloads where the lightweight output is a superset of the AST output (listed behavior changes).
 _ACTION_SUPERSET = (
@@ -178,15 +157,17 @@ def configured(session, request):
 @pytest.mark.parametrize("settings", SETTINGS)
 @pytest.mark.parametrize("workload", WORKLOADS, ids=lambda w: w.name)
 def test_lightweight_trace_matches_ast_backend(
-    session, ctx, configured, settings, workload, request
+    session, ctx, configured, settings, workload
 ):
     if workload.needs_simplifier and not settings["simplifier"]:
         pytest.skip("the API requires the SQL simplifier")
-    if workload.name in KNOWN_GAPS:
-        pytest.xfail(KNOWN_GAPS[workload.name])
-    setting_id = request.node.callspec.id.split("-", 1)[1]
-    if (workload.name, setting_id) in KNOWN_SETTING_GAPS:
-        pytest.xfail(GAP_3)
+    if workload.no_ast_oracle:
+        # No oracle: the lightweight trace alone must still produce the debug context.
+        with DebugFeatures(ast=False):
+            with pytest.raises(SnowparkSQLException) as ex:
+                workload.action(workload.build(session, ctx))
+        assert "Trace of the most recent dataframe operations" in str(ex.value)
+        return
     with DebugFeatures(ast=True):
         observed = observe(workload.build, session, ctx, workload.action)
 

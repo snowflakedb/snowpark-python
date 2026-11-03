@@ -4,10 +4,8 @@
 
 import ast
 import copy
-import gc
 import inspect
 import threading
-import weakref
 from pathlib import Path
 
 import pytest
@@ -23,48 +21,10 @@ from snowflake.snowpark._internal.df_trace import (
     add_parent,
     capture_user_src_position,
     collect_input_nodes,
-    is_tracing_enabled,
     traces_inputs,
 )
-from snowflake.snowpark.functions import col
 
 SRC_DIR = Path(snowflake.snowpark.__file__).parent
-
-
-@pytest.fixture()
-def tracing():
-    context.configure_development_features(enable_dataframe_trace_on_error=True)
-    yield
-    context.configure_development_features()
-
-
-def _walk(node):
-    seen, stack = [], [node]
-    while stack:
-        n = stack.pop()
-        if n not in seen:
-            seen.append(n)
-            stack.extend(n.parents)
-    return seen
-
-
-def _df(session):
-    return session.create_dataframe([(1, "a"), (2, "b")], schema=["id", "name"])
-
-
-def _lines(node):
-    """The source lines of the node and of everything it was derived from, nearest first."""
-    out, seen, layer = [], set(), [node]
-    while layer:
-        nxt = []
-        for n in layer:
-            if id(n) in seen:
-                continue
-            seen.add(id(n))
-            out.append(n.src.start_line)
-            nxt.extend(n.parents)
-        layer = nxt
-    return out
 
 
 # ------------------------------------------------------------------ capture
@@ -213,122 +173,6 @@ def test_node_ids_are_unique_across_threads():
     assert len(set(ids)) == len(ids) == 4000
 
 
-# ------------------------------------------------------------------ dataframes (local testing)
-def test_tracing_is_off_by_default(session):
-    assert not is_tracing_enabled()
-    df = _df(session).filter(col("id") > 1)
-    assert df._trace_node is None
-    assert df._plan.df_trace_nodes is None
-
-
-@pytest.mark.parametrize(
-    "flags",
-    [
-        {"enable_dataframe_trace_on_error": True},
-        {"enable_trace_sql_errors_to_dataframe": True},
-    ],
-)
-def test_each_tracing_flag_enables_the_trace(session, flags):
-    context.configure_development_features(**flags)
-    try:
-        assert is_tracing_enabled()
-        assert _df(session)._trace_node is not None
-    finally:
-        context.configure_development_features()
-
-
-def test_eager_schema_validation_alone_does_not_trace(session):
-    context.configure_development_features(enable_eager_schema_validation=True)
-    try:
-        assert not is_tracing_enabled()
-        assert _df(session)._trace_node is None
-    finally:
-        context.configure_development_features()
-
-
-def test_chain_links_each_dataframe_to_its_input(session, tracing):
-    a = _df(session)
-    b = a.filter(col("id") > 0)
-    c = b.select("id")
-    assert c._trace_node.parents == [b._trace_node]
-    assert b._trace_node.parents == [a._trace_node]
-    # the internal dataframes of one api call have the position of that call
-    assert {n.src.start_line for n in _walk(a._trace_node)} == {
-        a._trace_node.src.start_line
-    }
-    assert c._trace_node.src.filename == __file__
-    assert _lines(c._trace_node) == sorted(_lines(c._trace_node), reverse=True)
-
-
-def test_join_and_union_link_both_inputs(session, tracing):
-    left = _df(session)
-    right = _df(session).select(col("id").alias("id2"))
-    joined = left.join(right, col("id") == col("id2"))
-    assert {n for n in joined._trace_node.parents} == {
-        left._trace_node,
-        right._trace_node,
-    }
-    unioned = left.union(left.select("id", "name"))
-    assert left._trace_node in unioned._trace_node.parents
-
-
-def test_diamond_keeps_one_node_per_branch(session, tracing):
-    base = _df(session).filter(col("id") > 0)
-    left = base.select("id")
-    r = base.select(col("id").alias("id2"))
-    j = left.join(r, col("id") == col("id2"))
-    reachable = []
-
-    def walk(n):
-        if n not in reachable:
-            reachable.append(n)
-            for p in n.parents:
-                walk(p)
-
-    walk(j._trace_node)
-    assert base._trace_node in reachable
-    assert len(reachable) == len({id(n) for n in reachable})
-
-
-def test_grouped_dataframe_is_a_node_between_df_and_aggregate(session, tracing):
-    df = _df(session)
-    grouped = df.group_by("name")
-    result = grouped.count()
-    assert grouped._trace_node.kind == "grouped_dataframe"
-    assert grouped._trace_node.parents == [df._trace_node]
-    assert result._trace_node.parents == [grouped._trace_node]
-
-
-def test_plans_mirror_the_trace_nodes_of_their_dataframe(session, tracing):
-    df = _df(session).filter(col("id") > 0).select("id")
-    assert df._plan.df_trace_nodes[-1] is df._trace_node
-    if df._select_statement is not None:
-        assert df._select_statement.df_trace_nodes[-1] is df._trace_node
-
-
-def test_dataframe_created_before_enabling_has_no_node_and_works_after(session):
-    old = _df(session)
-    context.configure_development_features(enable_dataframe_trace_on_error=True)
-    try:
-        new = old.filter(col("id") > 0)
-        assert old._trace_node is None
-        assert new._trace_node is not None
-        assert new._trace_node.parents == []
-        assert new.collect()
-    finally:
-        context.configure_development_features()
-
-
-def test_trace_is_freed_with_the_dataframe(session, tracing):
-    df = _df(session).filter(col("id") > 0).select("id")
-    ref = weakref.ref(df._trace_node)
-    parent_ref = weakref.ref(df._trace_node.parents[0])
-    del df
-    gc.collect()
-    assert ref() is None
-    assert parent_ref() is None
-
-
 # ------------------------------------------------------------------ no AST in the debug path
 def _imports(path):
     tree = ast.parse(path.read_text())
@@ -375,3 +219,188 @@ def test_wrap_exception_reads_trace_nodes_not_ast_ids():
     assert "df_trace_nodes" in source
     assert "df_ast_ids" not in source
     assert "_ast_batch" not in source
+
+
+# ------------------------------------------------------------------ expression inputs (GAP-1, GAP-2)
+def _plan_with(node):
+    class Plan:
+        def __init__(self) -> None:
+            self.df_trace_nodes = [node]
+            self.children_plan_nodes = []
+
+    return Plan()
+
+
+def test_expression_scan_finds_subqueries_at_any_depth():
+    from snowflake.snowpark._internal.analyzer.binary_expression import And, EqualTo
+    from snowflake.snowpark._internal.analyzer.expression import (
+        InExpression,
+        Literal,
+        ScalarSubquery,
+    )
+    from snowflake.snowpark._internal.df_trace import _expression_inputs
+
+    n1, n2 = TraceNode(None), TraceNode(None)
+    in1 = InExpression(Literal(1), [ScalarSubquery(_plan_with(n1))])
+    in2 = InExpression(Literal(2), [ScalarSubquery(_plan_with(n2))])
+    tree = And(EqualTo(Literal(1), Literal(1)), And(in1, in2))
+    assert {id(n) for n in _expression_inputs(tree)} == {id(n1), id(n2)}
+
+
+def test_expression_scan_finds_function_nodes_and_ignores_plain_columns():
+    from snowflake.snowpark._internal.analyzer.expression import (
+        Attribute,
+        Literal,
+        SnowflakeUDF,
+    )
+    from snowflake.snowpark._internal.df_trace import _expression_inputs
+    from snowflake.snowpark.types import IntegerType
+
+    udf_node = TraceNode(None, kind="udf")
+    call = SnowflakeUDF("F", [Literal(1)], IntegerType())
+    call._df_trace_node = udf_node
+    assert _expression_inputs(call) == [udf_node]
+    assert _expression_inputs(Attribute("A", IntegerType())) == []
+
+
+def test_expression_scan_handles_shared_subtrees():
+    from snowflake.snowpark._internal.analyzer.binary_expression import And
+    from snowflake.snowpark._internal.analyzer.expression import Literal
+    from snowflake.snowpark._internal.df_trace import _expression_inputs
+
+    shared = Literal(1)
+    tree = And(shared, shared)
+    assert _expression_inputs(tree) == []
+
+
+def test_argument_scan_reads_columns_lists_dicts_and_table_function_calls():
+    from snowflake.snowpark._internal.analyzer.expression import (
+        InExpression,
+        Literal,
+        ScalarSubquery,
+    )
+    from snowflake.snowpark._internal.df_trace import _argument_inputs
+    from snowflake.snowpark.column import Column
+
+    n1, n2, n3 = TraceNode(None), TraceNode(None), TraceNode(None)
+    c1 = Column(InExpression(Literal(1), [ScalarSubquery(_plan_with(n1))]))
+    c2 = Column(InExpression(Literal(2), [ScalarSubquery(_plan_with(n2))]))
+
+    from snowflake.snowpark.table_function import TableFunctionCall
+
+    call = TableFunctionCall("F")
+    call._df_trace_node = n3
+
+    found = _argument_inputs((c1, [c2], call), {"x": 5})
+    assert {id(n) for n in found} == {id(n1), id(n2), id(n3)}
+    found = _argument_inputs((), {"cols": {"a": c1}})
+    assert [id(n) for n in found] == [id(n1)]
+
+
+# ------------------------------------------------------------------ public call wrapper (GAP-3)
+@pytest.fixture()
+def tracing_flags():
+    context.configure_development_features(enable_dataframe_trace_on_error=True)
+    yield
+    context.configure_development_features()
+
+
+def test_public_call_depth_is_restored_after_exceptions(tracing_flags):
+    from snowflake.snowpark._internal import df_trace
+
+    def outer():
+        return df_trace.trace_public_call(inner, (), {})
+
+    def inner():
+        assert df_trace.public_call_depth() == 2
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError):
+        df_trace.trace_public_call(outer, (), {})
+    assert df_trace.public_call_depth() == 0
+    assert getattr(df_trace._call_state, "created", None) is None
+
+
+def test_public_call_depth_is_per_thread(tracing_flags):
+    from snowflake.snowpark._internal import df_trace
+
+    seen = {}
+    ready, release = threading.Event(), threading.Event()
+
+    def hold():
+        ready.set()
+        release.wait(5)
+
+    def run_in_thread():
+        df_trace.trace_public_call(hold, (), {})
+
+    t = threading.Thread(target=run_in_thread)
+    t.start()
+    ready.wait(5)
+    seen["main"] = df_trace.public_call_depth()
+    release.set()
+    t.join()
+    assert seen["main"] == 0
+
+
+def test_publicapi_records_only_when_tracing_is_on():
+    from snowflake.snowpark._internal import df_trace
+    from snowflake.snowpark._internal.utils import publicapi
+
+    calls = []
+
+    @publicapi
+    def api():
+        calls.append(df_trace.public_call_depth())
+
+    context.configure_development_features()
+    api()
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
+    try:
+        api()
+    finally:
+        context.configure_development_features()
+    assert calls == [0, 1]
+
+
+def test_internal_nodes_are_removed_from_plan_lists():
+    from snowflake.snowpark._internal.df_trace import _strip_internal_nodes
+
+    returned_node, internal_node, older = (
+        TraceNode(None),
+        TraceNode(None),
+        TraceNode(None),
+    )
+
+    class Container:
+        def __init__(self, nodes) -> None:
+            self.df_trace_nodes = nodes
+
+    shared = [older, internal_node]
+    internal_df = type("DF", (), {})()
+    internal_df._trace_node = internal_node
+    internal_df._plan, internal_df._select_statement = Container(shared), None
+    returned_df = type("DF", (), {})()
+    returned_df._trace_node = returned_node
+    returned_df._plan = Container([older, internal_node, returned_node])
+    returned_df._select_statement = Container([internal_node])
+
+    _strip_internal_nodes([internal_df, returned_df], [returned_df])
+    assert shared == [older]
+    assert internal_df._plan.df_trace_nodes == [older]
+    assert returned_df._plan.df_trace_nodes == [older, returned_node]
+    assert returned_df._select_statement.df_trace_nodes is None
+
+
+def test_registration_node_only_when_tracing_is_on():
+    from snowflake.snowpark._internal.df_trace import registration_trace_node
+
+    context.configure_development_features()
+    assert registration_trace_node("udf") is None
+    context.configure_development_features(enable_dataframe_trace_on_error=True)
+    try:
+        node = registration_trace_node("udf")
+    finally:
+        context.configure_development_features()
+    assert node.kind == "udf"
+    assert node.src.filename == __file__

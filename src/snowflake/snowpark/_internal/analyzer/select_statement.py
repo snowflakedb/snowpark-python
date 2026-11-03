@@ -84,6 +84,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.select_projection_complexity_utils import (
     has_invalid_projection_merge_functions,
 )
+from snowflake.snowpark._internal.df_trace import note_trace_seed
 from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
     is_sql_select_statement,
@@ -579,7 +580,7 @@ class Selectable(LogicalPlan, ABC):
         """Adds the trace node of the DataFrame operation that created this selectable."""
         if self.df_trace_nodes is None:
             self.df_trace_nodes = [node]
-        elif self.df_trace_nodes[-1] is not node:
+        elif not self.df_trace_nodes or self.df_trace_nodes[-1] is not node:
             self.df_trace_nodes.append(node)
 
     @property
@@ -1072,12 +1073,14 @@ class SelectStatement(Selectable):
                     and self.from_.df_trace_nodes is None
                 ):
                     self.from_.df_trace_nodes = self.df_trace_nodes.copy()
+                    note_trace_seed(self.from_)
                     snowflake_plan = getattr(self.from_, "_snowflake_plan", None)
                     if (
                         snowflake_plan is not None
                         and snowflake_plan.df_trace_nodes is None
                     ):
                         snowflake_plan.df_trace_nodes = self.from_.df_trace_nodes
+                        note_trace_seed(snowflake_plan)
                 self.column_states = self.from_.column_states
             else:
                 super().column_states  # will assign value to self._column_states
