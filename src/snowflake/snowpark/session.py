@@ -206,6 +206,10 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
 from snowflake.snowpark.dataframe_profiler import DataframeProfiler
+from snowflake.snowpark._internal.df_trace import (
+    ObjectCreationRegistry,
+    record_object_creation,
+)
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -817,15 +821,6 @@ class Session:
 
         set_ast_state(AstFlagSource.SERVER, ast_enabled)
 
-        # development features require AST to be enabled
-        from snowflake.snowpark.context import (
-            _enable_trace_sql_errors_to_dataframe,
-            _enable_dataframe_trace_on_error,
-        )
-
-        if _enable_trace_sql_errors_to_dataframe or _enable_dataframe_trace_on_error:
-            self._set_ast_enabled_internal(True)
-
         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
         # in Snowflake. This is the limit where we start seeing compilation errors.
         self._large_query_breakdown_complexity_bounds: Tuple[int, int] = (
@@ -907,6 +902,7 @@ class Session:
         self._sp_profiler = StoredProcedureProfiler(session=self)
         self._udf_profiler = UDFProfiler(session=self)
         self._dataframe_profiler = DataframeProfiler(session=self)
+        self._df_trace_registry = ObjectCreationRegistry()
         self._catalog = None
         self._client_telemetry = EventTableTelemetry(session=self)
 
@@ -3274,6 +3270,8 @@ class Session:
             >>> session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]).sort("column1").collect()
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
+        record_object_creation(self, "sql", query)
+
         # AST.
         stmt = None
         if _emit_ast:

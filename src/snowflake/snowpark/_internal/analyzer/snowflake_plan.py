@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.debug_utils import (
 )
 
 if TYPE_CHECKING:
+    from snowflake.snowpark._internal.df_trace import TraceNode  # pragma: no cover
     from snowflake.snowpark._internal.analyzer.select_statement import (
         Selectable,
     )  # pragma: no cover
@@ -180,15 +181,14 @@ class SnowflakePlan(LogicalPlan):
                     query = getattr(e, "query", None)
                     tb = sys.exc_info()[2]
                     assert e.msg is not None
-                    # extract top_plan, df_ast_id, stmt_cache from args
-                    top_plan, df_ast_id, stmt_cache = None, None, None
+                    # extract top_plan and its most recent trace node from args
+                    top_plan, trace_node = None, None
                     for arg in args:
                         if isinstance(arg, SnowflakePlan):
                             top_plan = arg
                             break
-                    if top_plan is not None and top_plan.df_ast_ids:
-                        df_ast_id = top_plan.df_ast_ids[-1]
-                        stmt_cache = top_plan.session._ast_batch._bind_stmt_cache
+                    if top_plan is not None and top_plan.df_trace_nodes:
+                        trace_node = top_plan.df_trace_nodes[-1]
 
                     debug_context_arr = []
                     try:
@@ -202,13 +202,9 @@ class SnowflakePlan(LogicalPlan):
                                 top_plan, e.msg
                             ):
                                 debug_context_arr.append(error_source_context)
-                        if (
-                            _enable_dataframe_trace_on_error
-                            and df_ast_id is not None
-                            and stmt_cache is not None
-                        ):
+                        if _enable_dataframe_trace_on_error and trace_node is not None:
                             if df_transform_trace := get_df_transform_trace_message(
-                                df_ast_id, stmt_cache
+                                trace_node
                             ):
                                 debug_context_arr.append(df_transform_trace)
                         if (
@@ -500,6 +496,7 @@ class SnowflakePlan(LogicalPlan):
         # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
         # we will store the ast_id here.
         self.df_ast_ids: Optional[List[int]] = None
+        self.df_trace_nodes: Optional[List["TraceNode"]] = None
 
     @property
     def uuid(self) -> str:
@@ -781,6 +778,7 @@ class SnowflakePlan(LogicalPlan):
                 referenced_ctes=self.referenced_ctes,
             )
         plan.df_ast_ids = self.df_ast_ids
+        plan.df_trace_nodes = self.df_trace_nodes
         return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -820,6 +818,7 @@ class SnowflakePlan(LogicalPlan):
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
         copied_plan.df_ast_ids = self.df_ast_ids
+        copied_plan.df_trace_nodes = self.df_trace_nodes
 
         return copied_plan
 
@@ -848,6 +847,18 @@ class SnowflakePlan(LogicalPlan):
         elif self.df_ast_ids[-1] != ast_id:
             self.df_ast_ids.append(ast_id)
         self.propagate_ast_id_to_select_sql(ast_id)
+
+    def add_df_trace_node(self, node: "TraceNode") -> None:
+        """Adds the trace node of the DataFrame operation that created this plan."""
+        from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
+
+        if self.df_trace_nodes is None:
+            self.df_trace_nodes = [node]
+        elif self.df_trace_nodes[-1] is not node:
+            self.df_trace_nodes.append(node)
+        for child in self.children_plan_nodes:
+            if isinstance(child, SelectSQL):
+                child.add_df_trace_node(node)
 
 
 class SnowflakePlanBuilder:
