@@ -31,7 +31,7 @@ SKIP_FILE=".github/pr_gate_skip_files.txt"
 
 # Writes the skippable paths, one per line, to the file $SKIP_LIST.
 load_skip_list() {
-  local raw entry
+  local raw
   SKIP_LIST=$(mktemp)
   if [[ -z "${BASE_REF:-}" ]]; then
     echo "CHANGELOG.md" > "$SKIP_LIST"
@@ -41,15 +41,6 @@ load_skip_list() {
       "repos/$repo/contents/$SKIP_FILE?ref=$BASE_REF" 2>&1); then
     printf '%s\n' "$raw" | sed 's/#.*//; s/\r//; s/^[[:space:]]*//; s/[[:space:]]*$//' \
       | grep -v '^$' | grep -vxF -- "$SKIP_FILE" > "$SKIP_LIST" || true
-    while read -r entry; do
-      if [[ "$entry" == */ || "$entry" == /* || "$entry" == *[\*\?\[]* ]]; then
-        echo "::warning::$SKIP_FILE: '$entry' is not a plain file path (directories and globs never match)"
-      elif [[ -d "$entry" ]]; then
-        echo "::warning::$SKIP_FILE: '$entry' is a directory (only files are supported)"
-      elif [[ ! -f "$entry" ]]; then
-        echo "::warning::$SKIP_FILE: '$entry' is not a file in this checkout"
-      fi
-    done < "$SKIP_LIST"
   elif grep -q "HTTP 404" <<< "$raw"; then
     echo "CHANGELOG.md" > "$SKIP_LIST"
   else
