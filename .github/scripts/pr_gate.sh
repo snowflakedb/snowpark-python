@@ -11,8 +11,8 @@
 #
 # Skippable files: .github/pr_gate_skip_files.txt on the PR's base branch (so a PR cannot widen its
 # own list), one repo-relative FILE path per line, compared as exact paths: a directory never
-# matches. The list file itself is never skippable. No list or no base branch: CHANGELOG.md.
-# API error reading the list: nothing is skippable.
+# matches. The list file itself is never skippable. No base branch, no list file or an API error:
+# the list is empty, so nothing is skippable and the gate always runs.
 #
 # A run belongs to a PR when its title starts with "PR #<number>: " (run-name in precommit.yml);
 # a commit can be in several PRs, and only this PR's runs are reused or cancelled.
@@ -37,19 +37,13 @@ SKIP_FILE=".github/pr_gate_skip_files.txt"
 load_skip_list() {
   local raw
   SKIP_LIST=$(mktemp)
-  if [[ -z "${BASE_REF:-}" ]]; then
-    echo "CHANGELOG.md" > "$SKIP_LIST"
-    return 0
-  fi
+  [[ -n "${BASE_REF:-}" ]] || return 0
   if raw=$(gh api -H "Accept: application/vnd.github.raw" \
       "repos/$repo/contents/$SKIP_FILE?ref=$BASE_REF" 2>&1); then
     printf '%s\n' "$raw" | sed 's/\r//; s/^[[:space:]]*//; s/[[:space:]]*$//' \
       | grep -v '^$' | grep -vxF -- "$SKIP_FILE" > "$SKIP_LIST" || true
-  elif grep -q "HTTP 404" <<< "$raw"; then
-    echo "CHANGELOG.md" > "$SKIP_LIST"
-  else
+  elif ! grep -q "HTTP 404" <<< "$raw"; then
     echo "::warning::could not read $SKIP_FILE from $BASE_REF; nothing is skippable"
-    : > "$SKIP_LIST"
   fi
 }
 
