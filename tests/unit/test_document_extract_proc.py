@@ -1643,6 +1643,54 @@ class TestReadAnswer:
             None,
         )
 
+    def test_a_native_arrow_result_is_read_like_a_string_one(self):
+        # SNOW-4418944: with structured types in the native Arrow format, the result is
+        # a dict whose value is the answer text JSON-encoded once more.
+        answer = '{"invoice_number": "INV-1042", "total": 500.00}'
+        native = {"value": json.dumps(answer), "error": None}
+        assert read_answer(native) == read_answer(
+            json.dumps({"value": answer, "error": None})
+        )
+        assert read_answer(native) == (
+            {"invoice_number": "INV-1042", "total": 500.0},
+            None,
+            None,
+        )
+
+    @pytest.mark.parametrize(
+        "answer", ['[{"name": "x"}]', "123", '{"name": "x"}', "true", "null"]
+    )
+    def test_a_plain_answer_in_an_object_result_is_not_decoded(self, answer):
+        # Only a JSON-encoded string is unwrapped; a plain answer that is itself valid
+        # JSON reads exactly as it does in the string result.
+        assert read_answer({"value": answer, "error": None}) == read_answer(
+            json.dumps({"value": answer, "error": None})
+        )
+
+    def test_a_plain_list_answer_in_an_object_result_reports_the_parse_error(self):
+        # Decoded, it would be a list and report "answer was not text" instead.
+        assert read_answer({"value": '[{"name": "x"}]', "error": None}) == (
+            None,
+            "answer JSON was not an object",
+            None,
+        )
+
+    def test_a_native_arrow_error_is_decoded(self):
+        assert read_answer({"value": None, "error": '"malformed request"'}) == (
+            None,
+            "malformed request",
+            None,
+        )
+
+    def test_a_truncated_native_arrow_answer_salvages_its_status(self):
+        text = '{"%s": {"complete": false, "last_pdf_page_extracted": 3}, "rows": [' % (
+            STATUS_FIELD
+        )
+        value, error, salvaged = read_answer({"value": json.dumps(text), "error": None})
+        assert value is None
+        assert error == TRUNCATED_TEXT_ERROR
+        assert salvaged == {"complete": False, "last_pdf_page_extracted": 3}
+
     def test_an_ai_complete_error_is_returned_without_parsing_or_salvage(self):
         assert read_answer({"value": None, "error": "malformed request"}) == (
             None,
