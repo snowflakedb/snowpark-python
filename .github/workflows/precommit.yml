@@ -1,4 +1,7 @@
 name: precommit test
+# Tags pull_request runs with their PR so pr_gate.sh only reuses this PR's runs (a commit can be
+# in several PRs). Other events keep the default title.
+run-name: "${{ github.event_name == 'pull_request' && format('PR #{0}: {1}', github.event.pull_request.number, github.event.pull_request.title) || '' }}"
 on:
   push:
     branches: [ main ]

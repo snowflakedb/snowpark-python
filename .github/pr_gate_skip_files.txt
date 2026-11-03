@@ -1,6 +1,1 @@
-# Files whose edits do not re-run the merge gate (read by .github/scripts/pr_gate.sh).
-# A push that changes only these files (added/modified) reuses the result of the latest tested commit.
-# One repo-relative path per line. Each entry must be a FILE, not a directory: entries are compared
-# as exact paths, so a directory or glob never matches anything. '#' starts a comment.
-# Read from the PR's base branch, so a PR cannot widen its own list.
 CHANGELOG.md

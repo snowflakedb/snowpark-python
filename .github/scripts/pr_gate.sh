@@ -9,9 +9,13 @@
 # "Code state": two commits have the same code state when the diff between them touches only
 # skippable files (added/modified). Both modes use this single definition.
 #
-# Skippable files: exact paths in .github/pr_gate_skip_files.txt on the PR's base branch, so a PR
-# cannot widen its own list. The list file itself is never skippable. No list or no base branch:
-# CHANGELOG.md. API error reading the list: nothing is skippable.
+# Skippable files: .github/pr_gate_skip_files.txt on the PR's base branch (so a PR cannot widen its
+# own list), one repo-relative FILE path per line, compared as exact paths: a directory never
+# matches. The list file itself is never skippable. No list or no base branch: CHANGELOG.md.
+# API error reading the list: nothing is skippable.
+#
+# A run belongs to a PR when its title starts with "PR #<number>: " (run-name in precommit.yml);
+# a commit can be in several PRs, and only this PR's runs are reused or cancelled.
 #
 # Required env: GH_TOKEN, GITHUB_REPOSITORY, HEAD_SHA (PR head commit).
 # precheck env: EVENT_NAME, EVENT_ACTION, BEFORE, SKIP_ENABLED, GITHUB_RUN_ID, PR_NUMBER,
@@ -39,7 +43,7 @@ load_skip_list() {
   fi
   if raw=$(gh api -H "Accept: application/vnd.github.raw" \
       "repos/$repo/contents/$SKIP_FILE?ref=$BASE_REF" 2>&1); then
-    printf '%s\n' "$raw" | sed 's/#.*//; s/\r//; s/^[[:space:]]*//; s/[[:space:]]*$//' \
+    printf '%s\n' "$raw" | sed 's/\r//; s/^[[:space:]]*//; s/[[:space:]]*$//' \
       | grep -v '^$' | grep -vxF -- "$SKIP_FILE" > "$SKIP_LIST" || true
   elif grep -q "HTTP 404" <<< "$raw"; then
     echo "CHANGELOG.md" > "$SKIP_LIST"
@@ -79,6 +83,7 @@ cancel_superseded() {
   done < <(gh api "repos/$repo/actions/workflows/precommit.yml/runs?event=pull_request&per_page=100" \
     --jq ".workflow_runs[] | select(.head_branch == \"${HEAD_REF:?}\"
       and .head_repository.full_name == \"${HEAD_REPO:?}\"
+      and (.display_title | startswith(\"PR #${PR_NUMBER:?}: \"))
       and (.status == \"in_progress\" or .status == \"queued\" or .status == \"waiting\" or .status == \"pending\")
       and .id < ${GITHUB_RUN_ID:?}) | .id" || true)
 }
@@ -86,9 +91,10 @@ cancel_superseded() {
 precheck() {
   local skippable_only=false skip=false cancelled=false out st nf nb
   if [[ "${EVENT_NAME:-}" == "pull_request" && "${EVENT_ACTION:-}" == "synchronize" \
-        && -n "${BEFORE:-}" && ! "${BEFORE}" =~ ^0+$ ]]; then
+        && -n "${BEFORE:-}" && ! "${BEFORE}" =~ ^0+$ && "${GITHUB_RUN_ATTEMPT:-1}" == "1" ]]; then
     # Only a fast-forward push that changes skippable files and nothing else is skippable-only.
-    # An empty push, a force-push or any API error is treated as code.
+    # An empty push, a force-push, a re-run (same payload, must really test) or any API error is
+    # treated as code.
     out=$(diff_summary "$BEFORE" "$head_sha" 2>/dev/null || true)
     IFS=$'\t' read -r st nf nb <<< "$out"
     if [[ "$st" == "ahead" && "${nf:-0}" -ge 1 && "${nb:-1}" -eq 0 ]]; then
@@ -118,15 +124,16 @@ precheck() {
   } >> "$summary"
 }
 
-# Run id of the executed precommit run for a commit. A run whose "Check linting" job was skipped
-# (skipped by the precheck) does not count. 0: found (id printed), 1: none, 2: API error.
+# Run id of this PR's executed precommit run for a commit. A run whose "Check linting" job was
+# skipped (skipped by the precheck) does not count. 0: found (id printed), 1: none, 2: API error.
 executed_run_for() {
   local sha="$1" id lint
   if [[ "$sha" == "$head_sha" ]]; then
     id="${GITHUB_RUN_ID:?}"
   else
-    id=$(gh api "repos/$repo/actions/workflows/precommit.yml/runs?head_sha=$sha&event=pull_request&per_page=30" \
-      --jq '.workflow_runs | sort_by(.created_at) | last | .id // empty') || return 2
+    id=$(gh api --paginate "repos/$repo/actions/workflows/precommit.yml/runs?head_sha=$sha&event=pull_request&per_page=100" \
+      --jq ".workflow_runs[] | select(.display_title | startswith(\"PR #${PR_NUMBER:?}: \")) | [.created_at, .id] | @tsv" \
+      | sort | tail -n 1 | cut -f2) || return 2
     [[ -n "$id" ]] || return 1
   fi
   lint=$(gh api --paginate "repos/$repo/actions/runs/$id/jobs?per_page=100" \
