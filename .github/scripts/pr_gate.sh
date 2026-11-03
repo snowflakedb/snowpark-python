@@ -6,19 +6,17 @@
 #   pr_gate.sh report     report the state of the required gates of the newest executed run whose
 #                         code equals the PR head's code (ignoring skippable files)
 #
-# "Code state": two commits have the same code state when the diff between them touches nothing
-# except skippable files (added/modified). Both modes use this single definition.
+# "Code state": two commits have the same code state when the diff between them touches only
+# skippable files (added/modified). Both modes use this single definition.
 #
-# Skippable files: the exact file paths listed in .github/pr_gate_skip_files.txt on the PR's BASE
-# branch (so a PR cannot widen its own list). No directories, no globs; the list file itself is
-# never skippable. Missing list on the base branch (or no base, e.g. push events) falls back to
-# CHANGELOG.md. An API error reading the list leaves nothing skippable.
+# Skippable files: exact paths in .github/pr_gate_skip_files.txt on the PR's base branch, so a PR
+# cannot widen its own list. The list file itself is never skippable. No list or no base branch:
+# CHANGELOG.md. API error reading the list: nothing is skippable.
 #
-# Required env: GH_TOKEN, GITHUB_REPOSITORY, HEAD_SHA (PR head commit). BASE_REF (PR base branch)
-# is used to read the skip list.
+# Required env: GH_TOKEN, GITHUB_REPOSITORY, HEAD_SHA (PR head commit).
 # precheck env: EVENT_NAME, EVENT_ACTION, BEFORE, SKIP_ENABLED, GITHUB_RUN_ID, PR_NUMBER,
-#               HEAD_REF, HEAD_REPO
-# report env:   PR_NUMBER, GITHUB_RUN_ID, optional PR_GATE_REQUIRED_CHECKS (newline or
+#               HEAD_REF, HEAD_REPO, BASE_REF
+# report env:   PR_NUMBER, BASE_REF, GITHUB_RUN_ID, optional PR_GATE_REQUIRED_CHECKS (newline or
 #               comma separated; overrides branch protection, needed once "PR Gate" is the only
 #               required check), optional PR_GATE_TIMEOUT_MIN (default 90)
 set -euo pipefail
@@ -31,7 +29,7 @@ output="${GITHUB_OUTPUT:-/dev/null}"
 
 SKIP_FILE=".github/pr_gate_skip_files.txt"
 
-# Fills the file $SKIP_LIST with one skippable file path per line (see header).
+# Writes the skippable paths, one per line, to the file $SKIP_LIST.
 load_skip_list() {
   local raw entry
   SKIP_LIST=$(mktemp)
@@ -98,7 +96,7 @@ precheck() {
   local skippable_only=false skip=false cancelled=false out st nf nb
   if [[ "${EVENT_NAME:-}" == "pull_request" && "${EVENT_ACTION:-}" == "synchronize" \
         && -n "${BEFORE:-}" && ! "${BEFORE}" =~ ^0+$ ]]; then
-    # Only a fast-forward push that changes skippable files and nothing else is skippable.
+    # Only a fast-forward push that changes skippable files and nothing else is skippable-only.
     # An empty push, a force-push or any API error is treated as code.
     out=$(diff_summary "$BEFORE" "$head_sha" 2>/dev/null || true)
     IFS=$'\t' read -r st nf nb <<< "$out"

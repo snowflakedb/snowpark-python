@@ -1,7 +1,5 @@
-# Files whose edits do not need the merge gate to re-run (read by .github/scripts/pr_gate.sh).
-# If a push changes ONLY files listed here (status added/modified), the gate is not re-run:
-# PR Gate reports the result of the latest commit that was actually tested (same code,
-# ignoring these files). Any other change runs the gate as usual.
-# One repo-relative FILE path per line: no directories, no globs. '#' starts a comment.
+# Files whose edits do not re-run the merge gate (read by .github/scripts/pr_gate.sh).
+# A push that changes only these files (added/modified) reuses the result of the latest tested commit.
+# One repo-relative file path per line (no directories or globs); '#' starts a comment.
 # Read from the PR's base branch, so a PR cannot widen its own list.
 CHANGELOG.md
