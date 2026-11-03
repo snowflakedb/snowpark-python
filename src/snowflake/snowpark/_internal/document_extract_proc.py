@@ -1146,11 +1146,30 @@ def no_model_message(models: List[str]) -> str:
     )
 
 
+def _from_variant_text(field: Any) -> Any:
+    """A result field that is still JSON text, decoded; any other field as it is."""
+    if not isinstance(field, str):
+        return field
+    try:
+        return json.loads(field)
+    except json.JSONDecodeError:
+        return field
+
+
 def read_answer(raw: Any) -> Tuple[Any, Optional[str], Optional[Dict[str, Any]]]:
     """(value, error, salvaged status) from one ``AI_COMPLETE(..., return_error_details =>
-    TRUE)`` result. The status is salvaged only from a text answer that does not parse."""
-    result = json.loads(raw) if isinstance(raw, str) else raw
-    value, error = result.get("value"), result.get("error")
+    TRUE)`` result. The status is salvaged only from a text answer that does not parse.
+
+    The result is usually one JSON string. On accounts that return structured types in
+    the native Arrow format (ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT and related
+    parameters) it is a dict whose ``value`` and ``error`` are each still JSON text, so
+    a text answer arrives quoted: ``'"{\\"name\\": \\"x\\"}"'``. Both read the same."""
+    if isinstance(raw, str):
+        result = json.loads(raw)
+        value, error = result.get("value"), result.get("error")
+    else:
+        value = _from_variant_text(raw.get("value"))
+        error = _from_variant_text(raw.get("error"))
     if error is not None:
         return value, error, None
     parsed, error = parse_text_answer(value)
