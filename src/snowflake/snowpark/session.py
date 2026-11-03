@@ -153,6 +153,7 @@ from snowflake.snowpark._internal.utils import (
     AstFlagSource,
     AstMode,
     private_preview,
+    public_preview,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
@@ -3429,7 +3430,7 @@ class Session:
         set_api_call_source(d, "Session.sql")
         return d
 
-    @experimental(version="1.55.0")
+    @public_preview(version="1.57.0")
     @publicapi
     def semantic_view(
         self,
