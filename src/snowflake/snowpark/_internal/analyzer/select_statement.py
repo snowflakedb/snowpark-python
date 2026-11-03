@@ -44,6 +44,7 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark.types import DataType
 
 if TYPE_CHECKING:
+    from snowflake.snowpark._internal.df_trace import TraceNode  # pragma: no cover
     from snowflake.snowpark._internal.analyzer.analyzer import (
         Analyzer,
     )  # pragma: no cover
@@ -243,6 +244,11 @@ def _deepcopy_selectable_fields(
         if from_selectable.df_ast_ids is not None
         else None
     )
+    to_selectable.df_trace_nodes = (
+        from_selectable.df_trace_nodes.copy()
+        if from_selectable.df_trace_nodes is not None
+        else None
+    )
     # Copy UUID and query line intervals
     to_selectable._uuid = from_selectable._uuid
 
@@ -284,6 +290,7 @@ class Selectable(LogicalPlan, ABC):
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         self._encoded_node_id_with_query: Optional[str] = None
         self.df_ast_ids: Optional[List[int]] = None
+        self.df_trace_nodes: Optional[List["TraceNode"]] = None
         self._uuid = str(uuid.uuid4())
 
     @property
@@ -445,6 +452,8 @@ class Selectable(LogicalPlan, ABC):
                 # Add the last df ast id to the snowflake plan as the most recent
                 # dataframe operation to create this plan.
                 self._snowflake_plan.df_ast_ids = self.df_ast_ids
+            if self.df_trace_nodes is not None:
+                self._snowflake_plan.df_trace_nodes = self.df_trace_nodes
         return self._snowflake_plan
 
     @property
@@ -565,6 +574,13 @@ class Selectable(LogicalPlan, ABC):
             self.df_ast_ids = [ast_id]
         elif self.df_ast_ids[-1] != ast_id:
             self.df_ast_ids.append(ast_id)
+
+    def add_df_trace_node(self, node: "TraceNode") -> None:
+        """Adds the trace node of the DataFrame operation that created this selectable."""
+        if self.df_trace_nodes is None:
+            self.df_trace_nodes = [node]
+        elif self.df_trace_nodes[-1] is not node:
+            self.df_trace_nodes.append(node)
 
     @property
     def uuid(self) -> str:
@@ -811,6 +827,7 @@ class SelectSnowflakePlan(Selectable):
 
         # Copy the df ast ids from the snowflake plan.
         self.df_ast_ids = self._snowflake_plan.df_ast_ids
+        self.df_trace_nodes = None
 
     def __deepcopy__(self, memodict={}) -> "SelectSnowflakePlan":  # noqa: B006
         copied = SelectSnowflakePlan(
@@ -940,6 +957,9 @@ class SelectStatement(Selectable):
         self.df_ast_ids = (
             from_.df_ast_ids.copy() if from_.df_ast_ids is not None else None
         )
+        self.df_trace_nodes = (
+            from_.df_trace_nodes.copy() if from_.df_trace_nodes is not None else None
+        )
 
     def __copy__(self):
         new = SelectStatement(
@@ -970,6 +990,9 @@ class SelectStatement(Selectable):
             self._merge_projection_complexity_with_subquery
         )
         new.df_ast_ids = self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+        new.df_trace_nodes = (
+            self.df_trace_nodes.copy() if self.df_trace_nodes is not None else None
+        )
         if (
             self._session.reduce_describe_query_enabled
             and self._session.cte_optimization_enabled
@@ -1044,6 +1067,17 @@ class SelectStatement(Selectable):
                     snowflake_plan = getattr(self.from_, "_snowflake_plan", None)
                     if snowflake_plan is not None and snowflake_plan.df_ast_ids is None:
                         snowflake_plan.df_ast_ids = self.from_.df_ast_ids
+                if (
+                    self.df_trace_nodes is not None
+                    and self.from_.df_trace_nodes is None
+                ):
+                    self.from_.df_trace_nodes = self.df_trace_nodes.copy()
+                    snowflake_plan = getattr(self.from_, "_snowflake_plan", None)
+                    if (
+                        snowflake_plan is not None
+                        and snowflake_plan.df_trace_nodes is None
+                    ):
+                        snowflake_plan.df_trace_nodes = self.from_.df_trace_nodes
                 self.column_states = self.from_.column_states
             else:
                 super().column_states  # will assign value to self._column_states
@@ -1534,6 +1568,9 @@ class SelectStatement(Selectable):
             new.df_ast_ids = (
                 self.df_ast_ids.copy() if self.df_ast_ids is not None else None
             )
+            new.df_trace_nodes = (
+                self.df_trace_nodes.copy() if self.df_trace_nodes is not None else None
+            )
         else:
             new_order_by = None
             new_from = self
@@ -1712,6 +1749,9 @@ class SelectStatement(Selectable):
             new.df_ast_ids = (
                 self.df_ast_ids.copy() if self.df_ast_ids is not None else None
             )
+            new.df_trace_nodes = (
+                self.df_trace_nodes.copy() if self.df_trace_nodes is not None else None
+            )
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
@@ -1747,6 +1787,9 @@ class SelectStatement(Selectable):
             new._merge_projection_complexity_with_subquery = False
             new.df_ast_ids = (
                 self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
+            new.df_trace_nodes = (
+                self.df_trace_nodes.copy() if self.df_trace_nodes is not None else None
             )
         else:
             new = SelectStatement(
@@ -1789,6 +1832,9 @@ class SelectStatement(Selectable):
             new.df_ast_ids = (
                 self.df_ast_ids.copy() if self.df_ast_ids is not None else None
             )
+            new.df_trace_nodes = (
+                self.df_trace_nodes.copy() if self.df_trace_nodes is not None else None
+            )
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
@@ -1820,6 +1866,9 @@ class SelectStatement(Selectable):
             new._merge_projection_complexity_with_subquery = False
             new.df_ast_ids = (
                 self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
+            new.df_trace_nodes = (
+                self.df_trace_nodes.copy() if self.df_trace_nodes is not None else None
             )
         else:
             new = SelectStatement(
@@ -1856,6 +1905,9 @@ class SelectStatement(Selectable):
             new._merge_projection_complexity_with_subquery = False
             new.df_ast_ids = (
                 self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
+            new.df_trace_nodes = (
+                self.df_trace_nodes.copy() if self.df_trace_nodes is not None else None
             )
         else:
             new = SelectStatement(
@@ -1947,6 +1999,9 @@ class SelectStatement(Selectable):
             new._merge_projection_complexity_with_subquery = False
             new.df_ast_ids = (
                 self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
+            new.df_trace_nodes = (
+                self.df_trace_nodes.copy() if self.df_trace_nodes is not None else None
             )
         if self._session.reduce_describe_query_enabled:
             new.attributes = self.attributes

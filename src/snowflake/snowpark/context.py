@@ -170,8 +170,6 @@ _debug_eager_schema_validation = False
 
 # This is an internal-only global flag, used to determine whether to enable query line tracking for tracing sql compilation errors.
 _enable_trace_sql_errors_to_dataframe = False
-# Whether the development features turned the AST collection on, so turning them off undoes it.
-_ast_enabled_by_development_features = False
 
 # SNOW-2362050: Enable this fix by default.
 # Global flag for fix 2360274. When enabled schema queries will use NULL as a place holder for any values inside structured objects
@@ -211,18 +209,15 @@ def configure_development_features(
         enable_eager_schema_validation: If True, dataframe schemas are eagerly validated by querying
             for column metadata after every dataframe operation. This adds additional query overhead.
         enable_dataframe_trace_on_error: If True, upon failure, we will add most recent dataframe
-            operations to the error trace. This enables the AST collection in the session.
+            operations to the error trace.
         enable_trace_sql_errors_to_dataframe: If True, we will enable tracing sql compilation errors
-            to the associated dataframe operations. This enables the AST collection in the session.
+            to the associated dataframe operations.
     Note:
         This feature is experimental since 1.33.0. Do not use it in production.
 
-        Turning on a tracing feature enables the AST collection and, to avoid a known issue with
-        the AST, disables the automatic clean-up of temporary tables in the sessions. If the features
-        turned the AST collection on, turning off both tracing features turns it off again and restores
-        the automatic clean-up of temporary tables. If the AST collection was already on, it is left on.
-        A cleaner setting you changed yourself, such as ``session.auto_clean_up_temp_table_enabled``
-        set after enabling the features, is kept.
+        The tracing features record the source position of the dataframe operations while they are
+        enabled, so dataframes created before they are enabled have no source position. They do not
+        use or enable the AST collection and do not change the temporary table clean-up.
     """
     _logger.warning(
         "configure_development_features() is experimental since 1.33.0. Do not use it in production.",
@@ -230,7 +225,6 @@ def configure_development_features(
     global _debug_eager_schema_validation
     global _enable_dataframe_trace_on_error
     global _enable_trace_sql_errors_to_dataframe
-    global _ast_enabled_by_development_features
 
     requested = (
         enable_eager_schema_validation,
@@ -251,28 +245,6 @@ def configure_development_features(
         _enable_dataframe_trace_on_error = dataframe_trace_on_error
     if trace_sql_errors_to_dataframe is not None:
         _enable_trace_sql_errors_to_dataframe = trace_sql_errors_to_dataframe
-
-    from snowflake.snowpark._internal.utils import is_ast_enabled
-
-    with snowflake.snowpark.session._session_management_lock:
-        sessions = snowflake.snowpark.session._get_active_sessions(
-            require_at_least_one=False
-        )
-        if _enable_dataframe_trace_on_error or _enable_trace_sql_errors_to_dataframe:
-            if not _ast_enabled_by_development_features and not is_ast_enabled():
-                _ast_enabled_by_development_features = True
-            try:
-                for active_session in sessions:
-                    active_session._set_ast_enabled_internal(True)
-            except Exception as e:  # pragma: no cover
-                _logger.warning(
-                    f"Cannot enable AST collection in the session due to {str(e)}. Some development features may not work as expected.",
-                )
-        else:
-            if _ast_enabled_by_development_features:
-                for active_session in sessions:
-                    active_session._set_ast_enabled_internal(False)
-                _ast_enabled_by_development_features = False
 
 
 def _should_use_structured_type_semantics():

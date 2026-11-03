@@ -77,6 +77,7 @@ class MockSelectable(LogicalPlan, ABC):
             str, Dict[str, str]
         ] = defaultdict(dict)
         self.df_ast_ids = None
+        self.df_trace_nodes = None
 
     @property
     def analyzer(self) -> "Analyzer":
@@ -128,6 +129,12 @@ class MockSelectable(LogicalPlan, ABC):
             self.df_ast_ids = [df_ast_id]
         elif self.df_ast_ids[-1] != df_ast_id:
             self.df_ast_ids.append(df_ast_id)
+
+    def add_df_trace_node(self, node) -> None:
+        if self.df_trace_nodes is None:
+            self.df_trace_nodes = [node]
+        elif self.df_trace_nodes[-1] is not node:
+            self.df_trace_nodes.append(node)
 
     def to_subqueryable(self) -> "Selectable":
         """Some queries can be used in a subquery. Some can't. For details, refer to class SelectSQL."""

@@ -38,8 +38,8 @@ def test_context_configure_development_features():
             )
             assert context._enable_trace_sql_errors_to_dataframe is True
             assert context._enable_dataframe_trace_on_error is False
-            mock_session1._set_ast_enabled_internal.assert_called_once_with(True)
-            mock_session2._set_ast_enabled_internal.assert_called_once_with(True)
+            mock_session1._set_ast_enabled_internal.assert_not_called()
+            mock_session2._set_ast_enabled_internal.assert_not_called()
 
     finally:
         # a call without arguments turns every development feature off
@@ -47,7 +47,7 @@ def test_context_configure_development_features():
         assert context._enable_trace_sql_errors_to_dataframe is False
 
 
-def test_development_features_restore_session_settings_when_turned_off(session):
+def test_development_features_leave_session_settings_alone(session):
     original_ast = session.ast_enabled
     original_cleaner = session._auto_clean_up_temp_table_enabled
     try:
@@ -55,8 +55,9 @@ def test_development_features_restore_session_settings_when_turned_off(session):
         context.configure_development_features(enable_eager_schema_validation=True)
         # a call that only passes other features keeps the tracing feature on
         assert context._enable_dataframe_trace_on_error is True
-        assert session.ast_enabled is True
-        assert session._auto_clean_up_temp_table_enabled is False
+        # the tracing features neither enable the AST nor change the temp table clean-up
+        assert session.ast_enabled == original_ast
+        assert session._auto_clean_up_temp_table_enabled == original_cleaner
     finally:
         context.configure_development_features()
     assert session.ast_enabled == original_ast
