@@ -1657,6 +1657,24 @@ class TestReadAnswer:
             None,
         )
 
+    @pytest.mark.parametrize(
+        "answer", ['[{"name": "x"}]', "123", '{"name": "x"}', "true", "null"]
+    )
+    def test_a_plain_answer_in_an_object_result_is_not_decoded(self, answer):
+        # Only a JSON-encoded string is unwrapped; a plain answer that is itself valid
+        # JSON reads exactly as it does in the string result.
+        assert read_answer({"value": answer, "error": None}) == read_answer(
+            json.dumps({"value": answer, "error": None})
+        )
+
+    def test_a_plain_list_answer_in_an_object_result_reports_the_parse_error(self):
+        # Decoded, it would be a list and report "answer was not text" instead.
+        assert read_answer({"value": '[{"name": "x"}]', "error": None}) == (
+            None,
+            "answer JSON was not an object",
+            None,
+        )
+
     def test_a_native_arrow_error_is_decoded(self):
         assert read_answer({"value": None, "error": '"malformed request"'}) == (
             None,

@@ -1147,13 +1147,16 @@ def no_model_message(models: List[str]) -> str:
 
 
 def _from_variant_text(field: Any) -> Any:
-    """A result field that is still JSON text, decoded; any other field as it is."""
+    """A result field that is a JSON-encoded string, unwrapped; any other field as it
+    is. Only a string is unwrapped: a plain answer that happens to be valid JSON, such
+    as ``[...]`` or ``123``, stays text and reads as it does in the string result."""
     if not isinstance(field, str):
         return field
     try:
-        return json.loads(field)
+        decoded = json.loads(field)
     except json.JSONDecodeError:
         return field
+    return decoded if isinstance(decoded, str) else field
 
 
 def read_answer(raw: Any) -> Tuple[Any, Optional[str], Optional[Dict[str, Any]]]:
