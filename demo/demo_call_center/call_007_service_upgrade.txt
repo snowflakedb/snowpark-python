@@ -1,0 +1,110 @@
+CALL CENTER TRANSCRIPT
+Call ID: CC-3371
+Date: 2025-02-11
+Duration: 16:55
+Customer ID: CUST-72384
+Representative ID: REP-117
+Category: Service Upgrade
+Status: Resolved
+
+================================================================================
+TRANSCRIPT
+================================================================================
+
+[2025-02-11-11-30-04] REP: Thank you for calling Meridian Utilities, my name is Ben, how can I help you today?
+
+[2025-02-11-11-30-24] CUSTOMER: Hey Ben! Yeah, so I want to upgrade my internet plan. I've been on the basic plan forever and I think it's time to finally go fiber. I keep seeing ads for it and my current service is honestly pretty slow.
+
+[2025-02-11-11-30-49] REP: I love to hear that — fiber is a great upgrade. Let me pull up your account and we can talk through the options. What's your name and account number?
+
+[2025-02-11-11-31-02] CUSTOMER: It's Cassandra Park. Account number CUST-72384.
+
+[2025-02-11-11-31-13] REP: Great. And just to verify, can you confirm your service address?
+
+[2025-02-11-11-31-21] CUSTOMER: 17 Blue Jay Court, Portland, Oregon 97202.
+
+[2025-02-11-11-31-52] REP: Perfect. Okay, Cassandra, I'm looking at your account. You're currently on our BasicConnect plan — 25 megabits per second download — and you've been on that plan since 2020. That plan runs you $39.99 a month.
+
+[2025-02-11-11-32-24] CUSTOMER: Yeah, exactly. And honestly, 25 megs is just not cutting it anymore. My husband and I both work from home a couple days a week, and we have two teenagers who are always streaming or gaming or something. It's a constant battle for bandwidth.
+
+[2025-02-11-11-32-44] REP: Oh, totally. A household of four with multiple people working and streaming — you definitely need more than 25 megs. Let me tell you what fiber options we have available at your address.
+
+[2025-02-11-11-32-51] CUSTOMER: Please, yes.
+
+[2025-02-11-11-33-48] REP: Okay so good news — fiber is available in your area. We have three tiers. The first is our FiberFlex 300, which is 300 down, 300 up — symmetrical, which is great for working from home since upload speed matters for video calls. That's $59.99 a month. Then there's FiberFlex 600, which is 600 up and down, at $74.99 a month. And our top tier is GigaFlex, which is 1 gigabit — 1000 megabits — symmetrical, at $89.99 a month.
+
+[2025-02-11-11-34-01] CUSTOMER: Oh wow. Okay. The gig one is really only $90?
+
+[2025-02-11-11-34-19] REP: It is. We have a current promotion actually — if you sign up for any fiber plan by the end of February, the installation is waived. That's normally a $99 installation fee.
+
+[2025-02-11-11-34-30] CUSTOMER: Oh nice! So I'd save the install fee if I sign up now?
+
+[2025-02-11-11-34-39] REP: Exactly. That promotion runs through February 28th.
+
+[2025-02-11-11-35-04] CUSTOMER: Okay. What's your honest recommendation? We have four people — two working from home occasionally, two teens. We do Netflix, gaming, video calls, the usual.
+
+[2025-02-11-11-36-02] REP: Honestly, for a household your size with those usage patterns, I'd say FiberFlex 600 hits the sweet spot. The gig plan is fantastic and the price is great, but at 600 megs symmetrical, you'd have more than enough for everything you described simultaneously without really noticing any difference in day-to-day performance. Where the gig plan really shines is for larger households with even more simultaneous users, or if someone in the house is doing heavy data transfers or 4K video production.
+
+[2025-02-11-11-36-18] CUSTOMER: That's a really honest answer. I kind of appreciate that you're not just pushing the most expensive one.
+
+[2025-02-11-11-36-56] REP: I appreciate that, but I genuinely think the 600 is the right fit for you. That said, if you want the gig and the price doesn't bother you, you'll never once regret having it. Some people just want to know they have the best and never have to think about it.
+
+[2025-02-11-11-37-12] CUSTOMER: [laughs] That is definitely my husband. He'll probably want the gig just on principle.
+
+[2025-02-11-11-37-24] REP: [laughs] I've heard that before. Either way you go, it's a huge upgrade from 25 megs.
+
+[2025-02-11-11-37-49] CUSTOMER: Yeah, no kidding. Okay, let me think out loud here. The 600 is $74.99 and I'm paying $39.99 now, so that's $35 more a month. Or the gig is $89.99, that's $50 more a month.
+
+[2025-02-11-11-37-57] REP: That's right.
+
+[2025-02-11-11-38-19] CUSTOMER: And I can switch any time? Like I could start on the 600 and if it's not enough—
+
+[2025-02-11-11-38-40] REP: You can upgrade or downgrade between fiber tiers at any time with no fee. Downgrades take effect at the next billing cycle; upgrades can be applied immediately.
+
+[2025-02-11-11-39-04] CUSTOMER: Oh, that's great. Okay. Let's do it. I'll go with the GigaFlex — you only live once and my husband will be so happy. [laughs]
+
+[2025-02-11-11-39-16] REP: GigaFlex it is! Great choice. Let me get the order started.
+
+[2025-02-11-11-39-37] CUSTOMER: Wait, one more thing — does this require a new router or anything? Or will my current equipment work?
+
+[2025-02-11-11-40-16] REP: Good question. For the gig plan specifically, we do recommend a fiber-compatible router. If you have your own router, it just needs to support gigabit ethernet. If you don't have one, we have two options — we can rent you our Meridian SmartRouter for $10 a month, or you can purchase one from us for $149.99 outright, which pays for itself in about 15 months if you stay on the plan.
+
+[2025-02-11-11-40-28] CUSTOMER: What router do you use for the rental?
+
+[2025-02-11-11-40-41] REP: It's the Netgear Orbi Pro — it's a really solid Wi-Fi 6 mesh unit. Works great.
+
+[2025-02-11-11-41-18] CUSTOMER: Actually, I think I have a newer router. Let me check... [pause] Yep, we have a TP-Link Archer AX90 that we got last year. Will that work?
+
+[2025-02-11-11-41-35] REP: Yes, absolutely. That's a Wi-Fi 6 router and it'll handle gigabit just fine. You won't need any new equipment from us.
+
+[2025-02-11-11-41-45] CUSTOMER: Perfect. Okay, I'm definitely doing this.
+
+[2025-02-11-11-42-26] REP: Excellent! So I'm placing the order for GigaFlex — 1 gig symmetrical — at $89.99 a month. Installation waived due to the February promotion. A technician will need to come out to connect the fiber line to your home. What does your schedule look like?
+
+[2025-02-11-11-42-39] CUSTOMER: I work from home Tuesdays and Thursdays so those are the easiest days for me.
+
+[2025-02-11-11-42-53] REP: I have a Tuesday, February 18th opening between 1 and 4 PM. Does that work?
+
+[2025-02-11-11-43-02] CUSTOMER: Yes! Totally works.
+
+[2025-02-11-11-43-32] REP: Great, I'm booking that now. A tech will be there February 18th between 1 and 4 PM. You'll get a reminder text and email the day before, and the tech will also send a heads-up when they're about 30 minutes away.
+
+[2025-02-11-11-43-47] CUSTOMER: Awesome. So I'll be down during the installation?
+
+[2025-02-11-11-44-13] REP: Your current service will stay active during the installation and only switch over when the tech flips it at the end. It should be a pretty seamless cutover — maybe 5 to 10 minutes where the internet is actually off.
+
+[2025-02-11-11-44-22] CUSTOMER: Oh nice. I can survive 10 minutes.
+
+[2025-02-11-11-44-35] REP: [laughs] We'll try to keep it brief. Is there anything else you'd like to know?
+
+[2025-02-11-11-44-52] CUSTOMER: I don't think so! Ben, this was a great call. I feel really good about this.
+
+[2025-02-11-11-45-10] REP: I'm glad! You're going to love it. Day one with gig internet after being on 25 megs is a pretty big moment.
+
+[2025-02-11-11-45-23] CUSTOMER: [laughs] I'm kind of excited. Okay. Thanks so much.
+
+[2025-02-11-11-45-35] REP: Thank you for calling, Cassandra. Enjoy your upgrade! Take care.
+
+[2025-02-11-11-45-46] CUSTOMER: You too! Bye!
+
+[2025-02-11-11-45-52] REP: Bye!

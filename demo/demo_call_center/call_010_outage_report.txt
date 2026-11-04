@@ -1,0 +1,117 @@
+CALL CENTER TRANSCRIPT
+Call ID: CC-1147
+Date: 2025-03-03
+Duration: 19:22
+Customer ID: CUST-84430
+Representative ID: REP-022
+Category: Service Outage Report
+Status: Escalated
+
+================================================================================
+TRANSCRIPT
+================================================================================
+
+[2025-03-03-10-48-04] REP: Meridian Utilities, this is Tom, how can I help you today?
+
+[2025-03-03-10-48-32] CUSTOMER: Yes, hi, I need to report a power outage. My power has been out for almost four hours and I — I need to tell you it's urgent. I have a family member here who uses a home oxygen concentrator and we're running out of battery backup time.
+
+[2025-03-03-10-48-55] REP: Okay, I hear you. I'm going to take this seriously and get you to the right people. Let me pull up the information right now. First — your name and address?
+
+[2025-03-03-10-49-09] CUSTOMER: Linda Sorensen. The address is 3301 Fairmont Blvd, Raleigh, North Carolina 27612.
+
+[2025-03-03-10-49-20] REP: 3301 Fairmont Blvd, Raleigh 27612. And the account number?
+
+[2025-03-03-10-49-31] CUSTOMER: It's CUST-84430. I have the bill right here.
+
+[2025-03-03-10-50-00] REP: Perfect. Verifying... okay, I've got your account, Ms. Sorensen. You mentioned someone using a home oxygen concentrator. Is that person with you right now?
+
+[2025-03-03-10-50-46] CUSTOMER: Yes, it's my husband. He has COPD and the concentrator is essential — it's not optional. We have a battery backup unit but it's been running for almost two hours now and I don't know how much time is left on it. The manufacturer says maybe another two to three hours, but I don't know exactly.
+
+[2025-03-03-10-51-18] REP: Understood. I want to flag this as a Priority Medical Emergency on your outage ticket right now. That escalates it to our field crew dispatch. Can you also tell me — have your neighbors also lost power, or is it just your home?
+
+[2025-03-03-10-51-38] CUSTOMER: The whole street seems to be out. I walked outside about an hour ago and none of the streetlights are on. My neighbors on both sides are also dark.
+
+[2025-03-03-10-52-25] REP: Okay, that suggests this is a broader outage rather than an isolated issue at your house, which actually helps us. Let me check our outage map. [pause] Yes, I'm seeing an active outage in your area — it appears to affect approximately 340 customers in your area, including Fairmont Blvd. The cause is listed as a fault on a transmission line, and a crew was dispatched about 45 minutes ago.
+
+[2025-03-03-10-52-40] CUSTOMER: 45 minutes ago and nobody's fixed it yet?
+
+[2025-03-03-10-53-14] REP: I know that's frustrating to hear. I don't have an estimated restoration time from the field crew yet. But I am going to escalate your call right now to my supervisor and our priority dispatch team because of the medical need. That changes the response priority.
+
+[2025-03-03-10-53-38] CUSTOMER: Okay, yes, please do that. What does that mean in practice? Does it make the crew come faster?
+
+[2025-03-03-10-54-20] REP: It flags your specific address to the dispatch coordinator so that when the crew isolates the repair, your section is prioritized where possible. It also logs your address in our medical device registry so that if there are future outages, your account will automatically be flagged as a priority.
+
+[2025-03-03-10-54-33] CUSTOMER: Oh, I didn't know you had a registry like that.
+
+[2025-03-03-10-55-10] REP: We do — it's called the Life Support Equipment Registry. I'm going to start the enrollment process for your account right now, but I also want to get you connected to my supervisor while I do that. Are you okay to hold for about 60 seconds while I get her on the line?
+
+[2025-03-03-10-55-24] CUSTOMER: Yes, yes, please just be quick. I'm watching the battery level on the concentrator.
+
+[2025-03-03-10-55-33] REP: I'll be as fast as I can. Hold please.
+
+[HOLD - 47 SECONDS]
+
+[2025-03-03-10-56-20] SUPERVISOR (REP-S12): Ms. Sorensen, this is Patricia, I'm a senior customer care specialist here at Meridian. I've been briefed on the situation. I want to let you know I have personally notified our field dispatch coordinator about your address and the medical equipment situation. You are now marked as the highest priority address on the Fairmont Blvd outage.
+
+[2025-03-03-10-56-32] CUSTOMER: Okay, thank you. Do you have any idea how long?
+
+[2025-03-03-10-57-05] SUPERVISOR: I'm going to be honest with you — the fault is on a transmission switch about half a mile from your home. The crew is on site and they've isolated the issue. I'm showing an estimated restoration in the range of 60 to 90 minutes from right now.
+
+[2025-03-03-10-57-16] CUSTOMER: Ninety minutes. That's cutting it very close.
+
+[2025-03-03-10-57-52] SUPERVISOR: I understand. I want to offer you two things. First, if you want, I can have our emergency services liaison contact your local Raleigh fire station — they have medical response capability and can have someone come to your home to stand by as a precaution in case the battery runs low.
+
+[2025-03-03-10-58-06] CUSTOMER: I... should I call 911 instead?
+
+[2025-03-03-10-58-48] SUPERVISOR: You can absolutely do that and I would not discourage it. That is always an option for a medical emergency. What I'm offering is an additional layer of coordination on our side. Either way — if at any point your husband is in distress, call 911 immediately. Don't wait.
+
+[2025-03-03-10-59-13] CUSTOMER: Yes. Okay. Yes, I'll call 911 if it comes to that. But right now he's okay, he's just uncomfortable.
+
+[2025-03-03-10-59-30] SUPERVISOR: Okay. I'm monitoring this outage actively. Ms. Sorensen, can I get your cell phone number so I can call you back with updates?
+
+[2025-03-03-10-59-40] CUSTOMER: It's 919-507-3384.
+
+[2025-03-03-11-00-15] SUPERVISOR: I have that. I am going to personally call you back at 919-507-3384 within 30 minutes with a status update, regardless of whether the power is back by then. I won't leave you hanging.
+
+[2025-03-03-11-00-36] CUSTOMER: Okay. That's — thank you. I'm scared but thank you for taking this seriously.
+
+[2025-03-03-11-01-20] SUPERVISOR: You called the right line and you explained the situation clearly. That made a difference. Tom is also enrolling your account in our Life Support Equipment Registry while we're talking, so this is documented going forward.
+
+[2025-03-03-11-01-33] CUSTOMER: What does that mean for future outages?
+
+[2025-03-03-11-02-30] SUPERVISOR: It means your account will automatically appear in our priority list any time there's a planned outage in your area — we'll contact you at least 48 hours in advance so you can prepare. For unplanned outages like today, dispatch will see the flag and respond accordingly. You should have been enrolled the moment your husband began relying on that equipment, and I'm sorry that wasn't in place.
+
+[2025-03-03-11-02-43] CUSTOMER: I didn't know to ask. The doctor never mentioned it.
+
+[2025-03-03-11-03-30] SUPERVISOR: We should make it more visible. That's a fair point. Some utilities work with home health providers to catch this during equipment setup — we're working on that kind of outreach. But for now, you're enrolled.
+
+[2025-03-03-11-03-48] CUSTOMER: Okay. Okay. He's still doing alright. I'm watching him. The concentrator is running.
+
+[2025-03-03-11-04-10] SUPERVISOR: Good. I'll let you go so you can be with him. Watch for my call in 30 minutes — or the lights might just come back on before then.
+
+[2025-03-03-11-04-23] CUSTOMER: I hope so. Thank you, Patricia. Thank you.
+
+[2025-03-03-11-04-32] SUPERVISOR: Of course. Take care, Ms. Sorensen.
+
+[CALL TRANSFERRED TO SUPERVISOR - REP-022 RETAINS CASE]
+
+================================================================================
+POST-CALL NOTES (REP-022)
+================================================================================
+PRIORITY MEDICAL - LIFE SUPPORT EQUIPMENT
+Power outage reported at 3301 Fairmont Blvd, Raleigh NC 27612 (CUST-84430,
+Linda Sorensen). Outage duration at time of call: ~4 hours. Husband on home O2
+concentrator (COPD) - battery backup estimated 2-3 hrs remaining.
+Area outage: ~340 customers affected, transmission fault, crew on site ~45 min.
+EST restoration: 60-90 min from call time.
+ACTIONS:
+- Priority Medical flag added to outage ticket for Fairmont Blvd address
+- Life Support Equipment Registry enrollment initiated (Tom REP-022)
+- Escalated to Patricia (REP-S12) - senior supervisor
+- Patricia contacted field dispatch directly re: medical priority
+- Patricia committed to 30-min callback to customer (919-507-3384)
+- Customer advised to call 911 if husband's condition changes
+NOTE: Account had no prior LSE flag despite documented COPD + home O2 use.
+Registry enrollment should have happened at start of equipment use. Flag for
+patient outreach improvement process - forward to Patricia for QA review.
+CASE REMAINS OPEN - pending field resolution confirmation + supervisor callback.
