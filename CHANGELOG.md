@@ -10,7 +10,8 @@
 
 #### Improvements
 
-- `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them. Turning the tracing features off now also turns off the AST collection if the features enabled it.
+- (Experimental) The dataframe trace and SQL error tracing of `snowflake.snowpark.context.configure_development_features` no longer use or enable the AST collection and no longer disable the automatic clean-up of temporary tables. They record the source position of each DataFrame operation in a lightweight trace instead, which also includes the DataFrames used in column expressions (for example `Column.isin` with a DataFrame) and the registration of the UDFs, UDTFs and UDAFs used by an operation.
+- `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them.
 
 #### Bug Fixes
 

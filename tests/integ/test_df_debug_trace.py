@@ -18,7 +18,11 @@ from tests.resources.test_debug_utils_dir.dataframe_generator2 import (
     DataFrameGenerator2,
 )
 
-from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
+from snowflake.snowpark._internal.utils import (
+    AstFlagSource,
+    is_ast_enabled,
+    set_ast_state,
+)
 import snowflake.snowpark.context as context
 
 
@@ -39,11 +43,13 @@ pytestmark = [
 @pytest.fixture(autouse=True)
 def setup(request, session):
     original = session.ast_enabled
+    # The dataframe trace does not use the AST collection; keep it off to make sure.
+    set_ast_state(AstFlagSource.TEST, False)
     context.configure_development_features(enable_dataframe_trace_on_error=True)
-    set_ast_state(AstFlagSource.TEST, True)
     if SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH in os.environ:
         del os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH]
     yield
+    assert not is_ast_enabled(), "the debug features must not turn the AST on"
     context.configure_development_features(enable_dataframe_trace_on_error=False)
     set_ast_state(AstFlagSource.TEST, original)
     if SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH in os.environ:

@@ -17,8 +17,10 @@ import snowflake.snowpark.context as context
 from snowflake.snowpark import GroupingSets, Window
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.utils import (
+    AstFlagSource,
     TempObjectType,
     is_ast_enabled,
+    set_ast_state,
 )
 from snowflake.snowpark.functions import col, parse_json, sum as sum_
 from tests.utils import Utils
@@ -201,16 +203,43 @@ def test_session_and_process_state_is_restored(session):
         enable_trace_sql_errors_to_dataframe=True,
     )
     during = _snapshot(session)
-    # Besides the two tracing flags, only the AST collection (enabled by the features) and the
-    # temp table clean-up it disables may change; the trace itself changes nothing else.
-    ast_keys = (
-        "ast_enabled",
-        "session_ast_enabled",
-        "auto_clean_up_temp_table_enabled",
-    )
+    # Only the two tracing flags change; the AST and the temp table clean-up are untouched.
     expected = dict(before, trace_on_error=True, trace_sql_errors=True)
-    assert {k: v for k, v in during.items() if k not in ast_keys} == {
-        k: v for k, v in expected.items() if k not in ast_keys
-    }
+    assert during == expected
     context.configure_development_features()
     assert _snapshot(session) == before
+
+
+def test_features_do_not_enable_ast_or_change_cleaner(session):
+    set_ast_state(AstFlagSource.TEST, False)
+    session.auto_clean_up_temp_table_enabled = True
+    try:
+        context.configure_development_features(
+            enable_dataframe_trace_on_error=True,
+            enable_trace_sql_errors_to_dataframe=True,
+        )
+        assert not is_ast_enabled()
+        assert session.auto_clean_up_temp_table_enabled is True
+        context.configure_development_features()
+        assert not is_ast_enabled()
+        assert session.auto_clean_up_temp_table_enabled is True
+    finally:
+        session.auto_clean_up_temp_table_enabled = False
+
+
+def test_dataframes_created_before_enabling_still_work(session, table):
+    df_old = _a(session).filter(
+        col("ID") > 1
+    )  # built with the features off, no trace node
+    context.configure_development_features(
+        enable_dataframe_trace_on_error=True,
+        enable_trace_sql_errors_to_dataframe=True,
+    )
+    try:
+        mixed = df_old.join(_b(session), on="ID").sort("ID")  # old and new plans
+        assert [r["ID"] for r in mixed.collect()] == [2]
+        with pytest.raises(Exception) as ex:
+            mixed.select("DOES_NOT_EXIST").collect()
+        assert "DOES_NOT_EXIST" in str(ex.value)
+    finally:
+        context.configure_development_features()

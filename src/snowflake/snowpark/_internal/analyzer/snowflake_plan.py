@@ -181,15 +181,14 @@ class SnowflakePlan(LogicalPlan):
                     query = getattr(e, "query", None)
                     tb = sys.exc_info()[2]
                     assert e.msg is not None
-                    # extract top_plan, df_ast_id, stmt_cache from args
-                    top_plan, df_ast_id, stmt_cache = None, None, None
+                    # extract top_plan and its most recent trace node from args
+                    top_plan, trace_node = None, None
                     for arg in args:
                         if isinstance(arg, SnowflakePlan):
                             top_plan = arg
                             break
-                    if top_plan is not None and top_plan.df_ast_ids:
-                        df_ast_id = top_plan.df_ast_ids[-1]
-                        stmt_cache = top_plan.session._ast_batch._bind_stmt_cache
+                    if top_plan is not None and top_plan.df_trace_nodes:
+                        trace_node = top_plan.df_trace_nodes[-1]
 
                     debug_context_arr = []
                     try:
@@ -203,13 +202,9 @@ class SnowflakePlan(LogicalPlan):
                                 top_plan, e.msg
                             ):
                                 debug_context_arr.append(error_source_context)
-                        if (
-                            _enable_dataframe_trace_on_error
-                            and df_ast_id is not None
-                            and stmt_cache is not None
-                        ):
+                        if _enable_dataframe_trace_on_error and trace_node is not None:
                             if df_transform_trace := get_df_transform_trace_message(
-                                df_ast_id, stmt_cache
+                                trace_node
                             ):
                                 debug_context_arr.append(df_transform_trace)
                         if (
