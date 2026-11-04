@@ -242,11 +242,13 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: ${{ success() || failure() }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: ${{ success() || failure() }}
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
@@ -318,11 +320,13 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: ${{ success() || failure() }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: ${{ success() || failure() }}
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-disable-sql-simplifier
@@ -394,11 +398,13 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: ${{ success() || failure() }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: ${{ success() || failure() }}
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-disable-cte-optimization
@@ -481,11 +487,13 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: ${{ success() || failure() }}
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: ${{ success() || failure() }}
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-snowpark-pandas-testing
