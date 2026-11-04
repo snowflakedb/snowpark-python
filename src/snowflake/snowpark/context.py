@@ -217,6 +217,10 @@ def configure_development_features(
         The tracing features record the source position of the dataframe operations while they are
         enabled, so dataframes created before they are enabled have no source position. They do not
         use or enable the AST collection and do not change the temporary table clean-up.
+
+        SQL errors of queries rewritten by the CTE optimization are mapped through the compiled
+        query. Errors of queries created by the large query breakdown are not mapped to a source
+        position.
     """
     _logger.warning(
         "configure_development_features() is experimental since 1.33.0. Do not use it in production.",

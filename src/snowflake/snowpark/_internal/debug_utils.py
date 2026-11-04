@@ -218,17 +218,76 @@ def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
     return source_locations
 
 
-def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) -> str:
+def _resolve_error_line(
+    top_plan: "SnowflakePlan",
+    sql_line_number: int,
+    position: int,
+    executed_sql: Optional[str],
+) -> Optional[Tuple["SnowflakePlan", int]]:
+    """Returns the plan whose line intervals describe the line of the executed sql that has the
+    error, and the line number relative to the sql of that plan, or None if the line cannot be
+    mapped reliably.
+
+    The line intervals of ``top_plan`` describe the sql it generated itself. When the executed sql
+    is different, because the plan compiler rewrote it (a WITH clause for CTE optimization, or the
+    query was split by large query breakdown), they must not be used: a line of the compiled sql
+    is mapped through the part of the compiled query it is in instead, and an error of a query
+    whose parts are unknown is not mapped.
+    """
+    if executed_sql is None:
+        return top_plan, sql_line_number
+    # The sql is stripped before it is sent.
+    executed = executed_sql.strip()
+    if executed == top_plan.queries[-1].sql.strip() or (
+        top_plan.schema_query is not None and executed == top_plan.schema_query.strip()
+    ):
+        return top_plan, sql_line_number
+
+    compiled = getattr(top_plan, "_last_execution_queries", None) or {}
+    compiled_query = None
+    for queries in compiled.values():
+        for query in queries:
+            if query.sql.strip() == executed:
+                compiled_query = query
+                break
+        if compiled_query is not None:
+            break
+    if compiled_query is None:
+        return None
+    if compiled_query.query_line_intervals is top_plan.queries[-1].query_line_intervals:
+        # A copy of the query of the plan (only temp object names were filled in).
+        return top_plan, sql_line_number
+    compiled_sql, segments = compiled_query.sql, compiled_query.cte_segments
+    if not segments:
+        return None
+
+    lines = executed.split("\n")
+    if sql_line_number >= len(lines):
+        return None
+    leading = len(compiled_sql) - len(compiled_sql.lstrip())
+    offset = leading + sum(len(line) + 1 for line in lines[:sql_line_number]) + position
+    for segment in segments:
+        if segment.start <= offset < segment.end:
+            local_line = compiled_sql.count("\n", segment.start, offset)
+            return segment.plan, local_line
+    return None
+
+
+def get_python_source_from_sql_error(
+    top_plan: "SnowflakePlan", error_msg: str, executed_sql: Optional[str] = None
+) -> str:
     """
     Extract SQL error line number and map it back to Python source code. We use the
     helper function get_plan_from_line_numbers to get the plan from the line number
     found in the SQL compilation error message. We then extract the source lines
-    and columns using the ast_id associated with the plan. We return a message with
+    and columns using the trace nodes associated with the plan. We return a message with
     the affected Python lines if found, otherwise an empty string.
 
     Args:
         plan: The top level SnowflakePlan object that contains the SQL compilation error.
         error_msg: The error message from the SQL compilation error.
+        executed_sql: The sql that failed, if known. When it differs from the sql of the plan
+            (the plan compiler rewrote it), the line is mapped through the compiled query.
 
     Returns:
         Error message with the affected Python lines numbers if found, otherwise an empty string.
@@ -241,12 +300,18 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
         return ""
 
     sql_line_number = int(match.group(1)) - 1
+    resolved = _resolve_error_line(
+        top_plan, sql_line_number, int(match.group(2)), executed_sql
+    )
+    if resolved is None:
+        return ""
+    plan_root, line_number = resolved
 
     from snowflake.snowpark._internal.utils import (
         get_plan_from_line_numbers,
     )
 
-    plan = get_plan_from_line_numbers(top_plan, sql_line_number)
+    plan = get_plan_from_line_numbers(plan_root, line_number)
     source_locations = _extract_source_locations_from_plan(plan)
 
     if source_locations:

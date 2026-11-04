@@ -2687,7 +2687,12 @@ def get_plan_from_line_numbers(
         idx = find_interval_containing_line(query_line_intervals, line_number)
         if idx >= 0:
             uuid = query_line_intervals[idx].uuid
-            if node.uuid == uuid:
+            # When the plan compiler regenerates a plan from its source selectable, the plan
+            # takes the queries of the selectable, so its own lines carry the selectable's uuid.
+            source_plan = getattr(node, "source_plan", None)
+            if node.uuid == uuid or (
+                isinstance(source_plan, Selectable) and source_plan.uuid == uuid
+            ):
                 node.df_trace_nodes = df_trace_nodes
                 return node
             else:
