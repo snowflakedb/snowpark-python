@@ -1,0 +1,230 @@
+# Nightly regression of snowpark-python against the Universal Driver (v5), mirroring
+# daily_connector_regress.yml's coverage but swapping in UD instead of a source build
+# of snowflake-connector-python.
+#
+# Coverage differs from daily_connector_regress.yml in one respect that cannot be
+# closed: that job runs Python 3.10, and UD's python package requires >=3.11.
+
+name: Daily UD regress
+on:
+  # Required until this file is on the default branch: GitHub only registers
+  # workflow_dispatch / schedule for workflows that already exist on default.
+  pull_request:
+
+  schedule:
+    # 7 AM UTC, an hour after daily_connector_regress so the two don't contend for
+    # the same test account.
+    - cron: "0 7 * * *"
+
+  workflow_dispatch:
+    inputs:
+      ud_ref:
+        description: "universal-driver ref to test against"
+        default: "snowpark-compatibility"
+      python_version:
+        description: "Python version (UD requires >=3.11)"
+        default: "3.11"
+        type: choice
+        options:
+          - "3.11"
+          - "3.12"
+          - "3.13"
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: ${{ inputs.python_version || '3.11' }}
+  UD_REF: ${{ inputs.ud_ref || 'snowpark-compatibility' }}
+  TOX_ENV: notdoctest-pandascap-pyarrowcap
+
+jobs:
+  build-ud:
+    name: Build UD wheel
+    runs-on: ubuntu-latest-64-cores
+    steps:
+      # snowflakedb/universal-driver is the public mirror. Omitting `token:` leaves the
+      # default GITHUB_TOKEN in place, which reads public repos; passing an empty or
+      # wrong token sets a bad Authorization header and GitHub 401s instead.
+      - name: Checkout universal-driver
+        uses: actions/checkout@v4
+        with:
+          repository: snowflakedb/universal-driver
+          ref: ${{ env.UD_REF }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Resolve UD commit
+        id: udsha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # UD's version is derived from the tree, so only the commit identifies a run.
+      - name: Record UD commit
+        run: |
+          echo "UD ref=\`${{ env.UD_REF }}\` sha=\`${{ steps.udsha.outputs.sha }}\`" \
+            >> $GITHUB_STEP_SUMMARY
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Ensure Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Cache UD wheel
+        id: udcache
+        uses: actions/cache@v4
+        with:
+          path: python/dist
+          key: ud-wheel-${{ steps.udsha.outputs.sha }}-py${{ env.PYTHON_VERSION }}-${{ runner.os }}
+
+      - name: Build UD wheel
+        if: steps.udcache.outputs.cache-hit != 'true'
+        run: |
+          uv tool install hatch
+          cd python
+          hatch build -t wheel
+          ls -lh dist
+
+      # UD links a pyo3 extension without abi3, so a correct build is tagged for the
+      # exact interpreter. A pure-python wheel here means the native extension was
+      # skipped and the suite would run against something that is not UD.
+      - name: Assert the wheel is a binary wheel for this interpreter
+        run: |
+          TAG="cp${PYTHON_VERSION/./}"
+          ls -1 python/dist/snowflake_connector_python*"$TAG"*.whl \
+            || { echo "::error::no $TAG wheel: the UD build fell back to pure python"; exit 1; }
+
+      - name: Upload UD wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: ud-wheel-py${{ env.PYTHON_VERSION }}
+          path: python/dist/*.whl
+          if-no-files-found: error
+
+  regress:
+    name: UD regress py${{ inputs.python_version || '3.11' }}
+    needs: build-ud
+    runs-on: ubuntu-latest-64-cores
+    steps:
+      # Must be first: a checkout without `path:` wipes $GITHUB_WORKSPACE.
+      - name: Checkout snowpark-python
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Upgrade setuptools, pip and wheel
+        run: uv pip install -U setuptools pip wheel --system
+
+      # tox_install_cmd.sh globs a directory, so the wheel goes in one of its own.
+      - name: Download UD wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: ud-wheel-py${{ env.PYTHON_VERSION }}
+          path: ${{ runner.temp }}/ud-wheels
+
+      - name: Locate UD wheel
+        id: udwheel
+        run: |
+          whl=$(ls "${{ runner.temp }}"/ud-wheels/*.whl | head -1)
+          test -n "$whl"
+          echo "path=$whl" >> "$GITHUB_OUTPUT"
+          echo "UD wheel: $whl"
+
+      # CLOUD_PROVIDER selects the parameters file, and so the account under test.
+      - name: Decrypt parameters.py
+        shell: bash
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: aws
+
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+
+      - name: Install tox
+        run: uv pip install tox --system
+
+      # Only UD ships snowflake.connector._internal alongside a compiled extension
+      # under _core/, so this holds regardless of the version or distribution name the
+      # wheel carries -- a pip-freeze check does not, since UD and the legacy connector
+      # share the name snowflake-connector-python. Written once and run both before and
+      # after the suite.
+      - name: Write UD verification script
+        shell: bash
+        run: |
+          cat > "${{ runner.temp }}/verify_ud.py" <<'PY'
+          import glob
+          import importlib.util
+          import pathlib
+          import sys
+
+          internal = importlib.util.find_spec("snowflake.connector._internal")
+          import snowflake.connector as connector
+
+          pkg_dir = pathlib.Path(connector.__file__).resolve().parent
+          core_so = glob.glob(str(pkg_dir / "_core" / "*.so"))
+
+          print(f"loaded={pkg_dir} _internal={bool(internal)} core_so={core_so}")
+          if not (internal and core_so):
+              print(f"::error::{sys.argv[1]}")
+              sys.exit(1)
+          print("Universal Driver active")
+          PY
+
+      # The env name must match scripts/jenkins_regress.sh exactly; that is what keeps
+      # coverage equal to the job this mirrors. Lower-case cloud_provider is not
+      # CLOUD_PROVIDER.
+      #
+      # The env is built with --notest and UD is then force-reinstalled straight into
+      # it, because `snowflake_path` does not reliably reach tox_install_cmd.sh's
+      # subprocess. The tests run with --skip-env-install so tox cannot reconcile
+      # dependencies a second time and pull the PyPI connector back over UD.
+      - name: Build tox env and install UD into it
+        shell: bash
+        run: |
+          python -m tox -e "$TOX_ENV" --notest
+          .tox/"$TOX_ENV"/bin/pip install --force-reinstall --no-deps "${{ steps.udwheel.outputs.path }}"
+        env:
+          snowflake_path: ${{ runner.temp }}/ud-wheels
+          cloud_provider: aws
+
+      # Fail before running the suite rather than reporting a pass that measured the
+      # legacy connector.
+      - name: Assert UD is active
+        shell: bash
+        run: |
+          .tox/"$TOX_ENV"/bin/python "${{ runner.temp }}/verify_ud.py" \
+            "legacy connector active, not UD -- the swap did not take"
+
+      - name: Run UD regression
+        id: regress
+        shell: bash
+        run: python -m tox -e "$TOX_ENV" --skip-env-install
+        env:
+          snowflake_path: ${{ runner.temp }}/ud-wheels
+          cloud_provider: aws
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
+
+      # A mid-run dependency install could still have replaced UD, which would make the
+      # results above describe the legacy connector.
+      - name: Assert the tests still ran against UD
+        if: ${{ steps.regress.outcome == 'success' || steps.regress.outcome == 'failure' }}
+        shell: bash
+        run: |
+          .tox/"$TOX_ENV"/bin/python "${{ runner.temp }}/verify_ud.py" \
+            "UD was replaced mid-run -- the results above describe the legacy connector"
