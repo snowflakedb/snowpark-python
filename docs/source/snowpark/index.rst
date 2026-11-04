@@ -25,6 +25,7 @@ Snowpark APIs
    files
    catalog
    lineage
+   mcp
    context
    exceptions
    testing

@@ -7,6 +7,11 @@
 #### New Features
 
 - Added `DataFrameReader.documents` (private preview) to read documents from a stage: parse them to text, or extract structured values with a `schema` and/or a `prompt` option. Long documents are split across several model calls automatically. Schema reads also return an `EXTRACTION_SCORES` column with a model-reported confidence score (0 to 1) for each top-level field.
+- Added the `snowflake.snowpark.mcp` module (private preview) to build tools and servers for the Snowflake-managed MCP server in Python:
+  - `mcp_tool` turns a Python function into a tool, with its argument schema built from the type hints and docstring. A function whose first parameter is a `Session` becomes a stored procedure; any other function becomes a UDF. Results, including DataFrames, are converted to JSON and kept under the MCP server's response limit, and `ToolError` returns an error the model can act on.
+  - `Tool.from_procedure` and `Tool.from_function` turn existing procedures and UDFs, in any language, into tools.
+  - `MCPServer` checks a server definition (`lint`), prints its specification (`to_yaml`), deploys it with its Python tools (`deploy`, with a suffix for dev and prod copies), calls deployed tools over a session (`call_tool`), and grants a role everything the tools need (`grant_usage`).
+  - `snowflake.snowpark.mcp.tools` has builders for the MCP server's built-in tool types (`CortexAgent`, `CortexAnalyst`, `CortexSearch`, `SqlExecution`, `CodingAgent`) and `governed_sql`, a ready-made tool that runs one SQL statement per call with read-only checks, row and size limits, and per-call logging.
 
 #### Improvements
 

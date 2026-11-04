@@ -1,0 +1,586 @@
+#
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
+
+import base64
+import datetime
+import decimal
+import inspect
+import json
+import logging
+import subprocess
+import sys
+import textwrap
+
+import pytest
+
+from snowflake.snowpark import Row, Session
+from snowflake.snowpark._internal.mcp_tool_runtime import (
+    DEFAULT_MAX_RESULT_BYTES,
+    DEFAULT_MAX_ROWS,
+    ToolError,
+    error_result,
+    make_handler,
+    run_tool,
+    table_result,
+    to_json_value,
+    to_tool_result,
+)
+
+
+def _size(value) -> int:
+    return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode())
+
+
+class FakeSchema:
+    def __init__(self, names) -> None:
+        self.names = names
+
+
+class FakeDataFrame:
+    """Just enough of a Snowpark DataFrame for the runtime to recognize it."""
+
+    def __init__(self, rows, names=None) -> None:
+        self._rows = rows
+        self.schema = FakeSchema(names or [])
+        self.limit_calls = []
+        self.collect_calls = 0
+
+    def limit(self, n):
+        self.limit_calls.append(n)
+        return FakeDataFrame(self._rows[:n], self.schema.names)
+
+    def collect(self):
+        self.collect_calls += 1
+        return list(self._rows)
+
+
+# ---------------------------------------------------------------------------
+# to_json_value
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        (None, None),
+        (True, True),
+        ("text", "text"),
+        (7, 7),
+        (1.5, 1.5),
+        (decimal.Decimal("3"), 3),
+        (decimal.Decimal("3.00"), 3),
+        (decimal.Decimal("1E+2"), 100),
+        (decimal.Decimal("3.25"), 3.25),
+        (decimal.Decimal("-0.5"), -0.5),
+        (float("nan"), None),
+        (float("inf"), None),
+        (float("-inf"), None),
+        (decimal.Decimal("NaN"), None),
+        (decimal.Decimal("Infinity"), None),
+        (decimal.Decimal("-Infinity"), None),
+        (datetime.date(2024, 5, 6), "2024-05-06"),
+        (datetime.datetime(2024, 5, 6, 7, 8, 9), "2024-05-06T07:08:09"),
+        (datetime.time(7, 8, 9), "07:08:09"),
+        (datetime.timedelta(minutes=2, milliseconds=500), 120.5),
+        (b"\x00\xffab", base64.b64encode(b"\x00\xffab").decode()),
+        (bytearray(b"hi"), base64.b64encode(b"hi").decode()),
+        (memoryview(b"hi"), base64.b64encode(b"hi").decode()),
+    ],
+)
+def test_to_json_value_scalars(value, expected):
+    result = to_json_value(value)
+    assert result == expected
+    assert type(result) is type(expected)
+
+
+def test_to_json_value_decimal_integral_is_int_and_fractional_is_float():
+    assert type(to_json_value(decimal.Decimal("10"))) is int
+    assert type(to_json_value(decimal.Decimal("10.5"))) is float
+
+
+def test_to_json_value_nested_containers():
+    value = {
+        "a": [1, (2, decimal.Decimal("3.5"))],
+        "b": {"c": {datetime.date(2024, 1, 1)}, 5: float("nan")},
+        "d": frozenset([decimal.Decimal("1")]),
+    }
+    result = to_json_value(value)
+    assert result == {
+        "a": [1, [2, 3.5]],
+        "b": {"c": ["2024-01-01"], "5": None},
+        "d": [1],
+    }
+    json.dumps(result)  # must be serializable
+
+
+def test_to_json_value_row():
+    row = Row(A=1, B=decimal.Decimal("2.5"), C=datetime.date(2024, 1, 2))
+    assert to_json_value(row) == {"A": 1, "B": 2.5, "C": "2024-01-02"}
+    assert to_json_value([row, row]) == [to_json_value(row)] * 2
+
+
+def test_to_json_value_numpy_scalar():
+    np = pytest.importorskip("numpy")
+    result = to_json_value(np.int64(4))
+    assert result == 4 and type(result) is int
+
+
+@pytest.mark.parametrize(
+    "value", [object(), {1, object()}, [lambda: 1], Exception("x")]
+)
+def test_to_json_value_unsupported(value):
+    with pytest.raises(TypeError, match="cannot be converted to JSON"):
+        to_json_value(value)
+
+
+# ---------------------------------------------------------------------------
+# table_result
+# ---------------------------------------------------------------------------
+
+
+def test_table_result_fits():
+    rows = [{"a": 1, "b": "x"}, {"a": 2, "b": "y"}]
+    result = table_result(["a", "b"], rows, 10, 10_000)
+    assert result == {
+        "columns": ["a", "b"],
+        "rows": rows,
+        "row_count": 2,
+        "truncated": False,
+    }
+
+
+def test_table_result_exactly_max_rows_is_not_truncated():
+    rows = [{"a": i} for i in range(3)]
+    result = table_result(["a"], rows, 3, 10_000)
+    assert result["row_count"] == 3
+    assert result["truncated"] is False
+
+
+def test_table_result_max_rows_cut():
+    # The caller passes at most max_rows + 1 rows; the extra one proves truncation.
+    rows = [{"a": i} for i in range(4)]
+    result = table_result(["a"], rows, 3, 10_000)
+    assert result["rows"] == rows[:3]
+    assert result["row_count"] == 3
+    assert result["truncated"] is True
+
+
+def test_table_result_empty():
+    result = table_result(["a"], [], 3, 10_000)
+    assert result == {"columns": ["a"], "rows": [], "row_count": 0, "truncated": False}
+
+
+def test_table_result_converts_values():
+    result = table_result(
+        ["d", "n"],
+        [{"d": datetime.date(2024, 1, 1), "n": decimal.Decimal("1.5")}],
+        10,
+        10_000,
+    )
+    assert result["rows"] == [{"d": "2024-01-01", "n": 1.5}]
+
+
+@pytest.mark.parametrize("limit", [150, 200, 257, 400, 1000])
+def test_table_result_max_result_bytes_cut(limit):
+    rows = [{"id": i, "name": "naïve-" + "é" * (i % 7)} for i in range(200)]
+    result = table_result(["id", "name"], rows, 1000, limit)
+    assert result["truncated"] is True
+    assert 0 < result["row_count"] < len(rows)
+    assert result["rows"] == rows[: result["row_count"]]
+    assert _size(result) <= limit
+    # No row that would still have fit was dropped. The header is sized for
+    # row_count = max_rows, so measure the next row with that count.
+    bigger = dict(result)
+    bigger["rows"] = rows[: result["row_count"] + 1]
+    bigger["row_count"] = 1000
+    assert _size(bigger) > limit
+
+
+def test_table_result_no_truncation_when_it_fits_in_bytes():
+    rows = [{"id": i} for i in range(5)]
+    result = table_result(["id"], rows, 100, 10_000)
+    assert result["truncated"] is False
+    assert _size(result) <= 10_000
+
+
+def test_table_result_row_larger_than_limit_returns_no_rows():
+    result = table_result(["a"], [{"a": "x" * 1000}], 10, 200)
+    assert result["rows"] == []
+    assert result["row_count"] == 0
+    assert result["truncated"] is True
+
+
+@pytest.mark.parametrize("extra", range(0, 14))
+def test_table_result_never_exceeds_limit_when_row_count_gains_digits(extra):
+    rows = [{"a": 1}] * 20
+    base = _size({"columns": ["a"], "rows": [], "row_count": 0, "truncated": True})
+    limit = base + 10 * _size(rows[0]) + 9 + extra
+    result = table_result(["a"], rows, 1000, limit)
+    assert _size(result) <= limit
+    assert result["truncated"] is True
+    # Adding the next row would go over the limit.
+    bigger = dict(result)
+    bigger["rows"] = rows[: result["row_count"] + 1]
+    bigger["row_count"] = 1000
+    assert _size(bigger) > limit
+
+
+# ---------------------------------------------------------------------------
+# to_tool_result
+# ---------------------------------------------------------------------------
+
+
+def test_to_tool_result_snowpark_dataframe():
+    rows = [Row(ID=i, NAME=f"n{i}") for i in range(5)]
+    df = FakeDataFrame(rows, names=["ID", "NAME"])
+    result = to_tool_result(df, max_rows=3, max_result_bytes=10_000)
+    assert len(df.limit_calls) == 1 and df.limit_calls[0] == 4  # max_rows + 1
+    assert result["columns"] == ["ID", "NAME"]
+    assert result["rows"] == [{"ID": i, "NAME": f"n{i}"} for i in range(3)]
+    assert result["row_count"] == 3
+    assert result["truncated"] is True
+
+
+def test_to_tool_result_snowpark_dataframe_not_truncated():
+    df = FakeDataFrame([Row(ID=1), Row(ID=2)], names=["ID"])
+    result = to_tool_result(df, max_rows=3, max_result_bytes=10_000)
+    assert result["truncated"] is False
+    assert result["row_count"] == 2
+
+
+def test_to_tool_result_empty_snowpark_dataframe_uses_schema_names():
+    df = FakeDataFrame([], names=["ID", "NAME"])
+    result = to_tool_result(df, max_rows=3, max_result_bytes=10_000)
+    assert result == {
+        "columns": ["ID", "NAME"],
+        "rows": [],
+        "row_count": 0,
+        "truncated": False,
+    }
+
+
+def test_to_tool_result_pandas_dataframe():
+    pd = pytest.importorskip("pandas")
+    df = pd.DataFrame({"a": [1, 2, 3, 4], "b": ["w", "x", "y", None]})
+    result = to_tool_result(df, max_rows=3, max_result_bytes=10_000)
+    assert result["columns"] == ["a", "b"]
+    assert result["rows"] == [
+        {"a": 1, "b": "w"},
+        {"a": 2, "b": "x"},
+        {"a": 3, "b": "y"},
+    ]
+    assert result["row_count"] == 3
+    assert result["truncated"] is True
+
+
+def test_to_tool_result_pandas_non_string_columns_and_nan():
+    pd = pytest.importorskip("pandas")
+    df = pd.DataFrame({0: [1.0, float("nan")], "t": pd.to_datetime(["2024-01-01"] * 2)})
+    result = to_tool_result(df, max_rows=10, max_result_bytes=10_000)
+    assert result["columns"] == ["0", "t"]
+    assert result["rows"][1]["0"] is None
+    json.dumps(result)
+
+
+def test_to_tool_result_empty_pandas_dataframe():
+    pd = pytest.importorskip("pandas")
+    df = pd.DataFrame({"a": [], "b": []})
+    result = to_tool_result(df, max_rows=3, max_result_bytes=10_000)
+    assert result == {
+        "columns": ["a", "b"],
+        "rows": [],
+        "row_count": 0,
+        "truncated": False,
+    }
+
+
+def test_to_tool_result_pandas_nat_becomes_null():
+    pd = pytest.importorskip("pandas")
+    df = pd.DataFrame({"t": pd.to_datetime(["2024-01-01", None])})
+    result = to_tool_result(df, max_rows=10, max_result_bytes=10_000)
+    assert result["rows"][1] == {"t": None}
+
+
+def test_to_tool_result_plain_values():
+    assert to_tool_result({"a": decimal.Decimal("1.5")}, 10, 1000) == {"a": 1.5}
+    assert to_tool_result(None, 10, 1000) is None
+    assert to_tool_result("s", 10, 1000) == "s"
+    assert to_tool_result(Row(A=1), 10, 1000) == {"A": 1}
+
+
+def test_to_tool_result_too_large():
+    result = to_tool_result({"blob": "x" * 500}, max_rows=10, max_result_bytes=100)
+    assert set(result) == {"error"}
+    error = result["error"]
+    assert error["type"] == "RESULT_TOO_LARGE"
+    assert "100" in error["message"]
+    assert error["hint"]
+
+
+def test_to_tool_result_exact_size_is_allowed():
+    value = {"k": "x" * 10}
+    assert to_tool_result(value, 10, _size(value)) == value
+    assert to_tool_result(value, 10, _size(value) - 1)["error"]["type"] == (
+        "RESULT_TOO_LARGE"
+    )
+
+
+def test_to_tool_result_unsupported_type_raises():
+    with pytest.raises(TypeError):
+        to_tool_result(object(), 10, 1000)
+
+
+# ---------------------------------------------------------------------------
+# error_result and run_tool
+# ---------------------------------------------------------------------------
+
+
+def test_error_result():
+    assert error_result("T", "m") == {"error": {"type": "T", "message": "m"}}
+    assert error_result("T", "m", "h") == {
+        "error": {"type": "T", "message": "m", "hint": "h"}
+    }
+
+
+def test_tool_error_attributes():
+    err = ToolError("nope", hint="try this")
+    assert str(err) == "nope"
+    assert err.message == "nope" and err.hint == "try this"
+    assert ToolError("x").hint is None
+
+
+def test_run_tool_returns_converted_result():
+    def func(a, b=2):
+        return {"sum": decimal.Decimal(a + b)}
+
+    assert run_tool(func, (1,), {"b": 3}) == {"sum": 4}
+
+
+def test_run_tool_tool_error():
+    def func():
+        raise ToolError("No such account.", hint="Use find_account first.")
+
+    assert run_tool(func, (), {}) == {
+        "error": {
+            "type": "ToolError",
+            "message": "No such account.",
+            "hint": "Use find_account first.",
+        }
+    }
+
+
+def test_run_tool_tool_error_without_hint():
+    def func():
+        raise ToolError("No such account.")
+
+    assert run_tool(func, (), {}) == {
+        "error": {"type": "ToolError", "message": "No such account."}
+    }
+
+
+def test_run_tool_recognizes_tool_error_by_marker_not_class():
+    # On the warehouse the ToolError class is a pickled copy, not this class.
+    class OtherToolError(Exception):
+        _snowpark_mcp_tool_error = True
+
+        def __init__(self, message, hint=None) -> None:
+            super().__init__(message)
+            self.message = message
+            self.hint = hint
+
+    def func():
+        raise OtherToolError("copy", "h")
+
+    assert run_tool(func, (), {})["error"] == {
+        "type": "ToolError",
+        "message": "copy",
+        "hint": "h",
+    }
+
+
+def test_run_tool_other_exception_is_logged_and_reraised(caplog):
+    def broken():
+        raise RuntimeError("boom")
+
+    with caplog.at_level(logging.ERROR, logger="snowflake.snowpark.mcp"):
+        with pytest.raises(RuntimeError, match="boom"):
+            run_tool(broken, (), {})
+    records = [r for r in caplog.records if r.name == "snowflake.snowpark.mcp"]
+    assert len(records) == 1
+    assert records[0].levelno == logging.ERROR
+    assert "broken" in records[0].getMessage()
+    assert records[0].exc_info is not None
+
+
+def test_run_tool_tool_error_is_not_logged(caplog):
+    def func():
+        raise ToolError("x")
+
+    with caplog.at_level(logging.DEBUG, logger="snowflake.snowpark.mcp"):
+        run_tool(func, (), {})
+    assert not caplog.records
+
+
+def test_run_tool_applies_limits():
+    df = FakeDataFrame([Row(A=i) for i in range(10)], names=["A"])
+    result = run_tool(lambda: df, (), {}, max_rows=2, max_result_bytes=10_000)
+    assert result["row_count"] == 2 and result["truncated"] is True
+    assert df.limit_calls == [3]
+
+
+def test_default_limits_are_below_platform_limit():
+    assert DEFAULT_MAX_ROWS == 1000
+    assert DEFAULT_MAX_RESULT_BYTES < 250_000
+
+
+# ---------------------------------------------------------------------------
+# make_handler
+# ---------------------------------------------------------------------------
+
+
+def _annotated(
+    session: "Session", name: str, count: int = 3, *, flag: bool = True
+) -> dict:
+    """Doc."""
+    return {"name": name, "count": decimal.Decimal(count), "flag": flag}
+
+
+def test_make_handler_keeps_signature_without_annotations():
+    handler = make_handler(_annotated)
+    original = inspect.getfullargspec(_annotated)
+    spec = inspect.getfullargspec(handler)
+    assert spec.args == original.args == ["session", "name", "count"]
+    assert spec.defaults == original.defaults == (3,)
+    assert spec.kwonlyargs == original.kwonlyargs == ["flag"]
+    assert spec.kwonlydefaults == original.kwonlydefaults == {"flag": True}
+    assert spec.annotations == {}
+    assert not handler.__annotations__
+    assert handler.__name__ == "_annotated"
+    assert handler.__doc__ == "Doc."
+
+
+def test_make_handler_does_not_touch_original():
+    make_handler(_annotated)
+    assert _annotated.__annotations__["name"] is str
+    assert inspect.signature(_annotated).return_annotation is dict
+
+
+def test_make_handler_returns_converted_result():
+    handler = make_handler(_annotated)
+    assert handler(None, "x") == {"name": "x", "count": 3, "flag": True}
+    assert handler(None, "x", 4, flag=False) == {
+        "name": "x",
+        "count": 4,
+        "flag": False,
+    }
+
+
+def test_make_handler_applies_limits():
+    def func(n):
+        return [{"v": "x" * 50} for _ in range(n)]
+
+    handler = make_handler(func, max_rows=2, max_result_bytes=60)
+    assert handler(1) == [{"v": "x" * 50}]
+    assert handler(3)["error"]["type"] == "RESULT_TOO_LARGE"
+
+
+def test_make_handler_tool_error():
+    def func(x):
+        raise ToolError("bad " + x, hint="h")
+
+    assert make_handler(func)("y")["error"]["message"] == "bad y"
+
+
+# ---------------------------------------------------------------------------
+# Pickle by value
+# ---------------------------------------------------------------------------
+
+_UNPICKLE_SCRIPT = textwrap.dedent(
+    """
+    import importlib.abc
+    import sys
+
+    class Blocker(importlib.abc.MetaPathFinder):
+        def find_spec(self, fullname, path=None, target=None):
+            if fullname.startswith("snowflake.snowpark"):
+                raise ImportError("blocked import of " + fullname)
+            return None
+
+    sys.meta_path.insert(0, Blocker())
+
+    import cloudpickle
+
+    with open(sys.argv[1], "rb") as f:
+        handler = cloudpickle.loads(f.read())
+
+    import json
+
+    out = {
+        "ok": handler("fine"),
+        "tool_error": handler("bad"),
+        "snowpark_imported": any(m.startswith("snowflake.snowpark") for m in sys.modules),
+    }
+    try:
+        handler("crash")
+    except RuntimeError as e:
+        out["crash"] = str(e)
+    print("RESULT" + json.dumps(out))
+    """
+)
+
+
+def test_pickled_tool_does_not_import_snowpark(tmp_path):
+    cloudpickle = pytest.importorskip("cloudpickle")
+    from snowflake.snowpark.mcp import _pickle_runtime_by_value
+
+    _pickle_runtime_by_value()
+
+    def tool(x: str) -> dict:
+        if x == "bad":
+            raise ToolError("bad input", hint="use a good one")
+        if x == "crash":
+            raise RuntimeError("kaboom")
+        return {"value": decimal.Decimal("2.5"), "x": x}
+
+    handler = make_handler(tool)
+    payload = tmp_path / "handler.pkl"
+    payload.write_bytes(cloudpickle.dumps(handler))
+
+    proc = subprocess.run(
+        [sys.executable, "-c", _UNPICKLE_SCRIPT, str(payload)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert proc.returncode == 0, proc.stderr
+    line = next(ln for ln in proc.stdout.splitlines() if ln.startswith("RESULT"))
+    out = json.loads(line[len("RESULT") :])
+    assert out["ok"] == {"value": 2.5, "x": "fine"}
+    assert out["tool_error"] == {
+        "error": {
+            "type": "ToolError",
+            "message": "bad input",
+            "hint": "use a good one",
+        }
+    }
+    assert out["crash"] == "kaboom"
+    assert out["snowpark_imported"] is False
+
+
+def test_runtime_module_imports_only_stdlib():
+    import ast
+
+    from snowflake.snowpark._internal import mcp_governed_sql, mcp_tool_runtime
+
+    for module in (mcp_tool_runtime, mcp_governed_sql):
+        tree = ast.parse(inspect.getsource(module))
+        names = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names.update(a.name.split(".")[0] for a in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                names.add((node.module or "").split(".")[0])
+        assert names <= set(sys.stdlib_module_names), names - set(
+            sys.stdlib_module_names
+        )
