@@ -141,18 +141,6 @@ def test_where_sequence_parentheses_change_the_rows(session, semantic_view):
     assert unparenthesized.count() == 3
 
 
-def test_tuple_member_is_table_dot_attribute(session, semantic_view):
-    assert session.semantic_view(
-        semantic_view,
-        dimensions=[("customers", "region")],
-        metrics=["orders.revenue"],
-    ).sort(col("REGION")).collect() == [
-        Row(REGION="AMER", REVENUE=350),
-        Row(REGION="APAC", REVENUE=650),
-        Row(REGION="EMEA", REVENUE=800),
-    ]
-
-
 def test_filter_after_the_call_composes(session, semantic_view):
     """Filtering on a metric happens outside the parens, on the DataFrame."""
     assert session.semantic_view(

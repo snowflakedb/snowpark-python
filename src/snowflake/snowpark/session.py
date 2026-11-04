@@ -320,7 +320,6 @@ DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
-MemberRef = Union[str, Tuple[str, str]]
 
 
 def _get_active_session() -> "Session":
@@ -367,56 +366,17 @@ def _remove_session(session: "Session") -> None:
             pass
 
 
-def _render_semantic_view_member(param: str, i: int, member: MemberRef) -> str:
-    """Renders one member of a ``SEMANTIC_VIEW(...)`` clause.
-
-    A 2-tuple is ``(table, attribute)``, dot-joined -- not ``(member, alias)``.
-    """
-    if isinstance(member, str):
-        if not member.strip():
-            raise ValueError(f"{param}[{i}] is an empty member name.")
-        return member
-    if not isinstance(member, tuple):
-        raise TypeError(
-            f"{param}[{i}] should be a string or a (table, attribute) tuple, "
-            f"not {type(member).__name__}."
-        )
-    if len(member) != 2:
-        raise TypeError(
-            f"{param}[{i}] is a {len(member)}-tuple; a tuple member must be "
-            f"(table, attribute)."
-        )
-    table, attribute = member
-    if not isinstance(table, str) or not isinstance(attribute, str):
-        raise TypeError(
-            f"{param}[{i}] must be a (table, attribute) tuple of two strings, "
-            f"not ({type(table).__name__}, {type(attribute).__name__})."
-        )
-    if not table.strip() or not attribute.strip():
-        raise ValueError(f"{param}[{i}] has an empty table or attribute.")
-    return ".".join((table, attribute))
-
-
 def _render_semantic_view_where(value: Union[str, Sequence[str]]) -> str:
     """Renders the ``WHERE`` clause of a ``SEMANTIC_VIEW(...)`` call.
 
-    A ``str`` is emitted verbatim.
-
-    ``WHERE`` accepts exactly one expression, so a sequence of conditions is
-    joined with ``AND``. Each one is parenthesized first::
-
-        ["a OR b", "c"]  ->  WHERE (a OR b) AND (c)
-
-    Without the parentheses that reads as ``a OR b AND c``. SQL binds ``AND``
-    tighter, so it means ``a OR (b AND c)``: different rows, no error.
+    A ``str`` is emitted verbatim. A sequence is ``AND``-joined with each condition
+    parenthesized, so ``["a OR b", "c"]`` does not become ``a OR (b AND c)``.
     """
     if isinstance(value, str):
         if not value.strip():
             raise ValueError("where is empty; omit it instead.")
         return "WHERE " + value
-    if not isinstance(value, Sequence) or isinstance(
-        value, (bytes, bytearray, memoryview)
-    ):
+    if not isinstance(value, Sequence):
         raise TypeError(
             f"where should be a string, or a sequence of conditions, not "
             f"{type(value).__name__}."
@@ -435,26 +395,18 @@ def _render_semantic_view_where(value: Union[str, Sequence[str]]) -> str:
     return "WHERE " + " AND ".join(conditions)
 
 
-def _render_semantic_view_clause(
-    keyword: str, value: Union[str, Sequence[MemberRef]]
-) -> str:
+def _render_semantic_view_clause(keyword: str, value: Union[str, Sequence[str]]) -> str:
     """Renders one clause of a ``SEMANTIC_VIEW(...)`` call.
 
-    A ``str`` is emitted verbatim: the clause grammar already accepts a comma list,
-    and splitting would break a member such as ``TO_CHAR(d,'YY')``.
+    A ``str`` is emitted verbatim.
     """
     param = keyword.lower()
     if isinstance(value, str):
         if not value.strip():
             raise ValueError(f"{param} is empty; omit it instead.")
-        # Concatenated, not interpolated: a str subclass such as class X(str, Enum)
-        # formats as its repr but concatenates as its value.
+        # Not an f-string: a (str, Enum) member would format as its repr.
         return keyword + " " + value
-    # Sequence, not Iterable: a set has no order, so it would render members in an
-    # arbitrary one. bytes/bytearray/memoryview are Sequences of ints, not members.
-    if not isinstance(value, Sequence) or isinstance(
-        value, (bytes, bytearray, memoryview)
-    ):
+    if not isinstance(value, Sequence):
         raise TypeError(
             f"{param} should be a string, or a sequence of members, not "
             f"{type(value).__name__}."
@@ -463,13 +415,14 @@ def _render_semantic_view_clause(
         raise ValueError(
             f"{param} is an empty {type(value).__name__}; omit it instead."
         )
-    return (
-        keyword
-        + " "
-        + ", ".join(
-            _render_semantic_view_member(param, i, m) for i, m in enumerate(value)
-        )
-    )
+    for i, member in enumerate(value):
+        if not isinstance(member, str):
+            raise TypeError(
+                f"{param}[{i}] should be a string, not {type(member).__name__}."
+            )
+        if not member.strip():
+            raise ValueError(f"{param}[{i}] is an empty member name.")
+    return keyword + " " + ", ".join(value)
 
 
 class Session:
@@ -3436,9 +3389,9 @@ class Session:
         self,
         name: Union[str, Sequence[str]],
         *,
-        dimensions: Optional[Union[str, Sequence[MemberRef]]] = None,
-        metrics: Optional[Union[str, Sequence[MemberRef]]] = None,
-        facts: Optional[Union[str, Sequence[MemberRef]]] = None,
+        dimensions: Optional[Union[str, Sequence[str]]] = None,
+        metrics: Optional[Union[str, Sequence[str]]] = None,
+        facts: Optional[Union[str, Sequence[str]]] = None,
         where: Optional[Union[str, Sequence[str]]] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
@@ -3453,18 +3406,17 @@ class Session:
         default column order; reorder with :meth:`DataFrame.select`.
 
         Note:
-            Clause strings are not parameterized. Treat them as trusted SQL and do
-            not build them from untrusted input.
+            The strings passed to ``dimensions``, ``metrics``, ``facts``, and
+            ``where`` are emitted verbatim, without any check or escaping. Do not
+            build them from untrusted input.
 
         Args:
             name: A string, or a sequence of strings, that specifies the
                 semantic view name or fully-qualified object identifier (database
                 name, schema name, and semantic view name).
-            dimensions: Members to group by, as a verbatim clause string or a list
-                of members. A sequence element may be a string, or a
-                ``(table, attribute)`` tuple that is joined with a dot — the tuple
-                splits one member's name, it is not a member-and-alias pair. Write
-                an alias in the string form, as ``"orders.revenue AS REV"``.
+            dimensions: Members to group by, as a verbatim clause string or a
+                sequence of member strings, which are comma-joined. A member may
+                carry an inline alias, as ``"orders.revenue AS REV"``.
             metrics: Members to aggregate, in the same forms as ``dimensions``.
             facts: Row-level members, in the same forms as ``dimensions``. The
                 server rejects ``facts`` together with ``metrics``.
@@ -3486,7 +3438,7 @@ class Session:
 
             >>> df = session.semantic_view(
             ...     "my_db.my_schema.my_semantic_view",
-            ...     dimensions=[("customers", "region"), "customers.customer"],
+            ...     dimensions=["customers.region", "customers.customer"],
             ...     metrics=["orders.revenue", "orders.order_count"],
             ...     where="customers.region = 'EMEA'",
             ... )  # doctest: +SKIP
@@ -3506,20 +3458,11 @@ class Session:
             )
 
         if not isinstance(name, str):
-            # Sequence, not Iterable: a set has no order, so it would dot-join the
-            # parts in an arbitrary one, resolving to a different object.
-            if not isinstance(name, Sequence) or isinstance(
-                name, (bytes, bytearray, memoryview)
-            ):
+            if not isinstance(name, Sequence):
                 raise TypeError(
                     "name should be a string, or a sequence of name parts, not "
                     f"{type(name).__name__}."
                 )
-            for i, part in enumerate(name):
-                if not isinstance(part, str):
-                    raise TypeError(
-                        f"name[{i}] should be a string, not {type(part).__name__}."
-                    )
             name = ".".join(name)
         validate_object_name(name)
 
