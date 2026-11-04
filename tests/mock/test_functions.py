@@ -27,7 +27,10 @@ from snowflake.snowpark.functions import (
     dense_rank,
     desc,
     get,
+    greatest,
+    initcap,
     is_null,
+    least,
     lit,
     max,
     min,
@@ -36,6 +39,7 @@ from snowflake.snowpark.functions import (
     sum,
     to_char,
     to_date,
+    udf,
 )
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry, patch
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
@@ -66,6 +70,29 @@ def test_col(session):
     assert origin_df.select(col("m")).collect() == [Row(1), Row(6), Row(None)]
     assert origin_df.select(col("n")).collect() == [Row("a"), Row("c"), Row(None)]
     assert origin_df.select(col("o")).collect() == [Row(True), Row(False), Row(None)]
+
+
+def test_initcap_greatest_least_keep_null(session):
+    df = session.create_dataframe(
+        [["hello", "a", "b"], [None, None, "b"]],
+        schema=["name", "a", "b"],
+    )
+    initcap_out = df.select(initcap(col("name")).alias("R"))
+    assert initcap_out.collect() == [Row("Hello"), Row(None)]
+    assert initcap_out.filter(col("R").is_null()).count() == 1
+
+    greatest_out = df.select(greatest(col("a"), col("b")).alias("R"))
+    assert greatest_out.collect() == [Row("b"), Row(None)]
+    assert greatest_out.filter(col("R").is_null()).count() == 1
+
+    least_out = df.select(least(col("a"), col("b")).alias("R"))
+    assert least_out.collect() == [Row("a"), Row(None)]
+    assert least_out.filter(col("R").is_null()).count() == 1
+
+    delim_df = session.create_dataframe([["hello-world"], [None]], schema=["name"])
+    delim_out = delim_df.select(initcap(col("name"), lit("-")).alias("R"))
+    assert delim_out.collect() == [Row("Hello-World"), Row(None)]
+    assert delim_out.filter(col("R").is_null()).count() == 1
 
 
 def test_max(session):
@@ -884,3 +911,21 @@ def test_save_as_table_column_order_name_array_type(session):
     assert len(result) == 1
     assert result[0]["ID"] == 1
     assert result[0]["TAGS"] is None
+
+
+def test_concat_null_does_not_reach_strict_udf(session):
+    # SNOW-3923354: pandas 3 re-inference leaked the NULL into the UDF as nan.
+    seen = []
+
+    @udf(strict=True, return_type=StringType(), input_types=[StringType()])
+    def probe(s):
+        seen.append(s)
+        return "CALLED"
+
+    df = session.create_dataframe([["a"], [None], ["c"]], schema=["v"])
+    assert df.select(probe(concat(col("v"), col("v")))).collect() == [
+        Row("CALLED"),
+        Row(None),
+        Row("CALLED"),
+    ]
+    assert sorted(seen) == ["aa", "cc"]
