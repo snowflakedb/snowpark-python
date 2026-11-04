@@ -192,10 +192,11 @@ def test_internal_dataframes_are_not_in_the_plan_lists(session, tracing):
     assert same_call == [df._trace_node]
 
 
-def test_public_call_depth_is_zero_after_calls_and_errors(session, tracing):
-    from snowflake.snowpark._internal.df_trace import public_call_depth
-
+def test_calls_after_errors_still_link_their_inputs(session, tracing):
     _df(session).filter(col("id") > 0).collect()
     with pytest.raises(SnowparkSQLException):
         _df(session).select("does_not_exist").collect()
-    assert public_call_depth() == 0
+    # a failed call leaves no open call behind: the next call is an outermost call again
+    sub = _df(session).select("id")
+    filtered = _df(session).filter(col("id").isin(sub))
+    assert sub._trace_node in filtered._trace_node.parents

@@ -14,6 +14,7 @@ import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark import context
 from snowflake.snowpark._internal.ast.utils import with_src_position
+from snowflake.snowpark._internal.utils import publicapi
 from snowflake.snowpark._internal.df_trace import (
     ObjectCreationRegistry,
     SrcPosition,
@@ -213,73 +214,7 @@ def _plan_with(node):
     return Plan()
 
 
-def test_expression_scan_finds_subqueries_at_any_depth():
-    from snowflake.snowpark._internal.analyzer.binary_expression import And, EqualTo
-    from snowflake.snowpark._internal.analyzer.expression import (
-        InExpression,
-        Literal,
-        ScalarSubquery,
-    )
-    from snowflake.snowpark._internal.df_trace import _expression_inputs
-
-    n1, n2 = TraceNode(None), TraceNode(None)
-    in1 = InExpression(Literal(1), [ScalarSubquery(_plan_with(n1))])
-    in2 = InExpression(Literal(2), [ScalarSubquery(_plan_with(n2))])
-    tree = And(EqualTo(Literal(1), Literal(1)), And(in1, in2))
-    assert {id(n) for n in _expression_inputs(tree)} == {id(n1), id(n2)}
-
-
-def test_expression_scan_finds_function_nodes_and_ignores_plain_columns():
-    from snowflake.snowpark._internal.analyzer.expression import (
-        Attribute,
-        Literal,
-        SnowflakeUDF,
-    )
-    from snowflake.snowpark._internal.df_trace import _expression_inputs
-    from snowflake.snowpark.types import IntegerType
-
-    udf_node = TraceNode(None, kind="udf")
-    call = SnowflakeUDF("F", [Literal(1)], IntegerType())
-    call._df_trace_node = udf_node
-    assert _expression_inputs(call) == [udf_node]
-    assert _expression_inputs(Attribute("A", IntegerType())) == []
-
-
-def test_expression_scan_handles_shared_subtrees():
-    from snowflake.snowpark._internal.analyzer.binary_expression import And
-    from snowflake.snowpark._internal.analyzer.expression import Literal
-    from snowflake.snowpark._internal.df_trace import _expression_inputs
-
-    shared = Literal(1)
-    tree = And(shared, shared)
-    assert _expression_inputs(tree) == []
-
-
-def test_argument_scan_reads_columns_lists_dicts_and_table_function_calls():
-    from snowflake.snowpark._internal.analyzer.expression import (
-        InExpression,
-        Literal,
-        ScalarSubquery,
-    )
-    from snowflake.snowpark._internal.df_trace import _argument_inputs
-    from snowflake.snowpark.column import Column
-
-    n1, n2, n3 = TraceNode(None), TraceNode(None), TraceNode(None)
-    c1 = Column(InExpression(Literal(1), [ScalarSubquery(_plan_with(n1))]))
-    c2 = Column(InExpression(Literal(2), [ScalarSubquery(_plan_with(n2))]))
-
-    from snowflake.snowpark.table_function import TableFunctionCall
-
-    call = TableFunctionCall("F")
-    call._df_trace_node = n3
-
-    found = _argument_inputs((c1, [c2], call), {"x": 5})
-    assert {id(n) for n in found} == {id(n1), id(n2), id(n3)}
-    found = _argument_inputs((), {"cols": {"a": c1}})
-    assert [id(n) for n in found] == [id(n1)]
-
-
-# ------------------------------------------------------------------ public call wrapper (GAP-3)
+# ------------------------------------------------------------------ public call wrapper
 @pytest.fixture()
 def tracing_flags():
     context.configure_development_features(enable_dataframe_trace_on_error=True)
@@ -287,91 +222,178 @@ def tracing_flags():
     context.configure_development_features()
 
 
-def test_public_call_depth_is_restored_after_exceptions(tracing_flags):
-    from snowflake.snowpark._internal import df_trace
+class _Container:
+    def __init__(self, nodes=None) -> None:
+        self.df_trace_nodes = nodes
 
-    def outer():
-        return df_trace.trace_public_call(inner, (), {})
 
-    def inner():
-        assert df_trace.public_call_depth() == 2
-        raise RuntimeError("boom")
+def _dataframe(nodes=None):
+    """A stand-in for a dataframe returned by a public API: the wrapper reads its trace node
+    and the trace lists of its plans."""
+    df = type("DF", (), {})()
+    df._trace_node = TraceNode(None)
+    df._plan, df._select_statement = _Container(nodes), None
+    return df
+
+
+def _returning(df):
+    @publicapi
+    def api(*args, **kwargs):
+        return df
+
+    return api
+
+
+def test_subqueries_at_any_depth_are_inputs_of_the_result(tracing_flags):
+    from snowflake.snowpark._internal.analyzer.binary_expression import And, EqualTo
+    from snowflake.snowpark._internal.analyzer.expression import (
+        InExpression,
+        Literal,
+        ScalarSubquery,
+    )
+    from snowflake.snowpark.column import Column
+
+    n1, n2 = TraceNode(None), TraceNode(None)
+    in1 = InExpression(Literal(1), [ScalarSubquery(_plan_with(n1))])
+    in2 = InExpression(Literal(2), [ScalarSubquery(_plan_with(n2))])
+    df = _dataframe()
+    _returning(df)(Column(And(EqualTo(Literal(1), Literal(1)), And(in1, in2))))
+    assert {id(n) for n in df._trace_node.parents} == {id(n1), id(n2)}
+
+
+def test_functions_are_inputs_of_the_result_and_plain_columns_are_not(tracing_flags):
+    from snowflake.snowpark._internal.analyzer.expression import (
+        Attribute,
+        Literal,
+        SnowflakeUDF,
+    )
+    from snowflake.snowpark.column import Column
+    from snowflake.snowpark.types import IntegerType
+
+    udf_node = TraceNode(None, kind="udf")
+    call = SnowflakeUDF("F", [Literal(1)], IntegerType())
+    call._df_trace_node = udf_node
+    df = _dataframe()
+    _returning(df)(Column(call), Column(Attribute("A", IntegerType())))
+    assert df._trace_node.parents == [udf_node]
+
+
+def test_shared_subtrees_are_scanned_once(tracing_flags):
+    from snowflake.snowpark._internal.analyzer.binary_expression import And
+    from snowflake.snowpark._internal.analyzer.expression import ScalarSubquery
+    from snowflake.snowpark.column import Column
+
+    node = TraceNode(None)
+    shared = ScalarSubquery(_plan_with(node))
+    df = _dataframe()
+    _returning(df)(Column(And(shared, shared)))
+    assert df._trace_node.parents == [node]
+
+
+def test_columns_in_lists_dicts_and_table_function_calls_are_scanned(tracing_flags):
+    from snowflake.snowpark._internal.analyzer.expression import (
+        InExpression,
+        Literal,
+        ScalarSubquery,
+    )
+    from snowflake.snowpark.column import Column
+    from snowflake.snowpark.table_function import TableFunctionCall
+
+    n1, n2, n3 = TraceNode(None), TraceNode(None), TraceNode(None)
+    c1 = Column(InExpression(Literal(1), [ScalarSubquery(_plan_with(n1))]))
+    c2 = Column(InExpression(Literal(2), [ScalarSubquery(_plan_with(n2))]))
+    call = TableFunctionCall("F")
+    call._df_trace_node = n3
+
+    df = _dataframe()
+    _returning(df)(c1, [c2], call, x=5)
+    assert {id(n) for n in df._trace_node.parents} == {id(n1), id(n2), id(n3)}
+    df = _dataframe()
+    _returning(df)(cols={"a": c1})
+    assert df._trace_node.parents == [n1]
+
+
+def test_only_the_outermost_call_links_inputs(tracing_flags):
+    from snowflake.snowpark._internal.analyzer.expression import ScalarSubquery
+    from snowflake.snowpark.column import Column
+
+    node = TraceNode(None)
+    inner_df, outer_df = _dataframe(), _dataframe()
+    inner = _returning(inner_df)
+
+    @publicapi
+    def outer(column):
+        inner(column)
+        return outer_df
+
+    outer(Column(ScalarSubquery(_plan_with(node))))
+    assert outer_df._trace_node.parents == [node]
+    assert inner_df._trace_node.parents == []
+
+
+def test_a_call_that_raised_does_not_leave_state_behind(tracing_flags):
+    from snowflake.snowpark._internal.analyzer.expression import ScalarSubquery
+    from snowflake.snowpark.column import Column
+
+    @publicapi
+    def failing():
+        @publicapi
+        def inner():
+            raise RuntimeError("boom")
+
+        inner()
 
     with pytest.raises(RuntimeError):
-        df_trace.trace_public_call(outer, (), {})
-    assert df_trace.public_call_depth() == 0
-    assert getattr(df_trace._call_state, "created", None) is None
+        failing()
+    # the next call is an outermost call again
+    node = TraceNode(None)
+    df = _dataframe()
+    _returning(df)(Column(ScalarSubquery(_plan_with(node))))
+    assert df._trace_node.parents == [node]
 
 
-def test_public_call_depth_is_per_thread(tracing_flags):
-    from snowflake.snowpark._internal import df_trace
+def test_calls_in_other_threads_are_independent(tracing_flags):
+    from snowflake.snowpark._internal.analyzer.expression import ScalarSubquery
+    from snowflake.snowpark.column import Column
 
-    seen = {}
     ready, release = threading.Event(), threading.Event()
 
+    @publicapi
     def hold():
         ready.set()
         release.wait(5)
 
-    def run_in_thread():
-        df_trace.trace_public_call(hold, (), {})
-
-    t = threading.Thread(target=run_in_thread)
+    t = threading.Thread(target=hold)
     t.start()
     ready.wait(5)
-    seen["main"] = df_trace.public_call_depth()
-    release.set()
-    t.join()
-    assert seen["main"] == 0
+    try:
+        # a call is open in the other thread; this one is still an outermost call
+        node = TraceNode(None)
+        df = _dataframe()
+        _returning(df)(Column(ScalarSubquery(_plan_with(node))))
+        assert df._trace_node.parents == [node]
+    finally:
+        release.set()
+        t.join()
 
 
 def test_publicapi_records_only_when_tracing_is_on():
-    from snowflake.snowpark._internal import df_trace
-    from snowflake.snowpark._internal.utils import publicapi
+    from snowflake.snowpark._internal.analyzer.expression import ScalarSubquery
+    from snowflake.snowpark.column import Column
 
-    calls = []
-
-    @publicapi
-    def api():
-        calls.append(df_trace.public_call_depth())
-
+    node = TraceNode(None)
+    column = Column(ScalarSubquery(_plan_with(node)))
     context.configure_development_features()
-    api()
+    off = _dataframe()
+    _returning(off)(column)
     context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
     try:
-        api()
+        on = _dataframe()
+        _returning(on)(column)
     finally:
         context.configure_development_features()
-    assert calls == [0, 1]
-
-
-def test_internal_nodes_are_removed_from_plan_lists():
-    from snowflake.snowpark._internal.df_trace import _strip_internal_nodes
-
-    returned_node, internal_node, older = (
-        TraceNode(None),
-        TraceNode(None),
-        TraceNode(None),
-    )
-
-    class Container:
-        def __init__(self, nodes) -> None:
-            self.df_trace_nodes = nodes
-
-    shared = [older, internal_node]
-    internal_df = type("DF", (), {})()
-    internal_df._trace_node = internal_node
-    internal_df._plan, internal_df._select_statement = Container(shared), None
-    returned_df = type("DF", (), {})()
-    returned_df._trace_node = returned_node
-    returned_df._plan = Container([older, internal_node, returned_node])
-    returned_df._select_statement = Container([internal_node])
-
-    _strip_internal_nodes([internal_df, returned_df], [returned_df])
-    assert shared == [older]
-    assert internal_df._plan.df_trace_nodes == [older]
-    assert returned_df._plan.df_trace_nodes == [older, returned_node]
-    assert returned_df._select_statement.df_trace_nodes is None
+    assert off._trace_node.parents == []
+    assert on._trace_node.parents == [node]
 
 
 def test_registration_node_only_when_tracing_is_on():

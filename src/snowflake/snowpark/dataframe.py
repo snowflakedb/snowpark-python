@@ -111,6 +111,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
+from snowflake.snowpark._internal import df_trace
 from snowflake.snowpark._internal.df_trace import (
     TraceNode,
     traces_inputs,
@@ -118,7 +119,6 @@ from snowflake.snowpark._internal.df_trace import (
     collect_input_nodes,
     is_tracing_enabled,
     record_object_creation,
-    register_created_dataframe,
 )
 from snowflake.snowpark._internal.ast.utils import (
     add_intermediate_stmt,
@@ -698,7 +698,24 @@ class DataFrame:
         # Track the user code that created this dataframe for the debug features.
         self._trace_node: Optional[TraceNode] = None
         if self._plan is not None and is_tracing_enabled(self._session):
-            self._attach_trace_node()
+            # The user source position of this dataframe and the dataframes it was built from.
+            node = TraceNode(
+                capture_user_src_position(),
+                collect_input_nodes(
+                    self._select_statement
+                    if self._select_statement is not None
+                    else self._plan
+                ),
+            )
+            self._trace_node = node
+            # Remembered for the outermost public API call, which removes the dataframes it
+            # created internally from the plans.
+            created = getattr(df_trace._call_state, "created", None)
+            if created is not None:
+                created.append(self)
+            self._plan.add_df_trace_node(node)
+            if self._select_statement is not None:
+                self._select_statement.add_df_trace_node(node)
 
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
@@ -757,18 +774,6 @@ class DataFrame:
                 and len(self._plan.queries) == 1
             ):
                 self._plan._describe_full_query()
-
-    def _attach_trace_node(self) -> None:
-        """Records the user source position of this dataframe and the dataframes it was built from."""
-        inputs = collect_input_nodes(
-            self._select_statement if self._select_statement is not None else self._plan
-        )
-        node = TraceNode(capture_user_src_position(), inputs)
-        self._trace_node = node
-        register_created_dataframe(self)
-        self._plan.add_df_trace_node(node)
-        if self._select_statement is not None:
-            self._select_statement.add_df_trace_node(node)
 
     def _set_ast_ref(self, dataframe_expr_builder: Any) -> None:
         """

@@ -159,11 +159,6 @@ class GroupingSets:
         )
 
 
-def _inputs_of_dataframe(df) -> List[TraceNode]:
-    node = getattr(df, "_trace_node", None)
-    return [node] if node is not None else []
-
-
 class RelationalGroupedDataFrame:
     """Represents an underlying DataFrame with rows that are grouped by common values.
     Can be used to define aggregations on these grouped DataFrames.
@@ -189,7 +184,7 @@ class RelationalGroupedDataFrame:
         if is_tracing_enabled(df._session):
             self._trace_node = TraceNode(
                 capture_user_src_position(),
-                _inputs_of_dataframe(df),
+                [df._trace_node] if getattr(df, "_trace_node", None) else [],
                 kind="grouped_dataframe",
             )
 
