@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
 # Logic for the "PR Gate Precheck" and "PR Gate" jobs in precommit.yml.
 #
-#   pr_gate.sh precheck   decide whether the latest push is CHANGELOG.md-only; when it is not
+#   pr_gate.sh precheck   decide whether the latest push only touches skippable files; when it is not
 #                         (and skipping is enabled) cancel the runs it supersedes
 #   pr_gate.sh report     report the state of the required gates of the newest executed run whose
-#                         code equals the PR head's code (ignoring CHANGELOG.md)
+#                         code equals the PR head's code (ignoring skippable files)
 #
-# "Code state": two commits have the same code state when the diff between them touches nothing
-# except CHANGELOG.md (added/modified). Both modes use this single definition.
+# "Code state": two commits have the same code state when the diff between them touches only
+# skippable files (added/modified). Both modes use this single definition.
+#
+# Skippable files: .github/pr_gate_skip_files.txt on the PR's base branch (so a PR cannot widen its
+# own list), one repo-relative FILE path per line, compared as exact paths: a directory never
+# matches. The list file itself is never skippable. No base branch, no list file or an API error:
+# the list is empty, so nothing is skippable and the gate always runs.
+#
+# A run belongs to a PR when its title starts with "PR #<number>: " (run-name in precommit.yml);
+# a commit can be in several PRs, and only this PR's runs are reused or cancelled.
 #
 # Required env: GH_TOKEN, GITHUB_REPOSITORY, HEAD_SHA (PR head commit).
 # precheck env: EVENT_NAME, EVENT_ACTION, BEFORE, SKIP_ENABLED, GITHUB_RUN_ID, PR_NUMBER,
-#               HEAD_REF, HEAD_REPO
+#               HEAD_REF, HEAD_REPO, BASE_REF
 # report env:   PR_NUMBER, BASE_REF, GITHUB_RUN_ID, optional PR_GATE_REQUIRED_CHECKS (newline or
 #               comma separated; overrides branch protection, needed once "PR Gate" is the only
 #               required check), optional PR_GATE_TIMEOUT_MIN (default 90)
@@ -23,11 +31,30 @@ head_sha="${HEAD_SHA:?}"
 summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
 output="${GITHUB_OUTPUT:-/dev/null}"
 
-# Prints "<compare status> <changed files> <files that are not a plain CHANGELOG.md edit>".
+SKIP_FILE=".github/pr_gate_skip_files.txt"
+
+# Writes the skippable paths, one per line, to the file $SKIP_LIST.
+load_skip_list() {
+  local raw
+  SKIP_LIST=$(mktemp)
+  [[ -n "${BASE_REF:-}" ]] || return 0
+  if raw=$(gh api -H "Accept: application/vnd.github.raw" \
+      "repos/$repo/contents/$SKIP_FILE?ref=$BASE_REF" 2>&1); then
+    printf '%s\n' "$raw" | sed 's/\r//; s/^[[:space:]]*//; s/[[:space:]]*$//' \
+      | grep -v '^$' | grep -vxF -- "$SKIP_FILE" > "$SKIP_LIST" || true
+  elif ! grep -q "HTTP 404" <<< "$raw"; then
+    echo "::warning::could not read $SKIP_FILE from $BASE_REF; nothing is skippable"
+  fi
+}
+
+# Prints "<compare status> <changed files> <files that are not a plain edit of a skippable file>".
 diff_summary() {
-  gh api "repos/$repo/compare/$1...$2" --jq '[.status, ((.files // []) | length),
-    ((.files // []) | map(select(.filename != "CHANGELOG.md"
-      or (.status != "added" and .status != "modified"))) | length)] | @tsv'
+  gh api "repos/$repo/compare/$1...$2" | jq -r --rawfile l "$SKIP_LIST" '
+    ($l | split("\n") | map(select(length > 0))) as $skip
+    | [.status, ((.files // []) | length),
+       ((.files // []) | map(select(
+          (.filename as $f | $skip | any(. == $f) | not)
+          or (.status != "added" and .status != "modified"))) | length)] | @tsv'
 }
 
 # 0: same code state as the head, 1: different, 2: API error.
@@ -50,53 +77,57 @@ cancel_superseded() {
   done < <(gh api "repos/$repo/actions/workflows/precommit.yml/runs?event=pull_request&per_page=100" \
     --jq ".workflow_runs[] | select(.head_branch == \"${HEAD_REF:?}\"
       and .head_repository.full_name == \"${HEAD_REPO:?}\"
+      and (.display_title | startswith(\"PR #${PR_NUMBER:?}: \"))
       and (.status == \"in_progress\" or .status == \"queued\" or .status == \"waiting\" or .status == \"pending\")
       and .id < ${GITHUB_RUN_ID:?}) | .id" || true)
 }
 
 precheck() {
-  local changelog_only=false skip=false cancelled=false out st nf nb
+  local skippable_only=false skip=false cancelled=false out st nf nb
   if [[ "${EVENT_NAME:-}" == "pull_request" && "${EVENT_ACTION:-}" == "synchronize" \
-        && -n "${BEFORE:-}" && ! "${BEFORE}" =~ ^0+$ ]]; then
-    # Only a fast-forward push that changes CHANGELOG.md and nothing else is changelog-only.
-    # An empty push, a force-push or any API error is treated as code.
+        && -n "${BEFORE:-}" && ! "${BEFORE}" =~ ^0+$ && "${GITHUB_RUN_ATTEMPT:-1}" == "1" ]]; then
+    # Only a fast-forward push that changes skippable files and nothing else is skippable-only.
+    # An empty push, a force-push, a re-run (same payload, must really test) or any API error is
+    # treated as code.
     out=$(diff_summary "$BEFORE" "$head_sha" 2>/dev/null || true)
     IFS=$'\t' read -r st nf nb <<< "$out"
     if [[ "$st" == "ahead" && "${nf:-0}" -ge 1 && "${nb:-1}" -eq 0 ]]; then
-      changelog_only=true
+      skippable_only=true
     fi
   fi
-  if [[ "$changelog_only" == "true" && "${SKIP_ENABLED:-}" == "true" ]]; then
+  if [[ "$skippable_only" == "true" && "${SKIP_ENABLED:-}" == "true" ]]; then
     skip=true
   fi
-  # A push with code supersedes every older run of this PR; a changelog-only push supersedes none.
-  if [[ "$changelog_only" == "false" && "${SKIP_ENABLED:-}" == "true" && "${EVENT_NAME:-}" == "pull_request" ]]; then
+  # A push with code supersedes every older run of this PR; a skippable-only push supersedes none.
+  if [[ "$skippable_only" == "false" && "${SKIP_ENABLED:-}" == "true" && "${EVENT_NAME:-}" == "pull_request" ]]; then
     cancel_superseded
     cancelled=true
   fi
-  echo "changelog_only=$changelog_only skip_other_gates=$skip"
+  echo "skippable_only=$skippable_only skip_other_gates=$skip"
   {
-    echo "changelog_only=$changelog_only"
+    echo "skippable_only=$skippable_only"
     echo "skip_other_gates=$skip"
   } >> "$output"
   {
     echo "### PR Gate Precheck"
-    echo "- latest push changelog-only: \`$changelog_only\`"
+    echo "- latest push only touches skippable files: \`$skippable_only\`"
+    echo "- skippable files (from \`$SKIP_FILE\` on \`${BASE_REF:-<no base>}\`): $(paste -sd, "$SKIP_LIST" | sed 's/,/, /g')"
     echo "- skipping enabled (\`PR_GATE_SKIP_ENABLED\`): \`${SKIP_ENABLED:-unset}\`"
     echo "- skip other gates: \`$skip\`"
     echo "- superseded runs cancelled by this job: \`$cancelled\`"
   } >> "$summary"
 }
 
-# Run id of the executed precommit run for a commit. A run whose "Check linting" job was skipped
-# (skipped by the precheck) does not count. 0: found (id printed), 1: none, 2: API error.
+# Run id of this PR's executed precommit run for a commit. A run whose "Check linting" job was
+# skipped (skipped by the precheck) does not count. 0: found (id printed), 1: none, 2: API error.
 executed_run_for() {
   local sha="$1" id lint
   if [[ "$sha" == "$head_sha" ]]; then
     id="${GITHUB_RUN_ID:?}"
   else
-    id=$(gh api "repos/$repo/actions/workflows/precommit.yml/runs?head_sha=$sha&event=pull_request&per_page=30" \
-      --jq '.workflow_runs | sort_by(.created_at) | last | .id // empty') || return 2
+    id=$(gh api --paginate "repos/$repo/actions/workflows/precommit.yml/runs?head_sha=$sha&event=pull_request&per_page=100" \
+      --jq ".workflow_runs[] | select(.display_title | startswith(\"PR #${PR_NUMBER:?}: \")) | [.created_at, .id] | @tsv" \
+      | sort | tail -n 1 | cut -f2) || return 2
     [[ -n "$id" ]] || return 1
   fi
   lint=$(gh api --paginate "repos/$repo/actions/runs/$id/jobs?per_page=100" \
@@ -144,14 +175,14 @@ resolve_run() {
   done
 }
 
-# True when the whole PR only adds/modifies CHANGELOG.md (nothing to gate).
-pr_only_changelog() {
+# True when the whole PR only adds/modifies skippable files (nothing to gate).
+pr_only_skippable() {
   local files
   files=$(gh api --paginate "repos/$repo/pulls/${PR_NUMBER:?}/files?per_page=100" \
     --jq '.[] | [.filename, .status] | @tsv') || return 1
   [[ -n "$files" ]] || return 1
   while IFS=$'\t' read -r name status; do
-    [[ "$name" == "CHANGELOG.md" && ( "$status" == "added" || "$status" == "modified" ) ]] || return 1
+    grep -qxF -- "$name" "$SKIP_LIST" && [[ "$status" == "added" || "$status" == "modified" ]] || return 1
   done <<< "$files"
 }
 
@@ -234,10 +265,10 @@ report() {
   resolve_run || { fail_report "could not determine the tested commit (GitHub API failure or unexpected commit list)"; return 1; }
 
   if [[ -z "$RUN_ID" ]]; then
-    if pr_only_changelog; then
+    if pr_only_skippable; then
       {
         echo "### PR Gate"
-        echo "This PR only changes CHANGELOG.md, so there is no code to gate."
+        echo "This PR only changes skippable files ($SKIP_FILE), so there is no code to gate."
       } | tee -a "$summary"
       echo "tested_sha=" >> "$output"
       return 0
@@ -269,7 +300,7 @@ report() {
   {
     echo "### PR Gate"
     echo "Reporting the newest executed run with the same code as the head: \`$RUN_SHA\` (run $RUN_ID)"
-    [[ "$RUN_SHA" == "$head_sha" ]] || echo "(head \`$head_sha\` has the same code, ignoring CHANGELOG.md)"
+    [[ "$RUN_SHA" == "$head_sha" ]] || echo "(head \`$head_sha\` has the same code, ignoring skippable files)"
     echo
     echo "| Gate | Required | State | Link |"
     echo "|---|---|---|---|"
@@ -291,6 +322,8 @@ report() {
   fi
   echo "**Result: PASS**" >> "$summary"
 }
+
+load_skip_list
 
 case "$MODE" in
   precheck) precheck ;;
