@@ -24,13 +24,18 @@ from snowflake.snowpark import (
     Session,
     Table,
 )
-from snowflake.snowpark._internal.utils import TempObjectType
+import snowflake.snowpark.context as context
+from snowflake.snowpark._internal.utils import (
+    AstFlagSource,
+    TempObjectType,
+    is_ast_enabled,
+    set_ast_state,
+)
 from snowflake.snowpark.udaf import UDAFRegistration
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
 from tests.integ import df_trace_corpus
 from tests.integ.df_trace_corpus import WORKLOADS, Ctx
-from tests.integ.df_trace_harness import DebugFeatures
 from tests.utils import Utils
 
 pytestmark = [
@@ -142,16 +147,23 @@ def test_corpus_covers_public_api(session, ctx):
         if event == "call" and frame.f_code in universe:
             called.add(frame.f_code)
 
-    with DebugFeatures(ast=False):
-        sys.setprofile(profiler)
-        try:
-            for workload in WORKLOADS:
-                try:
-                    workload.action(workload.build(session, ctx))
-                except Exception:  # noqa: BLE001 - the workloads are meant to fail
-                    pass
-        finally:
-            sys.setprofile(None)
+    old_ast = is_ast_enabled()
+    context.configure_development_features(
+        enable_dataframe_trace_on_error=True,
+        enable_trace_sql_errors_to_dataframe=True,
+    )
+    set_ast_state(AstFlagSource.TEST, False)
+    sys.setprofile(profiler)
+    try:
+        for workload in WORKLOADS:
+            try:
+                workload.action(workload.build(session, ctx))
+            except Exception:  # noqa: BLE001 - the workloads are meant to fail
+                pass
+    finally:
+        sys.setprofile(None)
+        context.configure_development_features()
+        set_ast_state(AstFlagSource.TEST, old_ast)
 
     uncovered = {
         sorted(names)[0]

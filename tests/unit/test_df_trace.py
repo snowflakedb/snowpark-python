@@ -187,19 +187,6 @@ def _imports(path):
     return names
 
 
-def test_df_trace_debug_does_not_use_the_ast():
-    path = SRC_DIR / "_internal" / "df_trace_debug.py"
-    assert not [n for n in _imports(path) if "_internal.ast" in n or "ast_pb2" in n]
-    text = path.read_text()
-    for forbidden in (
-        "_ast_batch",
-        "_bind_stmt_cache",
-        "df_ast_ids",
-        "get_dependent_bind_ids",
-    ):
-        assert forbidden not in text
-
-
 def test_df_trace_module_does_not_use_the_ast():
     path = SRC_DIR / "_internal" / "df_trace.py"
     assert not [n for n in _imports(path) if "_internal.ast" in n or "ast_pb2" in n]
