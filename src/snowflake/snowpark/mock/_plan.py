@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
 import importlib
 import inspect
 import json
@@ -337,6 +338,25 @@ def _assign_case_rows(
     output_data.sf_type = sf_type
     output_data[index] = value
     return output_data
+
+
+def _isin(lhs: ColumnEmulator, values: Any) -> ColumnEmulator:
+    """lhs.isin(values) for an IN expression.
+
+    pandas 2 implicitly parsed string and date candidates when lhs holds datetimes; pandas
+    3 removed that, so a TIMESTAMP never matched '2024-01-02'. Parse them explicitly on
+    pandas 3, the way Snowflake casts them. Candidates that cannot be parsed are skipped.
+    """
+    if pandas_major_version < 3 or lhs.dtype.kind != "M":
+        return lhs.isin(values)
+
+    def castable(v):
+        return isinstance(v, str) or type(v) is datetime.date
+
+    values = list(values)
+    parsed = [pd.to_datetime(v, errors="coerce") for v in values if castable(v)]
+    others = [v for v in values if not castable(v) and not pd.isna(v)]
+    return lhs.isin([ts for ts in parsed if ts is not pd.NaT] + others)
 
 
 def handle_order_by_clause(
@@ -2548,9 +2568,9 @@ def calculate_expression(
             rhs = calculate_expression(val, input_data, analyzer, expr_to_alias)
             if isinstance(lhs, ColumnEmulator):
                 if isinstance(rhs, ColumnEmulator):
-                    res = res | lhs.isin(rhs)
+                    res = res | _isin(lhs, rhs)
                 elif isinstance(rhs, TableEmulator):
-                    res = res | lhs.isin(rhs.iloc[:, 0])
+                    res = res | _isin(lhs, rhs.iloc[:, 0])
                 else:
                     analyzer.session._conn.log_not_supported_error(
                         external_feature_name=f"IN expression with type {type(rhs).__name__} on the right",

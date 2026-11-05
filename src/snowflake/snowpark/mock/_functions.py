@@ -27,7 +27,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     NamedFunctionExpression,
 )
 from snowflake.snowpark._internal.utils import unalias_datetime_part
-from snowflake.snowpark.mock._options import numpy, pandas
+from snowflake.snowpark.mock._options import numpy, pandas, pandas_major_version
 from snowflake.snowpark.mock._snowflake_data_type import (
     _TIMESTAMP_TYPE_MAPPING,
     _TIMESTAMP_TYPE_TIMEZONE_MAPPING,
@@ -1687,10 +1687,17 @@ def cast_to_datetime(date):
 
 
 def add_years(date, duration):
+    # NULL dates arrive as None. Return NULL; pandas 2 is left as it was (it raises here).
+    if pandas_major_version >= 3 and date is None:
+        return date
     return date.replace(year=date.year + duration)
 
 
 def add_months(scalar, date, duration):
+    # pandas 3's to_datetime(None) returns NaT instead of None, so NULL dates came back as
+    # NaT. Return NULL; pandas 2 is left as it was (it raises here).
+    if pandas_major_version >= 3 and date is None:
+        return date
     res = (
         pandas.to_datetime(date) + pandas.DateOffset(months=scalar * duration)
     ).to_pydatetime()
@@ -2165,11 +2172,19 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
             )
         )
     pdf = pandas.concat(columns, axis=1)
-    result = pdf.T.apply(
-        lambda c: None
-        if c.isnull().values.any()
-        else c[1:].astype(str).str.cat(sep=c[0])
-    )
+    if pandas_major_version >= 3:
+        # pandas 3 no longer falls back to positions for c[0] on a labeled Series.
+        result = pdf.T.apply(
+            lambda c: None
+            if c.isnull().values.any()
+            else c.iloc[1:].astype(str).str.cat(sep=c.iloc[0])
+        )
+    else:
+        result = pdf.T.apply(
+            lambda c: None
+            if c.isnull().values.any()
+            else c[1:].astype(str).str.cat(sep=c[0])
+        )
     result.sf_type = ColumnType(StringType(), result.hasnans)
     return result
 
