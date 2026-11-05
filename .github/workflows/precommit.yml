@@ -1,4 +1,7 @@
 name: precommit test
+# Tags pull_request runs with their PR so pr_gate.sh only reuses this PR's runs (a commit can be
+# in several PRs). Other events keep the default title.
+run-name: "${{ github.event_name == 'pull_request' && format('PR #{0}: {1}', github.event.pull_request.number, github.event.pull_request.title) || '' }}"
 on:
   push:
     branches: [ main ]
@@ -15,7 +18,7 @@ on:
 
 # While PR_GATE_SKIP_ENABLED is unset, a newer push cancels the older run of the same ref (original
 # behavior). Once it is 'true', every run gets its own group and PR Gate Precheck cancels only the
-# runs a push with code supersedes, so a changelog-only push never cancels the run it points at.
+# runs a push with code supersedes, so a skippable-only push never cancels the run it points at.
 concurrency:
   group: ${{ vars.PR_GATE_SKIP_ENABLED == 'true' && format('{0}-{1}', github.ref, github.run_id) || github.ref }}
   cancel-in-progress: ${{ vars.PR_GATE_SKIP_ENABLED != 'true' }}
@@ -46,6 +49,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
 
   lint:
     # Every other job descends from lint, type_checking, combine-coverage or doc,
@@ -839,7 +843,7 @@ jobs:
           path: .tox/docs_out
 
   # Records the status of every gate and reports the state of the latest
-  # non-changelog-only commit. Not a required check yet.
+  # commit that is not skippable-only. Not a required check yet.
   pr_gate:
     name: PR Gate
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}

@@ -153,6 +153,7 @@ from snowflake.snowpark._internal.utils import (
     AstFlagSource,
     AstMode,
     private_preview,
+    public_preview,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
@@ -363,6 +364,65 @@ def _remove_session(session: "Session") -> None:
             _active_sessions.remove(session)
         except KeyError:
             pass
+
+
+def _render_semantic_view_where(value: Union[str, Sequence[str]]) -> str:
+    """Renders the ``WHERE`` clause of a ``SEMANTIC_VIEW(...)`` call.
+
+    A ``str`` is emitted verbatim. A sequence is ``AND``-joined with each condition
+    parenthesized, so ``["a OR b", "c"]`` does not become ``a OR (b AND c)``.
+    """
+    if isinstance(value, str):
+        if not value.strip():
+            raise ValueError("where is empty; omit it instead.")
+        return "WHERE " + value
+    if not isinstance(value, Sequence):
+        raise TypeError(
+            f"where should be a string, or a sequence of conditions, not "
+            f"{type(value).__name__}."
+        )
+    if not value:
+        raise ValueError(f"where is an empty {type(value).__name__}; omit it instead.")
+    conditions = []
+    for i, condition in enumerate(value):
+        if not isinstance(condition, str):
+            raise TypeError(
+                f"where[{i}] should be a string, not {type(condition).__name__}."
+            )
+        if not condition.strip():
+            raise ValueError(f"where[{i}] is an empty condition.")
+        conditions.append("(" + condition + ")")
+    return "WHERE " + " AND ".join(conditions)
+
+
+def _render_semantic_view_clause(keyword: str, value: Union[str, Sequence[str]]) -> str:
+    """Renders one clause of a ``SEMANTIC_VIEW(...)`` call.
+
+    A ``str`` is emitted verbatim.
+    """
+    param = keyword.lower()
+    if isinstance(value, str):
+        if not value.strip():
+            raise ValueError(f"{param} is empty; omit it instead.")
+        # Not an f-string: a (str, Enum) member would format as its repr.
+        return keyword + " " + value
+    if not isinstance(value, Sequence):
+        raise TypeError(
+            f"{param} should be a string, or a sequence of members, not "
+            f"{type(value).__name__}."
+        )
+    if not value:
+        raise ValueError(
+            f"{param} is an empty {type(value).__name__}; omit it instead."
+        )
+    for i, member in enumerate(value):
+        if not isinstance(member, str):
+            raise TypeError(
+                f"{param}[{i}] should be a string, not {type(member).__name__}."
+            )
+        if not member.strip():
+            raise ValueError(f"{param}[{i}] is an empty member name.")
+    return keyword + " " + ", ".join(value)
 
 
 class Session:
@@ -3322,6 +3382,106 @@ class Session:
             )
         set_api_call_source(d, "Session.sql")
         return d
+
+    @public_preview(version="1.57.0")
+    @publicapi
+    def semantic_view(
+        self,
+        name: Union[str, Sequence[str]],
+        *,
+        dimensions: Optional[Union[str, Sequence[str]]] = None,
+        metrics: Optional[Union[str, Sequence[str]]] = None,
+        facts: Optional[Union[str, Sequence[str]]] = None,
+        where: Optional[Union[str, Sequence[str]]] = None,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """Returns a :class:`DataFrame` for a query against a semantic view.
+
+        At least one of ``dimensions``, ``metrics``, or ``facts`` is required;
+        ``where`` alone is not a valid query.
+
+        A clause string is emitted verbatim, so several members and inline ``AS``
+        aliases can be written in one string. Clauses are always emitted in the
+        order ``DIMENSIONS``, ``METRICS``, ``FACTS``, ``WHERE``, which sets the
+        default column order; reorder with :meth:`DataFrame.select`.
+
+        Note:
+            The strings passed to ``dimensions``, ``metrics``, ``facts``, and
+            ``where`` are emitted verbatim, without any check or escaping. Do not
+            build them from untrusted input.
+
+        Args:
+            name: A string, or a sequence of strings, that specifies the
+                semantic view name or fully-qualified object identifier (database
+                name, schema name, and semantic view name).
+            dimensions: Members to group by, as a verbatim clause string or a
+                sequence of member strings, which are comma-joined. A member may
+                carry an inline alias, as ``"orders.revenue AS REV"``.
+            metrics: Members to aggregate, in the same forms as ``dimensions``.
+            facts: Row-level members, in the same forms as ``dimensions``. The
+                server rejects ``facts`` together with ``metrics``.
+            where: A condition applied *before* aggregation. Pass a string, which
+                is emitted verbatim, or a sequence of conditions, which are
+                ``AND``-joined with each one parenthesized. ``WHERE`` takes a
+                single expression, so a sequence is how several conditions
+                compose. A condition may reference dimensions and facts, but not
+                metrics: a metric is filtered *after* aggregation, with
+                :meth:`DataFrame.filter` on the returned DataFrame.
+
+        Examples::
+
+            >>> df = session.semantic_view(
+            ...     "my_semantic_view",
+            ...     dimensions="customers.region",
+            ...     metrics="orders.revenue",
+            ... )  # doctest: +SKIP
+
+            >>> df = session.semantic_view(
+            ...     "my_db.my_schema.my_semantic_view",
+            ...     dimensions=["customers.region", "customers.customer"],
+            ...     metrics=["orders.revenue", "orders.order_count"],
+            ...     where="customers.region = 'EMEA'",
+            ... )  # doctest: +SKIP
+            >>> from snowflake.snowpark.functions import col  # doctest: +SKIP
+            >>> df.filter(col("REVENUE") > 400).sort(col("REGION")).show()  # doctest: +SKIP
+        """
+        if isinstance(self._conn, MockServerConnection):
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.semantic_view",
+                raise_error=NotImplementedError,
+            )
+
+        if dimensions is None and metrics is None and facts is None:
+            raise ValueError(
+                "semantic_view() requires at least one of dimensions, metrics, "
+                "or facts. A where condition alone is not a valid query."
+            )
+
+        if not isinstance(name, str):
+            if not isinstance(name, Sequence):
+                raise TypeError(
+                    "name should be a string, or a sequence of name parts, not "
+                    f"{type(name).__name__}."
+                )
+            name = ".".join(name)
+        validate_object_name(name)
+
+        parts = [name]
+        for keyword, value in (
+            ("DIMENSIONS", dimensions),
+            ("METRICS", metrics),
+            ("FACTS", facts),
+        ):
+            if value is not None:
+                parts.append(_render_semantic_view_clause(keyword, value))
+        if where is not None:
+            parts.append(_render_semantic_view_where(where))
+
+        df = self.sql(
+            f"SELECT * FROM SEMANTIC_VIEW({' '.join(parts)})", _emit_ast=_emit_ast
+        )
+        set_api_call_source(df, "Session.semantic_view")
+        return df
 
     @property
     def read(self) -> "DataFrameReader":

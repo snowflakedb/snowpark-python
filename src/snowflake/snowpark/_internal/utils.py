@@ -1209,7 +1209,9 @@ def publicapi(func: CallableT) -> CallableT:
 
 
 def func_decorator(
-    decorator_type: Literal["deprecated", "experimental", "in private preview"],
+    decorator_type: Literal[
+        "deprecated", "experimental", "in private preview", "in public preview"
+    ],
     *,
     version: str,
     extra_warning_text: str,
@@ -1289,6 +1291,17 @@ def private_preview(
 ) -> Callable:
     return func_decorator(
         "in private preview",
+        version=version,
+        extra_warning_text=extra_warning_text,
+        extra_doc_string=extra_doc_string,
+    )
+
+
+def public_preview(
+    *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
+) -> Callable:
+    return func_decorator(
+        "in public preview",
         version=version,
         extra_warning_text=extra_warning_text,
         extra_doc_string=extra_doc_string,
