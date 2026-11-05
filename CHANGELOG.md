@@ -19,6 +19,10 @@
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file in accounts that return structured types in the native Arrow format (for example, with `ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT` set).
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file, instead of falling back to the next model, when `AI_COMPLETE` reported the first model as unavailable (`Model "<name>" is unavailable`).
 
+#### Dependency Updates
+
+- The `[pandas]` install extra now declares `pandas` and `pyarrow` directly instead of coupling them through `snowflake-connector-python[pandas]`. The version bounds are unchanged.
+
 ## 1.56.0 (2026-10-29)
 
 ### Snowpark Python API Updates
