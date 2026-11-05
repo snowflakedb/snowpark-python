@@ -1,0 +1,96 @@
+#
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, Optional
+
+from snowflake.snowpark.jobs._utils import CODE_BUNDLE_KIND, STORED_PROCEDURE_KIND
+
+_EXECUTE_AS = ("caller", "owner", "restricted caller")
+
+
+class Target(ABC):
+    """Where a program runs. Use :class:`StoredProcedure` or :class:`CodeBundle`."""
+
+    kind: str
+
+    @abstractmethod
+    def _submit(self, session, program, **kwargs):
+        ...
+
+    @abstractmethod
+    def _deploy(self, session, program, **kwargs):
+        ...
+
+
+@dataclass
+class StoredProcedure(Target):
+    """Run the program as a Snowflake Python stored procedure (the default target).
+
+    Every procedure created by this target has the signature
+    ``(ARGS ARRAY) RETURNS VARIANT``. Runs use the session's current warehouse.
+
+    Args:
+        execute_as: ``"caller"``, ``"owner"`` or ``"restricted caller"``. One-off runs
+            (``submit``) always use caller's rights; the default for ``deploy`` is
+            ``"owner"``.
+    """
+
+    execute_as: Optional[str] = None
+    kind = STORED_PROCEDURE_KIND
+
+    def __post_init__(self) -> None:
+        if self.execute_as is not None and self.execute_as not in _EXECUTE_AS:
+            raise ValueError(
+                f"execute_as must be one of {_EXECUTE_AS}, got {self.execute_as!r}"
+            )
+
+    def _submit(self, session, program, **kwargs):
+        from snowflake.snowpark.jobs import _sproc
+
+        return _sproc.submit(session, self, program, **kwargs)
+
+    def _deploy(self, session, program, **kwargs):
+        from snowflake.snowpark.jobs import _sproc
+
+        return _sproc.deploy(session, self, program, **kwargs)
+
+
+@dataclass
+class CodeBundle(Target):
+    """Run the program as a code bundle (Preview): custom Python on a warehouse or a
+    compute pool.
+
+    Args:
+        compute_pool: Run on this compute pool. By default the program runs on the
+            session's current warehouse.
+        query_warehouse: Warehouse for the SQL issued by the program when running on a
+            compute pool. Defaults to the session's current warehouse.
+        runtime_version: Python version (``"3.12"``) on a warehouse, or runtime name
+            (``"V2.9-CPU-PY3.12"``) on a compute pool.
+    """
+
+    compute_pool: Optional[str] = None
+    query_warehouse: Optional[str] = None
+    runtime_version: Optional[str] = None
+    kind = CODE_BUNDLE_KIND
+
+    def _submit(self, session, program, **kwargs):
+        from snowflake.snowpark.jobs import _bundle
+
+        return _bundle.submit(session, self, program, **kwargs)
+
+    def _deploy(self, session, program, **kwargs):
+        from snowflake.snowpark.jobs import _bundle
+
+        return _bundle.deploy(session, self, program, **kwargs)
+
+
+def check_target(target: Any) -> Target:
+    if not isinstance(target, Target):
+        raise TypeError(
+            f"target must be StoredProcedure() or CodeBundle(), got {target!r}"
+        )
+    return target

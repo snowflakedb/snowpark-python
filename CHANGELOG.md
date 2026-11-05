@@ -6,6 +6,8 @@
 
 #### New Features
 
+- Added `Session.jobs` (experimental) to submit, deploy and schedule Snowpark Python programs as stored procedures or code bundles (code bundles are in Preview).
+
 #### Improvements
 
 - `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them. Turning the tracing features off now also turns off the AST collection if the features enabled it.

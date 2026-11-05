@@ -64,6 +64,7 @@ Snowpark Session
       Session.get_imports
       Session.get_packages
       Session.get_session_stage
+      Session.jobs
       Session.query_history
       Session.stored_procedure_profiler
       Session.range
