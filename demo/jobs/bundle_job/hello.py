@@ -1,12 +1,23 @@
 import logging
 import sys
 
+from snowflake.snowpark.context import get_active_session
+
 
 def main():
-    # Python logging reaches the event table on a warehouse; print() does not.
-    logging.warning("hello from a code bundle, args=%s", sys.argv[1:])
+    # A connection check: the session is already open inside a code bundle.
+    session = get_active_session()
+    user, role, warehouse = session.sql(
+        "SELECT CURRENT_USER(), CURRENT_ROLE(), CURRENT_WAREHOUSE()"
+    ).collect()[0]
+    logging.warning(
+        "hello user=%s role=%s warehouse=%s args=%s",
+        user,
+        role,
+        warehouse,
+        sys.argv[1:],
+    )
 
 
-# the guard also keeps test collection (pytest --doctest-modules) from running it
 if __name__ == "__main__":
     main()

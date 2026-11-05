@@ -2,20 +2,21 @@
 
 import os
 
-from _common import demo_session, say
+from _common import demo_session, say, seed_sales
 
 from snowflake.snowpark.jobs import CodeBundle, Program
 
 SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bundle_job")
 
 
-def answer(session):
-    return 42
+def row_count(session, table):
+    return session.table(table).count()
 
 
 def main():
     with demo_session() as (session, stage):
-        sproc_job = session.jobs.submit(answer)
+        sales = seed_sales(session)
+        sproc_job = session.jobs.submit(row_count, args=[sales])
         bundle_job = session.jobs.submit(
             Program.directory(SRC), CodeBundle(), entrypoint="hello.py"
         )
@@ -29,9 +30,9 @@ def main():
         say("reopened:", session.jobs.get(sproc_job.id).result())
         say("reopened:", session.jobs.get(bundle_job.id).status())
 
-        session.jobs.deploy(answer, name="DEMO_ANSWER", stage=stage)
-        found = session.jobs.get_deployment("DEMO_ANSWER")
-        say("deployment:", found.name, "->", found.run().result())
+        session.jobs.deploy(row_count, name="DEMO_ROW_COUNT", stage=stage)
+        found = session.jobs.get_deployment("DEMO_ROW_COUNT")
+        say("deployment:", found.name, "->", found.run(args=[sales]).result())
 
 
 if __name__ == "__main__":

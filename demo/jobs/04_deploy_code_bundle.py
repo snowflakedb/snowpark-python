@@ -2,7 +2,7 @@
 
 import os
 
-from _common import demo_session, say, show_logs
+from _common import demo_session, qualified, say, seed_sales, show_logs, show_table
 
 from snowflake.snowpark.jobs import CodeBundle, Program
 
@@ -11,6 +11,9 @@ SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bundle_job")
 
 def main():
     with demo_session() as (session, _stage):
+        sales = seed_sales(session)
+        summary = qualified(session, "SALES_BY_REGION")
+        daily = qualified(session, "SALES_DAILY")
         # Version 1 leaves out summary.py, which arrives later as version 2.
         v1 = Program.directory(SRC, exclude=["summary.py"])
         dep = session.jobs.deploy(v1, CodeBundle(), name="DEMO_BUNDLE")
@@ -22,21 +25,27 @@ def main():
         say("hello:", dep.run(entrypoint="hello.py", args=["x"]).wait())
         # overrides patch the specification for this run only.
         run = dep.run(
-            entrypoint="report.py", overrides={"env_vars": [{"REPORT_NAME": "Q3"}]}
+            entrypoint="report.py",
+            args=[sales, summary],
+            overrides={"env_vars": [{"REPORT_NAME": "Q3"}]},
         )
         say("report:", run.wait())
         show_logs(run)
+        show_table(session, summary, "REGION")
 
         say("sql:", dep.to_sql(entrypoint="hello.py", args=["x"]))
 
         # A function entry point (file.py:func) is called as func(session, *args).
-        task = dep.run(entrypoint="tasks.py:run", args=["a", "b"])
+        task = dep.run(entrypoint="tasks.py:run", args=[sales, daily, "2025-02-01"])
         say("tasks.py:run:", task.wait())
         show_logs(task)
+        show_table(session, daily, "SOLD_ON", limit=3)
 
         # Runs always use the latest version, so the new entry point works right away.
         dep.add_version(Program.directory(SRC))
-        say("summary (v2):", dep.run(entrypoint="summary.py", args=["a", "b"]).wait())
+        top = dep.run(entrypoint="summary.py", args=[summary])
+        say("summary (v2):", top.wait())
+        show_logs(top)
 
         # Deployments can be found again by name, e.g. from another session.
         found = session.jobs.get_deployment("DEMO_BUNDLE")

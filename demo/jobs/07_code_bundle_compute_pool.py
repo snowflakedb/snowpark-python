@@ -3,7 +3,7 @@
 import os
 import sys
 
-from _common import demo_session, say
+from _common import demo_session, qualified, say, seed_sales, show_table
 
 from snowflake.snowpark.jobs import CodeBundle, JobNotSupportedError, Program
 
@@ -17,13 +17,19 @@ def main():
             "Set SNOWPARK_DEMO_COMPUTE_POOL to the name of a compute pool you can use."
         )
     with demo_session() as (session, _stage):
+        sales = seed_sales(session)
+        summary = qualified(session, "SALES_BY_REGION")
         program = Program.directory(os.path.join(HERE, "bundle_job"))
         # The warehouse (default: the current one) is the query warehouse of the program.
         job = session.jobs.submit(
-            program, CodeBundle(compute_pool=pool), entrypoint="hello.py", args=["pool"]
+            program,
+            CodeBundle(compute_pool=pool),
+            entrypoint="report.py",
+            args=[sales, summary],
         )
         say("submitted", job.id, "- a cold pool can take a few minutes to start")
         say("finished:", job.wait(timeout=1200))
+        show_table(session, summary, "REGION")
         # Output of pool runs cannot be retrieved.
         try:
             job.logs()
