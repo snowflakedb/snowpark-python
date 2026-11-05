@@ -137,6 +137,22 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         assert str(timestamp_pandas_df.dtypes.iloc[0]) == "datetime64[ns]"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SHOW is not supported in local testing",
+)
+def test_to_pandas_json_result_timestamp_unit(session):
+    # SHOW results are not Arrow, so to_pandas builds the frame from Python datetime
+    # objects, which pandas 3 infers as us. The unit must match the Arrow path (ns).
+    table_name = Utils.random_table_name()
+    session.sql(f"create temporary table {table_name}(a int)").collect()
+    try:
+        pdf = session.sql(f"show tables like '{table_name}'").to_pandas()
+        assert pdf['"created_on"'].dt.unit == "ns"
+    finally:
+        Utils.drop_table(session, table_name)
+
+
 def test_to_pandas_precision_for_number_38_0(session):
     # Assert that we try to fit into int64 when possible and keep precision
 
