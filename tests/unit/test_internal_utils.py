@@ -204,3 +204,53 @@ def test_missing_pandas():
     result = options._missing_pandas()
     assert isinstance(result, options.MissingOptionalDependency)
     assert result._dep_name == "pandas"
+
+
+def test_time_columns_us_to_ns():
+    pandas = pytest.importorskip("pandas")
+    import numpy as np
+    from unittest import mock
+
+    day_us = 86400 * 10**6
+    df = pandas.DataFrame(
+        {
+            "td_us": np.array([day_us], dtype="timedelta64[us]"),
+            "td_s": np.array([1], dtype="timedelta64[s]"),
+            # 200000 days do not fit in ns, so the column keeps us.
+            "td_huge": np.array([200000 * day_us], dtype="timedelta64[us]"),
+            "ts_us": np.array(["2024-01-02T03:04:05"], dtype="datetime64[us]"),
+            # Year 3000 does not fit in ns, so the column keeps us.
+            "ts_huge": np.array(["3000-01-01"], dtype="datetime64[us]"),
+        }
+    )
+    df["tz_us"] = df["ts_us"].dt.tz_localize("UTC")
+    duplicated = pandas.concat([df[["td_us"]], df[["td_us"]]], axis=1)
+
+    with mock.patch.object(pandas, "__version__", "3.0.0"):
+        timedelta_only = utils.time_columns_us_to_ns(df, kinds="m")
+        both = utils.time_columns_us_to_ns(df, kinds="mM")
+        result_duplicated = utils.time_columns_us_to_ns(duplicated, kinds="m")
+    assert [str(t) for t in timedelta_only.dtypes] == [
+        "timedelta64[ns]",
+        "timedelta64[s]",
+        "timedelta64[us]",
+        "datetime64[us]",
+        "datetime64[us]",
+        "datetime64[us, UTC]",
+    ]
+    assert [str(t) for t in both.dtypes] == [
+        "timedelta64[ns]",
+        "timedelta64[s]",
+        "timedelta64[us]",
+        "datetime64[ns]",
+        "datetime64[us]",
+        "datetime64[ns, UTC]",
+    ]
+    assert both["td_us"].iloc[0] == pandas.Timedelta(days=1)
+    assert both["ts_us"].iloc[0] == df["ts_us"].iloc[0]
+    assert [str(t) for t in result_duplicated.dtypes] == ["timedelta64[ns]"] * 2
+    # The input DataFrame is not modified.
+    assert str(df.dtypes.iloc[0]) == "timedelta64[us]"
+
+    with mock.patch.object(pandas, "__version__", "2.3.3"):
+        assert utils.time_columns_us_to_ns(df, kinds="mM") is df

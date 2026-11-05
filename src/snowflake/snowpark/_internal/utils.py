@@ -70,6 +70,8 @@ IS_V5_DRIVER = snowpark_options.IS_V5_DRIVER
 
 
 if TYPE_CHECKING:
+    import pandas
+
     from snowflake.snowpark._internal.analyzer.snowflake_plan import (
         SnowflakePlan,
         QueryLineInterval,
@@ -308,6 +310,39 @@ ALIASES_TO_DATETIME_PART = {
     v: k for k, l in DATETIME_PART_TO_ALIASES.items() for v in l
 }
 DATETIME_ALIASES = set(ALIASES_TO_DATETIME_PART.keys())
+
+
+def time_columns_us_to_ns(df: "pandas.DataFrame", kinds: str) -> "pandas.DataFrame":
+    """Give columns that pandas 3 inferred with the us unit the ns unit pandas 2 used.
+
+    pandas 2 infers ns from Python datetime and timedelta objects and pandas 3 infers us.
+    kinds selects the columns by dtype kind: "m" for timedelta, "M" for datetime
+    (naive or tz-aware). Only us columns are converted, since pandas 2 keeps any other
+    unit as it is too. Columns are handled by position (names may repeat), values
+    outside the ns range keep their unit, and the input DataFrame is not modified.
+    pandas 2 input is returned unchanged.
+    """
+    import pandas
+
+    if int(pandas.__version__.split(".")[0]) < 3:
+        return df
+    positions = [
+        i
+        for i, dtype in enumerate(df.dtypes)
+        if dtype.kind in kinds and df.iloc[:, i].dt.unit == "us"
+    ]
+    if not positions:
+        return df
+    df = df.copy(deep=False)
+    for i in positions:
+        try:
+            df.isetitem(i, df.iloc[:, i].dt.as_unit("ns"))
+        except (
+            pandas.errors.OutOfBoundsDatetime,
+            pandas.errors.OutOfBoundsTimedelta,
+        ):
+            pass
+    return df
 
 
 def unalias_datetime_part(part):
