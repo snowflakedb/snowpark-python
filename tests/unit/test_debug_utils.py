@@ -13,7 +13,10 @@ from snowflake.snowpark._internal.debug_utils import (
     DataFrameTraceNode,
     QueryProfiler,
     _format_source_location,
+    get_python_source_from_sql_error,
+    resolve_failed_query_index,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 
@@ -670,3 +673,68 @@ def test_profile_query_with_complex_attributes():
                     break
     finally:
         os.unlink(temp_path)
+
+
+def _error_with_failed_query(failed_query=None, is_last=None):
+    error = Exception("fake error")
+    if failed_query is not None:
+        error._snowpark_failed_query = failed_query
+        error._snowpark_failed_query_is_last = is_last
+    return error
+
+
+def test_resolve_failed_query_index():
+    queries = [Query("pre 0"), Query("pre 1"), Query("main")]
+    top_plan = mock.Mock()
+    top_plan.queries = queries
+
+    # Untagged errors, and errors from the last query, keep using the last query.
+    assert resolve_failed_query_index(top_plan, Exception("x")) == -1
+    assert (
+        resolve_failed_query_index(top_plan, _error_with_failed_query(queries[2], True))
+        == -1
+    )
+    # An earlier query is found by equality, also when it is a compiled copy.
+    assert (
+        resolve_failed_query_index(
+            top_plan, _error_with_failed_query(queries[0], False)
+        )
+        == 0
+    )
+    copied = Query("pre 1", query_id_place_holder=queries[1].query_id_place_holder)
+    assert (
+        resolve_failed_query_index(top_plan, _error_with_failed_query(copied, False))
+        == 1
+    )
+    # A query that is not part of the plan (e.g. rewritten by the plan compiler).
+    assert (
+        resolve_failed_query_index(
+            top_plan, _error_with_failed_query(Query("rewritten"), False)
+        )
+        is None
+    )
+
+
+def test_get_python_source_from_sql_error_query_index():
+    error_msg = "SQL compilation error: error line 3 at position 0\ninvalid identifier"
+    top_plan = mock.Mock()
+    with mock.patch(
+        "snowflake.snowpark._internal.utils.get_plan_from_line_numbers"
+    ) as mocked, mock.patch(
+        "snowflake.snowpark._internal.debug_utils._extract_source_locations_from_plan",
+        return_value=["file.py: line 7"],
+    ):
+        # Unknown failing query: no mapping is attempted.
+        assert get_python_source_from_sql_error(top_plan, error_msg, None) == ""
+        mocked.assert_not_called()
+
+        # Default maps against the last query, as before.
+        assert "file.py: line 7" in get_python_source_from_sql_error(
+            top_plan, error_msg
+        )
+        mocked.assert_called_with(top_plan, 2, -1)
+
+        assert "file.py: line 7" in get_python_source_from_sql_error(
+            top_plan, error_msg, 0
+        )
+        mocked.assert_called_with(top_plan, 2, 0)

@@ -11,7 +11,14 @@ from unittest.mock import MagicMock
 import pytest
 
 from snowflake.snowpark import Session
-from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
+from snowflake.connector.errors import ProgrammingError
+
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    BatchInsertQuery,
+    PlanQueryType,
+    Query,
+    SnowflakePlan,
+)
 from snowflake.snowpark._internal.utils import IS_V5_DRIVER
 
 if IS_V5_DRIVER:
@@ -273,3 +280,86 @@ def test_to_data_or_iter_exempts_query_id_results_from_json_fallback(
     assert cursor.fetchall.called is not expected_pandas_fetch
     if expected_pandas_fetch:
         assert result is not cursor.fetchall.return_value
+
+
+def _fake_plan_for_execute(mock_server_connection, queries):
+    fake_session = mock.create_autospec(Session)
+    fake_session._collect_snowflake_plan_telemetry_at_critical_path = False
+    fake_session._last_canceled_id = 0
+    fake_session._conn = mock_server_connection
+    fake_session._join_alias_fix = False
+    return SnowflakePlan(
+        queries=queries, schema_query="fake schema query", session=fake_session
+    )
+
+
+@pytest.mark.parametrize("failing_index", [0, 1, 2])
+def test_execute_queries_tags_failing_query(mock_server_connection, failing_index):
+    queries = [Query("q0"), Query("q1"), Query("q2")]
+    plan = _fake_plan_for_execute(mock_server_connection, queries)
+    post_action = Query("drop q")
+
+    def run_query(sql, *args, **kwargs):
+        if sql == f"q{failing_index}":
+            raise ProgrammingError(msg="fake error")
+        return {"sfqid": f"id_{sql}"}
+
+    with mock.patch.object(
+        mock_server_connection, "run_query", side_effect=run_query
+    ) as mocked_run_query, mock.patch(
+        "snowflake.snowpark._internal.server_connection.get_new_description"
+    ):
+        with pytest.raises(ProgrammingError) as exc_info:
+            mock_server_connection._execute_queries(
+                plan,
+                {
+                    PlanQueryType.QUERIES: queries,
+                    PlanQueryType.POST_ACTIONS: [post_action],
+                },
+                action_id=1,
+            )
+    assert exc_info.value._snowpark_failed_query is queries[failing_index]
+    assert exc_info.value._snowpark_failed_query_is_last is (failing_index == 2)
+    # post actions still run after the failure
+    assert mocked_run_query.call_args_list[-1].args[0] == "drop q"
+
+
+def test_execute_queries_tags_failing_batch_insert(mock_server_connection):
+    queries = [Query("create"), BatchInsertQuery("insert", []), Query("select")]
+    plan = _fake_plan_for_execute(mock_server_connection, queries)
+    with mock.patch.object(
+        mock_server_connection, "run_query", return_value={"sfqid": "id"}
+    ), mock.patch.object(
+        mock_server_connection,
+        "run_batch_insert",
+        side_effect=ProgrammingError(msg="fake error"),
+    ), mock.patch(
+        "snowflake.snowpark._internal.server_connection.get_new_description"
+    ):
+        with pytest.raises(ProgrammingError) as exc_info:
+            mock_server_connection._execute_queries(
+                plan,
+                {PlanQueryType.QUERIES: queries, PlanQueryType.POST_ACTIONS: []},
+                action_id=1,
+            )
+    assert exc_info.value._snowpark_failed_query is queries[1]
+    assert exc_info.value._snowpark_failed_query_is_last is False
+
+
+def test_execute_queries_does_not_tag_async_multi_statement(mock_server_connection):
+    # All queries are sent as one multi-statement request, so the failing one is unknown.
+    queries = [Query("q0"), Query("q1")]
+    plan = _fake_plan_for_execute(mock_server_connection, queries)
+    with mock.patch.object(
+        mock_server_connection,
+        "run_query",
+        side_effect=ProgrammingError(msg="fake error"),
+    ):
+        with pytest.raises(ProgrammingError) as exc_info:
+            mock_server_connection._execute_queries(
+                plan,
+                {PlanQueryType.QUERIES: queries, PlanQueryType.POST_ACTIONS: []},
+                action_id=1,
+                block=False,
+            )
+    assert not hasattr(exc_info.value, "_snowpark_failed_query")

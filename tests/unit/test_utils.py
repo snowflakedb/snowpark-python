@@ -1326,3 +1326,109 @@ def test_time_travel_version_ref_validation():
         TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at", branch=123
         )
+
+
+def _make_mock_plan(plan_uuid, queries_intervals, children=(), df_ast_ids=None):
+    """Build a mock SnowflakePlan whose i-th query has the i-th list of intervals."""
+    plan = mock.Mock(spec=SnowflakePlan)
+    plan.uuid = plan_uuid
+    plan.children_plan_nodes = list(children)
+    plan.queries = []
+    for intervals in queries_intervals:
+        query = mock.Mock()
+        query.query_line_intervals = intervals
+        plan.queries.append(query)
+    plan.df_ast_ids = df_ast_ids
+    return plan
+
+
+def test_get_plan_from_line_numbers_query_index():
+    # The top-level plan runs a pre-action (owned by a grandchild) before its main query.
+    pre_action_owner = _make_mock_plan(
+        "owner", [[QueryLineInterval(0, 2, "owner")]], df_ast_ids=[1]
+    )
+    middle = _make_mock_plan(
+        "middle",
+        [[QueryLineInterval(0, 0, "middle"), QueryLineInterval(1, 3, "owner")]],
+        children=[pre_action_owner],
+    )
+    top = _make_mock_plan(
+        "top",
+        [
+            [
+                QueryLineInterval(0, 9, "owner")
+            ],  # pre-action: whole query owned by "owner"
+            [QueryLineInterval(0, 1, "top"), QueryLineInterval(2, 5, "middle")],
+        ],
+        children=[middle],
+        df_ast_ids=[1, 2],
+    )
+
+    # Default reads the last query; this is the behavior before the query_index param.
+    assert get_plan_from_line_numbers(top, 0).uuid == "top"
+    assert get_plan_from_line_numbers(top, 2).uuid == "middle"
+    assert get_plan_from_line_numbers(top, 0, -1).uuid == "top"
+    # A non-negative index of the last query behaves like the default.
+    assert get_plan_from_line_numbers(top, 2, 1).uuid == "middle"
+    # Line 9 only exists in the pre-action; the last query can't resolve it.
+    with pytest.raises(ValueError, match="does not fall within any interval"):
+        get_plan_from_line_numbers(top, 9)
+
+    # query_index=0 reads the pre-action and finds its owner even though it is not a
+    # direct child of the top-level plan.
+    result = get_plan_from_line_numbers(top, 9, 0)
+    assert result is pre_action_owner
+    assert result.df_ast_ids == [1]
+    assert get_plan_from_line_numbers(top, 0, 0) is pre_action_owner
+    assert get_plan_from_line_numbers(top, 0, -2) is pre_action_owner
+
+
+def test_get_plan_from_line_numbers_query_index_inherits_ast_ids():
+    # The owner of the pre-action has no df ast ids; it inherits its closest ancestor's.
+    owner = _make_mock_plan("owner", [[QueryLineInterval(0, 0, "owner")]])
+    middle = _make_mock_plan(
+        "middle", [[QueryLineInterval(0, 0, "owner")]], [owner], df_ast_ids=[7]
+    )
+    top = _make_mock_plan(
+        "top",
+        [[QueryLineInterval(0, 0, "owner")], [QueryLineInterval(0, 0, "middle")]],
+        [middle],
+        df_ast_ids=[7, 8],
+    )
+    result = get_plan_from_line_numbers(top, 0, 0)
+    assert result is owner
+    assert result.df_ast_ids == [7]
+
+
+def test_get_plan_from_line_numbers_query_index_errors():
+    top = _make_mock_plan(
+        "top",
+        [[QueryLineInterval(0, 3, "unknown")], [QueryLineInterval(0, 3, "top")]],
+    )
+    # Index out of range.
+    with pytest.raises(ValueError, match="out of range"):
+        get_plan_from_line_numbers(top, 0, 2)
+    with pytest.raises(ValueError, match="out of range"):
+        get_plan_from_line_numbers(top, 0, -3)
+    # Line not in the selected query.
+    with pytest.raises(ValueError, match="does not fall within any interval"):
+        get_plan_from_line_numbers(top, 4, 0)
+    # The owner of the interval is not in the plan tree.
+    with pytest.raises(ValueError, match="does not fall within any interval"):
+        get_plan_from_line_numbers(top, 0, 0)
+
+
+def test_get_plan_from_line_numbers_children_use_last_query():
+    # query_index applies to the top-level plan only: a child with several queries is
+    # still searched through its last query.
+    child = _make_mock_plan(
+        "child",
+        [[QueryLineInterval(0, 5, "wrong")], [QueryLineInterval(0, 5, "child")]],
+    )
+    top = _make_mock_plan(
+        "top",
+        [[QueryLineInterval(0, 0, "top")], [QueryLineInterval(0, 5, "child")]],
+        [child],
+    )
+    assert get_plan_from_line_numbers(top, 3).uuid == "child"
+    assert get_plan_from_line_numbers(top, 0, 0).uuid == "top"

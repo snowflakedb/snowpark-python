@@ -552,3 +552,100 @@ def test_existing_view_with_all_dataframe_methods(session, view_method):
     ), f"Expected object reference not found in debug context for {view_method}: {ex.value.debug_context}"
 
     Utils.drop_view(session, view_name)
+
+
+def _create_temp_table_sql(column_lines):
+    """A multi-line non-select statement, so session.sql() runs it as a pre-action."""
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    return f"create or replace temp table {table_name} as\nselect\n" + ",\n".join(
+        column_lines
+    )
+
+
+def test_sql_error_in_session_sql_pre_action_beyond_main_query_lines(session):
+    # SNOW-4412768: the error line (10) only exists in the pre-action, not in the
+    # main query, so mapping it against the main query found nothing.
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    sql = _create_temp_table_sql(
+        [f"{i} as c{i}" for i in range(7)] + ["no_such_col as bad"]
+    )
+    df = session.sql(sql)
+    df2 = df.filter(col("c0") > 1)
+    with pytest.raises(SnowparkSQLException) as ex:
+        df2.collect()
+    line_number = Utils.get_current_line_number_sys()
+    assert "error line 10" in str(ex.value)
+    assert f"line {line_number - 4}" in str(ex.value.debug_context)
+
+
+def test_sql_error_in_session_sql_pre_action_within_main_query_lines(session):
+    # The error line (5) also exists in the main query; it must still be mapped
+    # against the pre-action.
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    sql = _create_temp_table_sql(["1 as a", "2 as b", "no_such_col as bad"])
+    df = session.sql(sql)
+    df2 = df.filter(col("a") > 1)
+    with pytest.raises(SnowparkSQLException) as ex:
+        df2.collect()
+    line_number = Utils.get_current_line_number_sys()
+    assert "error line 5" in str(ex.value)
+    assert f"line {line_number - 4}" in str(ex.value.debug_context)
+
+
+def test_sql_error_in_second_pre_action_maps_to_its_session_sql(session):
+    # Two pre-actions: only the second one fails, so only its session.sql() call
+    # may be reported.
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    sql_ok = _create_temp_table_sql(["1 as a"])
+    sql_bad = _create_temp_table_sql(["1 as b", "no_such_col as bad"])
+    df_ok = session.sql(sql_ok)
+    df_bad = session.sql(sql_bad)
+    df = df_ok.cross_join(df_bad)
+    assert len(df._plan.queries) == 3
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    line_number = Utils.get_current_line_number_sys()
+    debug_context = str(ex.value.debug_context)
+    assert "error line 4" in str(ex.value)
+    assert f"line {line_number - 5}" in debug_context
+    assert f"line {line_number - 6}" not in debug_context
+
+
+def test_sql_error_in_main_query_after_session_sql_pre_action(session):
+    # Control: the pre-action succeeds and the main query fails; mapping is unchanged.
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.sql(_create_temp_table_sql(["1 as a"]))
+    df2 = df.filter(col("no_such_col") > 1)
+    with pytest.raises(SnowparkSQLException) as ex:
+        df2.collect()
+    line_number = Utils.get_current_line_number_sys()
+    assert "SQL compilation error corresponds to Python source" in str(
+        ex.value.debug_context
+    )
+    assert f"line {line_number - 3}" in str(ex.value.debug_context)
+
+
+def test_sql_error_in_main_query_after_large_local_data_pre_actions(session):
+    # Control: a large create_dataframe runs temp table pre-actions (create + insert)
+    # before the main query; an error in the main query still maps as before.
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+        df2 = df.select(col("a"), col("no_such_col"))
+        assert len(df2._plan.queries) > 1
+        with pytest.raises(SnowparkSQLException) as ex:
+            df2.collect()
+        line_number = Utils.get_current_line_number_sys()
+        assert "SQL compilation error corresponds to Python source" in str(
+            ex.value.debug_context
+        )
+        assert f"line {line_number - 4}" in str(ex.value.debug_context)
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
