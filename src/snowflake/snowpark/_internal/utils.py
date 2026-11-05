@@ -2518,6 +2518,7 @@ def create_prompt_column_from_template(
 def get_plan_from_line_numbers(
     plan_node: Union["SnowflakePlan", "Selectable"],
     line_number: int,
+    query_index: int = -1,
 ) -> "SnowflakePlan":
     """
     Given a parent plan node and a line number, return the plan node that contains the line number.
@@ -2527,6 +2528,8 @@ def get_plan_from_line_numbers(
     is responsible otherwise. If we find that the descendant is responsible, then we subtract the offset created
     by the parent before recursively searching the child. For example, if the parent is responsible for lines 0-10 and
     its descendants are responsible for lines 11-20 and we are searching for line 15, we will search the child for line 4.
+    ``query_index`` selects which query of ``plan_node`` the line number refers to (default: the last one);
+    children are always searched through their last query.
     We raise ValueError if the line number does not fall within any interval.
     """
     from snowflake.snowpark._internal.analyzer.select_statement import Selectable
@@ -2548,19 +2551,38 @@ def get_plan_from_line_numbers(
 
     # traverse the plan tree to find the plan that contains the line number
     stack = [(plan_node, line_number, None)]
+    is_top_level = True
     while stack:
         node, line_number, df_ast_ids = stack.pop()
         if isinstance(node, Selectable):
             node = node.get_snowflake_plan(skip_schema_query=False)
         if node.df_ast_ids is not None:
             df_ast_ids = node.df_ast_ids
-        query_line_intervals = node.queries[-1].query_line_intervals
+        # Only the top-level node can fail in a query other than its last one. Children
+        # are always embedded in their parent's main (last) query.
+        current_query_index = query_index if is_top_level else -1
+        is_top_level = False
+        if not -len(node.queries) <= current_query_index < len(node.queries):
+            raise ValueError(
+                f"Query index {current_query_index} is out of range for a plan with {len(node.queries)} queries"
+            )
+        if current_query_index % len(node.queries) == len(node.queries) - 1:
+            current_query_index = -1
+        query_line_intervals = node.queries[current_query_index].query_line_intervals
         idx = find_interval_containing_line(query_line_intervals, line_number)
         if idx >= 0:
             uuid = query_line_intervals[idx].uuid
             if node.uuid == uuid:
                 node.df_ast_ids = df_ast_ids
                 return node
+            elif current_query_index != -1:
+                # An earlier query of the top-level plan is a pre-action owned by a
+                # descendant (e.g. session.sql(<non-select>) or a large local relation),
+                # possibly several levels down. Its intervals cover that whole query, so
+                # the owner is the answer and we do not descend into it any further.
+                owner = _find_descendant_plan_by_uuid(node, uuid, df_ast_ids)
+                if owner is not None:
+                    return owner
             else:
                 for child in node.children_plan_nodes:
                     if child.uuid == uuid:
@@ -2578,6 +2600,41 @@ def get_plan_from_line_numbers(
             )
 
     raise ValueError(f"Line number {line_number} does not fall within any interval")
+
+
+def _find_descendant_plan_by_uuid(
+    plan_node: "SnowflakePlan",
+    uuid: str,
+    df_ast_ids: Optional[List[int]],
+) -> Optional["SnowflakePlan"]:
+    """
+    Depth-first search below ``plan_node`` for the plan whose uuid is ``uuid``. The
+    returned plan inherits ``df_ast_ids`` from its closest ancestor that has them, the
+    same way get_plan_from_line_numbers propagates them. Returns None if not found.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+
+    stack = [(child, df_ast_ids) for child in reversed(plan_node.children_plan_nodes)]
+    visited = set()
+    while stack:
+        node, inherited_ast_ids = stack.pop()
+        if id(node) in visited:
+            continue
+        visited.add(id(node))
+        if node.uuid == uuid:
+            if isinstance(node, Selectable):
+                node = node.get_snowflake_plan(skip_schema_query=False)
+            if node.df_ast_ids is None:
+                node.df_ast_ids = inherited_ast_ids
+            return node
+        if isinstance(node, Selectable):
+            node = node.get_snowflake_plan(skip_schema_query=False)
+        if node.df_ast_ids is not None:
+            inherited_ast_ids = node.df_ast_ids
+        stack.extend(
+            (child, inherited_ast_ids) for child in reversed(node.children_plan_nodes)
+        )
+    return None
 
 
 @contextlib.contextmanager

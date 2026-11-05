@@ -248,7 +248,32 @@ def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
     return source_locations
 
 
-def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) -> str:
+def resolve_failed_query_index(
+    top_plan: "SnowflakePlan", error: Exception
+) -> Optional[int]:
+    """
+    Find the index in ``top_plan.queries`` of the query that raised ``error``.
+
+    The executing connection tags the failing query on the error (see
+    ``ServerConnection._execute_queries``). We return -1 when the error is untagged
+    or came from the last query, which is the query whose line intervals were always
+    used before. We return the index of an earlier query when it matches one of the
+    plan queries, and None when the failing query cannot be found among the plan
+    queries (e.g. it was rewritten by the plan compiler), in which case the line
+    number cannot be mapped reliably.
+    """
+    failed_query = getattr(error, "_snowpark_failed_query", None)
+    if failed_query is None or getattr(error, "_snowpark_failed_query_is_last", True):
+        return -1
+    for i, query in enumerate(top_plan.queries[:-1]):
+        if query == failed_query:
+            return i
+    return None
+
+
+def get_python_source_from_sql_error(
+    top_plan: "SnowflakePlan", error_msg: str, query_index: Optional[int] = -1
+) -> str:
     """
     Extract SQL error line number and map it back to Python source code. We use the
     helper function get_plan_from_line_numbers to get the plan from the line number
@@ -259,10 +284,15 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
     Args:
         plan: The top level SnowflakePlan object that contains the SQL compilation error.
         error_msg: The error message from the SQL compilation error.
+        query_index: The index in ``top_plan.queries`` of the query that failed. None
+            means the failing query is unknown and no mapping is attempted.
 
     Returns:
         Error message with the affected Python lines numbers if found, otherwise an empty string.
     """
+    if query_index is None:
+        return ""
+
     sql_compilation_error_regex = re.compile(
         r""".*SQL compilation error:\s*error line (\d+) at position (\d+).*""",
     )
@@ -276,7 +306,7 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
         get_plan_from_line_numbers,
     )
 
-    plan = get_plan_from_line_numbers(top_plan, sql_line_number)
+    plan = get_plan_from_line_numbers(top_plan, sql_line_number, query_index)
     source_locations = _extract_source_locations_from_plan(plan)
 
     if source_locations:

@@ -39,6 +39,7 @@ from snowflake.snowpark._internal.debug_utils import (
     get_python_source_from_sql_error,
     get_existing_object_context,
     get_missing_object_context,
+    resolve_failed_query_index,
 )
 
 if TYPE_CHECKING:
@@ -199,7 +200,9 @@ class SnowflakePlan(LogicalPlan):
                             and _enable_trace_sql_errors_to_dataframe
                         ):
                             if error_source_context := get_python_source_from_sql_error(
-                                top_plan, e.msg
+                                top_plan,
+                                e.msg,
+                                resolve_failed_query_index(top_plan, e),
                             ):
                                 debug_context_arr.append(error_source_context)
                         if (
