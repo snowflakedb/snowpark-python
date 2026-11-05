@@ -24,6 +24,7 @@ import logging
 
 from collections.abc import Iterable
 
+
 _WRITE_MODE_ERR_MSG = (
     "SnowflakeFile currently doesn't support write APIs in local testing mode."
 )
@@ -94,8 +95,6 @@ class SnowflakeFile(RawIOBase):
         from_result_api: bool = False,
     ) -> None:
         super().__init__()
-        # Set before any raise so close() during GC does not touch a missing stream.
-        self._file_stream = None
         # The URL/URI of the file to be opened by the SnowflakeFile object
         self._file_location: str = file_location
         # The mode of file stream
@@ -331,9 +330,7 @@ class SnowflakeFile(RawIOBase):
 
         Closes the underlying IO Stream of the SnowflakeFile.
         """
-        file_stream = getattr(self, "_file_stream", None)
-        if file_stream is not None:
-            file_stream.close()
+        self._file_stream.close()
 
     def detach(self) -> None:
         """

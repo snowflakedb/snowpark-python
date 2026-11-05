@@ -830,9 +830,9 @@ def test_cte_optimization_enabled_on_session(session, db_parameters):
 
     parameters = copy.deepcopy(db_parameters)
     parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION: (
-            get_version() if default_value else ""
-        )
+        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION: get_version()
+        if default_value
+        else ""
     }
     with Session.builder.configs(parameters).create() as new_session2:
         assert new_session2.cte_optimization_enabled is default_value

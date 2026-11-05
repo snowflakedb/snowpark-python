@@ -7,7 +7,7 @@ import os
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.utils import TempObjectType, normalize_local_file
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import LongType, StructField, StructType
@@ -62,9 +62,8 @@ def test_put_get_should_not_be_performed_when_preparing(
 
     tmp_stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
 
-    # Connector 5 opens ``file:///C:/...`` as ``/C:/...``. Use the same URI
-    # shape ``normalize_local_file`` emits (``file://C:/...`` on Windows).
-    put_query = f"put {normalize_local_file(path)} @{tmp_stage_name}"
+    # add spaces to the query
+    put_query = f"put file:///{path} @{tmp_stage_name}"
 
     try:
         Utils.create_stage(session, tmp_stage_name)
@@ -76,11 +75,11 @@ def test_put_get_should_not_be_performed_when_preparing(
 
         put.collect()
 
-        output_path = tmpdir.strpath
-        get_target = normalize_local_file(output_path)
-        if get_target.endswith("'") and not get_target.endswith("/'"):
-            get_target = get_target[:-1] + "/'"
-        get_query = f"get @{tmp_stage_name}/{file_name}.gz {get_target}"
+        # unescaped_path = os.path.join(tmpdir.strpath, Utils.random_name())
+        output_path = Utils.escape_path(tmpdir.strpath)
+
+        # add spaces to the query
+        get_query = f"get @{tmp_stage_name}/{file_name}.gz file://{output_path}/"
         get = session.sql(get_query)
         # should download nothing
         assert len(get.schema.fields) > 0
