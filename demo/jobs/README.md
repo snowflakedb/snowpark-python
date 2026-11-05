@@ -29,7 +29,7 @@ current database, creates everything there, and drops the schema when it exits.
 
 ```bash
 export SNOWFLAKE_CONNECTION_NAME=my_connection
-python demo/01_submit_function.py
+python demo/jobs/01_submit_function.py
 ```
 
 `logs()` reads the account event table, which ingests with a delay, so the samples poll
