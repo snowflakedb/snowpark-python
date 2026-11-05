@@ -685,10 +685,13 @@ def test_profile_query_with_complex_attributes():
 
 
 def _plan_node(uuid, children=(), df_ast_ids=None, wrapped_plan=None):
+    # The df trace nodes of a plan are those of the DataFrame operations behind its ast
+    # ids; strings stand in for them.
     return types.SimpleNamespace(
         uuid=uuid,
         children_plan_nodes=list(children),
         df_ast_ids=df_ast_ids,
+        df_trace_nodes=[f"trace_{i}" for i in df_ast_ids] if df_ast_ids else None,
         _snowflake_plan=wrapped_plan,
     )
 
@@ -731,6 +734,7 @@ def test_get_plan_from_pre_query_line_number(
     else:
         assert result.uuid == expected_uuid
         assert result.df_ast_ids == expected_ast_ids
+        assert result.df_trace_nodes == [f"trace_{i}" for i in expected_ast_ids]
 
 
 @pytest.mark.parametrize("pre_query_plan_found", [None, True, False])

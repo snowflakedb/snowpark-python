@@ -789,9 +789,12 @@ class SelectSQL(Selectable):
         )
         new.column_states = self.column_states
         new._api_calls = self._api_calls
-        # Keep the df ast ids of the session.sql() call, so errors raised by the
-        # converted pre-action map back to it.
+        # Keep the df ast ids and trace nodes of the session.sql() call, so errors
+        # raised by the converted pre-action map back to it.
         new.df_ast_ids = self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+        new.df_trace_nodes = (
+            self.df_trace_nodes.copy() if self.df_trace_nodes is not None else None
+        )
         return new
 
     @property

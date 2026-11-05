@@ -690,3 +690,18 @@ def test_sql_error_in_pre_action_with_ast_disabled(session):
     assert "SQL compilation error corresponds to Python source" not in str(
         ex.value.debug_context
     )
+
+
+def test_pre_action_owner_carries_session_sql_trace_node(session):
+    # The source location of a pre-action error comes from the trace nodes of the plan
+    # that owns the pre-action, which must include the session.sql() call.
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    from snowflake.snowpark._internal.utils import get_plan_from_pre_query_line_number
+
+    df = session.sql(_create_temp_table_sql(["1 as a"]))
+    filtered = df.filter(col("a") > 1)
+    owner = get_plan_from_pre_query_line_number(
+        filtered._plan, filtered._plan.queries[0], 1
+    )
+    assert any(node is df._trace_node for node in owner.df_trace_nodes)
