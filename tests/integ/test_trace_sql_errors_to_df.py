@@ -679,17 +679,20 @@ def test_sql_error_in_query_before_or_after_pre_actions(
 
 
 def test_sql_error_in_pre_action_with_ast_disabled(session):
-    # Without the AST there is no source location, and mapping the line must not fail.
+    # Mapping a pre-action error must not depend on the AST: with the AST off, the
+    # DataFrame trace backend reports the session.sql() call, and the AST backend
+    # reports nothing.
     set_ast_state(AstFlagSource.TEST, False)
-    df = session.sql(_create_temp_table_sql(_LONG_BAD_SQL_COLUMNS)).filter(
-        col("c0") > 1
-    )
+    sql = _create_temp_table_sql(_LONG_BAD_SQL_COLUMNS)
+    sql_line = Utils.get_current_line_number_sys() + 1
+    df = session.sql(sql)
+    df = df.filter(col("c0") > 1)
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     assert "error line 10" in str(ex.value)
-    assert "SQL compilation error corresponds to Python source" not in str(
-        ex.value.debug_context
-    )
+    debug_context = str(ex.value.debug_context)
+    if "SQL compilation error corresponds to Python source" in debug_context:
+        assert f"line {sql_line}" in debug_context
 
 
 def test_pre_action_owner_carries_session_sql_trace_node(session):
