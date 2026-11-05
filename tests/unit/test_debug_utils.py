@@ -16,7 +16,16 @@ from snowflake.snowpark._internal.debug_utils import (
     get_python_source_from_sql_error,
     resolve_failed_query_index,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
+from snowflake.connector.errors import ProgrammingError
+from snowflake.snowpark import Session
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    BatchInsertQuery,
+    PlanQueryType,
+    Query,
+    QueryLineInterval,
+    SnowflakePlan,
+)
+from snowflake.snowpark._internal.utils import get_plan_from_line_numbers
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 
@@ -738,3 +747,192 @@ def test_get_python_source_from_sql_error_query_index():
             top_plan, error_msg, 0
         )
         mocked.assert_called_with(top_plan, 2, 0)
+
+
+def _make_mock_plan(plan_uuid, queries_intervals, children=(), df_ast_ids=None):
+    """Build a mock SnowflakePlan whose i-th query has the i-th list of intervals."""
+    plan = mock.Mock(spec=SnowflakePlan)
+    plan.uuid = plan_uuid
+    plan.children_plan_nodes = list(children)
+    plan.queries = []
+    for intervals in queries_intervals:
+        query = mock.Mock()
+        query.query_line_intervals = intervals
+        plan.queries.append(query)
+    plan.df_ast_ids = df_ast_ids
+    return plan
+
+
+def test_get_plan_from_line_numbers_query_index():
+    # The top-level plan runs a pre-action (owned by a grandchild) before its main query.
+    pre_action_owner = _make_mock_plan(
+        "owner", [[QueryLineInterval(0, 2, "owner")]], df_ast_ids=[1]
+    )
+    middle = _make_mock_plan(
+        "middle",
+        [[QueryLineInterval(0, 0, "middle"), QueryLineInterval(1, 3, "owner")]],
+        children=[pre_action_owner],
+    )
+    top = _make_mock_plan(
+        "top",
+        [
+            [
+                QueryLineInterval(0, 9, "owner")
+            ],  # pre-action: whole query owned by "owner"
+            [QueryLineInterval(0, 1, "top"), QueryLineInterval(2, 5, "middle")],
+        ],
+        children=[middle],
+        df_ast_ids=[1, 2],
+    )
+
+    # Default reads the last query; this is the behavior before the query_index param.
+    assert get_plan_from_line_numbers(top, 0).uuid == "top"
+    assert get_plan_from_line_numbers(top, 2).uuid == "middle"
+    assert get_plan_from_line_numbers(top, 0, -1).uuid == "top"
+    # A non-negative index of the last query behaves like the default.
+    assert get_plan_from_line_numbers(top, 2, 1).uuid == "middle"
+    # Line 9 only exists in the pre-action; the last query can't resolve it.
+    with pytest.raises(ValueError, match="does not fall within any interval"):
+        get_plan_from_line_numbers(top, 9)
+
+    # query_index=0 reads the pre-action and finds its owner even though it is not a
+    # direct child of the top-level plan.
+    result = get_plan_from_line_numbers(top, 9, 0)
+    assert result is pre_action_owner
+    assert result.df_ast_ids == [1]
+    assert get_plan_from_line_numbers(top, 0, 0) is pre_action_owner
+    assert get_plan_from_line_numbers(top, 0, -2) is pre_action_owner
+
+
+def test_get_plan_from_line_numbers_query_index_inherits_ast_ids():
+    # The owner of the pre-action has no df ast ids; it inherits its closest ancestor's.
+    owner = _make_mock_plan("owner", [[QueryLineInterval(0, 0, "owner")]])
+    middle = _make_mock_plan(
+        "middle", [[QueryLineInterval(0, 0, "owner")]], [owner], df_ast_ids=[7]
+    )
+    top = _make_mock_plan(
+        "top",
+        [[QueryLineInterval(0, 0, "owner")], [QueryLineInterval(0, 0, "middle")]],
+        [middle],
+        df_ast_ids=[7, 8],
+    )
+    result = get_plan_from_line_numbers(top, 0, 0)
+    assert result is owner
+    assert result.df_ast_ids == [7]
+
+
+def test_get_plan_from_line_numbers_query_index_errors():
+    top = _make_mock_plan(
+        "top",
+        [[QueryLineInterval(0, 3, "unknown")], [QueryLineInterval(0, 3, "top")]],
+    )
+    # Index out of range.
+    with pytest.raises(ValueError, match="out of range"):
+        get_plan_from_line_numbers(top, 0, 2)
+    with pytest.raises(ValueError, match="out of range"):
+        get_plan_from_line_numbers(top, 0, -3)
+    # Line not in the selected query.
+    with pytest.raises(ValueError, match="does not fall within any interval"):
+        get_plan_from_line_numbers(top, 4, 0)
+    # The owner of the interval is not in the plan tree.
+    with pytest.raises(ValueError, match="does not fall within any interval"):
+        get_plan_from_line_numbers(top, 0, 0)
+
+
+def test_get_plan_from_line_numbers_children_use_last_query():
+    # query_index applies to the top-level plan only: a child with several queries is
+    # still searched through its last query.
+    child = _make_mock_plan(
+        "child",
+        [[QueryLineInterval(0, 5, "wrong")], [QueryLineInterval(0, 5, "child")]],
+    )
+    top = _make_mock_plan(
+        "top",
+        [[QueryLineInterval(0, 0, "top")], [QueryLineInterval(0, 5, "child")]],
+        [child],
+    )
+    assert get_plan_from_line_numbers(top, 3).uuid == "child"
+    assert get_plan_from_line_numbers(top, 0, 0).uuid == "top"
+
+
+def _fake_plan_for_execute(mock_server_connection, queries):
+    fake_session = mock.create_autospec(Session)
+    fake_session._collect_snowflake_plan_telemetry_at_critical_path = False
+    fake_session._last_canceled_id = 0
+    fake_session._conn = mock_server_connection
+    fake_session._join_alias_fix = False
+    return SnowflakePlan(
+        queries=queries, schema_query="fake schema query", session=fake_session
+    )
+
+
+@pytest.mark.parametrize("failing_index", [0, 1, 2])
+def test_execute_queries_tags_failing_query(mock_server_connection, failing_index):
+    queries = [Query("q0"), Query("q1"), Query("q2")]
+    plan = _fake_plan_for_execute(mock_server_connection, queries)
+    post_action = Query("drop q")
+
+    def run_query(sql, *args, **kwargs):
+        if sql == f"q{failing_index}":
+            raise ProgrammingError(msg="fake error")
+        return {"sfqid": f"id_{sql}"}
+
+    with mock.patch.object(
+        mock_server_connection, "run_query", side_effect=run_query
+    ) as mocked_run_query, mock.patch(
+        "snowflake.snowpark._internal.server_connection.get_new_description"
+    ):
+        with pytest.raises(ProgrammingError) as exc_info:
+            mock_server_connection._execute_queries(
+                plan,
+                {
+                    PlanQueryType.QUERIES: queries,
+                    PlanQueryType.POST_ACTIONS: [post_action],
+                },
+                action_id=1,
+            )
+    assert exc_info.value._snowpark_failed_query is queries[failing_index]
+    assert exc_info.value._snowpark_failed_query_is_last is (failing_index == 2)
+    # post actions still run after the failure
+    assert mocked_run_query.call_args_list[-1].args[0] == "drop q"
+
+
+def test_execute_queries_tags_failing_batch_insert(mock_server_connection):
+    queries = [Query("create"), BatchInsertQuery("insert", []), Query("select")]
+    plan = _fake_plan_for_execute(mock_server_connection, queries)
+    with mock.patch.object(
+        mock_server_connection, "run_query", return_value={"sfqid": "id"}
+    ), mock.patch.object(
+        mock_server_connection,
+        "run_batch_insert",
+        side_effect=ProgrammingError(msg="fake error"),
+    ), mock.patch(
+        "snowflake.snowpark._internal.server_connection.get_new_description"
+    ):
+        with pytest.raises(ProgrammingError) as exc_info:
+            mock_server_connection._execute_queries(
+                plan,
+                {PlanQueryType.QUERIES: queries, PlanQueryType.POST_ACTIONS: []},
+                action_id=1,
+            )
+    assert exc_info.value._snowpark_failed_query is queries[1]
+    assert exc_info.value._snowpark_failed_query_is_last is False
+
+
+def test_execute_queries_does_not_tag_async_multi_statement(mock_server_connection):
+    # All queries are sent as one multi-statement request, so the failing one is unknown.
+    queries = [Query("q0"), Query("q1")]
+    plan = _fake_plan_for_execute(mock_server_connection, queries)
+    with mock.patch.object(
+        mock_server_connection,
+        "run_query",
+        side_effect=ProgrammingError(msg="fake error"),
+    ):
+        with pytest.raises(ProgrammingError) as exc_info:
+            mock_server_connection._execute_queries(
+                plan,
+                {PlanQueryType.QUERIES: queries, PlanQueryType.POST_ACTIONS: []},
+                action_id=1,
+                block=False,
+            )
+    assert not hasattr(exc_info.value, "_snowpark_failed_query")
