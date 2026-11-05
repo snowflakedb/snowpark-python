@@ -14,6 +14,7 @@ depend on the Snowpark AST.
 import functools
 import inspect
 import itertools
+import logging
 import sys
 import threading
 from dataclasses import dataclass, field
@@ -21,6 +22,8 @@ from pathlib import Path
 from typing import List, Optional
 
 SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
+
+_logger = logging.getLogger(__name__)
 
 # Same switch as the AST implementation uses in its tests.
 SRC_POSITION_TEST_MODE = False
@@ -124,6 +127,10 @@ def capture_user_src_position(
             if pos[3] is not None:
                 end_column = pos[3]
         return SrcPosition(filename, start_line, start_column, end_line, end_column)
+    except Exception:
+        # The trace is only debug information: never fail the user's call because of it.
+        _logger.debug("Failed to capture the source position", exc_info=True)
+        return None
     finally:
         del frame
 
@@ -183,14 +190,18 @@ def record_object_creation(session, kind: str, name_or_query) -> None:
     registry = getattr(session, "_df_trace_registry", None)
     if registry is None:
         return
-    value = name_or_query
-    if kind != "sql" and not isinstance(value, str):
-        # The 'already exists' context compares the last part of a structured name.
-        try:
-            value = list(value)[-1]
-        except Exception:  # pragma: no cover
-            value = str(value)
-    registry.add(kind, value, capture_user_src_position())
+    try:
+        value = name_or_query
+        if kind != "sql" and not isinstance(value, str):
+            # The 'already exists' context compares the last part of a structured name.
+            try:
+                value = list(value)[-1]
+            except Exception:  # pragma: no cover
+                value = str(value)
+        registry.add(kind, value, capture_user_src_position())
+    except Exception:
+        # The trace is only debug information: never fail the user's call because of it.
+        _logger.debug("Failed to record the object creation", exc_info=True)
 
 
 _MAX_ANCESTOR_SEARCH = 2000
@@ -220,9 +231,14 @@ def traces_inputs(*argument_names: str):
             result = func(*args, **kwargs)
             node = getattr(result, "_trace_node", None)
             if node is not None:
-                bound = signature.bind_partial(*args, **kwargs).arguments
-                for name in argument_names:
-                    add_parent(node, getattr(bound.get(name), "_trace_node", None))
+                try:
+                    bound = signature.bind_partial(*args, **kwargs).arguments
+                    for name in argument_names:
+                        add_parent(node, getattr(bound.get(name), "_trace_node", None))
+                except Exception:
+                    # The trace is only debug information: never fail the user's call because of
+                    # it.
+                    _logger.debug("Failed to record the dataframe trace", exc_info=True)
             return result
 
         return wrapper
@@ -280,7 +296,12 @@ def registration_trace_node(kind: str) -> Optional[TraceNode]:
     """A node for the registration of a UDF, UDTF or UDAF, if tracing is enabled."""
     if not tracing_flags_on():
         return None
-    return TraceNode(capture_user_src_position(), [], kind=kind)
+    try:
+        return TraceNode(capture_user_src_position(), [], kind=kind)
+    except Exception:
+        # The trace is only debug information: never fail the user's call because of it.
+        _logger.debug("Failed to record the registration trace", exc_info=True)
+        return None
 
 
 # ----------------------------------------------------------------------------- public api calls

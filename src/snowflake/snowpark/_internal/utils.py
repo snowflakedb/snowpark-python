@@ -1222,109 +1222,116 @@ def publicapi(func: CallableT) -> CallableT:
             return result
         created, seeds = state.created or [], state.seeds
         state.created = state.seeds = None
-        items = result if isinstance(result, (list, tuple)) else [result]
-        returned = [i for i in items if getattr(i, "_trace_node", None) is not None]
-        if not returned:
-            return result
+        try:
+            items = result if isinstance(result, (list, tuple)) else [result]
+            returned = [i for i in items if getattr(i, "_trace_node", None) is not None]
+            if not returned:
+                return result
 
-        from snowflake.snowpark._internal.analyzer.expression import (
-            Expression,
-            ScalarSubquery,
-        )
-        from snowflake.snowpark.column import Column
-        from snowflake.snowpark.table_function import TableFunctionCall
+            from snowflake.snowpark._internal.analyzer.expression import (
+                Expression,
+                ScalarSubquery,
+            )
+            from snowflake.snowpark.column import Column
+            from snowflake.snowpark.table_function import TableFunctionCall
 
-        # The trace nodes referenced by the column arguments: dataframes used as subqueries and
-        # functions (UDF, UDTF, UDAF) that carry the node of their registration.
-        inputs = []
-        for value in [*args, *kwargs.values()]:
-            values = value if isinstance(value, (list, tuple)) else [value]
-            if isinstance(value, dict):
-                values = [*value.keys(), *value.values()]
-            for item in values:
-                # Only columns and table function calls: getattr on a DataFrame resolves
-                # column names.
-                if isinstance(item, TableFunctionCall):
-                    node = getattr(item, "_df_trace_node", None)
-                    if node is not None:
-                        inputs.append(node)
-                    continue
-                if not isinstance(item, Column):
-                    continue
-                seen = set()
-                stack = [item._expression]
-                while stack and len(seen) < df_trace._MAX_EXPRESSION_NODES:
-                    expr = stack.pop()
-                    if id(expr) in seen:
+            # The trace nodes referenced by the column arguments: dataframes used as subqueries and
+            # functions (UDF, UDTF, UDAF) that carry the node of their registration.
+            inputs = []
+            for value in [*args, *kwargs.values()]:
+                values = value if isinstance(value, (list, tuple)) else [value]
+                if isinstance(value, dict):
+                    values = [*value.keys(), *value.values()]
+                for item in values:
+                    # Only columns and table function calls: getattr on a DataFrame resolves
+                    # column names.
+                    if isinstance(item, TableFunctionCall):
+                        node = getattr(item, "_df_trace_node", None)
+                        if node is not None:
+                            inputs.append(node)
                         continue
-                    seen.add(id(expr))
-                    node = getattr(expr, "_df_trace_node", None)
-                    if node is not None:
-                        inputs.append(node)
-                    if isinstance(expr, ScalarSubquery):
-                        inputs.extend(df_trace.collect_input_nodes(expr.plan))
+                    if not isinstance(item, Column):
                         continue
-                    names = df_trace._attribute_names_by_class.get(type(expr))
-                    if names is None:
-                        names = tuple(vars(expr))
-                        df_trace._attribute_names_by_class[type(expr)] = names
-                    pending = [getattr(expr, name, None) for name in names]
-                    while pending:
-                        attr = pending.pop()
-                        if isinstance(attr, Expression):
-                            stack.append(attr)
-                        elif isinstance(attr, (list, tuple)):
-                            # e.g. the (condition, value) branches of CASE WHEN
-                            pending.extend(attr)
-                        elif isinstance(attr, dict):
-                            pending.extend(attr.values())
-        for df in returned:
-            for node in inputs:
-                if node is not df._trace_node:
-                    df_trace.add_parent(df._trace_node, node)
-
-        # Only the returned dataframes are operations of the call; the AST never gave the
-        # internal ones an id, so their nodes must not appear in the plans' lists either. The
-        # lineage graph keeps them (their position is the one of the call).
-        returned_nodes = {id(df._trace_node) for df in returned}
-        internal = {
-            id(df._trace_node)
-            for df in created
-            if df._trace_node is not None and id(df._trace_node) not in returned_nodes
-        }
-        if internal:
-            for df in created:
-                for container in (df._plan, df._select_statement):
-                    nodes = getattr(container, "df_trace_nodes", None)
-                    if nodes:
-                        nodes[:] = [n for n in nodes if id(n) not in internal]
-                        if not nodes:
-                            container.df_trace_nodes = None
-
-        # A source api (create_dataframe, table, sql, readers) gets its AST id after the
-        # dataframe is created, so the AST never seeds the plans of its construction: undo the
-        # seeds unless a returned dataframe derives from an operation at another position.
-        # Seeds of calls that raised stay: they carry the context of construction-time errors.
-        if seeds:
-            derived = False
+                    seen = set()
+                    stack = [item._expression]
+                    while stack and len(seen) < df_trace._MAX_EXPRESSION_NODES:
+                        expr = stack.pop()
+                        if id(expr) in seen:
+                            continue
+                        seen.add(id(expr))
+                        node = getattr(expr, "_df_trace_node", None)
+                        if node is not None:
+                            inputs.append(node)
+                        if isinstance(expr, ScalarSubquery):
+                            inputs.extend(df_trace.collect_input_nodes(expr.plan))
+                            continue
+                        names = df_trace._attribute_names_by_class.get(type(expr))
+                        if names is None:
+                            names = tuple(vars(expr))
+                            df_trace._attribute_names_by_class[type(expr)] = names
+                        pending = [getattr(expr, name, None) for name in names]
+                        while pending:
+                            attr = pending.pop()
+                            if isinstance(attr, Expression):
+                                stack.append(attr)
+                            elif isinstance(attr, (list, tuple)):
+                                # e.g. the (condition, value) branches of CASE WHEN
+                                pending.extend(attr)
+                            elif isinstance(attr, dict):
+                                pending.extend(attr.values())
             for df in returned:
-                node = df._trace_node
-                seen, stack = set(), list(node.parents)
-                while (
-                    stack and not derived and len(seen) < df_trace._MAX_ANCESTOR_SEARCH
-                ):
-                    cur = stack.pop()
-                    if id(cur) in seen:
-                        continue
-                    seen.add(id(cur))
-                    derived = cur.source_id != node.source_id
-                    stack.extend(cur.parents)
-                if derived:
-                    break
-            if not derived:
-                for container, seeded in seeds:
-                    if container.df_trace_nodes is seeded:
-                        container.df_trace_nodes = None
+                for node in inputs:
+                    if node is not df._trace_node:
+                        df_trace.add_parent(df._trace_node, node)
+
+            # Only the returned dataframes are operations of the call; the AST never gave the
+            # internal ones an id, so their nodes must not appear in the plans' lists either. The
+            # lineage graph keeps them (their position is the one of the call).
+            returned_nodes = {id(df._trace_node) for df in returned}
+            internal = {
+                id(df._trace_node)
+                for df in created
+                if df._trace_node is not None
+                and id(df._trace_node) not in returned_nodes
+            }
+            if internal:
+                for df in created:
+                    for container in (df._plan, df._select_statement):
+                        nodes = getattr(container, "df_trace_nodes", None)
+                        if nodes:
+                            nodes[:] = [n for n in nodes if id(n) not in internal]
+                            if not nodes:
+                                container.df_trace_nodes = None
+
+            # A source api (create_dataframe, table, sql, readers) gets its AST id after the
+            # dataframe is created, so the AST never seeds the plans of its construction: undo the
+            # seeds unless a returned dataframe derives from an operation at another position.
+            # Seeds of calls that raised stay: they carry the context of construction-time errors.
+            if seeds:
+                derived = False
+                for df in returned:
+                    node = df._trace_node
+                    seen, stack = set(), list(node.parents)
+                    while (
+                        stack
+                        and not derived
+                        and len(seen) < df_trace._MAX_ANCESTOR_SEARCH
+                    ):
+                        cur = stack.pop()
+                        if id(cur) in seen:
+                            continue
+                        seen.add(id(cur))
+                        derived = cur.source_id != node.source_id
+                        stack.extend(cur.parents)
+                    if derived:
+                        break
+                if not derived:
+                    for container, seeded in seeds:
+                        if container.df_trace_nodes is seeded:
+                            container.df_trace_nodes = None
+        except Exception:
+            # The trace is only debug information: never fail the user's call because of it.
+            _logger.debug("Failed to record the dataframe trace", exc_info=True)
         return result
 
     return call_wrapper

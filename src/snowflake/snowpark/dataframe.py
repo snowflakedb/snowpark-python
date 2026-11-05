@@ -698,24 +698,29 @@ class DataFrame:
         # Track the user code that created this dataframe for the debug features.
         self._trace_node: Optional[TraceNode] = None
         if self._plan is not None and is_tracing_enabled(self._session):
-            # The user source position of this dataframe and the dataframes it was built from.
-            node = TraceNode(
-                capture_user_src_position(),
-                collect_input_nodes(
-                    self._select_statement
-                    if self._select_statement is not None
-                    else self._plan
-                ),
-            )
-            self._trace_node = node
-            # Remembered for the outermost public API call, which removes the dataframes it
-            # created internally from the plans.
-            created = getattr(df_trace._call_state, "created", None)
-            if created is not None:
-                created.append(self)
-            self._plan.add_df_trace_node(node)
-            if self._select_statement is not None:
-                self._select_statement.add_df_trace_node(node)
+            try:
+                # The user source position of this dataframe and the dataframes it was built
+                # from.
+                node = TraceNode(
+                    capture_user_src_position(),
+                    collect_input_nodes(
+                        self._select_statement
+                        if self._select_statement is not None
+                        else self._plan
+                    ),
+                )
+                self._trace_node = node
+                # Remembered for the outermost public API call, which removes the dataframes it
+                # created internally from the plans.
+                created = getattr(df_trace._call_state, "created", None)
+                if created is not None:
+                    created.append(self)
+                self._plan.add_df_trace_node(node)
+                if self._select_statement is not None:
+                    self._select_statement.add_df_trace_node(node)
+            except Exception:
+                # The trace is only debug information: never fail the user's call because of it.
+                _logger.debug("Failed to record the dataframe trace", exc_info=True)
 
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.

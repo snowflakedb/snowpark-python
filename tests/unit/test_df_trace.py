@@ -339,6 +339,30 @@ def test_a_call_that_raised_does_not_leave_state_behind(tracing_flags):
     assert df._trace_node.parents == [node]
 
 
+def test_a_failure_in_the_trace_does_not_fail_the_call(tracing_flags, monkeypatch):
+    from snowflake.snowpark._internal import df_trace
+    from snowflake.snowpark._internal.analyzer.expression import ScalarSubquery
+    from snowflake.snowpark.column import Column
+
+    def broken(*args, **kwargs):
+        raise TypeError("broken trace")
+
+    monkeypatch.setattr(df_trace, "add_parent", broken)
+    df = _dataframe()
+    assert _returning(df)(Column(ScalarSubquery(_plan_with(TraceNode(None))))) is df
+
+    class Op:
+        @traces_inputs("other")
+        def combine(self, other):
+            return _dataframe()
+
+    assert Op().combine(_dataframe()) is not None
+
+    monkeypatch.setattr(df_trace, "SrcPosition", broken)
+    assert capture_user_src_position() is None
+    assert df_trace.registration_trace_node("udf").src is None
+
+
 def test_calls_in_other_threads_are_independent(tracing_flags):
     from snowflake.snowpark._internal.analyzer.expression import ScalarSubquery
     from snowflake.snowpark.column import Column
