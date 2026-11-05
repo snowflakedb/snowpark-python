@@ -4,6 +4,7 @@
 
 import os
 import re
+import threading
 from unittest import mock
 
 import pytest
@@ -83,6 +84,11 @@ class FakeSession:
         self.statements = []
         self.responses = responses or {}
         self.file = FakeFile()
+        self._warehouse = warehouse
+        self._lock = threading.RLock()
+
+    def use_warehouse(self, warehouse):
+        self.statements.append(f"USE WAREHOUSE {warehouse}")
         self._warehouse = warehouse
 
     def sql(self, statement):
@@ -1302,3 +1308,265 @@ def test_session_jobs_is_cached():
     session = Session(conn)
     assert isinstance(session.jobs, JobManager)
     assert session.jobs is session.jobs
+
+
+# ---- warehouse setting ----
+
+
+def _uses(fake):
+    return [s for s in fake.statements if s.startswith("USE WAREHOUSE")]
+
+
+def _around_execute(fake):
+    """The statements from the first USE WAREHOUSE to the last, as a compact list."""
+    out = []
+    for s in fake.statements:
+        if s.startswith("USE WAREHOUSE"):
+            out.append(s)
+        elif s.startswith("EXECUTE CODE BUNDLE"):
+            out.append("EXECUTE")
+    return out
+
+
+def test_bundle_submit_switches_warehouse_and_restores(fake, jobs, script):
+    jobs.submit(Program.file(script), CodeBundle(warehouse="OTHER"))
+    assert _around_execute(fake) == [
+        "USE WAREHOUSE OTHER",
+        "EXECUTE",
+        "USE WAREHOUSE WH",
+    ]
+    assert fake.get_current_warehouse() == "WH"
+    # the EXECUTE is issued between the two switches
+    stmts = fake.statements
+    assert (
+        stmts.index("USE WAREHOUSE OTHER")
+        < [i for i, s in enumerate(stmts) if s.startswith("EXECUTE")][0]
+        < stmts.index("USE WAREHOUSE WH")
+    )
+
+
+@pytest.mark.parametrize("warehouse", [None, "WH", '"WH"', "wh"])
+def test_bundle_submit_does_not_switch_without_need(fake, jobs, script, warehouse):
+    jobs.submit(Program.file(script), CodeBundle(warehouse=warehouse))
+    assert _uses(fake) == []
+
+
+def test_bundle_submit_restores_when_submission_raises(fake, jobs, script):
+    original = fake.sql
+
+    def failing(statement):
+        if statement.startswith("EXECUTE CODE BUNDLE"):
+            raise RuntimeError("submit failed")
+        return original(statement)
+
+    fake.sql = failing
+    with pytest.raises(RuntimeError, match="submit failed"):
+        jobs.submit(Program.file(script), CodeBundle(warehouse="OTHER"))
+    assert _uses(fake) == ["USE WAREHOUSE OTHER", "USE WAREHOUSE WH"]
+    assert fake.get_current_warehouse() == "WH"
+
+
+def test_bundle_submit_without_session_warehouse_uses_target(script):
+    fake = FakeSession(warehouse=None)
+    JobManager(fake).submit(Program.file(script), CodeBundle(warehouse="OTHER"))
+    # nothing to restore: the session stays on the target warehouse
+    assert _uses(fake) == ["USE WAREHOUSE OTHER"]
+    assert fake.get_current_warehouse() == "OTHER"
+    with pytest.raises(ValueError, match="no current warehouse"):
+        JobManager(FakeSession(warehouse=None)).submit(
+            Program.file(script), CodeBundle()
+        )
+
+
+def test_switch_holds_the_session_lock(fake, jobs, script):
+    held = []
+    original = fake.use_warehouse
+
+    def tracking(warehouse):
+        # RLock: a second non-blocking acquire from another thread must fail
+        result = []
+        t = threading.Thread(target=lambda: result.append(fake._lock.acquire(False)))
+        t.start()
+        t.join()
+        held.append(not result[0])
+        original(warehouse)
+
+    fake.use_warehouse = tracking
+    jobs.submit(Program.file(script), CodeBundle(warehouse="OTHER"))
+    assert held == [True, True]
+
+
+def test_bundle_deployment_run_switches_warehouse(fake, jobs, pkg_dir):
+    dep = jobs.deploy(
+        Program.directory(pkg_dir, "top.py"), CodeBundle(warehouse="OTHER"), name="B"
+    )
+    assert _uses(fake) == []  # deploy does not run anything
+    dep.run()
+    assert _around_execute(fake) == [
+        "USE WAREHOUSE OTHER",
+        "EXECUTE",
+        "USE WAREHOUSE WH",
+    ]
+    assert fake.get_current_warehouse() == "WH"
+    # to_sql is a pure rendering
+    n = len(fake.statements)
+    dep.to_sql()
+    assert len(fake.statements) == n
+
+
+def test_bundle_deployment_run_without_target_warehouse(fake, jobs, pkg_dir):
+    dep = jobs.deploy(Program.directory(pkg_dir, "top.py"), CodeBundle(), name="B")
+    dep.run()
+    assert _uses(fake) == []
+
+
+def test_bundle_deployment_run_without_any_warehouse():
+    fake = FakeSession(warehouse=None)
+    dep = CodeBundleDeployment(
+        fake, "DB.SCH.B", CodeBundle(), entrypoint="top.py", compute_type="warehouse"
+    )
+    with pytest.raises(ValueError, match="no current warehouse"):
+        dep.run()
+
+
+def test_ref_run_uses_target_warehouse_of_deployment(fake, jobs):
+    fake.responses.update(_bundle_rows())
+    # a deployment loaded by name has no target config, so it runs on the session's
+    jobs.submit(Program.ref("MYB"), entrypoint="a.py")
+    assert _uses(fake) == []
+
+
+def test_pool_submit_does_not_switch_and_uses_warehouse_in_manifest(fake, jobs, script):
+    jobs.submit(Program.file(script), CodeBundle(compute_pool="POOL", warehouse="QWH"))
+    assert _uses(fake) == []
+    manifest = _uploaded_manifest(fake)
+    assert manifest["bundle"]["compute_options"]["query_warehouse"] == "QWH"
+
+
+def test_pool_manifest_defaults_to_current_warehouse(fake, jobs, script):
+    jobs.submit(Program.file(script), CodeBundle(compute_pool="POOL"))
+    assert _uses(fake) == []
+    manifest = _uploaded_manifest(fake)
+    assert manifest["bundle"]["compute_options"]["query_warehouse"] == "WH"
+
+
+def test_pool_deploy_and_run_do_not_switch(fake, jobs, pkg_dir):
+    dep = jobs.deploy(
+        Program.directory(pkg_dir, "top.py"),
+        CodeBundle(compute_pool="POOL", warehouse="QWH"),
+        name="B",
+    )
+    dep.run()
+    assert _uses(fake) == []
+    assert (
+        _uploaded_manifest(fake)["bundle"]["compute_options"]["query_warehouse"]
+        == "QWH"
+    )
+
+
+def test_pool_manifest_without_any_warehouse(script):
+    fake = FakeSession(warehouse=None)
+    JobManager(fake).submit(Program.file(script), CodeBundle(compute_pool="POOL"))
+    options = _uploaded_manifest(fake)["bundle"]["compute_options"]
+    assert "query_warehouse" not in options
+
+
+def test_warehouse_warehouse_in_manifest_only_for_pool(fake, jobs, script):
+    jobs.submit(Program.file(script), CodeBundle(warehouse="OTHER"))
+    options = _uploaded_manifest(fake)["bundle"]["compute_options"]
+    assert "query_warehouse" not in options and "compute_pool" not in options
+
+
+def _uploaded_manifest(fake):
+    manifests = [d for name, _, d in fake.file.puts if name == "code_bundle.yml"]
+    return yaml.safe_load(manifests[-1])
+
+
+def test_stored_procedure_has_no_warehouse():
+    with pytest.raises(TypeError):
+        StoredProcedure(warehouse="WH")
+    assert not hasattr(StoredProcedure(), "warehouse")
+
+
+def test_stored_procedure_submit_and_run_never_switch(fake, jobs):
+    fake._execute_sproc_internal = lambda **kw: FakeAsyncJob("Q9")
+
+    class FakeSP:
+        _anonymous_sp_sql = "WITH SP AS PROCEDURE (...) "
+        name = "SP"
+
+    with mock.patch.object(_sproc, "_register", return_value=FakeSP()):
+        jobs.submit(lambda session: 1)
+    ProcedureDeployment(fake, "DB.SCH.P").run()
+    assert _uses(fake) == []
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "a.b",
+        "wh; drop",
+        "a b",
+        "",
+        "  ",
+        "wh'x",
+        'x"; drop table t; --',
+        "db.sch.wh",
+    ],
+)
+def test_invalid_warehouse_names_are_rejected(fake, bad):
+    with pytest.raises(ValueError):
+        CodeBundle(warehouse=bad)
+    with pytest.raises(ValueError):
+        ProcedureDeployment(fake, "DB.SCH.P").schedule("0 * * * * UTC", warehouse=bad)
+    assert _uses(fake) == []
+
+
+def test_quoted_warehouse_name_is_accepted(fake, jobs, script):
+    CodeBundle(warehouse='"My WH"')
+    jobs.submit(Program.file(script), CodeBundle(warehouse='"My WH"'))
+    assert _uses(fake) == ['USE WAREHOUSE "My WH"', "USE WAREHOUSE WH"]
+
+
+def test_schedule_warehouse_defaults(fake, jobs, pkg_dir):
+    def task_sql():
+        return [s for s in fake.statements if s.startswith("CREATE OR REPLACE TASK")][
+            -1
+        ]
+
+    # code bundle: the target's warehouse
+    dep = jobs.deploy(
+        Program.directory(pkg_dir, "top.py"), CodeBundle(warehouse="TWH"), name="B"
+    )
+    dep.schedule("0 * * * * UTC")
+    assert task_sql().startswith(
+        "CREATE OR REPLACE TASK DB.SCH.B_SCHEDULE WAREHOUSE = TWH "
+    )
+    # an explicit schedule warehouse wins
+    dep.schedule("0 * * * * UTC", warehouse="EXPLICIT")
+    assert " WAREHOUSE = EXPLICIT " in task_sql()
+    # code bundle without a warehouse: serverless
+    plain = jobs.deploy(Program.directory(pkg_dir, "top.py"), CodeBundle(), name="B2")
+    plain.schedule("0 * * * * UTC")
+    assert "WAREHOUSE" not in task_sql()
+    plain.schedule("0 * * * * UTC", warehouse="EXPLICIT")
+    assert " WAREHOUSE = EXPLICIT " in task_sql()
+    # stored procedure: serverless unless warehouse= is given
+    sp = ProcedureDeployment(fake, "DB.SCH.P", StoredProcedure())
+    sp.schedule("0 * * * * UTC")
+    assert "WAREHOUSE" not in task_sql()
+    sp.schedule("0 * * * * UTC", warehouse="EXPLICIT")
+    assert " WAREHOUSE = EXPLICIT " in task_sql()
+    # no session warehouse is switched by scheduling
+    assert _uses(fake) == []
+
+
+def test_schedule_on_pool_deployment_uses_target_warehouse(fake, jobs, pkg_dir):
+    dep = jobs.deploy(
+        Program.directory(pkg_dir, "top.py"),
+        CodeBundle(compute_pool="POOL", warehouse="QWH"),
+        name="B",
+    )
+    dep.schedule("0 * * * * UTC")
+    task = [s for s in fake.statements if s.startswith("CREATE OR REPLACE TASK")][-1]
+    assert " WAREHOUSE = QWH " in task

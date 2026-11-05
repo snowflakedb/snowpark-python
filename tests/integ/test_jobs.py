@@ -34,6 +34,7 @@ RUN_TIMEOUT = 300
 TASK_TIMEOUT = 90
 LOGS_TIMEOUT = 120
 COMPUTE_POOL = os.environ.get("SNOWPARK_JOBS_TEST_COMPUTE_POOL")
+TEST_WAREHOUSE = os.environ.get("SNOWPARK_JOBS_TEST_WAREHOUSE")
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -81,6 +82,7 @@ def programs(tmp_path_factory):
         "logging.warning('JOBS_BUNDLE_MARKER %s', sys.argv[1:])\n"
     )
     (bundle / "fail.py").write_text("raise RuntimeError('boom from bundle')\n")
+    (bundle / "short_sleep.py").write_text("import time\ntime.sleep(5)\n")
     (bundle / "sleep.py").write_text("import time\ntime.sleep(180)\n")
     return {
         "script": str(script),
@@ -491,3 +493,47 @@ def test_bundle_compute_pool_submit(session, programs):
         run.logs()
     with pytest.raises(JobNotSupportedError):
         run.result()
+
+
+# ---- CodeBundle warehouse ----
+
+
+@pytest.mark.skipif(
+    not TEST_WAREHOUSE, reason="SNOWPARK_JOBS_TEST_WAREHOUSE is not set"
+)
+def test_bundle_runs_on_target_warehouse(session, programs):
+    original = session.get_current_warehouse()
+    assert original, "the session needs a current warehouse"
+    if original.strip('"').upper() == TEST_WAREHOUSE.upper():
+        pytest.skip(
+            "the session is already on SNOWPARK_JOBS_TEST_WAREHOUSE; "
+            "use a different warehouse to observe the switch"
+        )
+    target = CodeBundle(warehouse=TEST_WAREHOUSE)
+    program = Program.directory(programs["bundle"])
+
+    run = session.jobs.submit(program, target, entrypoint="short_sleep.py")
+    # the session is back on its own warehouse while the job is still running
+    assert session.get_current_warehouse() == original
+    assert run.wait(RUN_TIMEOUT) == JobStatus.SUCCEEDED, run.error()
+    assert run._history_row()["RUNTIME_NAME"].upper() == TEST_WAREHOUSE.upper()
+
+    name = f"BUNDLE_WH_{uuid.uuid4().hex[:6].upper()}"
+    dep = session.jobs.deploy(program, target, name=name)
+    try:
+        run2 = dep.run(entrypoint="short_sleep.py")
+        assert session.get_current_warehouse() == original
+        assert run2.wait(RUN_TIMEOUT) == JobStatus.SUCCEEDED, run2.error()
+        assert run2._history_row()["RUNTIME_NAME"].upper() == TEST_WAREHOUSE.upper()
+
+        # the schedule defaults to the target's warehouse
+        sched = dep.schedule("0 0 1 1 * UTC", entrypoint="short_sleep.py")
+        try:
+            tasks = session.sql(f"SHOW TASKS LIKE '{name}_SCHEDULE'").collect()
+            assert len(tasks) == 1
+            assert tasks[0]["warehouse"].strip('"').upper() == TEST_WAREHOUSE.upper()
+        finally:
+            sched.drop()
+    finally:
+        dep.drop()
+    assert session.get_current_warehouse() == original

@@ -27,6 +27,7 @@ from snowflake.snowpark.jobs._utils import (
     require_warehouse,
     send_telemetry,
     sql_str,
+    using_warehouse,
 )
 
 
@@ -80,8 +81,8 @@ def prepare(
             "warehouse; use CodeBundle(compute_pool=...)"
         )
     if not on_pool:
-        require_warehouse(session)
-    query_warehouse = target.query_warehouse
+        require_warehouse(session, target.warehouse)
+    query_warehouse = target.warehouse
     if on_pool and not query_warehouse:
         query_warehouse = session.get_current_warehouse()
 
@@ -175,8 +176,10 @@ def default_execution_name(entrypoint: Optional[str]) -> str:
     return f"{BUNDLE_EXECUTION_PREFIX}{identifier_safe(short, 30)}_{random_suffix()}"
 
 
-def run_async(session, statement: str) -> str:
-    return session.sql(statement).collect_nowait().query_id
+def run_async(session, statement: str, warehouse: Optional[str] = None) -> str:
+    """Starts ``statement`` without waiting; ``warehouse`` is switched to while submitting."""
+    with using_warehouse(session, warehouse):
+        return session.sql(statement).collect_nowait().query_id
 
 
 def submit(
@@ -201,7 +204,7 @@ def submit(
         sql = execute_sql(
             f"FROM {sql_str(prepared.location)}", prepared.entrypoint, args, name, spec
         )
-        qid = run_async(session, sql)
+        qid = run_async(session, sql, target.warehouse)
         return BundleRun(session, qid, prepared.compute_type, None, name)
 
     # anonymous execution is not available on a compute pool: use a temporary bundle

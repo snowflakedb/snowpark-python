@@ -30,6 +30,7 @@ from snowflake.snowpark.jobs._utils import (
     sql_str,
     unquote_ident,
     validate_name,
+    validate_warehouse,
 )
 
 
@@ -134,13 +135,15 @@ class Deployment(ABC):
             cron: A cron expression with a time zone, e.g. ``"0 * * * * UTC"``.
             name: Task name; defaults to ``<deployment name>_SCHEDULE`` in the
                 deployment's schema.
-            warehouse: Warehouse of the task. ``None`` creates a serverless task.
+            warehouse: Warehouse of the task. Defaults to the target's ``warehouse``;
+                if neither is set, a serverless task is created.
         """
         body = self.to_sql(args=args, entrypoint=entrypoint)
-        if warehouse is not None:
-            warehouse = validate_name(warehouse, "warehouse")
-            if len(split_name(warehouse)) != 1:
-                raise ValueError(f"Invalid warehouse: {warehouse!r}")
+        warehouse = validate_warehouse(warehouse)
+        if warehouse is None:
+            warehouse = validate_warehouse(
+                getattr(self._target_config, "warehouse", None)
+            )
         if name is not None:
             name = validate_name(name, "schedule name")
         db, schema, short = split_fqn(self.name)
@@ -258,8 +261,10 @@ class CodeBundleDeployment(Deployment):
     ) -> BundleRun:
         _bundle.check_args(args)
         entry = self._entry(entrypoint)
+        run_wh = None
         if self._compute_type != "compute_pool":
-            require_warehouse(self._session)
+            run_wh = self._target_config.warehouse
+            require_warehouse(self._session, run_wh)
         spec = None
         if overrides:
             if self._spec is None:
@@ -271,7 +276,9 @@ class CodeBundleDeployment(Deployment):
         name = execution_name or _bundle.default_execution_name(entry)
         send_telemetry(self._session, "run", CODE_BUNDLE_KIND)
         qid = _bundle.run_async(
-            self._session, _bundle.execute_sql(self.name, entry, args, name, spec)
+            self._session,
+            _bundle.execute_sql(self.name, entry, args, name, spec),
+            run_wh,
         )
         return BundleRun(self._session, qid, self._compute_type, None, name)
 

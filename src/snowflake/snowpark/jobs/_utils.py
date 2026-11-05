@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import contextlib
 import re
 import uuid
 from typing import List, Optional, Tuple
@@ -85,14 +86,49 @@ def unquote_ident(ident: str) -> str:
     return ident.upper()
 
 
-def require_warehouse(session) -> str:
-    wh = session.get_current_warehouse()
+def require_warehouse(session, warehouse: Optional[str] = None) -> str:
+    """The warehouse a job runs on: ``warehouse`` or else the session's current one."""
+    wh = warehouse or session.get_current_warehouse()
     if not wh:
         raise ValueError(
             "The session has no current warehouse. Jobs run on the session's current "
-            "warehouse: call session.use_warehouse(...) first."
+            "warehouse unless the target sets warehouse=...: call "
+            "session.use_warehouse(...) first."
         )
     return wh
+
+
+def validate_warehouse(warehouse: Optional[str]) -> Optional[str]:
+    if warehouse is None:
+        return None
+    warehouse = validate_name(warehouse, "warehouse")
+    if len(split_name(warehouse)) != 1:
+        raise ValueError(f"Invalid warehouse: {warehouse!r}")
+    return warehouse
+
+
+@contextlib.contextmanager
+def using_warehouse(session, warehouse: Optional[str]):
+    """Makes ``warehouse`` the session's current warehouse for the duration of the block.
+
+    The previous warehouse is restored afterwards. If the session had none, the
+    warehouse stays set, because a session cannot go back to having no warehouse.
+    The switch is session-wide and visible to other threads using the session.
+    """
+    if not warehouse:
+        yield
+        return
+    with session._lock:
+        current = session.get_current_warehouse()
+        if current and unquote_ident(current) == unquote_ident(warehouse):
+            yield
+            return
+        session.use_warehouse(warehouse)
+        try:
+            yield
+        finally:
+            if current:
+                session.use_warehouse(current)
 
 
 def send_telemetry(session, verb: str, target_kind: str) -> None:

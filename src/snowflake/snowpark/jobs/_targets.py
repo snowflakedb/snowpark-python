@@ -6,7 +6,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from snowflake.snowpark.jobs._utils import CODE_BUNDLE_KIND, STORED_PROCEDURE_KIND
+from snowflake.snowpark.jobs._utils import (
+    CODE_BUNDLE_KIND,
+    STORED_PROCEDURE_KIND,
+    validate_warehouse,
+)
 
 _EXECUTE_AS = ("caller", "owner", "restricted caller")
 
@@ -36,6 +40,13 @@ class StoredProcedure(Target):
         execute_as: ``"caller"``, ``"owner"`` or ``"restricted caller"``. One-off runs
             (``submit``) always use caller's rights; the default for ``deploy`` is
             ``"owner"``.
+
+    There is no ``warehouse`` option: the procedure always runs on the session's current
+    warehouse. The queries of a caller's-rights or anonymous procedure follow the
+    session's current warehouse while it runs, so switching the warehouse only at
+    submit time would move the CALL but not the program's own queries. Use
+    ``session.use_warehouse(...)`` for interactive runs and ``schedule(warehouse=...)``
+    for scheduled ones.
     """
 
     execute_as: Optional[str] = None
@@ -66,16 +77,23 @@ class CodeBundle(Target):
     Args:
         compute_pool: Run on this compute pool. By default the program runs on the
             session's current warehouse.
-        query_warehouse: Warehouse for the SQL issued by the program when running on a
-            compute pool. Defaults to the session's current warehouse.
+        warehouse: The execution warehouse when running on a warehouse, or the query
+            warehouse (for SQL issued by the program) when running on a compute pool.
+            Defaults to the session's current warehouse. On a warehouse, the session
+            switches to it while the run is submitted and then switches back; the
+            switch is visible to other threads using the same session. If the session
+            had no current warehouse, ``warehouse`` stays set on the session afterwards.
         runtime_version: Python version (``"3.12"``) on a warehouse, or runtime name
             (``"V2.9-CPU-PY3.12"``) on a compute pool.
     """
 
     compute_pool: Optional[str] = None
-    query_warehouse: Optional[str] = None
+    warehouse: Optional[str] = None
     runtime_version: Optional[str] = None
     kind = CODE_BUNDLE_KIND
+
+    def __post_init__(self) -> None:
+        validate_warehouse(self.warehouse)
 
     def _submit(self, session, program, **kwargs):
         from snowflake.snowpark.jobs import _bundle
