@@ -191,3 +191,19 @@ def test_large_query_breakdown_is_never_mapped_to_a_wrong_line(session):
                 assert lines <= _marked_lines(workload, "OP"), workload.__name__
     finally:
         session.large_query_breakdown_complexity_bounds = bounds
+
+
+def test_a_failure_in_the_cte_segments_does_not_fail_the_query(session, monkeypatch):
+    from snowflake.snowpark._internal.compiler import utils as compiler_utils
+
+    def broken(*args, **kwargs):
+        raise TypeError("broken segments")
+
+    monkeypatch.setattr(compiler_utils, "CteSegment", broken)
+    session.cte_optimization_enabled = True
+    b = _small(session).with_column("X", lit(1))
+    df = b.filter(col("ID") > 0).union_all(b.filter(col("ID") > 1))
+    assert df.queries["queries"][-1].startswith("WITH")
+    assert len(df.collect()) == 3
+    # the error is still raised, only without the mapped source lines
+    assert _mapped_lines(session, error_in_reused_part) is None
