@@ -18,6 +18,10 @@
 - Fixed a bug where importing Snowpark failed if the `requests` package was not installed. Event table telemetry now treats `requests` as an optional dependency of the `opentelemetry` extra.
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file in accounts that return structured types in the native Arrow format (for example, with `ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT` set).
 
+#### Dependency Updates
+
+- Updated dependency of `snowflake-connector-python>=3.17.0,!=5.0.*,!=5.1.*,<6.0.0`.
+
 ## 1.56.0 (2026-10-29)
 
 ### Snowpark Python API Updates
