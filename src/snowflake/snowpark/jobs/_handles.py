@@ -2,7 +2,9 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
 import json
+import logging
 import time
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -11,12 +13,23 @@ from typing import Any, Dict, List, Optional
 from snowflake.snowpark.jobs._utils import (
     CODE_BUNDLE_KIND,
     STORED_PROCEDURE_KIND,
+    TEMP_BUNDLE_RE,
     fetch_event_logs,
+    run_sql,
     sql_str,
     unquote_ident,
+    validate_fqn,
+    validate_query_id,
 )
 
+_logger = logging.getLogger(__name__)
+
 _POLL_INTERVAL_SECONDS = 2.0
+
+# How long a handle tolerates that Snowflake knows nothing about its job (an unknown
+# query id, no history row) before status()/wait() raise JobNotFoundError. The clock
+# starts at the handle's first status check; a job just submitted needs a moment to show.
+MISSING_JOB_GRACE_SECONDS = 120
 
 # Hint appended to the error of a job that hit the owner's rights restrictions.
 _OWNER_RIGHTS_MARKERS = ("owner's rights context", "owner's rights procedure")
@@ -45,6 +58,31 @@ class JobNotSupportedError(RuntimeError):
     ``result()`` of a code bundle run)."""
 
 
+class JobNotFoundError(ValueError):
+    """Raised when Snowflake keeps reporting that a job does not exist, for example
+    for a mistyped query id."""
+
+
+_warned_status_names = set()
+
+
+def _lookup_status(mapping: Dict[str, "JobStatus"], kind: str, name: str):
+    """Maps a Snowflake status name. Unknown names count as running and are logged
+    once, so that new server-side states stay visible without breaking ``wait()``."""
+    status = mapping.get(name.upper())
+    if status is None:
+        if (kind, name) not in _warned_status_names:
+            _warned_status_names.add((kind, name))
+            _logger.warning(
+                "Unknown %s status %r: treating it as RUNNING. The job handle may need "
+                "an update.",
+                kind,
+                name,
+            )
+        return JobStatus.RUNNING
+    return status
+
+
 class Job(ABC):
     """Common interface of all job handles.
 
@@ -57,6 +95,25 @@ class Job(ABC):
     id: str
     target: str
     query_id: str
+
+    _first_status_check: Optional[float] = None
+    _seen_existing = False
+
+    def _note_existence(self, exists: bool) -> None:
+        """Raises ``JobNotFoundError`` if the job has been missing for too long."""
+        now = time.monotonic()
+        if self._first_status_check is None:
+            self._first_status_check = now
+        if exists:
+            self._seen_existing = True
+        elif (
+            not self._seen_existing
+            and now - self._first_status_check > MISSING_JOB_GRACE_SECONDS
+        ):
+            raise JobNotFoundError(
+                f"{self.id}: Snowflake does not know this job (checked for more than "
+                f"{MISSING_JOB_GRACE_SECONDS} seconds). Is the id correct?"
+            )
 
     @property
     @abstractmethod
@@ -77,8 +134,15 @@ class Job(ABC):
     ) -> JobStatus:
         """Polls until the job reaches a terminal status and returns it.
 
+        A job lasts only as long as the session that submitted it (closing that session
+        cancels runs that are still going), so wait for it before closing the session.
+        A handle re-attached with ``session.jobs.get()`` in another process works while
+        the submitting session is still open.
+
         Raises:
             TimeoutError: If ``timeout`` seconds elapse first.
+            JobNotFoundError: If Snowflake keeps reporting that the job does not exist
+                for more than ``MISSING_JOB_GRACE_SECONDS`` (120) seconds.
         """
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
@@ -117,25 +181,31 @@ class Job(ABC):
 
 
 def _cancel_query(session, query_id: str) -> None:
-    session.sql(f"SELECT SYSTEM$CANCEL_QUERY({sql_str(query_id)})").collect()
+    run_sql(session, f"SELECT SYSTEM$CANCEL_QUERY({sql_str(query_id)})")
+
+
+# names of snowflake.connector.cursor.QueryStatus, plus INCIDENT used by QUERY_HISTORY
+_QUERY_STATUS = {
+    "SUCCESS": JobStatus.SUCCEEDED,
+    "FAILED_WITH_ERROR": JobStatus.FAILED,
+    "FAILED_WITH_INCIDENT": JobStatus.FAILED,
+    "INCIDENT": JobStatus.FAILED,
+    # the connection to the query was lost: the outcome is not known
+    "DISCONNECTED": JobStatus.FAILED,
+    "ABORTING": JobStatus.CANCELLED,
+    "ABORTED": JobStatus.CANCELLED,
+    "RUNNING": JobStatus.RUNNING,
+    "RESTARTED": JobStatus.RUNNING,
+    "QUEUED": JobStatus.PENDING,
+    "RESUMING_WAREHOUSE": JobStatus.PENDING,
+    "QUEUED_REPARING_WAREHOUSE": JobStatus.PENDING,
+    "BLOCKED": JobStatus.PENDING,
+    "NO_DATA": JobStatus.PENDING,
+}
 
 
 def _map_query_status(name: str) -> JobStatus:
-    if name == "SUCCESS":
-        return JobStatus.SUCCEEDED
-    if name in ("FAILED_WITH_ERROR", "FAILED_WITH_INCIDENT"):
-        return JobStatus.FAILED
-    if name in ("ABORTING", "ABORTED"):
-        return JobStatus.CANCELLED
-    if name in (
-        "QUEUED",
-        "RESUMING_WAREHOUSE",
-        "QUEUED_REPARING_WAREHOUSE",
-        "BLOCKED",
-        "NO_DATA",
-    ):
-        return JobStatus.PENDING
-    return JobStatus.RUNNING
+    return _lookup_status(_QUERY_STATUS, "query", name)
 
 
 def _query_status_name(session, query_id: str) -> str:
@@ -181,8 +251,11 @@ class QueryJob(Job):
         async_job,
         target: str = STORED_PROCEDURE_KIND,
         scheduled: bool = False,
+        started_at: Optional[datetime.datetime] = None,
     ) -> None:
         self._session = session
+        # when the query started, to bound the event table scan of logs()
+        self._started_at = started_at
         # the query was run by a task: its result may not be readable (see result())
         self._scheduled = scheduled
         self._async = async_job
@@ -192,7 +265,9 @@ class QueryJob(Job):
 
     @property
     def raw_status(self) -> str:
-        return _query_status_name(self._session, self.query_id)
+        name = _query_status_name(self._session, self.query_id)
+        self._note_existence(name != "NO_DATA")
+        return name
 
     def status(self) -> JobStatus:
         return _map_query_status(self.raw_status)
@@ -231,8 +306,23 @@ class QueryJob(Job):
             msg = f"{msg}\n{_OWNER_RIGHTS_HINT}"
         return msg
 
+    def _start_time(self) -> Optional[datetime.datetime]:
+        if self._started_at is None:
+            try:
+                rows = run_sql(
+                    self._session,
+                    "SELECT START_TIME FROM TABLE(INFORMATION_SCHEMA."
+                    "QUERY_HISTORY_BY_USER(RESULT_LIMIT => 10000)) "
+                    f"WHERE QUERY_ID = {sql_str(self.query_id)}",
+                )
+                if rows:
+                    self._started_at = rows[0][0]
+            except Exception:  # best effort: the scan falls back to the last 7 days
+                pass
+        return self._started_at
+
     def logs(self, limit: int = -1) -> str:
-        return fetch_event_logs(self._session, self.query_id, limit)
+        return fetch_event_logs(self._session, self.query_id, limit, self._start_time())
 
     def cancel(self) -> None:
         _cancel_query(self._session, self.query_id)
@@ -244,6 +334,8 @@ _BUNDLE_STATUS = {
     "DONE": JobStatus.SUCCEEDED,
     "FAILED": JobStatus.FAILED,
     "CANCELLED": JobStatus.CANCELLED,
+    # a cancelled run on a compute pool ends as DELETED (its job service is removed)
+    "DELETED": JobStatus.CANCELLED,
 }
 
 
@@ -266,13 +358,15 @@ class BundleRun(Job):
         self.compute_type = compute_type
         self.execution_name = execution_name
         self._temp_bundle = temp_bundle
+        self._temp_checked = temp_bundle is not None
         self._row = row
 
     def _history_row(self) -> Optional[Dict[str, Any]]:
-        rows = self._session.sql(
+        rows = run_sql(
+            self._session,
             "SELECT * FROM TABLE(SNOWFLAKE.INFORMATION_SCHEMA.CODE_BUNDLE_HISTORY("
-            f"QUERY_ID => {sql_str(self.query_id)}))"
-        ).collect()
+            f"QUERY_ID => {sql_str(self.query_id)}))",
+        )
         if not rows:
             return None
         self._row = rows[0].as_dict()
@@ -284,21 +378,45 @@ class BundleRun(Job):
     def raw_status(self) -> str:
         row = self._history_row()
         if row is not None:
+            self._note_existence(True)
             return str(row["STATUS"])
-        # No history row yet: either it was not recorded yet, or the statement failed
-        # before the run started.
+        # No history row: it may not be recorded yet, or the statement failed before the
+        # run started, or the id is not a code bundle run at all.
         name = _query_status_name(self._session, self.query_id)
         if name in ("FAILED_WITH_ERROR", "FAILED_WITH_INCIDENT"):
+            self._note_existence(True)
             return "FAILED"
         if name in ("ABORTING", "ABORTED"):
+            self._note_existence(True)
             return "CANCELLED"
+        # an EXECUTE that is still running is pending; a finished or unknown query
+        # without a history row is not a code bundle run
+        self._note_existence(name not in ("NO_DATA", "SUCCESS"))
         return "PENDING"
 
     def status(self) -> JobStatus:
-        status = _BUNDLE_STATUS.get(self.raw_status.upper(), JobStatus.RUNNING)
+        status = _lookup_status(_BUNDLE_STATUS, "code bundle", self.raw_status)
         if status.is_terminal:
+            self._adopt_temp_bundle()
             self.cleanup()
         return status
+
+    def _adopt_temp_bundle(self) -> None:
+        """A re-attached handle also drops the temporary bundle of a pool run."""
+        if self._temp_bundle is not None or self._temp_checked:
+            return
+        self._temp_checked = True
+        row = self._row or {}
+        name = str(row.get("CODE_BUNDLE_NAME") or "")
+        if (
+            TEMP_BUNDLE_RE.match(name)
+            and row.get("DATABASE_NAME")
+            and row.get("SCHEMA_NAME")
+        ):
+            self._temp_bundle = ".".join(
+                '"' + str(part).replace('"', '""') + '"'
+                for part in (row["DATABASE_NAME"], row["SCHEMA_NAME"], name)
+            )
 
     def result(self, timeout: Optional[float] = None) -> Any:
         raise JobNotSupportedError(
@@ -323,17 +441,25 @@ class BundleRun(Job):
             raise JobNotSupportedError(
                 "Logs of code bundle runs on a compute pool are not retrievable."
             )
-        return fetch_event_logs(self._session, self.query_id, limit)
+        started = (row or {}).get("START_TIME")
+        return fetch_event_logs(self._session, self.query_id, limit, started)
 
     def cancel(self) -> None:
         _cancel_query(self._session, self.query_id)
 
     def cleanup(self) -> None:
-        """Drops the temporary code bundle created for this run, if any."""
+        """Drops the temporary code bundle created for this run, if any.
+
+        Call it only once the run has finished: dropping the bundle while a pool run is
+        still starting breaks the run.
+        """
         bundle, self._temp_bundle = self._temp_bundle, None
         if bundle:
             try:
-                self._session.sql(f"DROP CODE BUNDLE IF EXISTS {bundle}").collect()
+                run_sql(self._session, f"DROP CODE BUNDLE IF EXISTS {bundle}")
+                manager = getattr(self._session, "_jobs", None)
+                if manager is not None:
+                    manager._temp_bundles.discard(bundle)
             except Exception:  # best effort
                 self._temp_bundle = bundle
 
@@ -352,14 +478,14 @@ _TASK_STATUS = {
 def task_history_sql(task_fqn: str, limit: int, query_id: Optional[str] = None) -> str:
     from snowflake.snowpark.jobs._utils import split_fqn
 
-    db, schema, name = split_fqn(task_fqn)
+    db, schema, name = split_fqn(validate_fqn(task_fqn, "task name"))
     sql = (
         f"SELECT * FROM TABLE({db}.INFORMATION_SCHEMA.TASK_HISTORY("
         f"TASK_NAME => {sql_str(unquote_ident(name))}, RESULT_LIMIT => {int(limit)})) "
         f"WHERE SCHEMA_NAME = {sql_str(unquote_ident(schema))}"
     )
     if query_id:
-        sql += f" AND QUERY_ID = {sql_str(query_id)}"
+        sql += f" AND QUERY_ID = {sql_str(validate_query_id(query_id))}"
     return sql + " ORDER BY SCHEDULED_TIME DESC"
 
 
@@ -375,9 +501,9 @@ class TaskRun(Job):
         target: Optional[str] = None,
     ) -> None:
         self._session = session
-        self.task_fqn = task_fqn
-        self.query_id = query_id
-        self.id = f"task:{task_fqn}/{query_id}"
+        self.task_fqn = validate_fqn(task_fqn, "task name")
+        self.query_id = validate_query_id(query_id)
+        self.id = f"task:{task_fqn}/{self.query_id}"
         self._row = row
         self._target = target
 
@@ -395,9 +521,9 @@ class TaskRun(Job):
         return self._target
 
     def _refresh(self) -> Optional[Dict[str, Any]]:
-        rows = self._session.sql(
-            task_history_sql(self.task_fqn, 1000, self.query_id)
-        ).collect()
+        rows = run_sql(
+            self._session, task_history_sql(self.task_fqn, 1000, self.query_id)
+        )
         if rows:
             self._row = rows[0].as_dict()
         return self._row
@@ -405,20 +531,23 @@ class TaskRun(Job):
     @property
     def raw_status(self) -> str:
         row = self._refresh()
+        self._note_existence(row is not None)
         return str(row["STATE"]) if row else "SCHEDULED"
 
     def status(self) -> JobStatus:
-        return _TASK_STATUS.get(self.raw_status.upper(), JobStatus.RUNNING)
+        return _lookup_status(_TASK_STATUS, "task", self.raw_status)
 
     def child(self) -> Job:
         """The handle of the query the task executed."""
         if self.target == CODE_BUNDLE_KIND:
             return BundleRun(self._session, self.query_id)
+        row = self._row or {}
         return QueryJob(
             self._session,
             self._session.create_async_job(self.query_id),
             STORED_PROCEDURE_KIND,
             scheduled=True,
+            started_at=row.get("QUERY_START_TIME") or row.get("SCHEDULED_TIME"),
         )
 
     def result(self, timeout: Optional[float] = None) -> Any:

@@ -8,11 +8,13 @@ import uuid
 
 import pytest
 
+from snowflake.snowpark import Session
 from snowflake.snowpark.jobs import (
     BundleRun,
     CodeBundle,
     CodeBundleDeployment,
     Environment,
+    JobNotFoundError,
     JobNotSupportedError,
     JobStatus,
     ProcedureDeployment,
@@ -20,6 +22,7 @@ from snowflake.snowpark.jobs import (
     QueryJob,
     StoredProcedure,
     TaskRun,
+    _handles,
 )
 
 pytestmark = [
@@ -732,3 +735,130 @@ def test_bundle_function_entrypoint_compute_pool(session, programs):
     bad = session.jobs.submit(program, target, entrypoint="main.py:boom")
     assert bad.wait(900) == JobStatus.FAILED
     assert "kaboom from launcher" in (bad.error() or "")
+
+
+# ---- review fixes ----
+
+
+def test_get_rejects_injection_style_ids(session):
+    qid = str(uuid.uuid4())
+    for bad in (
+        "query:x'; DROP TABLE t; --",
+        f"query:{qid}'",
+        f"query:{qid}; select 1",
+        "bundle:../x",
+        "bundle:",
+        f"task:DB.SCH.T; drop/{qid}",
+        f"task:DB.SCH.T/{qid}'--",
+        "task:not_qualified/" + qid,
+        "task:" + qid,
+        "other:" + qid,
+        "query",
+    ):
+        with pytest.raises(ValueError) as exc:
+            session.jobs.get(bad)
+        assert not isinstance(exc.value, JobNotFoundError), bad
+    with pytest.raises(ValueError):
+        session.jobs.get(None)
+
+
+def test_get_unknown_job_raises_not_found(session, monkeypatch):
+    monkeypatch.setattr(_handles, "MISSING_JOB_GRACE_SECONDS", 3)
+    for kind in ("query", "bundle"):
+        job = session.jobs.get(f"{kind}:{uuid.uuid4()}")
+        with pytest.raises(JobNotFoundError):
+            job.wait(timeout=90, poll_interval=1)
+    # a well-formed unknown id is a ValueError subclass too
+    assert issubclass(JobNotFoundError, ValueError)
+
+
+def test_schedule_twice_requires_replace(session):
+    name = f"SP_SCH_{uuid.uuid4().hex[:6].upper()}"
+    dep = session.jobs.deploy(lambda session: 1, name=name, stage="@JOBS_STG")
+    try:
+        first = dep.schedule("0 0 1 1 * UTC", name=f"{name}_T")
+        try:
+            with pytest.raises(ValueError, match="already exists"):
+                dep.schedule("0 0 1 1 * UTC", name=f"{name}_T")
+            second = dep.schedule("0 0 2 2 * UTC", name=f"{name}_T", replace=True)
+            rows = session.sql(f"SHOW TASKS LIKE '{name}_T'").collect()
+            assert len(rows) == 1
+            assert "0 0 2 2 * UTC" in rows[0]["schedule"]
+            assert second.name == first.name
+            assert rows[0]["state"] == "started"
+        finally:
+            first.drop()
+    finally:
+        dep.drop()
+
+
+def test_get_deployment_in_new_session_rebuilds_settings(
+    session, db_parameters, programs, jobs_schema
+):
+    name = f"BUNDLE_REATT_{uuid.uuid4().hex[:6].upper()}"
+    env = Environment(env_vars={"JOBS_FOO": "bar"})
+
+    def new_session():
+        s = Session.builder.configs(db_parameters).create()
+        s.sql(f"USE SCHEMA {TEST_DATABASE}.{jobs_schema}").collect()
+        return s
+
+    creator = new_session()
+    try:
+        # the default session stage is temporary: the deployment must not depend on it
+        creator.jobs.deploy(
+            Program.directory(programs["fproj"]),
+            CodeBundle(runtime_version="3.12"),
+            name=name,
+            env=env,
+        )
+    finally:
+        creator.close()
+
+    attached = new_session()
+    try:
+        dep = attached.jobs.get_deployment(name)
+        assert isinstance(dep, CodeBundleDeployment)
+        assert dep._target_config.compute_pool is None
+        assert dep._target_config.runtime_version == "3.12"
+        assert dep._env.env_vars == {"JOBS_FOO": "bar"}
+
+        run = dep.run(entrypoint="main.py:run", args=["again"])
+        assert run.wait(RUN_TIMEOUT) == JobStatus.SUCCEEDED, run.error()
+
+        new_dir = programs["root"] / "reattach_v2"
+        new_dir.mkdir(exist_ok=True)
+        (new_dir / "v2.py").write_text("print('v2')\n")
+        dep.add_version(Program.directory(str(new_dir)))
+        assert dep._target_config.runtime_version == "3.12"
+        assert dep._env.env_vars == {"JOBS_FOO": "bar"}
+        again = attached.jobs.get_deployment(name)
+        assert again._env.env_vars == {"JOBS_FOO": "bar"}
+        assert again._target_config.runtime_version == "3.12"
+        v2 = dep.run(entrypoint="v2.py")
+        assert v2.wait(RUN_TIMEOUT) == JobStatus.SUCCEEDED, v2.error()
+    finally:
+        try:
+            attached.sql(f"DROP CODE BUNDLE IF EXISTS {name}").collect()
+        finally:
+            attached.close()
+
+
+@pytest.mark.skipif(
+    not COMPUTE_POOL, reason="SNOWPARK_JOBS_TEST_COMPUTE_POOL is not set"
+)
+def test_bundle_compute_pool_cancel_and_cleanup(session, programs):
+    run = session.jobs.submit(
+        Program.directory(programs["bundle"]),
+        CodeBundle(compute_pool=COMPUTE_POOL),
+        entrypoint="sleep.py",
+    )
+    temp = run._temp_bundle
+    assert temp and temp.split(".")[-1].startswith("SNOWPARK_JOB_TMP_")
+    assert _poll(lambda: run.status() == JobStatus.RUNNING, 600, interval=5)
+    run.cancel()
+    assert run.wait(600) == JobStatus.CANCELLED
+    session.jobs.cleanup()
+    short = temp.split(".")[-1]
+    assert session.sql(f"SHOW CODE BUNDLES LIKE '{short}'").collect() == []
+    assert session.sql("SHOW CODE BUNDLES LIKE 'SNOWPARK_JOB_TMP_%'").collect() == []

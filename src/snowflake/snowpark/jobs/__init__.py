@@ -17,6 +17,7 @@ from snowflake.snowpark.jobs._environment import Environment
 from snowflake.snowpark.jobs._handles import (
     BundleRun,
     Job,
+    JobNotFoundError,
     JobNotSupportedError,
     JobStatus,
     QueryJob,
@@ -34,6 +35,7 @@ __all__ = [
     "Environment",
     "Job",
     "JobManager",
+    "JobNotFoundError",
     "JobNotSupportedError",
     "JobStatus",
     "ProcedureDeployment",

@@ -51,16 +51,18 @@ class Environment:
         return out
 
 
-def parse_requirements_file(path: str) -> List[str]:
+def parse_requirements_text(text: str, source: str = "requirements") -> List[str]:
     packages = []
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.split(" #", 1)[0].strip()
-            if not line or line.startswith("#"):
-                continue
-            if line.startswith("-"):
-                raise ValueError(
-                    f"Unsupported option in requirements file {path}: {line}"
-                )
-            packages.append(line)
+    for line in text.splitlines():
+        line = line.split(" #", 1)[0].strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("-"):
+            raise ValueError(f"Unsupported option in {source}: {line}")
+        packages.append(line)
     return packages
+
+
+def parse_requirements_file(path: str) -> List[str]:
+    with open(path, encoding="utf-8") as f:
+        return parse_requirements_text(f.read(), f"requirements file {path}")

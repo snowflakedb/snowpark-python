@@ -3,6 +3,14 @@ Jobs
 =============
 Experimental API to submit, deploy and schedule Snowpark Python programs, available as :attr:`Session.jobs <snowflake.snowpark.Session.jobs>`.
 
+.. note::
+
+    A submitted run lasts only as long as the session that submitted it: closing the
+    session (``session.close()``) cancels runs that are still going. To keep work going
+    after the process ends, wait for the run before closing, or deploy and schedule it,
+    because scheduled tasks run on their own. ``session.jobs.get()`` can re-attach to a
+    run from another process while the submitting session is still open.
+
 .. currentmodule:: snowflake.snowpark.jobs
 
 .. rubric:: Job manager
@@ -16,6 +24,7 @@ Experimental API to submit, deploy and schedule Snowpark Python programs, availa
     JobManager.get
     JobManager.list
     JobManager.get_deployment
+    JobManager.cleanup
 
 .. rubric:: Programs, environments and targets
 
@@ -44,6 +53,7 @@ Experimental API to submit, deploy and schedule Snowpark Python programs, availa
     BundleRun
     TaskRun
     JobNotSupportedError
+    JobNotFoundError
 
 .. rubric:: Deployments and schedules
 

@@ -3,9 +3,10 @@
 #
 
 import contextlib
+import datetime
 import re
 import uuid
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.utils import (
@@ -17,9 +18,52 @@ from snowflake.snowpark._internal.utils import (
 # Appended to the CALL statements of procedure jobs so that ``jobs.list()`` can find them.
 JOB_MARKER = "/* snowpark.jobs */"
 BUNDLE_EXECUTION_PREFIX = "SNOWPARK_JOB_"
+# Temporary code bundles created for runs on a compute pool. The prefix is reserved:
+# cleanup drops bundles with names of exactly this shape.
+TEMP_BUNDLE_PREFIX = "SNOWPARK_JOB_TMP_"
+TEMP_BUNDLE_RE = re.compile(r"^SNOWPARK_JOB_TMP_[0-9A-F]{12}$")
 
 STORED_PROCEDURE_KIND = "stored_procedure"
 CODE_BUNDLE_KIND = "code_bundle"
+
+
+def run_sql(session, statement: str) -> List[Any]:
+    """Runs ``statement`` and returns its rows, without emitting AST."""
+    return session.sql(statement, _emit_ast=False).collect(_emit_ast=False)
+
+
+def run_sql_nowait(session, statement: str):
+    """Starts ``statement`` without waiting and returns the ``AsyncJob``."""
+    return session.sql(statement, _emit_ast=False).collect_nowait(_emit_ast=False)
+
+
+_QUERY_ID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
+
+def validate_query_id(query_id: Any) -> str:
+    """Returns the lower-case ``query_id`` or raises ``ValueError`` if it is not a UUID."""
+    if not isinstance(query_id, str) or not _QUERY_ID_RE.fullmatch(query_id):
+        raise ValueError(f"Invalid query id (expected a UUID): {query_id!r}")
+    return query_id.lower()
+
+
+def validate_fqn(name: Any, what: str = "name") -> str:
+    """Raises ``ValueError`` unless ``name`` is a valid ``db.schema.object`` name."""
+    name = validate_name(name, what)
+    if len(split_name(name)) != 3:
+        raise ValueError(f"Invalid {what}: {name!r} (expected db.schema.name)")
+    return name
+
+
+def to_epoch(value: Any) -> float:
+    """Seconds since the epoch of a datetime (naive means UTC); 0 for ``None``."""
+    if not isinstance(value, datetime.datetime):
+        return 0.0
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=datetime.timezone.utc)
+    return value.timestamp()
 
 
 def sql_str(value: str) -> str:
@@ -143,7 +187,7 @@ def send_telemetry(session, verb: str, target_kind: str) -> None:
 
 
 def get_event_table(session) -> Optional[str]:
-    rows = session.sql("SHOW PARAMETERS LIKE 'EVENT_TABLE' IN ACCOUNT").collect()
+    rows = run_sql(session, "SHOW PARAMETERS LIKE 'EVENT_TABLE' IN ACCOUNT")
     if rows:
         value = rows[0]["value"]
         if value:
@@ -151,24 +195,37 @@ def get_event_table(session) -> Optional[str]:
     return None
 
 
-def fetch_event_logs(session, query_id: str, limit: int = -1) -> str:
+def fetch_event_logs(
+    session,
+    query_id: str,
+    limit: int = -1,
+    since: Optional[datetime.datetime] = None,
+) -> str:
     """Formats the LOG records of the event table that belong to ``query_id``.
 
-    A positive ``limit`` keeps the most recent ``limit`` records.
+    A positive ``limit`` keeps the most recent ``limit`` records. The scan is bounded
+    by ``since`` (minus 5 minutes) when it is known, otherwise by the last 7 days.
     """
     table = get_event_table(session)
     if not table:
         raise RuntimeError("No account event table is configured (EVENT_TABLE).")
+    if since is not None:
+        if since.tzinfo is None:
+            since = since.replace(tzinfo=datetime.timezone.utc)
+        start = since.astimezone(datetime.timezone.utc) - datetime.timedelta(minutes=5)
+        lower = f"TIMESTAMP >= {sql_str(start.strftime('%Y-%m-%d %H:%M:%S'))}::TIMESTAMP_NTZ"
+    else:
+        lower = "TIMESTAMP >= DATEADD(day, -7, SYSDATE())"
     sql = (
         "SELECT TIMESTAMP, RECORD['severity_text']::STRING, VALUE::STRING "
-        f"FROM {table} WHERE RECORD_TYPE = 'LOG' "
+        f"FROM {table} WHERE RECORD_TYPE = 'LOG' AND {lower} "
         f"AND RESOURCE_ATTRIBUTES['snow.query.id']::STRING = {sql_str(query_id)} "
     )
     if limit is not None and limit >= 0:
         sql += f"ORDER BY TIMESTAMP DESC LIMIT {int(limit)}"
     else:
         sql += "ORDER BY TIMESTAMP"
-    rows = session.sql(sql).collect()
+    rows = run_sql(session, sql)
     if limit is not None and limit >= 0:
         rows = list(reversed(rows))
     return "\n".join(f"{r[0]} {r[1]} {r[2]}" for r in rows)

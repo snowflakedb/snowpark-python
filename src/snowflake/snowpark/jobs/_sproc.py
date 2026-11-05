@@ -6,10 +6,12 @@
 
 import contextlib
 import hashlib
+import math
 import os
 import shutil
 import sys
 import tempfile
+import threading
 from typing import Any, Dict, List, Optional, Sequence
 
 import cloudpickle
@@ -23,6 +25,7 @@ from snowflake.snowpark.jobs._utils import (
     STORED_PROCEDURE_KIND,
     qualify,
     require_warehouse,
+    run_sql_nowait,
     send_telemetry,
     sql_str,
 )
@@ -46,7 +49,11 @@ def render_args(args: Optional[Sequence[Any]]) -> str:
             items.append("NULL")
         elif isinstance(a, bool):
             items.append("TRUE" if a else "FALSE")
-        elif isinstance(a, (int, float)):
+        elif isinstance(a, float):
+            if not math.isfinite(a):
+                raise ValueError(f"Stored procedure args cannot be {a!r}")
+            items.append(repr(a))
+        elif isinstance(a, int):
             items.append(repr(a))
         elif isinstance(a, str):
             items.append(sql_str(a))
@@ -60,6 +67,11 @@ def render_args(args: Optional[Sequence[Any]]) -> str:
 
 def call_sql(fqn: str, args: Optional[Sequence[Any]]) -> str:
     return f"CALL {fqn}({render_args(args)})"
+
+
+# cloudpickle's by-value registry is process-wide: register, pickle and unregister must
+# not interleave between threads.
+_PICKLE_LOCK = threading.Lock()
 
 
 @contextlib.contextmanager
@@ -195,17 +207,19 @@ def _register_kwargs(env: Environment) -> Dict[str, Any]:
 
 def _register(session, prepared: PreparedProgram, env: Environment, **extra):
     kwargs = _register_kwargs(env)
-    ctx = _pickle_by_value(prepared.fn) if prepared.fn else contextlib.nullcontext()
-    with ctx:
-        return session.sproc.register(
-            prepared.runner,
-            return_type=VariantType(),
-            input_types=[ArrayType()],
-            imports=prepared.imports or None,
-            _emit_ast=False,
-            **kwargs,
-            **extra,
-        )
+    lock = _PICKLE_LOCK if prepared.fn else contextlib.nullcontext()
+    with lock:
+        ctx = _pickle_by_value(prepared.fn) if prepared.fn else contextlib.nullcontext()
+        with ctx:
+            return session.sproc.register(
+                prepared.runner,
+                return_type=VariantType(),
+                input_types=[ArrayType()],
+                imports=prepared.imports or None,
+                _emit_ast=False,
+                **kwargs,
+                **extra,
+            )
 
 
 def submit(
@@ -221,6 +235,11 @@ def submit(
 ) -> QueryJob:
     if execution_name:
         raise ValueError("execution_name is only supported by the CodeBundle target")
+    if stage:
+        raise ValueError(
+            "stage is only used by deploy() with the StoredProcedure target: a one-off "
+            "run is registered as an anonymous procedure"
+        )
     if target.execute_as not in (None, "caller"):
         raise ValueError(
             "One-off runs (submit) of a stored procedure always use caller's rights; "
@@ -276,5 +295,5 @@ def deploy(
 def run_procedure(session, fqn: str, args) -> QueryJob:
     require_warehouse(session)
     send_telemetry(session, "run", STORED_PROCEDURE_KIND)
-    async_job = session.sql(f"{call_sql(fqn, args)} {JOB_MARKER}").collect_nowait()
+    async_job = run_sql_nowait(session, f"{call_sql(fqn, args)} {JOB_MARKER}")
     return QueryJob(session, async_job, STORED_PROCEDURE_KIND)

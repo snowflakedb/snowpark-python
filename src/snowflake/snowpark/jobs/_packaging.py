@@ -11,7 +11,7 @@ from typing import Dict, List, Optional
 
 from snowflake.snowpark.jobs._bundle_spec import MANIFEST_FILE, REQUIREMENTS_FILE
 from snowflake.snowpark.jobs._program import Program
-from snowflake.snowpark.jobs._utils import sql_str
+from snowflake.snowpark.jobs._utils import run_sql, sql_str
 
 PACKAGE_PREFIX = "snowpark_jobs"
 LAUNCHER_FILE = "__snowpark_jobs_launcher__.py"
@@ -87,7 +87,7 @@ def package_and_upload(
     base = normalize_stage(stage or session.get_session_stage())
     stage_path = f"{base}/{PACKAGE_PREFIX}/{digest}"
 
-    exists = session.sql(f"LIST {sql_str(stage_path + '/' + MANIFEST_FILE)}").collect()
+    exists = run_sql(session, f"LIST {sql_str(stage_path + '/' + MANIFEST_FILE)}")
     if not exists:
         with tempfile.TemporaryDirectory() as tmp:
             generated: List[str] = []

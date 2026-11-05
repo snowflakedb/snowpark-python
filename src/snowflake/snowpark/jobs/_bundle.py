@@ -12,6 +12,7 @@ from snowflake.snowpark.jobs._bundle_spec import (
     CODE_BUNDLE_ENV_FIELDS,
     build_spec,
     dump_spec,
+    metadata_comment,
     requirements_text,
 )
 from snowflake.snowpark.jobs._environment import Environment
@@ -21,10 +22,13 @@ from snowflake.snowpark.jobs._program import Program
 from snowflake.snowpark.jobs._utils import (
     BUNDLE_EXECUTION_PREFIX,
     CODE_BUNDLE_KIND,
+    TEMP_BUNDLE_PREFIX,
     identifier_safe,
     qualify,
     random_suffix,
     require_warehouse,
+    run_sql,
+    run_sql_nowait,
     send_telemetry,
     sql_str,
     using_warehouse,
@@ -205,7 +209,7 @@ def default_execution_name(entrypoint: Optional[str]) -> str:
 def run_async(session, statement: str, warehouse: Optional[str] = None) -> str:
     """Starts ``statement`` without waiting; ``warehouse`` is switched to while submitting."""
     with using_warehouse(session, warehouse):
-        return session.sql(statement).collect_nowait().query_id
+        return run_sql_nowait(session, statement).query_id
 
 
 def submit(
@@ -238,18 +242,29 @@ def submit(
     schema = session.get_current_schema()
     if not db or not schema:
         raise ValueError("A current database and schema are required for compute pools")
-    temp = f"{db}.{schema}.{BUNDLE_EXECUTION_PREFIX}{random_suffix(12)}"
-    session.sql(
-        f"CREATE CODE BUNDLE {temp} FROM {sql_str(prepared.location)}"
-    ).collect()
+    temp = f"{db}.{schema}.{TEMP_BUNDLE_PREFIX}{random_suffix(12)}"
+    run_sql(session, f"CREATE CODE BUNDLE {temp} FROM {sql_str(prepared.location)}")
     try:
         qid = run_async(
             session, execute_sql(temp, prepared.entrypoint, args, name, spec)
         )
     except Exception:
-        session.sql(f"DROP CODE BUNDLE IF EXISTS {temp}").collect()
+        run_sql(session, f"DROP CODE BUNDLE IF EXISTS {temp}")
         raise
+    manager = getattr(session, "_jobs", None)
+    if manager is not None:
+        manager._temp_bundles.add(temp)  # dropped at session close, if idle by then
     return BundleRun(session, qid, prepared.compute_type, temp, name)
+
+
+def bundle_comment(prepared: PreparedBundle, env: Environment) -> Optional[str]:
+    """The metadata comment of a bundle whose manifest session.jobs generated. A staged
+    program brings its own manifest, which is then the only source."""
+    if not prepared.uploaded:
+        return None
+    return metadata_comment(
+        prepared.spec, prepared.has_launcher, env.resolved_packages()
+    )
 
 
 def deploy(
@@ -269,9 +284,12 @@ def deploy(
     fqn = qualify(session, name)
     send_telemetry(session, "deploy", CODE_BUNDLE_KIND)
     create = "CREATE OR REPLACE" if replace else "CREATE"
-    session.sql(
+    comment = bundle_comment(prepared, env)
+    run_sql(
+        session,
         f"{create} CODE BUNDLE {fqn} FROM {sql_str(prepared.location)}"
-    ).collect()
+        + (f" COMMENT = {sql_str(comment)}" if comment else ""),
+    )
     return CodeBundleDeployment(
         session,
         fqn,

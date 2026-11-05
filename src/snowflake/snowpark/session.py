@@ -1064,6 +1064,9 @@ class Session:
             else:
                 _logger.info("Closing session: %s", self._session_id)
                 self.cancel_all()
+                if self._jobs is not None:
+                    # drops temporary code bundles of finished runs; never raises
+                    self._jobs._cleanup_on_close()
         except Exception as ex:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(str(ex))
         finally:

@@ -38,5 +38,9 @@ export SNOWFLAKE_CONNECTION_NAME=my_connection
 python demo/jobs/01_submit_function.py
 ```
 
+A run lasts only as long as the session that submitted it: closing the session cancels
+runs that are still going, so the samples wait for their runs before they exit. To keep
+work going after the process ends, deploy it and use `schedule()` (see `05` and `06`).
+
 `logs()` reads the account event table, which ingests with a delay, so the samples poll
 for a while.

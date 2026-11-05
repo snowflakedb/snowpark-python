@@ -93,6 +93,12 @@ class CodeBundle(Target):
     value is ignored, because code bundles cannot return values. Callables,
     ``Program.stage()`` and ``Program.workspace()`` programs do not support function
     entry points.
+
+    On a compute pool, each one-off run creates a temporary code bundle named
+    ``SNOWPARK_JOB_TMP_<id>``, which the run's handle drops once it sees the run finish.
+    If the process ends first, the bundle stays until
+    :meth:`JobManager.cleanup <snowflake.snowpark.jobs.JobManager.cleanup>` removes it
+    (``Session.close`` also removes the ones that have finished by then).
     """
 
     compute_pool: Optional[str] = None

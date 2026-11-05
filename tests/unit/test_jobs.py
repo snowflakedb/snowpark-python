@@ -2,7 +2,11 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
 import importlib
+import io
+import json
+import logging
 import os
 import re
 import sys
@@ -11,8 +15,8 @@ from unittest import mock
 
 import pytest
 import yaml
-
 from snowflake.connector.errors import ProgrammingError
+
 from snowflake.snowpark import Session
 from snowflake.snowpark.jobs import (
     BundleRun,
@@ -20,11 +24,13 @@ from snowflake.snowpark.jobs import (
     CodeBundleDeployment,
     Environment,
     JobManager,
+    JobNotFoundError,
     JobNotSupportedError,
     JobStatus,
     ProcedureDeployment,
     Program,
     QueryJob,
+    Schedule,
     StoredProcedure,
     TaskRun,
     _bundle,
@@ -35,10 +41,13 @@ from snowflake.snowpark.jobs import (
 )
 from snowflake.snowpark.jobs._bundle_spec import (
     DEFAULT_POOL_RUNTIME_VERSION,
+    MAX_COMMENT_CHARS,
     build_spec,
     default_warehouse_runtime_version,
     dump_spec,
     merge_overrides,
+    metadata_comment,
+    parse_metadata_comment,
 )
 from snowflake.snowpark.jobs._utils import (
     identifier_safe,
@@ -49,8 +58,16 @@ from snowflake.snowpark.jobs._utils import (
     validate_name,
 )
 
+Q1 = "01c83764-0a1c-3a24-000c-a9154c27d30f"
+Q2 = "01c83764-0a1c-3a24-000c-a9154c27d310"
+
 
 class FakeRow(dict):
+    def __getitem__(self, key):
+        if isinstance(key, int) and key not in self:
+            return list(self.values())[key]  # positional access like a real Row
+        return super().__getitem__(key)
+
     def as_dict(self):
         return dict(self)
 
@@ -60,10 +77,10 @@ class FakeResult:
         self._rows = rows
         self.query_id = query_id
 
-    def collect(self):
+    def collect(self, **kwargs):
         return self._rows
 
-    def collect_nowait(self):
+    def collect_nowait(self, **kwargs):
         return FakeAsyncJob(self.query_id)
 
 
@@ -75,6 +92,12 @@ class FakeAsyncJob:
 class FakeFile:
     def __init__(self) -> None:
         self.puts = []
+        self.streams = {}  # path -> bytes readable with get_stream
+
+    def get_stream(self, path, **kwargs):
+        if path not in self.streams:
+            raise FileNotFoundError(path)
+        return io.BytesIO(self.streams[path])
 
     def put(self, path, dest, **kwargs):
         with open(path, "rb") as f:
@@ -86,6 +109,7 @@ class FakeSession:
 
     def __init__(self, responses=None, warehouse="WH") -> None:
         self.statements = []
+        self.sql_kwargs = []
         self.responses = responses or {}
         self.file = FakeFile()
         self._warehouse = warehouse
@@ -95,11 +119,17 @@ class FakeSession:
         self.statements.append(f"USE WAREHOUSE {warehouse}")
         self._warehouse = warehouse
 
-    def sql(self, statement):
+    def sql(self, statement, **kwargs):
         self.statements.append(statement)
+        self.sql_kwargs.append(kwargs)
         for pattern, rows in self.responses.items():
             if re.search(pattern, statement):
-                return FakeResult([FakeRow(r) for r in rows])
+                return FakeResult(
+                    [
+                        FakeRow(r if isinstance(r, dict) else dict(enumerate(r)))
+                        for r in rows
+                    ]
+                )
         return FakeResult([])
 
     def get_current_database(self):
@@ -125,7 +155,9 @@ def fake():
 
 @pytest.fixture
 def jobs(fake):
-    return JobManager(fake)
+    manager = JobManager(fake)
+    fake._jobs = manager  # as Session.jobs does
+    return manager
 
 
 @pytest.fixture
@@ -289,7 +321,8 @@ def test_code_bundle_pool_accepts_secrets(fake, jobs, script):
     assert isinstance(run, BundleRun)
     # the pool path creates a temporary named bundle first
     assert any(
-        s.startswith("CREATE CODE BUNDLE DB.SCH.SNOWPARK_JOB_") for s in fake.statements
+        s.startswith("CREATE CODE BUNDLE DB.SCH.SNOWPARK_JOB_TMP_")
+        for s in fake.statements
     )
 
 
@@ -525,7 +558,7 @@ def test_code_bundle_pool_submit_creates_temp_bundle(fake, jobs, script):
     run = jobs.submit(Program.file(script), CodeBundle(compute_pool="POOL"), args=["x"])
     create, execute = fake.statements[-2:]
     assert re.match(
-        r"CREATE CODE BUNDLE DB\.SCH\.SNOWPARK_JOB_[0-9A-F]{12} FROM "
+        r"CREATE CODE BUNDLE DB\.SCH\.SNOWPARK_JOB_TMP_[0-9A-F]{12} FROM "
         r"'@SESS_STAGE/snowpark_jobs/",
         create,
     )
@@ -703,7 +736,7 @@ def test_schedule_sql(fake):
     sched = d.schedule("0 * * * * UTC", warehouse="WH", args=["it's"])
     create, resume = fake.statements[0:2]
     assert create.startswith(
-        "CREATE OR REPLACE TASK DB.SCH.P_SCHEDULE WAREHOUSE = WH "
+        "CREATE TASK DB.SCH.P_SCHEDULE WAREHOUSE = WH "
         "SCHEDULE = 'USING CRON 0 * * * * UTC' AS CALL DB.SCH.P(ARRAY_CONSTRUCT("
     )
     assert resume == "ALTER TASK DB.SCH.P_SCHEDULE RESUME"
@@ -711,16 +744,13 @@ def test_schedule_sql(fake):
     # serverless without a warehouse, explicit short name goes into the deployment schema
     d.schedule("0 * * * * UTC", name="T1")
     assert any(
-        s.startswith("CREATE OR REPLACE TASK DB.SCH.T1 SCHEDULE =")
-        for s in fake.statements
+        s.startswith("CREATE TASK DB.SCH.T1 SCHEDULE =") for s in fake.statements
     )
 
 
 def test_schedule_default_name_is_quoted_when_needed(fake):
     ProcedureDeployment(fake, 'DB.SCH."my proc"').schedule("0 * * * * UTC")
-    assert fake.statements[0].startswith(
-        'CREATE OR REPLACE TASK DB.SCH."my proc_SCHEDULE"'
-    )
+    assert fake.statements[0].startswith('CREATE TASK DB.SCH."my proc_SCHEDULE"')
 
 
 def test_schedule_methods(fake):
@@ -742,20 +772,20 @@ def test_schedule_runs_skip_runs_of_earlier_task_with_same_name(fake):
     fake.responses[r"SHOW TASKS"] = [{"name": "P_SCHEDULE", "created_on": created}]
     fake.responses[r"TASK_HISTORY"] = [
         {
-            "QUERY_ID": "new",
+            "QUERY_ID": Q1,
             "SCHEDULED_TIME": datetime(2025, 1, 3),
             "STATE": "SUCCEEDED",
         },
         {
-            "QUERY_ID": "old",
+            "QUERY_ID": Q2,
             "SCHEDULED_TIME": datetime(2025, 1, 1),
             "STATE": "SUCCEEDED",
         },
     ]
     sched = ProcedureDeployment(fake, "DB.SCH.P").schedule("0 * * * * UTC")
     runs = sched.runs()
-    assert [r.query_id for r in runs] == ["new"]
-    assert runs[0].id == "task:DB.SCH.P_SCHEDULE/new"
+    assert [r.query_id for r in runs] == [Q1]
+    assert runs[0].id == f"task:DB.SCH.P_SCHEDULE/{Q1}"
     assert runs[0].target == "stored_procedure"
     assert (
         "DB.INFORMATION_SCHEMA.TASK_HISTORY(TASK_NAME => 'P_SCHEDULE'"
@@ -772,7 +802,8 @@ def test_code_bundle_deploy_and_run_sql(fake, jobs, pkg_dir):
     )
     assert isinstance(dep, CodeBundleDeployment) and dep.name == "DB.SCH.B"
     assert re.fullmatch(
-        r"CREATE OR REPLACE CODE BUNDLE DB\.SCH\.B FROM '@SESS_STAGE/snowpark_jobs/[0-9a-f]{64}'",
+        r"CREATE OR REPLACE CODE BUNDLE DB\.SCH\.B FROM '@SESS_STAGE/snowpark_jobs/[0-9a-f]{64}'"
+        r" COMMENT = 'snowpark\.jobs:.*'",
         last_statement(fake),
     )
     jobs.deploy(Program.directory(pkg_dir, "top.py"), CodeBundle(), name="B2")
@@ -826,9 +857,13 @@ def test_code_bundle_add_version(fake, jobs, pkg_dir, tmp_path):
     extra = tmp_path / "new.py"
     extra.write_text("print(2)\n")
     dep.add_version(Program.file(str(extra)))
+    add, comment = fake.statements[-2:]
     assert re.fullmatch(
         r"ALTER CODE BUNDLE DB\.SCH\.B ADD VERSION FROM '@SESS_STAGE/snowpark_jobs/[0-9a-f]{64}'",
-        last_statement(fake),
+        add,
+    )
+    assert comment.startswith(
+        "ALTER CODE BUNDLE DB.SCH.B SET COMMENT = 'snowpark.jobs:"
     )
     assert dep.to_sql() == "EXECUTE CODE BUNDLE DB.SCH.B ENTRYPOINT = 'new.py'"
 
@@ -836,9 +871,9 @@ def test_code_bundle_add_version(fake, jobs, pkg_dir, tmp_path):
 def test_code_bundle_schedule_sql(fake, jobs, pkg_dir):
     dep = jobs.deploy(Program.directory(pkg_dir, "top.py"), CodeBundle(), name="B")
     dep.schedule("0 0 * * * UTC", args=["x"])
-    create = [s for s in fake.statements if s.startswith("CREATE OR REPLACE TASK")][0]
+    create = [s for s in fake.statements if s.startswith("CREATE TASK")][0]
     assert create == (
-        "CREATE OR REPLACE TASK DB.SCH.B_SCHEDULE SCHEDULE = 'USING CRON 0 0 * * * UTC' "
+        "CREATE TASK DB.SCH.B_SCHEDULE SCHEDULE = 'USING CRON 0 0 * * * UTC' "
         "AS EXECUTE CODE BUNDLE DB.SCH.B ENTRYPOINT = 'top.py' ARGUMENTS = ('x')"
     )
 
@@ -1053,7 +1088,7 @@ def test_normalize_stage():
 )
 def test_bundle_history_status_mapping(fake, raw, expected):
     fake.responses[r"CODE_BUNDLE_HISTORY"] = [{"STATUS": raw, "ERROR_MESSAGE": "bad"}]
-    run = BundleRun(fake, "Q1")
+    run = BundleRun(fake, Q1)
     assert run.raw_status == raw
     assert run.status() == expected
     assert run.status().is_terminal == (
@@ -1067,7 +1102,7 @@ def test_bundle_history_status_mapping(fake, raw, expected):
 
 def test_unknown_bundle_status_is_running(fake):
     fake.responses[r"CODE_BUNDLE_HISTORY"] = [{"STATUS": "WEIRD"}]
-    assert BundleRun(fake, "Q1").status() == JobStatus.RUNNING
+    assert BundleRun(fake, Q1).status() == JobStatus.RUNNING
 
 
 @pytest.mark.parametrize(
@@ -1085,7 +1120,7 @@ def test_bundle_without_history_row_falls_back_to_query_status(
     fake, query_status, expected
 ):
     with mock.patch.object(_handles, "_query_status_name", return_value=query_status):
-        assert BundleRun(fake, "Q1").raw_status == expected
+        assert BundleRun(fake, Q1).raw_status == expected
 
 
 @pytest.mark.parametrize(
@@ -1102,29 +1137,29 @@ def test_bundle_without_history_row_falls_back_to_query_status(
 )
 def test_task_state_mapping(fake, state, expected):
     fake.responses[r"TASK_HISTORY"] = [
-        {"QUERY_ID": "Q1", "STATE": state, "ERROR_MESSAGE": "task broke"}
+        {"QUERY_ID": Q1, "STATE": state, "ERROR_MESSAGE": "task broke"}
     ]
-    run = TaskRun(fake, "DB.SCH.T", "Q1")
+    run = TaskRun(fake, "DB.SCH.T", Q1)
     assert run.status() == expected
     if expected == JobStatus.FAILED:
         assert run.error() == "task broke"
 
 
 def test_task_run_without_history_is_pending(fake):
-    assert TaskRun(fake, "DB.SCH.T", "Q1").status() == JobStatus.PENDING
+    assert TaskRun(fake, "DB.SCH.T", Q1).status() == JobStatus.PENDING
 
 
 def test_task_run_target_and_child(fake):
     fake.responses[r"TASK_HISTORY"] = [
         {
-            "QUERY_ID": "Q1",
+            "QUERY_ID": Q1,
             "QUERY_TEXT": "EXECUTE CODE BUNDLE DB.SCH.B ENTRYPOINT = 'a'",
         }
     ]
-    run = TaskRun(fake, "DB.SCH.T", "Q1")
+    run = TaskRun(fake, "DB.SCH.T", Q1)
     assert run.target == "code_bundle"
-    assert isinstance(run.child(), BundleRun) and run.child().query_id == "Q1"
-    sp = TaskRun(fake, "DB.SCH.T", "Q2", {"QUERY_TEXT": "CALL P(ARRAY_CONSTRUCT())"})
+    assert isinstance(run.child(), BundleRun) and run.child().query_id == Q1
+    sp = TaskRun(fake, "DB.SCH.T", Q2, {"QUERY_TEXT": "CALL P(ARRAY_CONSTRUCT())"})
     assert sp.target == "stored_procedure" and isinstance(sp.child(), QueryJob)
 
 
@@ -1146,17 +1181,17 @@ def test_query_status_mapping(name, expected):
 
 def test_bundle_result_is_not_supported(fake):
     with pytest.raises(JobNotSupportedError):
-        BundleRun(fake, "Q1").result()
+        BundleRun(fake, Q1).result()
 
 
 def test_bundle_logs_on_pool_not_supported(fake):
     with pytest.raises(JobNotSupportedError):
-        BundleRun(fake, "Q1", "compute_pool").logs()
+        BundleRun(fake, Q1, "compute_pool").logs()
     fake.responses[r"CODE_BUNDLE_HISTORY"] = [
         {"STATUS": "DONE", "COMPUTE_TYPE": "COMPUTE_POOL"}
     ]
     with pytest.raises(JobNotSupportedError):
-        BundleRun(fake, "Q1").logs()
+        BundleRun(fake, Q1).logs()
 
 
 def test_logs_query_uses_event_table_and_escapes_query_id(fake):
@@ -1169,7 +1204,7 @@ def test_logs_query_uses_event_table_and_escapes_query_id(fake):
 
 def test_logs_without_event_table(fake):
     with pytest.raises(RuntimeError, match="event table"):
-        BundleRun(fake, "Q1", "warehouse").logs()
+        BundleRun(fake, Q1, "warehouse").logs()
 
 
 def test_cancel_issues_system_cancel(fake):
@@ -1181,13 +1216,13 @@ def test_cancel_issues_system_cancel(fake):
 def test_wait_times_out(fake):
     fake.responses[r"CODE_BUNDLE_HISTORY"] = [{"STATUS": "RUNNING"}]
     with pytest.raises(TimeoutError, match="did not finish"):
-        BundleRun(fake, "Q1").wait(timeout=0.05, poll_interval=0.01)
+        BundleRun(fake, Q1).wait(timeout=0.05, poll_interval=0.01)
     fake.responses[r"CODE_BUNDLE_HISTORY"] = [{"STATUS": "DONE"}]
-    assert BundleRun(fake, "Q1").wait(timeout=1) == JobStatus.SUCCEEDED
+    assert BundleRun(fake, Q1).wait(timeout=1) == JobStatus.SUCCEEDED
 
 
 def test_owner_rights_hint_is_added_to_query_errors(fake):
-    job = QueryJob(fake, FakeAsyncJob("Q1"))
+    job = QueryJob(fake, FakeAsyncJob(Q1))
     with mock.patch.object(
         _handles, "_query_status_name", return_value="FAILED_WITH_ERROR"
     ), mock.patch.object(
@@ -1204,16 +1239,19 @@ def test_owner_rights_hint_is_added_to_query_errors(fake):
 
 
 def test_get_parses_job_ids(fake, jobs):
-    q = jobs.get("query:01abc")
-    assert isinstance(q, QueryJob) and q.query_id == "01abc" and q.id == "query:01abc"
-    b = jobs.get("bundle:01abc")
-    assert isinstance(b, BundleRun) and b.id == "bundle:01abc"
-    t = jobs.get("task:DB.SCH.MY_TASK/01abc")
+    q = jobs.get(f"query:{Q1}")
+    assert isinstance(q, QueryJob) and q.query_id == Q1 and q.id == f"query:{Q1}"
+    # ids are case-insensitive and normalized to lower case
+    assert jobs.get(f"query:{Q1.upper()}").query_id == Q1
+    b = jobs.get(f"bundle:{Q1}")
+    assert isinstance(b, BundleRun) and b.id == f"bundle:{Q1}"
+    t = jobs.get(f"task:DB.SCH.MY_TASK/{Q1}")
     assert isinstance(t, TaskRun)
-    assert (t.task_fqn, t.query_id) == ("DB.SCH.MY_TASK", "01abc")
-    assert t.id == "task:DB.SCH.MY_TASK/01abc"
-    quoted = jobs.get('task:DB."S/1".T/01abc')
-    assert quoted.task_fqn == 'DB."S/1".T' and quoted.query_id == "01abc"
+    assert (t.task_fqn, t.query_id) == ("DB.SCH.MY_TASK", Q1)
+    assert t.id == f"task:DB.SCH.MY_TASK/{Q1}"
+    quoted = jobs.get(f'task:DB."S/1".T/{Q1}')
+    assert quoted.task_fqn == 'DB."S/1".T' and quoted.query_id == Q1
+    assert fake.statements == []
 
 
 @pytest.mark.parametrize(
@@ -1227,11 +1265,25 @@ def test_get_parses_job_ids(fake, jobs):
         "task:nosep",
         "task:/qid",
         "task:T/",
+        "query:01abc",
+        "query:bogus",
+        f"query:{Q1}'; DROP TABLE T; --",
+        f"query:{Q1} ",
+        "query:" + Q1[:-1],
+        f"bundle:{Q1}x",
+        "bundle:' OR 1=1 --",
+        f"task:T/{Q1}",
+        f"task:SCH.T/{Q1}",
+        f"task:DB.SCH.T.X/{Q1}",
+        f"task:DB.SCH.T; DROP TABLE X/{Q1}",
+        "task:DB.SCH.T/01abc",
+        f"task:DB.SCH.T/{Q1}'",
     ],
 )
-def test_get_rejects_malformed_ids(jobs, job_id):
+def test_get_rejects_malformed_ids(fake, jobs, job_id):
     with pytest.raises(ValueError):
         jobs.get(job_id)
+    assert fake.statements == []
 
 
 # ---- list() ----
@@ -1248,14 +1300,14 @@ def test_list_merges_and_filters(fake, jobs):
     fake.responses[r"CODE_BUNDLE_HISTORY"] = [
         {
             "QUERY_ID": "B1",
-            "START_TIME": "2025-01-02",
+            "START_TIME": datetime.datetime(2025, 1, 2),
             "STATUS": "DONE",
             "EXECUTION_NAME": "SNOWPARK_JOB_X",
             "COMPUTE_TYPE": "WAREHOUSE",
         },
         {
             "QUERY_ID": "B2",
-            "START_TIME": "2025-01-04",
+            "START_TIME": datetime.datetime(2025, 1, 4),
             "STATUS": "FAILED",
             "EXECUTION_NAME": "SNOWPARK_JOB_Y",
             "COMPUTE_TYPE": "WAREHOUSE",
@@ -1304,6 +1356,7 @@ def test_session_jobs_is_cached():
     conn = mock.MagicMock()
     conn._conn = mock.MagicMock()
     conn._thread_safe_session_enabled = True
+    conn._telemetry_client = mock.MagicMock()
     session = Session(conn)
     assert isinstance(session.jobs, JobManager)
     assert session.jobs is session.jobs
@@ -1353,10 +1406,10 @@ def test_bundle_submit_does_not_switch_without_need(fake, jobs, script, warehous
 def test_bundle_submit_restores_when_submission_raises(fake, jobs, script):
     original = fake.sql
 
-    def failing(statement):
+    def failing(statement, **kwargs):
         if statement.startswith("EXECUTE CODE BUNDLE"):
             raise RuntimeError("submit failed")
-        return original(statement)
+        return original(statement, **kwargs)
 
     fake.sql = failing
     with pytest.raises(RuntimeError, match="submit failed"):
@@ -1529,18 +1582,14 @@ def test_quoted_warehouse_name_is_accepted(fake, jobs, script):
 
 def test_schedule_warehouse_defaults(fake, jobs, pkg_dir):
     def task_sql():
-        return [s for s in fake.statements if s.startswith("CREATE OR REPLACE TASK")][
-            -1
-        ]
+        return [s for s in fake.statements if s.startswith("CREATE TASK")][-1]
 
     # code bundle: the target's warehouse
     dep = jobs.deploy(
         Program.directory(pkg_dir, "top.py"), CodeBundle(warehouse="TWH"), name="B"
     )
     dep.schedule("0 * * * * UTC")
-    assert task_sql().startswith(
-        "CREATE OR REPLACE TASK DB.SCH.B_SCHEDULE WAREHOUSE = TWH "
-    )
+    assert task_sql().startswith("CREATE TASK DB.SCH.B_SCHEDULE WAREHOUSE = TWH ")
     # an explicit schedule warehouse wins
     dep.schedule("0 * * * * UTC", warehouse="EXPLICIT")
     assert " WAREHOUSE = EXPLICIT " in task_sql()
@@ -1567,7 +1616,7 @@ def test_schedule_on_pool_deployment_uses_target_warehouse(fake, jobs, pkg_dir):
         name="B",
     )
     dep.schedule("0 * * * * UTC")
-    task = [s for s in fake.statements if s.startswith("CREATE OR REPLACE TASK")][-1]
+    task = [s for s in fake.statements if s.startswith("CREATE TASK")][-1]
     assert " WAREHOUSE = QWH " in task
 
 
@@ -1589,18 +1638,18 @@ class ResultJob(FakeAsyncJob):
 def _scheduled_run(fake, async_job):
     fake.responses[r"TASK_HISTORY"] = [
         {
-            "QUERY_ID": "Q1",
+            "QUERY_ID": Q1,
             "STATE": "SUCCEEDED",
             "QUERY_TEXT": "CALL DB.SCH.P(ARRAY_CONSTRUCT())",
         }
     ]
     fake.create_async_job = lambda qid: async_job
-    return TaskRun(fake, "DB.SCH.T", "Q1")
+    return TaskRun(fake, "DB.SCH.T", Q1)
 
 
 def test_task_run_result_statement_not_found_is_not_supported(fake):
     original = ProgrammingError(msg="Statement Q1 not found", errno=709)
-    run = _scheduled_run(fake, ResultJob("Q1", exc=original))
+    run = _scheduled_run(fake, ResultJob(Q1, exc=original))
     with mock.patch.object(_handles, "_query_status_name", return_value="SUCCESS"):
         with pytest.raises(JobNotSupportedError, match="cannot be read") as info:
             run.result()
@@ -1611,13 +1660,13 @@ def test_task_run_result_statement_not_found_is_not_supported(fake):
 
 def test_task_run_result_other_errors_pass_through(fake):
     other = ProgrammingError(msg="boom", errno=1304)
-    run = _scheduled_run(fake, ResultJob("Q1", exc=other))
+    run = _scheduled_run(fake, ResultJob(Q1, exc=other))
     with mock.patch.object(_handles, "_query_status_name", return_value="SUCCESS"):
         with pytest.raises(ProgrammingError) as info:
             run.result()
     assert info.value is other
     plain = RuntimeError("not a sql error")
-    run = _scheduled_run(fake, ResultJob("Q1", exc=plain))
+    run = _scheduled_run(fake, ResultJob(Q1, exc=plain))
     with mock.patch.object(_handles, "_query_status_name", return_value="SUCCESS"):
         with pytest.raises(RuntimeError) as info:
             run.result()
@@ -1625,7 +1674,7 @@ def test_task_run_result_other_errors_pass_through(fake):
 
 
 def test_task_run_result_success_is_unchanged(fake):
-    run = _scheduled_run(fake, ResultJob("Q1", rows=[('{"a": 1}',)]))
+    run = _scheduled_run(fake, ResultJob(Q1, rows=[('{"a": 1}',)]))
     with mock.patch.object(_handles, "_query_status_name", return_value="SUCCESS"):
         assert run.result() == {"a": 1}
         assert run.child().result() == {"a": 1}
@@ -1633,7 +1682,7 @@ def test_task_run_result_success_is_unchanged(fake):
 
 def test_direct_query_job_result_is_unaffected_by_statement_not_found(fake):
     original = ProgrammingError(msg="Statement Q1 not found", errno=709)
-    job = QueryJob(fake, ResultJob("Q1", exc=original))
+    job = QueryJob(fake, ResultJob(Q1, exc=original))
     with mock.patch.object(_handles, "_query_status_name", return_value="SUCCESS"):
         with pytest.raises(ProgrammingError) as info:
             job.result()
@@ -1746,7 +1795,7 @@ def test_deploy_run_schedule_and_to_sql_with_function_entrypoint(fake, jobs, pkg
     dep.run(entrypoint="pkg/main.py:run", args=["x"])
     assert last_statement(fake).startswith(expected)
     dep.schedule("0 0 * * * UTC", entrypoint="pkg/main.py:run", args=["x"])
-    create = [s for s in fake.statements if s.startswith("CREATE OR REPLACE TASK")][-1]
+    create = [s for s in fake.statements if s.startswith("CREATE TASK")][-1]
     assert create.endswith(f"AS {expected}")
 
 
@@ -1890,3 +1939,851 @@ def test_launcher_bundle_root_falls_back_to_argv0_without_file(tmp_path, monkeyp
     assert launcher.bundle_root("/b/x/launcher.py", "ignored.py") == "/b/x"
     # a notebook cell on a compute pool: no __file__, relative script name, cwd is the root
     assert launcher.bundle_root(None, LAUNCHER) == str(tmp_path)
+
+
+# ---- review fixes ----
+
+# F1: validation of names and ids
+
+
+def test_task_run_and_schedule_validate_names_and_ids(fake):
+    with pytest.raises(ValueError, match="Invalid task name"):
+        TaskRun(fake, "DB.SCH.T; DROP TABLE X", Q1)
+    with pytest.raises(ValueError, match="db.schema.name"):
+        TaskRun(fake, "SCH.T", Q1)
+    with pytest.raises(ValueError, match="Invalid query id"):
+        TaskRun(fake, "DB.SCH.T", "Q1' OR 1=1")
+    with pytest.raises(ValueError, match="db.schema.name"):
+        Schedule(fake, "T")
+    with pytest.raises(ValueError, match="Invalid task name"):
+        _handles.task_history_sql("DB.SCH.T') --", 10)
+    with pytest.raises(ValueError, match="Invalid query id"):
+        _handles.task_history_sql("DB.SCH.T", 10, "x' OR '1'='1")
+    assert fake.statements == []
+
+
+# F2: status mapping and missing jobs
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("DISCONNECTED", JobStatus.FAILED),
+        ("RESTARTED", JobStatus.RUNNING),
+        ("INCIDENT", JobStatus.FAILED),
+        ("NO_DATA", JobStatus.PENDING),
+    ],
+)
+def test_query_status_mapping_is_explicit(name, expected):
+    assert _handles._map_query_status(name) == expected
+
+
+def test_bundle_history_deleted_is_cancelled(fake):
+    fake.responses[r"CODE_BUNDLE_HISTORY"] = [{"STATUS": "DELETED"}]
+    assert BundleRun(fake, Q1).status() == JobStatus.CANCELLED
+
+
+def test_unknown_status_names_are_running_and_logged_once(fake, caplog):
+    _handles._warned_status_names.clear()
+    with caplog.at_level(logging.WARNING, logger=_handles.__name__):
+        assert _handles._map_query_status("SOMETHING_NEW") == JobStatus.RUNNING
+        assert _handles._map_query_status("SOMETHING_NEW") == JobStatus.RUNNING
+        fake.responses[r"CODE_BUNDLE_HISTORY"] = [{"STATUS": "NEW_STATE"}]
+        assert BundleRun(fake, Q1).status() == JobStatus.RUNNING
+        fake.responses[r"TASK_HISTORY"] = [{"QUERY_ID": Q1, "STATE": "NEW_TASK_STATE"}]
+        assert TaskRun(fake, "DB.SCH.T", Q1).status() == JobStatus.RUNNING
+    messages = [r.getMessage() for r in caplog.records]
+    assert sum("SOMETHING_NEW" in m for m in messages) == 1
+    assert sum("NEW_STATE" in m for m in messages) == 1
+    assert sum("NEW_TASK_STATE" in m for m in messages) == 1
+
+
+def _after_grace(monkeypatch):
+    """Makes the second status check happen after the grace period."""
+    ticks = iter([1000.0] + [1000.0 + _handles.MISSING_JOB_GRACE_SECONDS + 1] * 100)
+    monkeypatch.setattr(_handles.time, "monotonic", lambda: next(ticks))
+
+
+def test_query_job_unknown_id_raises_after_grace(fake, monkeypatch):
+    job = QueryJob(fake, FakeAsyncJob(Q1))
+    _after_grace(monkeypatch)
+    with mock.patch.object(_handles, "_query_status_name", return_value="NO_DATA"):
+        assert job.status() == JobStatus.PENDING  # within the grace period
+        with pytest.raises(JobNotFoundError, match=Q1):
+            job.status()
+    assert issubclass(JobNotFoundError, ValueError)
+
+
+def test_query_job_not_found_does_not_hang_wait(fake, monkeypatch):
+    monkeypatch.setattr(_handles, "MISSING_JOB_GRACE_SECONDS", 0.05)
+    job = QueryJob(fake, FakeAsyncJob(Q1))
+    with mock.patch.object(_handles, "_query_status_name", return_value="NO_DATA"):
+        with pytest.raises(JobNotFoundError):
+            job.wait(poll_interval=0.02)  # no timeout given
+
+
+def test_query_job_seen_once_never_raises_not_found(fake, monkeypatch):
+    job = QueryJob(fake, FakeAsyncJob(Q1))
+    _after_grace(monkeypatch)
+    with mock.patch.object(
+        _handles, "_query_status_name", side_effect=["RUNNING", "NO_DATA"]
+    ):
+        job.status()
+        assert job.status() == JobStatus.PENDING
+
+
+def test_bundle_run_without_history_row(fake, monkeypatch):
+    run = BundleRun(fake, Q1)
+    _after_grace(monkeypatch)
+    with mock.patch.object(_handles, "_query_status_name", return_value="NO_DATA"):
+        assert run.status() == JobStatus.PENDING
+        with pytest.raises(JobNotFoundError):
+            run.status()
+    # a finished query that is no code bundle run is missing as well
+    run = BundleRun(fake, Q2)
+    _after_grace(monkeypatch)
+    with mock.patch.object(_handles, "_query_status_name", return_value="SUCCESS"):
+        run.status()
+        with pytest.raises(JobNotFoundError):
+            run.status()
+
+
+def test_bundle_run_pending_is_not_missing(fake, monkeypatch):
+    # a running EXECUTE without a history row yet, and a PENDING history row (slow
+    # compute pool start) both wait without JobNotFoundError
+    run = BundleRun(fake, Q1)
+    _after_grace(monkeypatch)
+    with mock.patch.object(_handles, "_query_status_name", return_value="RUNNING"):
+        assert run.status() == JobStatus.PENDING
+        assert run.status() == JobStatus.PENDING
+    fake.responses[r"CODE_BUNDLE_HISTORY"] = [{"STATUS": "PENDING"}]
+    run = BundleRun(fake, Q2)
+    _after_grace(monkeypatch)
+    assert run.status() == JobStatus.PENDING
+    assert run.status() == JobStatus.PENDING
+
+
+def test_bundle_run_failed_query_without_history_row(fake):
+    with mock.patch.object(
+        _handles, "_query_status_name", return_value="FAILED_WITH_ERROR"
+    ):
+        assert BundleRun(fake, Q1).status() == JobStatus.FAILED
+    with mock.patch.object(_handles, "_query_status_name", return_value="ABORTED"):
+        assert BundleRun(fake, Q1).status() == JobStatus.CANCELLED
+
+
+def test_task_run_without_history_raises_after_grace(fake, monkeypatch):
+    run = TaskRun(fake, "DB.SCH.T", Q1)
+    _after_grace(monkeypatch)
+    assert run.status() == JobStatus.PENDING
+    with pytest.raises(JobNotFoundError):
+        run.status()
+    # a run with a history row is fine
+    fake.responses[r"TASK_HISTORY"] = [{"QUERY_ID": Q2, "STATE": "EXECUTING"}]
+    run = TaskRun(fake, "DB.SCH.T", Q2)
+    _after_grace(monkeypatch)
+    assert run.status() == JobStatus.RUNNING
+    assert run.status() == JobStatus.RUNNING
+
+
+def test_wait_has_no_default_timeout():
+    import inspect
+
+    assert inspect.signature(_handles.Job.wait).parameters["timeout"].default is None
+    assert _handles.MISSING_JOB_GRACE_SECONDS == 120
+
+
+# F3: temporary bundles
+
+TEMP = "SNOWPARK_JOB_TMP_0123456789AB"
+
+
+def _temp_row(status="DONE", name=TEMP, **extra):
+    row = {
+        "STATUS": status,
+        "CODE_BUNDLE_NAME": name,
+        "DATABASE_NAME": "DB",
+        "SCHEMA_NAME": "SCH",
+        "COMPUTE_TYPE": "COMPUTE_POOL",
+    }
+    row.update(extra)
+    return row
+
+
+def _drops(fake):
+    return [s for s in fake.statements if s.startswith("DROP CODE BUNDLE")]
+
+
+def test_temp_bundle_names_use_the_reserved_prefix(fake, jobs, script):
+    run = jobs.submit(Program.file(script), CodeBundle(compute_pool="POOL"))
+    assert re.fullmatch(r"DB\.SCH\.SNOWPARK_JOB_TMP_[0-9A-F]{12}", run._temp_bundle)
+    assert _handles.TEMP_BUNDLE_RE.match(run._temp_bundle.split(".")[-1])
+    assert run._temp_bundle in jobs._temp_bundles
+    # the execution name does not use the temporary prefix
+    assert not run.execution_name.startswith("SNOWPARK_JOB_TMP_")
+    temp = run._temp_bundle
+    fake.responses[r"CODE_BUNDLE_HISTORY"] = [{"STATUS": "DONE"}]
+    run.status()
+    assert _drops(fake) == [f"DROP CODE BUNDLE IF EXISTS {temp}"]
+    assert not jobs._temp_bundles
+
+
+def test_reattached_pool_run_drops_its_temporary_bundle(fake, jobs):
+    fake.responses[r"CODE_BUNDLE_HISTORY"] = [_temp_row("DONE")]
+    run = jobs.get(f"bundle:{Q1}")
+    assert run.status() == JobStatus.SUCCEEDED
+    assert _drops(fake) == [f'DROP CODE BUNDLE IF EXISTS "DB"."SCH"."{TEMP}"']
+    run.status()
+    assert len(_drops(fake)) == 1  # only once
+
+
+@pytest.mark.parametrize("status", ["PENDING", "RUNNING"])
+def test_reattached_run_that_is_not_finished_keeps_the_bundle(fake, jobs, status):
+    fake.responses[r"CODE_BUNDLE_HISTORY"] = [_temp_row(status)]
+    jobs.get(f"bundle:{Q1}").status()
+    assert _drops(fake) == []
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["MY_DEPLOYMENT", "SNOWPARK_JOB_TMP_user", "SNOWPARK_JOB_TMP_0123456789ABCD", None],
+)
+def test_reattached_run_of_other_bundles_never_drops(fake, jobs, name):
+    fake.responses[r"CODE_BUNDLE_HISTORY"] = [_temp_row("DONE", CODE_BUNDLE_NAME=name)]
+    jobs.get(f"bundle:{Q1}").status()
+    assert _drops(fake) == []
+
+
+def test_listed_pool_runs_drop_their_temporary_bundle(fake, jobs):
+    fake.responses[r"CODE_BUNDLE_HISTORY"] = [
+        _temp_row(
+            "CANCELLED",
+            QUERY_ID=Q1,
+            EXECUTION_NAME="SNOWPARK_JOB_X",
+            START_TIME=datetime.datetime(2025, 1, 1),
+        )
+    ]
+    run = jobs.list(target="code_bundle")[0]
+    run.status()
+    assert len(_drops(fake)) == 1
+
+
+def test_task_run_child_bundle_run_drops_temp_bundle(fake):
+    fake.responses[r"TASK_HISTORY"] = [
+        {"QUERY_ID": Q1, "QUERY_TEXT": "EXECUTE CODE BUNDLE DB.SCH.B ENTRYPOINT = 'a'"}
+    ]
+    fake.responses[r"CODE_BUNDLE_HISTORY"] = [_temp_row("DONE")]
+    TaskRun(fake, "DB.SCH.T", Q1).child().status()
+    assert len(_drops(fake)) == 1
+
+
+def _cleanup_fake(shows, histories):
+    """``histories`` maps a bundle name to the statuses of its runs."""
+    responses = {r"^SHOW CODE BUNDLES": shows}
+    for name, statuses in histories.items():
+        responses[f"BUNDLE_NAME => '{name}'"] = [{"STATUS": st} for st in statuses]
+    return FakeSession(responses)
+
+
+def _bundle_names(count):
+    return [f"SNOWPARK_JOB_TMP_{i:012X}" for i in range(count)]
+
+
+def test_cleanup_drops_only_idle_temporary_bundles():
+    old = datetime.datetime(2020, 1, 1, tzinfo=datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    done, failed, deleted, running, pending, unused_new, unused_old = _bundle_names(7)
+    fake = _cleanup_fake(
+        [
+            {"name": n, "created_on": old}
+            for n in (done, failed, deleted, running, pending, unused_old)
+        ]
+        + [
+            {"name": unused_new, "created_on": now},
+            {"name": "SNOWPARK_JOB_TMP_user", "created_on": old},  # not our shape
+            {"name": "SNOWPARK_JOB_TMP_0123456789ABCD", "created_on": old},
+        ],
+        {
+            done: ["DONE", "DONE"],
+            failed: ["FAILED"],
+            deleted: ["DELETED", "CANCELLED"],
+            running: ["DONE", "RUNNING"],
+            pending: ["PENDING"],
+        },
+    )
+    dropped = JobManager(fake).cleanup()
+    expected = [done, failed, deleted, unused_old]
+    assert dropped == [f'"DB"."SCH"."{n}"' for n in expected]
+    assert [s.split()[-1] for s in _drops(fake)] == dropped
+    assert "SHOW CODE BUNDLES LIKE 'SNOWPARK_JOB_TMP_%' IN SCHEMA DB.SCH" in (
+        fake.statements[0]
+    )
+
+
+@pytest.mark.parametrize(
+    "schema, expected",
+    [("OTHER", "IN SCHEMA DB.OTHER"), ("D2.OTHER", "IN SCHEMA D2.OTHER")],
+)
+def test_cleanup_schema_argument(schema, expected):
+    fake = FakeSession()
+    assert JobManager(fake).cleanup(schema) == []
+    assert expected in fake.statements[0]
+
+
+@pytest.mark.parametrize("schema", ["a b", "x; DROP", "d.s.t", ""])
+def test_cleanup_rejects_bad_schema(fake, jobs, schema):
+    with pytest.raises(ValueError):
+        jobs.cleanup(schema)
+    assert fake.statements == []
+
+
+def test_cleanup_on_close_drops_idle_bundles_and_never_raises():
+    done, running = _bundle_names(2)
+    fake = _cleanup_fake([], {done: ["DONE"], running: ["RUNNING"]})
+    manager = JobManager(fake)
+    manager._temp_bundles = {f'"DB"."SCH"."{done}"', f'"DB"."SCH"."{running}"'}
+    manager._cleanup_on_close()
+    assert [s.split()[-1] for s in _drops(fake)] == [f'"DB"."SCH"."{done}"']
+    assert manager._temp_bundles == {f'"DB"."SCH"."{running}"'}
+
+    def broken(statement, **kwargs):
+        raise RuntimeError("connection closed")
+
+    fake.sql = broken
+    manager._cleanup_on_close()  # must not raise
+
+
+def test_session_close_runs_the_jobs_cleanup():
+    conn = mock.MagicMock()
+    conn.is_closed.return_value = False
+    session = Session(conn)
+    session._jobs = mock.MagicMock()
+    session.close()
+    session._jobs._cleanup_on_close.assert_called_once_with()
+    # a session that never used jobs closes as before
+    session = Session(conn)
+    session.close()
+
+
+# F4: get_deployment rebuilds the configuration
+
+POOL_SPEC = """
+bundle:
+  type: custom
+  language: python
+  compute_type: compute_pool
+  compute_options:
+    compute_pool: MY_POOL
+    query_warehouse: QWH
+    runtime_version: V2.9-CPU-PY3.12
+  properties:
+    requirements_file: requirements.txt
+  env_vars:
+  - A: '1'
+  - B: x
+  secrets:
+  - DB.SCH.SEC
+  external_access_integrations:
+  - EAI
+  artifact_repositories:
+  - REPO
+  stage_mounts:
+    data_0:
+      stage_url: '@stg/data'
+      mount_path: /mnt/data
+"""
+
+
+def _bundle_fake(
+    spec=POOL_SPEC, requirements=b"pandas==2.2.0\n# c\nnumpy\n", launcher=True
+):
+    fake = FakeSession(
+        {
+            r"^SHOW CODE BUNDLES": [{"name": "B"}],
+            r"^DESCRIBE CODE BUNDLE": [
+                {"last_version_source_location_uri": "@STG/snowpark_jobs/abc/"}
+            ],
+        }
+    )
+    if spec is not None:
+        fake.file.streams["@STG/snowpark_jobs/abc/code_bundle.yml"] = spec.encode()
+    if requirements is not None:
+        fake.file.streams["@STG/snowpark_jobs/abc/requirements.txt"] = requirements
+    if launcher:
+        fake.responses[r"^LIST '@STG/snowpark_jobs/abc/"] = [{"name": LAUNCHER}]
+    return fake
+
+
+def test_get_deployment_rebuilds_target_and_environment():
+    dep = JobManager(_bundle_fake()).get_deployment("B")
+    assert isinstance(dep, CodeBundleDeployment)
+    target = dep._target_config
+    assert (target.compute_pool, target.warehouse, target.runtime_version) == (
+        "MY_POOL",
+        "QWH",
+        "V2.9-CPU-PY3.12",
+    )
+    assert dep._compute_type == "compute_pool"
+    env = dep._env
+    assert env.env_vars == {"A": "1", "B": "x"}
+    assert env.secrets == {"SEC": "DB.SCH.SEC"}
+    assert env.external_access_integrations == ["EAI"]
+    assert env.artifact_repositories == ["REPO"]
+    assert env.stage_mounts == {"/mnt/data": "@stg/data"}
+    assert env.packages == ["pandas==2.2.0", "numpy"]
+    assert dep._spec["bundle"]["compute_type"] == "compute_pool"
+
+
+def test_add_version_after_get_deployment_keeps_the_configuration(pkg_dir):
+    fake = _bundle_fake()
+    dep = JobManager(fake).get_deployment("B")
+    dep.add_version(Program.directory(pkg_dir))
+    uploads = {name: data for name, _, data in fake.file.puts}
+    manifest = yaml.safe_load(uploads["code_bundle.yml"])["bundle"]
+    assert manifest["compute_type"] == "compute_pool"
+    assert manifest["compute_options"] == {
+        "compute_pool": "MY_POOL",
+        "query_warehouse": "QWH",
+        "runtime_version": "V2.9-CPU-PY3.12",
+    }
+    assert manifest["env_vars"] == [{"A": "1"}, {"B": "x"}]
+    assert manifest["secrets"] == ["DB.SCH.SEC"]
+    assert manifest["stage_mounts"]["mnt_data_0"]["mount_path"] == "/mnt/data"
+    assert uploads["requirements.txt"] == b"pandas==2.2.0\nnumpy\n"
+    assert any(s.startswith("ALTER CODE BUNDLE") for s in fake.statements)
+
+
+def test_warehouse_bundle_is_rebuilt_without_pool():
+    spec = (
+        "bundle:\n  type: custom\n  language: python\n  compute_type: warehouse\n"
+        "  compute_options:\n    runtime_version: '3.11'\n"
+    )
+    dep = JobManager(_bundle_fake(spec, requirements=None)).get_deployment("B")
+    target = dep._target_config
+    assert (target.compute_pool, target.warehouse, target.runtime_version) == (
+        None,
+        None,
+        "3.11",
+    )
+    assert dep._compute_type == "warehouse"
+    assert dep._env.set_fields() == []
+
+
+def test_unreadable_manifest_blocks_add_version_and_overrides_only(pkg_dir):
+    fake = _bundle_fake(spec=None)
+    dep = JobManager(fake).get_deployment("B")
+    with pytest.raises(ValueError, match="configuration is not known.*code_bundle.yml"):
+        dep.add_version(Program.directory(pkg_dir))
+    with pytest.raises(ValueError, match="specification.*could not be loaded"):
+        dep.run(entrypoint="a.py", overrides={"env_vars": []})
+    assert fake.file.puts == []
+    assert not any(s.startswith("ALTER CODE BUNDLE") for s in fake.statements)
+    # plain runs still work
+    dep.run(entrypoint="a.py")
+    assert last_statement(fake).startswith("EXECUTE CODE BUNDLE")
+
+
+def test_invalid_manifest_is_a_problem_not_a_default(pkg_dir):
+    for text in ("- a list\n", ":::not yaml"):
+        fake = _bundle_fake(spec=text)
+        dep = JobManager(fake).get_deployment("B")
+        with pytest.raises(ValueError, match="configuration is not known"):
+            dep.add_version(Program.directory(pkg_dir))
+
+
+def test_unreadable_requirements_block_add_version_but_not_overrides(pkg_dir):
+    fake = _bundle_fake(requirements=None)
+    dep = JobManager(fake).get_deployment("B")
+    with pytest.raises(ValueError, match="packages in requirements.txt"):
+        dep.add_version(Program.directory(pkg_dir))
+    dep.run(entrypoint="a.py", overrides={"env_vars": [{"Z": "1"}]})
+    assert "WITH SPECIFICATION" in last_statement(fake)
+
+
+def test_loaded_deployment_without_default_entrypoint_gives_a_clear_error():
+    fake = _bundle_fake()
+    jobs_ = JobManager(fake)
+    with pytest.raises(ValueError, match="not recorded in the bundle"):
+        jobs_.get_deployment("B").run()
+    with pytest.raises(ValueError, match="not recorded in the bundle"):
+        jobs_.submit(Program.ref("B"))
+    jobs_.submit(Program.ref("B"), entrypoint="a.py")
+    assert "ENTRYPOINT = 'a.py'" in last_statement(fake)
+
+
+# F6: schedule(replace=...)
+
+
+def _sched_dep(fake):
+    return ProcedureDeployment(fake, "DB.SCH.P")
+
+
+def test_schedule_creates_without_replace_by_default(fake):
+    _sched_dep(fake).schedule("0 * * * * UTC")
+    create = [s for s in fake.statements if "TASK" in s and s.startswith("CREATE")][0]
+    assert create.startswith("CREATE TASK DB.SCH.P_SCHEDULE")
+    assert "OR REPLACE" not in create
+
+
+def test_schedule_replace_true(fake):
+    _sched_dep(fake).schedule("0 * * * * UTC", replace=True)
+    assert fake.statements[0].startswith("CREATE OR REPLACE TASK DB.SCH.P_SCHEDULE")
+
+
+def test_schedule_existing_task_hints_at_replace(fake):
+    original = fake.sql
+
+    def exists(statement, **kwargs):
+        if statement.startswith("CREATE TASK"):
+            raise ProgrammingError(
+                msg="Object 'P_SCHEDULE' already exists.", errno=2002
+            )
+        return original(statement, **kwargs)
+
+    fake.sql = exists
+    with pytest.raises(ValueError, match="replace=True") as info:
+        _sched_dep(fake).schedule("0 * * * * UTC")
+    assert "already exists" in str(info.value)
+    assert isinstance(info.value.__cause__, ProgrammingError)
+
+    def other_error(statement, **kwargs):
+        raise ProgrammingError(msg="insufficient privileges", errno=3001)
+
+    fake.sql = other_error
+    with pytest.raises(ProgrammingError, match="insufficient"):
+        _sched_dep(fake).schedule("0 * * * * UTC")
+
+
+def test_schedule_resume_failure_says_the_task_exists_suspended(fake):
+    original = fake.sql
+
+    def no_resume(statement, **kwargs):
+        if statement.startswith("ALTER TASK") and "RESUME" in statement:
+            raise ProgrammingError(msg="Cannot resume", errno=3042)
+        return original(statement, **kwargs)
+
+    fake.sql = no_resume
+    with pytest.raises(RuntimeError, match="created but is suspended") as info:
+        _sched_dep(fake).schedule("0 * * * * UTC")
+    assert "DB.SCH.P_SCHEDULE" in str(info.value)
+    assert isinstance(info.value.__cause__, ProgrammingError)
+
+
+# minor fixes
+
+
+def test_stored_procedure_submit_rejects_stage(fake, jobs):
+    with pytest.raises(ValueError, match="stage is only used by deploy"):
+        jobs.submit(lambda session: 1, stage="@STG")
+    assert fake.statements == []
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_render_args_rejects_non_finite_floats(value):
+    with pytest.raises(ValueError, match="cannot be"):
+        _sproc.render_args([value])
+    assert _sproc.render_args([1.5, 2, True, None]) == (
+        "ARRAY_CONSTRUCT(1.5, 2, TRUE, NULL)"
+    )
+
+
+def _procedures(*signatures):
+    return [
+        {"name": "P", "is_builtin": "N", "arguments": f"P({sig}) RETURN VARIANT"}
+        for sig in signatures
+    ]
+
+
+def test_get_deployment_skips_non_array_overloads(fake, jobs):
+    fake.responses[r"^SHOW PROCEDURES"] = _procedures(
+        "VARCHAR", "ARRAY", "NUMBER, NUMBER"
+    )
+    assert isinstance(jobs.get_deployment("P"), ProcedureDeployment)
+
+
+def test_get_deployment_without_array_overload_fails(fake, jobs):
+    fake.responses[r"^SHOW PROCEDURES"] = _procedures("VARCHAR", "NUMBER")
+    with pytest.raises(ValueError, match=r"no \(ARRAY\) overload.*VARCHAR"):
+        jobs.get_deployment("P")
+
+
+def test_function_registration_holds_the_pickle_lock(fake):
+    seen = []
+
+    class Registry:
+        def register(self, *args, **kwargs):
+            seen.append(_sproc._PICKLE_LOCK.locked())
+            return mock.MagicMock()
+
+    fake.sproc = Registry()
+    prepared = _sproc.prepare_program(
+        Program.function(lambda session: 1), None, Environment()
+    )
+    _sproc._register(fake, prepared, Environment())
+    assert seen == [True]
+    assert not _sproc._PICKLE_LOCK.locked()
+
+
+def test_list_sorts_by_real_timestamps(fake, jobs):
+    utc = datetime.timezone.utc
+    pst = datetime.timezone(datetime.timedelta(hours=-8))
+    fake.responses[r"CODE_BUNDLE_HISTORY"] = [
+        {
+            "QUERY_ID": "B1",
+            "START_TIME": datetime.datetime(2025, 1, 9, 17, 0, tzinfo=pst),
+            "STATUS": "DONE",
+            "EXECUTION_NAME": "SNOWPARK_JOB_X",
+        }
+    ]
+    fake.responses[r"QUERY_HISTORY_BY_USER"] = [
+        # naive timestamps are UTC: 00:30 is older than the bundle run (01:00 UTC)
+        [Q1, datetime.datetime(2025, 1, 10, 0, 30), "SUCCESS"],
+        [Q2, datetime.datetime(2025, 1, 10, 2, 0, tzinfo=utc), "SUCCESS"],
+    ]
+    listed = [j.id for j in jobs.list()]
+    assert listed == [f"query:{Q2}", "bundle:B1", f"query:{Q1}"]
+
+
+def test_list_needs_a_current_database_for_procedure_jobs(fake, jobs):
+    fake.get_current_database = lambda: None
+    with pytest.raises(ValueError, match="current database"):
+        jobs.list()
+    with pytest.raises(ValueError, match="current database"):
+        jobs.list(target="stored_procedure")
+    jobs.list(target="code_bundle")  # does not read the query history
+
+
+def _event_fake():
+    return FakeSession({r"SHOW PARAMETERS": [{"value": "DB.EV.EVENTS"}]})
+
+
+def test_logs_scan_is_bounded_by_the_job_start_time():
+    fake = _event_fake()
+    start = datetime.datetime(2025, 3, 4, 10, 0, tzinfo=datetime.timezone.utc)
+    QueryJob(fake, FakeAsyncJob(Q1), started_at=start).logs()
+    sql = fake.statements[-1]
+    assert "TIMESTAMP >= '2025-03-04 09:55:00'::TIMESTAMP_NTZ" in sql
+    # a local time zone is converted to UTC
+    pst = datetime.timezone(datetime.timedelta(hours=-8))
+    local = datetime.datetime(2025, 3, 4, 2, 0, tzinfo=pst)
+    QueryJob(fake, FakeAsyncJob(Q1), started_at=local).logs()
+    assert "'2025-03-04 09:55:00'" in fake.statements[-1]
+
+
+def test_logs_without_start_time_scans_the_last_seven_days():
+    fake = _event_fake()
+    fake.responses[r"QUERY_HISTORY_BY_USER"] = []
+    QueryJob(fake, FakeAsyncJob(Q1)).logs()
+    assert "TIMESTAMP >= DATEADD(day, -7, SYSDATE())" in fake.statements[-1]
+
+
+def test_logs_look_the_start_time_up_for_reattached_jobs():
+    start = datetime.datetime(2025, 3, 4, 10, 0)
+    fake = FakeSession(
+        {
+            r"SHOW PARAMETERS": [{"value": "DB.EV.EVENTS"}],
+            r"SELECT START_TIME FROM": [[start]],
+        }
+    )
+    QueryJob(fake, FakeAsyncJob(Q1)).logs()
+    assert "'2025-03-04 09:55:00'" in fake.statements[-1]
+
+
+def test_bundle_and_task_logs_use_their_start_times():
+    start = datetime.datetime(2025, 3, 4, 10, 0)
+    fake = FakeSession(
+        {
+            r"SHOW PARAMETERS": [{"value": "DB.EV.EVENTS"}],
+            r"CODE_BUNDLE_HISTORY": [
+                {"STATUS": "DONE", "COMPUTE_TYPE": "WAREHOUSE", "START_TIME": start}
+            ],
+            r"TASK_HISTORY": [
+                {
+                    "QUERY_ID": Q1,
+                    "STATE": "SUCCEEDED",
+                    "SCHEDULED_TIME": start,
+                    "QUERY_TEXT": "CALL DB.SCH.P(ARRAY_CONSTRUCT())",
+                }
+            ],
+        }
+    )
+    BundleRun(fake, Q1).logs()
+    assert "'2025-03-04 09:55:00'" in fake.statements[-1]
+    fake.statements.clear()
+    TaskRun(fake, "DB.SCH.T", Q1).logs()
+    assert "'2025-03-04 09:55:00'" in fake.statements[-1]
+
+
+def test_internal_sql_never_emits_ast(fake, jobs, script, pkg_dir):
+    fake.responses[r"SHOW PARAMETERS"] = [{"value": "DB.EV.EVENTS"}]
+    fake.responses[r"CODE_BUNDLE_HISTORY"] = [
+        {
+            "STATUS": "DONE",
+            "QUERY_ID": Q1,
+            "EXECUTION_NAME": "SNOWPARK_JOB_X",
+            "START_TIME": datetime.datetime(2025, 1, 1),
+        }
+    ]
+    dep = jobs.deploy(Program.directory(pkg_dir), CodeBundle(), name="B")
+    dep.run(entrypoint="top.py")
+    dep.schedule("0 * * * * UTC", entrypoint="top.py").runs()
+    jobs.submit(Program.file(script), CodeBundle(compute_pool="POOL")).status()
+    jobs.list()
+    jobs.cleanup()
+    BundleRun(fake, Q1).logs()
+    dep.drop()
+    assert fake.statements
+    assert all(kwargs.get("_emit_ast") is False for kwargs in fake.sql_kwargs)
+
+
+# F5: the deployment metadata comes from the bundle itself
+
+VERSION_URI = "snow://code bundle/DB.SCH.B/versions/version$2/"
+
+
+def _f5_fake(*, version=True, comment=None, source=True, spec=POOL_SPEC):
+    """Which of the three metadata sources are available."""
+    describe = {"comment": comment}
+    if version:
+        describe["default_version_location_uri"] = VERSION_URI
+        describe["last_version_location_uri"] = VERSION_URI
+    if source:
+        describe["last_version_source_location_uri"] = "@GONE/snowpark_jobs/abc/"
+    fake = FakeSession(
+        {r"^SHOW CODE BUNDLES": [{"name": "B"}], r"^DESCRIBE CODE BUNDLE": [describe]}
+    )
+    if version:
+        fake.file.streams[VERSION_URI + "code_bundle.yml"] = spec.encode()
+        fake.file.streams[VERSION_URI + "requirements.txt"] = b"pandas==2.2.0\n"
+        fake.responses[r"^LIST 'snow://code bundle/DB.SCH.B/versions/version\$2/"] = [
+            {"name": LAUNCHER}
+        ]
+    if source:
+        fake.file.streams["@GONE/snowpark_jobs/abc/code_bundle.yml"] = b"bundle: {}\n"
+    return fake
+
+
+def test_metadata_is_read_from_the_stored_version_first():
+    fake = _f5_fake(version=True, source=True)  # the source stage holds other data
+    dep = JobManager(fake).get_deployment("B")
+    assert dep._target_config.compute_pool == "MY_POOL"
+    assert dep._has_launcher is True
+    assert dep._env.packages == ["pandas==2.2.0"]
+    assert "ARGUMENTS = ('x.py:f')" in dep.to_sql(entrypoint="x.py:f")
+    # the source stage was not needed
+    assert not any("GONE" in st for st in fake.statements if st.startswith("LIST"))
+
+
+def test_metadata_falls_back_to_the_bundle_comment():
+    meta = {
+        "spec": yaml.safe_load(POOL_SPEC),
+        "has_launcher": True,
+        "packages": ["numpy"],
+    }
+    comment = "snowpark.jobs:" + json.dumps(meta)
+    fake = _f5_fake(version=False, comment=comment, source=False)
+    dep = JobManager(fake).get_deployment("B")
+    assert dep._target_config.compute_pool == "MY_POOL"
+    assert dep._compute_type == "compute_pool"
+    assert dep._has_launcher is True
+    assert dep._env.packages == ["numpy"]  # not read from a requirements file
+    assert dep._env_problem is None and dep._spec_problem is None
+    dep.run(entrypoint="x.py:f", overrides={"env_vars": [{"Z": "1"}]})
+    assert "WITH SPECIFICATION" in last_statement(fake)
+
+
+def test_unreadable_version_falls_back_to_comment_before_source_stage():
+    meta = {"spec": yaml.safe_load(POOL_SPEC), "has_launcher": False, "packages": []}
+    fake = _f5_fake(version=True, comment="snowpark.jobs:" + json.dumps(meta))
+    del fake.file.streams[VERSION_URI + "code_bundle.yml"]
+    dep = JobManager(fake).get_deployment("B")
+    assert dep._target_config.compute_pool == "MY_POOL"
+    assert dep._has_launcher is False  # as recorded in the comment
+
+
+def test_metadata_last_resort_is_the_source_stage():
+    fake = _f5_fake(version=False, comment="a plain user comment", source=True)
+    dep = JobManager(fake).get_deployment("B")
+    assert dep._spec == {"bundle": {}}  # read from the source stage
+    assert dep._spec_problem is None
+
+
+def test_no_metadata_source_available_is_a_clear_problem(pkg_dir):
+    fake = _f5_fake(version=False, comment=None, source=False)
+    dep = JobManager(fake).get_deployment("B")
+    with pytest.raises(ValueError, match="manifest could not be read"):
+        dep.add_version(Program.directory(pkg_dir))
+    with pytest.raises(ValueError, match="specification.*could not be loaded"):
+        dep.run(entrypoint="a.py", overrides={"x": 1})
+    with pytest.raises(ValueError, match="does not contain the session.jobs launcher"):
+        dep.run(entrypoint="a.py:f")
+    dep.run(entrypoint="a.py")  # plain runs need no metadata
+
+
+def test_invalid_comment_is_ignored():
+    for comment in ("snowpark.jobs:{not json", 'snowpark.jobs:{"spec": 1}', "other"):
+        fake = _f5_fake(version=False, comment=comment, source=False)
+        dep = JobManager(fake).get_deployment("B")
+        assert dep._spec is None and dep._spec_problem
+
+
+def test_deploy_records_the_metadata_in_the_bundle_comment(fake, jobs, pkg_dir):
+    jobs.deploy(
+        Program.directory(pkg_dir, "top.py"),
+        CodeBundle(compute_pool="P", warehouse="QWH"),
+        name="B",
+        env=Environment(packages=["pandas"], env_vars={"A": "it's"}),
+    )
+    create = last_statement(fake)
+    assert " COMMENT = 'snowpark.jobs:" in create
+    literal = create.split(" COMMENT = ", 1)[1]
+    text = literal[1:-1].replace("''", "'").replace("\\\\", "\\")
+    meta = parse_metadata_comment(text)
+    assert meta["spec"]["bundle"]["compute_options"]["compute_pool"] == "P"
+    assert meta["spec"]["bundle"]["env_vars"] == [{"A": "it's"}]
+    assert meta["has_launcher"] is True and meta["packages"] == ["pandas"]
+
+
+def test_staged_programs_leave_the_comment_to_their_own_manifest(fake, jobs):
+    jobs.deploy(Program.stage("@STG/b", "m.py"), CodeBundle(), name="B")
+    assert "COMMENT" not in last_statement(fake)
+
+
+def test_comment_that_does_not_fit_is_skipped_with_a_warning(caplog):
+    spec = {"bundle": {"env_vars": [{"A": "x" * (MAX_COMMENT_CHARS + 10)}]}}
+    with caplog.at_level(
+        logging.WARNING, logger="snowflake.snowpark.jobs._bundle_spec"
+    ):
+        assert metadata_comment(spec, True, []) is None
+    assert "does not fit" in caplog.text
+    small = metadata_comment({"bundle": {}}, False, ["a"])
+    assert len(small) < MAX_COMMENT_CHARS and parse_metadata_comment(small) == {
+        "spec": {"bundle": {}},
+        "has_launcher": False,
+        "packages": ["a"],
+    }
+
+
+def test_add_version_updates_the_comment(pkg_dir):
+    fake = _f5_fake()
+    dep = JobManager(fake).get_deployment("B")
+    dep.add_version(Program.directory(pkg_dir))
+    comment = last_statement(fake)
+    assert comment.startswith(
+        "ALTER CODE BUNDLE DB.SCH.B SET COMMENT = 'snowpark.jobs:"
+    )
+    assert '"compute_pool":"MY_POOL"' in comment and '"has_launcher":true' in comment
+    # a staged version brings its own manifest: the comment is cleared
+    dep._env.packages = None  # packages cannot be added to a staged program
+    dep.add_version(Program.stage("@STG/v3"))
+    assert last_statement(fake) == "ALTER CODE BUNDLE DB.SCH.B SET COMMENT = ''"
+    # a failing comment update does not undo the version
+    original = fake.sql
+
+    def failing(statement, **kwargs):
+        if "SET COMMENT" in statement:
+            raise RuntimeError("no privilege")
+        return original(statement, **kwargs)
+
+    fake.sql = failing
+    dep.add_version(Program.directory(pkg_dir))
