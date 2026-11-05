@@ -10,8 +10,7 @@
 
 #### Improvements
 
-- (Experimental) The dataframe trace and SQL error tracing of `snowflake.snowpark.context.configure_development_features` no longer use or enable the AST collection and no longer disable the automatic clean-up of temporary tables. They record the source position of each DataFrame operation in a lightweight trace instead, which also includes the DataFrames used in column expressions (for example `Column.isin` with a DataFrame) and the registration of the UDFs, UDTFs and UDAFs used by an operation.
-- `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them.
+- (Experimental) The dataframe trace and SQL error tracing of `snowflake.snowpark.context.configure_development_features` no longer depend on AST collection and no longer change the AST collection or temporary table clean-up settings of the session.
 
 #### Bug Fixes
 
@@ -30,6 +29,7 @@
 
 #### Improvements
 
+- `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them. Turning the tracing features off now also turns off the AST collection if the features enabled it.
 - Eager schema validation (`context.configure_development_features(enable_eager_schema_validation=True)`) now raises invalid column references in `DataFrame.filter` and `DataFrame.sort` when the DataFrame is created.
 
 #### Bug Fixes
