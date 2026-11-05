@@ -37,7 +37,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSessionException
-from snowflake.snowpark.mock._options import pandas
+from snowflake.snowpark.mock._options import pandas, pandas_major_version
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
@@ -656,6 +656,18 @@ class MockServerConnection:
                     res.sf_types[col].datatype, (ArrayType, MapType, VariantType)
                 ):
                     from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
+
+                    # The JSON strings below do not fit a float or bool column, and pandas
+                    # 3 refuses to upcast on assignment. Make the column object first,
+                    # keeping its NULL bookkeeping. pandas 2 upcasts by itself; its path
+                    # is left unchanged.
+                    if pandas_major_version >= 3 and res[col].dtype != object:
+                        null_rows_idxs = res._null_rows_idxs_map.get(col)
+                        sf_type = res.sf_types[col]
+                        res[col] = res[col].astype(object)
+                        res.sf_types[col] = sf_type
+                        if null_rows_idxs is not None:
+                            res._null_rows_idxs_map[col] = null_rows_idxs
 
                     for idx, row in res.iterrows():
                         if row[col] is not None:
