@@ -7,8 +7,8 @@ Python source mapping, missing and existing object context) for the error a work
 
 import os
 import re
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any, Optional
 
 import snowflake.snowpark.context as context
 from snowflake.snowpark._internal import debug_utils
@@ -35,25 +35,12 @@ def normalize_output(text: str, ctx=None) -> str:
     return _TEMP_NAME.sub("<TEMP>", text)
 
 
-# The path of the test files is part of the output; keep a stable way to hide the machine specific part.
-_LOCATION = re.compile(r"\|\d+(:\d+-\d+:\d+)?")
-
-
 @dataclass
 class DebugOutput:
     lineage: str = ""
-    lineage_lines: List[str] = field(default_factory=list)
     mapped: str = ""
     missing_object: str = ""
     existing_object: str = ""
-
-    def as_dict(self) -> Dict[str, Any]:
-        return {
-            "lineage": self.lineage,
-            "mapped": self.mapped,
-            "missing_object": self.missing_object,
-            "existing_object": self.existing_object,
-        }
 
 
 @dataclass
@@ -126,16 +113,13 @@ def observe(workload_fn, session, ctx, action) -> Observed:
 
 
 class DebugFeatures:
-    """Context manager enabling the tracing features with a long trace. The AST collection is off
-    unless ``ast`` is True; the features must not depend on it."""
+    """Context manager enabling the tracing features with a long trace. The AST collection is
+    turned off: the features must not depend on it."""
 
-    def __init__(self, ast: bool = False, trace_length: Optional[int] = 1000) -> None:
-        self.ast = ast
+    def __init__(self, trace_length: Optional[int] = 1000) -> None:
         self.trace_length = trace_length
 
     def __enter__(self):
-        import os
-
         self._old_env = os.environ.get(TRACE_LENGTH_ENV)
         if self.trace_length is not None:
             os.environ[TRACE_LENGTH_ENV] = str(self.trace_length)
@@ -146,12 +130,10 @@ class DebugFeatures:
         from snowflake.snowpark._internal.utils import is_ast_enabled
 
         self._old_ast = is_ast_enabled()
-        set_ast_state(AstFlagSource.TEST, self.ast)
+        set_ast_state(AstFlagSource.TEST, False)
         return self
 
     def __exit__(self, *exc):
-        import os
-
         context.configure_development_features()
         set_ast_state(AstFlagSource.TEST, self._old_ast)
         if self._old_env is None:

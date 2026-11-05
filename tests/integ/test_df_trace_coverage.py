@@ -142,7 +142,7 @@ def test_corpus_covers_public_api(session, ctx):
         if event == "call" and frame.f_code in universe:
             called.add(frame.f_code)
 
-    with DebugFeatures(ast=False):
+    with DebugFeatures():
         sys.setprofile(profiler)
         try:
             for workload in WORKLOADS:
