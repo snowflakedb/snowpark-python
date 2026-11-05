@@ -20,9 +20,9 @@ the steps of ``DocumentExtraction`` just above it, in order:
    finished rows are returned.
 4. back in ``run``: merge each file's parts, in page order, into one row.
 
-Calls go to the first of the candidate models. A call AI_COMPLETE reports as
-unknown-model is not a document failure: ``model_missing`` moves the read to the next
-model, the call is sent again, and the read stops only when no model is left.
+Calls go to the first of the candidate models. A call AI_COMPLETE reports as an
+unknown or unavailable model is not a document failure: ``model_missing`` moves the read
+to the next model, the call is sent again, and the read stops only when no model is left.
 
 Everything above ``read_answer`` is a pure helper for one of these steps.
 
@@ -222,9 +222,10 @@ _sleep = time.sleep  # replaced in tests
 def is_throttle_error(error: str) -> bool:
     """True when ``error`` says the service refused the call because of load (rate limit,
     429/503, overloaded, no capacity) rather than because of the document. An unknown
-    model and a "malformed request" (an input that is too large) are never throttling."""
+    or unavailable model and a "malformed request" (an input that is too large) are
+    never throttling."""
     text = error.lower()
-    if "unknown model" in text or "malformed request" in text:
+    if is_unknown_model_error(text) or "malformed request" in text:
         return False
     return any(pattern.search(text) for pattern in _THROTTLE_PATTERNS)
 
@@ -1123,11 +1124,19 @@ def ranges_from_salvaged_status(
     return ranges
 
 
+# How AI_COMPLETE reports a model the account or region cannot use: ``400 unknown model
+# "<name>"``, or ``Model \"<name>\" is unavailable`` (the name's quotes escaped, from
+# the FILE variant). The second needs the model's name before "is unavailable", so a
+# "service is unavailable" (throttling) never matches.
+_UNKNOWN_MODEL_PATTERN = re.compile(r"unknown model|\bmodel\s+\S+\s+is unavailable")
+
+
 def is_unknown_model_error(message: str) -> bool:
-    """True when AI_COMPLETE failed because the model does not exist or is not enabled
-    for the account or region (``400 unknown model "<name>"``). Only this message ends
-    a read: other failures, such as throttling, can pass and are reported per file."""
-    return "unknown model" in message.lower()
+    """True when AI_COMPLETE failed because the model does not exist, is not enabled for
+    the account or region, or is unavailable there (see ``_UNKNOWN_MODEL_PATTERN``).
+    Only this message moves the read to the next model: other failures, such as
+    throttling, can pass and are reported per file."""
+    return _UNKNOWN_MODEL_PATTERN.search(message.lower()) is not None
 
 
 class NoModelAvailable(RuntimeError):
