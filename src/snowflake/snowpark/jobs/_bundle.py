@@ -16,7 +16,7 @@ from snowflake.snowpark.jobs._bundle_spec import (
 )
 from snowflake.snowpark.jobs._environment import Environment
 from snowflake.snowpark.jobs._handles import BundleRun
-from snowflake.snowpark.jobs._packaging import package_and_upload
+from snowflake.snowpark.jobs._packaging import LAUNCHER_FILE, package_and_upload
 from snowflake.snowpark.jobs._program import Program
 from snowflake.snowpark.jobs._utils import (
     BUNDLE_EXECUTION_PREFIX,
@@ -42,6 +42,19 @@ class PreparedBundle:
     # WITH SPECIFICATION clause
     uploaded: bool
     compute_type: str
+    # whether the launcher for function entry points is part of the bundle
+    has_launcher: bool = False
+
+
+def is_function_entry(entrypoint: Optional[str]) -> bool:
+    return bool(entrypoint) and ":" in entrypoint
+
+
+def launcher_call(entrypoint: str, args: List[str]):
+    """The ``(ENTRYPOINT, ARGUMENTS)`` that run a ``file.py:func`` entry point."""
+    if is_function_entry(entrypoint):
+        return LAUNCHER_FILE, [entrypoint, *args]
+    return entrypoint, args
 
 
 def check_args(args: Optional[Sequence[Any]]) -> List[str]:
@@ -67,9 +80,10 @@ def prepare(
     env.check_supported("CodeBundle", CODE_BUNDLE_ENV_FIELDS)
     if program.kind == "function":
         raise ValueError(
-            "Function programs are not supported by the CodeBundle target in v1; "
-            "use Program.file() or Program.directory() with a script entrypoint, "
-            "or the StoredProcedure target."
+            "Callables and Program.function() are not supported by the CodeBundle "
+            "target: use Program.file(path, entrypoint_func=...) or "
+            "Program.directory(path, 'file.py:func') with a function entry point, or "
+            "the StoredProcedure target."
         )
     if program.kind == "ref":
         raise ValueError("Program.ref() cannot be packaged")
@@ -99,10 +113,17 @@ def prepare(
 
     file, func = program.split_entrypoint(entrypoint)
     if func:
-        raise ValueError(
-            "Function entrypoints (file.py:func) are not supported by the CodeBundle "
-            "target; use a script entrypoint."
-        )
+        if program.kind in ("stage", "workspace"):
+            raise ValueError(
+                "Function entry points (file.py:func) need the launcher that "
+                "session.jobs adds to the code it uploads, so they are not supported "
+                f"for Program.{program.kind}(); use a script entrypoint or a local "
+                "Program.file()/Program.directory()."
+            )
+        if not file.lower().endswith(".py"):
+            raise ValueError(
+                f"Function entry points are only supported for .py files, got {file!r}"
+            )
     if program.kind in ("stage", "workspace"):
         if requirements:
             raise ValueError(
@@ -121,7 +142,8 @@ def prepare(
     packaged = package_and_upload(
         session, program, dump_spec(spec), requirements, stage, file
     )
-    return PreparedBundle(packaged.stage_path, file, spec, True, compute_type)
+    entry = f"{file}:{func}" if func else file
+    return PreparedBundle(packaged.stage_path, entry, spec, True, compute_type, True)
 
 
 def _check_entry(file: Optional[str], on_pool: bool) -> None:
@@ -139,8 +161,9 @@ def _entry_clauses(
 ) -> str:
     if not entrypoint:
         raise ValueError("An entrypoint is required")
+    # a function entry point runs through the launcher, which gets it as first argument
+    entrypoint, checked = launcher_call(entrypoint, check_args(args))
     sql = f" ENTRYPOINT = {sql_str(entrypoint)}"
-    checked = check_args(args)
     if checked:
         sql += f" ARGUMENTS = ({', '.join(sql_str(a) for a in checked)})"
     if execution_name:
@@ -172,7 +195,10 @@ def execute_sql(
 
 
 def default_execution_name(entrypoint: Optional[str]) -> str:
-    short = os.path.splitext(os.path.basename(entrypoint or "run"))[0]
+    entry, _, func = (entrypoint or "run").partition(":")
+    short = os.path.splitext(os.path.basename(entry))[0]
+    if func:
+        short = f"{short}_{func}"
     return f"{BUNDLE_EXECUTION_PREFIX}{identifier_safe(short, 30)}_{random_suffix()}"
 
 
@@ -255,4 +281,5 @@ def deploy(
         compute_type=prepared.compute_type,
         env=env,
         stage=stage,
+        has_launcher=prepared.has_launcher,
     )

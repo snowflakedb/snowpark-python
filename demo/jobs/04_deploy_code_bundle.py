@@ -29,6 +29,11 @@ def main():
 
         say("sql:", dep.to_sql(entrypoint="hello.py", args=["x"]))
 
+        # A function entry point (file.py:func) is called as func(session, *args).
+        task = dep.run(entrypoint="tasks.py:run", args=["a", "b"])
+        say("tasks.py:run:", task.wait())
+        show_logs(task)
+
         # Runs always use the latest version, so the new entry point works right away.
         dep.add_version(Program.directory(SRC))
         say("summary (v2):", dep.run(entrypoint="summary.py", args=["a", "b"]).wait())

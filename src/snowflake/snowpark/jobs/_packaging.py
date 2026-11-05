@@ -6,6 +6,7 @@ import hashlib
 import os
 import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from snowflake.snowpark.jobs._bundle_spec import MANIFEST_FILE, REQUIREMENTS_FILE
@@ -13,6 +14,12 @@ from snowflake.snowpark.jobs._program import Program
 from snowflake.snowpark.jobs._utils import sql_str
 
 PACKAGE_PREFIX = "snowpark_jobs"
+LAUNCHER_FILE = "__snowpark_jobs_launcher__.py"
+
+
+def launcher_source() -> str:
+    """The text of the generic launcher that is uploaded with every local program."""
+    return (Path(__file__).parent / "_launcher.py").read_text(encoding="utf-8")
 
 
 @dataclass
@@ -38,7 +45,10 @@ def content_hash(
     files: Dict[str, str], manifest: str, requirements: Optional[str]
 ) -> str:
     h = hashlib.sha256()
-    generated = {MANIFEST_FILE: manifest.encode()}
+    generated = {
+        MANIFEST_FILE: manifest.encode(),
+        LAUNCHER_FILE: launcher_source().encode(),
+    }
     if requirements:
         generated[REQUIREMENTS_FILE] = requirements.encode()
     entries = {rel: None for rel in files if rel not in generated}
@@ -61,10 +71,13 @@ def package_and_upload(
     stage: Optional[str],
     entrypoint: Optional[str],
 ) -> PackagedBundle:
-    """Uploads the program (plus the generated manifest) to a content-addressed stage path."""
+    """Uploads the program, the generated manifest and the launcher to a content-addressed
+    stage path."""
     files = collect_files(program)
     if requirements:
         files.pop(REQUIREMENTS_FILE, None)
+    # generated files win over the user's own
+    files.pop(LAUNCHER_FILE, None)
     if entrypoint and entrypoint not in files:
         raise ValueError(
             f"Entrypoint {entrypoint!r} is not part of the program files "
@@ -83,6 +96,10 @@ def package_and_upload(
                 with open(req_path, "w", encoding="utf-8") as f:
                     f.write(requirements)
                 generated.append(req_path)
+            launcher_path = os.path.join(tmp, LAUNCHER_FILE)
+            with open(launcher_path, "w", encoding="utf-8") as f:
+                f.write(launcher_source())
+            generated.append(launcher_path)
             by_dir: Dict[str, List[str]] = {}
             for rel, full in files.items():
                 by_dir.setdefault(os.path.dirname(rel), []).append(full)

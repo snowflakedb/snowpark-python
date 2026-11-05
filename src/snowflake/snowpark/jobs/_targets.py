@@ -85,6 +85,14 @@ class CodeBundle(Target):
             had no current warehouse, ``warehouse`` stays set on the session afterwards.
         runtime_version: Python version (``"3.12"``) on a warehouse, or runtime name
             (``"V2.9-CPU-PY3.12"``) on a compute pool.
+
+    A code bundle runs scripts. Besides a script entry point (``"jobs/daily.py"``),
+    local file and directory programs support function entry points
+    (``"jobs/daily.py:run"``): a generated launcher calls ``run(session, *args)`` with
+    the session from ``get_active_session()``. Arguments are strings and the return
+    value is ignored, because code bundles cannot return values. Callables,
+    ``Program.stage()`` and ``Program.workspace()`` programs do not support function
+    entry points.
     """
 
     compute_pool: Optional[str] = None

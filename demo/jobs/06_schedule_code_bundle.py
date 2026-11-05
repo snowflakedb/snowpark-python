@@ -19,7 +19,9 @@ def main():
 
         # The task uses the target's warehouse unless schedule(warehouse=...) says
         # otherwise. Jan 1 at 03:00 UTC never fires during the demo.
-        schedule = dep.schedule("0 3 1 1 * UTC", entrypoint="hello.py", args=["cron"])
+        schedule = dep.schedule(
+            "0 3 1 1 * UTC", entrypoint="tasks.py:run", args=["cron"]
+        )
         task = session.sql("SHOW TASKS LIKE 'DEMO_BUNDLE_SCHEDULE'").collect()[0]
         say("scheduled as", schedule.name, "on warehouse", task["warehouse"])
 
@@ -34,7 +36,7 @@ def main():
         schedule.resume()
 
         # The statement the task runs, for putting into a task you manage yourself.
-        say("sql:", dep.to_sql(entrypoint="hello.py", args=["cron"]))
+        say("sql:", dep.to_sql(entrypoint="tasks.py:run", args=["cron"]))
 
         schedule.drop()
         dep.drop()

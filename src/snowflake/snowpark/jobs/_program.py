@@ -57,7 +57,8 @@ class Program:
     def file(cls, path: str, entrypoint_func: Optional[str] = None) -> "Program":
         """A local ``.py`` (or ``.ipynb``, code bundles on a compute pool only) file.
 
-        With ``entrypoint_func`` the function is called as ``func(session, *args)``.
+        With ``entrypoint_func`` the function is called as ``func(session, *args)``
+        (code bundles: with string arguments, and the return value is ignored).
         Otherwise the file runs as ``__main__`` with ``sys.argv = [file, *args]`` and the
         script's global ``__return__``, if set, is the result.
         """
@@ -87,6 +88,8 @@ class Program:
 
         ``entrypoint`` is either ``"pkg/main.py:func"`` (function form, called as
         ``func(session, *args)``) or ``"pkg/main.py"`` (script form), relative to ``path``.
+        Code bundles support both forms; with the function form the arguments are
+        strings and the return value is ignored.
         ``include`` and ``exclude`` are lists of glob patterns matched against relative
         paths; ``__pycache__``, ``.git`` and ``*.pyc`` are always excluded.
         """

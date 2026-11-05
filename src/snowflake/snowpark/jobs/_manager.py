@@ -4,6 +4,7 @@
 
 from typing import Any, Dict, List, Optional, Sequence, Union
 
+from snowflake.snowpark.jobs._bundle_spec import MANIFEST_FILE
 from snowflake.snowpark.jobs._deployments import (
     CodeBundleDeployment,
     Deployment,
@@ -19,6 +20,7 @@ from snowflake.snowpark.jobs._handles import (
     TaskRun,
     _map_query_status,
 )
+from snowflake.snowpark.jobs._packaging import LAUNCHER_FILE
 from snowflake.snowpark.jobs._program import Program, as_program
 from snowflake.snowpark.jobs._targets import StoredProcedure, Target, check_target
 from snowflake.snowpark.jobs._utils import (
@@ -131,8 +133,12 @@ class JobManager:
             f"SHOW CODE BUNDLES LIKE {pattern} {scope}"
         ).collect():
             if row["name"] == wanted:
+                source = self._source_location(fqn)
                 return CodeBundleDeployment(
-                    self._session, fqn, spec=self._load_spec(fqn)
+                    self._session,
+                    fqn,
+                    spec=self._load_spec(source),
+                    has_launcher=self._has_launcher(source),
                 )
         for row in self._session.sql(
             f"SHOW PROCEDURES LIKE {pattern} {scope}"
@@ -147,21 +153,39 @@ class JobManager:
                 return ProcedureDeployment(self._session, fqn)
         raise ValueError(f"No code bundle or stored procedure named {fqn} was found")
 
-    def _load_spec(self, fqn: str) -> Optional[Dict[str, Any]]:
-        """Best effort: reads the manifest from the stage the latest version came from."""
-        import yaml
-
+    def _source_location(self, fqn: str) -> Optional[str]:
+        """The stage path the latest version of a code bundle was created from."""
         try:
             row = self._session.sql(f"DESCRIBE CODE BUNDLE {fqn}").collect()[0]
             source = row["last_version_source_location_uri"]
-            if not source:
-                return None
-            stream = self._session.file.get_stream(
-                source.rstrip("/") + "/code_bundle.yml"
-            )
+            return source.rstrip("/") if source else None
+        except Exception:
+            return None
+
+    def _load_spec(self, source: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Best effort: reads the manifest from the stage the latest version came from."""
+        import yaml
+
+        if not source:
+            return None
+        try:
+            stream = self._session.file.get_stream(source + "/" + MANIFEST_FILE)
             return yaml.safe_load(stream.read().decode())
         except Exception:
             return None
+
+    def _has_launcher(self, source: Optional[str]) -> bool:
+        """Whether the bundle has the launcher that function entry points need."""
+        if not source:
+            return False
+        try:
+            return bool(
+                self._session.sql(
+                    f"LIST {sql_str(source + '/' + LAUNCHER_FILE)}"
+                ).collect()
+            )
+        except Exception:
+            return False
 
     def get(self, job_id: str) -> Job:
         """Returns the job with the given id (``query:<id>``, ``bundle:<id>`` or

@@ -2,8 +2,10 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import importlib
 import os
 import re
+import sys
 import threading
 from unittest import mock
 
@@ -27,6 +29,7 @@ from snowflake.snowpark.jobs import (
     TaskRun,
     _bundle,
     _handles,
+    _launcher,
     _packaging,
     _sproc,
 )
@@ -335,15 +338,10 @@ def test_stored_procedure_rejects_notebook_and_workspace(jobs, tmp_path):
 
 
 def test_code_bundle_rejects_function_program(jobs):
-    with pytest.raises(ValueError, match="Function programs are not supported"):
+    with pytest.raises(ValueError, match="Callables and Program.function"):
         jobs.submit(lambda session: 1, CodeBundle())
-    with pytest.raises(ValueError, match="Function programs are not supported"):
+    with pytest.raises(ValueError, match="Program.file"):
         jobs.submit(Program.function(lambda session: 1), CodeBundle(compute_pool="P"))
-
-
-def test_code_bundle_rejects_function_entrypoint(jobs, script):
-    with pytest.raises(ValueError, match="Function entrypoints"):
-        jobs.submit(Program.file(script, "main"), CodeBundle())
 
 
 def test_code_bundle_notebook_only_on_pool(jobs, tmp_path):
@@ -1640,3 +1638,255 @@ def test_direct_query_job_result_is_unaffected_by_statement_not_found(fake):
         with pytest.raises(ProgrammingError) as info:
             job.result()
     assert info.value is original
+
+
+# ---- function entry points (launcher) ----
+
+LAUNCHER = "__snowpark_jobs_launcher__.py"
+
+
+def test_launcher_call_translation():
+    assert _bundle.launcher_call("a/b.py", ["x"]) == ("a/b.py", ["x"])
+    assert _bundle.launcher_call("a/b.py:run", ["x", "y"]) == (
+        LAUNCHER,
+        ["a/b.py:run", "x", "y"],
+    )
+    assert _packaging.LAUNCHER_FILE == LAUNCHER
+
+
+def test_execute_sql_renders_function_entrypoint():
+    assert _bundle.execute_sql("DB.S.B", "jobs/daily.py:run", ["1", "it's"]) == (
+        f"EXECUTE CODE BUNDLE DB.S.B ENTRYPOINT = '{LAUNCHER}' "
+        "ARGUMENTS = ('jobs/daily.py:run', '1', 'it''s')"
+    )
+    assert _bundle.execute_sql("DB.S.B", "jobs/daily.py:run") == (
+        f"EXECUTE CODE BUNDLE DB.S.B ENTRYPOINT = '{LAUNCHER}' "
+        "ARGUMENTS = ('jobs/daily.py:run')"
+    )
+    with pytest.raises(ValueError, match="must be strings"):
+        _bundle.execute_sql("DB.S.B", "jobs/daily.py:run", [1])
+
+
+def test_default_execution_name_includes_function(jobs):
+    name = _bundle.default_execution_name("pkg/tasks.py:run")
+    assert re.fullmatch(r"SNOWPARK_JOB_TASKS_RUN_[0-9A-F]{8}", name)
+
+
+def test_submit_function_entrypoint_uses_launcher(fake, jobs, pkg_dir):
+    jobs.submit(Program.directory(pkg_dir, "pkg/main.py:run"), CodeBundle(), args=["a"])
+    sql = last_statement(fake)
+    assert f"ENTRYPOINT = '{LAUNCHER}'" in sql
+    assert "ARGUMENTS = ('pkg/main.py:run', 'a')" in sql
+    assert "SNOWPARK_JOB_MAIN_RUN_" in sql
+    uploads = {name: data for name, _, data in fake.file.puts}
+    assert uploads[LAUNCHER].decode() == _packaging.launcher_source()
+
+
+def test_submit_function_entrypoint_override_and_program_file(fake, jobs, script):
+    jobs.submit(Program.file(script, "go"), CodeBundle(), args=["x"])
+    assert "ARGUMENTS = ('script.py:go', 'x')" in last_statement(fake)
+    jobs.submit(Program.file(script), CodeBundle(), entrypoint="script.py:other")
+    assert "ARGUMENTS = ('script.py:other')" in last_statement(fake)
+
+
+def test_launcher_is_uploaded_for_script_programs_and_hashed(fake, jobs, script):
+    jobs.submit(Program.file(script), CodeBundle())
+    assert LAUNCHER in {name for name, _, _ in fake.file.puts}
+    files = {"script.py": script}
+    with mock.patch.object(_packaging, "launcher_source", return_value="# other\n"):
+        other = _packaging.content_hash(files, "m", None)
+    assert other != _packaging.content_hash(files, "m", None)
+
+
+def test_user_launcher_file_is_replaced_by_generated(fake, jobs, pkg_dir):
+    open(os.path.join(pkg_dir, LAUNCHER), "w").write("evil = 1\n")
+    jobs.submit(Program.directory(pkg_dir, "top.py"), CodeBundle())
+    launchers = [d for name, _, d in fake.file.puts if name == LAUNCHER]
+    assert launchers == [_packaging.launcher_source().encode()]
+
+
+def test_function_entrypoint_must_be_part_of_the_files(jobs, pkg_dir):
+    with pytest.raises(ValueError, match="not part of the program files"):
+        jobs.submit(Program.directory(pkg_dir, "nope.py:f"), CodeBundle())
+
+
+def test_function_entrypoint_rejected_for_stage_and_workspace(jobs):
+    with pytest.raises(ValueError, match="launcher"):
+        jobs.submit(Program.stage("@STG/b", "m.py:run"), CodeBundle())
+    with pytest.raises(ValueError, match="launcher"):
+        jobs.submit(Program.workspace("snow://workspace/x", "m.py:run"), CodeBundle())
+
+
+def test_function_entrypoint_rejected_for_notebooks(jobs, tmp_path):
+    root = tmp_path / "nbs"
+    root.mkdir()
+    (root / "nb.ipynb").write_text("{}")
+    with pytest.raises(ValueError, match="only supported for .py"):
+        jobs.submit(
+            Program.directory(str(root), "nb.ipynb:run"),
+            CodeBundle(compute_pool="P"),
+        )
+
+
+def test_function_entrypoint_args_must_be_strings(jobs, pkg_dir):
+    with pytest.raises(ValueError, match="must be strings"):
+        jobs.submit(
+            Program.directory(pkg_dir, "pkg/main.py:run"), CodeBundle(), args=[1]
+        )
+
+
+def test_deploy_run_schedule_and_to_sql_with_function_entrypoint(fake, jobs, pkg_dir):
+    dep = jobs.deploy(Program.directory(pkg_dir), CodeBundle(), name="B")
+    assert LAUNCHER in {name for name, _, _ in fake.file.puts}
+    expected = (
+        f"EXECUTE CODE BUNDLE DB.SCH.B ENTRYPOINT = '{LAUNCHER}' "
+        "ARGUMENTS = ('pkg/main.py:run', 'x')"
+    )
+    assert dep.to_sql(entrypoint="pkg/main.py:run", args=["x"]) == expected
+    dep.run(entrypoint="pkg/main.py:run", args=["x"])
+    assert last_statement(fake).startswith(expected)
+    dep.schedule("0 0 * * * UTC", entrypoint="pkg/main.py:run", args=["x"])
+    create = [s for s in fake.statements if s.startswith("CREATE OR REPLACE TASK")][-1]
+    assert create.endswith(f"AS {expected}")
+
+
+def test_deployment_default_function_entrypoint(fake, jobs, pkg_dir):
+    dep = jobs.deploy(
+        Program.directory(pkg_dir, "pkg/main.py:run"), CodeBundle(), name="B"
+    )
+    assert f"ENTRYPOINT = '{LAUNCHER}'" in dep.to_sql()
+
+
+def test_deployment_without_launcher_rejects_function_entrypoint(fake, jobs):
+    fake.responses[r"^SHOW CODE BUNDLES"] = [{"name": "B"}]
+    dep = jobs.get_deployment("B")
+    assert dep.to_sql(entrypoint="a.py").endswith("ENTRYPOINT = 'a.py'")
+    with pytest.raises(ValueError, match="does not contain the session.jobs launcher"):
+        dep.to_sql(entrypoint="a.py:run")
+    with pytest.raises(ValueError, match="does not contain the session.jobs launcher"):
+        dep.run(entrypoint="a.py:run")
+    with pytest.raises(ValueError, match="does not contain the session.jobs launcher"):
+        jobs.submit(Program.ref("B"), entrypoint="a.py:run")
+
+
+def test_get_deployment_detects_the_launcher(fake, jobs):
+    fake.responses[r"^SHOW CODE BUNDLES"] = [{"name": "B"}]
+    fake.responses[r"^DESCRIBE CODE BUNDLE"] = [
+        {"last_version_source_location_uri": "@STG/snowpark_jobs/abc/"}
+    ]
+    fake.responses[r"^LIST "] = [{"name": "launcher"}]
+    dep = jobs.get_deployment("B")
+    assert "ARGUMENTS = ('a.py:run')" in dep.to_sql(entrypoint="a.py:run")
+    assert any(
+        s.startswith("LIST '@STG/snowpark_jobs/abc/" + LAUNCHER)
+        for s in fake.statements
+    )
+
+
+def test_add_version_updates_launcher_availability(fake, jobs, pkg_dir):
+    dep = jobs.deploy(Program.directory(pkg_dir), CodeBundle(), name="B")
+    dep.add_version(Program.stage("@STG/v2"))
+    with pytest.raises(ValueError, match="does not contain the session.jobs launcher"):
+        dep.to_sql(entrypoint="a.py:run")
+    dep.add_version(Program.directory(pkg_dir))
+    assert "a.py:run" in dep.to_sql(entrypoint="a.py:run")
+
+
+# ---- the launcher itself ----
+
+
+def _load_launcher():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "launcher_under_test", _packaging.Path(_launcher.__file__)
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture
+def bundle_root(tmp_path):
+    root = tmp_path / "bundle"
+    (root / "jobs").mkdir(parents=True)
+    (root / "helper_mod.py").write_text("def twice(x):\n    return x * 2\n")
+    (root / "jobs" / "__init__.py").write_text("")
+    (root / "jobs" / "daily.py").write_text(
+        "import helper_mod\n"
+        "CALLS = []\n"
+        "def run(session, *args):\n"
+        "    CALLS.append((session, args, helper_mod.twice(2)))\n"
+        "    return 'ignored'\n"
+        "def boom(session):\n"
+        "    raise RuntimeError('boom')\n"
+    )
+    yield str(root)
+    for name in ("jobs", "jobs.daily", "helper_mod"):
+        sys.modules.pop(name, None)
+    if str(root) in sys.path:
+        sys.path.remove(str(root))
+
+
+def test_launcher_main_calls_function_with_session_and_args(bundle_root):
+    launcher = _load_launcher()
+    session = object()
+    assert (
+        launcher.main(
+            [LAUNCHER, "jobs/daily.py:run", "a", "b"], session=session, root=bundle_root
+        )
+        is None
+    )
+    daily = importlib.import_module("jobs.daily")
+    assert daily.CALLS == [(session, ("a", "b"), 4)]
+
+
+def test_launcher_main_uses_the_active_session_by_default(bundle_root):
+    launcher = _load_launcher()
+    active = object()
+    with mock.patch(
+        "snowflake.snowpark.context.get_active_session", return_value=active
+    ):
+        launcher.main([LAUNCHER, "jobs/daily.py:run"], root=bundle_root)
+    assert importlib.import_module("jobs.daily").CALLS[0][0] is active
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "daily",
+        "jobs/daily.py",
+        "jobs/daily.py:",
+        "../x.py:f",
+        "/abs/x.py:f",
+        "a//b.py:f",
+    ],
+)
+def test_launcher_main_rejects_bad_targets(bundle_root, target):
+    launcher = _load_launcher()
+    argv = [LAUNCHER] if target is None else [LAUNCHER, target]
+    with pytest.raises(ValueError):
+        launcher.main(argv, session=object(), root=bundle_root)
+
+
+def test_launcher_main_propagates_exceptions(bundle_root):
+    launcher = _load_launcher()
+    with pytest.raises(RuntimeError, match="boom"):
+        launcher.main(
+            [LAUNCHER, "jobs/daily.py:boom"], session=object(), root=bundle_root
+        )
+
+
+def test_launcher_is_import_safe_and_stdlib_only():
+    source = _packaging.launcher_source()
+    assert "snowflake" not in source.split("def main")[0]
+    assert _load_launcher().parse_target("a/b.py:f") == ("a.b", "f")
+
+
+def test_launcher_bundle_root_falls_back_to_argv0_without_file(tmp_path, monkeypatch):
+    launcher = _load_launcher()
+    monkeypatch.chdir(tmp_path)
+    assert launcher.bundle_root("/b/x/launcher.py", "ignored.py") == "/b/x"
+    # a notebook cell on a compute pool: no __file__, relative script name, cwd is the root
+    assert launcher.bundle_root(None, LAUNCHER) == str(tmp_path)

@@ -108,7 +108,12 @@ class Deployment(ABC):
         execution_name: Optional[str] = None,
         overrides: Optional[Dict[str, Any]] = None,
     ) -> Job:
-        """Runs the deployment once, asynchronously."""
+        """Runs the deployment once, asynchronously.
+
+        For code bundles, ``entrypoint`` is a script (``"jobs/daily.py"``) or a function
+        (``"jobs/daily.py:run"``, called as ``run(session, *args)``; this needs a bundle
+        deployed by ``session.jobs``). ``args`` are strings and there is no return value.
+        """
 
     @abstractmethod
     def to_sql(
@@ -133,6 +138,8 @@ class Deployment(ABC):
 
         Args:
             cron: A cron expression with a time zone, e.g. ``"0 * * * * UTC"``.
+            entrypoint: Code bundles only: a script or a ``"file.py:func"`` function
+                entry point, see :meth:`run`.
             name: Task name; defaults to ``<deployment name>_SCHEDULE`` in the
                 deployment's schema.
             warehouse: Warehouse of the task. Defaults to the target's ``warehouse``;
@@ -234,6 +241,7 @@ class CodeBundleDeployment(Deployment):
         compute_type: Optional[str] = None,
         env: Optional[Environment] = None,
         stage: Optional[str] = None,
+        has_launcher: bool = False,
     ) -> None:
         super().__init__(session, name)
         self._target_config = target_config or CodeBundle()
@@ -242,12 +250,20 @@ class CodeBundleDeployment(Deployment):
         self._compute_type = compute_type
         self._env = env or Environment()
         self._stage = stage
+        # whether function entry points (file.py:func) can run in this bundle
+        self._has_launcher = has_launcher
 
     def _entry(self, entrypoint: Optional[str]) -> str:
         entry = entrypoint or self._entrypoint
         if not entry:
             raise ValueError(
                 "This deployment has no default entrypoint: pass entrypoint=..."
+            )
+        if _bundle.is_function_entry(entry) and not self._has_launcher:
+            raise ValueError(
+                f"{self.name} does not contain the session.jobs launcher, so the "
+                f"function entry point {entry!r} is not available: use a script "
+                "entrypoint, or deploy the code again with session.jobs.deploy()."
             )
         return entry
 
@@ -303,6 +319,7 @@ class CodeBundleDeployment(Deployment):
             f"ALTER CODE BUNDLE {self.name} ADD VERSION FROM {sql_str(prepared.location)}"
         ).collect()
         self._spec = prepared.spec
+        self._has_launcher = prepared.has_launcher
         if prepared.entrypoint:
             self._entrypoint = prepared.entrypoint
 

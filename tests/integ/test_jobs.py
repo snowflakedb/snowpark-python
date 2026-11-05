@@ -84,7 +84,28 @@ def programs(tmp_path_factory):
     (bundle / "fail.py").write_text("raise RuntimeError('boom from bundle')\n")
     (bundle / "short_sleep.py").write_text("import time\ntime.sleep(5)\n")
     (bundle / "sleep.py").write_text("import time\ntime.sleep(180)\n")
+    fproj = root / "fproj"
+    (fproj / "pkg").mkdir(parents=True)
+    (fproj / "helper.py").write_text("def twice(x):\n    return x + x\n")
+    (fproj / "pkg" / "__init__.py").write_text("")
+    (fproj / "pkg" / "util.py").write_text("def tag():\n    return 'util-tag'\n")
+    (fproj / "pkg" / "inner.py").write_text(
+        "from . import util\n\ndef tag():\n    return util.tag()\n"
+    )
+    (fproj / "main.py").write_text(
+        "import logging\n"
+        "import helper\n"
+        "from pkg import inner\n"
+        "\n"
+        "def run(session, *args):\n"
+        "    assert session.sql('select 1').collect()[0][0] == 1\n"
+        "    logging.warning('JOBS_FUNC_MARKER %s %s %s', args, helper.twice('ab'), inner.tag())\n"
+        "\n"
+        "def boom(session, *args):\n"
+        "    raise ValueError('kaboom from launcher')\n"
+    )
     return {
+        "fproj": str(fproj),
         "script": str(script),
         "proj": str(proj),
         "bundle": str(bundle),
@@ -425,7 +446,9 @@ def test_bundle_rejects_non_string_args(session, programs):
 
 
 def test_bundle_rejects_unsupported_programs(session, programs):
-    with pytest.raises(ValueError, match="Function programs are not supported"):
+    with pytest.raises(
+        ValueError, match=r"Callables and Program.function\(\) are not supported"
+    ):
         session.jobs.submit(lambda session: 1, CodeBundle())
     with pytest.raises(ValueError, match="secrets.*warehouse"):
         session.jobs.submit(
@@ -566,3 +589,146 @@ def test_bundle_runs_on_target_warehouse(session, programs):
     finally:
         dep.drop()
     assert session.get_current_warehouse() == original
+
+
+# ---- CodeBundle function entry points ----
+
+
+def test_bundle_function_entrypoint_warehouse(session, programs, has_event_table):
+    program = Program.directory(programs["fproj"])
+    run = session.jobs.submit(
+        program, CodeBundle(), entrypoint="main.py:run", args=["x", "it's"]
+    )
+    assert run.wait(RUN_TIMEOUT) == JobStatus.SUCCEEDED, run.error()
+    assert run.error() is None
+    logs = _poll_logs(run, "JOBS_FUNC_MARKER")
+    assert logs and "JOBS_FUNC_MARKER ('x', \"it's\") abab util-tag" in logs
+
+    bad = session.jobs.submit(program, CodeBundle(), entrypoint="main.py:boom")
+    assert bad.wait(RUN_TIMEOUT) == JobStatus.FAILED
+    assert "kaboom from launcher" in bad.error()
+
+
+def test_bundle_function_entrypoint_deploy_schedule(session, programs):
+    name = f"BUNDLE_FN_{uuid.uuid4().hex[:6].upper()}"
+    dep = session.jobs.deploy(
+        Program.directory(programs["fproj"]), CodeBundle(), name=name
+    )
+    try:
+        sql = dep.to_sql(args=["a"], entrypoint="main.py:run")
+        assert "ENTRYPOINT = '__snowpark_jobs_launcher__.py'" in sql
+        assert "ARGUMENTS = ('main.py:run', 'a')" in sql
+
+        run = dep.run(entrypoint="main.py:run", args=["d1"])
+        assert run.wait(RUN_TIMEOUT) == JobStatus.SUCCEEDED, run.error()
+
+        # a deployment loaded by name finds the launcher on the source stage
+        loaded = session.jobs.get_deployment(name)
+        assert isinstance(loaded, CodeBundleDeployment)
+        again = loaded.run(entrypoint="main.py:run", args=["d2"])
+        assert again.wait(RUN_TIMEOUT) == JobStatus.SUCCEEDED, again.error()
+        via_ref = session.jobs.submit(Program.ref(name), entrypoint="main.py:boom")
+        assert via_ref.wait(RUN_TIMEOUT) == JobStatus.FAILED
+        assert "kaboom from launcher" in via_ref.error()
+
+        sched = dep.schedule(
+            "0 0 1 1 * UTC",
+            warehouse=session.get_current_warehouse(),
+            args=["task"],
+            entrypoint="main.py:run",
+        )
+        try:
+            sched.run_now()
+            runs = _wait_for_runs(sched)
+            assert runs[0].status() == JobStatus.SUCCEEDED, runs[0].error()
+            assert runs[0].target == "code_bundle"
+        finally:
+            sched.drop()
+    finally:
+        dep.drop()
+
+
+def test_bundle_function_entrypoint_rejections(session, programs, tmp_path):
+    with pytest.raises(
+        ValueError, match=r"Callables and Program.function\(\) are not supported"
+    ):
+        session.jobs.submit(lambda session: 1, CodeBundle())
+    with pytest.raises(ValueError, match="launcher"):
+        session.jobs.submit(Program.stage("@JOBS_STG/x", "main.py:run"), CodeBundle())
+    with pytest.raises(ValueError, match="launcher"):
+        session.jobs.submit(
+            Program.workspace("snow://workspace/x", "main.py:run"), CodeBundle()
+        )
+    nb_dir = tmp_path / "nb"
+    nb_dir.mkdir()
+    (nb_dir / "nb.ipynb").write_text("{}")
+    with pytest.raises(ValueError, match="only supported for .py"):
+        session.jobs.submit(
+            Program.directory(str(nb_dir), "nb.ipynb:run"),
+            CodeBundle(compute_pool="ANY_POOL"),
+        )
+    with pytest.raises(ValueError, match="only supported for .py"):
+        Program.file(str(nb_dir / "nb.ipynb"), "run")
+
+
+def test_bundle_function_entrypoint_needs_launcher(session, programs):
+    # a bundle that session.jobs did not create has no launcher
+    from snowflake.snowpark.jobs._bundle_spec import (
+        build_spec,
+        default_warehouse_runtime_version,
+        dump_spec,
+    )
+    from snowflake.snowpark.jobs._environment import Environment
+
+    manifest = dump_spec(
+        build_spec(
+            compute_pool=None,
+            query_warehouse=None,
+            runtime_version=default_warehouse_runtime_version(),
+            env=Environment(),
+            has_requirements=False,
+        )
+    )
+    root = programs["root"] / "plain"
+    root.mkdir(exist_ok=True)
+    (root / "code_bundle.yml").write_text(manifest)
+    (root / "plain.py").write_text("def f(session):\n    pass\n")
+    for f in ("code_bundle.yml", "plain.py"):
+        session.file.put(
+            str(root / f), "@JOBS_STG/plain", auto_compress=False, overwrite=True
+        )
+    name = f"BUNDLE_PLAIN_{uuid.uuid4().hex[:6].upper()}"
+    session.sql(f"CREATE CODE BUNDLE {name} FROM '@JOBS_STG/plain'").collect()
+    try:
+        dep = session.jobs.get_deployment(name)
+        assert isinstance(dep, CodeBundleDeployment)
+        with pytest.raises(
+            ValueError, match="does not contain the session.jobs launcher"
+        ):
+            dep.run(entrypoint="plain.py:f")
+        with pytest.raises(
+            ValueError, match="does not contain the session.jobs launcher"
+        ):
+            dep.to_sql(entrypoint="plain.py:f")
+        with pytest.raises(
+            ValueError, match="does not contain the session.jobs launcher"
+        ):
+            session.jobs.submit(Program.ref(name), entrypoint="plain.py:f")
+        # script entrypoints still work
+        assert dep.run(entrypoint="plain.py").wait(RUN_TIMEOUT) == JobStatus.SUCCEEDED
+    finally:
+        session.sql(f"DROP CODE BUNDLE IF EXISTS {name}").collect()
+
+
+@pytest.mark.skipif(
+    not COMPUTE_POOL, reason="SNOWPARK_JOBS_TEST_COMPUTE_POOL is not set"
+)
+def test_bundle_function_entrypoint_compute_pool(session, programs):
+    program = Program.directory(programs["fproj"])
+    target = CodeBundle(compute_pool=COMPUTE_POOL)
+    ok = session.jobs.submit(program, target, entrypoint="main.py:run", args=["pool"])
+    assert ok.wait(900) == JobStatus.SUCCEEDED, ok.error()
+    # pool runs expose no logs: a failing function proves that the function ran
+    bad = session.jobs.submit(program, target, entrypoint="main.py:boom")
+    assert bad.wait(900) == JobStatus.FAILED
+    assert "kaboom from launcher" in (bad.error() or "")
