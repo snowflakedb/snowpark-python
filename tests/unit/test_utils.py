@@ -379,6 +379,7 @@ ORDER BY name"""
         plan.children_plan_nodes = []
         plan.queries = [mock_query]
         plan.df_ast_ids = None
+        plan.df_trace_nodes = None
 
     result = get_plan_from_line_numbers(plan, 3)
     assert result.uuid == "plan-uuid-123"
@@ -399,6 +400,7 @@ WHERE status = 'pending'"""
         child_plan.children_plan_nodes = []
         child_plan.queries = [child_mock_query]
         child_plan.df_ast_ids = None
+        child_plan.df_trace_nodes = None
 
     parent_intervals = [
         QueryLineInterval(0, 2, "parent-uuid-789"),
@@ -424,6 +426,7 @@ GROUP BY u.name"""
         parent_plan.children_plan_nodes = [child_plan]
         parent_plan.queries = [parent_mock_query]
         parent_plan.df_ast_ids = None
+        parent_plan.df_trace_nodes = None
 
     result = get_plan_from_line_numbers(parent_plan, 3)
     assert result.uuid == "child-uuid-456"
@@ -445,6 +448,7 @@ FROM products GROUP BY category"""
         interval_plan.children_plan_nodes = []
         interval_plan.queries = [interval_mock_query]
         interval_plan.df_ast_ids = None
+        interval_plan.df_trace_nodes = None
 
     with pytest.raises(
         ValueError, match="Line number 10 does not fall within any interval"
@@ -466,6 +470,7 @@ FROM inventory"""
         grandchild_plan.children_plan_nodes = []
         grandchild_plan.queries = [grandchild_mock_query]
         grandchild_plan.df_ast_ids = None
+        grandchild_plan.df_trace_nodes = None
 
     child_with_desc_intervals = [
         QueryLineInterval(0, 1, "child-desc-uuid-888"),
@@ -489,6 +494,7 @@ FROM inventory
         child_with_desc_plan.children_plan_nodes = [grandchild_plan]
         child_with_desc_plan.queries = [child_with_desc_mock_query]
         child_with_desc_plan.df_ast_ids = None
+        child_with_desc_plan.df_trace_nodes = None
 
     grandparent_intervals = [
         QueryLineInterval(0, 2, "grandparent-uuid-777"),
@@ -517,6 +523,7 @@ ORDER BY c.name"""
         grandparent_plan.children_plan_nodes = [child_with_desc_plan]
         grandparent_plan.queries = [grandparent_mock_query]
         grandparent_plan.df_ast_ids = None
+        grandparent_plan.df_trace_nodes = None
 
     result = get_plan_from_line_numbers(grandparent_plan, 6)
     assert result.uuid == "grandchild-uuid-999"
@@ -555,6 +562,7 @@ GROUP BY u.name"""
         orphan_plan.children_plan_nodes = []
         orphan_plan.queries = [orphan_mock_query]
         orphan_plan.df_ast_ids = None
+        orphan_plan.df_trace_nodes = None
 
     with pytest.raises(
         ValueError, match="Line number 4 does not fall within any interval"

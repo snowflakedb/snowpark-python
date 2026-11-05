@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.debug_utils import (
 )
 
 if TYPE_CHECKING:
+    from snowflake.snowpark._internal.df_trace import TraceNode  # pragma: no cover
     from snowflake.snowpark._internal.analyzer.select_statement import (
         Selectable,
     )  # pragma: no cover
@@ -502,6 +503,7 @@ class SnowflakePlan(LogicalPlan):
         # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
         # we will store the ast_id here.
         self.df_ast_ids: Optional[List[int]] = None
+        self.df_trace_nodes: Optional[List["TraceNode"]] = None
 
     @property
     def uuid(self) -> str:
@@ -783,6 +785,7 @@ class SnowflakePlan(LogicalPlan):
                 referenced_ctes=self.referenced_ctes,
             )
         plan.df_ast_ids = self.df_ast_ids
+        plan.df_trace_nodes = self.df_trace_nodes
         return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -822,6 +825,7 @@ class SnowflakePlan(LogicalPlan):
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
         copied_plan.df_ast_ids = self.df_ast_ids
+        copied_plan.df_trace_nodes = self.df_trace_nodes
 
         return copied_plan
 
@@ -850,6 +854,18 @@ class SnowflakePlan(LogicalPlan):
         elif self.df_ast_ids[-1] != ast_id:
             self.df_ast_ids.append(ast_id)
         self.propagate_ast_id_to_select_sql(ast_id)
+
+    def add_df_trace_node(self, node: "TraceNode") -> None:
+        """Adds the trace node of the DataFrame operation that created this plan."""
+        from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
+
+        if self.df_trace_nodes is None:
+            self.df_trace_nodes = [node]
+        elif not self.df_trace_nodes or self.df_trace_nodes[-1] is not node:
+            self.df_trace_nodes.append(node)
+        for child in self.children_plan_nodes:
+            if isinstance(child, SelectSQL):
+                child.add_df_trace_node(node)
 
 
 class SnowflakePlanBuilder:

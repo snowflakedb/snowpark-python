@@ -27,6 +27,11 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
+from snowflake.snowpark._internal.df_trace import (
+    TraceNode,
+    capture_user_src_position,
+    registration_trace_node,
+)
 from snowflake.snowpark._internal.ast.utils import (
     build_udtf,
     build_udtf_apply,
@@ -101,6 +106,8 @@ class UserDefinedTableFunction:
         # If None, no ast will be emitted. Else, passed whenever udf is invoked.
         self._ast = _ast
         self._ast_id = _ast_id
+        # The registration call, a dependency of the dataframes that apply the function.
+        self._trace_node = registration_trace_node("udtf")
 
     @publicapi
     def __call__(
@@ -123,6 +130,16 @@ class UserDefinedTableFunction:
             self.name, *arguments, **named_arguments, _ast=udtf_expr
         )
         table_function_call._set_api_call_source("UserDefinedTableFunction.__call__")
+        # The call of the table function is an operation of its own, applying the registration.
+        table_function_call._df_trace_node = (
+            TraceNode(
+                capture_user_src_position(),
+                [self._trace_node],
+                kind="table_function_call",
+            )
+            if self._trace_node is not None
+            else None
+        )
 
         return table_function_call
 

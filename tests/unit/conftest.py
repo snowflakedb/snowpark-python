@@ -73,6 +73,7 @@ def mock_analyzer(mock_snowflake_plan) -> Analyzer:
     def mock_resolve(x):
         mock_snowflake_plan.source_plan = x
         mock_snowflake_plan.df_ast_ids = None
+        mock_snowflake_plan.df_trace_nodes = None
         return mock_snowflake_plan
 
     fake_analyzer = mock.create_autospec(Analyzer)

@@ -111,6 +111,15 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
+from snowflake.snowpark._internal import df_trace
+from snowflake.snowpark._internal.df_trace import (
+    TraceNode,
+    traces_inputs,
+    capture_user_src_position,
+    collect_input_nodes,
+    is_tracing_enabled,
+    record_object_creation,
+)
 from snowflake.snowpark._internal.ast.utils import (
     add_intermediate_stmt,
     build_expr_from_dict_str_str,
@@ -685,6 +694,33 @@ class DataFrame:
         self.__ast_id = None
         if _emit_ast:
             self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
+
+        # Track the user code that created this dataframe for the debug features.
+        self._trace_node: Optional[TraceNode] = None
+        if self._plan is not None and is_tracing_enabled(self._session):
+            try:
+                # The user source position of this dataframe and the dataframes it was built
+                # from.
+                node = TraceNode(
+                    capture_user_src_position(),
+                    collect_input_nodes(
+                        self._select_statement
+                        if self._select_statement is not None
+                        else self._plan
+                    ),
+                )
+                self._trace_node = node
+                # Remembered for the outermost public API call, which removes the dataframes it
+                # created internally from the plans.
+                created = getattr(df_trace._call_state, "created", None)
+                if created is not None:
+                    created.append(self)
+                self._plan.add_df_trace_node(node)
+                if self._select_statement is not None:
+                    self._select_statement.add_df_trace_node(node)
+            except Exception:
+                # The trace is only debug information: never fail the user's call because of it.
+                _logger.debug("Failed to record the dataframe trace", exc_info=True)
 
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
@@ -3326,6 +3362,7 @@ class DataFrame:
                 Limit(Literal(n), Literal(offset), self._plan), _ast_stmt=stmt
             )
 
+    @traces_inputs("other")
     @df_api_usage
     @publicapi
     def union(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
@@ -3378,6 +3415,7 @@ class DataFrame:
 
         return df
 
+    @traces_inputs("other")
     @df_api_usage
     @publicapi
     def union_all(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
@@ -3433,6 +3471,7 @@ class DataFrame:
 
         return df
 
+    @traces_inputs("other")
     @df_api_usage
     @publicapi
     def union_by_name(
@@ -3495,6 +3534,7 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
+    @traces_inputs("other")
     @df_api_usage
     @publicapi
     def union_all_by_name(
@@ -3632,6 +3672,7 @@ class DataFrame:
             )
         return df
 
+    @traces_inputs("other")
     @df_api_usage
     @publicapi
     def intersect(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
@@ -3682,6 +3723,7 @@ class DataFrame:
 
         return df
 
+    @traces_inputs("other")
     @df_api_usage
     @publicapi
     def except_(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
@@ -3731,6 +3773,7 @@ class DataFrame:
 
         return df
 
+    @traces_inputs("right")
     @df_api_usage
     @publicapi
     def natural_join(
@@ -3821,6 +3864,7 @@ class DataFrame:
             return self._with_plan(select_plan, _ast_stmt=stmt)
         return self._with_plan(join_plan, _ast_stmt=stmt)
 
+    @traces_inputs("right")
     @df_api_usage
     @publicapi
     def lateral_join(
@@ -3908,6 +3952,7 @@ class DataFrame:
             return self._with_plan(select_plan, _ast_stmt=stmt)
         return self._with_plan(join_plan, _ast_stmt=stmt)
 
+    @traces_inputs("right")
     @df_api_usage
     @publicapi
     def join(
@@ -4464,6 +4509,7 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
+    @traces_inputs("right")
     @df_api_usage
     @publicapi
     def cross_join(
@@ -5774,6 +5820,8 @@ class DataFrame:
 
         formatted_name = self._format_name_for_view("create_or_replace_view", name)
 
+        record_object_creation(self._session, "view", name)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -6001,6 +6049,8 @@ class DataFrame:
 
         formatted_name = self._format_name_for_view("create_or_replace_temp_view", name)
 
+        record_object_creation(self._session, "view", name)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -6063,6 +6113,8 @@ class DataFrame:
         """
 
         formatted_name = self._format_name_for_view("create_or_temp_view", name)
+
+        record_object_creation(self._session, "view", name)
 
         # AST.
         stmt = None
@@ -6669,6 +6721,7 @@ class DataFrame:
             build_expr_from_snowpark_column_or_col_name(expr.col, existing)
         return self.select(new_columns, _ast_stmt=_ast_stmt, _emit_ast=False)
 
+    @traces_inputs("self")
     @df_collect_api_telemetry
     @publicapi
     def cache_result(
@@ -7201,6 +7254,13 @@ Query List:
         """
         df = DataFrame(self._session, plan, _ast_stmt=_ast_stmt)
         df._statement_params = self._statement_params
+        if (
+            df._trace_node is not None
+            and self._trace_node is not None
+            and df._trace_node is not self._trace_node
+        ):
+            # The new dataframe is derived from this one, also when the plan has flattened it.
+            df._trace_node.parents = [self._trace_node]
 
         if _ast_stmt is not None:
             df._ast_id = _ast_stmt.uid
