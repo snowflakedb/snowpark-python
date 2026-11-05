@@ -56,7 +56,7 @@
 
 #### Dependency Updates
 
-- Updated dependency of `snowflake-connector-python>=3.17.0,<6.0.0`.
+- Updated dependency of `snowflake-connector-python>=3.17.0,!=5.0.*,!=5.1.*,<6.0.0`.
 
 ## 1.55.2 (2026-10-13)
 
