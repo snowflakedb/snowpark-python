@@ -10,6 +10,7 @@ from unittest import mock
 import pytest
 import yaml
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Session
 from snowflake.snowpark.jobs import (
     BundleRun,
@@ -1570,3 +1571,72 @@ def test_schedule_on_pool_deployment_uses_target_warehouse(fake, jobs, pkg_dir):
     dep.schedule("0 * * * * UTC")
     task = [s for s in fake.statements if s.startswith("CREATE OR REPLACE TASK")][-1]
     assert " WAREHOUSE = QWH " in task
+
+
+# ---- reading results of scheduled runs ----
+
+
+class ResultJob(FakeAsyncJob):
+    def __init__(self, query_id, rows=None, exc=None) -> None:
+        super().__init__(query_id)
+        self._rows = rows
+        self._exc = exc
+
+    def result(self, kind):
+        if self._exc:
+            raise self._exc
+        return self._rows
+
+
+def _scheduled_run(fake, async_job):
+    fake.responses[r"TASK_HISTORY"] = [
+        {
+            "QUERY_ID": "Q1",
+            "STATE": "SUCCEEDED",
+            "QUERY_TEXT": "CALL DB.SCH.P(ARRAY_CONSTRUCT())",
+        }
+    ]
+    fake.create_async_job = lambda qid: async_job
+    return TaskRun(fake, "DB.SCH.T", "Q1")
+
+
+def test_task_run_result_statement_not_found_is_not_supported(fake):
+    original = ProgrammingError(msg="Statement Q1 not found", errno=709)
+    run = _scheduled_run(fake, ResultJob("Q1", exc=original))
+    with mock.patch.object(_handles, "_query_status_name", return_value="SUCCESS"):
+        with pytest.raises(JobNotSupportedError, match="cannot be read") as info:
+            run.result()
+    assert "execute_as='caller'" in str(info.value)
+    assert "usual cause" in str(info.value)
+    assert info.value.__cause__ is original
+
+
+def test_task_run_result_other_errors_pass_through(fake):
+    other = ProgrammingError(msg="boom", errno=1304)
+    run = _scheduled_run(fake, ResultJob("Q1", exc=other))
+    with mock.patch.object(_handles, "_query_status_name", return_value="SUCCESS"):
+        with pytest.raises(ProgrammingError) as info:
+            run.result()
+    assert info.value is other
+    plain = RuntimeError("not a sql error")
+    run = _scheduled_run(fake, ResultJob("Q1", exc=plain))
+    with mock.patch.object(_handles, "_query_status_name", return_value="SUCCESS"):
+        with pytest.raises(RuntimeError) as info:
+            run.result()
+    assert info.value is plain
+
+
+def test_task_run_result_success_is_unchanged(fake):
+    run = _scheduled_run(fake, ResultJob("Q1", rows=[('{"a": 1}',)]))
+    with mock.patch.object(_handles, "_query_status_name", return_value="SUCCESS"):
+        assert run.result() == {"a": 1}
+        assert run.child().result() == {"a": 1}
+
+
+def test_direct_query_job_result_is_unaffected_by_statement_not_found(fake):
+    original = ProgrammingError(msg="Statement Q1 not found", errno=709)
+    job = QueryJob(fake, ResultJob("Q1", exc=original))
+    with mock.patch.object(_handles, "_query_status_name", return_value="SUCCESS"):
+        with pytest.raises(ProgrammingError) as info:
+            job.result()
+    assert info.value is original

@@ -151,11 +151,40 @@ def _query_error(session, query_id: str) -> Optional[str]:
     return None
 
 
+_STATEMENT_NOT_FOUND = 709  # "Statement <id> not found" (000709)
+
+_SCHEDULED_RESULT_HINT = (
+    "The return value of this scheduled run cannot be read (the statement result is "
+    "not available). The usual cause is a procedure deployed with execute_as='owner': "
+    "the return value of a scheduled run can only be read for caller's-rights "
+    "procedures. Deploy with StoredProcedure(execute_as='caller'), or have the "
+    "procedure write its result to a table."
+)
+
+
+def _is_statement_not_found(ex: Exception) -> bool:
+    for attr in ("errno", "sql_error_code"):
+        try:
+            if int(getattr(ex, attr, None)) == _STATEMENT_NOT_FOUND:
+                return True
+        except (TypeError, ValueError):
+            pass
+    return False
+
+
 class QueryJob(Job):
     """A job that is a plain query, such as a stored procedure call."""
 
-    def __init__(self, session, async_job, target: str = STORED_PROCEDURE_KIND) -> None:
+    def __init__(
+        self,
+        session,
+        async_job,
+        target: str = STORED_PROCEDURE_KIND,
+        scheduled: bool = False,
+    ) -> None:
         self._session = session
+        # the query was run by a task: its result may not be readable (see result())
+        self._scheduled = scheduled
         self._async = async_job
         self.query_id = async_job.query_id
         self.target = target
@@ -171,10 +200,17 @@ class QueryJob(Job):
     def result(self, timeout: Optional[float] = None) -> Any:
         """Returns the procedure's return value (deserialized from JSON).
 
-        Raises the underlying SQL exception if the job failed.
+        Raises the underlying SQL exception if the job failed. For the child of a task
+        run, raises :class:`JobNotSupportedError` when the statement result is not available,
+        which is usually the case for procedures deployed with ``execute_as="owner"``.
         """
         self.wait(timeout)
-        rows = self._async.result("row")
+        try:
+            rows = self._async.result("row")
+        except Exception as ex:
+            if self._scheduled and _is_statement_not_found(ex):
+                raise JobNotSupportedError(_SCHEDULED_RESULT_HINT) from ex
+            raise
         if not rows:
             return None
         value = rows[0][0]
@@ -382,9 +418,19 @@ class TaskRun(Job):
             self._session,
             self._session.create_async_job(self.query_id),
             STORED_PROCEDURE_KIND,
+            scheduled=True,
         )
 
     def result(self, timeout: Optional[float] = None) -> Any:
+        """Waits for the run and returns the return value of its procedure.
+
+        Limitation: the return value of a scheduled run can only be read for
+        caller's-rights procedures. For ``execute_as="owner"`` procedures, this
+        usually raises :class:`JobNotSupportedError` (also whenever the statement
+        result is not available); the run's status is still available. Deploy
+        with ``StoredProcedure(execute_as="caller")``, or have the procedure write its
+        result to a table. Code bundle runs have no return value.
+        """
         self.wait(timeout)
         return self.child().result()
 

@@ -281,6 +281,35 @@ def test_sproc_deploy_run_schedule(session):
     assert session.sql(f"SHOW PROCEDURES LIKE '{name}'").collect() == []
 
 
+def test_sproc_scheduled_run_result_depends_on_rights(session):
+    def returns_value(session):
+        return {"v": 1}
+
+    suffix = uuid.uuid4().hex[:6].upper()
+    for rights, readable in (("owner", False), ("caller", True)):
+        dep = session.jobs.deploy(
+            returns_value,
+            StoredProcedure(execute_as=rights),
+            name=f"SP_RES_{rights.upper()}_{suffix}",
+            stage="@JOBS_STG",
+        )
+        sched = dep.schedule("0 0 1 1 * UTC", warehouse=session.get_current_warehouse())
+        try:
+            sched.run_now()
+            run = _wait_for_runs(sched)[0]
+            assert run.status() == JobStatus.SUCCEEDED
+            if readable:
+                assert run.result() == {"v": 1}
+            else:
+                with pytest.raises(JobNotSupportedError, match="cannot be read"):
+                    run.result()
+            # a direct run of the same deployment returns its value in both modes
+            assert dep.run().result(RUN_TIMEOUT) == {"v": 1}
+        finally:
+            sched.drop()
+            dep.drop()
+
+
 def test_sproc_deploy_defaults_to_owner(session):
     name = f"SP_OWN_{uuid.uuid4().hex[:6].upper()}"
     dep = session.jobs.deploy(lambda session: 1, name=name, stage="@JOBS_STG")
