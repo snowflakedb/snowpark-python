@@ -39,7 +39,6 @@ from snowflake.snowpark._internal.debug_utils import (
     get_python_source_from_sql_error,
     get_existing_object_context,
     get_missing_object_context,
-    resolve_failed_query_index,
 )
 
 if TYPE_CHECKING:
@@ -202,7 +201,7 @@ class SnowflakePlan(LogicalPlan):
                             if error_source_context := get_python_source_from_sql_error(
                                 top_plan,
                                 e.msg,
-                                resolve_failed_query_index(top_plan, e),
+                                getattr(e, "_snowpark_failed_pre_query", None),
                             ):
                                 debug_context_arr.append(error_source_context)
                         if (
@@ -1108,7 +1107,6 @@ class SnowflakePlanBuilder:
         is_distinct: bool = False,
         ilike_pattern: Optional[str] = None,
     ) -> SnowflakePlan:
-
         return self.build(
             lambda x: project_statement(
                 project_list,
@@ -1756,7 +1754,6 @@ class SnowflakePlanBuilder:
         iceberg_config: Optional[dict] = None,
         copy_grants: bool = False,
     ) -> SnowflakePlan:
-
         child = self.find_and_update_table_function_plan(child)
 
         if len(child.queries) != 1:

@@ -945,13 +945,13 @@ class ServerConnection:
                     if action_id < plan.session._last_canceled_id:
                         raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
         except ProgrammingError as e:
-            # Record which main query failed so SQL errors can be mapped back to the
-            # DataFrame operation that produced that query, not always the last query.
-            if current_query_index is not None:
-                e._snowpark_failed_query = main_queries[current_query_index]
-                e._snowpark_failed_query_is_last = (
-                    current_query_index == len(main_queries) - 1
-                )
+            # When a query that runs before the last one fails (e.g. a pre-action), keep
+            # it on the error: SQL error line numbers refer to that query, not the last one.
+            if (
+                current_query_index is not None
+                and current_query_index < len(main_queries) - 1
+            ):
+                e._snowpark_failed_pre_query = main_queries[current_query_index]
             raise
         finally:
             # delete created tmp object
