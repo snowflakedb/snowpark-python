@@ -32,6 +32,9 @@ def _register_feature(name: str, trace: bool = False) -> None:
 
 # Eagerly validates the schema of each dataframe when it is created.
 _register_feature("eager_schema_validation")
+# Maps SQL compilation errors to the Python lines of the dataframe operations, and adds the
+# context of missing and existing objects to the errors.
+_register_feature("trace_sql_errors_to_dataframe", trace=True)
 
 
 def tracing_sessions() -> int:

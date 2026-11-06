@@ -7,6 +7,7 @@ import sys
 
 import pytest
 import snowflake.snowpark.context as context
+from snowflake.snowpark import Session
 
 from snowflake.snowpark._internal.utils import (
     AstFlagSource,
@@ -20,7 +21,7 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.window import Window
-from tests.utils import Utils
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -543,3 +544,29 @@ def test_existing_view_with_all_dataframe_methods(session, view_method):
     ), f"Expected object reference not found in debug context for {view_method}: {ex.value.debug_context}"
 
     Utils.drop_view(session, view_name)
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_sql_error_tracing_is_per_session(session, db_parameters):
+    def build(s):
+        df = s.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        return df.select(col("a").alias("x")).select(col("x") + col("b"))
+
+    with Session.builder.configs(db_parameters).create() as other:
+        other.sql_simplifier_enabled = session.sql_simplifier_enabled
+        other.debug.disable(trace_sql_errors_to_dataframe=True)
+        assert session.debug.trace_sql_errors_to_dataframe is True
+        on, off = build(session), build(other)
+        # the session with the feature off sends the same SQL and records no line intervals
+        assert off.queries == on.queries
+        assert not any(q.query_line_intervals for q in off._plan.queries)
+        with pytest.raises(SnowparkSQLException) as ex_on:
+            on.collect()
+        with pytest.raises(SnowparkSQLException) as ex_off:
+            off.collect()
+    assert "SQL compilation error corresponds to Python source" in str(
+        ex_on.value.debug_context
+    )
+    assert "SQL compilation error corresponds to Python source" not in str(
+        ex_off.value.debug_context or ""
+    )

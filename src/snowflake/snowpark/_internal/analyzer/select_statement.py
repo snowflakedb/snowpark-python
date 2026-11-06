@@ -413,8 +413,6 @@ class Selectable(LogicalPlan, ABC):
 
     def get_snowflake_plan(self, skip_schema_query) -> SnowflakePlan:
         if self._snowflake_plan is None:
-            import snowflake.snowpark.context as context
-
             # The query generation step can trigger analyzer.analyze(), so we need
             # to initialize alias related fields here similar to how we do it in
             # analyzer.resolve()
@@ -425,7 +423,7 @@ class Selectable(LogicalPlan, ABC):
 
             query = Query(
                 self.commented_sql
-                if context._enable_trace_sql_errors_to_dataframe
+                if debug_config.enabled(self._session, "trace_sql_errors_to_dataframe")
                 else self.sql_query,
                 params=self.query_params,
             )

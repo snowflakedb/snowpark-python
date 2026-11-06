@@ -149,7 +149,7 @@ def _snapshot(session):
         "cte": session.cte_optimization_enabled,
         "eager_schema_validation": session.debug.eager_schema_validation,
         "trace_on_error": context._enable_dataframe_trace_on_error,
-        "trace_sql_errors": context._enable_trace_sql_errors_to_dataframe,
+        "trace_sql_errors": session.debug.trace_sql_errors_to_dataframe,
     }
 
 
