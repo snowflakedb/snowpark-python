@@ -10,7 +10,10 @@ import pytest
 from snowflake.snowpark._internal.debug_utils import (
     SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH,
 )
+from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.functions import col
+from tests.utils import IS_IN_STORED_PROC
 from tests.resources.test_debug_utils_dir.dataframe_generator1 import (
     DataFrameGenerator1,
 )
@@ -356,3 +359,23 @@ def test_enable_and_disable_extract_debug_trace(session):
         "Trace of the most recent dataframe operations associated with the error"
         not in str(exc_info.value)
     )
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_lineage_trace_is_per_session(session, db_parameters):
+    def failing(s):
+        return s.create_dataframe([[1, 2]], schema=["a", "b"]).select(
+            col("a") + col("does_not_exist")
+        )
+
+    with Session.builder.configs(db_parameters).create() as other:
+        other.sql_simplifier_enabled = session.sql_simplifier_enabled
+        other.debug.disable(dataframe_trace_on_error=True)
+        assert session.debug.dataframe_trace_on_error is True
+        with pytest.raises(SnowparkSQLException) as ex_on:
+            failing(session).collect()
+        with pytest.raises(SnowparkSQLException) as ex_off:
+            failing(other).collect()
+    trace = "Trace of the most recent dataframe operations associated with the error"
+    assert trace in str(ex_on.value)
+    assert trace not in str(ex_off.value)

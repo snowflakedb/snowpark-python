@@ -10,6 +10,7 @@
 - Added `Session.debug` (Experimental) to turn the debug features on and off per session, with `session.debug.set(...)` or `session.debug.enable_<feature>()` / `disable_<feature>()`. The features are:
   - `eager_schema_validation`: validates the schema of a DataFrame when it is created, so an invalid operation fails at the line that defines it.
   - `trace_sql_errors_to_dataframe`: maps a SQL compilation error to the Python lines of the DataFrame operations that generated the failing SQL.
+  - `dataframe_trace_on_error`: adds the most recent DataFrame operations of a failed DataFrame to the error.
 
   `snowflake.snowpark.context.configure_development_features` is now a mirror of `Session.debug` that applies to every session.
 - Added support for the following functions in `functions.py`:

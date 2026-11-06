@@ -18,6 +18,8 @@ _FEATURES: Dict[str, bool] = {
     # Maps SQL compilation errors to the Python lines of the dataframe operations, and adds the
     # context of missing and existing objects to the errors.
     "trace_sql_errors_to_dataframe": True,
+    # Adds the most recent dataframe operations (the lineage) of a failed dataframe to the error.
+    "dataframe_trace_on_error": True,
 }
 
 # The number of sessions with a trace feature on, so the public API wrapper, which has no

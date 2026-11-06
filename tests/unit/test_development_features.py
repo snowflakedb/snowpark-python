@@ -13,13 +13,14 @@ from snowflake.snowpark._internal.debug_config import DebugConfig
 from snowflake.snowpark import session as session_module
 from snowflake.snowpark.session import Session
 
-# The setting of each feature for the sessions created next: a session feature or a flag of the
-# context module.
+# The setting of each feature for the sessions created next.
 FLAGS = {
     "enable_eager_schema_validation": lambda: context._development_feature_settings.get(
         "eager_schema_validation", False
     ),
-    "enable_dataframe_trace_on_error": lambda: context._enable_dataframe_trace_on_error,
+    "enable_dataframe_trace_on_error": lambda: context._development_feature_settings.get(
+        "dataframe_trace_on_error", False
+    ),
     "enable_trace_sql_errors_to_dataframe": lambda: context._development_feature_settings.get(
         "trace_sql_errors_to_dataframe", False
     ),
