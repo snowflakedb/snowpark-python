@@ -676,14 +676,12 @@ def test_profile_query_with_complex_attributes():
         os.unlink(temp_path)
 
 
-def _plan_node(uuid, children=(), df_ast_ids=None, wrapped_plan=None):
-    # The df trace nodes of a plan are those of the DataFrame operations behind its ast
-    # ids; strings stand in for them.
+def _plan_node(uuid, children=(), df_trace_nodes=None, wrapped_plan=None):
+    # Strings stand in for the df trace nodes.
     return types.SimpleNamespace(
         uuid=uuid,
         children_plan_nodes=list(children),
-        df_ast_ids=df_ast_ids,
-        df_trace_nodes=[f"trace_{i}" for i in df_ast_ids] if df_ast_ids else None,
+        df_trace_nodes=df_trace_nodes,
         _snowflake_plan=wrapped_plan,
     )
 
@@ -695,16 +693,16 @@ def _pre_query(*intervals):
 
 
 @pytest.mark.parametrize(
-    "line_number, owner_uuid, expected_uuid, expected_ast_ids",
+    "line_number, owner_uuid, expected_uuid, expected_trace_nodes",
     [
         # owned by the top-level plan itself
-        (0, "top", "top", [1, 2]),
-        # owned by a node several levels down that has its own ast ids
-        (0, "leaf", "leaf", [3]),
-        # owned by a node without ast ids: inherits the closest ancestor's
-        (0, "middle_no_ids", "middle_no_ids", [1, 2]),
+        (0, "top", "top", ["sql", "filter"]),
+        # owned by a node several levels down that has its own trace nodes
+        (0, "leaf", "leaf", ["leaf"]),
+        # owned by a node without trace nodes: inherits the closest ancestor's
+        (0, "middle_no_nodes", "middle_no_nodes", ["sql", "filter"]),
         # owned by the snowflake plan wrapped by a selectable (large local relation)
-        (0, "wrapped", "wrapper", [1, 2]),
+        (0, "wrapped", "wrapper", ["sql", "filter"]),
         # owner not in the tree (e.g. a large query breakdown partition)
         (0, "not_in_tree", None, None),
         # line not in the query's intervals
@@ -712,12 +710,14 @@ def _pre_query(*intervals):
     ],
 )
 def test_get_plan_from_pre_query_line_number(
-    line_number, owner_uuid, expected_uuid, expected_ast_ids
+    line_number, owner_uuid, expected_uuid, expected_trace_nodes
 ):
-    leaf = _plan_node("leaf", df_ast_ids=[3])
-    middle_no_ids = _plan_node("middle_no_ids", children=[leaf])
+    leaf = _plan_node("leaf", df_trace_nodes=["leaf"])
+    middle_no_nodes = _plan_node("middle_no_nodes", children=[leaf])
     wrapper = _plan_node("wrapper", wrapped_plan=_plan_node("wrapped"))
-    top = _plan_node("top", children=[middle_no_ids, wrapper], df_ast_ids=[1, 2])
+    top = _plan_node(
+        "top", children=[middle_no_nodes, wrapper], df_trace_nodes=["sql", "filter"]
+    )
     result = get_plan_from_pre_query_line_number(
         top, _pre_query((0, 3, owner_uuid)), line_number
     )
@@ -725,8 +725,7 @@ def test_get_plan_from_pre_query_line_number(
         assert result is None
     else:
         assert result.uuid == expected_uuid
-        assert result.df_ast_ids == expected_ast_ids
-        assert result.df_trace_nodes == [f"trace_{i}" for i in expected_ast_ids]
+        assert result.df_trace_nodes == expected_trace_nodes
 
 
 @pytest.mark.parametrize("pre_query_plan_found", [None, True, False])
