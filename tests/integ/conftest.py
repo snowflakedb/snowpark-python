@@ -4,6 +4,7 @@
 #
 import os
 from logging import getLogger
+from types import SimpleNamespace
 from typing import Dict
 
 import pytest
@@ -11,7 +12,16 @@ import pytest
 import snowflake.connector
 from snowflake.snowpark import Session
 from snowflake.snowpark.context import _DEFAULT_ARTIFACT_REPOSITORY
-from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
+import snowflake.snowpark.context as context
+from snowflake.snowpark._internal.debug_utils import (
+    SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH,
+)
+from snowflake.snowpark._internal.utils import (
+    AstFlagSource,
+    TempObjectType,
+    is_ast_enabled,
+    set_ast_state,
+)
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.ast.ast_test_utils import (
@@ -514,3 +524,74 @@ def clear_session_ast_batch_on_validate_ast(session, validate_ast):
     yield
     if validate_ast:
         session._ast_batch.flush()
+
+
+# ------------------------------------------------------------------ DataFrame trace tests
+DF_TRACE_SETTINGS = [
+    pytest.param(
+        dict(simplifier=True, cte=False, multiline=True),
+        id="simplifier-nocte-multiline",
+    ),
+    pytest.param(
+        dict(simplifier=True, cte=True, multiline=True), id="simplifier-cte-multiline"
+    ),
+    pytest.param(
+        dict(simplifier=False, cte=False, multiline=True),
+        id="nosimplifier-nocte-multiline",
+    ),
+    pytest.param(
+        dict(simplifier=True, cte=False, multiline=False),
+        id="simplifier-nocte-singleline",
+    ),
+]
+
+
+@pytest.fixture(params=DF_TRACE_SETTINGS)
+def trace_settings(request, session):
+    """Runs the test with the tracing features enabled under each setting of the plan
+    compiler. The AST collection is turned off: the features must not depend on it."""
+    settings = SimpleNamespace(**request.param)
+    old = (
+        session.sql_simplifier_enabled,
+        session.cte_optimization_enabled,
+        session._generate_multiline_queries,
+        is_ast_enabled(),
+        os.environ.get(SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH),
+    )
+    session.sql_simplifier_enabled = settings.simplifier
+    session.cte_optimization_enabled = settings.cte
+    (
+        session._enable_multiline_queries
+        if settings.multiline
+        else session._disable_multiline_queries
+    )()
+    set_ast_state(AstFlagSource.TEST, False)
+    os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH] = "1000"
+    context.configure_development_features(
+        enable_dataframe_trace_on_error=True,
+        enable_trace_sql_errors_to_dataframe=True,
+    )
+    yield settings
+    assert not is_ast_enabled(), "the debug features must not turn the AST on"
+    context.configure_development_features()
+    session.sql_simplifier_enabled = old[0]
+    session.cte_optimization_enabled = old[1]
+    (
+        session._enable_multiline_queries
+        if old[2]
+        else session._disable_multiline_queries
+    )()
+    set_ast_state(AstFlagSource.TEST, old[3])
+    if old[4] is None:
+        os.environ.pop(SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH, None)
+    else:
+        os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH] = old[4]
+
+
+@pytest.fixture(scope="module")
+def df_trace_table(session):
+    """A table for the DataFrame trace tests."""
+    name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.sql(f"create temp table {name} (ID int, NAME string, V float)").collect()
+    yield name
+    session.sql(f"drop table if exists {name}").collect()

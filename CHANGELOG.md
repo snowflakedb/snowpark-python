@@ -10,7 +10,8 @@
 
 #### Improvements
 
-- `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them. Turning the tracing features off now also turns off the AST collection if the features enabled it.
+- `snowflake.snowpark.context.configure_development_features` (Experimental) no longer depends on AST collection and no longer changes the AST collection setting.
+- `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them.
 
 #### Bug Fixes
 
@@ -19,6 +20,10 @@
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file in accounts that return structured types in the native Arrow format (for example, with `ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT` set).
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file, instead of falling back to the next model, when `AI_COMPLETE` reported the first model as unavailable (`Model "<name>" is unavailable`).
 - Fixed a bug where the Python source location reported for a SQL compilation error was missing or pointed to the wrong DataFrame operation when the error came from a query that runs before the main query, such as a non-SELECT statement passed to `Session.sql()`, when `enable_trace_sql_errors_to_dataframe` is enabled by `context.configure_development_features`.
+
+#### Dependency Updates
+
+- The `[pandas]` install extra now declares `pandas` and `pyarrow` directly instead of coupling them through `snowflake-connector-python[pandas]`. The version bounds are unchanged.
 
 ## 1.56.0 (2026-10-29)
 

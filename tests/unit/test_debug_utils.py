@@ -9,7 +9,7 @@ from unittest import mock
 
 import pytest
 
-from snowflake.snowpark._internal.ast.batch import AstBatch
+from snowflake.snowpark._internal.df_trace import SrcPosition, TraceNode
 from snowflake.snowpark._internal.debug_utils import (
     DataFrameTraceNode,
     QueryProfiler,
@@ -26,7 +26,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.utils import get_plan_from_pre_query_line_number
-import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 
 curr_file_path = os.path.dirname(os.path.abspath(__file__))
@@ -62,12 +61,7 @@ def test_read_file(
     expected,
     minor_py_version,
 ):
-    mock_ast_batch = AstBatch(mock_session)
-    stmt = mock_ast_batch.bind()
-
-    stmt_cache = {1: stmt}
-
-    LineageNode = DataFrameTraceNode(1, stmt_cache)
+    LineageNode = DataFrameTraceNode(TraceNode(SrcPosition("file.py", 1)))
     with mock.patch("sys.version_info", (3, minor_py_version)):
         result = LineageNode._read_file(
             filename=str(test_file_path),
@@ -91,15 +85,13 @@ def test_read_file(
 def test_format_source_location(
     start_line, end_line, start_column, end_column, expected
 ):
-    from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
-
-    __STRING_INTERNING_MAP__["test_debug_utils.py"] = 1
-    src = proto.SrcPosition()
-    src.file = 1
-    src.start_line = start_line
-    src.end_line = end_line
-    src.start_column = start_column
-    src.end_column = end_column
+    src = SrcPosition(
+        filename="test_debug_utils.py",
+        start_line=start_line,
+        start_column=start_column,
+        end_line=end_line,
+        end_column=end_column,
+    )
 
     result = _format_source_location(src)
     assert result == expected

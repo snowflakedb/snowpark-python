@@ -2677,13 +2677,11 @@ def get_plan_from_line_numbers(
         return -1
 
     # traverse the plan tree to find the plan that contains the line number
-    stack = [(plan_node, line_number, None, None)]
+    stack = [(plan_node, line_number, None)]
     while stack:
-        node, line_number, df_ast_ids, df_trace_nodes = stack.pop()
+        node, line_number, df_trace_nodes = stack.pop()
         if isinstance(node, Selectable):
             node = node.get_snowflake_plan(skip_schema_query=False)
-        if node.df_ast_ids is not None:
-            df_ast_ids = node.df_ast_ids
         if node.df_trace_nodes:
             df_trace_nodes = node.df_trace_nodes
         query_line_intervals = node.queries[-1].query_line_intervals
@@ -2691,7 +2689,6 @@ def get_plan_from_line_numbers(
         if idx >= 0:
             uuid = query_line_intervals[idx].uuid
             if node.uuid == uuid:
-                node.df_ast_ids = df_ast_ids
                 node.df_trace_nodes = df_trace_nodes
                 return node
             else:
@@ -2701,7 +2698,6 @@ def get_plan_from_line_numbers(
                             (
                                 child,
                                 line_number - query_line_intervals[idx].start,
-                                df_ast_ids,
                                 df_trace_nodes,
                             )
                         )

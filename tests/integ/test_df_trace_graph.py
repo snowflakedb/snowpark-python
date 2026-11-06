@@ -151,6 +151,19 @@ def test_plans_mirror_the_trace_nodes_of_their_dataframe(session, tracing):
         assert df._select_statement.df_trace_nodes[-1] is df._trace_node
 
 
+def test_dataframe_created_before_enabling_has_no_node_and_works_after(session):
+    old = _df(session)
+    context.configure_development_features(enable_dataframe_trace_on_error=True)
+    try:
+        new = old.filter(col("id") > 0)
+        assert old._trace_node is None
+        assert new._trace_node is not None
+        assert new._trace_node.parents == []
+        assert new.collect()
+    finally:
+        context.configure_development_features()
+
+
 def test_trace_is_freed_with_the_dataframe(session, tracing):
     df = _df(session).filter(col("id") > 0).select("id")
     ref = weakref.ref(df._trace_node)
@@ -180,6 +193,21 @@ def test_udf_registration_is_an_input_of_the_dataframe_applying_it(session, trac
     assert f._trace_node is not None and f._trace_node.kind == "udf"
     df = _df(session).with_column("u", f(col("id")))
     assert f._trace_node in df._trace_node.parents
+
+
+def test_udf_registered_before_enabling_adds_no_input(session):
+    from snowflake.snowpark.functions import udf
+    from snowflake.snowpark.types import IntegerType
+
+    f = udf(lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()])
+    context.configure_development_features(enable_dataframe_trace_on_error=True)
+    try:
+        base = _df(session)
+        df = base.with_column("u", f(col("id")))
+        assert f._trace_node is None
+        assert df._trace_node.parents == [base._trace_node]
+    finally:
+        context.configure_development_features()
 
 
 def test_internal_dataframes_are_not_in_the_plan_lists(session, tracing):
