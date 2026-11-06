@@ -8,12 +8,18 @@ from unittest import mock
 import pytest
 
 import snowflake.snowpark.context as context
+from snowflake.snowpark._internal import debug_config
+from snowflake.snowpark._internal.debug_config import DebugConfig
 from snowflake.snowpark.session import Session
 
+# The setting of each feature for the sessions created next: a session feature or a flag of the
+# context module.
 FLAGS = {
-    "enable_eager_schema_validation": "_debug_eager_schema_validation",
-    "enable_dataframe_trace_on_error": "_enable_dataframe_trace_on_error",
-    "enable_trace_sql_errors_to_dataframe": "_enable_trace_sql_errors_to_dataframe",
+    "enable_eager_schema_validation": lambda: debug_config._defaults.get(
+        "eager_schema_validation", False
+    ),
+    "enable_dataframe_trace_on_error": lambda: context._enable_dataframe_trace_on_error,
+    "enable_trace_sql_errors_to_dataframe": lambda: context._enable_trace_sql_errors_to_dataframe,
 }
 
 
@@ -22,6 +28,7 @@ def make_session(cleaner_enabled=True):
     session = Session.__new__(Session)
     session._auto_clean_up_temp_table_enabled = cleaner_enabled
     session._auto_clean_up_temp_table_disabled_by_ast = False
+    session._debug = DebugConfig(session)
     return session
 
 
@@ -65,7 +72,7 @@ def reset_features(sessions, ast_state):
 
 
 def current_flags():
-    return {name: getattr(context, attr) for name, attr in FLAGS.items()}
+    return {name: read() for name, read in FLAGS.items()}
 
 
 def test_all_features_are_off_by_default():
@@ -198,3 +205,18 @@ def test_explicit_cleaner_choice_is_kept_when_ast_is_disabled(ast_state):
     session._set_ast_enabled_internal(False)
 
     assert session._auto_clean_up_temp_table_enabled is False
+
+
+def test_eager_schema_validation_is_set_in_every_session(sessions):
+    first, second = make_session(), make_session()
+    sessions.extend([first, second])
+    context.configure_development_features(enable_eager_schema_validation=True)
+    assert first._debug.eager_schema_validation is True
+    assert second._debug.eager_schema_validation is True
+    assert make_session()._debug.eager_schema_validation is True
+    # one session can still turn it off for itself
+    first._debug.disable(eager_schema_validation=True)
+    assert first._debug.eager_schema_validation is False
+    assert second._debug.eager_schema_validation is True
+    context.configure_development_features()
+    assert second._debug.eager_schema_validation is False

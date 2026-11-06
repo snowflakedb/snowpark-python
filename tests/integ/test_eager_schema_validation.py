@@ -4,14 +4,33 @@
 #
 
 import pytest
-import snowflake.snowpark.context as context
+from contextlib import contextmanager
 from copy import copy
 from unittest.mock import patch, Mock
 
 
+from snowflake.snowpark import Session
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, lit, max
+from tests.utils import IS_IN_STORED_PROC
+
+
+@contextmanager
+def eager_validation(session, enabled):
+    """Turns eager schema validation on or off for ``session`` and restores it afterwards."""
+    original = session.debug.eager_schema_validation
+    if enabled:
+        session.debug.enable(eager_schema_validation=True)
+    else:
+        session.debug.disable(eager_schema_validation=True)
+    try:
+        yield
+    finally:
+        if original:
+            session.debug.enable(eager_schema_validation=True)
+        else:
+            session.debug.disable(eager_schema_validation=True)
 
 
 @pytest.mark.skipif(
@@ -48,7 +67,7 @@ from snowflake.snowpark.functions import col, lit, max
     ],
 )
 def test_early_attributes(session, transform, debug_mode):
-    with patch.object(context, "_debug_eager_schema_validation", debug_mode):
+    with eager_validation(session, debug_mode):
         df = session.create_dataframe([(1, "A"), (2, "B"), (3, "C")], ["A", "B"])
 
         transformed = transform(df)
@@ -83,7 +102,7 @@ def test_early_attributes(session, transform, debug_mode):
 def test_early_error(session, transform, debug_mode):
     if not session.sql_simplifier_enabled:
         pytest.skip("SQL simplifier must be enabled for this test")
-    with patch.object(context, "_debug_eager_schema_validation", debug_mode):
+    with eager_validation(session, debug_mode):
         df = session.create_dataframe([1, 2, 3], ["A"])
 
         show_mock = Mock()
@@ -154,14 +173,14 @@ def test_eager_validation_catches_missing_column_in_filter_and_sort(
     session.reduce_describe_query_enabled = reduce_describe
     try:
         df = session.create_dataframe([(1,), (2,)], ["A"])
-        with patch.object(context, "_debug_eager_schema_validation", True):
+        with eager_validation(session, True):
             with pytest.raises(SnowparkSQLException) as ex_info:
                 transform(df)
         assert "invalid identifier" in str(ex_info.value)
         assert "There are existing quoted column identifiers" in str(ex_info.value)
 
         # Without eager validation the error only appears when the query runs.
-        with patch.object(context, "_debug_eager_schema_validation", False):
+        with eager_validation(session, False):
             lazy = transform(df)
         with pytest.raises(SnowparkSQLException, match="invalid identifier"):
             lazy.collect()
@@ -180,7 +199,7 @@ def test_eager_validation_keeps_valid_filter_and_sort_working(session, simplifie
     session.sql_simplifier_enabled = simplifier
     try:
         df = session.create_dataframe([(1, "x"), (2, "y")], ["A", "B"])
-        with patch.object(context, "_debug_eager_schema_validation", True):
+        with eager_validation(session, True):
             result = df.filter(col("A") > 1).sort(col("A").desc()).select("A")
             if simplifier:
                 # B is dropped by the select but stays visible to a WHERE that is
@@ -204,9 +223,9 @@ def test_eager_validation_adds_one_describe_per_filter_or_sort(session):
         df = session.create_dataframe([(1,), (2,)], ["A"])
         df.schema  # warm the base schema
 
-        with patch.object(context, "_debug_eager_schema_validation", False):
+        with eager_validation(session, False):
             assert _count_describes(lambda: df.filter(col("A") > 0).sort("A")) == 0
-        with patch.object(context, "_debug_eager_schema_validation", True):
+        with eager_validation(session, True):
             assert _count_describes(lambda: df.filter(col("A") > 0).sort("A")) == 2
             # operations without a WHERE or ORDER BY add no full-query describe
             assert _count_describes(lambda: df.select("A").limit(1)) == 0
@@ -224,5 +243,25 @@ def test_eager_validation_skips_full_query_describe_with_pre_actions(session):
     # cache_result() creates a temp table through a pre-action; a filter on top of a
     # plan that still carries pre-actions must not describe a query that depends on them.
     cached = session.create_dataframe([(1,), (2,)], ["A"]).cache_result()
-    with patch.object(context, "_debug_eager_schema_validation", True):
+    with eager_validation(session, True):
         assert [r[0] for r in cached.filter(col("A") > 1).collect()] == [2]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="debug_mode not used in local testing mode",
+)
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_eager_validation_is_per_session(session, db_parameters):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    with Session.builder.configs(db_parameters).create() as other:
+        other.sql_simplifier_enabled = True
+        with eager_validation(session, True), eager_validation(other, False):
+            # the validating session raises when the dataframe is created
+            with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+                session.create_dataframe([1, 2], ["A"]).select("B")
+            # the other session only raises when the query runs
+            lazy = other.create_dataframe([1, 2], ["A"]).select("B")
+            with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+                lazy.collect()
