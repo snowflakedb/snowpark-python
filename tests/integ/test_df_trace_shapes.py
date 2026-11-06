@@ -99,9 +99,11 @@ def test_diamond(session, trace_settings):
     df = fail(left.join(right, col("ID") == col("ID2")))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src('left.join(right, col("ID") == col("ID2"))'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
+    if trace_settings.cte:
+        # Under CTE optimization the query that fails is the rewritten one, whose lines are not
+        # described by the line intervals of the plan, so all of its operations are reported.
+        mapped = [src('left.join(right, col("ID") == col("ID2"))'), FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -122,8 +124,6 @@ def test_same_df_twice_in_expression(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -233,8 +233,6 @@ def test_helper_functions(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [
-        BASE,
-        src('d.with_column("X", col("ID") + 1)'),
         src('add(add(d)).filter(col("X") > 0)'),
         FAIL,
     ]
@@ -343,12 +341,14 @@ def test_self_join_reused(session, trace_settings):
     df = fail(a.join(a.select(col("ID").alias("I2")), col("ID") == col("I2")))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('a.join(a.select(col("ID").alias("I2")), col("ID") == col("I2"))'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
+    if trace_settings.cte:
+        # Under CTE optimization the query that fails is the rewritten one, whose lines are not
+        # described by the line intervals of the plan, so all of its operations are reported.
+        mapped = [
+            src('a.join(a.select(col("ID").alias("I2")), col("ID") == col("I2"))'),
+            FAIL,
+        ]
     assert_debug_output(
         ex,
         trace=[
@@ -501,9 +501,7 @@ def test_udtf_register_from_file_and_describe(session, trace_settings):
     df = fail(base(session).join_table_function(t(col("ID"))))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src('base(session).join_table_function(t(col("ID")))'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -531,12 +529,7 @@ def test_udaf_register_from_file_and_describe(session, trace_settings):
     df = fail(base(session).group_by("NAME").agg(agg(col("ID")).alias("S")))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('base(session).group_by("NAME").agg(agg(col("ID")).alias("S"))'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[

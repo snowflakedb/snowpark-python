@@ -12,6 +12,7 @@
 
 - `snowflake.snowpark.context.configure_development_features` (Experimental) no longer depends on AST collection and no longer changes the AST collection setting.
 - `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them.
+- With `enable_trace_sql_errors_to_dataframe` (Experimental), a SQL compilation error is now mapped to the DataFrame operations that produced the failing part of the query, instead of also listing every operation of the subqueries it wraps.
 
 #### Bug Fixes
 
