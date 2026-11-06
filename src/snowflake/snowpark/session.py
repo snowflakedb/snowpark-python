@@ -1121,6 +1121,7 @@ class Session:
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
+                atexit.unregister(self._close_at_exit)
 
     @property
     def conf(self) -> RuntimeConfig:
