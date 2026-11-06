@@ -32,12 +32,10 @@ def main():
         )
 
         # Jan 1 at 03:00 UTC: it never fires during the demo, so only run_now() runs it.
-        # Without warehouse=, the task is serverless instead.
-        schedule = dep.schedule(
-            "0 3 1 1 * UTC",
-            warehouse=session.get_current_warehouse(),
-            args=[sales, summary],
-        )
+        # The task runs on the session's current warehouse unless warehouse=... says
+        # otherwise; serverless=True creates a serverless task instead (it needs the
+        # EXECUTE MANAGED TASK privilege).
+        schedule = dep.schedule("0 3 1 1 * UTC", args=[sales, summary])
         say("scheduled as", schedule.name)
 
         schedule.run_now()

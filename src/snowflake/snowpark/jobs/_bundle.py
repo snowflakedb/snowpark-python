@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from snowflake.snowpark.jobs._bundle_spec import (
     CODE_BUNDLE_ENV_FIELDS,
+    MANIFEST_FILE,
     build_spec,
     dump_spec,
     metadata_comment,
@@ -41,7 +42,8 @@ class PreparedBundle:
 
     location: str
     entrypoint: Optional[str]
-    spec: Dict[str, Any]
+    # for staged programs: the manifest in the staged code, or None if it cannot be read
+    spec: Optional[Dict[str, Any]]
     # the manifest already lives at ``location``; otherwise it must be sent as a
     # WITH SPECIFICATION clause
     uploaded: bool
@@ -80,7 +82,14 @@ def prepare(
     env: Environment,
     stage: Optional[str],
     require_entry: bool = True,
+    inherited_config: bool = False,
 ) -> PreparedBundle:
+    """Makes ``program`` available as a stage path.
+
+    ``inherited_config`` is set when the target and environment come from an existing
+    deployment rather than from the caller: staged programs then skip the check that
+    rejects settings (their own ``code_bundle.yml`` wins anyway).
+    """
     env.check_supported("CodeBundle", CODE_BUNDLE_ENV_FIELDS)
     if program.kind == "function":
         raise ValueError(
@@ -91,6 +100,10 @@ def prepare(
         )
     if program.kind == "ref":
         raise ValueError("Program.ref() cannot be packaged")
+    if program.kind in ("stage", "workspace"):
+        return _prepare_staged(
+            session, target, program, entrypoint, env, inherited_config
+        )
 
     on_pool = target.compute_pool is not None
     if env.secrets and not on_pool:
@@ -116,28 +129,10 @@ def prepare(
     compute_type = "compute_pool" if on_pool else "warehouse"
 
     file, func = program.split_entrypoint(entrypoint)
-    if func:
-        if program.kind in ("stage", "workspace"):
-            raise ValueError(
-                "Function entry points (file.py:func) need the launcher that "
-                "session.jobs adds to the code it uploads, so they are not supported "
-                f"for Program.{program.kind}(); use a script entrypoint or a local "
-                "Program.file()/Program.directory()."
-            )
-        if not file.lower().endswith(".py"):
-            raise ValueError(
-                f"Function entry points are only supported for .py files, got {file!r}"
-            )
-    if program.kind in ("stage", "workspace"):
-        if requirements:
-            raise ValueError(
-                "Environment.packages/requirements cannot be added to a pre-staged "
-                "program; put a requirements file into the staged bundle instead."
-            )
-        location = program.path.rstrip("/")
-        _check_entry(file, on_pool)
-        return PreparedBundle(location, file, spec, False, compute_type)
-
+    if func and not file.lower().endswith(".py"):
+        raise ValueError(
+            f"Function entry points are only supported for .py files, got {file!r}"
+        )
     if program.kind == "file" and file is None:
         file = os.path.basename(program.path)
     if not file and require_entry:
@@ -148,6 +143,57 @@ def prepare(
     )
     entry = f"{file}:{func}" if func else file
     return PreparedBundle(packaged.stage_path, entry, spec, True, compute_type, True)
+
+
+def read_staged_manifest(session, location: str) -> Optional[Dict[str, Any]]:
+    """The ``code_bundle.yml`` of staged code, or ``None`` if it cannot be read."""
+    import yaml
+
+    try:
+        stream = session.file.get_stream(location.rstrip("/") + "/" + MANIFEST_FILE)
+        spec = yaml.safe_load(stream.read().decode())
+    except Exception:
+        return None
+    return spec if isinstance(spec, dict) else None
+
+
+def _prepare_staged(
+    session, target, program: Program, entrypoint, env, inherited_config: bool
+) -> PreparedBundle:
+    """Staged and workspace programs bring their own ``code_bundle.yml``, which defines
+    the compute and the environment: the target and environment settings are rejected
+    instead of being silently ignored."""
+    file, func = program.split_entrypoint(entrypoint)
+    if func:
+        raise ValueError(
+            "Function entry points (file.py:func) need the launcher that "
+            "session.jobs adds to the code it uploads, so they are not supported "
+            f"for Program.{program.kind}(); use a script entrypoint or a local "
+            "Program.file()/Program.directory()."
+        )
+    if not inherited_config:
+        settings = [
+            name
+            for name, value in (
+                ("compute_pool", target.compute_pool),
+                ("warehouse", target.warehouse),
+                ("runtime_version", target.runtime_version),
+            )
+            if value
+        ] + [f"Environment.{name}" for name in env.set_fields()]
+        if settings:
+            raise ValueError(
+                f"Program.{program.kind}() runs the code_bundle.yml in the staged code, "
+                "which defines the compute and the environment, so do not set "
+                f"{', '.join(settings)}: edit that file instead. (To pick the "
+                "warehouse of a warehouse bundle, use session.use_warehouse().)"
+            )
+    location = program.path.rstrip("/")
+    spec = read_staged_manifest(session, location)
+    compute_type = ((spec or {}).get("bundle") or {}).get("compute_type") or "warehouse"
+    # notebooks need a compute pool; if the manifest cannot be read, the server decides
+    _check_entry(file, compute_type == "compute_pool" or spec is None)
+    return PreparedBundle(location, file, spec, False, compute_type)
 
 
 def _check_entry(file: Optional[str], on_pool: bool) -> None:
@@ -229,10 +275,12 @@ def submit(
     )
     send_telemetry(session, "submit", CODE_BUNDLE_KIND)
     name = execution_name or default_execution_name(prepared.entrypoint)
-    spec = None if prepared.uploaded else prepared.spec
-    if target.compute_pool is None:
+    # the manifest is always the one in the uploaded or staged code: nothing is sent
+    # with WITH SPECIFICATION
+    if prepared.compute_type != "compute_pool":
+        require_warehouse(session, target.warehouse)
         sql = execute_sql(
-            f"FROM {sql_str(prepared.location)}", prepared.entrypoint, args, name, spec
+            f"FROM {sql_str(prepared.location)}", prepared.entrypoint, args, name
         )
         qid = run_async(session, sql, target.warehouse)
         return BundleRun(session, qid, prepared.compute_type, None, name)
@@ -245,9 +293,7 @@ def submit(
     temp = f"{db}.{schema}.{TEMP_BUNDLE_PREFIX}{random_suffix(12)}"
     run_sql(session, f"CREATE CODE BUNDLE {temp} FROM {sql_str(prepared.location)}")
     try:
-        qid = run_async(
-            session, execute_sql(temp, prepared.entrypoint, args, name, spec)
-        )
+        qid = run_async(session, execute_sql(temp, prepared.entrypoint, args, name))
     except Exception:
         run_sql(session, f"DROP CODE BUNDLE IF EXISTS {temp}")
         raise
@@ -257,13 +303,15 @@ def submit(
     return BundleRun(session, qid, prepared.compute_type, temp, name)
 
 
-def bundle_comment(prepared: PreparedBundle, env: Environment) -> Optional[str]:
+def bundle_comment(
+    prepared: PreparedBundle, env: Environment, warehouse: Optional[str] = None
+) -> Optional[str]:
     """The metadata comment of a bundle whose manifest session.jobs generated. A staged
     program brings its own manifest, which is then the only source."""
     if not prepared.uploaded:
         return None
     return metadata_comment(
-        prepared.spec, prepared.has_launcher, env.resolved_packages()
+        prepared.spec, prepared.has_launcher, env.resolved_packages(), warehouse
     )
 
 
@@ -271,6 +319,7 @@ def deploy(
     session, target, program: Program, *, name, env: Environment, stage, replace
 ):
     from snowflake.snowpark.jobs._deployments import CodeBundleDeployment
+    from snowflake.snowpark.jobs._manager import JobManager
 
     prepared = prepare(
         session,
@@ -284,12 +333,20 @@ def deploy(
     fqn = qualify(session, name)
     send_telemetry(session, "deploy", CODE_BUNDLE_KIND)
     create = "CREATE OR REPLACE" if replace else "CREATE"
-    comment = bundle_comment(prepared, env)
+    comment = bundle_comment(prepared, env, target.warehouse)
     run_sql(
         session,
         f"{create} CODE BUNDLE {fqn} FROM {sql_str(prepared.location)}"
         + (f" COMMENT = {sql_str(comment)}" if comment else ""),
     )
+    if not prepared.uploaded:
+        # a staged program defines the bundle: describe what was created, exactly as
+        # get_deployment() would
+        manager = getattr(session, "_jobs", None) or JobManager(session)
+        deployment = manager._code_bundle_deployment(fqn)
+        deployment._entrypoint = prepared.entrypoint
+        deployment._stage = stage
+        return deployment
     return CodeBundleDeployment(
         session,
         fqn,

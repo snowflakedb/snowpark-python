@@ -11,6 +11,7 @@ import os
 import re
 import sys
 import threading
+import time
 from unittest import mock
 
 import pytest
@@ -34,9 +35,12 @@ from snowflake.snowpark.jobs import (
     StoredProcedure,
     TaskRun,
     _bundle,
+    _deployments,
     _handles,
     _launcher,
+    _manager,
     _packaging,
+    _runner,
     _sproc,
 )
 from snowflake.snowpark.jobs._bundle_spec import (
@@ -572,32 +576,110 @@ def test_code_bundle_pool_submit_creates_temp_bundle(fake, jobs, script):
     assert run._temp_bundle is None
 
 
-def test_pre_staged_program_sends_specification(fake, jobs):
-    jobs.submit(Program.stage("@STG/bundle/", "main.py"), CodeBundle(), args=["a"])
-    stmt = last_statement(fake)
-    assert stmt.startswith(
-        "EXECUTE CODE BUNDLE FROM '@STG/bundle' ENTRYPOINT = 'main.py'"
+WAREHOUSE_MANIFEST = (
+    b"bundle:\n  type: custom\n  language: python\n  compute_type: warehouse\n"
+)
+POOL_MANIFEST = (
+    b"bundle:\n  type: custom\n  language: python\n  compute_type: compute_pool\n"
+)
+
+
+def test_pre_staged_program_runs_with_its_own_manifest(fake, jobs):
+    fake.file.streams["@STG/bundle/code_bundle.yml"] = WAREHOUSE_MANIFEST
+    run = jobs.submit(
+        Program.stage("@STG/bundle/", "main.py"), CodeBundle(), args=["a"]
     )
-    assert "WITH SPECIFICATION $$\nbundle:" in stmt and stmt.endswith("$$")
-    assert fake.file.puts == []
+    stmt = last_statement(fake)
+    assert stmt == (
+        "EXECUTE CODE BUNDLE FROM '@STG/bundle' ENTRYPOINT = 'main.py' "
+        "ARGUMENTS = ('a') EXECUTION_NAME = '" + run.execution_name + "'"
+    )
+    assert "WITH SPECIFICATION" not in stmt
+    assert run.compute_type == "warehouse" and fake.file.puts == []
 
 
-def test_pre_staged_program_rejects_packages(jobs):
-    with pytest.raises(ValueError, match="cannot be added to a pre-staged"):
-        jobs.submit(
-            Program.stage("@STG/bundle", "main.py"),
-            CodeBundle(),
-            env=Environment(packages=["pandas"]),
-        )
+def test_pre_staged_pool_bundle_uses_a_temporary_bundle_without_a_spec(fake, jobs):
+    fake.file.streams["@STG/bundle/code_bundle.yml"] = POOL_MANIFEST
+    run = jobs.submit(Program.stage("@STG/bundle", "main.py"), CodeBundle())
+    create, execute = fake.statements[-2:]
+    assert create.startswith("CREATE CODE BUNDLE DB.SCH.SNOWPARK_JOB_TMP_")
+    assert create.endswith("FROM '@STG/bundle'")
+    assert "WITH SPECIFICATION" not in execute
+    assert run.compute_type == "compute_pool" and run._temp_bundle
 
 
-def test_dollar_dollar_in_spec_is_rejected(jobs):
+def test_pre_staged_program_with_unreadable_manifest_runs_as_warehouse(fake, jobs):
+    run = jobs.submit(Program.workspace("snow://workspace/x", "main.py"), CodeBundle())
+    assert "FROM 'snow://workspace/x'" in last_statement(fake)
+    assert run.compute_type == "warehouse"
+
+
+@pytest.mark.parametrize(
+    "target, env, named",
+    [
+        (CodeBundle(compute_pool="POOL"), Environment(), "compute_pool"),
+        (CodeBundle(warehouse="OTHER"), Environment(), "warehouse"),
+        (CodeBundle(runtime_version="3.11"), Environment(), "runtime_version"),
+        (CodeBundle(), Environment(packages=["pandas"]), "Environment.packages"),
+        (CodeBundle(), Environment(env_vars={"A": "1"}), "Environment.env_vars"),
+        (
+            CodeBundle(compute_pool="P", warehouse="W"),
+            Environment(secrets={"a": "d.s.x"}),
+            "compute_pool, warehouse, Environment.secrets",
+        ),
+    ],
+)
+@pytest.mark.parametrize("kind", ["stage", "workspace"])
+def test_pre_staged_program_rejects_settings(fake, jobs, kind, target, env, named):
+    program = (
+        Program.stage("@STG/bundle", "main.py")
+        if kind == "stage"
+        else Program.workspace("snow://workspace/x", "main.py")
+    )
+    for call in (jobs.submit, lambda *a, **k: jobs.deploy(*a, name="B", **k)):
+        with pytest.raises(ValueError, match="code_bundle.yml in the staged code") as e:
+            call(program, target, env=env)
+        assert named in str(e.value)
+    assert fake.statements == []
+
+
+def test_deploying_a_staged_program_describes_the_created_bundle(fake, jobs):
+    fake.file.streams["@STG/b/code_bundle.yml"] = POOL_MANIFEST + (
+        b"  compute_options:\n    compute_pool: STAGED_POOL\n"
+        b"    runtime_version: V2.9-CPU-PY3.12\n"
+    )
+    version = "snow://code bundle/DB.SCH.B/versions/version$1/"
+    fake.file.streams[version + "code_bundle.yml"] = fake.file.streams[
+        "@STG/b/code_bundle.yml"
+    ]
+    fake.responses[r"^DESCRIBE CODE BUNDLE"] = [
+        {"default_version_location_uri": version}
+    ]
+    fake.responses[r"^SHOW CODE BUNDLES"] = [{"name": "B"}]
+    dep = jobs.deploy(Program.stage("@STG/b", "main.py"), CodeBundle(), name="B")
+    create = [s for s in fake.statements if s.startswith("CREATE CODE BUNDLE")][0]
+    assert create == "CREATE CODE BUNDLE DB.SCH.B FROM '@STG/b'"  # no COMMENT
+    assert dep._compute_type == "compute_pool"
+    assert dep._target_config.compute_pool == "STAGED_POOL"
+    assert dep._entrypoint == "main.py"
+    # the same as a re-attached handle sees
+    again = jobs.get_deployment("B")
+    assert (again._compute_type, again._target_config, again._spec) == (
+        dep._compute_type,
+        dep._target_config,
+        dep._spec,
+    )
+    # overrides merge into the stored manifest
+    dep.run(overrides={"env_vars": [{"A": "1"}]})
+    spec = yaml.safe_load(last_statement(fake).split("$$\n", 1)[1][:-2])
+    assert spec["bundle"]["compute_options"]["compute_pool"] == "STAGED_POOL"
+    assert spec["bundle"]["env_vars"] == [{"A": "1"}]
+
+
+def test_dollar_dollar_in_spec_is_rejected(fake, jobs, pkg_dir):
+    dep = jobs.deploy(Program.directory(pkg_dir, "top.py"), CodeBundle(), name="B")
     with pytest.raises(ValueError, match=r"\$\$"):
-        jobs.submit(
-            Program.stage("@STG/bundle", "main.py"),
-            CodeBundle(),
-            env=Environment(env_vars={"X": "a$$b"}),
-        )
+        dep.run(overrides={"env_vars": [{"X": "a$$b"}]})
 
 
 def test_code_bundle_entry_required():
@@ -741,10 +823,16 @@ def test_schedule_sql(fake):
     )
     assert resume == "ALTER TASK DB.SCH.P_SCHEDULE RESUME"
     assert sched.name == "DB.SCH.P_SCHEDULE"
-    # serverless without a warehouse, explicit short name goes into the deployment schema
+    # no warehouse given: the session's current one; an explicit short name goes into
+    # the deployment's schema
     d.schedule("0 * * * * UTC", name="T1")
     assert any(
-        s.startswith("CREATE TASK DB.SCH.T1 SCHEDULE =") for s in fake.statements
+        s.startswith("CREATE TASK DB.SCH.T1 WAREHOUSE = WH SCHEDULE =")
+        for s in fake.statements
+    )
+    d.schedule("0 * * * * UTC", name="T2", serverless=True)
+    assert any(
+        s.startswith("CREATE TASK DB.SCH.T2 SCHEDULE =") for s in fake.statements
     )
 
 
@@ -873,7 +961,8 @@ def test_code_bundle_schedule_sql(fake, jobs, pkg_dir):
     dep.schedule("0 0 * * * UTC", args=["x"])
     create = [s for s in fake.statements if s.startswith("CREATE TASK")][0]
     assert create == (
-        "CREATE TASK DB.SCH.B_SCHEDULE SCHEDULE = 'USING CRON 0 0 * * * UTC' "
+        "CREATE TASK DB.SCH.B_SCHEDULE WAREHOUSE = WH "
+        "SCHEDULE = 'USING CRON 0 0 * * * UTC' "
         "AS EXECUTE CODE BUNDLE DB.SCH.B ENTRYPOINT = 'top.py' ARGUMENTS = ('x')"
     )
 
@@ -955,12 +1044,12 @@ def test_explicit_runtime_version_and_spec_dump():
     assert yaml.safe_load(text) == spec
 
 
-def test_pool_spec_uses_session_warehouse_as_query_warehouse(fake, jobs):
-    jobs.submit(Program.stage("@STG/b", "m.py"), CodeBundle(compute_pool="POOL"))
-    spec = yaml.safe_load(
-        last_statement(fake).split("WITH SPECIFICATION $$\n", 1)[1][:-2]
-    )
+def test_pool_spec_uses_session_warehouse_as_query_warehouse(fake, jobs, script):
+    jobs.submit(Program.file(script), CodeBundle(compute_pool="POOL"))
+    manifests = [d for name, _, d in fake.file.puts if name == "code_bundle.yml"]
+    spec = yaml.safe_load(manifests[-1])
     assert spec["bundle"]["compute_options"]["query_warehouse"] == "WH"
+    assert "WITH SPECIFICATION" not in last_statement(fake)
 
 
 def test_merge_overrides_forms():
@@ -1481,9 +1570,18 @@ def test_bundle_deployment_run_without_any_warehouse():
         dep.run()
 
 
-def test_ref_run_uses_target_warehouse_of_deployment(fake, jobs):
+def test_ref_run_uses_the_saved_warehouse_of_the_deployment(fake, jobs):
+    meta = {"spec": {"bundle": {"compute_type": "warehouse"}}, "warehouse": "SAVED"}
     fake.responses.update(_bundle_rows())
-    # a deployment loaded by name has no target config, so it runs on the session's
+    fake.responses[r"^DESCRIBE CODE BUNDLE"] = [
+        {"comment": "snowpark.jobs:" + json.dumps(meta)}
+    ]
+    jobs.submit(Program.ref("MYB"), entrypoint="a.py")
+    assert _uses(fake) == ["USE WAREHOUSE SAVED", "USE WAREHOUSE WH"]
+
+
+def test_ref_run_without_a_saved_warehouse_uses_the_sessions(fake, jobs):
+    fake.responses.update(_bundle_rows())
     jobs.submit(Program.ref("MYB"), entrypoint="a.py")
     assert _uses(fake) == []
 
@@ -1593,18 +1691,26 @@ def test_schedule_warehouse_defaults(fake, jobs, pkg_dir):
     # an explicit schedule warehouse wins
     dep.schedule("0 * * * * UTC", warehouse="EXPLICIT")
     assert " WAREHOUSE = EXPLICIT " in task_sql()
-    # code bundle without a warehouse: serverless
+    # code bundle without a warehouse: the session's current warehouse at schedule time
     plain = jobs.deploy(Program.directory(pkg_dir, "top.py"), CodeBundle(), name="B2")
     plain.schedule("0 * * * * UTC")
-    assert "WAREHOUSE" not in task_sql()
+    assert " WAREHOUSE = WH " in task_sql()
+    fake._warehouse = "LATER"
+    plain.schedule("0 * * * * UTC")
+    assert " WAREHOUSE = LATER " in task_sql()
+    fake._warehouse = "WH"
     plain.schedule("0 * * * * UTC", warehouse="EXPLICIT")
     assert " WAREHOUSE = EXPLICIT " in task_sql()
-    # stored procedure: serverless unless warehouse= is given
+    # stored procedure: the same
     sp = ProcedureDeployment(fake, "DB.SCH.P", StoredProcedure())
     sp.schedule("0 * * * * UTC")
-    assert "WAREHOUSE" not in task_sql()
+    assert " WAREHOUSE = WH " in task_sql()
     sp.schedule("0 * * * * UTC", warehouse="EXPLICIT")
     assert " WAREHOUSE = EXPLICIT " in task_sql()
+    # serverless only when asked for
+    sp.schedule("0 * * * * UTC", serverless=True)
+    plain.schedule("0 * * * * UTC", serverless=True)
+    assert "WAREHOUSE" not in task_sql()
     # no session warehouse is switched by scheduling
     assert _uses(fake) == []
 
@@ -1834,6 +1940,11 @@ def test_get_deployment_detects_the_launcher(fake, jobs):
 
 def test_add_version_updates_launcher_availability(fake, jobs, pkg_dir):
     dep = jobs.deploy(Program.directory(pkg_dir), CodeBundle(), name="B")
+    # the staged version's manifest is read back from the bundle; it has no launcher
+    fake.responses[r"^DESCRIBE CODE BUNDLE"] = [
+        {"default_version_location_uri": VERSION_URI}
+    ]
+    fake.file.streams[VERSION_URI + "code_bundle.yml"] = WAREHOUSE_MANIFEST
     dep.add_version(Program.stage("@STG/v2"))
     with pytest.raises(ValueError, match="does not contain the session.jobs launcher"):
         dep.to_sql(entrypoint="a.py:run")
@@ -2037,13 +2148,6 @@ def test_bundle_run_without_history_row(fake, monkeypatch):
     _after_grace(monkeypatch)
     with mock.patch.object(_handles, "_query_status_name", return_value="NO_DATA"):
         assert run.status() == JobStatus.PENDING
-        with pytest.raises(JobNotFoundError):
-            run.status()
-    # a finished query that is no code bundle run is missing as well
-    run = BundleRun(fake, Q2)
-    _after_grace(monkeypatch)
-    with mock.patch.object(_handles, "_query_status_name", return_value="SUCCESS"):
-        run.status()
         with pytest.raises(JobNotFoundError):
             run.status()
 
@@ -2774,9 +2878,8 @@ def test_add_version_updates_the_comment(pkg_dir):
     )
     assert '"compute_pool":"MY_POOL"' in comment and '"has_launcher":true' in comment
     # a staged version brings its own manifest: the comment is cleared
-    dep._env.packages = None  # packages cannot be added to a staged program
     dep.add_version(Program.stage("@STG/v3"))
-    assert last_statement(fake) == "ALTER CODE BUNDLE DB.SCH.B SET COMMENT = ''"
+    assert "ALTER CODE BUNDLE DB.SCH.B SET COMMENT = ''" in fake.statements
     # a failing comment update does not undo the version
     original = fake.sql
 
@@ -2787,3 +2890,355 @@ def test_add_version_updates_the_comment(pkg_dir):
 
     fake.sql = failing
     dep.add_version(Program.directory(pkg_dir))
+
+
+# ---- third review ----
+
+# R2: the target's warehouse is recorded with the deployment
+
+
+def test_deploy_records_the_target_warehouse(fake, jobs, pkg_dir):
+    jobs.deploy(
+        Program.directory(pkg_dir, "top.py"), CodeBundle(warehouse="BIG"), name="B"
+    )
+    create = last_statement(fake)
+    literal = create.split(" COMMENT = ", 1)[1]
+    assert parse_metadata_comment(literal[1:-1])["warehouse"] == "BIG"
+    jobs.deploy(Program.directory(pkg_dir, "top.py"), CodeBundle(), name="B2")
+    literal = last_statement(fake).split(" COMMENT = ", 1)[1]
+    assert "warehouse" not in parse_metadata_comment(literal[1:-1])
+
+
+def test_reattached_deployment_keeps_the_saved_warehouse(pkg_dir):
+    meta = {"spec": yaml.safe_load(POOL_SPEC), "has_launcher": True, "packages": []}
+    meta["warehouse"] = "SAVED"
+    fake = _f5_fake(
+        version=False, comment="snowpark.jobs:" + json.dumps(meta), source=False
+    )
+    manager = JobManager(fake)
+    dep = manager.get_deployment("B")
+    assert dep._target_config.warehouse == "SAVED"  # also for a warehouse bundle below
+    wh_spec = {"bundle": {"compute_type": "warehouse"}}
+    meta = {"spec": wh_spec, "has_launcher": True, "packages": [], "warehouse": "SAVED"}
+    fake = _f5_fake(
+        version=False, comment="snowpark.jobs:" + json.dumps(meta), source=False
+    )
+    dep = JobManager(fake).get_deployment("B")
+    assert dep._target_config.warehouse == "SAVED"
+    dep.run(entrypoint="a.py")
+    assert _uses(fake) == ["USE WAREHOUSE SAVED", "USE WAREHOUSE WH"]
+    # schedule() and add_version() keep it too
+    dep.schedule("0 * * * * UTC", entrypoint="a.py")
+    assert (
+        " WAREHOUSE = SAVED "
+        in [s for s in fake.statements if s.startswith("CREATE TASK")][-1]
+    )
+    dep.add_version(Program.directory(pkg_dir))
+    assert '"warehouse":"SAVED"' in last_statement(fake)
+
+
+def test_saved_warehouse_applies_when_the_manifest_comes_from_the_version():
+    fake = _f5_fake(
+        version=True,
+        comment="snowpark.jobs:"
+        + json.dumps({"spec": {"bundle": {}}, "warehouse": "SAVED"}),
+    )
+    fake.file.streams[VERSION_URI + "code_bundle.yml"] = WAREHOUSE_MANIFEST
+    assert JobManager(fake).get_deployment("B")._target_config.warehouse == "SAVED"
+
+
+# R3: schedule() compute
+
+
+def test_schedule_without_any_warehouse_is_an_error():
+    fake = FakeSession(warehouse=None)
+    with pytest.raises(ValueError, match="No warehouse for the task.*serverless=True"):
+        ProcedureDeployment(fake, "DB.SCH.P").schedule("0 * * * * UTC")
+    assert fake.statements == []
+    ProcedureDeployment(fake, "DB.SCH.P").schedule("0 * * * * UTC", serverless=True)
+    assert "WAREHOUSE" not in fake.statements[0]
+
+
+def test_serverless_cannot_be_combined_with_a_warehouse(fake):
+    with pytest.raises(ValueError, match="serverless=True cannot be combined"):
+        ProcedureDeployment(fake, "DB.SCH.P").schedule(
+            "0 * * * * UTC", warehouse="W", serverless=True
+        )
+    assert fake.statements == []
+
+
+def test_serverless_ignores_the_target_warehouse(fake, jobs, pkg_dir):
+    dep = jobs.deploy(
+        Program.directory(pkg_dir, "top.py"), CodeBundle(warehouse="TWH"), name="B"
+    )
+    dep.schedule("0 * * * * UTC", serverless=True)
+    task = [s for s in fake.statements if s.startswith("CREATE TASK")][-1]
+    assert "WAREHOUSE" not in task
+
+
+# R4: a succeeded EXECUTE without a history row is done
+
+
+def test_succeeded_execute_without_history_row_is_done_after_the_grace(
+    fake, monkeypatch
+):
+    run = BundleRun(fake, Q1)
+    now = [100.0]
+    monkeypatch.setattr(_handles.time, "monotonic", lambda: now[0])
+    grace = _handles.BUNDLE_SUCCESS_WITHOUT_HISTORY_GRACE_SECONDS
+
+    def status_at(seconds, query_status):
+        now[0] = seconds
+        with mock.patch.object(
+            _handles, "_query_status_name", return_value=query_status
+        ):
+            return run.status()
+
+    assert status_at(100.0, "RUNNING") == JobStatus.PENDING  # running, seen
+    assert status_at(105.0, "SUCCESS") == JobStatus.PENDING  # the grace starts here
+    assert status_at(105.0 + grace - 1, "SUCCESS") == JobStatus.PENDING
+    assert status_at(105.0 + grace + 1, "SUCCESS") == JobStatus.SUCCEEDED
+
+
+def test_succeeded_execute_without_history_row_never_hangs_wait(fake, monkeypatch):
+    monkeypatch.setattr(_handles, "BUNDLE_SUCCESS_WITHOUT_HISTORY_GRACE_SECONDS", 0.05)
+    with mock.patch.object(_handles, "_query_status_name", return_value="SUCCESS"):
+        assert BundleRun(fake, Q1).wait(poll_interval=0.02) == JobStatus.SUCCEEDED
+
+
+# R5: Session.jobs is created once
+
+
+def test_session_jobs_is_created_once_across_threads():
+    import snowflake.snowpark.jobs as jobs_module
+
+    created = []
+
+    class SlowManager(jobs_module.JobManager):
+        def __init__(self, session) -> None:
+            created.append(self)
+            time.sleep(0.05)  # widens the race window
+            super().__init__(session)
+
+    session = Session(mock.MagicMock())
+    barrier = threading.Barrier(2)
+    seen = []
+
+    def worker():
+        barrier.wait()
+        seen.append(session.jobs)
+
+    with mock.patch.object(jobs_module, "JobManager", SlowManager):
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    assert len(created) == 1 and seen[0] is seen[1] is created[0]
+
+
+# R6: the age of unused temporary bundles
+
+
+def test_unused_temporary_bundle_needs_a_day_to_be_dropped():
+    assert _manager._UNUSED_TEMP_BUNDLE_MIN_AGE == datetime.timedelta(hours=24)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    young, old = _bundle_names(2)
+    fake = _cleanup_fake(
+        [
+            {"name": young, "created_on": now - datetime.timedelta(hours=23)},
+            {"name": old, "created_on": now - datetime.timedelta(hours=25)},
+        ],
+        {},
+    )
+    assert JobManager(fake).cleanup() == [f'"DB"."SCH"."{old}"']
+
+
+# R8: a failed restore does not hide the submit
+
+
+def test_failed_warehouse_restore_keeps_the_job(fake, jobs, script, caplog):
+    original = fake.use_warehouse
+
+    def use(warehouse):
+        if warehouse == "WH":
+            raise RuntimeError("warehouse WH was dropped")
+        original(warehouse)
+
+    fake.use_warehouse = use
+    with caplog.at_level(logging.WARNING, logger="snowflake.snowpark.jobs._utils"):
+        run = jobs.submit(Program.file(script), CodeBundle(warehouse="OTHER"))
+    assert isinstance(run, BundleRun) and run.query_id
+    assert "WH" in caplog.text and "OTHER" in caplog.text
+    # an error of the submission itself still propagates
+    fake.sql_original = fake.sql
+
+    def failing(statement, **kwargs):
+        if statement.startswith("EXECUTE CODE BUNDLE"):
+            raise RuntimeError("submit failed")
+        return fake.sql_original(statement, **kwargs)
+
+    fake.sql = failing
+    with pytest.raises(RuntimeError, match="submit failed"):
+        jobs.submit(Program.file(script), CodeBundle(warehouse="OTHER"))
+
+
+# R10: a staged .py is its own entrypoint
+
+
+def test_staged_py_file_must_match_the_entrypoint(fake, jobs):
+    with pytest.raises(ValueError, match="does not match the staged file 'a.py'"):
+        jobs.submit(Program.stage("@s/a.py", "b.py"))
+    with pytest.raises(ValueError, match="does not match the staged file"):
+        _sproc.prepare_program(Program.stage("@s/a.py", "b.py:f"), None, Environment())
+    ok = _sproc.prepare_program(Program.stage("@s/a.py", "a.py"), None, Environment())
+    assert ok.imports == ["@s/a.py"]
+    # zips can contain any entrypoint
+    _sproc.prepare_program(
+        Program.stage("@s/code.zip", "pkg/main.py"), None, Environment()
+    )
+
+
+# R12: the status filter of list() is case-insensitive
+
+
+def test_list_status_filter_accepts_any_case(fake, jobs):
+    fake.responses[r"CODE_BUNDLE_HISTORY"] = [
+        {
+            "QUERY_ID": "B1",
+            "START_TIME": datetime.datetime(2025, 1, 2),
+            "STATUS": "done",
+            "EXECUTION_NAME": "SNOWPARK_JOB_X",
+        }
+    ]
+    assert [j.id for j in jobs.list(target="code_bundle", status="SUCCEEDED")] == [
+        "bundle:B1"
+    ]
+
+
+# R14: overrides are documented as unstable
+
+
+def test_overrides_are_documented_as_unstable():
+    assert "unstable" in _deployments.Deployment.run.__doc__
+
+
+# R11: the server-side runner
+
+
+@pytest.fixture
+def import_dir(tmp_path, monkeypatch):
+    """Fakes the directory in which Snowflake places the imports of a procedure."""
+    directory = tmp_path / "imports"
+    directory.mkdir()
+    monkeypatch.setitem(sys._xoptions, "snowflake_import_directory", str(directory))
+    before = (list(sys.path), set(sys.modules))
+    yield directory
+    sys.path[:] = before[0]
+    for name in set(sys.modules) - before[1]:
+        del sys.modules[name]
+
+
+def _zip(directory, name, files):
+    import zipfile
+
+    with zipfile.ZipFile(directory / name, "w") as zf:
+        for path, text in files.items():
+            zf.writestr(path, text)
+
+
+def test_runner_function_form_calls_fn_with_session_and_args():
+    session = object()
+    spec = {"kind": "function", "fn": lambda s, a, b: {"s": s is session, "ab": a + b}}
+    assert _runner.run_program(session, spec, [1, 2]) == {"s": True, "ab": 3}
+    assert (
+        _runner.run_program(session, {"kind": "function", "fn": lambda s: 1}, None) == 1
+    )
+
+
+def test_runner_script_form_sets_argv_and_returns_dunder_return(import_dir):
+    _zip(
+        import_dir,
+        "snowpark_job_x.zip",
+        {"snowpark_job_x/script.py": "import sys\n__return__ = {'argv': sys.argv}\n"},
+    )
+    spec = {
+        "kind": "files",
+        "archive": "snowpark_job_x.zip",
+        "root": "snowpark_job_x",
+        "file": "script.py",
+    }
+    before = list(sys.argv)
+    result = _runner.run_program(object(), spec, ["a", 2])
+    assert result == {"argv": ["script.py", "a", "2"]}  # arguments become strings
+    assert sys.argv == before  # restored
+    _zip(import_dir, "snowpark_job_y.zip", {"snowpark_job_y/s.py": "x = 1\n"})
+    spec.update(archive="snowpark_job_y.zip", root="snowpark_job_y", file="s.py")
+    assert _runner.run_program(object(), spec, []) is None  # no __return__
+
+
+def test_runner_function_in_a_package_imports_siblings(import_dir):
+    _zip(
+        import_dir,
+        "snowpark_job_p.zip",
+        {
+            "snowpark_job_p/pkg/__init__.py": "",
+            "snowpark_job_p/pkg/helper.py": "def twice(x):\n    return x * 2\n",
+            "snowpark_job_p/pkg/main.py": (
+                "from pkg import helper\n"
+                "def go(session, n):\n"
+                "    return {'session': session, 'twice': helper.twice(n)}\n"
+            ),
+        },
+    )
+    spec = {
+        "kind": "files",
+        "archive": "snowpark_job_p.zip",
+        "root": "snowpark_job_p",
+        "file": "pkg/main.py",
+        "func": "go",
+    }
+    assert _runner.run_program("SESSION", spec, ["ab"]) == {
+        "session": "SESSION",
+        "twice": "abab",
+    }
+
+
+def test_runner_converts_results_to_json_types(import_dir):
+    import decimal
+
+    spec = {
+        "kind": "function",
+        "fn": lambda s: {
+            "when": datetime.date(2025, 1, 2),
+            "amount": decimal.Decimal("1.50"),
+            "items": (1, 2),
+        },
+    }
+    assert _runner.run_program(None, spec, []) == {
+        "when": "2025-01-02",
+        "amount": "1.50",
+        "items": [1, 2],
+    }
+    assert (
+        _runner.run_program(None, {"kind": "function", "fn": lambda s: None}, [])
+        is None
+    )
+
+
+def test_runner_copies_a_plain_staged_py_file(import_dir):
+    (import_dir / "tool.py").write_text("__return__ = 'plain'\n")
+    spec = {"kind": "files", "archive": "tool.py", "root": "", "file": "tool.py"}
+    assert _runner.run_program(None, spec, []) == "plain"
+
+
+def test_runner_without_import_directory_fails_clearly(monkeypatch):
+    monkeypatch.delitem(sys._xoptions, "snowflake_import_directory", raising=False)
+    spec = {"kind": "files", "archive": "x.zip", "root": "", "file": "x.py"}
+    with pytest.raises(RuntimeError, match="snowflake_import_directory"):
+        _runner.run_program(None, spec, [])
+
+
+def test_make_runner_returns_a_two_argument_function():
+    runner = _runner.make_runner({"kind": "function", "fn": lambda s, x: x + 1})
+    assert runner("SESSION", [1]) == 2

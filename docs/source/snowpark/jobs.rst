@@ -11,6 +11,14 @@ Experimental API to submit, deploy and schedule Snowpark Python programs, availa
     because scheduled tasks run on their own. ``session.jobs.get()`` can re-attach to a
     run from another process while the submitting session is still open.
 
+.. note::
+
+    ``schedule()`` creates a task on the code bundle target's ``warehouse``, otherwise on
+    the session's current warehouse at the time of the call; ``serverless=True`` creates a
+    serverless task instead. ``Program.stage()`` and ``Program.workspace()`` programs
+    run with the ``code_bundle.yml`` in the staged code, which defines the compute and the
+    environment.
+
 .. currentmodule:: snowflake.snowpark.jobs
 
 .. rubric:: Job manager

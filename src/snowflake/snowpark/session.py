@@ -1042,12 +1042,14 @@ class Session:
         from snowflake.snowpark.jobs import JobManager
 
         if self._jobs is None:
-            if isinstance(self._conn, MockServerConnection):
-                self._conn.log_not_supported_error(
-                    external_feature_name="Session.jobs",
-                    raise_error=NotImplementedError,
-                )
-            self._jobs = JobManager(self)
+            with self._lock:
+                if self._jobs is None:
+                    if isinstance(self._conn, MockServerConnection):
+                        self._conn.log_not_supported_error(
+                            external_feature_name="Session.jobs",
+                            raise_error=NotImplementedError,
+                        )
+                    self._jobs = JobManager(self)
         return self._jobs
 
     def close(self) -> None:

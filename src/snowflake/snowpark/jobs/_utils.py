@@ -4,6 +4,7 @@
 
 import contextlib
 import datetime
+import logging
 import re
 import uuid
 from typing import Any, List, Optional, Tuple
@@ -14,6 +15,8 @@ from snowflake.snowpark._internal.utils import (
     split_snowflake_identifier_with_dot,
     validate_object_name,
 )
+
+_logger = logging.getLogger(__name__)
 
 # Appended to the CALL statements of procedure jobs so that ``jobs.list()`` can find them.
 JOB_MARKER = "/* snowpark.jobs */"
@@ -172,7 +175,17 @@ def using_warehouse(session, warehouse: Optional[str]):
             yield
         finally:
             if current:
-                session.use_warehouse(current)
+                try:
+                    session.use_warehouse(current)
+                except Exception as ex:
+                    # the work was submitted: do not lose its handle over this
+                    _logger.warning(
+                        "Could not switch the session back to warehouse %s after "
+                        "submitting on %s: %s",
+                        current,
+                        warehouse,
+                        ex,
+                    )
 
 
 def send_telemetry(session, verb: str, target_kind: str) -> None:

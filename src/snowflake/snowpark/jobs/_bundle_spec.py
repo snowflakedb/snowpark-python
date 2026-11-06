@@ -160,13 +160,23 @@ _logger = logging.getLogger(__name__)
 
 
 def metadata_comment(
-    spec: Dict[str, Any], has_launcher: bool, packages: List[str]
+    spec: Dict[str, Any],
+    has_launcher: bool,
+    packages: List[str],
+    warehouse: Optional[str] = None,
 ) -> Optional[str]:
-    """The text for the COMMENT of a deployed bundle, or ``None`` if it is too big."""
-    text = COMMENT_PREFIX + json.dumps(
-        {"spec": spec, "has_launcher": bool(has_launcher), "packages": list(packages)},
-        separators=(",", ":"),
-    )
+    """The text for the COMMENT of a deployed bundle, or ``None`` if it is too big.
+
+    The ``warehouse`` of the target is recorded here because a warehouse bundle's
+    manifest has no field for it."""
+    data = {
+        "spec": spec,
+        "has_launcher": bool(has_launcher),
+        "packages": list(packages),
+    }
+    if warehouse:
+        data["warehouse"] = warehouse
+    text = COMMENT_PREFIX + json.dumps(data, separators=(",", ":"))
     if len(text) > MAX_COMMENT_CHARS:
         _logger.warning(
             "The deployment metadata (%d characters) does not fit into the bundle comment "

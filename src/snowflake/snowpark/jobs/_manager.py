@@ -23,6 +23,7 @@ from snowflake.snowpark.jobs._handles import (
     JobStatus,
     QueryJob,
     TaskRun,
+    _lookup_status,
     _map_query_status,
 )
 from snowflake.snowpark.jobs._packaging import LAUNCHER_FILE
@@ -43,11 +44,13 @@ from snowflake.snowpark.jobs._utils import (
     validate_fqn,
     validate_name,
     validate_query_id,
+    validate_warehouse,
 )
 
 _TERMINAL_BUNDLE_STATUSES = ("DONE", "FAILED", "CANCELLED", "DELETED")
-# a temporary bundle that no run ever used is only dropped once it is this old
-_UNUSED_TEMP_BUNDLE_MIN_AGE = datetime.timedelta(minutes=10)
+# a temporary bundle with no recorded run is only dropped once it is this old: its
+# owner cannot be checked, and a compute pool run can take a long time to start
+_UNUSED_TEMP_BUNDLE_MIN_AGE = datetime.timedelta(hours=24)
 
 
 class JobManager:
@@ -103,7 +106,14 @@ class JobManager:
 
         A one-off run on a compute pool creates a temporary code bundle
         ``SNOWPARK_JOB_TMP_<id>``. It is dropped when the returned handle sees the run
-        finish; if the process ends first, :meth:`cleanup` removes it later.
+        finish; if the process ends first, :meth:`cleanup` removes it later. This includes
+        runs that ``session.close()`` cancels: their bundles may still be shutting down
+        when the session closes, so they are left for :meth:`cleanup`.
+
+        ``Program.stage()`` and ``Program.workspace()`` programs run with the
+        ``code_bundle.yml`` of the staged code, which defines the compute and the
+        environment; setting ``compute_pool``, ``warehouse``, ``runtime_version`` or an
+        ``Environment`` for them is an error.
         """
         program = as_program(program)
         if program.kind == "ref":
@@ -228,8 +238,12 @@ class JobManager:
                 + ")",
             )
         spec, has_launcher = meta["spec"], meta["has_launcher"]
+        recorded = parse_metadata_comment(describe.get("comment"))
         try:
             target, env, compute_type, requirements_file = config_from_spec(spec)
+            # a warehouse bundle's manifest has no field for the warehouse of the target
+            if recorded is not None and recorded.get("warehouse"):
+                target.warehouse = validate_warehouse(recorded["warehouse"])
         except Exception as ex:
             return CodeBundleDeployment(
                 self._session,
@@ -379,7 +393,11 @@ class JobManager:
         out = []
         for r in rows:
             d = r.as_dict()
-            if wanted is not None and _BUNDLE_STATUS.get(d["STATUS"]) != wanted:
+            if (
+                wanted is not None
+                and _lookup_status(_BUNDLE_STATUS, "code bundle", str(d["STATUS"]))
+                != wanted
+            ):
                 continue
             compute = (d.get("COMPUTE_TYPE") or "").lower() or None
             out.append(
@@ -426,8 +444,10 @@ class JobManager:
         the handle is never polled), the bundle stays; this removes such bundles from
         ``schema`` (``"schema"`` or ``"database.schema"``; default: the current schema).
         A bundle with a pending or running run is never dropped, because dropping it
-        while a pool run is starting breaks the run. Bundles that no run ever used are
-        dropped once they are 10 minutes old. The prefix is reserved for these bundles.
+        while a pool run is starting breaks the run. The owner of a bundle cannot be
+        checked (another session sharing the schema may be about to run it), so bundles
+        with no recorded run are only dropped once they are 24 hours old. The prefix is
+        reserved for these bundles.
 
         Returns:
             The names of the dropped bundles.

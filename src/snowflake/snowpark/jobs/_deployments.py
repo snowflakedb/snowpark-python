@@ -124,6 +124,10 @@ class Deployment(ABC):
         For code bundles, ``entrypoint`` is a script (``"jobs/daily.py"``) or a function
         (``"jobs/daily.py:run"``, called as ``run(session, *args)``; this needs a bundle
         deployed by ``session.jobs``). ``args`` are strings and there is no return value.
+
+        ``overrides`` (code bundles only) is deep-merged into the bundle's manifest
+        (``code_bundle.yml``) for this run. It exposes the manifest schema of the code
+        bundle Preview, which may change: treat it as unstable.
         """
 
     @abstractmethod
@@ -142,6 +146,7 @@ class Deployment(ABC):
         *,
         name: Optional[str] = None,
         warehouse: Optional[str] = None,
+        serverless: bool = False,
         args: Optional[Sequence[Any]] = None,
         entrypoint: Optional[str] = None,
         replace: bool = False,
@@ -154,22 +159,40 @@ class Deployment(ABC):
                 entry point, see :meth:`run`.
             name: Task name; defaults to ``<deployment name>_SCHEDULE`` in the
                 deployment's schema.
-            warehouse: Warehouse of the task. Defaults to the target's ``warehouse``;
-                if neither is set, a serverless task is created.
+            warehouse: Warehouse of the task. Defaults to the code bundle target's
+                ``warehouse`` if it has one, otherwise to the session's current
+                warehouse at the time of this call.
+            serverless: Create a serverless task (no ``WAREHOUSE`` clause) instead. It
+                needs the ``EXECUTE MANAGED TASK`` privilege and is billed differently.
+                It cannot be combined with ``warehouse``.
             replace: Replace an existing task of that name (``CREATE OR REPLACE TASK``).
                 By default, an existing task is an error.
 
         Raises:
-            ValueError: If the task already exists and ``replace`` is false.
+            ValueError: If the task already exists and ``replace`` is false; if
+                ``serverless`` is combined with ``warehouse``; or if no warehouse is
+                available and ``serverless`` is not set.
             RuntimeError: If the task was created but could not be resumed. It then
                 exists and stays suspended.
         """
         body = self.to_sql(args=args, entrypoint=entrypoint)
         warehouse = validate_warehouse(warehouse)
-        if warehouse is None:
-            warehouse = validate_warehouse(
-                getattr(self._target_config, "warehouse", None)
+        if serverless and warehouse is not None:
+            raise ValueError("serverless=True cannot be combined with warehouse=...")
+        if serverless:
+            warehouse = None
+        else:
+            warehouse = (
+                warehouse
+                or validate_warehouse(getattr(self._target_config, "warehouse", None))
+                or validate_warehouse(self._session.get_current_warehouse())
             )
+            if warehouse is None:
+                raise ValueError(
+                    "No warehouse for the task: pass warehouse=..., call "
+                    "session.use_warehouse(...), or pass serverless=True for a "
+                    "serverless task (which needs the EXECUTE MANAGED TASK privilege)"
+                )
         if name is not None:
             name = validate_name(name, "schedule name")
         db, schema, short = split_fqn(self.name)
@@ -369,12 +392,15 @@ class CodeBundleDeployment(Deployment):
             env=self._env,
             stage=self._stage,
             require_entry=False,
+            inherited_config=True,
         )
         run_sql(
             self._session,
             f"ALTER CODE BUNDLE {self.name} ADD VERSION FROM {sql_str(prepared.location)}",
         )
-        comment = _bundle.bundle_comment(prepared, self._env)
+        comment = _bundle.bundle_comment(
+            prepared, self._env, self._target_config.warehouse
+        )
         try:
             run_sql(
                 self._session,
@@ -384,8 +410,25 @@ class CodeBundleDeployment(Deployment):
             _logger.warning(
                 "Could not update the metadata comment of %s: %s", self.name, ex
             )
-        self._spec = prepared.spec
-        self._has_launcher = prepared.has_launcher
+        if prepared.uploaded:
+            self._spec = prepared.spec
+            self._has_launcher = prepared.has_launcher
+        else:
+            # a staged version brings its own manifest: describe what is stored now
+            from snowflake.snowpark.jobs._manager import JobManager
+
+            manager = getattr(self._session, "_jobs", None) or JobManager(self._session)
+            fresh = manager._code_bundle_deployment(self.name)
+            for attr in (
+                "_target_config",
+                "_spec",
+                "_compute_type",
+                "_env",
+                "_has_launcher",
+                "_spec_problem",
+                "_env_problem",
+            ):
+                setattr(self, attr, getattr(fresh, attr))
         if prepared.entrypoint:
             self._entrypoint = prepared.entrypoint
 

@@ -141,6 +141,11 @@ def prepare_program(
                 f"directories: stage a .zip or .py file instead of {program.path!r}"
             )
         archive = program.path.rsplit("/", 1)[-1]
+        if archive.lower().endswith(".py") and file != archive:
+            raise ValueError(
+                f"The entrypoint {file!r} does not match the staged file {archive!r}: "
+                "a staged .py file is its own entrypoint"
+            )
         spec = {"kind": "files", "archive": archive, "root": "", "file": file}
         if func:
             spec["func"] = func

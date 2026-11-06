@@ -776,7 +776,9 @@ def test_schedule_twice_requires_replace(session):
     name = f"SP_SCH_{uuid.uuid4().hex[:6].upper()}"
     dep = session.jobs.deploy(lambda session: 1, name=name, stage="@JOBS_STG")
     try:
-        first = dep.schedule("0 0 1 1 * UTC", name=f"{name}_T")
+        first = dep.schedule(
+            "0 0 1 1 * UTC", name=f"{name}_T", warehouse=session.get_current_warehouse()
+        )
         try:
             with pytest.raises(ValueError, match="already exists"):
                 dep.schedule("0 0 1 1 * UTC", name=f"{name}_T")
@@ -861,4 +863,104 @@ def test_bundle_compute_pool_cancel_and_cleanup(session, programs):
     session.jobs.cleanup()
     short = temp.split(".")[-1]
     assert session.sql(f"SHOW CODE BUNDLES LIKE '{short}'").collect() == []
+    assert session.sql("SHOW CODE BUNDLES LIKE 'SNOWPARK_JOB_TMP_%'").collect() == []
+
+
+def _task_warehouse(session, name):
+    return session.sql(f"SHOW TASKS LIKE '{name}'").collect()[0]["warehouse"]
+
+
+def test_schedule_defaults_to_the_session_warehouse_and_serverless_is_explicit(session):
+    name = f"SP_WHD_{uuid.uuid4().hex[:6].upper()}"
+    dep = session.jobs.deploy(lambda session: 1, name=name, stage="@JOBS_STG")
+    current = session.get_current_warehouse().strip('"')
+    try:
+        sched = dep.schedule("0 0 1 1 * UTC", name=f"{name}_A")
+        try:
+            assert _task_warehouse(session, f"{name}_A") == current
+        finally:
+            sched.drop()
+        sched = dep.schedule("0 0 1 1 * UTC", name=f"{name}_B", serverless=True)
+        try:
+            assert _task_warehouse(session, f"{name}_B") in ("", None)
+        finally:
+            sched.drop()
+        with pytest.raises(ValueError, match="cannot be combined"):
+            dep.schedule("0 0 1 1 * UTC", warehouse=current, serverless=True)
+    finally:
+        dep.drop()
+
+
+def test_pre_staged_bundle_handles_agree(session, programs, jobs_schema):
+    name = f"BUNDLE_STG_{uuid.uuid4().hex[:6].upper()}"
+    location = f"@JOBS_STG/staged_{uuid.uuid4().hex[:6]}"
+    root = programs["root"] / "staged"
+    root.mkdir(exist_ok=True)
+    (root / "hello.py").write_text("import logging\nlogging.warning('STAGED_MARKER')\n")
+    (root / "code_bundle.yml").write_text(
+        "bundle:\n  type: custom\n  language: python\n  compute_type: warehouse\n"
+        "  compute_options:\n    runtime_version: '3.12'\n  env_vars:\n  - FROM_STAGE: staged\n"
+    )
+    for file in ("hello.py", "code_bundle.yml"):
+        session.file.put(
+            str(root / file), location, auto_compress=False, overwrite=True
+        )
+    with pytest.raises(ValueError, match="code_bundle.yml in the staged code"):
+        session.jobs.submit(
+            Program.stage(location, "hello.py"), CodeBundle(compute_pool="POOL")
+        )
+    run = session.jobs.submit(Program.stage(location, "hello.py"), CodeBundle())
+    assert run.wait(RUN_TIMEOUT) == JobStatus.SUCCEEDED, run.error()
+    dep = session.jobs.deploy(
+        Program.stage(location, "hello.py"), CodeBundle(), name=name
+    )
+    try:
+        again = session.jobs.get_deployment(name)
+        assert (dep._compute_type, dep._target_config, dep._env, dep._spec) == (
+            again._compute_type,
+            again._target_config,
+            again._env,
+            again._spec,
+        )
+        assert dep._spec["bundle"]["env_vars"] == [{"FROM_STAGE": "staged"}]
+        deployed_run = dep.run()
+        assert (
+            deployed_run.wait(RUN_TIMEOUT) == JobStatus.SUCCEEDED
+        ), deployed_run.error()
+        merged = dep.run(overrides={"env_vars": [{"EXTRA": "1"}]})
+        assert merged.wait(RUN_TIMEOUT) == JobStatus.SUCCEEDED, merged.error()
+    finally:
+        dep.drop()
+
+
+@pytest.mark.skipif(
+    not COMPUTE_POOL, reason="SNOWPARK_JOBS_TEST_COMPUTE_POOL is not set"
+)
+def test_pre_staged_pool_bundle_submit(session, programs):
+    location = f"@JOBS_STG/staged_pool_{uuid.uuid4().hex[:6]}"
+    root = programs["root"] / "staged_pool"
+    root.mkdir(exist_ok=True)
+    (root / "hello.py").write_text("print('staged pool')\n")
+    warehouse = session.get_current_warehouse().strip('"')
+    (root / "code_bundle.yml").write_text(
+        "bundle:\n  type: custom\n  language: python\n  compute_type: compute_pool\n"
+        f"  compute_options:\n    compute_pool: {COMPUTE_POOL}\n"
+        f"    query_warehouse: {warehouse}\n    runtime_version: V2.9-CPU-PY3.12\n"
+    )
+    for file in ("hello.py", "code_bundle.yml"):
+        session.file.put(
+            str(root / file), location, auto_compress=False, overwrite=True
+        )
+    # the pool has a single node: wait for the job service of an earlier test to go
+
+    def pool_is_idle():
+        rows = session.sql(f"SHOW COMPUTE POOLS LIKE '{COMPUTE_POOL}'").collect()
+        return rows and int(rows[0]["num_jobs"] or 0) == 0
+
+    assert _poll(pool_is_idle, 300, interval=10), "the compute pool stays busy"
+    # the staged manifest decides: no target settings are needed or accepted
+    run = session.jobs.submit(Program.stage(location, "hello.py"), CodeBundle())
+    assert run.compute_type == "compute_pool"
+    assert run.wait(900) == JobStatus.SUCCEEDED, run.error()
+    session.jobs.cleanup()
     assert session.sql("SHOW CODE BUNDLES LIKE 'SNOWPARK_JOB_TMP_%'").collect() == []

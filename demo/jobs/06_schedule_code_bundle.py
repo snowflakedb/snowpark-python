@@ -20,7 +20,8 @@ def main():
         )
 
         # The task uses the target's warehouse unless schedule(warehouse=...) says
-        # otherwise. Jan 1 at 03:00 UTC never fires during the demo.
+        # otherwise (without either, the session's current warehouse; serverless=True
+        # creates a serverless task). Jan 1 at 03:00 UTC never fires during the demo.
         schedule = dep.schedule(
             "0 3 1 1 * UTC", entrypoint="tasks.py:run", args=[sales, daily]
         )

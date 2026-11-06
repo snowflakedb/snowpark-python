@@ -31,6 +31,11 @@ _POLL_INTERVAL_SECONDS = 2.0
 # starts at the handle's first status check; a job just submitted needs a moment to show.
 MISSING_JOB_GRACE_SECONDS = 120
 
+# A code bundle run whose EXECUTE query succeeded but that has no CODE_BUNDLE_HISTORY row
+# (for example, because the history is not visible to the role) is reported as done after
+# this long: EXECUTE CODE BUNDLE only succeeds when the run finished successfully.
+BUNDLE_SUCCESS_WITHOUT_HISTORY_GRACE_SECONDS = 30
+
 # Hint appended to the error of a job that hit the owner's rights restrictions.
 _OWNER_RIGHTS_MARKERS = ("owner's rights context", "owner's rights procedure")
 _OWNER_RIGHTS_HINT = (
@@ -359,6 +364,7 @@ class BundleRun(Job):
         self.execution_name = execution_name
         self._temp_bundle = temp_bundle
         self._temp_checked = temp_bundle is not None
+        self._success_seen_at: Optional[float] = None
         self._row = row
 
     def _history_row(self) -> Optional[Dict[str, Any]]:
@@ -389,9 +395,24 @@ class BundleRun(Job):
         if name in ("ABORTING", "ABORTED"):
             self._note_existence(True)
             return "CANCELLED"
-        # an EXECUTE that is still running is pending; a finished or unknown query
-        # without a history row is not a code bundle run
-        self._note_existence(name not in ("NO_DATA", "SUCCESS"))
+        if name == "SUCCESS":
+            self._note_existence(True)
+            now = time.monotonic()
+            if self._success_seen_at is None:
+                self._success_seen_at = now
+            if (
+                now - self._success_seen_at
+                > BUNDLE_SUCCESS_WITHOUT_HISTORY_GRACE_SECONDS
+            ):
+                _logger.debug(
+                    "No CODE_BUNDLE_HISTORY row for %s, but its EXECUTE query succeeded: "
+                    "reporting the run as done.",
+                    self.query_id,
+                )
+                return "DONE"
+            return "PENDING"
+        # an EXECUTE that is still running is pending; an unknown query is missing
+        self._note_existence(name != "NO_DATA")
         return "PENDING"
 
     def status(self) -> JobStatus:

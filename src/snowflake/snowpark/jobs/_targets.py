@@ -98,7 +98,15 @@ class CodeBundle(Target):
     ``SNOWPARK_JOB_TMP_<id>``, which the run's handle drops once it sees the run finish.
     If the process ends first, the bundle stays until
     :meth:`JobManager.cleanup <snowflake.snowpark.jobs.JobManager.cleanup>` removes it
-    (``Session.close`` also removes the ones that have finished by then).
+    (``Session.close`` also removes the ones that have finished by then; runs it cancels
+    are usually still shutting down at that point, so their bundles are left for
+    ``cleanup()``).
+
+    ``Program.stage()`` and ``Program.workspace()`` programs bring their own
+    ``code_bundle.yml``, which defines the compute and the environment: for them,
+    ``compute_pool``, ``warehouse`` and ``runtime_version`` (and any ``Environment``)
+    must not be set. Use ``session.use_warehouse()`` to choose the warehouse of a
+    warehouse bundle.
     """
 
     compute_pool: Optional[str] = None
