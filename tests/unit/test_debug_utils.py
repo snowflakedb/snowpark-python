@@ -696,6 +696,27 @@ def test_resolve_error_line_uses_the_plan_for_its_own_sql():
     assert _resolve_error_line(plan, 1, 0, "SELECT 1\nFROM t LIMIT 0") == (plan, 1)
 
 
+def test_resolve_error_line_fills_in_placeholders():
+    # e.g. session.sql("show ..."): the id of the SHOW query is filled in when it runs
+    plan = _plan_with_query(
+        "SELECT *\nFROM (SELECT * FROM TABLE(RESULT_SCAN('query_id_place_holder_Ab12')))",
+        [QueryLineInterval(0, 1, "top")],
+    )
+    executed = "SELECT *\nFROM (SELECT * FROM TABLE(RESULT_SCAN('01c83c55-0a1c-4195-000c-a91555b7ea9f')))"
+    assert _resolve_error_line(plan, 1, 0, executed) == (plan, 1)
+    # another query is still not mapped with these intervals
+    assert _resolve_error_line(plan, 1, 0, "SELECT *\nFROM other") is None
+    # e.g. a reader: the name of its temp file format is filled in when it runs
+    plan = _plan_with_query(
+        'SELECT $1\nFROM @s/a.csv( FILE_FORMAT  => \'"DB"."PUBLIC".temp_name_placeholder_x1\')',
+        [QueryLineInterval(0, 1, "top")],
+    )
+    executed = (
+        "SELECT $1\nFROM @s/a.csv( FILE_FORMAT  => 'SNOWPARK_TEMP_FILE_FORMAT_J6N7')"
+    )
+    assert _resolve_error_line(plan, 1, 0, executed) == (plan, 1)
+
+
 def test_resolve_error_line_skips_unknown_rewritten_sql():
     plan = _plan_with_query("SELECT 1\nFROM t", [QueryLineInterval(0, 1, "top")])
     # e.g. a query of large query breakdown, or a pre-action: never map it with these intervals

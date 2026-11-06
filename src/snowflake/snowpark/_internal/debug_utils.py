@@ -218,6 +218,25 @@ def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
     return source_locations
 
 
+_PLACEHOLDER = re.compile(
+    r'(?:"[^"]*"\.){0,2}temp_name_placeholder_[A-Za-z0-9]+|query_id_place_holder_[A-Za-z0-9]+'
+)
+
+
+def _same_query(executed: str, sql: str) -> bool:
+    """Whether ``executed`` is ``sql`` as it was sent: stripped, and with the names of the temp
+    objects and the ids of the queries it depends on (e.g. ``RESULT_SCAN`` of a ``SHOW`` query) in
+    place of their placeholders."""
+    sql = sql.strip()
+    if executed == sql:
+        return True
+    parts = _PLACEHOLDER.split(sql)
+    if len(parts) == 1:
+        return False
+    pattern = r"[0-9A-Za-z_$.\"-]+".join(re.escape(part) for part in parts)
+    return re.fullmatch(pattern, executed) is not None
+
+
 def _resolve_error_line(
     top_plan: "SnowflakePlan",
     sql_line_number: int,
@@ -238,8 +257,9 @@ def _resolve_error_line(
         return top_plan, sql_line_number
     # The sql is stripped before it is sent.
     executed = executed_sql.strip()
-    if executed == top_plan.queries[-1].sql.strip() or (
-        top_plan.schema_query is not None and executed == top_plan.schema_query.strip()
+    if _same_query(executed, top_plan.queries[-1].sql) or (
+        top_plan.schema_query is not None
+        and _same_query(executed, top_plan.schema_query)
     ):
         return top_plan, sql_line_number
 
@@ -247,7 +267,7 @@ def _resolve_error_line(
     compiled_query = None
     for queries in compiled.values():
         for query in queries:
-            if query.sql.strip() == executed:
+            if _same_query(executed, query.sql):
                 compiled_query = query
                 break
         if compiled_query is not None:
@@ -261,7 +281,8 @@ def _resolve_error_line(
     if not segments:
         return None
 
-    lines = executed.split("\n")
+    # The lines of the compiled sql: filling in query ids does not change the line breaks.
+    lines = compiled_sql.strip().split("\n")
     if sql_line_number >= len(lines):
         return None
     leading = len(compiled_sql) - len(compiled_sql.lstrip())
