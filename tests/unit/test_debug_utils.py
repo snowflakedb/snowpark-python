@@ -2,17 +2,28 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import copy
 import os
 import tempfile
 from unittest import mock
 
 import pytest
 
+from snowflake.snowpark._internal.analyzer.analyzer_utils import cte_statement
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    CteSegment,
+    PlanQueryType,
+    Query,
+    QueryLineInterval,
+    SnowflakePlan,
+)
 from snowflake.snowpark._internal.df_trace import SrcPosition, TraceNode
 from snowflake.snowpark._internal.debug_utils import (
     DataFrameTraceNode,
     QueryProfiler,
     _format_source_location,
+    _resolve_error_line,
+    get_python_source_from_sql_error,
 )
 
 
@@ -662,3 +673,139 @@ def test_profile_query_with_complex_attributes():
                     break
     finally:
         os.unlink(temp_path)
+
+
+def _plan_with_query(sql, intervals, uuid="top", schema_query=None):
+    plan = mock.Mock(spec=SnowflakePlan)
+    plan.uuid = uuid
+    plan.source_plan = None
+    plan.children_plan_nodes = []
+    plan.schema_query = schema_query
+    plan.queries = [Query(sql, query_line_intervals=intervals)]
+    plan.df_trace_nodes = None
+    plan._last_execution_queries = None
+    return plan
+
+
+def test_resolve_error_line_uses_the_plan_for_its_own_sql():
+    plan = _plan_with_query(" SELECT 1\nFROM t", [QueryLineInterval(0, 1, "top")])
+    # no executed sql known, the same sql (it is stripped before it is sent), the schema query
+    assert _resolve_error_line(plan, 1, 0, None) == (plan, 1)
+    assert _resolve_error_line(plan, 1, 0, "SELECT 1\nFROM t") == (plan, 1)
+    plan.schema_query = "SELECT 1\nFROM t LIMIT 0"
+    assert _resolve_error_line(plan, 1, 0, "SELECT 1\nFROM t LIMIT 0") == (plan, 1)
+
+
+def test_resolve_error_line_fills_in_placeholders():
+    # e.g. session.sql("show ..."): the id of the SHOW query is filled in when it runs
+    plan = _plan_with_query(
+        "SELECT *\nFROM (SELECT * FROM TABLE(RESULT_SCAN('query_id_place_holder_Ab12')))",
+        [QueryLineInterval(0, 1, "top")],
+    )
+    executed = "SELECT *\nFROM (SELECT * FROM TABLE(RESULT_SCAN('01c83c55-0a1c-4195-000c-a91555b7ea9f')))"
+    assert _resolve_error_line(plan, 1, 0, executed) == (plan, 1)
+    # another query is still not mapped with these intervals
+    assert _resolve_error_line(plan, 1, 0, "SELECT *\nFROM other") is None
+    # e.g. a reader: the name of its temp file format is filled in when it runs
+    plan = _plan_with_query(
+        'SELECT $1\nFROM @s/a.csv( FILE_FORMAT  => \'"DB"."PUBLIC".temp_name_placeholder_x1\')',
+        [QueryLineInterval(0, 1, "top")],
+    )
+    executed = (
+        "SELECT $1\nFROM @s/a.csv( FILE_FORMAT  => 'SNOWPARK_TEMP_FILE_FORMAT_J6N7')"
+    )
+    assert _resolve_error_line(plan, 1, 0, executed) == (plan, 1)
+
+
+def test_resolve_error_line_skips_unknown_rewritten_sql():
+    plan = _plan_with_query("SELECT 1\nFROM t", [QueryLineInterval(0, 1, "top")])
+    # e.g. a query of large query breakdown, or a pre-action: never map it with these intervals
+    assert _resolve_error_line(plan, 1, 0, "CREATE TEMP TABLE x AS SELECT 1") is None
+    plan._last_execution_queries = {
+        PlanQueryType.QUERIES: [Query("CREATE TEMP TABLE x AS SELECT 1")]
+    }
+    assert _resolve_error_line(plan, 0, 0, "CREATE TEMP TABLE x AS SELECT 1") is None
+
+
+def test_resolve_error_line_keeps_the_plan_for_a_copy_of_its_query():
+    plan = _plan_with_query(
+        "SELECT * FROM <placeholder>", [QueryLineInterval(0, 0, "top")]
+    )
+    compiled = copy.copy(plan.queries[-1])
+    compiled.sql = "SELECT * FROM SNOWPARK_TEMP_TABLE_A"
+    plan._last_execution_queries = {PlanQueryType.QUERIES: [compiled]}
+    assert _resolve_error_line(plan, 0, 3, compiled.sql) == (plan, 0)
+
+
+def test_resolve_error_line_maps_through_cte_segments():
+    definition = "SELECT 1 AS A\nFROM t"
+    body = "(\nSELECT A\nFROM CTE\nWHERE B > 0\n)"
+    definition_plan = _plan_with_query(definition, [], uuid="definition")
+    body_plan = _plan_with_query(body, [], uuid="body")
+    prefix = cte_statement([definition], ["CTE"])
+    compiled_sql = prefix + body
+    start = len("WITH CTE AS (")
+    compiled = Query(
+        compiled_sql,
+        cte_segments=[
+            CteSegment(start, start + len(definition), definition_plan),
+            CteSegment(len(prefix), len(compiled_sql), body_plan),
+        ],
+    )
+    top = _plan_with_query(
+        "(\nSELECT A\nFROM (SELECT 1 AS A\nFROM t)\nWHERE B > 0\n)", []
+    )
+    top._last_execution_queries = {PlanQueryType.QUERIES: [compiled]}
+    lines = compiled_sql.split("\n")
+
+    # "FROM t" is the second line of the definition
+    line = next(i for i, text in enumerate(lines) if text.startswith("FROM t"))
+    assert _resolve_error_line(top, line, 0, compiled_sql) == (definition_plan, 1)
+    # "WHERE B > 0" is the fourth line of the body
+    line = next(i for i, text in enumerate(lines) if text.startswith("WHERE"))
+    assert _resolve_error_line(top, line, 6, compiled_sql) == (body_plan, 3)
+    # a line with the end of the definition and the start of the body: the position decides
+    line = next(i for i, text in enumerate(lines) if text.startswith("FROM t"))
+    assert _resolve_error_line(top, line, 0, compiled_sql) == (definition_plan, 1)
+    assert _resolve_error_line(top, line, len(lines[line]) - 1, compiled_sql) == (
+        body_plan,
+        0,
+    )
+    assert _resolve_error_line(top, 0, start, compiled_sql) == (definition_plan, 0)
+    # a line past the end is not mapped
+    assert _resolve_error_line(top, len(lines) + 3, 0, compiled_sql) is None
+
+
+def test_resolve_error_line_single_line_query():
+    definition = "SELECT 1 AS A FROM t"
+    body = "SELECT A FROM CTE WHERE B > 0"
+    definition_plan = _plan_with_query(definition, [], uuid="definition")
+    body_plan = _plan_with_query(body, [], uuid="body")
+    prefix = cte_statement([definition], ["CTE"])
+    compiled_sql = prefix + body
+    start = len("WITH CTE AS (")
+    compiled = Query(
+        compiled_sql,
+        cte_segments=[
+            CteSegment(start, start + len(definition), definition_plan),
+            CteSegment(len(prefix), len(compiled_sql), body_plan),
+        ],
+    )
+    top = _plan_with_query("SELECT A FROM (SELECT 1 AS A FROM t) WHERE B > 0", [])
+    top._last_execution_queries = {PlanQueryType.QUERIES: [compiled]}
+    assert _resolve_error_line(top, 0, compiled_sql.index("FROM t"), compiled_sql) == (
+        definition_plan,
+        0,
+    )
+    assert _resolve_error_line(top, 0, compiled_sql.index("WHERE"), compiled_sql) == (
+        body_plan,
+        0,
+    )
+
+
+def test_python_source_from_sql_error_is_absent_for_unknown_sql():
+    plan = _plan_with_query("SELECT 1\nFROM t", [QueryLineInterval(0, 1, "top")])
+    message = (
+        "SQL compilation error: error line 2 at position 0\ninvalid identifier 'X'"
+    )
+    assert get_python_source_from_sql_error(plan, message, "SELECT 2\nFROM u") == ""

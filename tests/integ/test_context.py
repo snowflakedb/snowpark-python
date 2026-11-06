@@ -21,7 +21,7 @@ def test_context_configure_development_features():
             context.configure_development_features(
                 enable_trace_sql_errors_to_dataframe=True
             )
-            assert context._enable_trace_sql_errors_to_dataframe is True
+            assert debug_config._defaults["trace_sql_errors_to_dataframe"] is True
             assert context._enable_dataframe_trace_on_error is False
             assert not debug_config._defaults.get("eager_schema_validation", False)
 
@@ -37,7 +37,7 @@ def test_context_configure_development_features():
             context.configure_development_features(
                 enable_trace_sql_errors_to_dataframe=True
             )
-            assert context._enable_trace_sql_errors_to_dataframe is True
+            assert debug_config._defaults["trace_sql_errors_to_dataframe"] is True
             assert context._enable_dataframe_trace_on_error is False
             mock_session1._set_ast_enabled_internal.assert_not_called()
             mock_session2._set_ast_enabled_internal.assert_not_called()
@@ -45,7 +45,7 @@ def test_context_configure_development_features():
     finally:
         # a call without arguments turns every development feature off
         context.configure_development_features()
-        assert context._enable_trace_sql_errors_to_dataframe is False
+        assert debug_config._defaults["trace_sql_errors_to_dataframe"] is False
 
 
 def test_development_features_leave_session_settings_alone(session):
