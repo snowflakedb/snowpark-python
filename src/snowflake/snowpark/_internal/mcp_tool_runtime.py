@@ -22,6 +22,7 @@ import json
 import logging
 import math
 import sys
+import uuid
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
 DEFAULT_MAX_ROWS = 1000
@@ -177,6 +178,36 @@ def to_tool_result(value: Any, max_rows: int, max_result_bytes: int) -> Any:
     return result
 
 
+def check_received_arguments(schema: dict, arguments: dict) -> List[str]:
+    """Returns the problems with the arguments a deployed tool received.
+
+    The MCP server does not validate arguments against the input schema, but converts
+    them to the SQL parameter types before the tool runs, so this check is lenient
+    about types: it only checks ``enum`` and that a required argument is not null.
+    """
+    problems = []
+    properties = schema.get("properties") or {}
+    for name in schema.get("required") or []:
+        if name in arguments and arguments[name] is None:
+            problems.append(f"{name} must not be null")
+    for name, value in arguments.items():
+        allowed = (properties.get(name) or {}).get("enum")
+        if value is not None and allowed is not None and value not in allowed:
+            problems.append(f"{name} must be one of {allowed!r}, got {value!r}")
+    return problems
+
+
+def _allowed_values_hint(schema: dict, arguments: dict) -> Optional[str]:
+    properties = schema.get("properties") or {}
+    hints = [
+        f"Allowed values for {name}: " + ", ".join(str(v) for v in allowed) + "."
+        for name, value in arguments.items()
+        for allowed in [(properties.get(name) or {}).get("enum")]
+        if value is not None and allowed is not None and value not in allowed
+    ]
+    return " ".join(hints) or None
+
+
 def run_tool(
     func: Callable,
     args: tuple,
@@ -199,7 +230,8 @@ def run_tool(
                 getattr(exc, "hint", None),
             )
         # Logged so the traceback reaches the event table.
-        _logger.exception("MCP tool %s failed", name)
+        error_id = uuid.uuid4().hex[:12]
+        _logger.exception("MCP tool %s failed (error ID %s)", name, error_id)
         if not mask_error_details:
             raise
         # The MCP server sends a failed call's Python error to the client, with the
@@ -207,7 +239,9 @@ def run_tool(
         # unless the traceback limit is 0.
         sys.tracebacklimit = 0
         raise RuntimeError(
-            f"Tool {name} failed with an unexpected error. The details were logged."
+            f"Tool {name} failed with an unexpected error (error ID {error_id}). "
+            "Retrying with the same arguments will not help; tell the user that the "
+            "tool failed and give them the error ID."
         ) from None
 
 
@@ -216,15 +250,39 @@ def make_handler(
     max_rows: int = DEFAULT_MAX_ROWS,
     max_result_bytes: int = DEFAULT_MAX_RESULT_BYTES,
     mask_error_details: bool = False,
+    input_schema: Optional[dict] = None,
+    takes_session: bool = False,
 ) -> Callable:
     """Returns the function to register for a tool.
+
+    With ``input_schema``, the handler checks the arguments it receives (see
+    ``check_received_arguments``) before calling ``func`` and returns an
+    ``INVALID_ARGUMENTS`` error result if they are invalid. ``takes_session`` says that
+    ``func``'s first parameter is the session, which is not part of the schema.
 
     It has ``func``'s signature, so Snowpark registers the procedure or UDF with the
     same parameter names and defaults, but no annotations: the registered return type
     is always VARIANT, whatever ``func`` is annotated to return.
     """
 
+    func_signature = inspect.signature(func)
+
     def handler(*args, **kwargs):
+        if input_schema is not None:
+            try:
+                bound = func_signature.bind_partial(*args, **kwargs).arguments
+            except TypeError:
+                bound = {}  # let func raise the error for the wrong arguments
+            received = dict(bound)
+            if takes_session and func_signature.parameters:
+                received.pop(next(iter(func_signature.parameters)), None)
+            problems = check_received_arguments(input_schema, received)
+            if problems:
+                return error_result(
+                    "INVALID_ARGUMENTS",
+                    "; ".join(problems),
+                    _allowed_values_hint(input_schema, received),
+                )
         return run_tool(
             func, args, kwargs, max_rows, max_result_bytes, mask_error_details
         )

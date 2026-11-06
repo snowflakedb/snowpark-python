@@ -2,7 +2,9 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Optional
+import json
+import re
+from typing import Literal, Optional
 
 import pytest
 
@@ -205,7 +207,40 @@ def test_unexpected_error_is_masked(session, temp_schema):
             server.call_tool(session, "broken", {"x": 1}, schema=schema)
         message = str(exc_info.value)
         assert "broken failed with an unexpected error" in message
+        assert re.search(r"error ID [0-9a-f]{12}\)", message)
+        assert "Retrying with the same arguments will not help" in message
         assert "internal detail" not in message
         assert "Traceback" not in message
+    finally:
+        server.drop(session, schema=schema, include_tools=True)
+
+
+@mcp_tool(read_only=True)
+def pick(kind: Literal["a", "b"]) -> str:
+    """Pick one.
+
+    Args:
+        kind: Which one.
+    """
+    return kind
+
+
+def test_deployed_tool_checks_enum_arguments(session, temp_schema):
+    schema = _schema_name(temp_schema)
+    server = MCPServer("SNOWPARK_MCP_ENUM", tools=[pick])
+    result = server.deploy(session, schema=schema)
+    try:
+        fq_name = result.objects[0].split("(")[0]
+        # Raw SQL bypasses the client-side check of call_tool.
+        rows = session.sql(f"SELECT {fq_name}(kind => 'zzz')").collect()
+        assert json.loads(rows[0][0]) == {
+            "error": {
+                "type": "INVALID_ARGUMENTS",
+                "message": "kind must be one of ['a', 'b'], got 'zzz'",
+                "hint": "Allowed values for kind: a, b.",
+            }
+        }
+        rows = session.sql(f"SELECT {fq_name}(kind => 'a')").collect()
+        assert json.loads(rows[0][0]) == "a"
     finally:
         server.drop(session, schema=schema, include_tools=True)

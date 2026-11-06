@@ -487,7 +487,12 @@ class PythonTool(MCPTool):
         """Registers the procedure or UDF behind the tool and returns its signature."""
         _pickle_runtime_by_value()
         handler = mcp_tool_runtime.make_handler(
-            self.func, self.max_rows, self.max_result_bytes, self.mask_error_details
+            self.func,
+            self.max_rows,
+            self.max_result_bytes,
+            self.mask_error_details,
+            input_schema=self.input_schema,
+            takes_session=self._takes_session,
         )
         comment = mcp_utils.object_comment(
             target.server_name,
@@ -877,9 +882,11 @@ def mcp_tool(
             limit.
         mask_error_details: Send MCP clients a generic error, without the
             traceback, when the tool raises anything other than
-            :class:`ToolError`. The full error is logged, and reaches the event
-            table when one is set up. Without it, clients receive the traceback,
-            with the file paths and code of the tool.
+            :class:`ToolError`. The error says to tell the user that the tool
+            failed and gives an error ID. The full error is logged with the same
+            ID, and reaches the event table when one is set up. Without it,
+            clients receive the traceback, with the file paths and code of the
+            tool.
 
     Example::
 

@@ -8,6 +8,7 @@ import decimal
 import inspect
 import json
 import logging
+import re
 import subprocess
 import sys
 import textwrap
@@ -19,6 +20,7 @@ from snowflake.snowpark._internal.mcp_tool_runtime import (
     DEFAULT_MAX_RESULT_BYTES,
     DEFAULT_MAX_ROWS,
     ToolError,
+    check_received_arguments,
     error_result,
     make_handler,
     run_tool,
@@ -517,6 +519,7 @@ _UNPICKLE_SCRIPT = textwrap.dedent(
     import json
 
     out = {
+        "invalid": handler("zzz"),
         "ok": handler("fine"),
         "tool_error": handler("bad"),
         "snowpark_imported": any(m.startswith("snowflake.snowpark") for m in sys.modules),
@@ -543,7 +546,12 @@ def test_pickled_tool_does_not_import_snowpark(tmp_path):
             raise RuntimeError("kaboom")
         return {"value": decimal.Decimal("2.5"), "x": x}
 
-    handler = make_handler(tool)
+    schema = {
+        "type": "object",
+        "properties": {"x": {"type": "string", "enum": ["fine", "bad", "crash"]}},
+        "required": ["x"],
+    }
+    handler = make_handler(tool, input_schema=schema)
     payload = tmp_path / "handler.pkl"
     payload.write_bytes(cloudpickle.dumps(handler))
 
@@ -565,6 +573,13 @@ def test_pickled_tool_does_not_import_snowpark(tmp_path):
         }
     }
     assert out["crash"] == "kaboom"
+    assert out["invalid"] == {
+        "error": {
+            "type": "INVALID_ARGUMENTS",
+            "message": "x must be one of ['fine', 'bad', 'crash'], got 'zzz'",
+            "hint": "Allowed values for x: fine, bad, crash.",
+        }
+    }
     assert out["snowpark_imported"] is False
 
 
@@ -612,7 +627,15 @@ def test_run_tool_masked_raises_generic_error(caplog, restore_tracebacklimit):
             run_tool(_secret_failure, (), {}, mask_error_details=True)
     message = str(exc_info.value)
     assert "_secret_failure failed with an unexpected error" in message
+    assert "Retrying with the same arguments will not help" in message
+    assert "tell the user that the tool failed" in message
     assert "secret detail" not in message
+    error_id = re.search(r"error ID ([0-9a-f]{12})\)", message).group(1)
+    # The same ID is in the log record.
+    assert any(
+        r.exc_info and f"(error ID {error_id})" in r.getMessage()
+        for r in caplog.records
+    )
     # The original error is not chained into what the client sees...
     assert exc_info.value.__cause__ is None
     assert exc_info.value.__suppress_context__ is True
@@ -661,3 +684,164 @@ def test_make_handler_passes_mask_error_details(restore_tracebacklimit):
         make_handler(_secret_failure, mask_error_details=True)()
     with pytest.raises(ValueError):
         make_handler(_secret_failure)()
+
+
+def test_run_tool_masked_error_ids_differ(restore_tracebacklimit):
+    ids = []
+    for _ in range(2):
+        with pytest.raises(RuntimeError) as exc_info:
+            run_tool(_secret_failure, (), {}, mask_error_details=True)
+        ids.append(re.search(r"error ID ([0-9a-f]{12})\)", str(exc_info.value))[1])
+    assert ids[0] != ids[1]
+
+
+def test_run_tool_unmasked_logs_error_id(caplog):
+    with caplog.at_level(logging.ERROR, logger="snowflake.snowpark.mcp"):
+        with pytest.raises(ValueError):
+            run_tool(_secret_failure, (), {})
+    assert re.search(r"error ID [0-9a-f]{12}\)", caplog.records[0].getMessage())
+
+
+# ---------------------------------------------------------------------------
+# Argument checks
+# ---------------------------------------------------------------------------
+
+_ARGS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "kind": {"type": "string", "enum": ["a", "b"]},
+        "level": {"type": "integer", "enum": [1, 2]},
+        "day": {"type": "string", "format": "date"},
+        "note": {"type": "string"},
+    },
+    "required": ["kind"],
+}
+
+
+def test_check_received_arguments_valid():
+    assert check_received_arguments(_ARGS_SCHEMA, {"kind": "a", "level": 2}) == []
+
+
+def test_check_received_arguments_enum_violation():
+    assert check_received_arguments(_ARGS_SCHEMA, {"kind": "zzz"}) == [
+        "kind must be one of ['a', 'b'], got 'zzz'"
+    ]
+
+
+def test_check_received_arguments_int_enum():
+    assert check_received_arguments(_ARGS_SCHEMA, {"kind": "a", "level": 3}) == [
+        "level must be one of [1, 2], got 3"
+    ]
+
+
+def test_check_received_arguments_required_none():
+    assert check_received_arguments(_ARGS_SCHEMA, {"kind": None}) == [
+        "kind must not be null"
+    ]
+
+
+def test_check_received_arguments_optional_none_is_ok():
+    assert (
+        check_received_arguments(
+            _ARGS_SCHEMA, {"kind": "a", "level": None, "note": None}
+        )
+        == []
+    )
+
+
+def test_check_received_arguments_does_not_check_types():
+    arguments = {"kind": "a", "day": datetime.date(2025, 1, 2), "note": 5}
+    assert check_received_arguments(_ARGS_SCHEMA, arguments) == []
+
+
+def test_check_received_arguments_joins_all_problems_in_handler():
+    called = []
+
+    def tool(kind: str, level: int = 1):
+        called.append(kind)
+
+    handler = make_handler(tool, input_schema=_ARGS_SCHEMA)
+    result = handler("zzz", level=3)
+    assert result["error"]["type"] == "INVALID_ARGUMENTS"
+    assert result["error"]["message"] == (
+        "kind must be one of ['a', 'b'], got 'zzz'; level must be one of [1, 2], got 3"
+    )
+    assert (
+        result["error"]["hint"] == "Allowed values for kind: a, b. "
+        "Allowed values for level: 1, 2."
+    )
+    assert called == []
+
+
+def test_handler_required_none_returns_invalid_arguments():
+    called = []
+
+    def tool(kind: str):
+        called.append(kind)
+
+    result = make_handler(tool, input_schema=_ARGS_SCHEMA)(None)
+    assert result == {
+        "error": {"type": "INVALID_ARGUMENTS", "message": "kind must not be null"}
+    }
+    assert called == []
+
+
+def test_handler_valid_arguments_call_function():
+    def tool(kind: str, day=None):
+        return {"kind": kind, "day": day}
+
+    handler = make_handler(tool, input_schema=_ARGS_SCHEMA)
+    assert handler("a", day=datetime.date(2025, 1, 2)) == {
+        "kind": "a",
+        "day": "2025-01-02",
+    }
+
+
+@pytest.mark.parametrize("positional", [True, False])
+def test_procedure_handler_skips_session_and_maps_names(positional):
+    called = []
+
+    def tool(session, kind: str):
+        called.append(kind)
+
+    handler = make_handler(tool, input_schema=_ARGS_SCHEMA, takes_session=True)
+    result = handler(object(), "zzz") if positional else handler(object(), kind="zzz")
+    assert result["error"]["message"] == "kind must be one of ['a', 'b'], got 'zzz'"
+    assert called == []
+    handler(object(), "a")
+    assert called == ["a"]
+
+
+def test_handler_with_session_named_like_a_property_is_not_checked():
+    schema = {"properties": {"kind": {"enum": ["a"]}}, "required": ["kind"]}
+
+    def tool(kind, other):
+        return "ok"
+
+    assert make_handler(tool, input_schema=schema, takes_session=True)("x", 1) == "ok"
+
+
+def test_udf_handler_maps_positional_and_keyword_names():
+    def tool(kind: str, note: str = ""):
+        return "ok"
+
+    handler = make_handler(tool, input_schema=_ARGS_SCHEMA)
+    assert handler("a", "n") == "ok"
+    assert handler(kind="a") == "ok"
+    assert handler("q")["error"]["type"] == "INVALID_ARGUMENTS"
+    assert handler(kind="q", note="n")["error"]["type"] == "INVALID_ARGUMENTS"
+
+
+def test_handler_without_input_schema_does_not_validate():
+    def tool(kind: str):
+        return kind
+
+    assert make_handler(tool)("zzz") == "zzz"
+    assert make_handler(tool)(None) is None
+
+
+def test_handler_validates_when_masking_errors():
+    result = make_handler(
+        lambda kind: kind, mask_error_details=True, input_schema=_ARGS_SCHEMA
+    )("zzz")
+    assert result["error"]["type"] == "INVALID_ARGUMENTS"

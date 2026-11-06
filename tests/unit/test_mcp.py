@@ -5,7 +5,7 @@
 import inspect
 import json
 import types
-from typing import List, Optional
+from typing import List, Literal, Optional
 from unittest import mock
 
 import pytest
@@ -2080,3 +2080,49 @@ def test_mask_error_details_off_reraises_original():
     handler = session.udf.register.call_args.kwargs["func"]
     with pytest.raises(ValueError, match="secret"):
         handler(1)
+
+
+def test_register_passes_input_schema_and_session_flag():
+    session = make_session()
+    server = python_server("S")
+    server.deploy(session)
+
+    handler = session.sproc.register.call_args.kwargs["func"]
+    schema = get_account.input_schema
+    assert schema["required"] == ["account_id"]
+    # The session is skipped, and the check happens before the function is called.
+    assert handler(None, None) == {
+        "error": {"type": "INVALID_ARGUMENTS", "message": "account_id must not be null"}
+    }
+    assert handler(None, "x") == {"id": "x", "days": 3}
+
+    udf_handler = session.udf.register.call_args.kwargs["func"]
+    assert udf_handler(1) == 2
+    assert udf_handler(None)["error"]["message"] == "a must not be null"
+
+
+def test_registered_handler_checks_enum_and_does_not_call_function():
+    called = []
+
+    @mcp_tool(read_only=True)
+    def pick(session: Session, kind: Literal["a", "b"]) -> str:
+        """Pick one.
+
+        Args:
+            kind: Which one.
+        """
+        called.append(kind)
+        return kind
+
+    session = make_session()
+    MCPServer("S", tools=[pick]).deploy(session)
+    handler = session.sproc.register.call_args.kwargs["func"]
+    assert handler(None, "zzz") == {
+        "error": {
+            "type": "INVALID_ARGUMENTS",
+            "message": "kind must be one of ['a', 'b'], got 'zzz'",
+            "hint": "Allowed values for kind: a, b.",
+        }
+    }
+    assert called == []
+    assert handler(None, kind="a") == "a"
