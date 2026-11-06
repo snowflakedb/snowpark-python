@@ -35,6 +35,8 @@ _register_feature("eager_schema_validation")
 # Maps SQL compilation errors to the Python lines of the dataframe operations, and adds the
 # context of missing and existing objects to the errors.
 _register_feature("trace_sql_errors_to_dataframe", trace=True)
+# Adds the most recent dataframe operations (the lineage) of a failed dataframe to the error.
+_register_feature("dataframe_trace_on_error", trace=True)
 
 
 def tracing_sessions() -> int:

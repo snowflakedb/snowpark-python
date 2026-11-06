@@ -138,24 +138,18 @@ def capture_user_src_position(
 
 
 def is_tracing_enabled(session=None) -> bool:
-    """Whether a debug feature that needs the DataFrame trace is on for ``session``, or, without
-    a session, the trace on error of the process.
+    """Whether a debug feature that needs the DataFrame trace is on for ``session``.
 
     The trace is not supported for local testing sessions.
     """
-    from snowflake.snowpark import context
-
     if not (
-        context._enable_dataframe_trace_on_error
+        debug_config.enabled(session, "dataframe_trace_on_error")
         or debug_config.enabled(session, "trace_sql_errors_to_dataframe")
     ):
         return False
-    if session is not None:
-        from snowflake.snowpark.mock._connection import MockServerConnection
+    from snowflake.snowpark.mock._connection import MockServerConnection
 
-        if isinstance(getattr(session, "_conn", None), MockServerConnection):
-            return False
-    return True
+    return not isinstance(getattr(session, "_conn", None), MockServerConnection)
 
 
 @dataclass(frozen=True)
@@ -314,21 +308,10 @@ _call_state = threading.local()
 _MAX_EXPRESSION_NODES = 10000
 
 
-_context_module = None
-
-
 def tracing_flags_on() -> bool:
-    """Fast check of the tracing flags for the public API wrapper: whether any session may
-    record the DataFrame trace."""
-    global _context_module
-    if _context_module is None:
-        from snowflake.snowpark import context
-
-        _context_module = context
-    return (
-        _context_module._enable_dataframe_trace_on_error
-        or debug_config.tracing_sessions() > 0
-    )
+    """Fast check for the public API wrapper, which has no session: whether any session has a
+    debug feature on that records the DataFrame trace."""
+    return debug_config.tracing_sessions() > 0
 
 
 # The attribute names of each expression class, read once per class by the public API wrapper:
