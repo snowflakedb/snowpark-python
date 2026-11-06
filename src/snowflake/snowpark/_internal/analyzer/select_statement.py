@@ -84,6 +84,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.select_projection_complexity_utils import (
     has_invalid_projection_merge_functions,
 )
+from snowflake.snowpark._internal import debug_config
 from snowflake.snowpark._internal.df_trace import note_trace_seed
 from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
@@ -1768,7 +1769,10 @@ class SelectStatement(Selectable):
             new.attributes = self.attributes
         # schema_query omits the WHERE clause, so describe the full query to validate it.
         # Skipped with pre-actions, since the query may depend on temp objects.
-        if self._session._debug.eager_schema_validation and not new.pre_actions:
+        if (
+            debug_config.enabled(self._session, "eager_schema_validation")
+            and not new.pre_actions
+        ):
             new.snowflake_plan._describe_full_query()
 
         return new
@@ -1809,7 +1813,10 @@ class SelectStatement(Selectable):
             new.attributes = self.attributes
         # schema_query omits the ORDER BY clause, so describe the full query to validate it.
         # Skipped with pre-actions, since the query may depend on temp objects.
-        if self._session._debug.eager_schema_validation and not new.pre_actions:
+        if (
+            debug_config.enabled(self._session, "eager_schema_validation")
+            and not new.pre_actions
+        ):
             new.snowflake_plan._describe_full_query()
 
         return new

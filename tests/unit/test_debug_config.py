@@ -170,3 +170,13 @@ def test_adding_an_active_session_again_keeps_its_settings():
         assert _status(session) == (False, False)
     finally:
         session.close()
+
+
+def test_enabled_is_false_for_objects_that_are_not_sessions():
+    s = _session()
+    s.debug.set(check=True)
+    assert debug_config.enabled(s, "check") is True
+    assert debug_config.enabled(s, "trace") is False
+    # e.g. a mock session of a unit test
+    assert debug_config.enabled(mock.Mock(), "check") is False
+    assert debug_config.enabled(object(), "check") is False
