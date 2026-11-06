@@ -4,7 +4,11 @@
 import math
 from typing import Any, Dict, Iterable, NamedTuple, Optional, Union
 
-from snowflake.snowpark.mock._options import installed_pandas, pandas as pd
+from snowflake.snowpark.mock._options import (
+    installed_pandas,
+    pandas as pd,
+    pandas_major_version,
+)
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
@@ -215,8 +219,33 @@ def reset_nan_to_none_if_necessary(col_a, col_b, res_col):
     if isinstance(res_col.sf_type.datatype, _NumericType):
         for idx, (x, y) in enumerate(zip(col_a, col_b)):
             if x is None or y is None:
-                res_col[idx] = None
+                if pandas_major_version >= 3:
+                    # idx is a position. After a filter the index labels are not
+                    # 0..n-1, and pandas 3 raises instead of adding a new row.
+                    res_col.iloc[idx] = None
+                else:
+                    res_col[idx] = None
     return res_col
+
+
+def replace_pd_na_with_nan(res_col):
+    """pandas 3 fills the missing slots of arithmetic on object columns with pd.NA, where
+    pandas 2 produced NaN. Turn them back into NaN so the NULL handling that follows keeps
+    working. pandas 2 results are returned unchanged."""
+    if pandas_major_version < 3 or res_col.dtype != object:
+        return res_col
+    if not any(v is pd.NA for v in res_col):
+        return res_col
+    # Build the object column directly: Series.map would re-infer int and NaN as float64,
+    # unlike pandas 2.
+    restored = ColumnEmulator(
+        [float("nan") if v is pd.NA else v for v in res_col],
+        index=res_col.index,
+        name=res_col.name,
+        dtype=object,
+    )
+    restored._sf_type = res_col._sf_type
+    return restored
 
 
 def infer_column_type_from_python_object(obj: Any) -> ColumnType:
@@ -666,7 +695,7 @@ class ColumnEmulator(PandasSeriesType):
         return result
 
     def __pow__(self, power):
-        result = super().__pow__(power)
+        result = replace_pd_na_with_nan(super().__pow__(power))
         result.sf_type = ColumnType(
             DoubleType(), self.sf_type.nullable or power.sf_type.nullable
         )
@@ -720,13 +749,13 @@ class ColumnEmulator(PandasSeriesType):
 
     def __mod__(self, other):
         other = broadcast_value(other, len(self))
-        result = super().__mod__(other)
+        result = replace_pd_na_with_nan(super().__mod__(other))
         result.sf_type = calculate_type(self.sf_type, other.sf_type, op="%")
         return result
 
     def __rmod__(self, other):
         other = broadcast_value(other, len(self))
-        result = super().__mod__(other)
+        result = replace_pd_na_with_nan(super().__mod__(other))
         result.sf_type = calculate_type(other.sf_type, self.sf_type, op="%")
         return result
 
@@ -764,7 +793,7 @@ class ColumnEmulator(PandasSeriesType):
 
     def __truediv__(self, other):
         other = broadcast_value(other, len(self))
-        result = super().__truediv__(other)
+        result = replace_pd_na_with_nan(super().__truediv__(other))
         sf_type = calculate_type(self.sf_type, other.sf_type, op="/")
         if isinstance(sf_type.datatype, DecimalType):
             result = result.astype("double").round(sf_type.datatype.scale)

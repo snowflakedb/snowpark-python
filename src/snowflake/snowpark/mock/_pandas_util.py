@@ -9,7 +9,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
-from snowflake.snowpark.mock._options import pandas as pd
+from snowflake.snowpark.mock._options import pandas as pd, pandas_major_version
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
@@ -106,9 +106,22 @@ def _extract_schema_and_data_from_pandas_df(
                     # pandas.Timestamp.value gives nanoseconds
                     # snowpark will convert it to microseconds
                     # snowflake also treats pandas int as string in a timestamp column
-                    plain_data[row_idx][col_idx] = str(
-                        int(plain_data[row_idx][col_idx].value / 1000)
-                    )
+                    try:
+                        plain_data[row_idx][col_idx] = str(
+                            int(plain_data[row_idx][col_idx].value / 1000)
+                        )
+                    except OverflowError:
+                        # pandas 3 infers us for datetime objects, so a Timestamp
+                        # outside the ns range (e.g. year 3000) has no ns value. pandas 2
+                        # kept such values as Python datetime objects; do the same.
+                        if not (
+                            pandas_major_version >= 3
+                            and data.dtypes.iloc[col_idx].kind == "M"
+                        ):
+                            raise
+                        plain_data[row_idx][col_idx] = plain_data[row_idx][
+                            col_idx
+                        ].to_pydatetime()
             elif isinstance(plain_data[row_idx][col_idx], pd.Timedelta):
                 # pandas.Timedetla.value gives nanoseconds
                 # snowflake keeps the unit of nanoarrow seconds

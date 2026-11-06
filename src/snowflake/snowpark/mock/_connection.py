@@ -832,6 +832,19 @@ class MockServerConnection:
         return DEFAULT_STRING_SIZE
 
 
+def _integers_to_numeric(values: list) -> "pandas.Series":
+    """Convert an integer column with NULL or out-of-range values like to_pandas does live.
+
+    pandas 3 keeps integers that fit neither int64 nor uint64 as object, where pandas 2
+    fell back to float64, which is also what the live connection returns. Restore that
+    fallback on pandas 3.
+    """
+    converted = pandas.to_numeric(values, downcast="integer")
+    if pandas_major_version >= 3 and converted.dtype == object:
+        converted = converted.astype("float64")
+    return converted
+
+
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
     pd_df = pandas.DataFrame()
     for col_name in table_res.columns:
@@ -856,14 +869,14 @@ def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
         elif isinstance(col_sf_type.datatype, _IntegralType):
             try:
                 if table_res[col_name].hasnans:
-                    pd_df[pd_df_col_name] = pandas.to_numeric(
-                        table_res[col_name].tolist(), downcast="integer"
+                    pd_df[pd_df_col_name] = _integers_to_numeric(
+                        table_res[col_name].tolist()
                     )
                 else:
                     pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
             except OverflowError:
-                pd_df[pd_df_col_name] = pandas.to_numeric(
-                    table_res[col_name].tolist(), downcast="integer"
+                pd_df[pd_df_col_name] = _integers_to_numeric(
+                    table_res[col_name].tolist()
                 )
         else:
             pd_df[pd_df_col_name] = table_res[col_name].tolist()
