@@ -429,3 +429,28 @@ def test_table_source_plan(sql_simplifier_enabled):
         t._plan.source_plan,
         SelectStatement if sql_simplifier_enabled else SnowflakeTable,
     )
+
+
+def test_pandas_package_for_map():
+    pandas = pytest.importorskip("pandas")
+    import snowflake.snowpark.dataframe as dataframe_module
+    from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
+
+    session = mock.MagicMock()
+
+    def package_for(repository, version):
+        session._get_default_artifact_repository.return_value = repository
+        with mock.patch.object(dataframe_module.pandas, "__version__", version):
+            return dataframe_module._pandas_package_for_map(session)
+
+    # Non-Anaconda repositories only accept strings: pin the local version.
+    assert package_for("snowflake.snowpark.pypi_shared_repository", "3.0.0") == (
+        "pandas==3.0.0"
+    )
+    assert package_for("snowflake.snowpark.pypi_shared_repository", "2.3.3") == (
+        "pandas==2.3.3"
+    )
+    # Anaconda with pandas 3: no version, the channel cannot pin pandas 3 with Snowpark.
+    assert package_for(_ANACONDA_SHARED_REPOSITORY, "3.0.6") == "pandas"
+    # Anaconda with pandas 2: unchanged, the module object pins the local version.
+    assert package_for(_ANACONDA_SHARED_REPOSITORY, "2.3.3") is pandas

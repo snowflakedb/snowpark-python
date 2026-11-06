@@ -7454,6 +7454,34 @@ Query List:
     # withColumns = with_columns
 
 
+def _pandas_package_for_map(session: "snowflake.snowpark.Session"):
+    """The pandas requirement that map(vectorized=True) adds to the UDTF packages.
+
+    - Non-Anaconda artifact repositories (the default for Python 3.14) only accept
+      package strings, so pin the local version as a string.
+    - On Anaconda with local pandas 3, a pinned pandas 3 cannot be resolved together
+      with snowflake-snowpark-python, whose connector dependency requires pandas < 3 in
+      the channel. Add "pandas" without a version so the server picks a compatible one.
+    - Otherwise keep the pandas module object, which pins the local version.
+    """
+    if (
+        session._get_default_artifact_repository()
+        != context._ANACONDA_SHARED_REPOSITORY
+    ):
+        return f"pandas=={pandas.__version__}"
+    if int(pandas.__version__.split(".")[0]) >= 3:
+        warning(
+            "map_vectorized_pandas_3",
+            f"map(vectorized=True) adds 'pandas' without a version because pandas "
+            f"{pandas.__version__} cannot be resolved together with "
+            "snowflake-snowpark-python in the Snowflake Anaconda channel. The function "
+            "will run with the pandas version the channel resolves, currently pandas 2. "
+            "Pass packages=['pandas==<version>'] to choose one.",
+        )
+        return "pandas"
+    return pandas
+
+
 def map(
     dataframe: DataFrame,
     func: Callable,
@@ -7619,7 +7647,11 @@ def map(
         # If the map is vectorized, we need to add pandas to packages if not
         # already added. Also update the input_types and output_schema to
         # be PandasDataFrameType.
-        packages = add_package_to_existing_packages(packages, pandas)
+        if not any(
+            (p if isinstance(p, str) else p.__name__).startswith("pandas")
+            for p in packages
+        ):
+            packages.append(_pandas_package_for_map(dataframe._session))
         input_types = [PandasDataFrameType(input_types)]
         output_schema = PandasDataFrameType(output_types, udtf_output_cols)
 
