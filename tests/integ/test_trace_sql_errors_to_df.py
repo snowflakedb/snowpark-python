@@ -8,7 +8,11 @@ import sys
 import pytest
 import snowflake.snowpark.context as context
 
-from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
+from snowflake.snowpark._internal.utils import (
+    AstFlagSource,
+    is_ast_enabled,
+    set_ast_state,
+)
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     col,
@@ -40,9 +44,11 @@ pytestmark = [
 @pytest.fixture(autouse=True)
 def setup(request, session):
     original = session.ast_enabled
-    set_ast_state(AstFlagSource.TEST, True)
+    # The SQL error tracing does not use the AST collection; keep it off to make sure.
+    set_ast_state(AstFlagSource.TEST, False)
     context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
     yield
+    assert not is_ast_enabled(), "the debug features must not turn the AST on"
     context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
     set_ast_state(AstFlagSource.TEST, original)
 
@@ -489,21 +495,6 @@ def test_existing_view_with_schema_qualified_names_using_dataframe_methods(sessi
     line_number = Utils.get_current_line_number_sys()
     assert f"line {line_number - 9}" in str(ex.value.debug_context)
     Utils.drop_view(session, temp_view_name)
-
-
-def test_existing_object_debug_context_when_ast_disabled(session):
-    """Test that the debug context function gracefully handles the case when AST is disabled."""
-    original_ast_state = session.ast_enabled
-    set_ast_state(AstFlagSource.TEST, False)
-    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    session.sql(f"CREATE TABLE {temp_table_name} (a INT, b INT)").collect()
-    with pytest.raises(SnowparkSQLException) as ex:
-        session.sql(f"CREATE TABLE {temp_table_name} (a INT, b INT)").collect()
-
-    assert f"Object '{temp_table_name}' already exists" in str(ex.value)
-
-    Utils.drop_table(session, temp_table_name)
-    set_ast_state(AstFlagSource.TEST, original_ast_state)
 
 
 def test_existing_table_with_dataframe_write_operations(session):

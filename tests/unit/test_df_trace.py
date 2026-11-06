@@ -187,11 +187,42 @@ def _imports(path):
     return names
 
 
+def test_debug_utils_does_not_use_the_ast():
+    path = SRC_DIR / "_internal" / "debug_utils.py"
+    assert not [n for n in _imports(path) if "_internal.ast" in n or "ast_pb2" in n]
+    text = path.read_text()
+    for forbidden in (
+        "_ast_batch",
+        "_bind_stmt_cache",
+        "df_ast_ids",
+        "get_dependent_bind_ids",
+    ):
+        assert forbidden not in text
+
+
 def test_df_trace_module_does_not_use_the_ast():
     path = SRC_DIR / "_internal" / "df_trace.py"
     assert not [n for n in _imports(path) if "_internal.ast" in n or "ast_pb2" in n]
 
 
+def test_configure_development_features_does_not_use_the_ast():
+    source = inspect.getsource(context.configure_development_features)
+    assert (
+        "ast"
+        not in source.replace("last", "").replace("fast", "").lower().split('"""')[-1]
+    )
+
+
+def test_wrap_exception_reads_trace_nodes_not_ast_ids():
+    from snowflake.snowpark._internal.analyzer import snowflake_plan
+
+    source = inspect.getsource(snowflake_plan.SnowflakePlan.Decorator.wrap_exception)
+    assert "df_trace_nodes" in source
+    assert "df_ast_ids" not in source
+    assert "_ast_batch" not in source
+
+
+# ------------------------------------------------------------------ expression inputs (GAP-1, GAP-2)
 def _plan_with(node):
     class Plan:
         def __init__(self) -> None:

@@ -10,7 +10,8 @@
 
 #### Improvements
 
-- `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them. Turning the tracing features off now also turns off the AST collection if the features enabled it.
+- `snowflake.snowpark.context.configure_development_features` (Experimental) no longer depends on AST collection and no longer changes the AST collection setting.
+- `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them.
 
 #### Bug Fixes
 

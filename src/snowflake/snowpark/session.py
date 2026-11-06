@@ -881,15 +881,6 @@ class Session:
 
         set_ast_state(AstFlagSource.SERVER, ast_enabled)
 
-        # development features require AST to be enabled
-        from snowflake.snowpark.context import (
-            _enable_trace_sql_errors_to_dataframe,
-            _enable_dataframe_trace_on_error,
-        )
-
-        if _enable_trace_sql_errors_to_dataframe or _enable_dataframe_trace_on_error:
-            self._set_ast_enabled_internal(True)
-
         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
         # in Snowflake. This is the limit where we start seeing compilation errors.
         self._large_query_breakdown_complexity_bounds: Tuple[int, int] = (

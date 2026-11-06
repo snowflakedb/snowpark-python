@@ -10,11 +10,8 @@ import itertools
 import re
 from typing import TYPE_CHECKING
 import snowflake.snowpark
-from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
-from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
-import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+from snowflake.snowpark._internal.df_trace import SrcPosition, TraceNode
 from ast import literal_eval
-from snowflake.snowpark._internal.ast.utils import extract_src_from_expr
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
@@ -28,24 +25,17 @@ SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH = (
 class DataFrameTraceNode:
     """A node representing a dataframe operation in the DAG that represents the lineage of a DataFrame."""
 
-    def __init__(self, batch_id: int, stmt_cache: Dict[int, proto.Stmt]) -> None:
-        self.batch_id = batch_id
-        self.stmt_cache = stmt_cache
+    def __init__(self, trace_node: TraceNode) -> None:
+        self.trace_node = trace_node
 
     @cached_property
-    def children(self) -> set[int]:
-        """Returns the batch_ids of the children of this node."""
-        return get_dependent_bind_ids(self.stmt_cache[self.batch_id])
+    def children(self) -> List[TraceNode]:
+        """Returns the trace nodes of the dataframes this node was built from."""
+        return self.trace_node.parents
 
-    def get_src(self) -> Optional[proto.SrcPosition]:
-        """The source Stmt of the DataFrame described by the batch_id."""
-        stmt = self.stmt_cache[self.batch_id]
-        api_call = stmt.bind.expr.WhichOneof("variant")
-        return (
-            getattr(stmt.bind.expr, api_call).src
-            if api_call and getattr(stmt.bind.expr, api_call).HasField("src")
-            else None
-        )
+    def get_src(self) -> Optional[SrcPosition]:
+        """The source position of the user code that created the DataFrame."""
+        return self.trace_node.src
 
     def _read_file(
         self, filename, start_line, end_line, start_column, end_column
@@ -79,12 +69,7 @@ class DataFrameTraceNode:
         if src is None:  # pragma: no cover
             return ""
 
-        fileno = src.file
-        start_line = src.start_line
-        start_column = src.start_column
-        end_line = src.end_line
-        end_column = src.end_column
-        return f"{fileno}:{start_line}:{start_column}-{end_line}:{end_column}"
+        return self.trace_node.source_id
 
     def get_source_snippet(self) -> str:
         """Read the source file and extract the snippet where the dataframe is created."""
@@ -92,10 +77,7 @@ class DataFrameTraceNode:
         if src is None:  # pragma: no cover
             return "No source"
 
-        # get the latest mapping of fileno to filename
-        _fileno_to_filename_map = {v: k for k, v in __STRING_INTERNING_MAP__.items()}
-        fileno = src.file
-        filename = _fileno_to_filename_map.get(fileno, UNKNOWN_FILE)
+        filename = src.filename or UNKNOWN_FILE
 
         start_line = src.start_line
         end_line = src.end_line
@@ -120,34 +102,31 @@ class DataFrameTraceNode:
 
 
 def _get_df_transform_trace(
-    batch_id: int,
-    stmt_cache: Dict[int, proto.Stmt],
+    root: TraceNode,
 ) -> List[DataFrameTraceNode]:
     """Helper function to get the transform trace of the dataframe involved in the exception.
     It gathers the lineage in the following way:
 
-    1. Start by creating a DataFrameTraceNode for the given batch_id.
+    1. Start by creating a DataFrameTraceNode for the given trace node.
     2. We use BFS to traverse the lineage using the node created in 1. as the first layer.
     3. During each iteration, we check if the node's source_id has been visited. If not,
         we add it to the visited set and append its source format to the trace. This step
         is needed to avoid source_id added multiple times in lineage due to loops.
-    4. We then explore the next layer by adding the children of the current node to the
-        next layer. We check if the child ID has been visited and if not, we add it to the
+    4. We then explore the next layer by adding the parents of the current node to the
+        next layer. We check if the parent has been visited and if not, we add it to the
         visited set and append the DataFrameTraceNode for it to the next layer.
     5. We repeat this process until there are no more nodes to explore.
 
     Args:
-        batch_id: The batch ID of the dataframe involved in the exception.
-        stmt_cache: The statement cache of the session.
+        root: The trace node of the dataframe involved in the exception.
 
     Returns:
         A list of DataFrameTraceNode objects representing the transform trace of the dataframe.
     """
-    visited_batch_id = set()
+    visited_nodes = {id(root)}
     visited_source_id = set()
 
-    visited_batch_id.add(batch_id)
-    curr = [DataFrameTraceNode(batch_id, stmt_cache)]
+    curr = [DataFrameTraceNode(root)]
     lineage = []
 
     while curr:
@@ -160,30 +139,27 @@ def _get_df_transform_trace(
                 lineage.append(node)
 
             # explore next layer
-            for child_id in node.children:
-                if child_id in visited_batch_id:
+            for child in node.children:
+                if id(child) in visited_nodes:
                     continue
-                visited_batch_id.add(child_id)
-                next.append(DataFrameTraceNode(child_id, stmt_cache))
+                visited_nodes.add(id(child))
+                next.append(DataFrameTraceNode(child))
 
         curr = next
 
     return lineage
 
 
-def get_df_transform_trace_message(
-    df_ast_id: int, stmt_cache: Dict[int, proto.Stmt]
-) -> str:
+def get_df_transform_trace_message(root: TraceNode) -> str:
     """Get the transform trace message for the dataframe involved in the exception.
 
     Args:
-        df_ast_id: The AST ID of the dataframe involved in the exception.
-        stmt_cache: The statement cache of the session.
+        root: The trace node of the dataframe involved in the exception.
 
     Returns:
         A string representing the transform trace message, empty if the dataframe is not found.
     """
-    df_transform_trace_nodes = _get_df_transform_trace(df_ast_id, stmt_cache)
+    df_transform_trace_nodes = _get_df_transform_trace(root)
     if len(df_transform_trace_nodes) == 0:  # pragma: no cover
         return ""
 
@@ -206,16 +182,13 @@ def get_df_transform_trace_message(
     return "\n".join(debug_info_lines)
 
 
-def _format_source_location(src: Optional[proto.SrcPosition]) -> str:
+def _format_source_location(src: Optional[SrcPosition]) -> str:
     """Helper function to format source location information."""
     if src is None:
         return ""
 
-    from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
-
-    filename_map = {v: k for k, v in __STRING_INTERNING_MAP__.items()}
     # if we cannot find the file, we use a placeholder
-    filename = filename_map.get(src.file, "UNKNOWN_FILE")
+    filename = src.filename or "UNKNOWN_FILE"
     lines_info = f"{filename}: line {src.start_line}"
     if src.end_line > src.start_line:
         lines_info = f"{filename}: lines {src.start_line}-{src.end_line}"
@@ -235,15 +208,12 @@ def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
     source_locations = []
     found_locations = set()
 
-    if plan.df_ast_ids is not None:
-        for ast_id in plan.df_ast_ids:
-            bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
-            if bind_stmt is not None:
-                src = extract_src_from_expr(bind_stmt.bind.expr)
-                location = _format_source_location(src)
-                if location and location not in found_locations:
-                    found_locations.add(location)
-                    source_locations.append(location)
+    if plan.df_trace_nodes is not None:
+        for trace_node in plan.df_trace_nodes:
+            location = _format_source_location(trace_node.src)
+            if location and location not in found_locations:
+                found_locations.add(location)
+                source_locations.append(location)
 
     return source_locations
 
@@ -315,14 +285,11 @@ def get_missing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> str
     # For missing object errors, the compilation error is at the top level
     # (with query like select * from non_existent_table), so we use the top plan directly
     found_locations = {}
-    if top_plan.df_ast_ids is not None:
-        for ast_id in top_plan.df_ast_ids:
-            bind_stmt = top_plan.session._ast_batch._bind_stmt_cache.get(ast_id)
-            if bind_stmt is not None:
-                src = extract_src_from_expr(bind_stmt.bind.expr)
-                location = _format_source_location(src)
-                if location != "":
-                    found_locations[location] = None
+    if top_plan.df_trace_nodes is not None:
+        for trace_node in top_plan.df_trace_nodes:
+            location = _format_source_location(trace_node.src)
+            if location != "":
+                found_locations[location] = None
     if found_locations:
         if len(found_locations) == 1:
             return f"\nMissing object '{object_name}' corresponds to Python source at {list(found_locations.keys())[0]}.\n"
@@ -395,62 +362,26 @@ def get_existing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> st
                 return True
         return False
 
-    bind_stmt_cache = top_plan.session._ast_batch._bind_stmt_cache
+    registry = getattr(top_plan.session, "_df_trace_registry", None)
+    if registry is None:
+        return ""
 
-    for _, stmt in bind_stmt_cache.items():
-        if hasattr(stmt, "bind") and hasattr(stmt.bind, "expr"):
-            expr = stmt.bind.expr
-
-            # case when we create an object by using .save_as_table()
-            if expr.HasField("write_table"):
-                write_table_expr = expr.write_table
-                expr_object_name = None
-                if write_table_expr.table_name.HasField(
-                    "name"
-                ) and write_table_expr.table_name.name.HasField("name_flat"):
-                    expr_object_name = write_table_expr.table_name.name.name_flat.name
-                elif write_table_expr.table_name.HasField(
-                    "name"
-                ) and write_table_expr.table_name.name.HasField("name_structured"):
-                    expr_object_name = (
-                        write_table_expr.table_name.name.name_structured.name[-1]
-                    )
-
-                if expr_object_name and object_name_match(
-                    expr_object_name, object_name
-                ):
-                    location = _format_source_location(write_table_expr.src)
-                    if location:
-                        return f"\nObject '{object_name}' was first referenced at {location}.\n"
-
+    for creation in registry.items():
+        if creation.kind in ("table", "view"):
+            # case when we create an object by using .save_as_table(), create_temp_view(),
+            # create_or_replace_view() or create_or_replace_temp_view()
+            if creation.name_or_query and object_name_match(
+                creation.name_or_query, object_name
+            ):
+                location = _format_source_location(creation.src)
+                if location:
+                    return f"\nObject '{object_name}' was first referenced at {location}.\n"
+        elif creation.kind == "sql":
             # case when we create an object by using session.sql()
-            elif expr.HasField("sql"):
-                sql_expr = expr.sql
-                if sql_contains_object_creation(sql_expr.query, object_name):
-                    location = _format_source_location(sql_expr.src)
-                    if location:
-                        return f"\nObject '{object_name}' was first referenced at {location}.\n"
-
-            # case when we create a view by using create_temp_view(), create_or_replace_view(), create_or_replace_temp_view()
-            elif expr.HasField("dataframe_create_or_replace_view"):
-                create_view_expr = expr.dataframe_create_or_replace_view
-                expr_object_name = None
-                if create_view_expr.name.HasField(
-                    "name"
-                ) and create_view_expr.name.name.HasField("name_flat"):
-                    expr_object_name = create_view_expr.name.name.name_flat.name
-                elif create_view_expr.name.HasField(
-                    "name"
-                ) and create_view_expr.name.name.HasField("name_structured"):
-                    expr_object_name = create_view_expr.name.name.name_structured.name[
-                        -1
-                    ]
-                if expr_object_name and object_name_match(
-                    expr_object_name, object_name
-                ):
-                    location = _format_source_location(create_view_expr.src)
-                    if location:
-                        return f"\nObject '{object_name}' was first referenced at {location}.\n"
+            if sql_contains_object_creation(creation.name_or_query, object_name):
+                location = _format_source_location(creation.src)
+                if location:
+                    return f"\nObject '{object_name}' was first referenced at {location}.\n"
 
     return ""
 
