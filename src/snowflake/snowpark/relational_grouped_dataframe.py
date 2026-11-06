@@ -29,6 +29,11 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate, Pivot
+from snowflake.snowpark._internal.df_trace import (
+    TraceNode,
+    capture_user_src_position,
+    is_tracing_enabled,
+)
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
@@ -174,6 +179,14 @@ class RelationalGroupedDataFrame:
         self._group_type = group_type
         self._df_api_call = None
         self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
+        # Track the user code that created this grouped dataframe for the debug features.
+        self._trace_node: Optional[TraceNode] = None
+        if is_tracing_enabled(df._session):
+            self._trace_node = TraceNode(
+                capture_user_src_position(),
+                [df._trace_node] if getattr(df, "_trace_node", None) else [],
+                kind="grouped_dataframe",
+            )
 
     def _to_df(
         self,
@@ -253,12 +266,16 @@ class RelationalGroupedDataFrame:
                 analyzer=self._dataframe._session._analyzer,
             )
 
-        return DataFrame(
+        result = DataFrame(
             self._dataframe._session,
             group_plan,
             _ast_stmt=_ast_stmt,
             _emit_ast=_emit_ast,
         )
+        if self._trace_node is not None and result._trace_node is not None:
+            # The aggregated dataframe is derived from the grouped dataframe.
+            result._trace_node.parents = [self._trace_node]
+        return result
 
     @relational_group_df_api_usage
     @publicapi
@@ -649,6 +666,13 @@ class RelationalGroupedDataFrame:
         )
 
         self._group_type = _PivotType(pc[0], pivot_values, pivot_default_on_null)
+        if self._trace_node is not None:
+            # pivot is a call of its own in the lineage of the result.
+            self._trace_node = TraceNode(
+                capture_user_src_position(),
+                [self._trace_node],
+                kind="grouped_dataframe",
+            )
 
         # special case: This is an internal state modifying operation.
         if _emit_ast:

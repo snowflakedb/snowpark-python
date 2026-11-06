@@ -1181,6 +1181,9 @@ def set_ast_state(source: AstFlagSource, enabled: bool) -> None:
 CallableT = TypeVar("CallableT", bound=Callable)
 
 
+from snowflake.snowpark._internal import df_trace  # noqa: E402
+
+
 def publicapi(func: CallableT) -> CallableT:
     """decorator to safeguard public APIs with global feature flags."""
 
@@ -1191,25 +1194,153 @@ def publicapi(func: CallableT) -> CallableT:
     def call_wrapper(*args, **kwargs):
         # warning(func.__qualname__, warning_text)
 
-        if not has_emit_ast:
-            # This callee doesn't have a _emit_ast parameter.
+        if has_emit_ast and "_emit_ast" not in kwargs:
+            # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
+            kwargs["_emit_ast"] = is_ast_enabled()
+
+        if not df_trace.tracing_flags_on():
             return func(*args, **kwargs)
 
-        if "_emit_ast" in kwargs:
-            # The caller provided _emit_ast explicitly.
-            return func(*args, **kwargs)
+        # The debug features record the outermost public API call in the dataframe trace: the
+        # dataframes and functions used in its column arguments become inputs of the dataframes
+        # it returns, and the nodes of the dataframes it created internally are removed from
+        # the plans.
+        state = df_trace._call_state
+        depth = getattr(state, "depth", 0)
+        state.depth = depth + 1
+        if depth == 0:
+            state.created, state.seeds = [], []
+        try:
+            result = func(*args, **kwargs)
+        except BaseException:
+            if depth == 0:
+                state.created = state.seeds = None
+            raise
+        finally:
+            state.depth = depth
+        if depth > 0:
+            return result
+        created, seeds = state.created or [], state.seeds
+        state.created = state.seeds = None
+        try:
+            items = result if isinstance(result, (list, tuple)) else [result]
+            returned = [i for i in items if getattr(i, "_trace_node", None) is not None]
+            if not returned:
+                return result
 
-        kwargs["_emit_ast"] = is_ast_enabled()
+            from snowflake.snowpark._internal.analyzer.expression import (
+                Expression,
+                ScalarSubquery,
+            )
+            from snowflake.snowpark.column import Column
+            from snowflake.snowpark.table_function import TableFunctionCall
 
-        # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
+            # The trace nodes referenced by the column arguments: dataframes used as subqueries and
+            # functions (UDF, UDTF, UDAF) that carry the node of their registration.
+            inputs = []
+            for value in [*args, *kwargs.values()]:
+                values = value if isinstance(value, (list, tuple)) else [value]
+                if isinstance(value, dict):
+                    values = [*value.keys(), *value.values()]
+                for item in values:
+                    # Only columns and table function calls: getattr on a DataFrame resolves
+                    # column names.
+                    if isinstance(item, TableFunctionCall):
+                        node = getattr(item, "_df_trace_node", None)
+                        if node is not None:
+                            inputs.append(node)
+                        continue
+                    if not isinstance(item, Column):
+                        continue
+                    seen = set()
+                    stack = [item._expression]
+                    while stack and len(seen) < df_trace._MAX_EXPRESSION_NODES:
+                        expr = stack.pop()
+                        if id(expr) in seen:
+                            continue
+                        seen.add(id(expr))
+                        node = getattr(expr, "_df_trace_node", None)
+                        if node is not None:
+                            inputs.append(node)
+                        if isinstance(expr, ScalarSubquery):
+                            inputs.extend(df_trace.collect_input_nodes(expr.plan))
+                            continue
+                        names = df_trace._attribute_names_by_class.get(type(expr))
+                        if names is None:
+                            names = tuple(vars(expr))
+                            df_trace._attribute_names_by_class[type(expr)] = names
+                        pending = [getattr(expr, name, None) for name in names]
+                        while pending:
+                            attr = pending.pop()
+                            if isinstance(attr, Expression):
+                                stack.append(attr)
+                            elif isinstance(attr, (list, tuple)):
+                                # e.g. the (condition, value) branches of CASE WHEN
+                                pending.extend(attr)
+                            elif isinstance(attr, dict):
+                                pending.extend(attr.values())
+            for df in returned:
+                for node in inputs:
+                    if node is not df._trace_node:
+                        df_trace.add_parent(df._trace_node, node)
 
-        return func(*args, **kwargs)
+            # Only the returned dataframes are operations of the call; the AST never gave the
+            # internal ones an id, so their nodes must not appear in the plans' lists either. The
+            # lineage graph keeps them (their position is the one of the call).
+            returned_nodes = {id(df._trace_node) for df in returned}
+            internal = {
+                id(df._trace_node)
+                for df in created
+                if df._trace_node is not None
+                and id(df._trace_node) not in returned_nodes
+            }
+            if internal:
+                for df in created:
+                    for container in (df._plan, df._select_statement):
+                        nodes = getattr(container, "df_trace_nodes", None)
+                        if nodes:
+                            nodes[:] = [n for n in nodes if id(n) not in internal]
+                            if not nodes:
+                                container.df_trace_nodes = None
+
+            # A source api (create_dataframe, table, sql, readers) gets its AST id after the
+            # dataframe is created, so the AST never seeds the plans of its construction: undo the
+            # seeds unless a returned dataframe derives from an operation at another position.
+            # Seeds of calls that raised stay: they carry the context of construction-time errors.
+            if seeds:
+                derived = False
+                for df in returned:
+                    node = df._trace_node
+                    seen, stack = set(), list(node.parents)
+                    while (
+                        stack
+                        and not derived
+                        and len(seen) < df_trace._MAX_ANCESTOR_SEARCH
+                    ):
+                        cur = stack.pop()
+                        if id(cur) in seen:
+                            continue
+                        seen.add(id(cur))
+                        derived = cur.source_id != node.source_id
+                        stack.extend(cur.parents)
+                    if derived:
+                        break
+                if not derived:
+                    for container, seeded in seeds:
+                        if container.df_trace_nodes is seeded:
+                            container.df_trace_nodes = None
+        except Exception:
+            # The trace is only debug information: never fail the user's call because of it.
+            _logger.debug("Failed to record the dataframe trace", exc_info=True)
+        return result
 
     return call_wrapper
 
 
 def func_decorator(
-    decorator_type: Literal["deprecated", "experimental", "in private preview"],
+    decorator_type: Literal[
+        "deprecated", "experimental", "in private preview", "in public preview"
+    ],
     *,
     version: str,
     extra_warning_text: str,
@@ -1289,6 +1420,17 @@ def private_preview(
 ) -> Callable:
     return func_decorator(
         "in private preview",
+        version=version,
+        extra_warning_text=extra_warning_text,
+        extra_doc_string=extra_doc_string,
+    )
+
+
+def public_preview(
+    *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
+) -> Callable:
+    return func_decorator(
+        "in public preview",
         version=version,
         extra_warning_text=extra_warning_text,
         extra_doc_string=extra_doc_string,
@@ -2534,19 +2676,22 @@ def get_plan_from_line_numbers(
         return -1
 
     # traverse the plan tree to find the plan that contains the line number
-    stack = [(plan_node, line_number, None)]
+    stack = [(plan_node, line_number, None, None)]
     while stack:
-        node, line_number, df_ast_ids = stack.pop()
+        node, line_number, df_ast_ids, df_trace_nodes = stack.pop()
         if isinstance(node, Selectable):
             node = node.get_snowflake_plan(skip_schema_query=False)
         if node.df_ast_ids is not None:
             df_ast_ids = node.df_ast_ids
+        if node.df_trace_nodes:
+            df_trace_nodes = node.df_trace_nodes
         query_line_intervals = node.queries[-1].query_line_intervals
         idx = find_interval_containing_line(query_line_intervals, line_number)
         if idx >= 0:
             uuid = query_line_intervals[idx].uuid
             if node.uuid == uuid:
                 node.df_ast_ids = df_ast_ids
+                node.df_trace_nodes = df_trace_nodes
                 return node
             else:
                 for child in node.children_plan_nodes:
@@ -2556,6 +2701,7 @@ def get_plan_from_line_numbers(
                                 child,
                                 line_number - query_line_intervals[idx].start,
                                 df_ast_ids,
+                                df_trace_nodes,
                             )
                         )
                         break

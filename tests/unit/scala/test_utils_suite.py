@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     normalize_path,
     private_preview,
+    public_preview,
     result_set_to_iter,
     result_set_to_rows,
     unwrap_stage_location_single_quote,
@@ -688,6 +689,30 @@ def test_private_preview_decorator(caplog):
         foo()
     assert extra_doc in foo.__doc__
     assert expected_warning_text in caplog.messages
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        foo()
+    assert expected_warning_text not in caplog.text
+
+
+def test_public_preview_decorator(caplog):
+    extra_warning = "Extra warning."
+    extra_doc = "Extra doc."
+    expected_warning_text = f"test_public_preview_decorator.<locals>.foo() is in public preview since 0.1. {extra_warning}"
+
+    @public_preview(
+        version="0.1", extra_warning_text=extra_warning, extra_doc_string=extra_doc
+    )
+    def foo():
+        pass
+
+    assert "This function or method is in public preview since 0.1." in foo.__doc__
+    assert extra_doc in foo.__doc__
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        foo()
+    assert expected_warning_text in caplog.messages
+    assert "Do not use it in production" not in caplog.text
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         foo()
