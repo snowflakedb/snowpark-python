@@ -11,6 +11,11 @@ and put them in an :class:`MCPServer`. ``MCPServer.deploy`` registers the Python
 tools as procedures or UDFs and creates the server; ``grant_usage`` grants a role
 everything the server's tools need.
 
+Prefer narrow tools: a tool that runs fixed SQL with the model's values bound as
+parameters, or filters a DataFrame, can do nothing else, so there is no query for the
+model to get wrong or abuse. Use ``tools.governed_sql`` only as an open-ended
+fallback, on an MCP server of its own, deployed with a dedicated read-only role.
+
 Example::
 
     from snowflake.snowpark import Session
@@ -23,11 +28,17 @@ Example::
         Args:
             account_id: The account ID.
         \"\"\"
-        return session.table("CRM.PUBLIC.ACCOUNTS").filter(...).first().asDict()
+        rows = session.sql(
+            "SELECT * FROM CRM.PUBLIC.ACCOUNTS WHERE ACCOUNT_ID = ?", params=[account_id]
+        ).collect()
+        return rows[0].as_dict() if rows else {}
 
-    server = MCPServer("SALES_MCP", tools=[get_account, *tools.governed_sql()])
+    server = MCPServer("SALES_MCP", tools=[get_account])
     server.deploy(session, schema="MCP_DEV", suffix="_DEV")
     server.grant_usage(session, role="SALES_MCP_USER", schema="MCP_DEV", suffix="_DEV")
+
+    # Open-ended SQL, on its own server and deployed with a read-only role.
+    sql_server = MCPServer("SALES_SQL_MCP", tools=tools.governed_sql())
 """
 
 import dataclasses
@@ -447,16 +458,27 @@ class PythonTool(MCPTool):
                 and self.execute_as == "owner"
                 and mcp_utils.is_sql_parameter(p)
             ):
-                issues.append(
-                    LintIssue(
-                        "warning",
-                        self.name,
-                        f"Parameter {p.name} looks like free-form SQL, and the tool "
-                        "runs with its owner's rights: the model could run any SQL "
-                        "the owner can. Use execute_as='caller' or "
-                        "tools.governed_sql().",
+                if self._ready_made == "governed_sql":
+                    issues.append(
+                        LintIssue(
+                            "info",
+                            self.name,
+                            f"{self.name} runs with the rights of the role that "
+                            "deploys it; deploy it with a dedicated read-only role "
+                            "(see tools.governed_sql_role_setup).",
+                        )
                     )
-                )
+                else:
+                    issues.append(
+                        LintIssue(
+                            "warning",
+                            self.name,
+                            f"Parameter {p.name} looks like free-form SQL, and the "
+                            "tool runs with its owner's rights: the model could run "
+                            "any SQL the owner can. Use execute_as='caller', or "
+                            "deploy with a dedicated read-only role.",
+                        )
+                    )
         if self.read_only and mcp_utils.name_suggests_write(self.name):
             issues.append(
                 LintIssue(
@@ -1176,6 +1198,23 @@ class MCPServer:
                 "a CREATE MCP SERVER specification."
             )
 
+        governed = next(
+            (
+                t
+                for t in self.tools
+                if isinstance(t, PythonTool)
+                and t._ready_made == "governed_sql"
+                and t.execute_as == "owner"
+            ),
+            None,
+        )
+        if governed is not None and not dry_run:
+            role_issues = _check_deploying_role(session, governed.name)
+            for issue in role_issues:
+                if issue.level == "warning":
+                    _logger.warning("%s", issue.message)
+            issues += role_issues
+
         sql: List[str] = []
         objects: List[str] = []
         pruned: List[str] = []
@@ -1425,6 +1464,64 @@ class MCPServer:
             )
         except Exception:  # telemetry must never fail a deploy
             _logger.debug("Failed to send MCP deploy telemetry", exc_info=True)
+
+
+_MAX_ROLES_CHECKED = 50
+_MAX_EXAMPLE_FINDINGS = 5
+
+
+def _role_literal(name: str) -> str:
+    """A role name as ``SHOW GRANTS TO ROLE`` takes it: quoted unless plain."""
+    if mcp_utils.is_identifier(name) and name == name.upper():
+        return name
+    return '"' + name.strip('"').replace('"', '""') + '"'
+
+
+def _check_deploying_role(session, tool: str) -> List[LintIssue]:
+    """Warns when the role deploying an owner's-rights ``governed_sql`` can write or
+    administer data, since the model's SQL then runs with that role. Never raises."""
+    try:
+        role = _normalize_identifier(session.get_current_role())
+        grants: Dict[str, List[Dict[str, Any]]] = {}
+        pending = [role]
+        while pending and len(grants) < _MAX_ROLES_CHECKED:
+            current = pending.pop(0)
+            if current in grants:
+                continue
+            rows = session.sql(
+                f"SHOW GRANTS TO ROLE {_role_literal(current)}"
+            ).collect()
+            grants[current] = [_row_dict(r) for r in rows]
+            pending += [
+                str(r.get("name"))
+                for r in grants[current]
+                if str(r.get("granted_on", "")).upper() == "ROLE"
+                and str(r.get("privilege", "")).upper() == "USAGE"
+            ]
+    except Exception as e:
+        return [
+            LintIssue(
+                "info",
+                tool,
+                "The deploying role could not be checked for write privileges "
+                f"({type(e).__name__}); make sure it is read-only.",
+            )
+        ]
+    findings = mcp_utils.role_grant_findings(grants)
+    if not findings:
+        return []
+    examples = "; ".join(findings[:_MAX_EXAMPLE_FINDINGS])
+    more = "" if len(findings) <= _MAX_EXAMPLE_FINDINGS else ", ..."
+    return [
+        LintIssue(
+            "warning",
+            tool,
+            f"The deploying role {role} can write or administer data "
+            f"({len(findings)} findings, e.g. {examples}{more}), and {tool} runs "
+            "with its rights. Deploy governed_sql with a read-only role "
+            "(see tools.governed_sql_role_setup).",
+        )
+    ]
 
 
 def _is_quoted_identifier(name: str) -> bool:

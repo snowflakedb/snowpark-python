@@ -171,6 +171,39 @@ def test_governed_sql(session, temp_schema):
         server.drop(session, schema=schema, include_tools=True)
 
 
+def test_governed_sql_deploy_checks_the_deploying_role(session, temp_schema):
+    schema = _schema_name(temp_schema)
+    server = MCPServer("SNOWPARK_MCP_SQL_ROLE", tools=tools.governed_sql())
+    result = server.deploy(session, schema=schema)
+    try:
+        # Whether the test role can write is up to the account: only the shape is checked.
+        assert isinstance(result.issues, list)
+        assert result.objects
+    finally:
+        server.drop(session, schema=schema, include_tools=True)
+
+
+@mcp_tool(read_only=True, mask_error_details=False)
+def two_statements(session: Session, x: int) -> int:
+    """Run two statements in one call.
+
+    Args:
+        x: Unused.
+    """
+    return session.sql("SELECT 1; SELECT 2").collect()[0][0]
+
+
+def test_multiple_statements_are_rejected_by_snowflake(session, temp_schema):
+    schema = _schema_name(temp_schema)
+    server = MCPServer("SNOWPARK_MCP_MULTI", tools=[two_statements])
+    server.deploy(session, schema=schema)
+    try:
+        with pytest.raises(SnowparkSQLException, match="statement count"):
+            server.call_tool(session, "two_statements", {"x": 1}, schema=schema)
+    finally:
+        server.drop(session, schema=schema, include_tools=True)
+
+
 def test_grant_usage_dry_run(session, temp_schema):
     schema = _schema_name(temp_schema)
     server = MCPServer("SNOWPARK_MCP_GRANTS", tools=[numbers, add])
