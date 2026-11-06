@@ -6,6 +6,7 @@
 
 #### New Features
 
+- Added `Session.jobs` (experimental) to submit, deploy and schedule Snowpark Python programs as stored procedures or code bundles (code bundles are in Preview).
 - Added `Session.semantic_view()` (PuPr) to query a semantic view. Pass the semantic view name plus any of `dimensions`, `metrics`, `facts`, and `where`; it returns a `DataFrame`.
 
 #### Improvements

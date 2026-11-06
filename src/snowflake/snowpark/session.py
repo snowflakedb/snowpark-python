@@ -964,6 +964,7 @@ class Session:
         self._dataframe_profiler = DataframeProfiler(session=self)
         self._df_trace_registry = ObjectCreationRegistry()
         self._catalog = None
+        self._jobs = None
         self._client_telemetry = EventTableTelemetry(session=self)
 
         self._ast_batch = AstBatch(self)
@@ -1088,6 +1089,25 @@ class Session:
             self._catalog = Catalog(self)
         return self._catalog
 
+    @property
+    @experimental(version="1.57.0")
+    def jobs(self):
+        """Returns a :class:`~snowflake.snowpark.jobs.JobManager` to submit, deploy and
+        schedule Snowpark Python programs as stored procedures or code bundles
+        (code bundles are in Preview)."""
+        from snowflake.snowpark.jobs import JobManager
+
+        if self._jobs is None:
+            with self._lock:
+                if self._jobs is None:
+                    if isinstance(self._conn, MockServerConnection):
+                        self._conn.log_not_supported_error(
+                            external_feature_name="Session.jobs",
+                            raise_error=NotImplementedError,
+                        )
+                    self._jobs = JobManager(self)
+        return self._jobs
+
     def close(self) -> None:
         """Close this session."""
         if is_in_stored_procedure():
@@ -1102,6 +1122,9 @@ class Session:
             else:
                 _logger.info("Closing session: %s", self._session_id)
                 self.cancel_all()
+                if self._jobs is not None:
+                    # drops temporary code bundles of finished runs; never raises
+                    self._jobs._cleanup_on_close()
         except Exception as ex:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(str(ex))
         finally:
