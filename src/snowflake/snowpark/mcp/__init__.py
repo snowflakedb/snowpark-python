@@ -6,15 +6,14 @@
 
 Define tools with :func:`mcp_tool` (from a Python function) or with
 :meth:`Tool.from_procedure` / :meth:`Tool.from_function` (from an object that already
-exists), add ready-made and built-in tools from :mod:`snowflake.snowpark.mcp.tools`,
+exists), add built-in tools from :mod:`snowflake.snowpark.mcp.tools`,
 and put them in an :class:`MCPServer`. ``MCPServer.deploy`` registers the Python
 tools as procedures or UDFs and creates the server; ``grant_usage`` grants a role
 everything the server's tools need.
 
 Prefer narrow tools: a tool that runs fixed SQL with the model's values bound as
 parameters, or filters a DataFrame, can do nothing else, so there is no query for the
-model to get wrong or abuse. Use ``tools.governed_sql`` only as an open-ended
-fallback, on an MCP server of its own, deployed with a dedicated read-only role.
+model to get wrong or abuse.
 
 Example::
 
@@ -36,9 +35,6 @@ Example::
     server = MCPServer("SALES_MCP", tools=[get_account])
     server.deploy(session, schema="MCP_DEV", suffix="_DEV")
     server.grant_usage(session, role="SALES_MCP_USER", schema="MCP_DEV", suffix="_DEV")
-
-    # Open-ended SQL, on its own server and deployed with a read-only role.
-    sql_server = MCPServer("SALES_SQL_MCP", tools=tools.governed_sql())
 """
 
 import dataclasses
@@ -53,7 +49,7 @@ from urllib.parse import quote as url_quote
 import yaml
 
 import snowflake.snowpark
-from snowflake.snowpark._internal import mcp_governed_sql, mcp_tool_runtime, mcp_utils
+from snowflake.snowpark._internal import mcp_tool_runtime, mcp_utils
 from snowflake.snowpark._internal.mcp_tool_runtime import (
     DEFAULT_MAX_RESULT_BYTES,
     DEFAULT_MAX_ROWS,
@@ -193,9 +189,6 @@ class MCPTool:
     def _is_resolved(self) -> bool:
         return True
 
-    def _setup_sql(self, target: _Target) -> List[str]:
-        return []
-
     def _spec(self, target: _Target) -> Dict[str, Any]:
         raise NotImplementedError
 
@@ -288,8 +281,6 @@ class PythonTool(MCPTool):
         max_rows: int = DEFAULT_MAX_ROWS,
         max_result_bytes: int = DEFAULT_MAX_RESULT_BYTES,
         mask_error_details: bool = True,
-        _setup_sql: Optional[Callable[[_Target], List[str]]] = None,
-        _ready_made: Optional[str] = None,
     ) -> None:
         if not callable(func):
             raise TypeError(f"mcp_tool expects a function, got {type(func).__name__}")
@@ -334,8 +325,6 @@ class PythonTool(MCPTool):
         self.max_rows = max_rows
         self.max_result_bytes = max_result_bytes
         self.mask_error_details = mask_error_details
-        self._setup_sql_func = _setup_sql
-        self._ready_made = _ready_made
 
         first = next(iter(inspect.signature(func).parameters.values()), None)
         try:
@@ -458,27 +447,16 @@ class PythonTool(MCPTool):
                 and self.execute_as == "owner"
                 and mcp_utils.is_sql_parameter(p)
             ):
-                if self._ready_made == "governed_sql":
-                    issues.append(
-                        LintIssue(
-                            "info",
-                            self.name,
-                            f"{self.name} runs with the rights of the role that "
-                            "deploys it; deploy it with a dedicated read-only role "
-                            "(see tools.governed_sql_role_setup).",
-                        )
+                issues.append(
+                    LintIssue(
+                        "warning",
+                        self.name,
+                        f"Parameter {p.name} looks like free-form SQL, and the "
+                        "tool runs with its owner's rights: the model could run "
+                        "any SQL the owner can. Use execute_as='caller', or "
+                        "deploy with a dedicated read-only role.",
                     )
-                else:
-                    issues.append(
-                        LintIssue(
-                            "warning",
-                            self.name,
-                            f"Parameter {p.name} looks like free-form SQL, and the "
-                            "tool runs with its owner's rights: the model could run "
-                            "any SQL the owner can. Use execute_as='caller', or "
-                            "deploy with a dedicated read-only role.",
-                        )
-                    )
+                )
         if self.read_only and mcp_utils.name_suggests_write(self.name):
             issues.append(
                 LintIssue(
@@ -489,9 +467,6 @@ class PythonTool(MCPTool):
                 )
             )
         return issues
-
-    def _setup_sql(self, target: _Target) -> List[str]:
-        return self._setup_sql_func(target) if self._setup_sql_func else []
 
     def _spec(self, target: _Target) -> Dict[str, Any]:
         spec = self._spec_base(target.object_fqn(self._object_name(target)))
@@ -832,7 +807,6 @@ def _pickle_runtime_by_value() -> None:
             f"{getattr(cloudpickle, '__version__', 'unknown')}."
         )
     register(mcp_tool_runtime)
-    register(mcp_governed_sql)
     _RUNTIME_PICKLED_BY_VALUE = True
 
 
@@ -1062,8 +1036,8 @@ class MCPServer:
         return f"MCPServer(name={self.name!r}, tools={[t.name for t in self.tools]})"
 
     def add(self, *tools: Union[MCPTool, Iterable[MCPTool]]) -> "MCPServer":
-        """Adds tools. Accepts tools and lists of tools (as returned by
-        ``tools.governed_sql``). Returns the server."""
+        """Adds tools. Accepts tools and iterables of tools. Returns the
+        server."""
         for tool in tools:
             if isinstance(tool, MCPTool):
                 self.tools.append(tool)
@@ -1198,23 +1172,6 @@ class MCPServer:
                 "a CREATE MCP SERVER specification."
             )
 
-        governed = next(
-            (
-                t
-                for t in self.tools
-                if isinstance(t, PythonTool)
-                and t._ready_made == "governed_sql"
-                and t.execute_as == "owner"
-            ),
-            None,
-        )
-        if governed is not None and not dry_run:
-            role_issues = _check_deploying_role(session, governed.name)
-            for issue in role_issues:
-                if issue.level == "warning":
-                    _logger.warning("%s", issue.message)
-            issues += role_issues
-
         sql: List[str] = []
         objects: List[str] = []
         pruned: List[str] = []
@@ -1230,9 +1187,6 @@ class MCPServer:
             stage = target.object_fqn(_DEFAULT_STAGE_NAME)
             run(f"CREATE STAGE IF NOT EXISTS {stage}")
             stage_location = f"@{stage}"
-        setup = [st for tool in self.tools for st in tool._setup_sql(target)]
-        for statement in dict.fromkeys(setup):
-            run(statement)
         for tool in python_tools:
             objects.append(
                 tool._signature(target)
@@ -1445,7 +1399,6 @@ class MCPServer:
     def _send_telemetry(self, session) -> None:
         try:
             counts: Dict[str, int] = {}
-            ready_made = []
             for tool in self.tools:
                 key = (
                     f"python_{tool.kind}"
@@ -1455,73 +1408,13 @@ class MCPServer:
                     else tool.tool_type
                 )
                 counts[key] = counts.get(key, 0) + 1
-                if getattr(tool, "_ready_made", None):
-                    ready_made.append(tool._ready_made)
             session._conn._telemetry_client.send_function_usage_telemetry(
                 "MCPServer.deploy",
                 "usage",
-                api_calls=[json.dumps({"tools": counts, "ready_made": ready_made})],
+                api_calls=[json.dumps({"tools": counts})],
             )
         except Exception:  # telemetry must never fail a deploy
             _logger.debug("Failed to send MCP deploy telemetry", exc_info=True)
-
-
-_MAX_ROLES_CHECKED = 50
-_MAX_EXAMPLE_FINDINGS = 5
-
-
-def _role_literal(name: str) -> str:
-    """A role name as ``SHOW GRANTS TO ROLE`` takes it: quoted unless plain."""
-    if mcp_utils.is_identifier(name) and name == name.upper():
-        return name
-    return '"' + name.strip('"').replace('"', '""') + '"'
-
-
-def _check_deploying_role(session, tool: str) -> List[LintIssue]:
-    """Warns when the role deploying an owner's-rights ``governed_sql`` can write or
-    administer data, since the model's SQL then runs with that role. Never raises."""
-    try:
-        role = _normalize_identifier(session.get_current_role())
-        grants: Dict[str, List[Dict[str, Any]]] = {}
-        pending = [role]
-        while pending and len(grants) < _MAX_ROLES_CHECKED:
-            current = pending.pop(0)
-            if current in grants:
-                continue
-            rows = session.sql(
-                f"SHOW GRANTS TO ROLE {_role_literal(current)}"
-            ).collect()
-            grants[current] = [_row_dict(r) for r in rows]
-            pending += [
-                str(r.get("name"))
-                for r in grants[current]
-                if str(r.get("granted_on", "")).upper() == "ROLE"
-                and str(r.get("privilege", "")).upper() == "USAGE"
-            ]
-    except Exception as e:
-        return [
-            LintIssue(
-                "info",
-                tool,
-                "The deploying role could not be checked for write privileges "
-                f"({type(e).__name__}); make sure it is read-only.",
-            )
-        ]
-    findings = mcp_utils.role_grant_findings(grants)
-    if not findings:
-        return []
-    examples = "; ".join(findings[:_MAX_EXAMPLE_FINDINGS])
-    more = "" if len(findings) <= _MAX_EXAMPLE_FINDINGS else ", ..."
-    return [
-        LintIssue(
-            "warning",
-            tool,
-            f"The deploying role {role} can write or administer data "
-            f"({len(findings)} findings, e.g. {examples}{more}), and {tool} runs "
-            "with its rights. Deploy governed_sql with a read-only role "
-            "(see tools.governed_sql_role_setup).",
-        )
-    ]
 
 
 def _is_quoted_identifier(name: str) -> bool:

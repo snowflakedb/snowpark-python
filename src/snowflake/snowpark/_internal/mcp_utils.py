@@ -73,10 +73,6 @@ RESERVED_PARAMETER_NAMES = frozenset(
     RLIKE ROW ROWS SAMPLE SELECT SET SOME START TABLE TABLESAMPLE THEN TO TRIGGER UNION
     UNIQUE UPDATE VALUES WHENEVER WHERE WITH""".split()
 )
-# System roles that can administer an account or write to most of it.
-ADMIN_ROLE_NAMES = frozenset(
-    ("ACCOUNTADMIN", "SYSADMIN", "SECURITYADMIN", "USERADMIN", "ORGADMIN")
-)
 # Parameter names that suggest the model passes free-form SQL.
 _SQL_PARAMETER_NAMES = ("sql", "query", "statement", "stmt", "sql_text", "sql_query")
 
@@ -581,40 +577,6 @@ def is_sql_parameter(param: ToolParameter) -> bool:
         and "enum" not in param.json_schema
         and param.name.lower() in _SQL_PARAMETER_NAMES
     )
-
-
-def role_grant_findings(grants_by_role: Dict[str, List[Dict[str, Any]]]) -> List[str]:
-    """Describes what lets the roles write or administer data, one string each.
-
-    ``grants_by_role`` maps every role of a hierarchy (a role and the roles it
-    inherits) to its ``SHOW GRANTS TO ROLE`` rows as dicts with lower-case keys.
-    The roles are checked together, as they are all in effect for the top role.
-    Ownership of procedures, functions and stages is ignored: deploying creates them.
-    """
-    findings: List[str] = []
-    for role, rows in grants_by_role.items():
-        if role.strip('"').upper() in ADMIN_ROLE_NAMES:
-            findings.append(f"the role {role} is a system role")
-        for row in rows:
-            privilege = str(row.get("privilege", "")).upper()
-            granted_on = str(row.get("granted_on", "")).upper()
-            name = row.get("name")
-            if granted_on == "TABLE" and privilege in (
-                "INSERT",
-                "UPDATE",
-                "DELETE",
-                "TRUNCATE",
-            ):
-                flagged = True
-            elif privilege == "OWNERSHIP":
-                flagged = granted_on in ("TABLE", "VIEW", "SCHEMA", "DATABASE")
-            elif granted_on == "SCHEMA":
-                flagged = privilege in ("CREATE TABLE", "CREATE VIEW", "MODIFY")
-            else:
-                flagged = granted_on == "ACCOUNT"
-            if flagged:
-                findings.append(f"{privilege} on {granted_on} {name}")
-    return list(dict.fromkeys(findings))
 
 
 def lint_tool_count_and_names(tool_names: List[str]) -> List[LintIssue]:

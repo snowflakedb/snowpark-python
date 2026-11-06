@@ -56,5 +56,3 @@ MCP Tools and Servers
     CortexAnalyst
     CortexSearch
     SqlExecution
-    governed_sql
-    governed_sql_role_setup

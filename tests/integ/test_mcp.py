@@ -11,7 +11,7 @@ import pytest
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col
-from snowflake.snowpark.mcp import MCPServer, Tool, ToolError, mcp_tool, tools
+from snowflake.snowpark.mcp import MCPServer, Tool, ToolError, mcp_tool
 
 pytestmark = [
     pytest.mark.udf,
@@ -139,48 +139,6 @@ def test_tool_from_existing_sql_procedure(session, temp_schema):
         )
     finally:
         server.drop(session, schema=schema)
-
-
-def test_governed_sql(session, temp_schema):
-    schema = _schema_name(temp_schema)
-    server = MCPServer("SNOWPARK_MCP_SQL", tools=tools.governed_sql(max_rows=2))
-    server.deploy(session, schema=schema)
-    try:
-        result = server.call_tool(
-            session,
-            "run_sql",
-            {"query": "SELECT SEQ4() AS N FROM TABLE(GENERATOR(ROWCOUNT => 5))"},
-            schema=schema,
-        )
-        assert result["row_count"] == 2
-        assert result["truncated"] is True
-
-        shown = server.call_tool(
-            session,
-            "run_sql",
-            {"query": f"SHOW PROCEDURES IN SCHEMA {temp_schema}"},
-            schema=schema,
-        )
-        assert "rows" in shown
-
-        rejected = server.call_tool(
-            session, "run_sql", {"query": "DROP TABLE NOT_A_TABLE"}, schema=schema
-        )
-        assert rejected["error"]["type"] == "QUERY_REJECTED"
-    finally:
-        server.drop(session, schema=schema, include_tools=True)
-
-
-def test_governed_sql_deploy_checks_the_deploying_role(session, temp_schema):
-    schema = _schema_name(temp_schema)
-    server = MCPServer("SNOWPARK_MCP_SQL_ROLE", tools=tools.governed_sql())
-    result = server.deploy(session, schema=schema)
-    try:
-        # Whether the test role can write is up to the account: only the shape is checked.
-        assert isinstance(result.issues, list)
-        assert result.objects
-    finally:
-        server.drop(session, schema=schema, include_tools=True)
 
 
 @mcp_tool(read_only=True, mask_error_details=False)

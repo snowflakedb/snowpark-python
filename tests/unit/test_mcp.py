@@ -407,14 +407,18 @@ def test_server_name_is_uppercased():
 
 def test_server_add_flattens_lists():
     server = MCPServer("S", [get_account])
-    governed = tools.governed_sql(feedback_tools=True, feedback_table="A.B.FB")
-    result = server.add(governed, add_numbers, [[tools.SqlExecution(name="sx")]])
+
+    @mcp_tool(read_only=True)
+    def ping(session: Session) -> str:
+        """Ping."""
+        return "pong"
+
+    extra = [ping]
+    result = server.add(extra, add_numbers, [[tools.SqlExecution(name="sx")]])
     assert result is server
     assert [t.name for t in server.tools] == [
         "get_account",
-        "run_sql",
-        "log_feedback",
-        "log_data_issue",
+        "ping",
         "add_numbers",
         "sx",
     ]
@@ -515,18 +519,6 @@ def test_lint_owner_rights_sql_parameter_advice():
     assert issue.level == "warning"
     assert "execute_as='caller'" in issue.message
     assert "read-only role" in issue.message
-    assert "governed_sql()" not in issue.message
-
-
-def test_lint_governed_sql_owner_rights_is_info():
-    (issue,) = MCPServer("S", tools.governed_sql()).lint()
-    assert issue.level == "info"
-    assert issue.tool == "run_sql"
-    assert issue.message == (
-        "run_sql runs with the rights of the role that deploys it; deploy it with a "
-        "dedicated read-only role (see tools.governed_sql_role_setup)."
-    )
-    assert MCPServer("S", tools.governed_sql(execute_as="caller")).lint() == []
 
 
 def test_lint_udf_sql_parameter_does_not_warn():
@@ -1285,9 +1277,7 @@ def test_deploy_with_suffix_registers_suffixed_names():
 
 def test_deploy_sends_telemetry():
     session = make_session()
-    server = MCPServer(
-        "S", [get_account, add_numbers, tools.SqlExecution(), *tools.governed_sql()]
-    )
+    server = MCPServer("S", [get_account, add_numbers, tools.SqlExecution()])
     server.deploy(session)
     send = session._conn._telemetry_client.send_function_usage_telemetry
     send.assert_called_once()
@@ -1295,11 +1285,10 @@ def test_deploy_sends_telemetry():
     (payload,) = send.call_args.kwargs["api_calls"]
     assert json.loads(payload) == {
         "tools": {
-            "python_procedure": 2,
+            "python_procedure": 1,
             "python_function": 1,
             "SYSTEM_EXECUTE_SQL": 1,
         },
-        "ready_made": ["governed_sql"],
     }
 
 
@@ -1835,169 +1824,6 @@ def test_target_normalizes_identifiers():
         server._target(None, "a b", "x", "")
 
 
-# ---------------------------------------------------------------------------
-# tools.governed_sql
-# ---------------------------------------------------------------------------
-
-
-def test_governed_sql_defaults():
-    (tool,) = tools.governed_sql()
-    assert isinstance(tool, PythonTool)
-    assert tool.name == "run_sql"
-    assert tool.kind == "procedure"
-    assert tool.execute_as == "owner"
-    assert tool.read_only is True
-    assert tool.annotations["readOnlyHint"] is True
-    assert tool.annotations["destructiveHint"] is False
-    assert tool.input_schema == {
-        "type": "object",
-        "properties": {
-            "query": {"type": "string", "description": "One Snowflake SQL statement."}
-        },
-        "required": ["query"],
-    }
-    assert tool.description.startswith("Run one SQL statement in Snowflake")
-    assert "Only read-only statements are allowed." in tool.description
-    assert [i.level for i in MCPServer("S", [tool]).lint()] == ["info"]
-    spec = MCPServer("S", [tool]).to_spec(database="A", schema="B")["tools"][0]
-    assert spec["config"]["type"] == "procedure"
-    assert spec["config"]["query_timeout"] == 60
-
-
-def test_governed_sql_options():
-    (tool,) = tools.governed_sql(
-        name="sql",
-        read_only=False,
-        max_rows=5,
-        max_result_bytes=1000,
-        query_timeout=None,
-        warehouse="WH",
-        execute_as="caller",
-    )
-    assert tool.execute_as == "caller"
-    assert tool.name == "sql"
-    assert tool.annotations["readOnlyHint"] is False
-    assert tool.annotations["destructiveHint"] is True
-    assert (tool.max_rows, tool.max_result_bytes) == (5, 1000)
-    assert "read-only" not in tool.description
-    config = MCPServer("S", [tool]).to_spec(database="A", schema="B")["tools"][0][
-        "config"
-    ]
-    assert config["warehouse"] == "WH"
-    assert "query_timeout" not in config
-
-
-def test_governed_sql_invalid_execute_as():
-    with pytest.raises(ValueError, match="execute_as"):
-        tools.governed_sql(execute_as="restricted caller")
-
-
-def test_governed_sql_tool_runs_locally():
-    (tool,) = tools.governed_sql()
-    result = tool.invoke(make_session(), query="DROP TABLE t")
-    assert result["error"]["type"] == "QUERY_REJECTED"
-    session = make_session()
-    session.sql.side_effect = lambda statement, params=None: FakeDataFrame(
-        [Row(A=1), Row(A=2)]
-    )
-    assert tool.invoke(session, query="SELECT a FROM t")["rows"] == [{"A": 1}, {"A": 2}]
-
-
-def test_governed_sql_with_feedback_tools():
-    result = tools.governed_sql(feedback_tools=True, feedback_table="APP.MCP.FB")
-    run_sql, log_feedback, log_data_issue = result
-    assert [t.name for t in result] == ["run_sql", "log_feedback", "log_data_issue"]
-    for tool in (log_feedback, log_data_issue):
-        assert isinstance(tool, PythonTool)
-        assert tool.read_only is False
-        assert tool.annotations["readOnlyHint"] is False
-        assert tool.annotations["destructiveHint"] is False
-        assert tool.execute_as == "owner"
-        assert tool.kind == "procedure"
-        assert tool.input_schema["required"] == ["message"]
-        assert set(tool.input_schema["properties"]) == {"message", "details"}
-        assert tool.input_schema["properties"]["details"]["type"] == "string"
-        assert tool.input_schema["properties"]["message"]["description"]
-    assert run_sql.execute_as == "owner"
-    assert [i.level for i in MCPServer("S", result).lint()] == ["info"]
-
-
-def test_governed_sql_feedback_tools_write_to_table():
-    _, log_feedback, log_data_issue = tools.governed_sql(
-        feedback_tools=True, feedback_table="APP.MCP.FB"
-    )
-    session = make_session()
-    assert log_feedback.invoke(session, message="m", details='{"a": 1}') == {
-        "status": "recorded"
-    }
-    assert log_data_issue.invoke(session, message="bad") == {"status": "recorded"}
-    kinds = [c.kwargs["params"][0] for c in session.sql.call_args_list]
-    assert kinds == ["feedback", "data_issue"]
-    assert all(
-        "INSERT INTO APP.MCP.FB" in c.args[0] for c in session.sql.call_args_list
-    )
-
-
-def test_governed_sql_feedback_validation():
-    with pytest.raises(ValueError, match="requires feedback_table"):
-        tools.governed_sql(feedback_tools=True)
-    for table in ("FB", "MCP.FB", "A.B.C.D"):
-        with pytest.raises(ValueError, match="fully qualified"):
-            tools.governed_sql(feedback_tools=True, feedback_table=table)
-    # The table is ignored when feedback tools are off.
-    assert len(tools.governed_sql(feedback_table="FB")) == 1
-
-
-def test_governed_sql_feedback_table_created_once_in_deploy():
-    server = MCPServer(
-        "S", tools.governed_sql(feedback_tools=True, feedback_table="APP.MCP.FB")
-    )
-    result = server.deploy(make_session(), dry_run=True)
-    ddl = [s for s in result.sql if "CREATE TABLE" in s]
-    assert len(ddl) == 1
-    assert ddl[0].startswith("CREATE TABLE IF NOT EXISTS APP.MCP.FB (")
-    # The table exists before the objects that write to it and the server.
-    assert result.sql.index(ddl[0]) < next(
-        i for i, s in enumerate(result.sql) if s.startswith("CREATE OR REPLACE MCP")
-    )
-    assert len(result.objects) == 3
-
-
-def test_governed_sql_deploy_registers_handlers():
-    session = make_session()
-    MCPServer(
-        "S", tools.governed_sql(feedback_tools=True, feedback_table="APP.MCP.FB")
-    ).deploy(session)
-    calls = session.sproc.register.call_args_list
-    assert [c.kwargs["name"] for c in calls] == [
-        "APP.MCP.S__RUN_SQL",
-        "APP.MCP.S__LOG_FEEDBACK",
-        "APP.MCP.S__LOG_DATA_ISSUE",
-    ]
-    assert [c.kwargs["execute_as"] for c in calls] == ["owner", "owner", "owner"]
-    assert [type(t) for t in calls[0].kwargs["input_types"]] == [StringType]
-    assert [type(t) for t in calls[1].kwargs["input_types"]] == [
-        StringType,
-        type(calls[1].kwargs["input_types"][1]),
-    ]
-    assert (
-        session.statements.count(
-            "CREATE TABLE IF NOT EXISTS APP.MCP.FB (LOGGED_AT TIMESTAMP_LTZ DEFAULT "
-            "CURRENT_TIMESTAMP(), KIND VARCHAR, MESSAGE VARCHAR, DETAILS VARIANT, "
-            "LOGGED_BY VARCHAR)"
-        )
-        == 1
-    )
-
-
-def test_governed_sql_grants():
-    server = MCPServer("S", tools.governed_sql())
-    statements = server.grant_usage(make_session(), "R", dry_run=True)
-    assert statements[-1] == (
-        "GRANT USAGE ON PROCEDURE APP.MCP.S__RUN_SQL(STRING) TO ROLE R"
-    )
-
-
 @pytest.mark.parametrize("param", ["start", "order", "select", "Group"])
 def test_lint_reserved_parameter_name_is_error(param):
     ns = {}
@@ -2154,254 +1980,3 @@ def test_registered_handler_checks_enum_and_does_not_call_function():
     }
     assert called == []
     assert handler(None, kind="a") == "a"
-
-
-# ---------------------------------------------------------------------------
-# tools.governed_sql_role_setup
-# ---------------------------------------------------------------------------
-
-
-def test_role_setup_schema_entry_and_user():
-    statements = tools.governed_sql_role_setup(
-        "MCP_SQL_READER", "APP.MCP", ["SALES.PUBLIC"], "WH", user="ALICE"
-    )
-    assert statements == [
-        "CREATE ROLE IF NOT EXISTS MCP_SQL_READER",
-        "GRANT USAGE ON WAREHOUSE WH TO ROLE MCP_SQL_READER",
-        "GRANT USAGE ON DATABASE APP TO ROLE MCP_SQL_READER",
-        "GRANT USAGE, CREATE PROCEDURE, CREATE STAGE, CREATE MCP SERVER ON SCHEMA "
-        "APP.MCP TO ROLE MCP_SQL_READER",
-        "GRANT USAGE ON DATABASE SALES TO ROLE MCP_SQL_READER",
-        "GRANT USAGE ON SCHEMA SALES.PUBLIC TO ROLE MCP_SQL_READER",
-        "GRANT SELECT ON ALL TABLES IN SCHEMA SALES.PUBLIC TO ROLE MCP_SQL_READER",
-        "GRANT SELECT ON ALL VIEWS IN SCHEMA SALES.PUBLIC TO ROLE MCP_SQL_READER",
-        "GRANT SELECT ON FUTURE TABLES IN SCHEMA SALES.PUBLIC TO ROLE MCP_SQL_READER",
-        "GRANT SELECT ON FUTURE VIEWS IN SCHEMA SALES.PUBLIC TO ROLE MCP_SQL_READER",
-        "GRANT ROLE MCP_SQL_READER TO USER ALICE",
-    ]
-
-
-def test_role_setup_object_entry_and_dedup():
-    statements = tools.governed_sql_role_setup(
-        "R",
-        "APP.MCP",
-        ["SALES.PUBLIC.ORDERS", "SALES.PUBLIC.ORDERS", "APP.MCP.T"],
-        "WH",
-    )
-    assert statements.count("GRANT SELECT ON TABLE SALES.PUBLIC.ORDERS TO ROLE R") == 1
-    assert "GRANT USAGE ON SCHEMA SALES.PUBLIC TO ROLE R" in statements
-    assert "GRANT SELECT ON TABLE APP.MCP.T TO ROLE R" in statements
-    assert len(statements) == len(set(statements))
-    assert not any("TO USER" in s for s in statements)
-    assert not any("ALL TABLES" in s for s in statements)
-
-
-def test_role_setup_quoted_identifiers():
-    statements = tools.governed_sql_role_setup(
-        '"mcp reader"', '"My Db".MCP', ['"My Db"."x.y"'], '"my wh"'
-    )
-    assert statements[0] == 'CREATE ROLE IF NOT EXISTS "mcp reader"'
-    assert 'GRANT USAGE ON DATABASE "My Db" TO ROLE "mcp reader"' in statements
-    assert 'GRANT USAGE ON SCHEMA "My Db"."x.y" TO ROLE "mcp reader"' in statements
-
-
-@pytest.mark.parametrize(
-    "role",
-    ["PUBLIC", "public", "ACCOUNTADMIN", "SYSADMIN", "SECURITYADMIN", "USERADMIN"]
-    + ['"ORGADMIN"'],
-)
-def test_role_setup_refuses_system_roles(role):
-    with pytest.raises(ValueError, match="dedicated read-only role"):
-        tools.governed_sql_role_setup(role, "APP.MCP", [], "WH")
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        {"role": "a b"},
-        {"role": "R; DROP ROLE X"},
-        {"schema": "MCP"},
-        {"schema": "A.B.C"},
-        {"schema": "A.B; X"},
-        {"read_from": ["ONLY_DB"]},
-        {"read_from": ["A.B.C.D"]},
-        {"read_from": ["A.B C"]},
-        {"warehouse": "W H"},
-        {"user": "u; x"},
-    ],
-)
-def test_role_setup_rejects_invalid_names(kwargs):
-    args = dict(role="R", schema="APP.MCP", read_from=["A.B"], warehouse="WH")
-    args.update(kwargs)
-    with pytest.raises(ValueError, match="Invalid"):
-        tools.governed_sql_role_setup(**args)
-
-
-# ---------------------------------------------------------------------------
-# Deploy-time check of the deploying role
-# ---------------------------------------------------------------------------
-
-
-def grant(privilege, granted_on, name):
-    return Row(privilege=privilege, granted_on=granted_on, name=name)
-
-
-def deploy_with_grants(role_grants, tool_list=None, **kwargs):
-    """Deploys governed_sql on a session whose SHOW GRANTS TO ROLE <r> returns
-    ``role_grants[r]``; returns the result and the session."""
-
-    def show_grants(statement):
-        role = statement[len("SHOW GRANTS TO ROLE ") :].strip('"')
-        grants = role_grants[role]
-        if isinstance(grants, Exception):
-            raise grants
-        return grants
-
-    session = make_session([("SHOW GRANTS TO ROLE", show_grants)])
-    server = MCPServer("S", tool_list or tools.governed_sql())
-    return server.deploy(session, **kwargs), session
-
-
-def role_warnings(result):
-    return [i for i in result.issues if i.level == "warning"]
-
-
-def test_deploy_warns_about_inherited_write_privileges(caplog):
-    result, session = deploy_with_grants(
-        {
-            "APP_ROLE": [
-                grant("USAGE", "WAREHOUSE", "WH"),
-                grant("USAGE", "ROLE", "LOADER"),
-            ],
-            "LOADER": [grant("INSERT", "TABLE", "SALES.PUBLIC.ORDERS")],
-        }
-    )
-    (warning,) = role_warnings(result)
-    assert warning.tool == "run_sql"
-    assert "APP_ROLE" in warning.message
-    assert "INSERT on TABLE SALES.PUBLIC.ORDERS" in warning.message
-    assert "tools.governed_sql_role_setup" in warning.message
-    assert "SHOW GRANTS TO ROLE LOADER" in session.statements
-    assert [r.levelname for r in caplog.records if "APP_ROLE" in r.message] == [
-        "WARNING"
-    ]
-    assert result.server == "APP.MCP.S"
-
-
-def test_deploy_with_read_only_role_has_no_warning():
-    result, session = deploy_with_grants(
-        {
-            "APP_ROLE": [
-                grant("USAGE", "ROLE", "READER"),
-                grant("OWNERSHIP", "PROCEDURE", "APP.MCP.S__RUN_SQL(VARCHAR)"),
-            ],
-            "READER": [grant("SELECT", "TABLE", "SALES.PUBLIC.ORDERS")],
-        }
-    )
-    assert role_warnings(result) == []
-    assert [i.level for i in result.issues] == ["info"]
-
-
-def test_deploy_role_check_handles_role_cycles():
-    result, session = deploy_with_grants(
-        {
-            "APP_ROLE": [grant("USAGE", "ROLE", "B")],
-            "B": [grant("USAGE", "ROLE", "APP_ROLE"), grant("DELETE", "TABLE", "T")],
-        }
-    )
-    assert len(role_warnings(result)) == 1
-    assert session.statements.count("SHOW GRANTS TO ROLE APP_ROLE") == 1
-
-
-def test_deploy_role_check_failure_is_info():
-    result, _ = deploy_with_grants({"APP_ROLE": RuntimeError("no access")})
-    assert role_warnings(result) == []
-    assert any(
-        i.level == "info" and "could not be checked" in i.message for i in result.issues
-    )
-    assert result.objects
-
-
-def test_deploy_role_check_skipped_on_dry_run():
-    session = make_session()
-    MCPServer("S", tools.governed_sql()).deploy(session, dry_run=True)
-    assert not any(s.startswith("SHOW GRANTS TO ROLE") for s in session.statements)
-
-
-@pytest.mark.parametrize(
-    "tool_list",
-    [
-        lambda: tools.governed_sql(execute_as="caller"),
-        lambda: [get_account, add_numbers],
-        lambda: [tools.SqlExecution()],
-    ],
-)
-def test_deploy_role_check_skipped_without_owner_governed_sql(tool_list):
-    session = make_session()
-    MCPServer("S", tool_list()).deploy(session)
-    assert not any(s.startswith("SHOW GRANTS TO ROLE") for s in session.statements)
-
-
-def test_role_grant_findings_flagged_cases():
-    flagged = [
-        ("INSERT", "TABLE"),
-        ("UPDATE", "TABLE"),
-        ("DELETE", "TABLE"),
-        ("TRUNCATE", "TABLE"),
-        ("OWNERSHIP", "TABLE"),
-        ("OWNERSHIP", "VIEW"),
-        ("OWNERSHIP", "SCHEMA"),
-        ("OWNERSHIP", "DATABASE"),
-        ("CREATE TABLE", "SCHEMA"),
-        ("CREATE VIEW", "SCHEMA"),
-        ("MODIFY", "SCHEMA"),
-        ("MANAGE GRANTS", "ACCOUNT"),
-        ("EXECUTE TASK", "ACCOUNT"),
-    ]
-    for privilege, granted_on in flagged:
-        rows = [{"privilege": privilege, "granted_on": granted_on, "name": "X"}]
-        assert mcp_utils.role_grant_findings({"R": rows}) == [
-            f"{privilege} on {granted_on} X"
-        ]
-
-
-def test_role_grant_findings_ignored_cases():
-    ignored = [
-        ("SELECT", "TABLE"),
-        ("SELECT", "VIEW"),
-        ("REFERENCES", "TABLE"),
-        ("USAGE", "SCHEMA"),
-        ("USAGE", "DATABASE"),
-        ("USAGE", "WAREHOUSE"),
-        ("USAGE", "ROLE"),
-        ("INSERT", "VIEW"),
-        ("OWNERSHIP", "PROCEDURE"),
-        ("OWNERSHIP", "FUNCTION"),
-        ("OWNERSHIP", "STAGE"),
-        ("OWNERSHIP", "MCP_SERVER"),
-        ("CREATE PROCEDURE", "SCHEMA"),
-        ("CREATE STAGE", "SCHEMA"),
-        ("CREATE MCP SERVER", "SCHEMA"),
-        ("READ", "STAGE"),
-        ("WRITE", "STAGE"),
-    ]
-    rows = [{"privilege": p, "granted_on": g, "name": "X"} for p, g in ignored]
-    assert mcp_utils.role_grant_findings({"R": rows}) == []
-    assert mcp_utils.role_grant_findings({"R": []}) == []
-
-
-def test_role_grant_findings_system_roles_and_merge():
-    assert mcp_utils.role_grant_findings({"SYSADMIN": []}) == [
-        "the role SYSADMIN is a system role"
-    ]
-    assert mcp_utils.role_grant_findings({'"ORGADMIN"': []})
-    merged = mcp_utils.role_grant_findings(
-        {
-            "TOP": [{"privilege": "INSERT", "granted_on": "TABLE", "name": "A"}],
-            "BASE": [
-                {"privilege": "INSERT", "granted_on": "TABLE", "name": "A"},
-                {"privilege": "DELETE", "granted_on": "TABLE", "name": "B"},
-            ],
-        }
-    )
-    assert merged == ["INSERT on TABLE A", "DELETE on TABLE B"]

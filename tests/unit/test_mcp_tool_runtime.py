@@ -586,19 +586,16 @@ def test_pickled_tool_does_not_import_snowpark(tmp_path):
 def test_runtime_module_imports_only_stdlib():
     import ast
 
-    from snowflake.snowpark._internal import mcp_governed_sql, mcp_tool_runtime
+    from snowflake.snowpark._internal import mcp_tool_runtime
 
-    for module in (mcp_tool_runtime, mcp_governed_sql):
-        tree = ast.parse(inspect.getsource(module))
-        names = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                names.update(a.name.split(".")[0] for a in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                names.add((node.module or "").split(".")[0])
-        assert names <= set(sys.stdlib_module_names), names - set(
-            sys.stdlib_module_names
-        )
+    tree = ast.parse(inspect.getsource(mcp_tool_runtime))
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(a.name.split(".")[0] for a in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            names.add((node.module or "").split(".")[0])
+    assert names <= set(sys.stdlib_module_names), names - set(sys.stdlib_module_names)
 
 
 # ---------------------------------------------------------------------------
@@ -845,3 +842,12 @@ def test_handler_validates_when_masking_errors():
         lambda kind: kind, mask_error_details=True, input_schema=_ARGS_SCHEMA
     )("zzz")
     assert result["error"]["type"] == "INVALID_ARGUMENTS"
+
+
+def test_handler_with_wrong_arguments_lets_the_function_raise():
+    def f(a: int) -> int:
+        return a
+
+    handler = make_handler(f, input_schema={"type": "object", "properties": {}})
+    with pytest.raises(TypeError):
+        handler(1, 2)
