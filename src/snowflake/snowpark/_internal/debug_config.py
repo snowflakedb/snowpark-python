@@ -12,7 +12,10 @@ if TYPE_CHECKING:
 
 # The debug features, by name, and whether each one is a trace feature (it records the DataFrame
 # trace while it is on).
-_FEATURES: Dict[str, bool] = {}
+_FEATURES: Dict[str, bool] = {
+    # Eagerly validates the schema of each dataframe when it is created.
+    "eager_schema_validation": False,
+}
 
 # The number of sessions with a trace feature on, so the public API wrapper, which has no
 # session, checks one integer while every session is off.

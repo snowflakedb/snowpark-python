@@ -767,7 +767,7 @@ class DataFrame:
 
         self._alias: Optional[str] = None
 
-        if context._debug_eager_schema_validation:
+        if self._session._debug.eager_schema_validation:
             # Getting the plan attributes may run a describe query
             # and populates the schema for the dataframe.
             self._plan.attributes
