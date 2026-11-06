@@ -39,6 +39,13 @@ def tracing_sessions() -> int:
     return _tracing_sessions
 
 
+def enabled(session: "Session", name: str) -> bool:
+    """Whether the debug feature ``name`` is on in ``session``. Objects that are not sessions
+    (e.g. mocks in unit tests) have every feature off."""
+    config = getattr(session, "_debug", None)
+    return isinstance(config, DebugConfig) and config._enabled.get(name, False)
+
+
 class DebugConfig:
     """The debug features of a session.
 

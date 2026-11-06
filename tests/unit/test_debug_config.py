@@ -130,3 +130,13 @@ def test_session_has_debug_config():
     from snowflake.snowpark import Session
 
     assert isinstance(Session.debug, property)
+
+
+def test_enabled_is_false_for_objects_that_are_not_sessions():
+    s = _session()
+    s.debug.enable(check=True)
+    assert debug_config.enabled(s, "check") is True
+    assert debug_config.enabled(s, "trace") is False
+    # e.g. a mock session of a unit test
+    assert debug_config.enabled(mock.Mock(), "check") is False
+    assert debug_config.enabled(object(), "check") is False
