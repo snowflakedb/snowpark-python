@@ -31,7 +31,7 @@ def features():
 class _Session:
     def __init__(self, conn) -> None:
         self._conn = conn
-        self.debug = DebugConfig(self)
+        self._debug = self.debug = DebugConfig(self)
 
 
 def _session(conn=None):

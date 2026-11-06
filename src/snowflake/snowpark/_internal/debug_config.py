@@ -30,6 +30,10 @@ def _register_feature(name: str, trace: bool = False) -> None:
         _FEATURES[name] = trace
 
 
+# Eagerly validates the schema of each dataframe when it is created.
+_register_feature("eager_schema_validation")
+
+
 def tracing_sessions() -> int:
     """The number of sessions with a trace feature on."""
     return _tracing_sessions
@@ -131,4 +135,4 @@ def _apply_to_all_sessions(values: Dict[str, bool]) -> None:
         for session in list(
             session_module._get_active_sessions(require_at_least_one=False)
         ):
-            session.debug._set(values)
+            session._debug._set(values)
