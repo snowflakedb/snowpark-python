@@ -21,6 +21,7 @@ import inspect
 import json
 import logging
 import math
+import sys
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
 DEFAULT_MAX_ROWS = 1000
@@ -182,9 +183,14 @@ def run_tool(
     kwargs: dict,
     max_rows: int = DEFAULT_MAX_ROWS,
     max_result_bytes: int = DEFAULT_MAX_RESULT_BYTES,
+    mask_error_details: bool = False,
 ) -> Any:
+    """Calls ``func`` and converts its result. A ``ToolError`` becomes an error
+    result. Any other exception is logged and raised, so the MCP server records the
+    call as failed; with ``mask_error_details``, it is raised as a generic error."""
+    name = getattr(func, "__name__", "tool")
     try:
-        value = func(*args, **kwargs)
+        return to_tool_result(func(*args, **kwargs), max_rows, max_result_bytes)
     except Exception as exc:
         if getattr(exc, "_snowpark_mcp_tool_error", False):
             return error_result(
@@ -192,17 +198,24 @@ def run_tool(
                 getattr(exc, "message", str(exc)),
                 getattr(exc, "hint", None),
             )
-        # Logged so the traceback reaches the event table, then re-raised so the
-        # MCP server records the call as failed.
-        _logger.exception("MCP tool %s failed", getattr(func, "__name__", func))
-        raise
-    return to_tool_result(value, max_rows, max_result_bytes)
+        # Logged so the traceback reaches the event table.
+        _logger.exception("MCP tool %s failed", name)
+        if not mask_error_details:
+            raise
+        # The MCP server sends a failed call's Python error to the client, with the
+        # traceback (file paths and code of the tool, Snowpark and the connector)
+        # unless the traceback limit is 0.
+        sys.tracebacklimit = 0
+        raise RuntimeError(
+            f"Tool {name} failed with an unexpected error. The details were logged."
+        ) from None
 
 
 def make_handler(
     func: Callable,
     max_rows: int = DEFAULT_MAX_ROWS,
     max_result_bytes: int = DEFAULT_MAX_RESULT_BYTES,
+    mask_error_details: bool = False,
 ) -> Callable:
     """Returns the function to register for a tool.
 
@@ -212,7 +225,9 @@ def make_handler(
     """
 
     def handler(*args, **kwargs):
-        return run_tool(func, args, kwargs, max_rows, max_result_bytes)
+        return run_tool(
+            func, args, kwargs, max_rows, max_result_bytes, mask_error_details
+        )
 
     handler.__name__ = func.__name__
     handler.__qualname__ = func.__qualname__

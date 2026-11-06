@@ -7,6 +7,7 @@ from typing import Optional
 import pytest
 
 from snowflake.snowpark import Session
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.mcp import MCPServer, Tool, ToolError, mcp_tool, tools
 
@@ -183,3 +184,28 @@ def test_grant_usage_dry_run(session, temp_schema):
         "ON PROCEDURE" in s and "__NUMBERS(BIGINT, BIGINT)" in s for s in statements
     )
     assert any("ON FUNCTION" in s and "__ADD(BIGINT, BIGINT)" in s for s in statements)
+
+
+@mcp_tool(read_only=True)
+def broken(session: Session, x: int) -> int:
+    """Fail with an unexpected error.
+
+    Args:
+        x: Unused.
+    """
+    raise ValueError("internal detail")
+
+
+def test_unexpected_error_is_masked(session, temp_schema):
+    schema = _schema_name(temp_schema)
+    server = MCPServer("SNOWPARK_MCP_MASK", tools=[broken])
+    server.deploy(session, schema=schema)
+    try:
+        with pytest.raises(SnowparkSQLException) as exc_info:
+            server.call_tool(session, "broken", {"x": 1}, schema=schema)
+        message = str(exc_info.value)
+        assert "broken failed with an unexpected error" in message
+        assert "internal detail" not in message
+        assert "Traceback" not in message
+    finally:
+        server.drop(session, schema=schema, include_tools=True)

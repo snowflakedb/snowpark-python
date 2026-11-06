@@ -2031,3 +2031,52 @@ def test_deploy_refuses_array_parameter_before_running_sql():
     assert not any(
         "CREATE" in str(c.args[0]) for c in session.sql.call_args_list if c.args
     )
+
+
+def test_mask_error_details_defaults_on_and_reaches_handler():
+    import sys
+
+    @mcp_tool(read_only=True)
+    def boom(session: Session, x: int) -> int:
+        """Doc.
+
+        Args:
+            x: A number.
+        """
+        raise ValueError("secret")
+
+    assert boom.mask_error_details is True
+    session = make_session()
+    MCPServer("S", tools=[boom]).deploy(session)
+    handler = session.sproc.register.call_args.kwargs["func"]
+    old = getattr(sys, "tracebacklimit", None)
+    try:
+        with pytest.raises(RuntimeError, match="unexpected error") as exc_info:
+            handler(None, 1)
+        assert "secret" not in str(exc_info.value)
+    finally:
+        if old is None:
+            if hasattr(sys, "tracebacklimit"):
+                del sys.tracebacklimit
+        else:
+            sys.tracebacklimit = old
+    # invoke() keeps the original error for local debugging.
+    with pytest.raises(ValueError, match="secret"):
+        boom.invoke(object(), x=1)
+
+
+def test_mask_error_details_off_reraises_original():
+    @mcp_tool(read_only=True, mask_error_details=False)
+    def boom(x: int) -> int:
+        """Doc.
+
+        Args:
+            x: A number.
+        """
+        raise ValueError("secret")
+
+    session = make_session()
+    MCPServer("S", tools=[boom]).deploy(session)
+    handler = session.udf.register.call_args.kwargs["func"]
+    with pytest.raises(ValueError, match="secret"):
+        handler(1)

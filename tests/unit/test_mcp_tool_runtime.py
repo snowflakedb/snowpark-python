@@ -584,3 +584,80 @@ def test_runtime_module_imports_only_stdlib():
         assert names <= set(sys.stdlib_module_names), names - set(
             sys.stdlib_module_names
         )
+
+
+# ---------------------------------------------------------------------------
+# mask_error_details
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def restore_tracebacklimit():
+    had = hasattr(sys, "tracebacklimit")
+    old = getattr(sys, "tracebacklimit", None)
+    yield
+    if had:
+        sys.tracebacklimit = old
+    elif hasattr(sys, "tracebacklimit"):
+        del sys.tracebacklimit
+
+
+def _secret_failure():
+    raise ValueError("secret detail /home/me/tool.py")
+
+
+def test_run_tool_masked_raises_generic_error(caplog, restore_tracebacklimit):
+    with caplog.at_level(logging.ERROR, logger="snowflake.snowpark.mcp"):
+        with pytest.raises(RuntimeError) as exc_info:
+            run_tool(_secret_failure, (), {}, mask_error_details=True)
+    message = str(exc_info.value)
+    assert "_secret_failure failed with an unexpected error" in message
+    assert "secret detail" not in message
+    # The original error is not chained into what the client sees...
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__ is True
+    # ...and the traceback is suppressed when the warehouse formats the error.
+    assert sys.tracebacklimit == 0
+    # The full error is still logged.
+    assert any(
+        r.exc_info and "secret detail" in str(r.exc_info[1]) for r in caplog.records
+    )
+
+
+def test_run_tool_masked_formats_without_traceback(restore_tracebacklimit):
+    import traceback
+
+    try:
+        run_tool(_secret_failure, (), {}, mask_error_details=True)
+    except RuntimeError:
+        formatted = traceback.format_exc()
+    assert "Traceback" not in formatted
+    assert "secret detail" not in formatted
+    assert formatted.startswith("RuntimeError: Tool _secret_failure failed")
+
+
+def test_run_tool_masked_covers_result_conversion(restore_tracebacklimit):
+    with pytest.raises(RuntimeError, match="failed with an unexpected error"):
+        run_tool(lambda: object(), (), {}, mask_error_details=True)
+
+
+def test_run_tool_masked_still_returns_tool_error():
+    def f():
+        raise ToolError("expected", hint="h")
+
+    assert run_tool(f, (), {}, mask_error_details=True) == error_result(
+        "ToolError", "expected", "h"
+    )
+
+
+def test_run_tool_unmasked_reraises_original(restore_tracebacklimit):
+    with pytest.raises(ValueError, match="secret detail"):
+        run_tool(_secret_failure, (), {})
+    assert getattr(sys, "tracebacklimit", None) != 0
+
+
+def test_make_handler_passes_mask_error_details(restore_tracebacklimit):
+    with pytest.raises(RuntimeError, match="unexpected error"):
+        make_handler(_secret_failure, mask_error_details=True)()
+    with pytest.raises(ValueError):
+        make_handler(_secret_failure)()

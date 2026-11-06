@@ -276,6 +276,7 @@ class PythonTool(MCPTool):
         query_timeout: Optional[int] = None,
         max_rows: int = DEFAULT_MAX_ROWS,
         max_result_bytes: int = DEFAULT_MAX_RESULT_BYTES,
+        mask_error_details: bool = True,
         _setup_sql: Optional[Callable[[_Target], List[str]]] = None,
         _ready_made: Optional[str] = None,
     ) -> None:
@@ -321,6 +322,7 @@ class PythonTool(MCPTool):
         self.query_timeout = query_timeout
         self.max_rows = max_rows
         self.max_result_bytes = max_result_bytes
+        self.mask_error_details = mask_error_details
         self._setup_sql_func = _setup_sql
         self._ready_made = _ready_made
 
@@ -366,7 +368,8 @@ class PythonTool(MCPTool):
         """Runs the tool locally the way the deployed tool runs: checks
         ``arguments`` against :attr:`input_schema`, calls the function, and converts
         the result to the JSON the tool returns. A :class:`ToolError` becomes an
-        error result; any other exception is raised.
+        error result; any other exception is raised as is, even when
+        ``mask_error_details`` is set, so it can be debugged locally.
 
         Args:
             session: The session passed to a procedure-backed tool. Not used by
@@ -484,7 +487,7 @@ class PythonTool(MCPTool):
         """Registers the procedure or UDF behind the tool and returns its signature."""
         _pickle_runtime_by_value()
         handler = mcp_tool_runtime.make_handler(
-            self.func, self.max_rows, self.max_result_bytes
+            self.func, self.max_rows, self.max_result_bytes, self.mask_error_details
         )
         comment = mcp_utils.object_comment(
             target.server_name,
@@ -828,6 +831,7 @@ def mcp_tool(
     query_timeout: Optional[int] = None,
     max_rows: int = DEFAULT_MAX_ROWS,
     max_result_bytes: int = DEFAULT_MAX_RESULT_BYTES,
+    mask_error_details: bool = True,
 ) -> Union[PythonTool, Callable[[Callable], PythonTool]]:
     """Turns a Python function into an MCP tool. Use it as a decorator.
 
@@ -871,6 +875,11 @@ def mcp_tool(
         max_rows: Maximum number of rows returned from a DataFrame result.
         max_result_bytes: Maximum size of the result, below the MCP server's 250 KB
             limit.
+        mask_error_details: Send MCP clients a generic error, without the
+            traceback, when the tool raises anything other than
+            :class:`ToolError`. The full error is logged, and reaches the event
+            table when one is set up. Without it, clients receive the traceback,
+            with the file paths and code of the tool.
 
     Example::
 
@@ -905,6 +914,7 @@ def mcp_tool(
         query_timeout=query_timeout,
         max_rows=max_rows,
         max_result_bytes=max_result_bytes,
+        mask_error_details=mask_error_details,
     )
     if func is None:
         return lambda f: PythonTool(f, **options)
