@@ -506,7 +506,8 @@ def broadcast_value(value: Any, len: int) -> "ColumnEmulator":
 
 
 class ColumnEmulator(PandasSeriesType):
-    _metadata = ["sf_type", "_null_rows_idxs"]
+    # Keep "_name" so the name survives pandas 3 shallow copies.
+    _metadata = ["_name", "sf_type", "_null_rows_idxs"]
 
     @property
     def _constructor(self):
@@ -524,6 +525,16 @@ class ColumnEmulator(PandasSeriesType):
             )
         sf_type = kwargs.pop("sf_type", None)
         super().__init__(*args, **kwargs)
+        # pandas 3 infers its str dtype for strings, storing NULL as NaN; keep object with None.
+        if isinstance(self.dtype, pd.StringDtype) and isinstance(
+            self.dtype.na_value, float
+        ):
+            super().__init__(
+                self.to_numpy(dtype=object, na_value=None),
+                index=self.index,
+                name=self.name,
+                dtype=object,
+            )
         self._sf_type: ColumnType = sf_type
         # record which rows should be marked as null instead of None
         # snowflake SubfieldString has this behavior

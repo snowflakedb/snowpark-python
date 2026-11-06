@@ -24,6 +24,12 @@
 
 - The `[pandas]` install extra now declares `pandas` and `pyarrow` directly instead of coupling them through `snowflake-connector-python[pandas]`. The version bounds are unchanged.
 
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug where a column in local testing lost its name when it was copied or filtered.
+
 ## 1.56.0 (2026-10-29)
 
 ### Snowpark Python API Updates
