@@ -142,6 +142,7 @@ from snowflake.snowpark._internal.utils import (
     quote_name,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
+    time_columns_us_to_ns,
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
     validate_object_name,
@@ -3960,7 +3961,9 @@ class Session:
                 else:
                     success, _, _, ci_output = write_pandas(
                         self._conn._conn,
-                        df,
+                        # pandas 3 infers us for Python timedelta objects and pandas
+                        # 2 infers ns; Snowflake stores a duration as a unitless integer.
+                        time_columns_us_to_ns(df, kinds="m"),
                         table_name,
                         database=database,
                         schema=schema,
