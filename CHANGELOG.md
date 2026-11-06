@@ -23,6 +23,10 @@
 
 - The `[pandas]` install extra now declares `pandas` and `pyarrow` directly instead of coupling them through `snowflake-connector-python[pandas]`. The version bounds are unchanged.
 
+#### Dependency Updates
+
+- Updated dependency of `snowflake-connector-python>=3.17.0,!=5.0.*,!=5.1.*,<6.0.0`.
+
 ## 1.56.0 (2026-10-29)
 
 ### Snowpark Python API Updates
