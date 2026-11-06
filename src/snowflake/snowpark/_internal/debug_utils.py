@@ -195,12 +195,36 @@ def _format_source_location(src: Optional[SrcPosition]) -> str:
     return lines_info
 
 
-def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
+def _get_own_trace_nodes(plan: "SnowflakePlan") -> List[TraceNode]:
     """
-    Extract source locations from a SnowflakePlan's AST IDs.
+    Return the trace nodes of the DataFrame operations that produced this plan's
+    own SQL text, leaving out the ones it inherited from the subqueries it wraps.
+
+    A plan copies the trace nodes of its child plans when it wraps them, so its
+    list also holds every upstream operation. The SQL lines of those child plans
+    are mapped to the child plans themselves, so their nodes are dropped here.
+    If nothing is left (e.g. the plan only re-wraps its child), the full list is
+    returned.
+    """
+    trace_nodes = plan.df_trace_nodes or []
+    inherited_ids = set()
+    for child in plan.children_plan_nodes:
+        for node in getattr(child, "df_trace_nodes", None) or []:
+            inherited_ids.add(id(node))
+    own_nodes = [node for node in trace_nodes if id(node) not in inherited_ids]
+    return own_nodes or trace_nodes
+
+
+def _extract_source_locations_from_plan(
+    plan: "SnowflakePlan", own_only: bool = False
+) -> List[str]:
+    """
+    Extract source locations from the trace nodes of a SnowflakePlan.
 
     Args:
         plan: The SnowflakePlan object to extract source locations from
+        own_only: Only use the trace nodes of the operations that produced the plan's
+            own SQL text (see ``_get_own_trace_nodes``).
 
     Returns:
         List of unique source location strings (e.g., "file.py: line 42")
@@ -209,7 +233,8 @@ def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
     found_locations = set()
 
     if plan.df_trace_nodes is not None:
-        for trace_node in plan.df_trace_nodes:
+        trace_nodes = _get_own_trace_nodes(plan) if own_only else plan.df_trace_nodes
+        for trace_node in trace_nodes:
             location = _format_source_location(trace_node.src)
             if location and location not in found_locations:
                 found_locations.add(location)
@@ -218,17 +243,21 @@ def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
     return source_locations
 
 
-def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) -> str:
+def get_python_source_from_sql_error(
+    top_plan: "SnowflakePlan", error_msg: str, executed_sql: Optional[str] = None
+) -> str:
     """
     Extract SQL error line number and map it back to Python source code. We use the
     helper function get_plan_from_line_numbers to get the plan from the line number
     found in the SQL compilation error message. We then extract the source lines
-    and columns using the ast_id associated with the plan. We return a message with
+    and columns using the trace nodes associated with the plan. We return a message with
     the affected Python lines if found, otherwise an empty string.
 
     Args:
         plan: The top level SnowflakePlan object that contains the SQL compilation error.
         error_msg: The error message from the SQL compilation error.
+        executed_sql: The sql that failed, if known. When it is the sql of the plan, only
+            the operations that produced the line with the error are reported.
 
     Returns:
         Error message with the affected Python lines numbers if found, otherwise an empty string.
@@ -241,13 +270,20 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
         return ""
 
     sql_line_number = int(match.group(1)) - 1
+    # The line intervals describe the sql of the plan. When another query failed (e.g. a
+    # schema query, or a query rewritten by the plan compiler), its lines may not match
+    # the intervals, so all the operations of the matched plan are reported.
+    own_only = (
+        executed_sql is not None
+        and executed_sql.strip() == top_plan.queries[-1].sql.strip()
+    )
 
     from snowflake.snowpark._internal.utils import (
         get_plan_from_line_numbers,
     )
 
     plan = get_plan_from_line_numbers(top_plan, sql_line_number)
-    source_locations = _extract_source_locations_from_plan(plan)
+    source_locations = _extract_source_locations_from_plan(plan, own_only=own_only)
 
     if source_locations:
         if len(source_locations) == 1:
