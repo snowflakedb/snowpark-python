@@ -148,7 +148,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry, cast_column_to
-from snowflake.snowpark.mock._options import pandas as pd
+from snowflake.snowpark.mock._options import pandas as pd, pandas_major_version
 from snowflake.snowpark.mock._select_statement import (
     MockSelectable,
     MockSelectableEntity,
@@ -288,6 +288,55 @@ def coerce_order_by_arguments(order_by: List[Expression]):
         order if isinstance(order, SortOrder) else SortOrder(order, Ascending())
         for order in order_by
     ]
+
+
+def _assign_rows(
+    target: TableEmulator, rows: Any, column_name: str, value: ColumnEmulator
+) -> None:
+    """Run target.loc[rows, column_name] = value.
+
+    pandas 3 raises TypeError when value does not fit the column's dtype, for example
+    NULL into a bool column, where pandas 2 upcast the column. On pandas 3, upcast to
+    object in that case, keeping the column's Snowflake type and NULL bookkeeping.
+    """
+    try:
+        target.loc[rows, column_name] = value
+        return
+    except TypeError:
+        if pandas_major_version < 3 or isinstance(
+            target[column_name].dtype, pd.api.extensions.ExtensionDtype
+        ):
+            raise
+    sf_type = target.sf_types.get(column_name)
+    null_rows_idxs = target._null_rows_idxs_map.get(column_name)
+    target[column_name] = target[column_name].astype(object)
+    if sf_type is not None:
+        target.sf_types[column_name] = sf_type
+    if null_rows_idxs is not None:
+        target._null_rows_idxs_map[column_name] = null_rows_idxs
+    target.loc[rows, column_name] = value
+
+
+def _assign_case_rows(
+    output_data: ColumnEmulator, index: Any, value: ColumnEmulator
+) -> ColumnEmulator:
+    """Run output_data[index] = value and return output_data.
+
+    Same pandas 3 TypeError fallback as _assign_rows: upcast to object instead of failing.
+    """
+    try:
+        output_data[index] = value
+        return output_data
+    except TypeError:
+        if pandas_major_version < 3 or isinstance(
+            output_data.dtype, pd.api.extensions.ExtensionDtype
+        ):
+            raise
+    sf_type = output_data.sf_type
+    output_data = output_data.astype(object)
+    output_data.sf_type = sf_type
+    output_data[index] = value
+    return output_data
 
 
 def handle_order_by_clause(
@@ -1810,7 +1859,7 @@ def execute_mock_plan(
                     new_expr, rows_to_update, analyzer, expr_to_alias
                 )
                 new_val.index = target_index
-                target.loc[rows_to_update[ROW_ID], column_name] = new_val
+                _assign_rows(target, rows_to_update[ROW_ID], column_name, new_val)
 
             # Delete row_id
             target = target.drop(ROW_ID, axis=1)
@@ -1917,7 +1966,9 @@ def execute_mock_plan(
                             new_expr, rows_to_update, analyzer, expr_to_alias
                         )
                         new_val.index = target_index
-                        target.loc[rows_to_update[ROW_ID], column_name] = new_val
+                        _assign_rows(
+                            target, rows_to_update[ROW_ID], column_name, new_val
+                        )
 
                     # Update updated row id set
                     for _, row in rows_to_update.iterrows():
@@ -2558,7 +2609,7 @@ def calculate_expression(
                     value = cast_column_to(value, coerce_result)
 
             true_index = remaining[condition].index
-            output_data[true_index] = value[true_index]
+            output_data = _assign_case_rows(output_data, true_index, value[true_index])
             remaining = remaining[~remaining.index.isin(true_index)]
 
             if len(remaining) == 0:
@@ -2586,7 +2637,9 @@ def calculate_expression(
                     )
                 else:
                     value = cast_column_to(value, coerce_result)
-            output_data[remaining.index] = value[remaining.index]
+            output_data = _assign_case_rows(
+                output_data, remaining.index, value[remaining.index]
+            )
 
         return output_data
     if isinstance(exp, WindowExpression):

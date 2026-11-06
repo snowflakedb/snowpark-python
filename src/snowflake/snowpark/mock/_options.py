@@ -18,6 +18,10 @@ except ImportError:
     pandas = _missing_pandas()
     installed_pandas = False
 
+# Major version of the installed pandas, 0 if pandas is missing. Local testing uses it for
+# fixes that must not change results on pandas 2.
+pandas_major_version = int(pandas.__version__.split(".")[0]) if installed_pandas else 0
+
 
 if IS_V5_DRIVER:
     from snowflake.connector._common.extras import numpy
