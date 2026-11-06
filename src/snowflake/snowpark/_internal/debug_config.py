@@ -15,6 +15,9 @@ if TYPE_CHECKING:
 _FEATURES: Dict[str, bool] = {
     # Eagerly validates the schema of each dataframe when it is created.
     "eager_schema_validation": False,
+    # Maps SQL compilation errors to the Python lines of the dataframe operations, and adds the
+    # context of missing and existing objects to the errors.
+    "trace_sql_errors_to_dataframe": True,
 }
 
 # The number of sessions with a trace feature on, so the public API wrapper, which has no

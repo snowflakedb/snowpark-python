@@ -19,7 +19,9 @@ FLAGS = {
         "eager_schema_validation", False
     ),
     "enable_dataframe_trace_on_error": lambda: context._enable_dataframe_trace_on_error,
-    "enable_trace_sql_errors_to_dataframe": lambda: context._enable_trace_sql_errors_to_dataframe,
+    "enable_trace_sql_errors_to_dataframe": lambda: debug_config._defaults.get(
+        "trace_sql_errors_to_dataframe", False
+    ),
 }
 
 

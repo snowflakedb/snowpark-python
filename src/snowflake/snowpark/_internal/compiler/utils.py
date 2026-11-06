@@ -7,7 +7,7 @@ import logging
 import tempfile
 from typing import Dict, List, Optional, Set, Union
 
-import snowflake.snowpark.context as context
+from snowflake.snowpark._internal import debug_config
 from snowflake.snowpark._internal.analyzer.binary_plan_node import BinaryNode
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
@@ -315,7 +315,6 @@ def get_snowflake_plan_queries(
     resolved_with_query_blocks: Dict[str, Query],
     resolved_with_query_block_plans: Optional[Dict[str, SnowflakePlan]] = None,
 ) -> Dict[PlanQueryType, List[Query]]:
-
     from snowflake.snowpark._internal.analyzer.analyzer_utils import (
         AS,
         COMMA,
@@ -366,9 +365,8 @@ def get_snowflake_plan_queries(
                 final_query_params.extend(definition_query.params)
         with_query = cte_statement(definition_queries, table_names)
         cte_segments = None
-        if (
-            resolved_with_query_block_plans is not None
-            and context._enable_trace_sql_errors_to_dataframe
+        if resolved_with_query_block_plans is not None and debug_config.enabled(
+            plan.session, "trace_sql_errors_to_dataframe"
         ):
             # Record which plan generated each part of the compiled query, so that a SQL
             # error line can be mapped back with the line intervals of that plan.
