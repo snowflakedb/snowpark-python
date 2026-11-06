@@ -13,7 +13,7 @@ import uuid
 from collections import defaultdict
 from collections.abc import Iterable
 from enum import Enum
-from functools import cached_property, partial, reduce
+from functools import cached_property, reduce
 from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union, Tuple
 from unittest.mock import MagicMock
 
@@ -317,8 +317,9 @@ def handle_order_by_clause(
     for column, ascending, null_first in reversed(
         list(zip(sort_columns_array, sort_orders_array, null_first_last_array))
     ):
-        comparator = partial(custom_comparator, ascending, null_first)
-        result_df = result_df.sort_values(by=column, key=comparator)
+        # Rank the column itself: pandas 3 turns None into NaN in the copy passed to key.
+        ranks = custom_comparator(ascending, null_first, result_df[column])
+        result_df = result_df.sort_values(by=column, key=lambda _: ranks)
 
     result_df.sorted_by = sort_columns_array
     if not keep_added_columns:
@@ -2005,9 +2006,9 @@ def execute_mock_plan(
                         for unspecified_col in set(rows_to_insert.columns).difference(
                             inserted_columns
                         ):
-                            rows_to_insert[unspecified_col].replace(
-                                np.nan, None, inplace=True
-                            )
+                            rows_to_insert[unspecified_col] = rows_to_insert[
+                                unspecified_col
+                            ].replace(np.nan, None)
 
                     else:
                         if len(clause.values) != len(rows_to_insert.columns):

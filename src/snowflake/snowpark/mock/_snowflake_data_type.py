@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import math
 from typing import Any, Dict, Iterable, NamedTuple, Optional, Union
 
 from snowflake.snowpark.mock._options import installed_pandas, pandas as pd
@@ -176,6 +177,16 @@ def isna_helper(obj: Any) -> bool:
     if isinstance(obj, Iterable):
         return False
     return pd.isna(obj)
+
+
+def is_default_str_dtype(dtype: Any) -> bool:
+    """Whether dtype is pandas 3's default str dtype, which stores missing values as NaN."""
+    na_value = getattr(dtype, "na_value", None)
+    return (
+        isinstance(dtype, pd.StringDtype)
+        and isinstance(na_value, float)
+        and math.isnan(na_value)
+    )
 
 
 class ColumnType(NamedTuple):
@@ -506,7 +517,8 @@ def broadcast_value(value: Any, len: int) -> "ColumnEmulator":
 
 
 class ColumnEmulator(PandasSeriesType):
-    _metadata = ["sf_type", "_null_rows_idxs"]
+    # Keep "_name" so the name survives pandas 3 shallow copies.
+    _metadata = ["_name", "sf_type", "_null_rows_idxs"]
 
     @property
     def _constructor(self):
@@ -524,6 +536,14 @@ class ColumnEmulator(PandasSeriesType):
             )
         sf_type = kwargs.pop("sf_type", None)
         super().__init__(*args, **kwargs)
+        # pandas 3 infers its str dtype for strings, storing NULL as NaN; keep object with None.
+        if is_default_str_dtype(self.dtype):
+            super().__init__(
+                self.to_numpy(dtype=object, na_value=None),
+                index=self.index,
+                name=self.name,
+                dtype=object,
+            )
         self._sf_type: ColumnType = sf_type
         # record which rows should be marked as null instead of None
         # snowflake SubfieldString has this behavior
