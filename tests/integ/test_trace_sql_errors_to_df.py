@@ -16,8 +16,10 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     col,
+    lit,
     sum,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.window import Window
 from tests.utils import Utils
@@ -543,3 +545,140 @@ def test_existing_view_with_all_dataframe_methods(session, view_method):
     ), f"Expected object reference not found in debug context for {view_method}: {ex.value.debug_context}"
 
     Utils.drop_view(session, view_name)
+
+
+def _create_temp_table_sql(column_lines):
+    """A multi-line non-select statement, so session.sql() runs it as a pre-action."""
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    return f"create or replace temp table {table_name} as\nselect\n" + ",\n".join(
+        column_lines
+    )
+
+
+# Fails at SQL line 10, after the last line of the main query that RESULT_SCANs it.
+_LONG_BAD_SQL_COLUMNS = [f"{i} as c{i}" for i in range(7)] + ["no_such_col as bad"]
+
+
+def _pre_action_beyond_main_query_lines(session):
+    sql = _create_temp_table_sql(_LONG_BAD_SQL_COLUMNS)
+    sql_line = Utils.get_current_line_number_sys() + 1
+    df = session.sql(sql)
+    return df.filter(col("c0") > 1), [sql_line], []
+
+
+def _pre_action_within_main_query_lines(session):
+    # Fails at SQL line 5, which also exists in the main query.
+    sql = _create_temp_table_sql(["1 as a", "2 as b", "no_such_col as bad"])
+    sql_line = Utils.get_current_line_number_sys() + 1
+    df = session.sql(sql)
+    return df.filter(col("a") > 1), [sql_line], []
+
+
+def _second_of_two_pre_actions(session):
+    sql_ok = _create_temp_table_sql(["1 as a"])
+    sql_bad = _create_temp_table_sql(["1 as b", "no_such_col as bad"])
+    ok_line = Utils.get_current_line_number_sys() + 1
+    df_ok = session.sql(sql_ok)
+    bad_line = Utils.get_current_line_number_sys() + 1
+    df_bad = session.sql(sql_bad)
+    df = df_ok.cross_join(df_bad)
+    assert len(df._plan.queries) == 3
+    return df, [bad_line], [ok_line]
+
+
+def _pre_action_repeated_by_cte(session):
+    sql = _create_temp_table_sql(_LONG_BAD_SQL_COLUMNS)
+    sql_line = Utils.get_current_line_number_sys() + 1
+    df = session.sql(sql).filter(col("c0") > 1)
+    return df.union_all(df), [sql_line], []
+
+
+def _main_query_after_session_sql_pre_action(session):
+    df = session.sql(_create_temp_table_sql(["1 as a"]))
+    filter_line = Utils.get_current_line_number_sys() + 1
+    df = df.filter(col("no_such_col") > 1)
+    return df, [filter_line], []
+
+
+def _main_query_after_large_local_data_pre_actions(session):
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+    select_line = Utils.get_current_line_number_sys() + 1
+    df = df.select(col("a"), col("no_such_col"))
+    assert len(df._plan.queries) > 1
+    return df, [select_line], []
+
+
+def _large_query_breakdown_partition(session):
+    # The invalid column is deep in the plan, so it fails in a partition query that
+    # runs before the last query and is not owned by a node of the original plan: the
+    # DataFrame being executed is reported.
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df = df.filter(col("no_such_col") > 0)
+    for i in range(12):
+        df = df.with_column("a", col("a") + lit(i)).filter(col("a") > i)
+        last_line = Utils.get_current_line_number_sys() + 1
+        df = df.union_all(df.select("a", "b"))
+    assert len(df._plan.execution_queries[PlanQueryType.QUERIES]) > 1
+    return df, [last_line], []
+
+
+@pytest.mark.parametrize(
+    "build_df, session_settings",
+    [
+        (_pre_action_beyond_main_query_lines, {}),
+        (_pre_action_beyond_main_query_lines, {"sql_simplifier_enabled": False}),
+        (_pre_action_within_main_query_lines, {}),
+        (_second_of_two_pre_actions, {}),
+        (_pre_action_repeated_by_cte, {"cte_optimization_enabled": True}),
+        (_main_query_after_session_sql_pre_action, {}),
+        (_main_query_after_large_local_data_pre_actions, {}),
+        (
+            _large_query_breakdown_partition,
+            {
+                "large_query_breakdown_enabled": True,
+                "_large_query_breakdown_complexity_bounds": (300, 600),
+            },
+        ),
+    ],
+)
+def test_sql_error_in_query_before_or_after_pre_actions(
+    session, build_df, session_settings
+):
+    # SNOW-4412768: an error raised by a query that runs before the last query of the
+    # plan maps to the DataFrame operation that produced it.
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_settings = {name: getattr(session, name) for name in session_settings}
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        for name, value in session_settings.items():
+            setattr(session, name, value)
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df, expected_lines, unexpected_lines = build_df(session)
+        with pytest.raises(SnowparkSQLException) as ex:
+            df.collect()
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+        for name, value in original_settings.items():
+            setattr(session, name, value)
+    debug_context = str(ex.value.debug_context)
+    assert "SQL compilation error corresponds to Python source" in debug_context
+    for line in expected_lines:
+        assert f"line {line}" in debug_context
+    for line in unexpected_lines:
+        assert f"line {line}" not in debug_context
+
+
+def test_pre_action_owner_carries_session_sql_trace_node(session):
+    # The source location of a pre-action error comes from the trace nodes of the plan
+    # that owns the pre-action, which must include the session.sql() call.
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    from snowflake.snowpark._internal.utils import get_plan_from_pre_query_line_number
+
+    df = session.sql(_create_temp_table_sql(["1 as a"]))
+    filtered = df.filter(col("a") > 1)
+    owner = get_plan_from_pre_query_line_number(
+        filtered._plan, filtered._plan.queries[0], 1
+    )
+    assert any(node is df._trace_node for node in owner.df_trace_nodes)

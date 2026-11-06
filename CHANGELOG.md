@@ -19,6 +19,7 @@
 - Fixed a bug where importing Snowpark failed if the `requests` package was not installed. Event table telemetry now treats `requests` as an optional dependency of the `opentelemetry` extra.
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file in accounts that return structured types in the native Arrow format (for example, with `ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT` set).
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file, instead of falling back to the next model, when `AI_COMPLETE` reported the first model as unavailable (`Model "<name>" is unavailable`).
+- Fixed a bug where the Python source location reported for a SQL compilation error was missing or pointed to the wrong DataFrame operation when the error came from a query that runs before the main query, such as a non-SELECT statement passed to `Session.sql()`, when `enable_trace_sql_errors_to_dataframe` is enabled by `context.configure_development_features`.
 
 #### Dependency Updates
 

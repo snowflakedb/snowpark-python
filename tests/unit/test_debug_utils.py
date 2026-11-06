@@ -4,6 +4,7 @@
 
 import os
 import tempfile
+import types
 from unittest import mock
 
 import pytest
@@ -13,7 +14,18 @@ from snowflake.snowpark._internal.debug_utils import (
     DataFrameTraceNode,
     QueryProfiler,
     _format_source_location,
+    get_python_source_from_sql_error,
 )
+from snowflake.connector.errors import ProgrammingError
+from snowflake.snowpark import Session
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    BatchInsertQuery,
+    PlanQueryType,
+    Query,
+    QueryLineInterval,
+    SnowflakePlan,
+)
+from snowflake.snowpark._internal.utils import get_plan_from_pre_query_line_number
 
 
 curr_file_path = os.path.dirname(os.path.abspath(__file__))
@@ -662,3 +674,145 @@ def test_profile_query_with_complex_attributes():
                     break
     finally:
         os.unlink(temp_path)
+
+
+def _plan_node(uuid, children=(), df_trace_nodes=None, wrapped_plan=None):
+    # Strings stand in for the df trace nodes.
+    return types.SimpleNamespace(
+        uuid=uuid,
+        children_plan_nodes=list(children),
+        df_trace_nodes=df_trace_nodes,
+        _snowflake_plan=wrapped_plan,
+    )
+
+
+def _pre_query(*intervals):
+    query = Query("pre-action")
+    query.query_line_intervals = [QueryLineInterval(*i) for i in intervals]
+    return query
+
+
+@pytest.mark.parametrize(
+    "line_number, owner_uuid, expected_uuid, expected_trace_nodes",
+    [
+        # owned by the top-level plan itself
+        (0, "top", "top", ["sql", "filter"]),
+        # owned by a node several levels down that has its own trace nodes
+        (0, "leaf", "leaf", ["leaf"]),
+        # owned by a node without trace nodes: inherits the closest ancestor's
+        (0, "middle_no_nodes", "middle_no_nodes", ["sql", "filter"]),
+        # owned by the snowflake plan wrapped by a selectable (large local relation)
+        (0, "wrapped", "wrapper", ["sql", "filter"]),
+        # owner not in the tree (e.g. a large query breakdown partition)
+        (0, "not_in_tree", None, None),
+        # line not in the query's intervals
+        (5, "top", None, None),
+    ],
+)
+def test_get_plan_from_pre_query_line_number(
+    line_number, owner_uuid, expected_uuid, expected_trace_nodes
+):
+    leaf = _plan_node("leaf", df_trace_nodes=["leaf"])
+    middle_no_nodes = _plan_node("middle_no_nodes", children=[leaf])
+    wrapper = _plan_node("wrapper", wrapped_plan=_plan_node("wrapped"))
+    top = _plan_node(
+        "top", children=[middle_no_nodes, wrapper], df_trace_nodes=["sql", "filter"]
+    )
+    result = get_plan_from_pre_query_line_number(
+        top, _pre_query((0, 3, owner_uuid)), line_number
+    )
+    if expected_uuid is None:
+        assert result is None
+    else:
+        assert result.uuid == expected_uuid
+        assert result.df_trace_nodes == expected_trace_nodes
+
+
+@pytest.mark.parametrize("pre_query_plan_found", [None, True, False])
+def test_get_python_source_from_sql_error_failed_pre_query(pre_query_plan_found):
+    error_msg = "SQL compilation error: error line 3 at position 0\ninvalid identifier"
+    top_plan = mock.Mock()
+    failed_pre_query = None if pre_query_plan_found is None else Query("pre")
+    pre_query_plan = mock.Mock() if pre_query_plan_found else None
+    with mock.patch(
+        "snowflake.snowpark._internal.utils.get_plan_from_line_numbers"
+    ) as from_last_query, mock.patch(
+        "snowflake.snowpark._internal.utils.get_plan_from_pre_query_line_number",
+        return_value=pre_query_plan,
+    ) as from_pre_query, mock.patch(
+        "snowflake.snowpark._internal.debug_utils._extract_source_locations_from_plan",
+        return_value=["file.py: line 7"],
+    ) as extract_locations:
+        result = get_python_source_from_sql_error(top_plan, error_msg, failed_pre_query)
+        extract_locations_from = extract_locations.call_args.args[0]
+    if failed_pre_query is None:
+        # The error is from the last query: unchanged lookup.
+        from_last_query.assert_called_once_with(top_plan, 2)
+        from_pre_query.assert_not_called()
+        assert extract_locations_from is from_last_query.return_value
+    else:
+        from_last_query.assert_not_called()
+        from_pre_query.assert_called_once_with(top_plan, failed_pre_query, 2)
+        # The owner of the line, or the top-level plan when it is not part of the plan
+        # (e.g. a large query breakdown partition).
+        assert extract_locations_from is (
+            pre_query_plan if pre_query_plan_found else top_plan
+        )
+    assert "file.py: line 7" in result
+
+
+def _fake_plan_for_execute(mock_server_connection, queries):
+    fake_session = mock.create_autospec(Session)
+    fake_session._collect_snowflake_plan_telemetry_at_critical_path = False
+    fake_session._last_canceled_id = 0
+    fake_session._conn = mock_server_connection
+    fake_session._join_alias_fix = False
+    return SnowflakePlan(
+        queries=queries, schema_query="fake schema query", session=fake_session
+    )
+
+
+@pytest.mark.parametrize(
+    "queries, failing_index, block, expected_tag_index",
+    [
+        # a query before the last one fails: tagged
+        ([Query("q0"), Query("q1"), Query("q2")], 0, True, 0),
+        ([Query("q0"), Query("q1"), Query("q2")], 1, True, 1),
+        # the last query fails: not tagged, the error maps against the last query
+        ([Query("q0"), Query("q1"), Query("q2")], 2, True, None),
+        # a batch insert pre-action fails (large local data)
+        ([Query("q0"), BatchInsertQuery("q1", []), Query("q2")], 1, True, 1),
+        # async multi-statement request: the failing statement is unknown
+        ([Query("q0"), Query("q1")], 0, False, None),
+    ],
+)
+def test_execute_queries_tags_failing_pre_query(
+    mock_server_connection, queries, failing_index, block, expected_tag_index
+):
+    plan = _fake_plan_for_execute(mock_server_connection, queries)
+    failing_sql = queries[failing_index].sql
+
+    def run(sql, *args, **kwargs):
+        if block and sql != failing_sql:
+            return {"sfqid": f"id_{sql}"}
+        raise ProgrammingError(msg="fake error")
+
+    with mock.patch.object(
+        mock_server_connection, "run_query", side_effect=run
+    ), mock.patch.object(
+        mock_server_connection, "run_batch_insert", side_effect=run
+    ), mock.patch(
+        "snowflake.snowpark._internal.server_connection.get_new_description"
+    ):
+        with pytest.raises(ProgrammingError) as exc_info:
+            mock_server_connection._execute_queries(
+                plan,
+                {PlanQueryType.QUERIES: queries, PlanQueryType.POST_ACTIONS: []},
+                action_id=1,
+                block=block,
+            )
+    tagged = getattr(exc_info.value, "_snowpark_failed_pre_query", None)
+    if expected_tag_index is None:
+        assert tagged is None
+    else:
+        assert tagged is queries[expected_tag_index]

@@ -854,6 +854,8 @@ class ServerConnection:
         **kwargs,
     ) -> Tuple[Optional[Any], Optional[Any]]:
         result, result_meta = None, None
+        # Index of the main query being run sequentially, used to tag a failing query on the error.
+        current_query_index = None
         try:
             main_queries = plan_queries[PlanQueryType.QUERIES]
             post_actions = plan_queries[PlanQueryType.POST_ACTIONS]
@@ -909,6 +911,7 @@ class ServerConnection:
                     dataframe_ast = None
 
                 for i, query in enumerate(main_queries):
+                    current_query_index = i
                     if isinstance(query, BatchInsertQuery):
                         self.run_batch_insert(query.sql, query.rows, **kwargs)
                     else:
@@ -941,6 +944,15 @@ class ServerConnection:
                         result_meta = get_new_description(self._cursor)
                     if action_id < plan.session._last_canceled_id:
                         raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
+        except ProgrammingError as e:
+            # When a query that runs before the last one fails (e.g. a pre-action), keep
+            # it on the error: SQL error line numbers refer to that query, not the last one.
+            if (
+                current_query_index is not None
+                and current_query_index < len(main_queries) - 1
+            ):
+                e._snowpark_failed_pre_query = main_queries[current_query_index]
+            raise
         finally:
             # delete created tmp object
             if block:
