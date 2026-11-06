@@ -167,10 +167,6 @@ class SnowflakePlan(LogicalPlan):
             """
 
             def wrap(*args, **kwargs):
-                from snowflake.snowpark.context import (
-                    _enable_dataframe_trace_on_error,
-                )
-
                 try:
                     return func(*args, **kwargs)
                 except snowflake.connector.errors.ProgrammingError as e:
@@ -204,7 +200,9 @@ class SnowflakePlan(LogicalPlan):
                                 top_plan, e.msg, query
                             ):
                                 debug_context_arr.append(error_source_context)
-                        if _enable_dataframe_trace_on_error and trace_node is not None:
+                        if trace_node is not None and debug_config.enabled(
+                            top_plan.session, "dataframe_trace_on_error"
+                        ):
                             if df_transform_trace := get_df_transform_trace_message(
                                 trace_node
                             ):
