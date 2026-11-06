@@ -211,6 +211,7 @@ from snowflake.snowpark._internal.df_trace import (
     ObjectCreationRegistry,
     record_object_creation,
 )
+from snowflake.snowpark._internal.debug_config import DebugConfig
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -963,6 +964,7 @@ class Session:
         self._udf_profiler = UDFProfiler(session=self)
         self._dataframe_profiler = DataframeProfiler(session=self)
         self._df_trace_registry = ObjectCreationRegistry()
+        self._debug = DebugConfig(self)
         self._catalog = None
         self._client_telemetry = EventTableTelemetry(session=self)
 
@@ -1112,6 +1114,18 @@ class Session:
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
+                self._debug._close()
+
+    @property
+    @experimental(version="1.57.0")
+    def debug(self) -> DebugConfig:
+        """The debug features of this session, turned on with
+        ``session.debug.enable(...)`` and off with ``session.debug.disable(...)``.
+
+        See :func:`snowflake.snowpark.context.configure_development_features` to set them for
+        every session.
+        """
+        return self._debug
 
     @property
     def conf(self) -> RuntimeConfig:
