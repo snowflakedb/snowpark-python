@@ -418,6 +418,18 @@ class PythonTool(MCPTool):
                 )
             )
         for p in self.parameters:
+            container_issue = mcp_utils.container_parameter_issue(p)
+            if container_issue:
+                issues.append(LintIssue("error", self.name, container_issue))
+            if p.name.upper() in mcp_utils.RESERVED_PARAMETER_NAMES:
+                issues.append(
+                    LintIssue(
+                        "error",
+                        self.name,
+                        f"Parameter {p.name} is a Snowflake reserved word, which "
+                        "cannot be a procedure or UDF parameter name; rename it.",
+                    )
+                )
             if not p.description:
                 issues.append(
                     LintIssue(
@@ -671,10 +683,15 @@ class ExistingObjectTool(MCPTool):
                     "warning",
                     self.name,
                     f"Parameter {name} has a type with no JSON equivalent (such as "
-                    "VARIANT), so the model is not told what to pass.",
+                    "VARIANT), so the model is not told what to pass. The MCP "
+                    "server passes only numbers to VARIANT parameters; strings, "
+                    "arrays and objects fail.",
                 )
             )
         for p in self.parameters or []:
+            container_issue = mcp_utils.container_parameter_issue(p)
+            if container_issue:
+                issues.append(LintIssue("error", self.name, container_issue))
             if not p.description:
                 issues.append(
                     LintIssue(

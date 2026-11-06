@@ -63,6 +63,16 @@ _WRITE_WORDS = (
     "set",
     "upsert",
 )
+# Words Snowflake rejects as procedure and UDF parameter names. Snowpark does not
+# quote preserved parameter names, so a tool parameter cannot be one of these. Found
+# by creating a function with each reserved keyword as its parameter name.
+RESERVED_PARAMETER_NAMES = frozenset(
+    """ALL ALTER AND ANY AS BETWEEN BY CHECK COLUMN CONNECT CREATE CURRENT DELETE
+    DISTINCT DROP ELSE EXISTS FOLLOWING FOR FROM GRANT GROUP HAVING ILIKE IN INCREMENT
+    INSERT INTERSECT INTO IS LIKE MINUS NOT NULL OF ON OR ORDER QUALIFY REGEXP REVOKE
+    RLIKE ROW ROWS SAMPLE SELECT SET SOME START TABLE TABLESAMPLE THEN TO TRIGGER UNION
+    UNIQUE UPDATE VALUES WHENEVER WHERE WITH""".split()
+)
 # Parameter names that suggest the model passes free-form SQL.
 _SQL_PARAMETER_NAMES = ("sql", "query", "statement", "stmt", "sql_text", "sql_query")
 
@@ -547,6 +557,18 @@ def parse_object_comment(comment: Optional[str]) -> Optional[Dict[str, Any]]:
 def name_suggests_write(name: str) -> bool:
     words = [w for w in re.split(r"[_\-]+", name.lower()) if w]
     return any(w in _WRITE_WORDS for w in words)
+
+
+def container_parameter_issue(param: ToolParameter) -> Optional[str]:
+    """The MCP server cannot pass a JSON array or object to a GENERIC tool, whatever
+    the parameter's SQL type: the call fails before the tool runs."""
+    if param.json_schema.get("type") in ("array", "object"):
+        return (
+            f"Parameter {param.name} takes a JSON {param.json_schema['type']}, which "
+            "the MCP server cannot pass to a procedure or UDF. Take it as a str "
+            "holding JSON text instead, and parse it in the tool."
+        )
+    return None
 
 
 def is_sql_parameter(param: ToolParameter) -> bool:

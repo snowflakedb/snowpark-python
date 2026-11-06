@@ -408,7 +408,7 @@ class RecordingSession:
 def test_log_feedback_inserts_with_params():
     session = RecordingSession()
     log = make_log_feedback("APP.MCP.FEEDBACK", "data_issue")
-    result = log(session, "wrong total", {"table": "t", "n": 1})
+    result = log(session, "wrong total", json.dumps({"table": "t", "n": 1}))
     assert result == {"status": "recorded"}
     assert session.collected == 1
     ((statement, params),) = session.calls
@@ -443,3 +443,20 @@ def test_feedback_table_ddl():
         assert column in ddl
     # The columns the INSERT writes exist in the DDL.
     assert "DETAILS VARIANT" in ddl
+
+
+@pytest.mark.parametrize(
+    "details, stored",
+    [
+        (None, {}),
+        ("", {}),
+        ('{"a": 1}', {"a": 1}),
+        ("not json", {"text": "not json"}),
+        ("[1, 2]", {"text": "[1, 2]"}),
+    ],
+)
+def test_log_feedback_details_is_json_text(details, stored):
+    session = RecordingSession()
+    make_log_feedback("APP.MCP.FEEDBACK", "feedback")(session, "m", details)
+    ((_, params),) = session.calls
+    assert json.loads(params[2]) == stored

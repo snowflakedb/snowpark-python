@@ -369,20 +369,22 @@ def governed_sql(
                 "feedback",
                 "Record feedback about an answer: what was asked, what was wrong or "
                 "missing.\n\nArgs:\n    message: The feedback.\n    details: "
-                "Optional structured details, such as the question and the query.",
+                "Optional JSON object, as text, with details such as the question "
+                "and the query.",
             ),
             (
                 "log_data_issue",
                 "data_issue",
                 "Report a problem in the data: wrong, missing or inconsistent "
                 "values.\n\nArgs:\n    message: What is wrong, and where.\n    "
-                "details: Optional structured details, such as the table and the query.",
+                "details: Optional JSON object, as text, with details such as the table "
+                "and the query.",
             ),
         ):
             func = mcp_governed_sql.make_log_feedback(feedback_table, kind)
             func.__name__ = func.__qualname__ = tool_name
             func.__doc__ = doc
-            func.__annotations__ = {"message": str, "details": Optional[dict]}
+            func.__annotations__ = {"message": str, "details": Optional[str]}
             tools.append(
                 PythonTool(
                     func,

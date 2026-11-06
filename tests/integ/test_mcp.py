@@ -20,16 +20,16 @@ pytestmark = [
 
 
 @mcp_tool(read_only=True)
-def numbers(session: Session, start: int, count: int = 3) -> object:
+def numbers(session: Session, first: int, count: int = 3) -> object:
     """Return a range of numbers.
 
     Args:
-        start: First number.
+        first: First number.
         count: How many numbers.
     """
     if count > 100:
         raise ToolError("count is too large", hint="Ask for at most 100 numbers.")
-    return session.range(start, start + count).select(col("ID").alias("N"))
+    return session.range(first, first + count).select(col("ID").alias("N"))
 
 
 @mcp_tool(read_only=True)
@@ -52,11 +52,11 @@ def test_deploy_and_call_python_tools(session, temp_schema):
     server = MCPServer("SNOWPARK_MCP_TEST", tools=[numbers, add])
     result = server.deploy(session, schema=schema, suffix="_DEV")
     try:
-        assert result.server.endswith(f"{schema}.SNOWPARK_MCP_TEST_DEV")
+        assert result.server.endswith(f"{schema.upper()}.SNOWPARK_MCP_TEST_DEV")
         assert len(result.objects) == 2
 
         table = server.call_tool(
-            session, "numbers", {"start": 5}, schema=schema, suffix="_DEV"
+            session, "numbers", {"first": 5}, schema=schema, suffix="_DEV"
         )
         assert table["columns"] == ["N"]
         assert [r["N"] for r in table["rows"]] == [5, 6, 7]
@@ -65,7 +65,7 @@ def test_deploy_and_call_python_tools(session, temp_schema):
         error = server.call_tool(
             session,
             "numbers",
-            {"start": 0, "count": 1000},
+            {"first": 0, "count": 1000},
             schema=schema,
             suffix="_DEV",
         )

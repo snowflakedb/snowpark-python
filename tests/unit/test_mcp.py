@@ -1888,7 +1888,7 @@ def test_governed_sql_with_feedback_tools():
         assert tool.kind == "procedure"
         assert tool.input_schema["required"] == ["message"]
         assert set(tool.input_schema["properties"]) == {"message", "details"}
-        assert tool.input_schema["properties"]["details"]["type"] == "object"
+        assert tool.input_schema["properties"]["details"]["type"] == "string"
         assert tool.input_schema["properties"]["message"]["description"]
     assert run_sql.execute_as == "caller"
     assert MCPServer("S", result).lint() == []
@@ -1899,7 +1899,7 @@ def test_governed_sql_feedback_tools_write_to_table():
         feedback_tools=True, feedback_table="APP.MCP.FB"
     )
     session = make_session()
-    assert log_feedback.invoke(session, message="m", details={"a": 1}) == {
+    assert log_feedback.invoke(session, message="m", details='{"a": 1}') == {
         "status": "recorded"
     }
     assert log_data_issue.invoke(session, message="bad") == {"status": "recorded"}
@@ -1967,4 +1967,67 @@ def test_governed_sql_grants():
     statements = server.grant_usage(make_session(), "R", dry_run=True)
     assert statements[-1] == (
         "GRANT USAGE ON PROCEDURE APP.MCP.S__RUN_SQL(STRING) TO ROLE R"
+    )
+
+
+@pytest.mark.parametrize("param", ["start", "order", "select", "Group"])
+def test_lint_reserved_parameter_name_is_error(param):
+    ns = {}
+    exec(
+        f"def tool({param}: int) -> int:\n"
+        f'    """Doc.\n\n    Args:\n        {param}: A number.\n    """\n'
+        f"    return {param}\n",
+        ns,
+    )
+    tool = mcp_tool(ns["tool"], read_only=True)
+    issues = MCPServer("S", tools=[tool]).lint()
+    assert any(
+        i.level == "error" and "reserved word" in i.message and param in i.message
+        for i in issues
+    )
+
+
+@pytest.mark.parametrize("param", ["first", "count", "limit", "date", "name"])
+def test_lint_allows_non_reserved_parameter_names(param):
+    ns = {}
+    exec(f'def tool({param}: int) -> int:\n    """Doc."""\n    return 1\n', ns)
+    tool = mcp_tool(ns["tool"], read_only=True)
+    issues = MCPServer("S", tools=[tool]).lint()
+    assert not any("reserved word" in i.message for i in issues)
+
+
+@pytest.mark.parametrize(
+    "annotation", ["typing.List[int]", "dict", "typing.Dict[str, int]", "list"]
+)
+def test_lint_array_and_object_parameters_are_errors(annotation):
+    ns = {"typing": __import__("typing")}
+    exec(
+        f"def tool(v: {annotation}) -> int:\n"
+        '    """Doc.\n\n    Args:\n        v: A value.\n    """\n'
+        "    return 1\n",
+        ns,
+    )
+    issues = MCPServer("S", tools=[mcp_tool(ns["tool"], read_only=True)]).lint()
+    assert any(
+        i.level == "error" and "cannot pass to a procedure or UDF" in i.message
+        for i in issues
+    )
+
+
+def test_deploy_refuses_array_parameter_before_running_sql():
+    @mcp_tool(read_only=True)
+    def tool(session: Session, ids: List[int]) -> int:
+        """Doc.
+
+        Args:
+            ids: IDs.
+        """
+        return 1
+
+    session = make_session()
+    with pytest.raises(MCPLintError, match="ids"):
+        MCPServer("S", tools=[tool]).deploy(session)
+    session.sproc.register.assert_not_called()
+    assert not any(
+        "CREATE" in str(c.args[0]) for c in session.sql.call_args_list if c.args
     )

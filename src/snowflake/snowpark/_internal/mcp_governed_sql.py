@@ -172,11 +172,19 @@ class _RowList(list):
 def make_log_feedback(table: str, kind: str) -> Callable:
     """Returns the tool function of a feedback tool that inserts into ``table``."""
 
-    def log(session, message: str, details: Optional[dict] = None) -> Dict[str, Any]:
+    def log(session, message: str, details: Optional[str] = None) -> Dict[str, Any]:
+        # details is JSON text: the MCP server cannot pass JSON objects to a tool.
+        # Text that is not a JSON object is kept as {"text": ...}.
+        try:
+            parsed = json.loads(details) if details else {}
+        except ValueError:
+            parsed = None
+        if not isinstance(parsed, dict):
+            parsed = {"text": details}
         session.sql(
             f"INSERT INTO {table} (KIND, MESSAGE, DETAILS, LOGGED_BY) "
             "SELECT ?, ?, PARSE_JSON(?), CURRENT_USER()",
-            params=[kind, message, json.dumps(details or {})],
+            params=[kind, message, json.dumps(parsed)],
         ).collect()
         return {"status": "recorded"}
 
