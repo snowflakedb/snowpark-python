@@ -1877,7 +1877,7 @@ def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
     elif time_unit == "week":
         truncated = pandas.to_datetime(datetime_expr)
         # Calculate offset from start of week
-        offsets = pandas.to_timedelta(truncated.dt.dayofweek, unit="d")
+        offsets = pandas.to_timedelta(truncated.dt.dayofweek, unit="D")
         # Subtract off offset
         truncated = truncated.combine(offsets, operator.sub)
         # Trim data smaller than a day
