@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-import math
 from typing import Any, Dict, Iterable, NamedTuple, Optional, Union
 
 from snowflake.snowpark.mock._options import installed_pandas, pandas as pd
@@ -177,16 +176,6 @@ def isna_helper(obj: Any) -> bool:
     if isinstance(obj, Iterable):
         return False
     return pd.isna(obj)
-
-
-def is_default_str_dtype(dtype: Any) -> bool:
-    """Whether dtype is pandas 3's default str dtype, which stores missing values as NaN."""
-    na_value = getattr(dtype, "na_value", None)
-    return (
-        isinstance(dtype, pd.StringDtype)
-        and isinstance(na_value, float)
-        and math.isnan(na_value)
-    )
 
 
 class ColumnType(NamedTuple):
@@ -537,7 +526,9 @@ class ColumnEmulator(PandasSeriesType):
         sf_type = kwargs.pop("sf_type", None)
         super().__init__(*args, **kwargs)
         # pandas 3 infers its str dtype for strings, storing NULL as NaN; keep object with None.
-        if is_default_str_dtype(self.dtype):
+        if isinstance(self.dtype, pd.StringDtype) and isinstance(
+            self.dtype.na_value, float
+        ):
             super().__init__(
                 self.to_numpy(dtype=object, na_value=None),
                 index=self.index,
