@@ -186,6 +186,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     global_counter,
     string_half_width,
+    time_columns_us_to_ns,
     warning,
 )
 from snowflake.snowpark._internal.data_source.utils import (
@@ -1302,16 +1303,21 @@ class DataFrame:
                         "The result of to_pandas() may not align with the result returned in the ARROW format. "
                         "For best compatibility with to_pandas(), set the query result format to ARROW."
                     )
-                return pandas.DataFrame(
-                    result,
-                    columns=[
-                        (
-                            unquote_if_quoted(attr.name)
-                            if is_select_statement
-                            else attr.name
-                        )
-                        for attr in self._plan.attributes
-                    ],
+                # Built from Python datetime objects, which pandas 3 infers as us;
+                # match the ns unit of the Arrow path.
+                return time_columns_us_to_ns(
+                    pandas.DataFrame(
+                        result,
+                        columns=[
+                            (
+                                unquote_if_quoted(attr.name)
+                                if is_select_statement
+                                else attr.name
+                            )
+                            for attr in self._plan.attributes
+                        ],
+                    ),
+                    kinds="mM",
                 )
 
         return result

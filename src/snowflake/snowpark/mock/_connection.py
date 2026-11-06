@@ -34,6 +34,7 @@ from snowflake.snowpark._internal.utils import (
     IS_V5_DRIVER,
     is_in_stored_procedure,
     result_set_to_rows,
+    time_columns_us_to_ns,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSessionException
@@ -881,4 +882,6 @@ def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
         else:
             pd_df[pd_df_col_name] = table_res[col_name].tolist()
 
-    return pd_df
+    # Built from Python datetime objects, which pandas 3 infers as us; match the ns unit
+    # of the live Arrow path.
+    return time_columns_us_to_ns(pd_df, kinds="mM")
