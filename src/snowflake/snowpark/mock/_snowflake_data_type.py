@@ -506,7 +506,7 @@ def add_date_and_number(
     if isinstance(col1.sf_type.datatype, DateType) and isinstance(
         col2.sf_type.datatype, _NumericType
     ):
-        result = pd.to_datetime(col1) + pd.to_timedelta(round(col2), unit="d")
+        result = pd.to_datetime(col1) + pd.to_timedelta(round(col2), unit="D")
         result.sf_type = ColumnType(
             DateType(), col1.sf_type.nullable or col2.sf_type.nullable
         )
