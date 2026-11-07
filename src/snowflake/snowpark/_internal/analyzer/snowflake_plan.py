@@ -199,7 +199,7 @@ class SnowflakePlan(LogicalPlan):
                             and _enable_trace_sql_errors_to_dataframe
                         ):
                             if error_source_context := get_python_source_from_sql_error(
-                                top_plan, e.msg
+                                top_plan, e.msg, query
                             ):
                                 debug_context_arr.append(error_source_context)
                         if _enable_dataframe_trace_on_error and trace_node is not None:

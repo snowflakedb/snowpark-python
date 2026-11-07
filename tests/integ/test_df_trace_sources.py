@@ -42,9 +42,7 @@ def test_table(session, trace_settings, df_trace_table):
     df = fail(session.table(df_trace_table))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src("session.table(df_trace_table)"), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex, trace=[FAIL, src("session.table(df_trace_table)")], mapped=mapped
     )
@@ -54,9 +52,7 @@ def test_read_table(session, trace_settings, df_trace_table):
     df = fail(session.read.table(df_trace_table))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src("session.read.table(df_trace_table)"), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex, trace=[FAIL, src("session.read.table(df_trace_table)")], mapped=mapped
     )
@@ -146,9 +142,7 @@ def test_range(session, trace_settings):
     df = fail(session.range(5))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src("session.range(5)"), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(ex, trace=[FAIL, src("session.range(5)")], mapped=mapped)
 
 
@@ -156,9 +150,7 @@ def test_generator(session, trace_settings):
     df = fail(session.generator(seq4().alias("A"), rowcount=3))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src('session.generator(seq4().alias("A"), rowcount=3)'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[FAIL, src('session.generator(seq4().alias("A"), rowcount=3)')],
@@ -170,12 +162,7 @@ def test_table_function(session, trace_settings):
     df = fail(session.table_function("split_to_table", lit("a b"), lit(" ")))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('session.table_function("split_to_table", lit("a b"), lit(" "))'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -191,8 +178,6 @@ def test_flatten(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[FAIL, src('session.flatten(parse_json(lit("[1,2]")))')],

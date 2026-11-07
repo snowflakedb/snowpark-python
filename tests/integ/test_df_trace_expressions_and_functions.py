@@ -42,8 +42,6 @@ def test_isin_subquery_in_filter(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -63,8 +61,6 @@ def test_isin_nested_in_boolean(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -86,7 +82,6 @@ def test_isin_in_when_otherwise(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [
-        BASE,
         src('a.with_column("F", when(col("ID").isin(b), lit(1)).otherwise(lit(0)))'),
         FAIL,
     ]
@@ -112,7 +107,7 @@ def test_isin_in_select(session, trace_settings):
     df = fail(a.select("ID", col("ID").isin(b).alias("IN_B")))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [BASE, src('a.select("ID", col("ID").isin(b).alias("IN_B"))'), FAIL]
+    mapped = [src('a.select("ID", col("ID").isin(b).alias("IN_B"))'), FAIL]
     if not trace_settings.simplifier:
         mapped = [FAIL]
     assert_debug_output(
@@ -137,9 +132,7 @@ def test_isin_in_join_condition(session, trace_settings):
     df = fail(a.join(b, (a["ID"] == b["ID"]) & a["ID"].isin(sub)))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src('a.join(b, (a["ID"] == b["ID"]) & a["ID"].isin(sub))'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -160,8 +153,6 @@ def test_subquery_reused_in_later_operation(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [
-        BASE,
-        src('a.filter(col("ID").isin(b))'),
         src('filtered.select("ID", "NAME").sort("ID")'),
         FAIL,
     ]
@@ -188,8 +179,6 @@ def test_same_dataframe_as_receiver_and_subquery(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -209,8 +198,6 @@ def test_two_subqueries_one_call(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -231,8 +218,6 @@ def test_isin_in_sort(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -350,8 +335,6 @@ def test_udf_used_twice(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [
-        BASE,
-        src('base(session).with_column("U", f(col("ID")))'),
         src('df.filter(f(col("U")) > 0)'),
         FAIL,
     ]
@@ -410,9 +393,7 @@ def test_udtf_join_table_function(session, trace_settings):
     df = fail(base(session).join_table_function(t(col("ID"))))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src('base(session).join_table_function(t(col("ID")))'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -443,9 +424,7 @@ def test_udtf_session_table_function(session, trace_settings):
     df = fail(session.table_function(t(lit(3))))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src("session.table_function(t(lit(3)))"), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -482,12 +461,7 @@ def test_udaf_in_agg(session, trace_settings):
     df = fail(base(session).group_by("NAME").agg(agg(col("ID")).alias("S")))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('base(session).group_by("NAME").agg(agg(col("ID")).alias("S"))'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
