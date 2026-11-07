@@ -70,6 +70,8 @@ IS_V5_DRIVER = snowpark_options.IS_V5_DRIVER
 
 
 if TYPE_CHECKING:
+    import pandas
+
     from snowflake.snowpark._internal.analyzer.snowflake_plan import (
         SnowflakePlan,
         QueryLineInterval,
@@ -308,6 +310,35 @@ ALIASES_TO_DATETIME_PART = {
     v: k for k, l in DATETIME_PART_TO_ALIASES.items() for v in l
 }
 DATETIME_ALIASES = set(ALIASES_TO_DATETIME_PART.keys())
+
+
+def time_columns_to_ns(df: "pandas.DataFrame", kinds: str) -> "pandas.DataFrame":
+    """On pandas 3, convert time columns that are not ns to ns, the unit pandas 2 infers.
+
+    kinds picks columns by dtype kind ("m" timedelta, "M" datetime). Values outside the
+    ns range keep their unit; the input is not modified. pandas 2 input is returned as is.
+    """
+    import pandas
+
+    if int(pandas.__version__.split(".")[0]) < 3:
+        return df
+    positions = [
+        i
+        for i, dtype in enumerate(df.dtypes)
+        if dtype.kind in kinds and df.iloc[:, i].dt.unit != "ns"
+    ]
+    if not positions:
+        return df
+    df = df.copy(deep=False)
+    for i in positions:
+        try:
+            df.isetitem(i, df.iloc[:, i].dt.as_unit("ns"))
+        except (
+            pandas.errors.OutOfBoundsDatetime,
+            pandas.errors.OutOfBoundsTimedelta,
+        ):
+            pass
+    return df
 
 
 def unalias_datetime_part(part):
