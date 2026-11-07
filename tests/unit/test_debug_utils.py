@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import copy
 import os
 import tempfile
 from unittest import mock
@@ -725,16 +724,6 @@ def test_resolve_error_line_skips_unknown_rewritten_sql():
         PlanQueryType.QUERIES: [Query("CREATE TEMP TABLE x AS SELECT 1")]
     }
     assert _resolve_error_line(plan, 0, 0, "CREATE TEMP TABLE x AS SELECT 1") is None
-
-
-def test_resolve_error_line_keeps_the_plan_for_a_copy_of_its_query():
-    plan = _plan_with_query(
-        "SELECT * FROM <placeholder>", [QueryLineInterval(0, 0, "top")]
-    )
-    compiled = copy.copy(plan.queries[-1])
-    compiled.sql = "SELECT * FROM SNOWPARK_TEMP_TABLE_A"
-    plan._last_execution_queries = {PlanQueryType.QUERIES: [compiled]}
-    assert _resolve_error_line(plan, 0, 3, compiled.sql) == (plan, 0)
 
 
 def test_resolve_error_line_maps_through_cte_segments():

@@ -263,7 +263,7 @@ def _resolve_error_line(
     ):
         return top_plan, sql_line_number
 
-    compiled = getattr(top_plan, "_last_execution_queries", None) or {}
+    compiled = top_plan._last_execution_queries or {}
     compiled_query = None
     for queries in compiled.values():
         for query in queries:
@@ -274,9 +274,6 @@ def _resolve_error_line(
             break
     if compiled_query is None:
         return None
-    if compiled_query.query_line_intervals is top_plan.queries[-1].query_line_intervals:
-        # A copy of the query of the plan (only temp object names were filled in).
-        return top_plan, sql_line_number
     compiled_sql, segments = compiled_query.sql, compiled_query.cte_segments
     if not segments:
         return None
