@@ -614,6 +614,28 @@ def test_write_to_different_schema(session, local_testing_mode):
             Utils.drop_schema(session, test_schema_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local testing does not write pandas data to a table",
+)
+def test_write_pandas_timedelta_as_ns_ticks(session):
+    # pandas 3 infers us or s here, where pandas 2 infers ns; both must store ns ticks.
+    table_name = Utils.random_table_name()
+    pdf = pd.DataFrame(
+        {
+            "D": [timedelta(days=1, seconds=1)],
+            "S": pd.to_timedelta([86401], unit="s"),
+        }
+    )
+    try:
+        session.write_pandas(pdf, table_name, auto_create_table=True, table_type="temp")
+        assert session.table(table_name).collect() == [
+            Row(D=86401000000000, S=86401000000000)
+        ]
+    finally:
+        Utils.drop_table(session, table_name)
+
+
 def test_create_from_pandas_basic_pandas_types(session):
     now_time = datetime(
         year=2023, month=10, day=25, hour=13, minute=46, second=12, microsecond=123
