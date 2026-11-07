@@ -29,6 +29,10 @@
 #### Bug Fixes
 
 - Fixed a bug where a column in local testing lost its name when it was copied or filtered.
+- Fixed a bug where arithmetic on columns with NULL values returned an extra row in local testing when it followed a `filter`.
+- Fixed a bug where `Column.isin` on a datetime column in local testing did not match any value when the subquery it was given also contained NULL or a value that cannot be parsed as a timestamp.
+- Fixed a bug where `dateadd` with the `year`, `quarter` or `month` part raised an error instead of returning NULL for a NULL date in local testing.
+- Fixed a bug where `Session.create_dataframe` raised `OverflowError` in local testing for a pandas DataFrame with a datetime column outside the nanosecond range (for example, year 3000).
 
 ## 1.56.0 (2026-10-29)
 
