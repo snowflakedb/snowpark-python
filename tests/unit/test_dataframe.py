@@ -429,3 +429,21 @@ def test_table_source_plan(sql_simplifier_enabled):
         t._plan.source_plan,
         SelectStatement if sql_simplifier_enabled else SnowflakeTable,
     )
+
+
+def test_pandas_package_for_map():
+    pandas = pytest.importorskip("pandas")
+    import snowflake.snowpark.dataframe as dataframe_module
+    from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
+
+    session = mock.MagicMock()
+
+    def package_for(repository):
+        session._get_default_artifact_repository.return_value = repository
+        return dataframe_module._pandas_package_for_map(session)
+
+    version = pandas.__version__
+    assert package_for("snowflake.snowpark.pypi_shared_repository") == (
+        f"pandas=={version}"
+    )
+    assert package_for(_ANACONDA_SHARED_REPOSITORY) is pandas

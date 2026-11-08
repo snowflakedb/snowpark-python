@@ -7536,6 +7536,21 @@ def test_map_vectorized(session, func, output_types, expected):
     "config.getoption('local_testing_mode', default=False)",
     reason="Table function is not supported in Local Testing",
 )
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required for this test")
+@pytest.mark.udf
+def test_map_vectorized_default_pandas_package(session):
+    # Unlike test_map_vectorized, no packages= is passed, so map adds pandas itself.
+    df = session.create_dataframe([[1], [2]], schema=["A"])
+    Utils.check_answer(
+        map(df, lambda pdf: pdf["A"] * 10, [IntegerType()], vectorized=True),
+        [Row(10), Row(20)],
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
 @pytest.mark.udf
 def test_map_chained(session):
     df = session.create_dataframe(
