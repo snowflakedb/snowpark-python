@@ -12,11 +12,11 @@
 
 - `snowflake.snowpark.context.configure_development_features` (Experimental) no longer depends on AST collection and no longer changes the AST collection setting.
 - `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them.
-- With `enable_trace_sql_errors_to_dataframe` (Experimental), a SQL compilation error is now mapped to the DataFrame operations that produced the failing part of the query, instead of also listing every operation of the subqueries it wraps.
 
 #### Bug Fixes
 
 - Fixed a bug where `enable_trace_sql_errors_to_dataframe` of `snowflake.snowpark.context.configure_development_features` (Experimental) reported a wrong Python source position when CTE optimization was enabled.
+- Fixed a bug where `enable_trace_sql_errors_to_dataframe` of `snowflake.snowpark.context.configure_development_features` (Experimental) reported extra Python source lines when the failing DataFrame operation wraps earlier operations in a subquery.
 - Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
 - Fixed a bug where importing Snowpark failed if the `requests` package was not installed. Event table telemetry now treats `requests` as an optional dependency of the `opentelemetry` extra.
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file in accounts that return structured types in the native Arrow format (for example, with `ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT` set).
