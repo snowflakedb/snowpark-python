@@ -905,13 +905,66 @@ def cleanup_failed_permanent_registration(
             logger.warning("Failed to clean uploaded file: %s", clean_ex)
 
 
+def _is_cachetools_cached_object(obj: Any) -> bool:
+    # cachetools>=8 returns callable objects from ``cached``. Their ``__reduce__``
+    # pickles them by a module attribute name.
+    return type(obj).__module__ == "cachetools._cached"
+
+
+def _can_pickle_by_reference(obj: Any) -> bool:
+    # Same rule cloudpickle applies to plain functions: an object reachable as
+    # <module>.<qualname> outside __main__ (a module added with session.add_import,
+    # or an installed package) stays pickled by name.
+    from cloudpickle import cloudpickle as cloudpickle_impl
+
+    module_and_name = cloudpickle_impl._lookup_module_and_qualname(obj)
+    if module_and_name is None:
+        return False
+    # cloudpickle 1.6 is still allowed and has no by-value registry. The
+    # registry, and this helper, arrived in cloudpickle 2.0.
+    is_by_value = getattr(cloudpickle_impl, "_is_registered_pickle_by_value", None)
+    if is_by_value is None:
+        return True
+    return not is_by_value(module_and_name[0])
+
+
+def _reduce_cachetools_cached(obj: Any) -> Tuple[Callable, Tuple]:
+    if obj.cache_lock is not None or obj.cache_condition is not None:
+        raise TypeError(
+            "cachetools.cached with a lock or condition cannot be used in a UDF: "
+            "threading primitives cannot be pickled"
+        )
+    has_info = hasattr(obj, "cache_info")
+
+    def _rebuild(cache, key, info, func):
+        # Nested so cloudpickle serializes this function by value. The UDF
+        # runtime does not have snowpark installed.
+        import cachetools
+
+        # ``info`` exists only in cachetools>=5.3. The server may have an older one.
+        if info:
+            return cachetools.cached(cache, key=key, info=True)(func)
+        return cachetools.cached(cache, key=key)(func)
+
+    return _rebuild, (obj.cache, obj.cache_key, has_info, obj.__wrapped__)
+
+
+class _UDFPickler(cloudpickle.CloudPickler):
+    def reducer_override(self, obj: Any) -> Any:
+        if _is_cachetools_cached_object(obj) and not _can_pickle_by_reference(obj):
+            return _reduce_cachetools_cached(obj)
+        return super().reducer_override(obj)
+
+
 def pickle_function(func: Callable) -> bytes:
     failure_hint = (
         "you might have to save the unpicklable object in the local environment first, "
         "add it to the UDF with session.add_import(), and read it from the UDF."
     )
     try:
-        return cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
+        buffer = io.BytesIO()
+        _UDFPickler(buffer, protocol=pickle.HIGHEST_PROTOCOL).dump(func)
+        return buffer.getvalue()
     # it happens when copying the global object inside the UDF that can't be pickled
     except TypeError as ex:
         error_message = str(ex)
