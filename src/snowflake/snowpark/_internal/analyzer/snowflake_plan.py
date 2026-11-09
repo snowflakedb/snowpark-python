@@ -199,9 +199,7 @@ class SnowflakePlan(LogicalPlan):
                             and _enable_trace_sql_errors_to_dataframe
                         ):
                             if error_source_context := get_python_source_from_sql_error(
-                                top_plan,
-                                e.msg,
-                                getattr(e, "_snowpark_failed_pre_query", None),
+                                top_plan, e.msg, query
                             ):
                                 debug_context_arr.append(error_source_context)
                         if _enable_dataframe_trace_on_error and trace_node is not None:
@@ -499,6 +497,10 @@ class SnowflakePlan(LogicalPlan):
         # we will store the ast_id here.
         self.df_ast_ids: Optional[List[int]] = None
         self.df_trace_nodes: Optional[List["TraceNode"]] = None
+        # the queries of the last compilation, kept only while tracing sql errors is enabled
+        self._last_execution_queries: Optional[
+            Dict["PlanQueryType", List["Query"]]
+        ] = None
 
     @property
     def uuid(self) -> str:
@@ -517,7 +519,7 @@ class SnowflakePlan(LogicalPlan):
         from snowflake.snowpark._internal.compiler.plan_compiler import PlanCompiler
 
         compiler = PlanCompiler(self)
-        return compiler.compile()
+        return self._remember_execution_queries(compiler.compile())
 
     def get_execution_queries_without_cte(self) -> Dict["PlanQueryType", List["Query"]]:
         """Compile execution queries with CTE optimization skipped.
@@ -525,7 +527,18 @@ class SnowflakePlan(LogicalPlan):
         from snowflake.snowpark._internal.compiler.plan_compiler import PlanCompiler
 
         compiler = PlanCompiler(self)
-        return compiler.compile(skip_cte_optimization=True)
+        return self._remember_execution_queries(
+            compiler.compile(skip_cte_optimization=True)
+        )
+
+    def _remember_execution_queries(
+        self, queries: Dict["PlanQueryType", List["Query"]]
+    ) -> Dict["PlanQueryType", List["Query"]]:
+        """When tracing sql errors is enabled, keeps the most recently compiled queries so that
+        an error of a compiled query can be mapped back to the plan that generated it."""
+        if context._enable_trace_sql_errors_to_dataframe:
+            self._last_execution_queries = queries
+        return queries
 
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", "SnowflakePlan"]]:
@@ -1118,6 +1131,7 @@ class SnowflakePlanBuilder:
         is_distinct: bool = False,
         ilike_pattern: Optional[str] = None,
     ) -> SnowflakePlan:
+
         return self.build(
             lambda x: project_statement(
                 project_list,
@@ -1765,6 +1779,7 @@ class SnowflakePlanBuilder:
         iceberg_config: Optional[dict] = None,
         copy_grants: bool = False,
     ) -> SnowflakePlan:
+
         child = self.find_and_update_table_function_plan(child)
 
         if len(child.queries) != 1:
@@ -2489,6 +2504,18 @@ class QueryLineInterval:
     uuid: str
 
 
+@dataclass
+class CteSegment:
+    """A part of a query compiled with CTE optimization: the definition of a CTE or the main
+    query after the ``WITH`` clause. ``start`` and ``end`` are character offsets in the compiled
+    sql; ``plan`` is the plan that generated the part, and its last query has the line intervals
+    of the part."""
+
+    start: int
+    end: int
+    plan: "SnowflakePlan"
+
+
 class Query:
     def __init__(
         self,
@@ -2499,6 +2526,7 @@ class Query:
         temp_obj_name_placeholder: Optional[Tuple[str, TempObjectType]] = None,
         params: Optional[Sequence[Any]] = None,
         query_line_intervals: Optional[List[QueryLineInterval]] = None,
+        cte_segments: Optional[List[CteSegment]] = None,
     ) -> None:
         self.sql = sql
         self.query_id_place_holder = (
@@ -2519,6 +2547,8 @@ class Query:
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
         self.params = params or []
         self.query_line_intervals = query_line_intervals or []
+        # Set when tracing sql errors is enabled and CTE optimization added a WITH clause.
+        self.cte_segments = cte_segments
 
     def __repr__(self) -> str:
         return (
@@ -2538,6 +2568,7 @@ class Query:
             temp_obj_name_placeholder=self.temp_obj_name_placeholder,
             params=self.params,
             query_line_intervals=self.query_line_intervals,
+            cte_segments=self.cte_segments,
         )
 
     def __eq__(self, other: "Query") -> bool:

@@ -18,6 +18,8 @@ except ImportError:
     pandas = _missing_pandas()
     installed_pandas = False
 
+pandas_major_version = int(pandas.__version__.split(".")[0]) if installed_pandas else 0
+
 
 if IS_V5_DRIVER:
     from snowflake.connector._common.extras import numpy

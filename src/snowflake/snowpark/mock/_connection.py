@@ -37,7 +37,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSessionException
-from snowflake.snowpark.mock._options import pandas
+from snowflake.snowpark.mock._options import pandas, pandas_major_version
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
@@ -657,6 +657,15 @@ class MockServerConnection:
                 ):
                     from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 
+                    # pandas 3 refuses to put JSON strings into a float/bool column.
+                    if pandas_major_version >= 3 and res[col].dtype != object:
+                        null_rows_idxs = res._null_rows_idxs_map.get(col)
+                        sf_type = res.sf_types[col]
+                        res[col] = res[col].astype(object)
+                        res.sf_types[col] = sf_type
+                        if null_rows_idxs is not None:
+                            res._null_rows_idxs_map[col] = null_rows_idxs
+
                     for idx, row in res.iterrows():
                         if row[col] is not None:
                             # Snowflake sorts maps by key before serializing
@@ -820,6 +829,14 @@ class MockServerConnection:
         return DEFAULT_STRING_SIZE
 
 
+def _integers_to_numeric(values: list) -> "pandas.Series":
+    """to_numeric, falling back to float64 beyond int64 / uint64 like pandas 2 and live."""
+    converted = pandas.to_numeric(values, downcast="integer")
+    if pandas_major_version >= 3 and converted.dtype == object:
+        converted = converted.astype("float64")
+    return converted
+
+
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
     pd_df = pandas.DataFrame()
     for col_name in table_res.columns:
@@ -844,14 +861,14 @@ def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
         elif isinstance(col_sf_type.datatype, _IntegralType):
             try:
                 if table_res[col_name].hasnans:
-                    pd_df[pd_df_col_name] = pandas.to_numeric(
-                        table_res[col_name].tolist(), downcast="integer"
+                    pd_df[pd_df_col_name] = _integers_to_numeric(
+                        table_res[col_name].tolist()
                     )
                 else:
                     pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
             except OverflowError:
-                pd_df[pd_df_col_name] = pandas.to_numeric(
-                    table_res[col_name].tolist(), downcast="integer"
+                pd_df[pd_df_col_name] = _integers_to_numeric(
+                    table_res[col_name].tolist()
                 )
         else:
             pd_df[pd_df_col_name] = table_res[col_name].tolist()

@@ -496,10 +496,6 @@ def test_groupBy_functions(session, trace_settings):
         src('g.count().union_all(g.sum("V").select("NAME", "SUM(V)")).select...'),
         FAIL,
     ]
-    if trace_settings.cte:
-        mapped = [
-            src('g.count().union_all(g.sum("V").select("NAME", "SUM(V)")).select...')
-        ]
     if not trace_settings.simplifier:
         mapped = [FAIL]
     assert_debug_output(
@@ -535,10 +531,6 @@ def test_grouped_min_max_avg_median(session, trace_settings):
         ),
         FAIL,
     ]
-    if trace_settings.cte:
-        mapped = [
-            src('g.min("V") .join(g.max("V"), on="NAME") .join(g.avg("V"), on="NAME")')
-        ]
     if not trace_settings.simplifier:
         mapped = [FAIL]
     assert_debug_output(
@@ -931,8 +923,6 @@ def test_union_family(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [src("a.union(b).union_all(b).unionAll(b)"), FAIL]
-    if trace_settings.cte:
-        mapped = [OTHER]
     if not trace_settings.simplifier:
         mapped = [FAIL]
     assert_debug_output(
@@ -958,8 +948,6 @@ def test_union_by_name_family(session, trace_settings):
         src("a.union_by_name(b).unionByName(b).union_all_by_name(b).unionAllByName(b)"),
         FAIL,
     ]
-    if trace_settings.cte:
-        mapped = [OTHER]
     if not trace_settings.simplifier:
         mapped = [FAIL]
     assert_debug_output(
@@ -984,8 +972,6 @@ def test_intersect_except(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [src("a.intersect(b).except_(b).minus(b).subtract(b)"), FAIL]
-    if trace_settings.cte:
-        mapped = [OTHER]
     if not trace_settings.simplifier:
         mapped = [FAIL]
     assert_debug_output(
@@ -1023,8 +1009,6 @@ def test_to_df_then_union_with_self(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [src("a.union_all(a)"), FAIL]
-    if trace_settings.cte:
-        mapped = [OTHER, src('other(session).filter(col("ID") > 0)')]
     if not trace_settings.simplifier:
         mapped = [FAIL]
     assert_debug_output(

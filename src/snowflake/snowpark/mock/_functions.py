@@ -1687,10 +1687,14 @@ def cast_to_datetime(date):
 
 
 def add_years(date, duration):
+    if date is None:
+        return date
     return date.replace(year=date.year + duration)
 
 
 def add_months(scalar, date, duration):
+    if date is None:
+        return date
     res = (
         pandas.to_datetime(date) + pandas.DateOffset(months=scalar * duration)
     ).to_pydatetime()
@@ -1873,7 +1877,7 @@ def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
     elif time_unit == "week":
         truncated = pandas.to_datetime(datetime_expr)
         # Calculate offset from start of week
-        offsets = pandas.to_timedelta(truncated.dt.dayofweek, unit="d")
+        offsets = pandas.to_timedelta(truncated.dt.dayofweek, unit="D")
         # Subtract off offset
         truncated = truncated.combine(offsets, operator.sub)
         # Trim data smaller than a day
@@ -2168,7 +2172,7 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
     result = pdf.T.apply(
         lambda c: None
         if c.isnull().values.any()
-        else c[1:].astype(str).str.cat(sep=c[0])
+        else c.iloc[1:].astype(str).str.cat(sep=c.iloc[0])
     )
     result.sf_type = ColumnType(StringType(), result.hasnans)
     return result

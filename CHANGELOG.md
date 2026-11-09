@@ -15,6 +15,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug where `enable_trace_sql_errors_to_dataframe` of `snowflake.snowpark.context.configure_development_features` (Experimental) reported a wrong Python source position when CTE optimization was enabled.
 - Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
 - Fixed a bug where importing Snowpark failed if the `requests` package was not installed. Event table telemetry now treats `requests` as an optional dependency of the `opentelemetry` extra.
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file in accounts that return structured types in the native Arrow format (for example, with `ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT` set).
@@ -24,6 +25,16 @@
 #### Dependency Updates
 
 - The `[pandas]` install extra now declares `pandas` and `pyarrow` directly instead of coupling them through `snowflake-connector-python[pandas]`. The version bounds are unchanged.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug where a column in local testing lost its name when it was copied or filtered.
+- Fixed a bug where arithmetic on columns with NULL values returned an extra row in local testing when it followed a `filter`.
+- Fixed a bug where `Column.isin` on a datetime column in local testing did not match any value when the subquery it was given also contained NULL or a value that cannot be parsed as a timestamp.
+- Fixed a bug where `dateadd` with the `year`, `quarter` or `month` part raised an error instead of returning NULL for a NULL date in local testing.
+- Fixed a bug where `Session.create_dataframe` raised `OverflowError` in local testing for a pandas DataFrame with a datetime column outside the nanosecond range (for example, year 3000).
 
 ## 1.56.0 (2026-10-29)
 
