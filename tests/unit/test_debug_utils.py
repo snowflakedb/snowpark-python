@@ -829,6 +829,17 @@ def test_get_own_trace_nodes_with_several_children():
     assert _get_own_trace_nodes(plan) == [join]
 
 
+def test_get_own_trace_nodes_keeps_nodes_copied_to_select_sql():
+    # the nodes of a SelectSQL child (e.g. the RESULT_SCAN of a SHOW query) are copied
+    # down from the plan, not inherited from the child
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
+
+    source, op = _trace_node(1), _trace_node(2)
+    select_sql = mock.MagicMock(spec=SelectSQL, df_trace_nodes=[op])
+    plan = _plan([source, op], children=[select_sql])
+    assert _get_own_trace_nodes(plan) == [source, op]
+
+
 def test_get_own_trace_nodes_falls_back_to_all_nodes():
     # a plan that only re-wraps its child has no operation of its own
     nodes = [_trace_node(1), _trace_node(2)]

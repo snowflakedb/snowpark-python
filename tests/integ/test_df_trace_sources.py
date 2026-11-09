@@ -189,9 +189,7 @@ def test_read_csv(session, trace_settings, temp_stage):
     df = fail(session.read.schema(_csv_schema).csv(f"@{temp_stage}/a.csv"))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src('session.read.schema(_csv_schema).csv(f"@{temp_stage}/a.csv")'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -210,14 +208,7 @@ def test_read_json_options(session, trace_settings, temp_stage):
     )
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src(
-            'session.read.option("strip_outer_array", True).schema(_csv_schema) .json...'
-        ),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -234,12 +225,7 @@ def test_read_parquet(session, trace_settings, temp_stage):
     df = fail(session.read.schema(_csv_schema).parquet(f"@{temp_stage}/a.parquet"))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('session.read.schema(_csv_schema).parquet(f"@{temp_stage}/a.parquet")'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -259,14 +245,7 @@ def test_read_format_load_options(session, trace_settings, temp_stage):
     )
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src(
-            'session.read.format("csv") .options({"field_delimiter": ","}) .schema(_csv_schema) .load...'
-        ),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[

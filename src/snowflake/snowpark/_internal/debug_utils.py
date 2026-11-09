@@ -203,12 +203,18 @@ def _get_own_trace_nodes(plan: "SnowflakePlan") -> List[TraceNode]:
     A plan copies the trace nodes of its child plans when it wraps them, so its
     list also holds every upstream operation. The SQL lines of those child plans
     are mapped to the child plans themselves, so their nodes are dropped here.
+    The nodes of a ``SelectSQL`` child are not inherited but copied down from the
+    plan (``SnowflakePlan.add_df_trace_node``), so they are kept.
     If nothing is left (e.g. the plan only re-wraps its child), the full list is
     returned.
     """
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
+
     trace_nodes = plan.df_trace_nodes or []
     inherited_ids = set()
     for child in plan.children_plan_nodes:
+        if isinstance(child, SelectSQL):
+            continue
         for node in getattr(child, "df_trace_nodes", None) or []:
             inherited_ids.add(id(node))
     own_nodes = [node for node in trace_nodes if id(node) not in inherited_ids]

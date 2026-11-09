@@ -100,10 +100,6 @@ def test_diamond(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [FAIL]
-    if trace_settings.cte:
-        # Under CTE optimization the query that fails is the rewritten one, whose lines are not
-        # described by the line intervals of the plan, so all of its operations are reported.
-        mapped = [src('left.join(right, col("ID") == col("ID2"))'), FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -342,13 +338,6 @@ def test_self_join_reused(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [FAIL]
-    if trace_settings.cte:
-        # Under CTE optimization the query that fails is the rewritten one, whose lines are not
-        # described by the line intervals of the plan, so all of its operations are reported.
-        mapped = [
-            src('a.join(a.select(col("ID").alias("I2")), col("ID") == col("I2"))'),
-            FAIL,
-        ]
     assert_debug_output(
         ex,
         trace=[

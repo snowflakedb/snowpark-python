@@ -496,14 +496,7 @@ def test_grouped_min_max_avg_median(session, trace_settings):
     )
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src(
-            'g.min("V") .join(g.max("V"), on="NAME") .join(g.avg("V"), on="NAME") .join(g.mean("V"), on="NAME") .join...'
-        ),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -706,15 +699,6 @@ def test_join_variants(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [FAIL]
-    if trace_settings.cte:
-        # Under CTE optimization the query that fails is the rewritten one, whose lines are not
-        # described by the line intervals of the plan, so all of its operations are reported.
-        mapped = [
-            src(
-                'a.join(b, on="ID", how="right") .join(b, on="ID", how="full") .join...'
-            ),
-            FAIL,
-        ]
     assert_debug_output(
         ex,
         trace=[
@@ -740,15 +724,6 @@ def test_cross_join(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [FAIL]
-    if trace_settings.cte:
-        # Under CTE optimization the query that fails is the rewritten one, whose lines are not
-        # described by the line intervals of the plan, so all of its operations are reported.
-        mapped = [
-            src(
-                'base(session) .cross_join(other(session).select(col("TAG").alias("T2"))) .crossJoin...'
-            ),
-            FAIL,
-        ]
     assert_debug_output(
         ex,
         trace=[
@@ -786,13 +761,6 @@ def test_self_join(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [FAIL]
-    if trace_settings.cte:
-        # Under CTE optimization the query that fails is the rewritten one, whose lines are not
-        # described by the line intervals of the plan, so all of its operations are reported.
-        mapped = [
-            src('a.join(a.select(col("ID").alias("ID2")), col("ID") == col("ID2"))'),
-            FAIL,
-        ]
     assert_debug_output(
         ex,
         trace=[
