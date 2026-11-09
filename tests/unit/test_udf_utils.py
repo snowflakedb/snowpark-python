@@ -5,6 +5,9 @@
 import logging
 import os
 import pickle
+import subprocess
+import sys
+import textwrap
 import threading
 from unittest import mock
 
@@ -13,6 +16,7 @@ import pytest
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.udf_utils import (
     RegistrationType,
+    _UDFPickler,
     add_snowpark_package_to_sproc_packages,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
@@ -54,17 +58,102 @@ def test_cleanup_failed_permanent_registration_exception(
 
 
 def test_pickle_function_exception():
-    with mock.patch("cloudpickle.dumps", side_effect=TypeError("fake error")):
+    with mock.patch.object(_UDFPickler, "dump", side_effect=TypeError("fake error")):
         with pytest.raises(TypeError, match="fake error"):
             pickle_function(lambda: None)
 
-    with mock.patch(
-        "cloudpickle.dumps", side_effect=pickle.PicklingError("fake error")
+    with mock.patch.object(
+        _UDFPickler, "dump", side_effect=pickle.PicklingError("fake error")
     ):
         with pytest.raises(
             pickle.PicklingError, match="fake error.*save the unpicklable object"
         ):
             pickle_function(lambda: None)
+
+
+CACHETOOLS_CACHED_UDF_SOURCE = textwrap.dedent(
+    """
+    import cachetools
+
+    @cachetools.cached(cache={})
+    def read_file(filename):
+        return "snowpark:" + filename
+
+    @cachetools.cached(cache={}, info=True)
+    def with_info(x):
+        return x * 2
+
+    def concat(s):
+        return read_file("t") + "-" + s
+
+    lam = lambda s: read_file("t") + "-" + s
+    """
+)
+
+
+@pytest.mark.parametrize(
+    "name, arg, expected",
+    [
+        ("read_file", "s", "snowpark:s"),
+        ("concat", "s", "snowpark:t-s"),
+        ("lam", "s", "snowpark:t-s"),
+        ("with_info", 3, 6),
+    ],
+)
+def test_pickle_function_cachetools_cached_loads_without_definition(
+    tmp_path, name, arg, expected
+):
+    pytest.importorskip("cachetools", minversion="8")
+    # __main__ makes cloudpickle serialize the UDF by value, as a notebook or script does.
+    namespace = {"__name__": "__main__"}
+    exec(CACHETOOLS_CACHED_UDF_SOURCE, namespace)
+    payload_path = tmp_path / "udf.pkl"
+    payload_path.write_bytes(pickle_function(namespace[name]))
+
+    # A fresh interpreter has neither the function nor snowpark, like the server.
+    # ``sys.modules['snowflake'] = None`` fails the load if the rebuilder is a
+    # snowpark module global instead of a nested function pickled by value.
+    code = (
+        "import sys; sys.modules['snowflake'] = None; "
+        "import cloudpickle; "
+        f"fn = cloudpickle.loads(open({str(payload_path)!r}, 'rb').read()); "
+        f"out = fn({arg!r}); "
+        "info = getattr(fn, 'cache_info', None); "
+        "misses = '' if info is None else info().misses; "
+        "print(f'{out}|{misses}')"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    misses = "1" if name == "with_info" else ""
+    assert result.stdout.strip() == f"{expected}|{misses}"
+
+
+def test_pickle_function_cachetools_cached_with_lock_raises():
+    cachetools = pytest.importorskip("cachetools", minversion="8")
+    locked = cachetools.cached({}, lock=threading.RLock())(lambda x: x)
+    with pytest.raises(TypeError, match="lock or condition"):
+        pickle_function(locked)
+
+
+def test_pickle_function_cachetools_cached_importable_is_pickled_by_reference(
+    tmp_path, monkeypatch
+):
+    pytest.importorskip("cachetools", minversion="8")
+    (tmp_path / "ct_helper_mod.py").write_text(
+        "import threading\n"
+        "import cachetools\n"
+        "\n"
+        "@cachetools.cached(cache={}, lock=threading.RLock())\n"
+        "def helper(x):\n"
+        "    return x\n"
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.delitem(sys.modules, "ct_helper_mod", raising=False)
+    import ct_helper_mod
+
+    payload = pickle_function(ct_helper_mod.helper)
+    assert pickle.loads(payload) is ct_helper_mod.helper
 
 
 def test_generate_python_code_exception():

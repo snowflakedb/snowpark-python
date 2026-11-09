@@ -20,6 +20,7 @@
 - Fixed a bug where importing Snowpark failed if the `requests` package was not installed. Event table telemetry now treats `requests` as an optional dependency of the `opentelemetry` extra.
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file in accounts that return structured types in the native Arrow format (for example, with `ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT` set).
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file, instead of falling back to the next model, when `AI_COMPLETE` reported the first model as unavailable (`Model "<name>" is unavailable`).
+- Fixed a bug where a UDF or stored procedure that calls a `cachetools.cached` function (cachetools 8.0.0 or later) defined in a notebook or script failed to register or failed to run. `cachetools` must still be added to the packages, and cached functions that use a lock or condition (including `cachetools.func` decorators) are still not supported.
 
 #### Dependency Updates
 
