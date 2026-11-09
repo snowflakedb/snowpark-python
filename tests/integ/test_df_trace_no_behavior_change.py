@@ -164,12 +164,15 @@ def _run(session, name, table, queries_without_comments):
 
 
 @pytest.mark.parametrize("name", list(PIPELINES))
+@pytest.mark.parametrize("cte", [True, False], ids=["cte", "nocte"])
 @pytest.mark.parametrize(
     "simplifier", [True, False], ids=["simplifier", "nosimplifier"]
 )
-def test_results_schema_and_sql_unchanged(session, table, name, simplifier):
+def test_results_schema_and_sql_unchanged(session, table, name, simplifier, cte):
     old = session.sql_simplifier_enabled
+    old_cte = session.cte_optimization_enabled
     session.sql_simplifier_enabled = simplifier
+    session.cte_optimization_enabled = cte
     try:
         context.configure_development_features()
         before = _run(session, name, table, queries_without_comments=False)
@@ -193,6 +196,7 @@ def test_results_schema_and_sql_unchanged(session, table, name, simplifier):
     finally:
         context.configure_development_features()
         session.sql_simplifier_enabled = old
+        session.cte_optimization_enabled = old_cte
 
 
 def test_session_and_process_state_is_restored(session):
