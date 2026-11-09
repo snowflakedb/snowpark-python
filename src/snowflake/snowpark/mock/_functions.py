@@ -1777,11 +1777,13 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
         res = pandas.to_datetime(datetime_expr).dt.isocalendar().week
     elif unaliased == "yearofweekiso":
         res = pandas.to_datetime(datetime_expr).dt.isocalendar().year
-    elif unaliased in {"quarter", "dayofyear"}:
-        res = getattr(pandas.to_datetime(datetime_expr).dt, unaliased, None)
+    elif unaliased == "quarter":
+        res = pandas.to_datetime(datetime_expr).dt.quarter
+    elif unaliased == "dayofyear":
+        res = pandas.to_datetime(datetime_expr).dt.day_of_year
     elif unaliased in {"dayofweek", "dayofweekiso"}:
         # Pandas has Monday as 0 while Snowflake uses Sunday as 0
-        res = (pandas.to_datetime(datetime_expr).dt.dayofweek + 1) % 7
+        res = (pandas.to_datetime(datetime_expr).dt.day_of_week + 1) % 7
     elif unaliased == "nanosecond" and isinstance(datatype, TimestampType):
         res = datetime_expr.apply(lambda x: None if x is None else x.microsecond * 1000)
     elif unaliased in {
@@ -1877,7 +1879,7 @@ def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
     elif time_unit == "week":
         truncated = pandas.to_datetime(datetime_expr)
         # Calculate offset from start of week
-        offsets = pandas.to_timedelta(truncated.dt.dayofweek, unit="D")
+        offsets = pandas.to_timedelta(truncated.dt.day_of_week, unit="D")
         # Subtract off offset
         truncated = truncated.combine(offsets, operator.sub)
         # Trim data smaller than a day
