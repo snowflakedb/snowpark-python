@@ -610,16 +610,15 @@ def _main_query_after_large_local_data_pre_actions(session):
 
 def _large_query_breakdown_partition(session):
     # The invalid column is deep in the plan, so it fails in a partition query that
-    # runs before the last query and is not owned by a node of the original plan: the
-    # DataFrame being executed is reported.
+    # runs before the last query. The partition is not owned by a node of the original
+    # plan, so no source location is reported rather than a wrong one.
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     df = df.filter(col("no_such_col") > 0)
     for i in range(12):
         df = df.with_column("a", col("a") + lit(i)).filter(col("a") > i)
-        last_line = Utils.get_current_line_number_sys() + 1
         df = df.union_all(df.select("a", "b"))
     assert len(df._plan.execution_queries[PlanQueryType.QUERIES]) > 1
-    return df, [last_line], []
+    return df, None, []
 
 
 @pytest.mark.parametrize(
@@ -635,6 +634,8 @@ def _large_query_breakdown_partition(session):
         (
             _large_query_breakdown_partition,
             {
+                # with CTE optimization the plan is compiled into one query instead
+                "cte_optimization_enabled": False,
                 "large_query_breakdown_enabled": True,
                 "_large_query_breakdown_complexity_bounds": (300, 600),
             },
@@ -662,6 +663,9 @@ def test_sql_error_in_query_before_or_after_pre_actions(
         for name, value in original_settings.items():
             setattr(session, name, value)
     debug_context = str(ex.value.debug_context)
+    if expected_lines is None:
+        assert "SQL compilation error corresponds to Python source" not in debug_context
+        return
     assert "SQL compilation error corresponds to Python source" in debug_context
     for line in expected_lines:
         assert f"line {line}" in debug_context
