@@ -4,6 +4,7 @@
 
 import os
 import tempfile
+import types
 from unittest import mock
 
 import pytest
@@ -17,6 +18,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.df_trace import SrcPosition, TraceNode
+from snowflake.snowpark._internal.utils import get_plan_from_pre_query_line_number
 from snowflake.snowpark._internal.debug_utils import (
     DataFrameTraceNode,
     QueryProfiler,
@@ -718,7 +720,7 @@ def test_resolve_error_line_fills_in_placeholders():
 
 def test_resolve_error_line_skips_unknown_rewritten_sql():
     plan = _plan_with_query("SELECT 1\nFROM t", [QueryLineInterval(0, 1, "top")])
-    # e.g. a query of large query breakdown, or a pre-action: never map it with these intervals
+    # e.g. a query of large query breakdown: never map it with these intervals
     assert _resolve_error_line(plan, 1, 0, "CREATE TEMP TABLE x AS SELECT 1") is None
     plan._last_execution_queries = {
         PlanQueryType.QUERIES: [Query("CREATE TEMP TABLE x AS SELECT 1")]
@@ -798,3 +800,76 @@ def test_python_source_from_sql_error_is_absent_for_unknown_sql():
         "SQL compilation error: error line 2 at position 0\ninvalid identifier 'X'"
     )
     assert get_python_source_from_sql_error(plan, message, "SELECT 2\nFROM u") == ""
+
+
+def test_resolve_error_line_maps_a_query_before_the_last_through_its_own_intervals():
+    # e.g. session.sql(<non-select>): the statement runs before the RESULT_SCAN query
+    owner = _plan_with_query("SELECT 1", [QueryLineInterval(0, 0, "owner")], "owner")
+    top = _plan_with_query("SELECT *\nFROM x", [QueryLineInterval(0, 1, "top")])
+    top.children_plan_nodes = [owner]
+    pre_action_sql = "CREATE TEMP TABLE t AS\nSELECT\nbad"
+    pre_action = Query(
+        pre_action_sql, query_line_intervals=[QueryLineInterval(0, 2, "owner")]
+    )
+    last = Query("SELECT *\nFROM x")
+    top._last_execution_queries = {PlanQueryType.QUERIES: [pre_action, last]}
+    # line 2 only exists in the pre-action
+    assert _resolve_error_line(top, 2, 0, pre_action_sql) == (owner, None)
+    # the owner of the line is not part of the plan (e.g. large query breakdown)
+    pre_action.query_line_intervals = [QueryLineInterval(0, 2, "not_in_plan")]
+    assert _resolve_error_line(top, 2, 0, pre_action_sql) is None
+    # the last compiled query is never mapped through its own intervals
+    top._last_execution_queries = {PlanQueryType.QUERIES: [last, pre_action]}
+    assert _resolve_error_line(top, 2, 0, pre_action_sql) is None
+
+
+def _plan_node(uuid, children=(), df_trace_nodes=None, wrapped_plan=None):
+    # Strings stand in for the df trace nodes.
+    return types.SimpleNamespace(
+        uuid=uuid,
+        children_plan_nodes=list(children),
+        df_trace_nodes=df_trace_nodes,
+        _snowflake_plan=wrapped_plan,
+    )
+
+
+def _pre_query(*intervals):
+    query = Query("pre-action")
+    query.query_line_intervals = [QueryLineInterval(*i) for i in intervals]
+    return query
+
+
+@pytest.mark.parametrize(
+    "line_number, owner_uuid, expected_uuid, expected_trace_nodes",
+    [
+        # owned by the top-level plan itself
+        (0, "top", "top", ["sql", "filter"]),
+        # owned by a node several levels down that has its own trace nodes
+        (0, "leaf", "leaf", ["leaf"]),
+        # owned by a node without trace nodes: inherits the closest ancestor's
+        (0, "middle_no_nodes", "middle_no_nodes", ["sql", "filter"]),
+        # owned by the snowflake plan wrapped by a selectable (large local relation)
+        (0, "wrapped", "wrapper", ["sql", "filter"]),
+        # owner not in the tree (e.g. a large query breakdown partition)
+        (0, "not_in_tree", None, None),
+        # line not in the query's intervals
+        (5, "top", None, None),
+    ],
+)
+def test_get_plan_from_pre_query_line_number(
+    line_number, owner_uuid, expected_uuid, expected_trace_nodes
+):
+    leaf = _plan_node("leaf", df_trace_nodes=["leaf"])
+    middle_no_nodes = _plan_node("middle_no_nodes", children=[leaf])
+    wrapper = _plan_node("wrapper", wrapped_plan=_plan_node("wrapped"))
+    top = _plan_node(
+        "top", children=[middle_no_nodes, wrapper], df_trace_nodes=["sql", "filter"]
+    )
+    result = get_plan_from_pre_query_line_number(
+        top, _pre_query((0, 3, owner_uuid)), line_number
+    )
+    if expected_uuid is None:
+        assert result is None
+    else:
+        assert result.uuid == expected_uuid
+        assert result.df_trace_nodes == expected_trace_nodes
