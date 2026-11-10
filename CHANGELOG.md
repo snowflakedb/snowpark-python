@@ -7,6 +7,17 @@
 #### New Features
 
 - Added `Session.semantic_view()` (PuPr) to query a semantic view. Pass the semantic view name plus any of `dimensions`, `metrics`, `facts`, and `where`; it returns a `DataFrame`.
+- Added support for the following functions in `functions.py`:
+  - `try_to_boolean`
+  - `try_to_date`
+  - `try_to_decfloat`
+  - `try_to_decimal` (with aliases `try_to_number` and `try_to_numeric`)
+  - `try_to_double`
+  - `try_to_time`
+  - `try_to_timestamp`
+  - `try_to_timestamp_ltz`
+  - `try_to_timestamp_ntz`
+  - `try_to_timestamp_tz`
 
 #### Improvements
 

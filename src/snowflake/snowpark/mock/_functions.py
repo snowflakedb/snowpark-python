@@ -892,7 +892,7 @@ def mock_to_time(
                 )
         except BaseException as exc:
             if try_cast:
-                data.append(None)
+                res.append(None)
             else:
                 SnowparkLocalTestingException.raise_from_error(exc)
 
@@ -1349,6 +1349,10 @@ def mock_to_double(
         column.sf_type.datatype, (_NumericType, StringType, VariantType, NullType)
     ):
         res = column.apply(lambda x: try_convert(float, try_cast, x))
+        if try_cast:
+            # keep failed conversions as NULL (None) rather than NaN
+            failed = column.apply(lambda x: try_convert(float, True, x) is None)
+            res = res.astype(object).where(~failed, None)
         res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable or res.hasnans)
         return res
     else:
@@ -1461,6 +1465,85 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
         raise SnowparkLocalTestingException(
             f"Invalid type {column.sf_type.datatype} for parameter 'TO_BOOLEAN'"
         )
+
+
+@patch("try_to_boolean")
+def mock_try_to_boolean(column: ColumnEmulator) -> ColumnEmulator:
+    return mock_to_boolean(column, try_cast=True)
+
+
+@patch("try_to_date")
+def mock_try_to_date(column: ColumnEmulator, fmt: Optional[str] = None):
+    return mock_to_date(column, fmt, try_cast=True)
+
+
+@patch("try_to_time")
+def mock_try_to_time(column: ColumnEmulator, fmt: Optional[str] = None):
+    return mock_to_time(column, fmt, try_cast=True)
+
+
+@patch("try_to_timestamp")
+def mock_try_to_timestamp(column: ColumnEmulator, fmt: Optional[ColumnEmulator] = None):
+    return mock_to_timestamp(column, fmt, try_cast=True)
+
+
+@patch("try_to_timestamp_ntz")
+def mock_try_to_timestamp_ntz(
+    column: ColumnEmulator, fmt: Optional[ColumnEmulator] = None
+):
+    return mock_to_timestamp_ntz(column, fmt, try_cast=True)
+
+
+@patch("try_to_timestamp_ltz")
+def mock_try_to_timestamp_ltz(
+    column: ColumnEmulator, fmt: Optional[ColumnEmulator] = None
+):
+    return mock_to_timestamp_ltz(column, fmt, try_cast=True)
+
+
+@patch("try_to_timestamp_tz")
+def mock_try_to_timestamp_tz(
+    column: ColumnEmulator, fmt: Optional[ColumnEmulator] = None
+):
+    return mock_to_timestamp_tz(column, fmt, try_cast=True)
+
+
+@patch("try_to_double")
+def mock_try_to_double(
+    column: ColumnEmulator, fmt: Optional[str] = None
+) -> ColumnEmulator:
+    return mock_to_double(column, fmt, try_cast=True)
+
+
+@patch("try_to_decfloat")
+def mock_try_to_decfloat(
+    column: ColumnEmulator, fmt: Optional[str] = None
+) -> ColumnEmulator:
+    return mock_to_decfloat(column, fmt, try_cast=True)
+
+
+@patch("try_to_decimal")
+def mock_try_to_decimal(
+    e: ColumnEmulator,
+    arg2: Optional[Any] = None,
+    arg3: Optional[Any] = None,
+    arg4: Optional[Any] = None,
+):
+    # SQL argument order is (e [, fmt] [, precision [, scale]]).
+    if isinstance(arg2, str):
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="Using format strings in TRY_TO_DECIMAL",
+            internal_feature_name="mock_try_to_decimal",
+            parameters_info={"fmt": str(arg2)},
+            raise_error=NotImplementedError,
+        )
+    precision, scale = (arg3, arg4) if isinstance(arg2, str) else (arg2, arg3)
+    return mock_to_decimal(
+        e,
+        38 if precision is None else precision,
+        0 if scale is None else scale,
+        try_cast=True,
+    )
 
 
 @patch("to_binary")
