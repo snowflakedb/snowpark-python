@@ -6,7 +6,6 @@
 from snowflake.snowpark.context import get_active_session
 import snowflake.snowpark.context as context
 import snowflake.snowpark.session as session
-from snowflake.snowpark._internal import debug_config
 from unittest import mock
 
 
@@ -23,7 +22,9 @@ def test_context_configure_development_features():
             )
             assert context._enable_trace_sql_errors_to_dataframe is True
             assert context._enable_dataframe_trace_on_error is False
-            assert not debug_config._defaults.get("eager_schema_validation", False)
+            assert not context._development_feature_settings.get(
+                "eager_schema_validation", False
+            )
 
         # Test when _get_active_sessions() returns a valid session
         mock_session1 = mock.MagicMock()

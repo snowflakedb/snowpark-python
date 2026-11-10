@@ -8,14 +8,14 @@ from unittest import mock
 import pytest
 
 import snowflake.snowpark.context as context
-from snowflake.snowpark._internal import debug_config
 from snowflake.snowpark._internal.debug_config import DebugConfig
+from snowflake.snowpark import session as session_module
 from snowflake.snowpark.session import Session
 
 # The setting of each feature for the sessions created next: a session feature or a flag of the
 # context module.
 FLAGS = {
-    "enable_eager_schema_validation": lambda: debug_config._defaults.get(
+    "enable_eager_schema_validation": lambda: context._development_feature_settings.get(
         "eager_schema_validation", False
     ),
     "enable_dataframe_trace_on_error": lambda: context._enable_dataframe_trace_on_error,
@@ -213,7 +213,13 @@ def test_eager_schema_validation_is_set_in_every_session(sessions):
     context.configure_development_features(enable_eager_schema_validation=True)
     assert first._debug.eager_schema_validation is True
     assert second._debug.eager_schema_validation is True
-    assert make_session()._debug.eager_schema_validation is True
+    # a session created later gets it when it is added to the active sessions
+    later = make_session()
+    session_module._add_session(later)
+    try:
+        assert later._debug.eager_schema_validation is True
+    finally:
+        session_module._remove_session(later)
     # one session can still turn it off for itself
     first._debug.disable_eager_schema_validation()
     assert first._debug.eager_schema_validation is False

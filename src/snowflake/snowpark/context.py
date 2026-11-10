@@ -247,13 +247,11 @@ def configure_development_features(
 
     if eager_schema_validation is not None:
         from snowflake.snowpark import session as session_module
-        from snowflake.snowpark._internal import debug_config
 
         values = {"eager_schema_validation": eager_schema_validation}
         # Set in every active session and for the sessions created later.
         with session_module._session_management_lock:
-            with debug_config._lock:
-                debug_config._defaults.update(values)
+            _development_feature_settings.update(values)
             # _get_active_sessions returns the live set, iterate a copy.
             for active in list(
                 session_module._get_active_sessions(require_at_least_one=False)
