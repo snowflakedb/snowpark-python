@@ -209,7 +209,11 @@ def test_configure_development_features_does_not_use_the_ast():
     source = inspect.getsource(context.configure_development_features)
     assert (
         "ast"
-        not in source.replace("last", "").replace("fast", "").lower().split('"""')[-1]
+        not in source.replace("last", "")
+        .replace("fast", "")
+        .replace("least", "")
+        .lower()
+        .split('"""')[-1]
     )
 
 
