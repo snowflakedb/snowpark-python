@@ -199,7 +199,8 @@ def configure_development_features(
     Configure development features for every session.
 
     The features are applied to every active session and to the sessions created later. To
-    configure one session, use ``session.debug.enable(...)`` and ``session.debug.disable(...)``
+    configure one session, use ``session.debug.set(...)`` or ``session.debug.enable_<feature>()`` /
+    ``session.debug.disable_<feature>()``
     (see :attr:`Session.debug`).
 
     Only the features passed explicitly are changed; features that are not passed keep their

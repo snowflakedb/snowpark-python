@@ -244,7 +244,7 @@ def _tracing_session():
     """A session with the lineage trace on, so the public API wrapper records the trace."""
     session = type("Session", (), {"_conn": None})()
     session._debug = DebugConfig(session)
-    session._debug.enable(dataframe_trace_on_error=True)
+    session._debug.enable_dataframe_trace_on_error()
     try:
         yield session
     finally:
@@ -467,9 +467,9 @@ def test_tracing_flags_on_counts_the_tracing_sessions():
     assert tracing_flags_on() is False
     with _tracing_session() as session:
         assert tracing_flags_on() is True
-        session._debug.disable(dataframe_trace_on_error=True)
+        session._debug.disable_dataframe_trace_on_error()
         assert tracing_flags_on() is False
-        session._debug.enable(trace_sql_errors_to_dataframe=True)
+        session._debug.enable_trace_sql_errors_to_dataframe()
         assert tracing_flags_on() is True
     # a closed session is released
     assert tracing_flags_on() is False

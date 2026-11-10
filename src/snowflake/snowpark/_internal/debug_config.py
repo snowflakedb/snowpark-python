@@ -111,6 +111,20 @@ class DebugConfig:
         """Turns off the SQL error tracing of this session."""
         self._apply({"trace_sql_errors_to_dataframe": False})
 
+    @property
+    def dataframe_trace_on_error(self) -> bool:
+        """Whether the errors of a dataframe show its most recent dataframe operations."""
+        return self._get("dataframe_trace_on_error")
+
+    def enable_dataframe_trace_on_error(self) -> None:
+        """Adds the most recent dataframe operations of a failed dataframe of this session to the
+        error."""
+        self._apply({"dataframe_trace_on_error": True})
+
+    def disable_dataframe_trace_on_error(self) -> None:
+        """Turns off the dataframe trace on error of this session."""
+        self._apply({"dataframe_trace_on_error": False})
+
     def _get(self, name: str) -> bool:
         with _lock:
             return self._enabled.get(name, False)

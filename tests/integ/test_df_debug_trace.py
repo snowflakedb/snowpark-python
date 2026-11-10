@@ -370,7 +370,7 @@ def test_lineage_trace_is_per_session(session, db_parameters):
 
     with Session.builder.configs(db_parameters).create() as other:
         other.sql_simplifier_enabled = session.sql_simplifier_enabled
-        other.debug.disable(dataframe_trace_on_error=True)
+        other.debug.disable_dataframe_trace_on_error()
         assert session.debug.dataframe_trace_on_error is True
         with pytest.raises(SnowparkSQLException) as ex_on:
             failing(session).collect()

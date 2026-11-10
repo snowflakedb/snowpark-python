@@ -260,3 +260,15 @@ def test_trace_sql_errors_methods_update_the_tracing_count():
     session._debug.disable_trace_sql_errors_to_dataframe()
     assert session._debug.trace_sql_errors_to_dataframe is False
     assert debug_config._tracing_sessions == before
+
+
+def test_dataframe_trace_on_error_methods_change_only_that_feature():
+    session = make_session()
+    debug = session._debug
+    debug.enable_dataframe_trace_on_error()
+    assert debug.dataframe_trace_on_error is True
+    assert {name for name, on in debug._enabled.items() if on} == {
+        "dataframe_trace_on_error"
+    }
+    debug.disable_dataframe_trace_on_error()
+    assert debug.dataframe_trace_on_error is False

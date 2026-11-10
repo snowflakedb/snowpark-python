@@ -1124,7 +1124,7 @@ def test_session_enable_development_features(db_parameters):
         assert new_session.ast_enabled is ast_enabled
 
     with Session.builder.configs(db_parameters).create() as new_session:
-        new_session.debug.enable(dataframe_trace_on_error=True)
+        new_session.debug.enable_dataframe_trace_on_error()
         assert new_session.ast_enabled is ast_enabled
 
 
