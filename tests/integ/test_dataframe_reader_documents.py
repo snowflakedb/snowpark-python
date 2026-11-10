@@ -3,6 +3,9 @@
 #
 
 import json
+import os
+import shutil
+import tempfile
 
 import pytest
 
@@ -11,7 +14,6 @@ from snowflake.snowpark._internal.document_reader import (
     merge_extract_error,
 )
 from snowflake.snowpark._internal.document_reader_options import ExtractionSpec
-from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.functions import col, try_parse_json
 from snowflake.snowpark.types import BooleanType, DoubleType, StringType, VariantType
 from tests.utils import TestFiles, Utils
@@ -59,6 +61,9 @@ ARRAY_FIELD_SCHEMA = {
 # normalized into a string-typed JSON Schema so it can be sent to AI_COMPLETE at all
 # (private preview only ever calls AI_COMPLETE -- see from_response_format).
 FLAT_NL_SCHEMA = {"invoice_number": "What is the invoice number?"}
+
+
+PARSE_COLUMNS = ["SOURCE_FILE", "TOTAL_PAGES", "CONTENT", "PAGES", "_document_error"]
 
 
 def _unquoted(df) -> list:
@@ -109,12 +114,7 @@ def invoice_path(doc_stage):
 def test_documents_default_options(session, invoice_path):
     df = session.read.documents(invoice_path)
 
-    assert _unquoted(df) == [
-        "SOURCE_FILE",
-        "TOTAL_PAGES",
-        "CONTENT",
-        "_document_error",
-    ]
+    assert _unquoted(df) == PARSE_COLUMNS
 
     rows = df.collect()
     assert len(rows) == 1
@@ -122,6 +122,9 @@ def test_documents_default_options(session, invoice_path):
     assert rows[0]["TOTAL_PAGES"] == 1
     assert rows[0]["CONTENT"]
     assert rows[0]["_document_error"] is None
+    pages = json.loads(rows[0]["PAGES"])
+    assert [page["index"] for page in pages] == [0]
+    assert pages[0]["content"] == rows[0]["CONTENT"]
 
 
 @pytest.mark.parametrize("stage_kind", ["user", "quoted"])
@@ -159,6 +162,33 @@ def test_multiple_files_produce_one_row_each(session, doc_stage):
     assert len(rows) == 2
     assert all(row["CONTENT"] for row in rows)
     assert {row["TOTAL_PAGES"] for row in rows} == {1, DOC_PAGE_COUNT}
+    for row in rows:
+        # One PAGES entry per page, in page order, and CONTENT is their text joined.
+        pages = json.loads(row["PAGES"])
+        assert [page["index"] for page in pages] == list(range(row["TOTAL_PAGES"]))
+        assert row["CONTENT"] == "\n\n".join(page["content"] for page in pages)
+
+
+def test_files_that_cannot_be_split_into_pages_have_no_pages(session, resources_path):
+    # AI_PARSE_DOCUMENT splits only PDF, PPTX and DOCX files into pages; an image is
+    # parsed whole, in the same read as an upper-case .PDF that is split.
+    upper_pdf = os.path.join(tempfile.mkdtemp(), "INVOICE.PDF")
+    shutil.copy(TestFiles(resources_path).test_invoice_pdf, upper_pdf)
+    stage_name = _stage_with(session, {"": TestFiles(resources_path).test_dog_image})
+    session.file.put(upper_pdf, f"@{stage_name}", auto_compress=False)
+    try:
+        rows = {
+            json.loads(row["SOURCE_FILE"])["RELATIVE_PATH"]: row
+            for row in session.read.documents(f"@{stage_name}").collect()
+        }
+        assert set(rows) == {"dog.jpg", "INVOICE.PDF"}
+        assert rows["dog.jpg"]["_document_error"] is None
+        assert rows["dog.jpg"]["PAGES"] is None
+        assert rows["dog.jpg"]["CONTENT"] is not None
+        assert rows["INVOICE.PDF"]["_document_error"] is None
+        assert len(json.loads(rows["INVOICE.PDF"]["PAGES"])) == 1
+    finally:
+        Utils.drop_stage(session, stage_name)
 
 
 # ---------------------------------------------------------------------------
@@ -282,6 +312,7 @@ def test_permissive_captures_a_parse_error_without_aborting(session, unsupported
     rows = session.read.documents(f"@{unsupported_stage}").collect()
 
     assert len(rows) == 1
+    assert rows[0]["CONTENT"] is None and rows[0]["PAGES"] is None
     # _document_error is an array, one entry per phase that failed -- not a single
     # struct -- so that a row failing in both Parse and Extract doesn't lose one.
     errors = json.loads(rows[0]["_document_error"])
@@ -570,25 +601,14 @@ def test_extract_type_mismatch_is_surfaced_not_silently_dropped(session):
 @pytest.mark.parametrize(
     "key,value",
     [
-        pytest.param("parse_mode", "bogus", id="parse_mode"),
-        pytest.param("row_boundary", "chapter", id="row_boundary"),
-    ],
-)
-def test_invalid_parse_option_raises_before_any_query(
-    session, invoice_path, key, value
-):
-    with pytest.raises(SnowparkDataframeReaderException) as exc_info:
-        session.read.option(key, value).documents(invoice_path)
-    assert exc_info.value.error_code == "1116"
-
-
-@pytest.mark.parametrize(
-    "key,value",
-    [
         pytest.param("mode", "FAILFAST", id="mode"),
         pytest.param("extraction_engine", "ai_extract", id="extraction_engine"),
         pytest.param("model", "claude-sonnet-4-5", id="model"),
         pytest.param("bogus_option", "anything", id="unknown_option"),
+        # Options of the first private preview release, now ignored with a warning.
+        pytest.param("parse_mode", "ocr", id="parse_mode"),
+        pytest.param("row_boundary", "page", id="row_boundary"),
+        pytest.param("extract_images", True, id="extract_images"),
     ],
 )
 def test_options_chosen_by_the_reader_are_ignored(session, invoice_path, key, value):
@@ -598,37 +618,6 @@ def test_options_chosen_by_the_reader_are_ignored(session, invoice_path, key, va
     assert columns == session.read.documents(invoice_path).columns
 
 
-def test_extract_images_adds_an_images_column(session, invoice_path):
-    df = session.read.option("extract_images", True).documents(invoice_path)
-    assert _unquoted(df) == [
-        "SOURCE_FILE",
-        "TOTAL_PAGES",
-        "CONTENT",
-        "IMAGES",
-        "_document_error",
-    ]
-    rows = df.collect()
-    assert len(rows) == 1
-    assert rows[0]["_document_error"] is None
-
-
-def test_extract_images_with_page_rows(session, invoice_path):
-    df = (
-        session.read.option("extract_images", True)
-        .option("row_boundary", "page")
-        .documents(invoice_path)
-    )
-    assert "IMAGES" in _unquoted(df) and "PAGE_INDEX" in _unquoted(df)
-    assert df.collect()[0]["_document_error"] is None
-
-
-def test_extract_images_needs_layout_mode(session, invoice_path):
-    with pytest.raises(SnowparkDataframeReaderException, match="layout"):
-        session.read.option("extract_images", True).option(
-            "parse_mode", "ocr"
-        ).documents(invoice_path)
-
-
 def test_non_stage_path_raises(session):
     with pytest.raises(ValueError, match="invalid Snowflake stage location"):
         session.read.documents("/local/path/doc.pdf")
@@ -636,9 +625,4 @@ def test_non_stage_path_raises(session):
 
 def test_private_documents_alias_still_works(session, invoice_path):
     df = session.read._documents(invoice_path)
-    assert _unquoted(df) == [
-        "SOURCE_FILE",
-        "TOTAL_PAGES",
-        "CONTENT",
-        "_document_error",
-    ]
+    assert _unquoted(df) == PARSE_COLUMNS

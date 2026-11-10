@@ -2,12 +2,14 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import logging
+
 import pytest
 
+from snowflake.snowpark._internal import utils
 from snowflake.snowpark._internal.document_reader_options import (
     _DEFAULT_CORRUPT_RECORD_COLUMN,
     _PARSE_MODES,
-    _USER_PARSE_MODES,
     DocumentReaderOptions,
     ExtractionSpec,
 )
@@ -77,9 +79,6 @@ class TestDefaults:
     def test_empty_options(self):
         options = _build({})
         assert options.parse_mode == "layout"
-        assert options.row_boundary == "document"
-        assert options.extract_images is False
-        assert options.page_filter is None
         assert options.mode == "PERMISSIVE"
         assert options.corrupt_record_column == _DEFAULT_CORRUPT_RECORD_COLUMN
         assert options.extraction_engine == "ai_complete"
@@ -97,7 +96,6 @@ class TestDefaults:
         assert options.parse_enabled is True
         assert options.extract_enabled is False
         assert options.complete_enabled is False
-        assert options.page_rows is False
 
     def test_custom_corrupt_record_column_case_is_preserved(self):
         # columnNameOfCorruptRecord is no longer settable through from_reader_options
@@ -108,17 +106,24 @@ class TestDefaults:
         options = _build_direct(corrupt_record_column="myErrorCol")
         assert options.corrupt_record_column == "myErrorCol"
 
-    def test_page_filter_passes_through(self):
-        page_filter = [{"start": 0, "end": 2}]
-        options = _build_direct(page_filter=page_filter)
-        assert options.page_filter == page_filter
-
 
 # ---------------------------------------------------------------------------
-# User options -- from_reader_options reads SCHEMA, PROMPT, PARSE_MODE and
-# ROW_BOUNDARY (keys arrive upper-cased via .option()); every other key, such as
-# MODEL, MODE or EXTRACTION_ENGINE, is chosen by the reader and ignored.
+# User options -- from_reader_options reads SCHEMA and PROMPT (keys arrive
+# upper-cased via .option()); every other key, such as MODEL, MODE or
+# EXTRACTION_ENGINE, is chosen by the reader and ignored. PARSE_MODE, ROW_BOUNDARY
+# and EXTRACT_IMAGES, options of the first private preview release, are ignored with
+# a warning.
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fresh_warnings():
+    # utils.warning() logs each name once per process; forget the removed-option
+    # warnings so every test sees its own.
+    for key in list(utils.warning_dict):
+        if key.startswith("DataFrameReader.documents."):
+            del utils.warning_dict[key]
+    yield
 
 
 class TestUserOptions:
@@ -138,91 +143,74 @@ class TestUserOptions:
         defaults = DocumentReaderOptions()
         assert options.mode == defaults.mode == "PERMISSIVE"
         assert options.extraction_engine == defaults.extraction_engine
-        assert options.extract_images is False
-        assert options.page_filter is None
+        assert options.parse_mode == "layout"
         assert options.corrupt_record_column == defaults.corrupt_record_column
 
-    @pytest.mark.parametrize("value", ["layout", "ocr", "text", "OCR", "Text"])
-    def test_parse_mode_is_accepted_case_insensitively(self, value):
-        assert _build({"PARSE_MODE": value}).parse_mode == value.lower()
 
-    @pytest.mark.parametrize("value", ["page", "PAGE", "document"])
-    def test_row_boundary_is_accepted_case_insensitively(self, value):
-        assert _build({"ROW_BOUNDARY": value}).row_boundary == value.lower()
-
-    def test_page_rows_follow_from_row_boundary(self):
-        assert _build({"ROW_BOUNDARY": "page"}).page_rows is True
-
-    def test_parse_mode_none_is_not_a_user_choice(self):
-        error = _expect_error("1116", {"PARSE_MODE": "none"})
-        assert "parse_mode" in error.message
-
-    def test_user_parse_modes_are_every_parse_mode_but_none(self):
-        assert _USER_PARSE_MODES == _PARSE_MODES - {"none"}
-        assert _USER_PARSE_MODES == {"layout", "ocr", "text"}
-
-    def test_invalid_parse_mode_raises_1116(self):
-        error = _expect_error("1116", {"PARSE_MODE": "bogus"})
-        assert "layout" in error.message and "ocr" in error.message
-
-    def test_invalid_row_boundary_raises_1116(self):
-        error = _expect_error("1116", {"ROW_BOUNDARY": "chapter"})
-        assert "row_boundary" in error.message
-
+class TestRemovedOptions:
     @pytest.mark.parametrize(
-        "extra", [{"SCHEMA": FLAT_SCHEMA}, {"PROMPT": "Extract fields."}]
-    )
-    def test_parse_options_are_ignored_with_a_schema_or_prompt(self, extra):
-        options = _build({"PARSE_MODE": "ocr", "ROW_BOUNDARY": "page", **extra})
-        assert options.parse_mode == "none"
-        assert options.row_boundary == "document"
-
-    @pytest.mark.parametrize(
-        "value,expected",
+        "options",
         [
-            (True, True),
-            (False, False),
-            ("true", True),
-            ("True", True),
-            ("FALSE", False),
+            {"PARSE_MODE": "ocr"},
+            {"PARSE_MODE": "bogus"},
+            {"ROW_BOUNDARY": "page"},
+            {"ROW_BOUNDARY": "chapter"},
+            {"EXTRACT_IMAGES": True},
+            {"EXTRACT_IMAGES": "not a boolean"},
         ],
     )
-    def test_extract_images_accepts_booleans_in_any_case(self, value, expected):
-        assert _build({"EXTRACT_IMAGES": value}).extract_images is expected
+    def test_removed_options_are_ignored_whatever_their_value(
+        self, options, fresh_warnings
+    ):
+        assert _build(options) == _build({})
 
-    def test_extract_images_is_off_by_default(self):
-        assert _build({}).extract_images is False
+    @pytest.mark.parametrize(
+        "key,replacement",
+        [
+            ("PARSE_MODE", "LAYOUT mode"),
+            ("ROW_BOUNDARY", "PAGES column"),
+            ("EXTRACT_IMAGES", "functions.ai_parse_document"),
+        ],
+    )
+    def test_a_removed_option_warns_with_its_replacement(
+        self, key, replacement, caplog, fresh_warnings
+    ):
+        with caplog.at_level(logging.WARNING):
+            _build({key: "anything"})
+        assert f"'{key.lower()}' option" in caplog.text
+        assert "no longer supported and is ignored" in caplog.text
+        assert replacement in caplog.text
 
-    @pytest.mark.parametrize("value", ["yes", "1", 1, None, "truee"])
-    def test_extract_images_rejects_other_values_with_1116(self, value):
-        error = _expect_error("1116", {"EXTRACT_IMAGES": value})
-        assert "extract_images" in error.message
-        assert "true" in error.message and "false" in error.message
+    def test_each_removed_option_warns_once(self, caplog, fresh_warnings):
+        with caplog.at_level(logging.WARNING):
+            _build({"ROW_BOUNDARY": "page"})
+            _build({"ROW_BOUNDARY": "page"})
+        assert caplog.text.count("'row_boundary' option") == 1
 
-    def test_extract_images_works_with_layout_and_page_rows(self):
-        options = _build({"EXTRACT_IMAGES": True, "ROW_BOUNDARY": "page"})
-        assert options.extract_images is True
-        assert options.parse_mode == "layout"
-        assert options.page_rows is True
-
-    @pytest.mark.parametrize("mode", ["ocr", "text", "OCR"])
-    def test_extract_images_needs_layout_mode(self, mode):
-        error = _expect_error("1119", {"EXTRACT_IMAGES": True, "PARSE_MODE": mode})
-        assert "layout" in error.message and mode.lower() in error.message
-
-    def test_extract_images_false_is_fine_with_any_parse_mode(self):
-        assert (
-            _build({"EXTRACT_IMAGES": False, "PARSE_MODE": "ocr"}).extract_images
-            is False
-        )
+    @pytest.mark.parametrize(
+        "key", ["SCHEMA", "PROMPT", "MODE", "MODEL", "BOGUS_OPTION"]
+    )
+    def test_other_options_do_not_warn(self, key, caplog, fresh_warnings):
+        value = FLAT_SCHEMA if key == "SCHEMA" else "some-value"
+        with caplog.at_level(logging.WARNING):
+            _build({key: value})
+        assert "no longer supported" not in caplog.text
 
     @pytest.mark.parametrize(
         "extra", [{"SCHEMA": FLAT_SCHEMA}, {"PROMPT": "Extract fields."}]
     )
-    def test_extract_images_is_ignored_with_a_schema_or_prompt(self, extra):
-        # Not even validated, like PARSE_MODE and ROW_BOUNDARY: such a read skips parsing.
-        options = _build({"EXTRACT_IMAGES": True, "PARSE_MODE": "ocr", **extra})
-        assert options.extract_images is False
+    def test_removed_options_do_not_change_a_schema_or_prompt_read(
+        self, extra, fresh_warnings
+    ):
+        options = _build(
+            {
+                "PARSE_MODE": "ocr",
+                "ROW_BOUNDARY": "page",
+                "EXTRACT_IMAGES": True,
+                **extra,
+            }
+        )
+        assert options == _build(extra)
         assert options.parse_mode == "none"
 
     def test_schema_and_prompt_together_are_still_accepted(self):
@@ -264,7 +252,7 @@ class TestCompleteEnabledDefaults:
 
 # ---------------------------------------------------------------------------
 # Closed-set enum checks (code 1116) -- the only remaining guards on parse_mode,
-# row_boundary, mode and extraction_engine. They drive our own Python routing and
+# mode and extraction_engine. They drive our own Python routing and
 # are never sent to Snowflake, so nothing downstream would catch an unrecognized
 # value. Only reachable now by constructing DocumentReaderOptions directly, since
 # from_reader_options() no longer accepts any of these keys.
@@ -275,8 +263,7 @@ class TestClosedSetEnums:
     @pytest.mark.parametrize(
         "attribute,valid_value",
         [
-            ("parse_mode", "ocr"),
-            ("row_boundary", "page"),
+            ("parse_mode", "none"),
             ("mode", "FAILFAST"),
             ("extraction_engine", "ai_extract"),
         ],
@@ -287,21 +274,26 @@ class TestClosedSetEnums:
 
     @pytest.mark.parametrize(
         "attribute",
-        ["parse_mode", "row_boundary", "mode", "extraction_engine"],
+        ["parse_mode", "mode", "extraction_engine"],
     )
     def test_invalid_value_raises_1116(self, attribute):
         error = _expect_validate_error("1116", **{attribute: "bogus"})
         assert attribute in error.message
         assert "bogus" in error.message.lower()
 
-    @pytest.mark.parametrize("parse_mode", ["layout", "ocr", "text", "none"])
+    @pytest.mark.parametrize("parse_mode", ["layout", "none"])
     def test_every_parse_mode_is_accepted(self, parse_mode):
         assert _build_direct(parse_mode=parse_mode).parse_mode == parse_mode
 
-    def test_invalid_value_message_lists_valid_values(self):
-        error = _expect_validate_error("1116", row_boundary="chapter")
-        assert "document" in error.message
-        assert "page" in error.message
+    def test_parse_modes_are_layout_and_none(self):
+        # OCR and the local text reader were removed with the parse_mode option.
+        assert _PARSE_MODES == {"layout", "none"}
+
+    @pytest.mark.parametrize("parse_mode", ["ocr", "text"])
+    def test_removed_parse_modes_raise_1116(self, parse_mode):
+        error = _expect_validate_error("1116", parse_mode=parse_mode)
+        assert "layout" in error.message
+        assert "none" in error.message
 
 
 # ---------------------------------------------------------------------------
@@ -670,7 +662,7 @@ class TestSchemaFieldNameCollisions:
             "SOURCE_FILE",
             "content",
             "total_pages",
-            "images",
+            "pages",
             "extraction_scores",
             "extraction_status",
             "response",
@@ -763,11 +755,10 @@ class TestAiCompleteWorksWithOrWithoutParse:
         assert options.parse_enabled is False
         assert options.extract_enabled is True
 
-    @pytest.mark.parametrize("parse_mode", ["layout", "ocr", "text"])
-    def test_ai_complete_with_a_parse_phase_passes(self, parse_mode):
+    def test_ai_complete_with_a_parse_phase_passes(self):
         options = _build_direct(
             extraction_engine="ai_complete",
-            parse_mode=parse_mode,
+            parse_mode="layout",
             extraction=ExtractionSpec.from_response_format(FLAT_SCHEMA),
         )
         assert options.extraction_engine == "ai_complete"
@@ -781,12 +772,6 @@ class TestAiCompleteWorksWithOrWithoutParse:
         )
         assert options.parse_enabled is False
         assert options.extract_enabled is True
-
-
-# ---------------------------------------------------------------------------
-# Documented non-guards. Exercised via direct construction since ROW_BOUNDARY/
-# PARSE_MODE/PAGE_FILTER are no longer settable through from_reader_options.
-# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -806,24 +791,3 @@ class TestReadType:
     def test_schema_is_a_schema_read_even_with_a_prompt_too(self):
         options = _build({"SCHEMA": FLAT_SCHEMA, "PROMPT": "Extract fields."})
         assert options.read_type == "schema"
-
-
-class TestDocumentedNonGuards:
-    def test_page_row_boundary_with_parse_mode_none_is_a_no_op(self):
-        # Parse is skipped entirely when parse_mode == "none", so row_boundary
-        # is simply unused -- explicitly not an error.
-        options = _build_direct(row_boundary="page", parse_mode="none")
-        assert options.row_boundary == "page"
-        assert options.page_rows is False
-
-    def test_page_row_boundary_with_a_parse_phase_enables_page_rows(self):
-        options = _build_direct(row_boundary="page", parse_mode="layout")
-        assert options.page_rows is True
-
-    def test_page_filter_with_parse_mode_none_is_not_an_error(self):
-        # page_filter only ever applies during Parse (ai_parse_document's page_filter
-        # kwarg, or the PDF UDTF's page_filter_json arg); with Parse skipped there is
-        # no page-range concept to apply it to, so -- like row_boundary above -- this
-        # is a no-op, not a guarded combination.
-        options = _build_direct(page_filter=[{"start": 0, "end": 1}], parse_mode="none")
-        assert options.parse_enabled is False

@@ -245,16 +245,6 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
-    def DF_DOCUMENTS_EXTRACT_IMAGES_NEEDS_LAYOUT(
-        parse_mode: str,
-    ) -> SnowparkDataframeReaderException:
-        return SnowparkDataframeReaderException(
-            f"The 'extract_images' option requires parse_mode 'layout', but parse_mode "
-            f"is {parse_mode!r}. Remove 'extract_images' or set parse_mode to 'layout'.",
-            error_code="1119",
-        )
-
-    @staticmethod
     def DF_DOCUMENTS_INVALID_OPTION_TYPE(
         option_name: str, value: Any, expected: str
     ) -> SnowparkDataframeReaderException:

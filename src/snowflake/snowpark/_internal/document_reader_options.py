@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.utils import warning
 from snowflake.snowpark.types import (
     BooleanType,
     DataType,
@@ -14,13 +15,25 @@ from snowflake.snowpark.types import (
     StringType,
 )
 
-_PARSE_MODES = frozenset({"layout", "ocr", "text", "none"})
-_ROW_BOUNDARIES = frozenset({"document", "page"})
+# "layout" parses with AI_PARSE_DOCUMENT in LAYOUT mode; "none" (do not parse) is set by
+# the reader whenever a schema or prompt is given. Neither is a user option.
+_PARSE_MODES = frozenset({"layout", "none"})
 _MODES = frozenset({"PERMISSIVE", "FAILFAST"})
 _EXTRACTION_ENGINES = frozenset({"ai_extract", "ai_complete"})
-# parse_mode values a user can choose; "none" (do not parse) is set by the reader itself
-# whenever a schema or prompt is given.
-_USER_PARSE_MODES = _PARSE_MODES - {"none"}
+
+# Options documents() accepted in its first private preview release (1.56.0), now
+# ignored with a warning saying what replaces each one.
+_REMOVED_OPTIONS = {
+    "PARSE_MODE": "documents are always parsed with AI_PARSE_DOCUMENT in LAYOUT mode",
+    "ROW_BOUNDARY": (
+        "every read returns one row per document, and the PAGES column holds the "
+        "text of each page"
+    ),
+    "EXTRACT_IMAGES": (
+        "use functions.ai_parse_document(..., mode='LAYOUT', extract_images=True) "
+        "to extract images"
+    ),
+}
 
 # JSON Schema scalar types mapped to Snowpark equivalents; "array"/"object" are omitted since AI_EXTRACT/AI_COMPLETE already return them as structured VARIANT.
 _JSON_SCHEMA_SCALAR_TYPES: Dict[str, DataType] = {
@@ -33,10 +46,9 @@ _JSON_SCHEMA_SCALAR_TYPES: Dict[str, DataType] = {
 _DEFAULT_CORRUPT_RECORD_COLUMN = "_document_error"
 
 SOURCE_FILE_COLUMN = "SOURCE_FILE"
-PAGE_INDEX_COLUMN = "PAGE_INDEX"
 TOTAL_PAGES_COLUMN = "TOTAL_PAGES"
 CONTENT_COLUMN = "CONTENT"
-IMAGES_COLUMN = "IMAGES"
+PAGES_COLUMN = "PAGES"
 EXTRACTION_SCORES_COLUMN = "EXTRACTION_SCORES"
 RESPONSE_COLUMN = "RESPONSE"
 
@@ -50,10 +62,9 @@ _EXTRACTION_STATUS_FIELD = "EXTRACTION_STATUS"
 _RESERVED_OUTPUT_COLUMNS = frozenset(
     {
         SOURCE_FILE_COLUMN,
-        PAGE_INDEX_COLUMN,
         TOTAL_PAGES_COLUMN,
         CONTENT_COLUMN,
-        IMAGES_COLUMN,
+        PAGES_COLUMN,
         EXTRACTION_SCORES_COLUMN,
         RESPONSE_COLUMN,
         _EXTRACTION_STATUS_FIELD,
@@ -155,9 +166,6 @@ class ExtractionSpec:
 @dataclass
 class DocumentReaderOptions:
     parse_mode: str = "layout"
-    row_boundary: str = "document"
-    extract_images: bool = False
-    page_filter: Optional[list] = None
     mode: str = "PERMISSIVE"
     corrupt_record_column: str = _DEFAULT_CORRUPT_RECORD_COLUMN
     extraction_engine: str = "ai_complete"
@@ -198,10 +206,6 @@ class DocumentReaderOptions:
         return "parse"
 
     @property
-    def page_rows(self) -> bool:
-        return self.parse_enabled and self.row_boundary == "page"
-
-    @property
     def error_stages(self) -> List[Tuple[str, str]]:
         stages = []
         if self.parse_enabled:
@@ -220,10 +224,17 @@ class DocumentReaderOptions:
     def from_reader_options(
         cls, cur_options: Dict[str, Any]
     ) -> "DocumentReaderOptions":
-        """The user options are SCHEMA, PROMPT, PARSE_MODE, ROW_BOUNDARY and
-        EXTRACT_IMAGES; any other key is ignored, because everything else is chosen by
-        the reader. PARSE_MODE, ROW_BOUNDARY and EXTRACT_IMAGES only apply to a read with
-        neither a schema nor a prompt, and EXTRACT_IMAGES needs parse_mode "layout"."""
+        """The user options are SCHEMA and PROMPT; any other key is ignored, because
+        everything else is chosen by the reader. The options removed after the first
+        private preview release (PARSE_MODE, ROW_BOUNDARY, EXTRACT_IMAGES) are ignored
+        too, with a warning."""
+        for key, replacement in _REMOVED_OPTIONS.items():
+            if key in cur_options:
+                warning(
+                    f"DataFrameReader.documents.{key.lower()}",
+                    f"The '{key.lower()}' option of DataFrameReader.documents() is no "
+                    f"longer supported and is ignored: {replacement}.",
+                )
         options = cls(
             extraction=ExtractionSpec.from_response_format(
                 cls._validated_schema(cur_options.get("SCHEMA"))
@@ -235,18 +246,6 @@ class DocumentReaderOptions:
         # With neither, the parsed text is the read's only output, so parsing stays on.
         if options.complete_enabled:
             options.parse_mode = "none"
-        else:
-            options.parse_mode = cls.user_choice(
-                cur_options, "PARSE_MODE", "layout", _USER_PARSE_MODES
-            )
-            options.row_boundary = cls.user_choice(
-                cur_options, "ROW_BOUNDARY", "document", _ROW_BOUNDARIES
-            )
-            options.extract_images = cls.user_bool(cur_options, "EXTRACT_IMAGES")
-            if options.extract_images and options.parse_mode != "layout":
-                raise SnowparkClientExceptionMessages.DF_DOCUMENTS_EXTRACT_IMAGES_NEEDS_LAYOUT(
-                    options.parse_mode
-                )
         options.validate()
         return options
 
@@ -273,46 +272,12 @@ class DocumentReaderOptions:
             )
         return value
 
-    @staticmethod
-    def user_choice(
-        cur_options: Dict[str, Any], key: str, default: str, valid_values: Iterable[str]
-    ) -> str:
-        """The lower-cased value the user set for ``key``, or ``default`` when it is not
-        set; a value outside ``valid_values`` raises."""
-        if key not in cur_options:
-            return default
-        value = str(cur_options[key]).lower()
-        if value not in valid_values:
-            raise SnowparkClientExceptionMessages.DF_DOCUMENTS_INVALID_OPTION_VALUE(
-                key.lower(), cur_options[key], valid_values
-            )
-        return value
-
-    @staticmethod
-    def user_bool(cur_options: Dict[str, Any], key: str) -> bool:
-        """The boolean the user set for ``key`` (a bool, or "true"/"false" in any case),
-        or False when it is not set; any other value raises."""
-        if key not in cur_options:
-            return False
-        value = cur_options[key]
-        if isinstance(value, bool):
-            return value
-        text = str(value).lower()
-        if text not in ("true", "false"):
-            raise SnowparkClientExceptionMessages.DF_DOCUMENTS_INVALID_OPTION_VALUE(
-                key.lower(), value, ("true", "false")
-            )
-        return text == "true"
-
     def validate(self) -> None:
-        # parse_mode/row_boundary/mode/extraction_engine drive our own Python routing
-        # and are never sent to Snowflake, so nothing downstream catches an
-        # unrecognized value -- everything else is either AISQL's to validate or
-        # silently unused when inapplicable (row_boundary/page_filter under
-        # parse_mode="none", etc.).
+        # parse_mode/mode/extraction_engine drive our own Python routing and are never
+        # sent to Snowflake, so nothing downstream catches an unrecognized value --
+        # everything else is AISQL's to validate.
         closed_sets: Tuple[Tuple[str, str, Iterable[str]], ...] = (
             ("parse_mode", self.parse_mode, _PARSE_MODES),
-            ("row_boundary", self.row_boundary, _ROW_BOUNDARIES),
             ("mode", self.mode, _MODES),
             ("extraction_engine", self.extraction_engine, _EXTRACTION_ENGINES),
         )

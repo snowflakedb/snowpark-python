@@ -9,6 +9,7 @@ import pytest
 import snowflake.snowpark.session
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
+from snowflake.snowpark._internal.document_reader_options import DocumentReaderOptions
 from snowflake.snowpark._internal.ast.batch import AstBatch
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import TelemetryField
@@ -69,16 +70,23 @@ def test_documents_options_chosen_by_the_reader_are_ignored(options):
 
 @pytest.mark.parametrize(
     "options",
-    [{"parse_mode": "bogus"}, {"row_boundary": "chapter"}, {"parse_mode": "none"}],
+    [
+        {"parse_mode": "ocr"},
+        {"parse_mode": "bogus"},
+        {"row_boundary": "page"},
+        {"extract_images": True},
+    ],
 )
-def test_documents_invalid_parse_option_raises_before_any_query(options):
+def test_documents_ignores_the_removed_parse_options(options):
     reader = DataFrameReader(_create_fake_session())
     for key, value in options.items():
         reader = reader.option(key, value)
-
-    with pytest.raises(SnowparkDataframeReaderException) as exc_info:
+    with mock.patch(
+        "snowflake.snowpark._internal.document_reader.read_documents"
+    ) as read_documents:
         reader.documents("@stage/doc.pdf")
-    assert exc_info.value.error_code == "1116"
+    _, _, read_options = read_documents.call_args.args
+    assert read_options == DocumentReaderOptions()
 
 
 @pytest.mark.parametrize(
@@ -98,7 +106,9 @@ def test_documents_invalid_schema_or_prompt_raises_before_any_query(options):
 def test_documents_is_a_public_private_preview_method():
     doc = DataFrameReader.documents.__doc__
     assert "in private preview since 1.56.0" in doc
-    assert "parse_mode" in doc and "row_boundary" in doc and "_document_error" in doc
+    assert "PAGES" in doc and "_document_error" in doc
+    for removed in ("parse_mode", "row_boundary", "extract_images"):
+        assert removed not in doc
 
 
 def test_documents_warns_that_it_is_in_private_preview():

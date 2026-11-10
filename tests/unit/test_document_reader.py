@@ -258,38 +258,25 @@ class TestOutputColumnsForPromptOnly:
 
 
 # ---------------------------------------------------------------------------
-# output_columns -- IMAGES is returned only by a parse-only read that asked for
-# extract_images.
+# output_columns -- a parse read (no schema or prompt) returns one row per file with
+# its whole text in CONTENT and its pages in PAGES.
 # ---------------------------------------------------------------------------
 
 
-class TestOutputColumnsImages:
-    def test_images_follow_the_content_when_extract_images_is_on(self):
-        options = DocumentReaderOptions(extract_images=True)
-        assert output_columns(options) == [
+class TestOutputColumnsParse:
+    def test_parse_read_columns(self):
+        assert output_columns(DocumentReaderOptions()) == [
             "SOURCE_FILE",
             "TOTAL_PAGES",
             "CONTENT",
-            "IMAGES",
+            "PAGES",
             '"_document_error"',
         ]
 
-    def test_page_rows_list_images_after_the_content(self):
-        options = DocumentReaderOptions(extract_images=True, row_boundary="page")
-        assert output_columns(options)[:5] == [
-            "SOURCE_FILE",
-            "PAGE_INDEX",
-            "TOTAL_PAGES",
-            "CONTENT",
-            "IMAGES",
-        ]
-
-    def test_no_images_column_by_default(self):
-        assert "IMAGES" not in output_columns(DocumentReaderOptions())
-
-    def test_no_images_column_without_parsing(self):
+    def test_no_parse_columns_without_parsing(self):
         options = DocumentReaderOptions(parse_mode="none", prompt="Summarize.")
-        assert "IMAGES" not in output_columns(options)
+        columns = output_columns(options)
+        assert "PAGES" not in columns and "CONTENT" not in columns
 
 
 # ---------------------------------------------------------------------------

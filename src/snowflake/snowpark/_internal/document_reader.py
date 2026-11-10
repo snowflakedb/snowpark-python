@@ -5,7 +5,7 @@
 import json
 import os
 import weakref
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, List, Optional, Tuple, TYPE_CHECKING
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
@@ -16,19 +16,15 @@ from snowflake.snowpark._internal.document_reader_options import (
     DocumentReaderOptions,
     EXTRACTION_SCORES_COLUMN,
     ExtractionSpec,
-    IMAGES_COLUMN,
-    PAGE_INDEX_COLUMN,
+    PAGES_COLUMN,
     RESPONSE_COLUMN,
     SOURCE_FILE_COLUMN,
     TOTAL_PAGES_COLUMN,
     _EXTRACT_ERROR_COLUMN,
     _PARSE_ERROR_COLUMN,
 )
-from snowflake.snowpark._internal.pdf_reader import PAGE_SEPARATOR
-from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark._internal.utils import (
     STAGE_PREFIX,
-    TempObjectType,
     is_in_stored_procedure,
 )
 from snowflake.snowpark.column import Column
@@ -36,7 +32,7 @@ from snowflake.snowpark.functions import (
     ai_complete,
     ai_extract,
     ai_parse_document,
-    any_value,
+    array_agg,
     array_compact,
     array_construct,
     array_size,
@@ -44,9 +40,11 @@ from snowflake.snowpark.functions import (
     coalesce,
     col,
     concat,
+    count,
     flatten,
     listagg,
     lit,
+    lower,
     max as max_,
     object_construct_keep_null,
     random,
@@ -57,6 +55,7 @@ from snowflake.snowpark.functions import (
     when,
 )
 from snowflake.snowpark.types import (
+    ArrayType,
     IntegerType,
     StringType,
     StructField,
@@ -112,15 +111,16 @@ _EXTRACT_PROC_FILE_PATH = os.path.join(
 _EXTRACT_PROC_HANDLER = "run"
 _EXTRACT_PROC_NAME = "SNOWPARK_TEMP_PROCEDURE_DOCUMENT_EXTRACT"
 
-_PDF_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "pdf_reader.py")
-_PDF_READER_HANDLER = "PDFTextReader"
-_PDF_READER_UDTF_NAME = "SNOWPARK_TEMP_TABLE_FUNCTION_PDF_TEXT_READER"
 _ERROR_GUARD_UDF_NAME = "SNOWPARK_TEMP_FUNCTION_RAISE_IF_DOCUMENT_ERROR"
 
 _STAGE_PATH_COLUMN = "_DOC_STAGE_PATH"
 _PARSED_COLUMN = "_DOC_PARSED"
 _EXTRACTED_COLUMN = "_DOC_EXTRACTED"
-_UDTF_ERROR_COLUMN = "UDTF_ERROR"
+
+# The file types AI_PARSE_DOCUMENT can split into pages; page_split fails on any other.
+_PAGE_SPLIT_FILE_TYPES = ("pdf", "pptx", "docx")
+# Joins the pages of a split document into its CONTENT.
+PAGE_SEPARATOR = "\n\n"
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +143,7 @@ def read_documents(
     df = access(session, path, options)
 
     if options.parse_enabled:
-        df = parse(session, df, options)
+        df = parse(df)
 
     if options.complete_enabled:
         df = extract(df, options)
@@ -155,12 +155,7 @@ def read_documents(
 def output_columns(options: DocumentReaderOptions) -> List[str]:
     names = [SOURCE_FILE_COLUMN]
     if options.parse_enabled:
-        if options.page_rows:
-            names.append(PAGE_INDEX_COLUMN)
-        names.append(TOTAL_PAGES_COLUMN)
-        names.append(CONTENT_COLUMN)
-        if options.extract_images:
-            names.append(IMAGES_COLUMN)
+        names.extend([TOTAL_PAGES_COLUMN, CONTENT_COLUMN, PAGES_COLUMN])
     if options.extract_enabled:
         names.extend(options.extraction.field_columns)
         if options.scores_enabled:
@@ -240,10 +235,10 @@ def split_stage(path: str) -> Tuple[str, int]:
 def access(
     session: "Session", path: str, options: DocumentReaderOptions
 ) -> "DataFrame":
-    # The plain string path is kept as its own column because the PDF UDTF takes a
-    # path string, not a FILE value. Each file is referenced through the stage as the
-    # user wrote it (see split_stage), so it resolves for user and table stages, quoted
-    # names and stages outside the current schema.
+    # The plain string path is kept as its own column: parse() reads the file type from
+    # it and rebuilds SOURCE_FILE from it after grouping pages. Each file is referenced
+    # through the stage as the user wrote it (see split_stage), so it resolves for user
+    # and table stages, quoted names and stages outside the current schema.
     stage, listed_prefix = split_stage(path)
     stage_path = concat(lit(f"{stage}/"), substring(col('"name"'), listed_prefix + 1))
     files_df = session.sql(
@@ -261,115 +256,97 @@ def access(
     return files_df.sort(random())
 
 
-def parse(
-    session: "Session", files_df: "DataFrame", options: DocumentReaderOptions
-) -> "DataFrame":
-    if options.parse_mode == "text":
-        return parse_text(session, files_df, options)
-    return parse_ai(files_df, options)
-
-
-def parse_ai(files_df: "DataFrame", options: DocumentReaderOptions) -> "DataFrame":
-    parse_kwargs: Dict[str, Any] = {
-        "mode": options.parse_mode.upper(),
-        # AI_PARSE_DOCUMENT rejects page_filter unless page_split is also true,
-        # even when the document boundary (row_boundary="document") is what
-        # collapses the pages back down afterwards in aggregate_pages().
-        "page_split": options.row_boundary == "page" or options.page_filter is not None,
-    }
-    if options.page_filter is not None:
-        parse_kwargs["page_filter"] = options.page_filter
-    if options.extract_images:
-        parse_kwargs["extract_images"] = True
-
-    df = files_df.with_column(
-        _PARSED_COLUMN,
-        as_variant(
-            ai_parse_document(
-                col(SOURCE_FILE_COLUMN), return_error_details=True, **parse_kwargs
-            )
-        ),
+def parse(files_df: "DataFrame") -> "DataFrame":
+    """Parse every file with AI_PARSE_DOCUMENT in LAYOUT mode into one row per file:
+    its whole text in CONTENT and, for the file types AI_PARSE_DOCUMENT can split by
+    page, each page's ``{index, content}`` in PAGES (NULL for any other file type)."""
+    splittable = lower(col(_STAGE_PATH_COLUMN)).rlike(
+        lit(f".*[.]({'|'.join(_PAGE_SPLIT_FILE_TYPES)})")
     )
-    parsed = col(_PARSED_COLUMN)
-    # return_error_details=True wraps content/pages/images under `value`, sibling to
-    # `error` and `metadata` -- not at the top level.
-    payload = parsed["value"]
-    df = df.with_column(_PARSE_ERROR_COLUMN, parsed["error"].cast(StringType()))
-    if options.extract_images:
-        df = df.with_column(IMAGES_COLUMN, payload["images"])
-
-    page_count = parsed["metadata"]["pageCount"].cast(IntegerType())
-
-    # page_filter implies page_split server-side, so the response carries a `pages`
-    # array and no top-level `content` whenever either one is set.
-    if options.page_filter is None and options.row_boundary != "page":
-        return df.with_columns(
-            [TOTAL_PAGES_COLUMN, CONTENT_COLUMN],
-            [page_count, payload["content"].cast(StringType())],
-        )
-
-    # Resolved before the explode so the parsed document isn't referenced above the
-    # join and replicated once per page.
-    df = df.with_column(
-        TOTAL_PAGES_COLUMN, coalesce(page_count, array_size(payload["pages"]))
-    )
-
-    # outer=True keeps exactly one row for a file whose parse failed and therefore has
-    # no `pages` array to expand.
-    exploded = df.join_table_function(
-        flatten(payload["pages"], outer=True)
-    ).with_columns(
-        [PAGE_INDEX_COLUMN, CONTENT_COLUMN],
-        [
-            col("VALUE")["index"].cast(IntegerType()),
-            col("VALUE")["content"].cast(StringType()),
-        ],
-    )
-    if options.row_boundary == "page":
-        return exploded
-    return aggregate_pages(exploded, options)
-
-
-def aggregate_pages(
-    exploded: "DataFrame", options: DocumentReaderOptions
-) -> "DataFrame":
-    """Collapse a page-shaped response back to one row per file, needed when a
-    page_filter narrows the document but the caller asked for document rows."""
-    aggregations = [
-        listagg(col(CONTENT_COLUMN), PAGE_SEPARATOR)
-        .within_group(col(PAGE_INDEX_COLUMN).asc())
-        .alias(CONTENT_COLUMN),
-        max_(col(TOTAL_PAGES_COLUMN)).alias(TOTAL_PAGES_COLUMN),
-        max_(col(_PARSE_ERROR_COLUMN)).alias(_PARSE_ERROR_COLUMN),
-    ]
-    if options.extract_images:
-        aggregations.append(any_value(col(IMAGES_COLUMN)).alias(IMAGES_COLUMN))
-
-    # SOURCE_FILE is rebuilt rather than aggregated because FILE is not a groupable type.
+    # The page_split option is one constant per AI_PARSE_DOCUMENT call, so the two
+    # kinds of file are parsed apart. Both branches share the one LIST: a union runs
+    # each pre-query of its inputs once.
+    paged = parse_pages(files_df.filter(splittable))
+    whole = parse_whole(files_df.filter(~splittable))
+    # SOURCE_FILE is rebuilt after the union rather than unioned, because FILE is
+    # neither a groupable type (parse_pages) nor a type to rely on in a UNION.
+    columns = [_STAGE_PATH_COLUMN, TOTAL_PAGES_COLUMN, CONTENT_COLUMN, PAGES_COLUMN]
     return (
-        exploded.group_by(_STAGE_PATH_COLUMN)
-        .agg(*aggregations)
+        paged.select(*columns, _PARSE_ERROR_COLUMN)
+        .union_all(whole.select(*columns, _PARSE_ERROR_COLUMN))
         .with_column(SOURCE_FILE_COLUMN, to_file(col(_STAGE_PATH_COLUMN)))
     )
 
 
-def parse_text(
-    session: "Session", files_df: "DataFrame", options: DocumentReaderOptions
-) -> "DataFrame":
-    pdf_udtf = register_pdf_udtf(session)
-    # is not None, not truthy: page_filter=[] means "select zero pages" here too,
-    # matching parse_ai, rather than falling back to "no filter".
-    page_filter_json = (
-        json.dumps(options.page_filter) if options.page_filter is not None else ""
+def parse_with_details(files_df: "DataFrame", **parse_kwargs: Any) -> "DataFrame":
+    """``files_df`` with AI_PARSE_DOCUMENT's LAYOUT parse of each file in
+    _PARSED_COLUMN and its error, if any, in _PARSE_ERROR_COLUMN."""
+    df = files_df.with_column(
+        _PARSED_COLUMN,
+        as_variant(
+            ai_parse_document(
+                col(SOURCE_FILE_COLUMN),
+                return_error_details=True,
+                mode="LAYOUT",
+                **parse_kwargs,
+            )
+        ),
     )
-    return files_df.join_table_function(
-        pdf_udtf(
-            col(_STAGE_PATH_COLUMN),
-            lit(options.row_boundary),
-            lit(page_filter_json),
-            lit(options.mode),
-        )
-    ).with_column(_PARSE_ERROR_COLUMN, col(_UDTF_ERROR_COLUMN))
+    return df.with_column(
+        _PARSE_ERROR_COLUMN, col(_PARSED_COLUMN)["error"].cast(StringType())
+    )
+
+
+def page_count(parsed: Column) -> Column:
+    return parsed["metadata"]["pageCount"].cast(IntegerType())
+
+
+def parse_whole(files_df: "DataFrame") -> "DataFrame":
+    df = parse_with_details(files_df)
+    parsed = col(_PARSED_COLUMN)
+    # return_error_details=True wraps content/pages under `value`, sibling to `error`
+    # and `metadata` -- not at the top level.
+    return df.with_columns(
+        [TOTAL_PAGES_COLUMN, CONTENT_COLUMN, PAGES_COLUMN],
+        [
+            page_count(parsed),
+            parsed["value"]["content"].cast(StringType()),
+            lit(None).cast(ArrayType()),
+        ],
+    )
+
+
+def parse_pages(files_df: "DataFrame") -> "DataFrame":
+    """Split each file into pages and collapse them back to one row per file. A split
+    response carries a `pages` array and no top-level `content`."""
+    df = parse_with_details(files_df, page_split=True)
+    pages = col(_PARSED_COLUMN)["value"]["pages"]
+    # Resolved before the explode so the parsed document isn't referenced above the
+    # join and replicated once per page.
+    df = df.with_column(
+        TOTAL_PAGES_COLUMN, coalesce(page_count(col(_PARSED_COLUMN)), array_size(pages))
+    )
+    # outer=True keeps exactly one row, with a NULL page, for a file whose parse failed
+    # and therefore has no `pages` array to expand.
+    exploded = df.join_table_function(flatten(pages, outer=True))
+    page = col("VALUE")
+    page_index = page["index"].cast(IntegerType())
+    # LISTAGG and ARRAY_AGG skip the NULL page of a failed parse and would return an
+    # empty string and an empty array; the file gets NULLs instead.
+    has_pages = count(page) > 0
+    return exploded.group_by(_STAGE_PATH_COLUMN).agg(
+        max_(col(TOTAL_PAGES_COLUMN)).alias(TOTAL_PAGES_COLUMN),
+        when(
+            has_pages,
+            listagg(page["content"].cast(StringType()), PAGE_SEPARATOR).within_group(
+                page_index.asc()
+            ),
+        ).alias(CONTENT_COLUMN),
+        when(has_pages, array_agg(page).within_group(page_index.asc())).alias(
+            PAGES_COLUMN
+        ),
+        max_(col(_PARSE_ERROR_COLUMN)).alias(_PARSE_ERROR_COLUMN),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -447,20 +424,20 @@ def extract(df: "DataFrame", options: DocumentReaderOptions) -> "DataFrame":
 def materialize_parsed_content(
     df: "DataFrame", options: DocumentReaderOptions
 ) -> "DataFrame":
-    columns = [_STAGE_PATH_COLUMN, TOTAL_PAGES_COLUMN, CONTENT_COLUMN]
+    columns = [
+        _STAGE_PATH_COLUMN,
+        TOTAL_PAGES_COLUMN,
+        CONTENT_COLUMN,
+        PAGES_COLUMN,
+        _PARSE_ERROR_COLUMN,
+    ]
     fields = [
         StructField(_STAGE_PATH_COLUMN, StringType()),
         StructField(TOTAL_PAGES_COLUMN, IntegerType()),
         StructField(CONTENT_COLUMN, StringType()),
+        StructField(PAGES_COLUMN, StringType()),
+        StructField(_PARSE_ERROR_COLUMN, StringType()),
     ]
-    if options.page_rows:
-        columns.append(PAGE_INDEX_COLUMN)
-        fields.append(StructField(PAGE_INDEX_COLUMN, IntegerType()))
-    if options.extract_images:
-        columns.append(IMAGES_COLUMN)
-        fields.append(StructField(IMAGES_COLUMN, StringType()))
-    columns.append(_PARSE_ERROR_COLUMN)
-    fields.append(StructField(_PARSE_ERROR_COLUMN, StringType()))
 
     rows = [[row[name] for name in columns] for row in df.collect()]
     materialized = df._session.create_dataframe(rows, schema=StructType(fields))
@@ -470,10 +447,9 @@ def materialize_parsed_content(
     materialized = materialized.with_column(
         SOURCE_FILE_COLUMN, to_file(col(_STAGE_PATH_COLUMN))
     )
-    if options.extract_images:
-        materialized = materialized.with_column(
-            IMAGES_COLUMN, try_parse_json(col(IMAGES_COLUMN))
-        )
+    materialized = materialized.with_column(
+        PAGES_COLUMN, try_parse_json(col(PAGES_COLUMN))
+    )
     # Re-applies the same warehouse-parallelism fix as access(): a literal VALUES
     # source generally carries real cardinality, but shuffle regardless so this
     # doesn't silently regress if that ever isn't true.
@@ -521,7 +497,8 @@ def prompt_model(session: "Session") -> str:
     reports the preferred one unknown for the account or region. A prompt read is one
     query, and an unknown model fails the whole query rather than one document, so it is
     checked up front with one call of a single output token, once per session. Any other
-    failure of the check keeps the preferred model for this read and is not remembered."""
+    failure of the check keeps the preferred model for this read and is not remembered.
+    """
     known = _PREFERRED_MODEL_KNOWN.get(session)
     if known is None:
         try:
@@ -701,53 +678,6 @@ def merge_error_expressions(expressions: List[Column]) -> Column:
 # ---------------------------------------------------------------------------
 # Runtime object registration
 # ---------------------------------------------------------------------------
-
-
-def register_pdf_udtf(session: "Session"):
-    """Register a session-scoped PDF text-extraction UDTF, mirroring
-    DataFrameReader._register_xml_udtf."""
-    if is_in_stored_procedure():  # pragma: no cover
-        import_stage_name = session.get_fully_qualified_name_if_possible(
-            "SNOWPARK_TEMP_STAGE_PDFIMPORTS"
-        )
-        session._run_query(
-            f"CREATE TEMPORARY STAGE IF NOT EXISTS {import_stage_name}",
-            is_ddl_on_temp_object=True,
-        )
-        import_stage = f"{STAGE_PREFIX}{import_stage_name}"
-        session._conn.upload_file(
-            _PDF_READER_FILE_PATH,
-            import_stage,
-            compress_data=False,
-            overwrite=True,
-            skip_upload_on_content_match=True,
-        )
-        python_file_path = f"{import_stage}/{os.path.basename(_PDF_READER_FILE_PATH)}"
-    else:
-        python_file_path = _PDF_READER_FILE_PATH
-
-    _, input_types = get_types_from_type_hints(
-        (_PDF_READER_FILE_PATH, _PDF_READER_HANDLER), TempObjectType.TABLE_FUNCTION
-    )
-
-    return session.udtf.register_from_file(
-        python_file_path,
-        _PDF_READER_HANDLER,
-        name=session.get_fully_qualified_name_if_possible(_PDF_READER_UDTF_NAME),
-        output_schema=StructType(
-            [
-                StructField(PAGE_INDEX_COLUMN, IntegerType(), True),
-                StructField(TOTAL_PAGES_COLUMN, IntegerType(), True),
-                StructField(CONTENT_COLUMN, StringType(), True),
-                StructField(_UDTF_ERROR_COLUMN, StringType(), True),
-            ]
-        ),
-        input_types=input_types,
-        packages=["snowflake-snowpark-python", "pdfminer.six", "python-docx"],
-        if_not_exists=True,
-        skip_upload_on_content_match=True,
-        _suppress_local_package_warnings=True,
-    )
 
 
 def register_extract_proc(session: "Session") -> str:
