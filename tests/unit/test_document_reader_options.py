@@ -6,8 +6,6 @@ import pytest
 
 from snowflake.snowpark._internal.document_reader_options import (
     _DEFAULT_CORRUPT_RECORD_COLUMN,
-    _PARSE_MODES,
-    _USER_PARSE_MODES,
     DocumentReaderOptions,
     ExtractionSpec,
 )
@@ -115,9 +113,10 @@ class TestDefaults:
 
 
 # ---------------------------------------------------------------------------
-# User options -- from_reader_options reads SCHEMA, PROMPT, PARSE_MODE and
-# ROW_BOUNDARY (keys arrive upper-cased via .option()); every other key, such as
-# MODEL, MODE or EXTRACTION_ENGINE, is chosen by the reader and ignored.
+# User options -- from_reader_options reads SCHEMA and PROMPT (keys arrive
+# upper-cased via .option()); every other key, such as MODEL, MODE or
+# EXTRACTION_ENGINE, is chosen by the reader and ignored. That includes PARSE_MODE,
+# ROW_BOUNDARY and EXTRACT_IMAGES, options of the first private preview release.
 # ---------------------------------------------------------------------------
 
 
@@ -142,87 +141,39 @@ class TestUserOptions:
         assert options.page_filter is None
         assert options.corrupt_record_column == defaults.corrupt_record_column
 
-    @pytest.mark.parametrize("value", ["layout", "ocr", "text", "OCR", "Text"])
-    def test_parse_mode_is_accepted_case_insensitively(self, value):
-        assert _build({"PARSE_MODE": value}).parse_mode == value.lower()
-
-    @pytest.mark.parametrize("value", ["page", "PAGE", "document"])
-    def test_row_boundary_is_accepted_case_insensitively(self, value):
-        assert _build({"ROW_BOUNDARY": value}).row_boundary == value.lower()
-
-    def test_page_rows_follow_from_row_boundary(self):
-        assert _build({"ROW_BOUNDARY": "page"}).page_rows is True
-
-    def test_parse_mode_none_is_not_a_user_choice(self):
-        error = _expect_error("1116", {"PARSE_MODE": "none"})
-        assert "parse_mode" in error.message
-
-    def test_user_parse_modes_are_every_parse_mode_but_none(self):
-        assert _USER_PARSE_MODES == _PARSE_MODES - {"none"}
-        assert _USER_PARSE_MODES == {"layout", "ocr", "text"}
-
-    def test_invalid_parse_mode_raises_1116(self):
-        error = _expect_error("1116", {"PARSE_MODE": "bogus"})
-        assert "layout" in error.message and "ocr" in error.message
-
-    def test_invalid_row_boundary_raises_1116(self):
-        error = _expect_error("1116", {"ROW_BOUNDARY": "chapter"})
-        assert "row_boundary" in error.message
-
     @pytest.mark.parametrize(
-        "extra", [{"SCHEMA": FLAT_SCHEMA}, {"PROMPT": "Extract fields."}]
-    )
-    def test_parse_options_are_ignored_with_a_schema_or_prompt(self, extra):
-        options = _build({"PARSE_MODE": "ocr", "ROW_BOUNDARY": "page", **extra})
-        assert options.parse_mode == "none"
-        assert options.row_boundary == "document"
-
-    @pytest.mark.parametrize(
-        "value,expected",
+        "options",
         [
-            (True, True),
-            (False, False),
-            ("true", True),
-            ("True", True),
-            ("FALSE", False),
+            {"PARSE_MODE": "ocr"},
+            {"PARSE_MODE": "text"},
+            {"PARSE_MODE": "bogus"},
+            {"ROW_BOUNDARY": "page"},
+            {"ROW_BOUNDARY": "chapter"},
+            {"EXTRACT_IMAGES": True},
+            {"EXTRACT_IMAGES": "not a boolean"},
+            {"EXTRACT_IMAGES": True, "PARSE_MODE": "ocr"},
         ],
     )
-    def test_extract_images_accepts_booleans_in_any_case(self, value, expected):
-        assert _build({"EXTRACT_IMAGES": value}).extract_images is expected
-
-    def test_extract_images_is_off_by_default(self):
-        assert _build({}).extract_images is False
-
-    @pytest.mark.parametrize("value", ["yes", "1", 1, None, "truee"])
-    def test_extract_images_rejects_other_values_with_1116(self, value):
-        error = _expect_error("1116", {"EXTRACT_IMAGES": value})
-        assert "extract_images" in error.message
-        assert "true" in error.message and "false" in error.message
-
-    def test_extract_images_works_with_layout_and_page_rows(self):
-        options = _build({"EXTRACT_IMAGES": True, "ROW_BOUNDARY": "page"})
-        assert options.extract_images is True
+    def test_removed_options_are_ignored_whatever_their_value(self, options):
+        options = _build(options)
+        assert options == _build({})
         assert options.parse_mode == "layout"
-        assert options.page_rows is True
-
-    @pytest.mark.parametrize("mode", ["ocr", "text", "OCR"])
-    def test_extract_images_needs_layout_mode(self, mode):
-        error = _expect_error("1119", {"EXTRACT_IMAGES": True, "PARSE_MODE": mode})
-        assert "layout" in error.message and mode.lower() in error.message
-
-    def test_extract_images_false_is_fine_with_any_parse_mode(self):
-        assert (
-            _build({"EXTRACT_IMAGES": False, "PARSE_MODE": "ocr"}).extract_images
-            is False
-        )
+        assert options.row_boundary == "document"
+        assert options.extract_images is False
 
     @pytest.mark.parametrize(
         "extra", [{"SCHEMA": FLAT_SCHEMA}, {"PROMPT": "Extract fields."}]
     )
-    def test_extract_images_is_ignored_with_a_schema_or_prompt(self, extra):
-        # Not even validated, like PARSE_MODE and ROW_BOUNDARY: such a read skips parsing.
-        options = _build({"EXTRACT_IMAGES": True, "PARSE_MODE": "ocr", **extra})
-        assert options.extract_images is False
+    def test_removed_options_do_not_change_a_schema_or_prompt_read(self, extra):
+        options = _build(
+            {
+                "PARSE_MODE": "ocr",
+                "ROW_BOUNDARY": "page",
+                "EXTRACT_IMAGES": True,
+                **extra,
+            }
+        )
+        assert options == _build(extra)
         assert options.parse_mode == "none"
 
     def test_schema_and_prompt_together_are_still_accepted(self):

@@ -14,6 +14,7 @@
 #### Improvements
 
 - The debug features of `Session.debug` (Experimental) and `snowflake.snowpark.context.configure_development_features` (Experimental) no longer depend on AST collection and no longer change the AST collection setting.
+- `DataFrameReader.documents()` (Private Preview) no longer takes the `parse_mode`, `row_boundary` and `extract_images` options. A read without a `schema` or `prompt` now always parses each file with `AI_PARSE_DOCUMENT` in `LAYOUT` mode and returns one row per file.
 - `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them.
 
 #### Bug Fixes
