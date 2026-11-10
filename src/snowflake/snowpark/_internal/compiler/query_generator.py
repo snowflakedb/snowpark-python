@@ -69,6 +69,8 @@ class QueryGenerator(Analyzer):
         # order of when the with query block is visited. The order is important to make sure the dependency
         # between the CTE definition is satisfied.
         self.resolved_with_query_block: Dict[str, Query] = {}
+        # the resolved plan of each CTE definition, used to map SQL errors to the plan
+        self.resolved_with_query_block_plan: Dict[str, SnowflakePlan] = {}
         # This is a memoization dict for storing the selectable for a SnowflakePlan when to_selectable
         # method is called with the same SnowflakePlan. This is used to de-duplicate nodes created during
         # compilation process
@@ -110,7 +112,9 @@ class QueryGenerator(Analyzer):
         post_actions = []
         for snowflake_plan in snowflake_plans:
             plan_queries = get_snowflake_plan_queries(
-                snowflake_plan, self.resolved_with_query_block
+                snowflake_plan,
+                self.resolved_with_query_block,
+                self.resolved_with_query_block_plan,
             )
             # we deduplicate the queries and post actions generated across the logical
             # plans because it is possible for large query breakdown to partition
@@ -235,6 +239,7 @@ class QueryGenerator(Analyzer):
             self.resolved_with_query_block[logical_plan.name] = resolved_child.queries[
                 -1
             ]
+            self.resolved_with_query_block_plan[logical_plan.name] = resolved_child
 
             resolved_plan = self.plan_builder.with_query_block(
                 logical_plan,
