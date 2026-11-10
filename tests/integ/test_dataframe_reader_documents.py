@@ -11,7 +11,6 @@ from snowflake.snowpark._internal.document_reader import (
     merge_extract_error,
 )
 from snowflake.snowpark._internal.document_reader_options import ExtractionSpec
-from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.functions import col, try_parse_json
 from snowflake.snowpark.types import BooleanType, DoubleType, StringType, VariantType
 from tests.utils import TestFiles, Utils
@@ -570,25 +569,14 @@ def test_extract_type_mismatch_is_surfaced_not_silently_dropped(session):
 @pytest.mark.parametrize(
     "key,value",
     [
-        pytest.param("parse_mode", "bogus", id="parse_mode"),
-        pytest.param("row_boundary", "chapter", id="row_boundary"),
-    ],
-)
-def test_invalid_parse_option_raises_before_any_query(
-    session, invoice_path, key, value
-):
-    with pytest.raises(SnowparkDataframeReaderException) as exc_info:
-        session.read.option(key, value).documents(invoice_path)
-    assert exc_info.value.error_code == "1116"
-
-
-@pytest.mark.parametrize(
-    "key,value",
-    [
         pytest.param("mode", "FAILFAST", id="mode"),
         pytest.param("extraction_engine", "ai_extract", id="extraction_engine"),
         pytest.param("model", "claude-sonnet-4-5", id="model"),
         pytest.param("bogus_option", "anything", id="unknown_option"),
+        # Options of the first private preview release, now ignored too.
+        pytest.param("parse_mode", "ocr", id="parse_mode"),
+        pytest.param("row_boundary", "page", id="row_boundary"),
+        pytest.param("extract_images", True, id="extract_images"),
     ],
 )
 def test_options_chosen_by_the_reader_are_ignored(session, invoice_path, key, value):
@@ -596,37 +584,6 @@ def test_options_chosen_by_the_reader_are_ignored(session, invoice_path, key, va
     # engine itself, so these keys do nothing.
     columns = session.read.option(key, value).documents(invoice_path).columns
     assert columns == session.read.documents(invoice_path).columns
-
-
-def test_extract_images_adds_an_images_column(session, invoice_path):
-    df = session.read.option("extract_images", True).documents(invoice_path)
-    assert _unquoted(df) == [
-        "SOURCE_FILE",
-        "TOTAL_PAGES",
-        "CONTENT",
-        "IMAGES",
-        "_document_error",
-    ]
-    rows = df.collect()
-    assert len(rows) == 1
-    assert rows[0]["_document_error"] is None
-
-
-def test_extract_images_with_page_rows(session, invoice_path):
-    df = (
-        session.read.option("extract_images", True)
-        .option("row_boundary", "page")
-        .documents(invoice_path)
-    )
-    assert "IMAGES" in _unquoted(df) and "PAGE_INDEX" in _unquoted(df)
-    assert df.collect()[0]["_document_error"] is None
-
-
-def test_extract_images_needs_layout_mode(session, invoice_path):
-    with pytest.raises(SnowparkDataframeReaderException, match="layout"):
-        session.read.option("extract_images", True).option(
-            "parse_mode", "ocr"
-        ).documents(invoice_path)
 
 
 def test_non_stage_path_raises(session):
