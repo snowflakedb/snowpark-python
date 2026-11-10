@@ -248,15 +248,13 @@ def test_eager_schema_validation_methods_change_only_that_feature():
 
 
 def test_trace_sql_errors_methods_update_the_tracing_count():
-    from snowflake.snowpark._internal.debug_config import tracing_sessions
-
     session = make_session()
     session._conn = None
     session._debug = DebugConfig(session)
-    before = tracing_sessions()
+    before = debug_config._tracing_sessions
     session._debug.enable_trace_sql_errors_to_dataframe()
     assert session._debug.trace_sql_errors_to_dataframe is True
-    assert tracing_sessions() == before + 1
+    assert debug_config._tracing_sessions == before + 1
     session._debug.disable_trace_sql_errors_to_dataframe()
     assert session._debug.trace_sql_errors_to_dataframe is False
-    assert tracing_sessions() == before
+    assert debug_config._tracing_sessions == before
