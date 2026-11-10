@@ -20,6 +20,7 @@
 - Fixed a bug where importing Snowpark failed if the `requests` package was not installed. Event table telemetry now treats `requests` as an optional dependency of the `opentelemetry` extra.
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file in accounts that return structured types in the native Arrow format (for example, with `ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT` set).
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file, instead of falling back to the next model, when `AI_COMPLETE` reported the first model as unavailable (`Model "<name>" is unavailable`).
+- Fixed a bug where a UDF, UDTF or stored procedure with an imported module in `packages` failed with `TypeError` on a non-Anaconda artifact repository, such as PyPI. The module is now pinned to its local version, as `Session.add_packages` does. This also fixes `snowflake.snowpark.dataframe.map` with `vectorized=True` on such a repository when `packages` is not given.
 
 #### Dependency Updates
 
