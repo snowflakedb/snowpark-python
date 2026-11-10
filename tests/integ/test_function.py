@@ -151,6 +151,7 @@ from snowflake.snowpark.functions import (
     to_double,
     to_json,
     to_object,
+    to_timestamp,
     to_timestamp_ltz,
     to_timestamp_tz,
     to_varchar,
@@ -159,6 +160,7 @@ from snowflake.snowpark.functions import (
     translate,
     trim,
     try_cast,
+    try_to_binary,
     try_to_boolean,
     try_to_date,
     try_to_decfloat,
@@ -1533,6 +1535,81 @@ def test_to_binary(session):
     # For NULL input, the output is NULL
     res = TestData.all_nulls(session).to_df("a").select(to_binary(col("a"))).collect()
     assert res == [Row(None), Row(None), Row(None), Row(None)]
+
+
+def test_to_binary_fmt_literal_and_column(session, local_testing_mode):
+    df = session.create_dataframe(
+        [["41", "HEX"], ["QQ==", "BASE64"], ["abc", "UTF-8"]], schema=["v", "f"]
+    )
+    # literal fmt, applied to every row
+    res = df.where(col("f") == "HEX").select(to_binary("v", "HEX")).collect()
+    assert res == [Row(bytearray(b"A"))]
+    res = df.where(col("f") == "UTF-8").select(to_binary(col("v"), "UTF-8")).collect()
+    assert res == [Row(bytearray(b"abc"))]
+    # Column fmt with different formats per row
+    if local_testing_mode:
+        with pytest.raises(NotImplementedError):
+            df.select(to_binary("v", col("f"))).collect()
+        return
+    res = df.select(to_binary("v", col("f"))).collect()
+    assert res == [Row(bytearray(b"A")), Row(bytearray(b"A")), Row(bytearray(b"abc"))]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="try_to_binary is not implemented in Local Testing",
+)
+def test_try_to_binary_fmt_literal_and_column(session):
+    df = session.create_dataframe(
+        [["41", "HEX"], ["QQ==", "BASE64"], ["zz", "HEX"], [None, "HEX"]],
+        schema=["v", "f"],
+    )
+    res = df.select(try_to_binary("v", "HEX")).collect()
+    assert res == [Row(bytearray(b"A")), Row(None), Row(None), Row(None)]
+    res = df.select(try_to_binary("v", col("f"))).collect()
+    assert res == [Row(bytearray(b"A")), Row(bytearray(b"A")), Row(None), Row(None)]
+
+
+@pytest.mark.parametrize("convert_func", [to_char, to_varchar])
+def test_to_char_column_format(session, convert_func):
+    df = session.create_dataframe(
+        [
+            [datetime.date(2021, 12, 21), "mm-dd-yyyy"],
+            [datetime.date(1969, 12, 31), "yyyy/mm/dd"],
+        ],
+        schema=StructType(
+            [StructField("a", DateType()), StructField("f", StringType())]
+        ),
+    )
+    assert df.select(convert_func(col("a"), "mm-dd-yyyy")).collect() == [
+        Row("12-21-2021"),
+        Row("12-31-1969"),
+    ]
+    assert df.select(convert_func("a", col("f"))).collect() == [
+        Row("12-21-2021"),
+        Row("1969/12/31"),
+    ]
+
+
+def test_to_timestamp_fmt_variants(session):
+    df = session.create_dataframe(
+        [["2021-12-21 09:12:56", "YYYY-MM-DD HH24:MI:SS", "21/12/2021 09:12:56"]],
+        schema=["a", "f", "b"],
+    )
+    expected = datetime.datetime(2021, 12, 21, 9, 12, 56)
+    assert df.select(to_timestamp("a", "YYYY-MM-DD HH24:MI:SS")).collect() == [
+        Row(expected)
+    ]
+    assert df.select(to_timestamp("a", col("f"))).collect() == [Row(expected)]
+    assert df.select(to_timestamp("b", "DD/MM/YYYY HH24:MI:SS")).collect() == [
+        Row(expected)
+    ]
+    # int scale
+    secs = session.create_dataframe([[1640077976]], schema=["a"])
+    millis = session.create_dataframe([[1640077976000]], schema=["a"])
+    assert secs.select(to_timestamp("a", lit(0))).collect()[0][0] == expected
+    assert secs.select(to_timestamp("a", 0)).collect()[0][0] == expected
+    assert millis.select(to_timestamp("a", lit(3))).collect()[0][0] == expected
 
 
 @pytest.mark.skipif(
