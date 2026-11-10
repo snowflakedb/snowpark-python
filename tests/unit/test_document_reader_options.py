@@ -2,11 +2,8 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import logging
-
 import pytest
 
-from snowflake.snowpark._internal import utils
 from snowflake.snowpark._internal.document_reader_options import (
     _DEFAULT_CORRUPT_RECORD_COLUMN,
     DocumentReaderOptions,
@@ -118,20 +115,9 @@ class TestDefaults:
 # ---------------------------------------------------------------------------
 # User options -- from_reader_options reads SCHEMA and PROMPT (keys arrive
 # upper-cased via .option()); every other key, such as MODEL, MODE or
-# EXTRACTION_ENGINE, is chosen by the reader and ignored. PARSE_MODE, ROW_BOUNDARY
-# and EXTRACT_IMAGES, options of the first private preview release, are ignored with
-# a warning.
+# EXTRACTION_ENGINE, is chosen by the reader and ignored. That includes PARSE_MODE,
+# ROW_BOUNDARY and EXTRACT_IMAGES, options of the first private preview release.
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def fresh_warnings():
-    # utils.warning() logs each name once per process; forget the removed-option
-    # warnings so every test sees its own.
-    for key in list(utils.warning_dict):
-        if key.startswith("DataFrameReader.documents."):
-            del utils.warning_dict[key]
-    yield
 
 
 class TestUserOptions:
@@ -168,48 +154,17 @@ class TestUserOptions:
             {"EXTRACT_IMAGES": True, "PARSE_MODE": "ocr"},
         ],
     )
-    def test_removed_options_are_ignored_whatever_their_value(
-        self, options, fresh_warnings
-    ):
+    def test_removed_options_are_ignored_whatever_their_value(self, options):
         options = _build(options)
         assert options == _build({})
         assert options.parse_mode == "layout"
         assert options.row_boundary == "document"
         assert options.extract_images is False
 
-    @pytest.mark.parametrize("key", ["PARSE_MODE", "ROW_BOUNDARY", "EXTRACT_IMAGES"])
-    def test_a_removed_option_warns_that_it_is_ignored(
-        self, key, caplog, fresh_warnings
-    ):
-        with caplog.at_level(logging.WARNING):
-            _build({key: "anything"})
-        assert caplog.text.count("no longer supported") == 1
-        assert (
-            f"The '{key.lower()}' option of DataFrameReader.documents() is no longer "
-            "supported and is ignored."
-        ) in caplog.text
-
-    def test_each_removed_option_warns_once(self, caplog, fresh_warnings):
-        with caplog.at_level(logging.WARNING):
-            _build({"ROW_BOUNDARY": "page"})
-            _build({"ROW_BOUNDARY": "page"})
-        assert caplog.text.count("'row_boundary' option") == 1
-
-    @pytest.mark.parametrize(
-        "key", ["SCHEMA", "PROMPT", "MODE", "MODEL", "BOGUS_OPTION"]
-    )
-    def test_other_options_do_not_warn(self, key, caplog, fresh_warnings):
-        value = FLAT_SCHEMA if key == "SCHEMA" else "some-value"
-        with caplog.at_level(logging.WARNING):
-            _build({key: value})
-        assert "no longer supported" not in caplog.text
-
     @pytest.mark.parametrize(
         "extra", [{"SCHEMA": FLAT_SCHEMA}, {"PROMPT": "Extract fields."}]
     )
-    def test_removed_options_do_not_change_a_schema_or_prompt_read(
-        self, extra, fresh_warnings
-    ):
+    def test_removed_options_do_not_change_a_schema_or_prompt_read(self, extra):
         options = _build(
             {
                 "PARSE_MODE": "ocr",

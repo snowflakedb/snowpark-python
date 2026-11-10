@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.utils import warning
 from snowflake.snowpark.types import (
     BooleanType,
     DataType,
@@ -22,10 +21,6 @@ _EXTRACTION_ENGINES = frozenset({"ai_extract", "ai_complete"})
 # parse_mode values a user can choose; "none" (do not parse) is set by the reader itself
 # whenever a schema or prompt is given.
 _USER_PARSE_MODES = _PARSE_MODES - {"none"}
-
-# Options documents() accepted in its first private preview release (1.56.0), now
-# ignored with a warning.
-_REMOVED_OPTIONS = ("PARSE_MODE", "ROW_BOUNDARY", "EXTRACT_IMAGES")
 
 # JSON Schema scalar types mapped to Snowpark equivalents; "array"/"object" are omitted since AI_EXTRACT/AI_COMPLETE already return them as structured VARIANT.
 _JSON_SCHEMA_SCALAR_TYPES: Dict[str, DataType] = {
@@ -226,16 +221,7 @@ class DocumentReaderOptions:
         cls, cur_options: Dict[str, Any]
     ) -> "DocumentReaderOptions":
         """The user options are SCHEMA and PROMPT; any other key is ignored, because
-        everything else is chosen by the reader. The options removed after the first
-        private preview release (PARSE_MODE, ROW_BOUNDARY, EXTRACT_IMAGES) are ignored
-        too, with a warning."""
-        for key in _REMOVED_OPTIONS:
-            if key in cur_options:
-                warning(
-                    f"DataFrameReader.documents.{key.lower()}",
-                    f"The '{key.lower()}' option of DataFrameReader.documents() is no "
-                    "longer supported and is ignored.",
-                )
+        everything else is chosen by the reader."""
         options = cls(
             extraction=ExtractionSpec.from_response_format(
                 cls._validated_schema(cur_options.get("SCHEMA"))

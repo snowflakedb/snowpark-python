@@ -573,7 +573,7 @@ def test_extract_type_mismatch_is_surfaced_not_silently_dropped(session):
         pytest.param("extraction_engine", "ai_extract", id="extraction_engine"),
         pytest.param("model", "claude-sonnet-4-5", id="model"),
         pytest.param("bogus_option", "anything", id="unknown_option"),
-        # Options of the first private preview release, now ignored with a warning.
+        # Options of the first private preview release, now ignored too.
         pytest.param("parse_mode", "ocr", id="parse_mode"),
         pytest.param("row_boundary", "page", id="row_boundary"),
         pytest.param("extract_images", True, id="extract_images"),
