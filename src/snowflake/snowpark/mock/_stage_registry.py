@@ -22,7 +22,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.mock._functions import mock_to_char
-from snowflake.snowpark.mock._options import pandas as pd
+from snowflake.snowpark.mock._options import numpy, pandas as pd
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
@@ -411,6 +411,9 @@ class StageEntity:
     ) -> TableEmulator:
         from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
 
+        # As in live, an option set to None is not set.
+        options = {k: v for k, v in (options or {}).items() if v is not None}
+
         stage_source_dir_path = os.path.join(self._working_directory, stage_location)
 
         if os.path.isfile(stage_source_dir_path):
@@ -464,6 +467,12 @@ class StageEntity:
             # check SNOW-1355487 for improvements
             skip_header = options.get("SKIP_HEADER", 0)
             skip_blank_lines = options.get("SKIP_BLANK_LINES", False)
+            # Snowflake accepts only TRUE or FALSE.
+            if not isinstance(skip_blank_lines, (bool, numpy.bool_)):
+                raise SnowparkLocalTestingException(
+                    f"Invalid value {skip_blank_lines!r} for SKIP_BLANK_LINES, expected True or False."
+                )
+            skip_blank_lines = bool(skip_blank_lines)
             field_delimiter = options.get("FIELD_DELIMITER", ",")
             field_optionally_enclosed_by = options.get(
                 "FIELD_OPTIONALLY_ENCLOSED_BY", None
@@ -563,6 +572,8 @@ class StageEntity:
                     delimiter=field_delimiter,
                     dtype=object,
                     converters=converters_dict,
+                    # Snowflake has no default NA strings; NULL comes only from NULL_IF.
+                    keep_default_na=False,
                     # check definition here: https://docs.python.org/3/library/csv.html#csv.QUOTE_MINIMAL
                     # csv.QUOTE_MINIMAL, the engine will parse the value for us using the quote value/field_optionally_enclosed_by
                     # csv.QUOTE_NONE, by default snowflake FIELD_OPTIONALLY_ENCLOSED_BY is None
