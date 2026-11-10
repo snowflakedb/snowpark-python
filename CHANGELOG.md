@@ -35,6 +35,7 @@
 - Fixed a bug where `Column.isin` on a datetime column in local testing did not match any value when the subquery it was given also contained NULL or a value that cannot be parsed as a timestamp.
 - Fixed a bug where `dateadd` with the `year`, `quarter` or `month` part raised an error instead of returning NULL for a NULL date in local testing.
 - Fixed a bug where `Session.create_dataframe` raised `OverflowError` in local testing for a pandas DataFrame with a datetime column outside the nanosecond range (for example, year 3000).
+- Fixed a bug where `DataFrame.pivot` in local testing raised `TypeError` when an aggregated value came from `date_part` with the `week`, `weekiso` or `yearofweekiso` part and a pivot cell was empty.
 
 ## 1.56.0 (2026-10-29)
 
