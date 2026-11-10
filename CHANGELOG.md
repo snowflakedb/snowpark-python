@@ -8,7 +8,6 @@
 
 - Added `Session.semantic_view()` (PuPr) to query a semantic view. Pass the semantic view name plus any of `dimensions`, `metrics`, `facts`, and `where`; it returns a `DataFrame`.
 - Added `Session.debug` (Experimental) to turn the debug features on and off per session, with `session.debug.set(...)`.
-
   `snowflake.snowpark.context.configure_development_features` is now a mirror of `Session.debug` that applies to every session.
 
 #### Improvements
