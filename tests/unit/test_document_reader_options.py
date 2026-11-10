@@ -177,22 +177,17 @@ class TestUserOptions:
         assert options.row_boundary == "document"
         assert options.extract_images is False
 
-    @pytest.mark.parametrize(
-        "key,replacement",
-        [
-            ("PARSE_MODE", "LAYOUT mode"),
-            ("ROW_BOUNDARY", "one row per document"),
-            ("EXTRACT_IMAGES", "functions.ai_parse_document"),
-        ],
-    )
-    def test_a_removed_option_warns_with_its_replacement(
-        self, key, replacement, caplog, fresh_warnings
+    @pytest.mark.parametrize("key", ["PARSE_MODE", "ROW_BOUNDARY", "EXTRACT_IMAGES"])
+    def test_a_removed_option_warns_that_it_is_ignored(
+        self, key, caplog, fresh_warnings
     ):
         with caplog.at_level(logging.WARNING):
             _build({key: "anything"})
-        assert f"'{key.lower()}' option" in caplog.text
-        assert "no longer supported and is ignored" in caplog.text
-        assert replacement in caplog.text
+        assert caplog.text.count("no longer supported") == 1
+        assert (
+            f"The '{key.lower()}' option of DataFrameReader.documents() is no longer "
+            "supported and is ignored."
+        ) in caplog.text
 
     def test_each_removed_option_warns_once(self, caplog, fresh_warnings):
         with caplog.at_level(logging.WARNING):

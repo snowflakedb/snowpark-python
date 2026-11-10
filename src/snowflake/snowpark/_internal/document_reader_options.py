@@ -24,15 +24,8 @@ _EXTRACTION_ENGINES = frozenset({"ai_extract", "ai_complete"})
 _USER_PARSE_MODES = _PARSE_MODES - {"none"}
 
 # Options documents() accepted in its first private preview release (1.56.0), now
-# ignored with a warning saying what the reader does instead.
-_REMOVED_OPTIONS = {
-    "PARSE_MODE": "documents are always parsed with AI_PARSE_DOCUMENT in LAYOUT mode",
-    "ROW_BOUNDARY": "every read returns one row per document",
-    "EXTRACT_IMAGES": (
-        "use functions.ai_parse_document(..., mode='LAYOUT', extract_images=True) "
-        "to extract images"
-    ),
-}
+# ignored with a warning.
+_REMOVED_OPTIONS = ("PARSE_MODE", "ROW_BOUNDARY", "EXTRACT_IMAGES")
 
 # JSON Schema scalar types mapped to Snowpark equivalents; "array"/"object" are omitted since AI_EXTRACT/AI_COMPLETE already return them as structured VARIANT.
 _JSON_SCHEMA_SCALAR_TYPES: Dict[str, DataType] = {
@@ -236,12 +229,12 @@ class DocumentReaderOptions:
         everything else is chosen by the reader. The options removed after the first
         private preview release (PARSE_MODE, ROW_BOUNDARY, EXTRACT_IMAGES) are ignored
         too, with a warning."""
-        for key, replacement in _REMOVED_OPTIONS.items():
+        for key in _REMOVED_OPTIONS:
             if key in cur_options:
                 warning(
                     f"DataFrameReader.documents.{key.lower()}",
                     f"The '{key.lower()}' option of DataFrameReader.documents() is no "
-                    f"longer supported and is ignored: {replacement}.",
+                    "longer supported and is ignored.",
                 )
         options = cls(
             extraction=ExtractionSpec.from_response_format(
