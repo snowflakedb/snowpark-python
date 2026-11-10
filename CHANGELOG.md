@@ -8,6 +8,8 @@
 
 - Added `Session.semantic_view()` (PuPr) to query a semantic view. Pass the semantic view name plus any of `dimensions`, `metrics`, `facts`, and `where`; it returns a `DataFrame`.
 
+- ``DataFrameWriter.save_as_table`` defaults ``copy_grants`` to true and emits ``COPY GRANTS`` on ``CREATE OR REPLACE``. Older Snowpark versions omit the clause, so once BCR-2433 is enabled they copy grants on replace; this default matches that behavior. ``copy_grants=False`` emits ``IGNORE GRANTS`` so privileges on the replaced table are dropped.
+
 #### Improvements
 
 - `snowflake.snowpark.context.configure_development_features` (Experimental) no longer depends on AST collection and no longer changes the AST collection setting.
