@@ -68,7 +68,6 @@ def test_invalid_identifier_after_rename(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [
-        BASE,
         src('base(session).select(col("ID").alias("RENAMED")).select("ID")'),
     ]
     if not trace_settings.simplifier:

@@ -63,7 +63,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "wrapt",  # used for functools.wraps(...) in testing.
     "coverage",
     "sphinx==5.0.2",
-    "cachetools",  # used in UDF doctest
+    "cachetools<8",  # used in UDF doctest; 8.x cached wrappers pickle by reference and break the doctest
     "pytest-timeout",
     "pytest-xdist",
     "openpyxl",  # used in read_excel test, not a requirement for distribution

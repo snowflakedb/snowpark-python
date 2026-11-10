@@ -3,6 +3,7 @@
 #
 
 import os
+import re
 import sys
 
 import pytest
@@ -17,7 +18,9 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     col,
     lit,
+    sql_expr,
     sum,
+    when,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.utils import TempObjectType
@@ -66,6 +69,90 @@ def test_python_source_location_in_sql_error(session):
     )
     line_number = Utils.get_current_line_number_sys()
     assert f"line {line_number - 6}" in str(ex.value.debug_context)
+
+
+def _mapped_lines(ex) -> list:
+    """The lines of this file that the debug context maps the SQL error to."""
+    return [
+        int(line)
+        for line in re.findall(
+            re.escape(os.path.basename(__file__)) + r": line (\d+)",
+            str(ex.value.debug_context),
+        )
+    ]
+
+
+@pytest.fixture(params=[True, False], ids=["multiline", "singleline"])
+def multiline(request, session):
+    original = session._generate_multiline_queries
+    if request.param:
+        session._enable_multiline_queries()
+    else:
+        session._disable_multiline_queries()
+    yield request.param
+    if original:
+        session._enable_multiline_queries()
+    else:
+        session._disable_multiline_queries()
+
+
+def test_sql_error_maps_to_operation_of_its_subquery(session, multiline):
+    """An operation that wraps the previous ones in a subquery is reported alone, not
+    with the operations of the subquery (SNOW-4412764)."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    bad = sql_expr("TO_DATE(a, b, a, b)")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.with_column("c", col("a") + 1)
+    df = df.with_column("d", bad)
+    line = Utils.get_current_line_number_sys() - 1
+    df = df.with_column("e", col("a") * 2)
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+def test_sql_error_in_case_expression(session, multiline):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    bad = sql_expr("TO_DATE(a, b, a, b)")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.with_column("c", col("a") + 1)
+    df = df.with_column("k", when(col("a") > 0, bad).otherwise(lit(None)))
+    line = Utils.get_current_line_number_sys() - 1
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+def test_sql_error_in_flattened_operations(session, multiline):
+    """Operations the SQL simplifier flattens into one SELECT share the SQL lines, so they
+    are all reported; the offending one is among them."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    bad = sql_expr("TO_DATE(a, b, a, b)")
+    first = Utils.get_current_line_number_sys() + 1
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.select("a", "b")
+    df = df.filter(col("a") > 0)
+    df = df.filter(bad.is_not_null())
+    df = df.sort(col("a"))
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == list(range(first, first + 5))
+
+
+def test_sql_error_of_another_query_reports_all_operations(session, multiline):
+    """The schema query run when the join is created has other lines than the sql of the
+    plan, so all the operations of the matched plan are reported."""
+    bad = sql_expr("TO_DATE(a, b, a, b)")
+    first = Utils.get_current_line_number_sys() + 1
+    left = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    left = left.with_column("x", bad)
+    right = session.create_dataframe([(1, "z")], schema=["a", "y"])
+    with pytest.raises(SnowparkSQLException) as ex:
+        left.join(right, left["a"] == right["a"])
+    assert _mapped_lines(ex) == [first, first + 1, first + 4]
 
 
 def test_python_source_location_in_session_sql(session):

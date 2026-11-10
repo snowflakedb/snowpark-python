@@ -576,7 +576,7 @@ class ColumnEmulator(PandasSeriesType):
         else:
             # Can not use short cut self.isna().any() as this leads to endless recursion
             # due to ColumnEmulator inheriting from a pandas Series.
-            nullable = any([isna_helper(obj) for obj in self.values])
+            nullable = any([isna_helper(obj) for obj in self.array])
 
             from pandas.core.dtypes.common import is_object_dtype
 
