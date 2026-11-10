@@ -151,12 +151,26 @@ from snowflake.snowpark.functions import (
     to_double,
     to_json,
     to_object,
+    to_timestamp_ltz,
+    to_timestamp_tz,
     to_varchar,
     to_variant,
     to_xml,
     translate,
     trim,
     try_cast,
+    try_to_boolean,
+    try_to_date,
+    try_to_decfloat,
+    try_to_decimal,
+    try_to_double,
+    try_to_number,
+    try_to_numeric,
+    try_to_time,
+    try_to_timestamp,
+    try_to_timestamp_ltz,
+    try_to_timestamp_ntz,
+    try_to_timestamp_tz,
     uniform,
     upper,
     vector_cosine_distance,
@@ -2736,3 +2750,223 @@ def test_udf_init_once_register_from_file(session):
     )
     assert isinstance(multiply_udf, UserDefinedFunction)
     assert multiply_udf.name
+
+
+def _str_df(session, rows, *names):
+    return session.create_dataframe(
+        rows, schema=StructType([StructField(n, StringType()) for n in names])
+    )
+
+
+def test_try_to_boolean(session):
+    df = _str_df(session, [["true"], ["no"], ["bogus"], [None]], "a")
+    Utils.check_answer(
+        df.select(try_to_boolean("a")),
+        [Row(True), Row(False), Row(None), Row(None)],
+    )
+
+
+def test_try_to_date_time(session, local_testing_mode):
+    df = _str_df(
+        session,
+        [["2024-01-15", "10:30:45"], ["not a date", "not a time"], [None, None]],
+        "d",
+        "t",
+    )
+    Utils.check_answer(
+        df.select(try_to_date("d"), try_to_time(col("t"))),
+        [
+            Row(datetime.date(2024, 1, 15), datetime.time(10, 30, 45)),
+            Row(None, None),
+            Row(None, None),
+        ],
+    )
+
+    if not local_testing_mode:
+        df = _str_df(
+            session,
+            [
+                ["15/01/2024", "10-30-45", "DD/MM/YYYY", "HH24-MI-SS"],
+                ["bad", "bad", "DD/MM/YYYY", "HH24-MI-SS"],
+            ],
+            "d",
+            "t",
+            "dfmt",
+            "tfmt",
+        )
+        Utils.check_answer(
+            df.select(
+                try_to_date("d", "DD/MM/YYYY"),
+                try_to_time("t", "HH24-MI-SS"),
+                try_to_date("d", col("dfmt")),
+                try_to_time("t", col("tfmt")),
+            ),
+            [
+                Row(
+                    datetime.date(2024, 1, 15),
+                    datetime.time(10, 30, 45),
+                    datetime.date(2024, 1, 15),
+                    datetime.time(10, 30, 45),
+                ),
+                Row(None, None, None, None),
+            ],
+        )
+
+
+def test_try_to_timestamp(session, local_testing_mode):
+    df = _str_df(session, [["2024-01-15 10:30:45"], ["garbage"], [None]], "a")
+    ntz = datetime.datetime(2024, 1, 15, 10, 30, 45)
+    Utils.check_answer(
+        df.select(try_to_timestamp_ntz("a")),
+        [Row(ntz), Row(None), Row(None)],
+    )
+
+    # Compare with to_timestamp_* of the same string, independent of session timezone
+    valid = _str_df(session, [["2024-01-15 10:30:45"]], "a")
+    res = valid.select(
+        try_to_timestamp("a"),
+        try_to_timestamp_ltz("a"),
+        try_to_timestamp_tz("a"),
+        to_timestamp_ltz("a"),
+        to_timestamp_tz("a"),
+    ).collect()
+    assert res[0][0] is not None
+    assert res[0][1] == res[0][3] and res[0][1] is not None
+    assert res[0][2] == res[0][4] and res[0][2] is not None
+    res = df.select(
+        try_to_timestamp("a"), try_to_timestamp_ltz("a"), try_to_timestamp_tz("a")
+    ).collect()
+    assert all(v is None for v in res[1])
+    assert all(v is None for v in res[2])
+
+    if not local_testing_mode:
+        df = _str_df(
+            session,
+            [
+                ["15/01/2024 10:30:45", "DD/MM/YYYY HH24:MI:SS"],
+                ["bad", "DD/MM/YYYY HH24:MI:SS"],
+            ],
+            "a",
+            "fmt",
+        )
+        fmt = "DD/MM/YYYY HH24:MI:SS"
+        for f in (try_to_timestamp, try_to_timestamp_ntz):
+            Utils.check_answer(
+                df.select(f("a", fmt), f("a", col("fmt"))),
+                [Row(ntz, ntz), Row(None, None)],
+            )
+        res = df.select(
+            try_to_timestamp_ltz("a", fmt), try_to_timestamp_tz("a", col("fmt"))
+        ).collect()
+        assert all(v is None for v in res[1])
+        valid = df.limit(1)
+        res = valid.select(
+            try_to_timestamp_ltz("a", fmt),
+            try_to_timestamp_tz("a", col("fmt")),
+            to_timestamp_ltz("a", fmt),
+            to_timestamp_tz("a", col("fmt")),
+        ).collect()
+        assert res[0][0] == res[0][2] and res[0][0] is not None
+        assert res[0][1] == res[0][3] and res[0][1] is not None
+
+
+def test_try_to_decimal(session, local_testing_mode):
+    assert try_to_number is try_to_decimal
+    assert try_to_numeric is try_to_decimal
+
+    df = _str_df(session, [["12.345"], ["abc"], [None]], "a")
+    D = decimal.Decimal
+    Utils.check_answer(
+        df.select(try_to_decimal("a", 10, 2)),
+        [Row(D("12.35")), Row(None), Row(None)],
+    )
+    Utils.check_answer(
+        df.select(try_to_decimal("a", 10)),
+        [Row(D("12")), Row(None), Row(None)],
+    )
+    # scale without precision uses precision 38
+    Utils.check_answer(
+        df.select(try_to_decimal("a", scale=1)),
+        [Row(D("12.3")), Row(None), Row(None)],
+    )
+    Utils.check_answer(
+        df.select(try_to_number("a", 10, 1), try_to_numeric("a", 10, 1)),
+        [Row(D("12.3"), D("12.3")), Row(None, None), Row(None, None)],
+    )
+
+    if not local_testing_mode:
+        df = _str_df(
+            session,
+            [
+                ["$12.34", "$99.99", "9.99MI"],
+                ["2.34-", "9.99", "9.99MI"],
+                ["bad", "$99.99", "9.99MI"],
+            ],
+            "a",
+            "b",
+            "c",
+        )
+        Utils.check_answer(
+            df.select(
+                try_to_decimal("a", fmt="$99.99", precision=10, scale=2),
+                try_to_decimal("a", fmt=col("b"), precision=10, scale=2),
+                try_to_decimal("a", fmt=col("c"), precision=10, scale=2),
+            ),
+            [
+                Row(D("12.34"), D("12.34"), None),
+                Row(None, None, D("-2.34")),
+                Row(None, None, None),
+            ],
+        )
+    else:
+        df = _str_df(session, [["12.34", "99.99"]], "a", "f")
+        with pytest.raises(NotImplementedError):
+            df.select(try_to_decimal("a", 10, 2, fmt="99.99")).collect()
+        with pytest.raises(NotImplementedError):
+            df.select(try_to_decimal("a", 10, 2, fmt=col("f"))).collect()
+
+
+def test_try_to_double_decfloat(session, local_testing_mode):
+    df = _str_df(session, [["12.34"], ["3.45e-4"], ["oops"], [None]], "a")
+    Utils.check_answer(
+        df.select(try_to_double("a")),
+        [Row(12.34), Row(3.45e-4), Row(None), Row(None)],
+        sort=False,
+    )
+    Utils.check_answer(
+        df.select(try_to_decfloat("a")),
+        [
+            Row(decimal.Decimal("12.34")),
+            Row(decimal.Decimal("3.45e-4")),
+            Row(None),
+            Row(None),
+        ],
+        sort=False,
+    )
+
+    if not local_testing_mode:
+        df = _str_df(
+            session,
+            [["1.2", "9.99"], ["2.34-", "9.99MI"], ["bad", "9.99"]],
+            "a",
+            "fmt",
+        )
+        Utils.check_answer(
+            df.select(
+                try_to_double("a", "9.99"),
+                try_to_double("a", col("fmt")),
+                try_to_decfloat("a", col("fmt")),
+            ),
+            [
+                Row(1.2, 1.2, decimal.Decimal("1.2")),
+                Row(None, -2.34, decimal.Decimal("-2.34")),
+                Row(None, None, None),
+            ],
+        )
+    else:
+        df = _str_df(session, [["1.2", "9.99"]], "a", "fmt")
+        for f in (try_to_double, try_to_decfloat):
+            with pytest.raises(NotImplementedError):
+                df.select(f("a", "9.99")).collect()
+            with pytest.raises(NotImplementedError):
+                df.select(f("a", col("fmt"))).collect()

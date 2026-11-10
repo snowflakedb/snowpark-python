@@ -12086,6 +12086,245 @@ def try_to_binary(
     )
 
 
+def _try_to_with_fmt(
+    name: str,
+    e: ColumnOrName,
+    fmt: Optional[ColumnOrLiteralStr],
+    _emit_ast: bool,
+) -> Column:
+    # Build AST here so that `fmt` is recorded the same way as in the `to_*` counterparts.
+    ast = (
+        build_function_expr(name, [e] if fmt is None else [e, fmt])
+        if _emit_ast
+        else None
+    )
+    c = _to_col_if_str(e, name)
+    if fmt is None:
+        return _call_function(name, c, _ast=ast, _emit_ast=_emit_ast)
+    return _call_function(
+        name, c, _to_col_if_lit(fmt, name), _ast=ast, _emit_ast=_emit_ast
+    )
+
+
+@publicapi
+def try_to_boolean(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    A special version of TO_BOOLEAN that returns NULL instead of raising an error if the conversion
+    cannot be performed. Snowflake's TRY_TO_BOOLEAN only accepts string input.
+
+    Example::
+
+        >>> df = session.create_dataframe(['yes', 'no', 'maybe'], schema=['a'])
+        >>> df.select(try_to_boolean(col('a')).as_('ans')).collect()
+        [Row(ANS=True), Row(ANS=False), Row(ANS=None)]
+    """
+    c = _to_col_if_str(e, "try_to_boolean")
+    return _call_function("try_to_boolean", c, _emit_ast=_emit_ast)
+
+
+@publicapi
+def try_to_date(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None, _emit_ast: bool = True
+) -> Column:
+    """
+    A special version of TO_DATE that returns NULL instead of raising an error if the conversion
+    cannot be performed. Snowflake's TRY_TO_DATE only accepts string input.
+
+    Example::
+
+        >>> df = session.create_dataframe(['2013-05-17', 'not a date'], schema=['a'])
+        >>> df.select(try_to_date(col('a')).as_('ans')).collect()
+        [Row(ANS=datetime.date(2013, 5, 17)), Row(ANS=None)]
+        >>> df.select(try_to_date(col('a'), 'YYYY-MM-DD').as_('ans')).collect()
+        [Row(ANS=datetime.date(2013, 5, 17)), Row(ANS=None)]
+    """
+    return _try_to_with_fmt("try_to_date", e, fmt, _emit_ast)
+
+
+@publicapi
+def try_to_time(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None, _emit_ast: bool = True
+) -> Column:
+    """
+    A special version of TO_TIME that returns NULL instead of raising an error if the conversion
+    cannot be performed. Snowflake's TRY_TO_TIME only accepts string input.
+
+    Example::
+
+        >>> df = session.create_dataframe(['04:15:29.999', 'not a time'], schema=['a'])
+        >>> df.select(try_to_time(col('a')).as_('ans')).collect()
+        [Row(ANS=datetime.time(4, 15, 29, 999000)), Row(ANS=None)]
+    """
+    return _try_to_with_fmt("try_to_time", e, fmt, _emit_ast)
+
+
+@publicapi
+def try_to_timestamp(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None, _emit_ast: bool = True
+) -> Column:
+    """
+    A special version of TO_TIMESTAMP that returns NULL instead of raising an error if the conversion
+    cannot be performed. Snowflake's TRY_TO_TIMESTAMP only accepts string input. The format has to be
+    specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+
+    Example::
+
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004', 'not a timestamp'], schema=['a'])
+        >>> df.select(try_to_timestamp(col('a')).as_('ans')).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 31, 1, 2, 3, 4000)), Row(ANS=None)]
+        >>> df.select(try_to_timestamp(col('a'), 'YYYY-MM-DD HH24:MI:SS.FF3').as_('ans')).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 31, 1, 2, 3, 4000)), Row(ANS=None)]
+    """
+    return _try_to_with_fmt("try_to_timestamp", e, fmt, _emit_ast)
+
+
+@publicapi
+def try_to_timestamp_ltz(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None, _emit_ast: bool = True
+) -> Column:
+    """
+    A special version of TO_TIMESTAMP_LTZ that returns NULL instead of raising an error if the conversion
+    cannot be performed. Snowflake's TRY_TO_TIMESTAMP_LTZ only accepts string input. The format has to be
+    specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+
+    Example::
+
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004', 'not a timestamp'], schema=['a'])
+        >>> result = df.select(try_to_timestamp_ltz(col('a')).as_('ans')).collect()
+        >>> result[0]["ANS"].replace(tzinfo=None)
+        datetime.datetime(2019, 1, 31, 1, 2, 3, 4000)
+        >>> result[1]["ANS"] is None
+        True
+    """
+    return _try_to_with_fmt("try_to_timestamp_ltz", e, fmt, _emit_ast)
+
+
+@publicapi
+def try_to_timestamp_ntz(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None, _emit_ast: bool = True
+) -> Column:
+    """
+    A special version of TO_TIMESTAMP_NTZ that returns NULL instead of raising an error if the conversion
+    cannot be performed. Snowflake's TRY_TO_TIMESTAMP_NTZ only accepts string input. The format has to be
+    specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+
+    Example::
+
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004', 'not a timestamp'], schema=['a'])
+        >>> df.select(try_to_timestamp_ntz(col('a')).as_('ans')).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 31, 1, 2, 3, 4000)), Row(ANS=None)]
+    """
+    return _try_to_with_fmt("try_to_timestamp_ntz", e, fmt, _emit_ast)
+
+
+@publicapi
+def try_to_timestamp_tz(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None, _emit_ast: bool = True
+) -> Column:
+    """
+    A special version of TO_TIMESTAMP_TZ that returns NULL instead of raising an error if the conversion
+    cannot be performed. Snowflake's TRY_TO_TIMESTAMP_TZ only accepts string input. The format has to be
+    specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+
+    Example::
+
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004 +0000', 'not a timestamp'], schema=['a'])
+        >>> result = df.select(try_to_timestamp_tz(col('a')).as_('ans')).collect()
+        >>> result[0]["ANS"].utcoffset()
+        datetime.timedelta(0)
+        >>> result[1]["ANS"] is None
+        True
+    """
+    return _try_to_with_fmt("try_to_timestamp_tz", e, fmt, _emit_ast)
+
+
+@publicapi
+def try_to_double(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None, _emit_ast: bool = True
+) -> Column:
+    """
+    A special version of TO_DOUBLE that returns NULL instead of raising an error if the conversion
+    cannot be performed. Snowflake's TRY_TO_DOUBLE only accepts string input.
+
+    Example::
+
+        >>> df = session.create_dataframe(['12', '11.3', 'abc'], schema=['a'])
+        >>> df.select(try_to_double(col('a')).as_('ans')).collect()
+        [Row(ANS=12.0), Row(ANS=11.3), Row(ANS=None)]
+        >>> df = session.create_dataframe(['12+', '11.3+', 'abc'], schema=['a'])
+        >>> df.select(try_to_double(col('a'), '999.99MI').as_('ans')).collect()
+        [Row(ANS=12.0), Row(ANS=11.3), Row(ANS=None)]
+    """
+    return _try_to_with_fmt("try_to_double", e, fmt, _emit_ast)
+
+
+@publicapi
+def try_to_decfloat(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None, _emit_ast: bool = True
+) -> Column:
+    """
+    A special version of TO_DECFLOAT that returns NULL instead of raising an error if the conversion
+    cannot be performed. Unlike the other TRY_TO_* functions, TRY_TO_DECFLOAT also accepts numeric
+    and boolean input.
+
+    Example::
+
+        >>> df = session.create_dataframe(['12', '-90.12345', 'abc'], schema=['a'])
+        >>> df.select(try_to_decfloat(col('a')).as_('ans')).collect()
+        [Row(ANS=Decimal('12')), Row(ANS=Decimal('-90.12345')), Row(ANS=None)]
+    """
+    return _try_to_with_fmt("try_to_decfloat", e, fmt, _emit_ast)
+
+
+@publicapi
+def try_to_decimal(
+    e: ColumnOrName,
+    precision: Optional[int] = None,
+    scale: Optional[int] = None,
+    fmt: Optional[ColumnOrLiteralStr] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    A special version of TO_DECIMAL that returns NULL instead of raising an error if the conversion
+    cannot be performed. Snowflake's TRY_TO_DECIMAL only accepts string input. If ``scale`` is given
+    without ``precision``, the default precision of 38 is used. Also available as ``try_to_number``
+    and ``try_to_numeric``.
+
+    Example::
+
+        >>> df = session.create_dataframe(['12', '11.3', 'abc'], schema=['a'])
+        >>> df.select(try_to_decimal(col('a'), 38, 0).as_('ans')).collect()
+        [Row(ANS=12), Row(ANS=11), Row(ANS=None)]
+        >>> df.select(try_to_decimal(col('a'), 38, 2).as_('ans')).collect()
+        [Row(ANS=Decimal('12.00')), Row(ANS=Decimal('11.30')), Row(ANS=None)]
+    """
+    # Build AST here to prevent `precision` and `scale` from being recorded as a literal instead of int.
+    # The AST follows the Python signature (e, precision, scale, fmt), not the SQL argument order.
+    ast_args = [e, precision, scale, fmt]
+    while ast_args[-1] is None:
+        ast_args.pop()
+    ast = build_function_expr("try_to_decimal", ast_args) if _emit_ast else None
+
+    # SQL argument order is (e [, fmt] [, precision [, scale]]).
+    if scale is not None and precision is None:
+        precision = 38
+    cols = [_to_col_if_str(e, "try_to_decimal")]
+    if fmt is not None:
+        cols.append(_to_col_if_lit(fmt, "try_to_decimal"))
+    cols.extend(
+        lit(arg, _emit_ast=False) for arg in (precision, scale) if arg is not None
+    )
+    return _call_function("try_to_decimal", *cols, _ast=ast, _emit_ast=_emit_ast)
+
+
+try_to_number = try_to_decimal
+try_to_numeric = try_to_decimal
+
+
 @publicapi
 def base64_encode(
     e: ColumnOrName,

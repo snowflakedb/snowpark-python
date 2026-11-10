@@ -24,12 +24,14 @@ from snowflake.snowpark.functions import (
     window,
 )
 from snowflake.snowpark.types import (
+    DoubleType,
     IntegerType,
     StringType,
     StructField,
     StructType,
     TimestampTimeZone,
     TimestampType,
+    TimeType,
 )
 from tests.utils import TestData, Utils, IS_IN_STORED_PROC
 
@@ -83,6 +85,24 @@ def test_try_cast_work_cast_not_work(session, local_testing_mode):
     Utils.check_answer(
         df.select(df["a"].try_cast("date")), [Row(None)]
     )  # try_cast doesn't throw exception
+
+
+def test_try_cast_time_invalid(session):
+    df = session.create_dataframe([["10:30:45"], ["not a time"], [None]], schema=["a"])
+    rows = df.select(df["a"].try_cast(TimeType())).collect()
+    assert [r[0] for r in rows] == [datetime.time(10, 30, 45), None, None]
+
+
+def test_try_cast_double_invalid_is_none(session):
+    df = session.create_dataframe([["1.5"], ["abc"], ["2"]], schema=["a"])
+    res = df.select(df["a"].try_cast(DoubleType()))
+    Utils.check_answer(res, [Row(1.5), Row(None), Row(2.0)], sort=False)
+    rows = res.collect()
+    assert rows[1][0] is None
+
+    valid = session.create_dataframe([["1.5"], ["2"]], schema=["a"])
+    pdf = valid.select(valid["a"].try_cast(DoubleType())).to_pandas()
+    assert str(pdf.iloc[:, 0].dtype) == "float64"
 
 
 def test_cast_try_cast_negative(session):
