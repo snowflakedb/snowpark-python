@@ -111,7 +111,6 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark._internal.utils import (
-    MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
     SUPPORTED_TABLE_TYPES,
     XPATH_HANDLERS_FILE_PATH,
@@ -134,6 +133,7 @@ from snowflake.snowpark._internal.utils import (
     get_version,
     import_or_missing_modin_pandas,
     is_in_stored_procedure,
+    module_to_requirement,
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
@@ -2125,10 +2125,7 @@ class Session:
         package_dict = dict()
         for package in packages:
             if isinstance(package, ModuleType):
-                package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
-                    package.__name__, package.__name__
-                )
-                package = f"{package_name}=={importlib.metadata.version(package_name)}"
+                package = module_to_requirement(package)
                 use_local_version = True
             else:
                 package = package.strip().lower()

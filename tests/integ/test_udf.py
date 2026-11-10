@@ -13,6 +13,7 @@ import re
 from textwrap import dedent
 from typing import Callable
 
+import cloudpickle
 import pytest
 
 try:
@@ -3045,6 +3046,32 @@ def test_access_snowflake_import_directory(session, resources_path):
 
     # clean
     session.clear_imports()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+def test_register_module_package_on_pypi_artifact_repository(session):
+    def cloudpickle_version() -> str:
+        import cloudpickle
+
+        return cloudpickle.__version__
+
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    try:
+        udf(
+            func=cloudpickle_version,
+            name=temp_func_name,
+            artifact_repository="snowflake.snowpark.pypi_shared_repository",
+            packages=[cloudpickle],
+        )
+        df = session.create_dataframe([1]).to_df(["a"])
+        Utils.check_answer(
+            df.select(call_udf(temp_func_name)), [Row(cloudpickle.__version__)]
+        )
+    finally:
+        session._run_query(f"drop function if exists {temp_func_name}()")
 
 
 @pytest.mark.skipif(
