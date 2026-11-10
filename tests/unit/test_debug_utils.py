@@ -3,6 +3,7 @@
 #
 
 import os
+import re
 import tempfile
 from unittest import mock
 
@@ -21,6 +22,7 @@ from snowflake.snowpark._internal.debug_utils import (
     DataFrameTraceNode,
     QueryProfiler,
     _format_source_location,
+    _get_own_trace_nodes,
     _resolve_error_line,
     get_python_source_from_sql_error,
 )
@@ -798,3 +800,85 @@ def test_python_source_from_sql_error_is_absent_for_unknown_sql():
         "SQL compilation error: error line 2 at position 0\ninvalid identifier 'X'"
     )
     assert get_python_source_from_sql_error(plan, message, "SELECT 2\nFROM u") == ""
+
+
+def _trace_node(line):
+    return TraceNode(SrcPosition("f.py", line, 0, line, 0))
+
+
+def _plan(trace_nodes, children=(), sql="SELECT 1", schema_query=None):
+    return mock.MagicMock(
+        df_trace_nodes=trace_nodes,
+        children_plan_nodes=list(children),
+        queries=[mock.MagicMock(sql=sql)],
+        schema_query=schema_query,
+        _last_execution_queries=None,
+    )
+
+
+def test_get_own_trace_nodes_leaves_out_child_nodes():
+    source, child_op, own_op = _trace_node(1), _trace_node(2), _trace_node(3)
+    child = _plan([source, child_op])
+    plan = _plan([source, child_op, own_op], children=[child])
+    assert _get_own_trace_nodes(plan) == [own_op]
+
+
+def test_get_own_trace_nodes_with_several_children():
+    left, right, join = _trace_node(1), _trace_node(2), _trace_node(3)
+    plan = _plan([left, right, join], children=[_plan([left]), _plan([right])])
+    assert _get_own_trace_nodes(plan) == [join]
+
+
+def test_get_own_trace_nodes_keeps_nodes_copied_to_select_sql():
+    # the nodes of a SelectSQL child (e.g. the RESULT_SCAN of a SHOW query) are copied
+    # down from the plan, not inherited from the child
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
+
+    source, op = _trace_node(1), _trace_node(2)
+    select_sql = mock.MagicMock(spec=SelectSQL, df_trace_nodes=[op])
+    plan = _plan([source, op], children=[select_sql])
+    assert _get_own_trace_nodes(plan) == [source, op]
+
+
+def test_get_own_trace_nodes_falls_back_to_all_nodes():
+    # a plan that only re-wraps its child has no operation of its own
+    nodes = [_trace_node(1), _trace_node(2)]
+    plan = _plan(list(nodes), children=[_plan(list(nodes))])
+    assert _get_own_trace_nodes(plan) == nodes
+    # a leaf plan keeps all its nodes
+    assert _get_own_trace_nodes(_plan(list(nodes))) == nodes
+
+
+@pytest.mark.parametrize(
+    "executed_sql, expected_lines",
+    [
+        # the failed query is the sql of the plan: only its own operation
+        ("SELECT 1", [3]),
+        (" SELECT 1\n", [3]),
+        # unknown query, or the schema query of the plan: all the operations
+        (None, [1, 2, 3]),
+        ("SELECT 0", [1, 2, 3]),
+        # a query that is not one of the plan: not mapped
+        ("SELECT 2", []),
+    ],
+)
+def test_get_python_source_from_sql_error_own_operations(executed_sql, expected_lines):
+    source, child_op, own_op = _trace_node(1), _trace_node(2), _trace_node(3)
+    matched = _plan([source, child_op, own_op], children=[_plan([source, child_op])])
+    top_plan = _plan(
+        [source, child_op, own_op], sql="SELECT 1", schema_query="SELECT 0"
+    )
+    with mock.patch(
+        "snowflake.snowpark._internal.utils.get_plan_from_line_numbers",
+        return_value=matched,
+    ) as get_plan:
+        message = get_python_source_from_sql_error(
+            top_plan,
+            "SQL compilation error: error line 2 at position 4\ninvalid identifier",
+            executed_sql,
+        )
+    assert [
+        int(line) for line in re.findall(r"f\.py: line (\d+)", message)
+    ] == expected_lines
+    if expected_lines:
+        get_plan.assert_called_once_with(top_plan, 1)
