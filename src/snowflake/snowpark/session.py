@@ -1119,8 +1119,8 @@ class Session:
     @property
     @experimental(version="1.57.0")
     def debug(self) -> DebugConfig:
-        """The debug features of this session, turned on with
-        ``session.debug.enable(...)`` and off with ``session.debug.disable(...)``.
+        """The debug features of this session: ``session.debug.set(...)`` sets several of them,
+        and ``session.debug.enable_<feature>()`` / ``session.debug.disable_<feature>()`` set one.
 
         See :func:`snowflake.snowpark.context.configure_development_features` to set them for
         every session.

@@ -5,7 +5,7 @@
 """Per-session configuration of the debug features (``session.debug``)."""
 
 import threading
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Dict, Optional
 
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
@@ -38,11 +38,14 @@ def tracing_sessions() -> int:
 class DebugConfig:
     """The debug features of a session.
 
+    Each feature has ``enable_<feature>()`` and ``disable_<feature>()`` methods and a read-only
+    ``<feature>`` property; :meth:`set` changes several features at once.
+
     Example::
 
-        session.debug.enable(eager_schema_validation=True)
+        session.debug.set(eager_schema_validation=True)
         session.debug.eager_schema_validation  # True
-        session.debug.disable()  # turns every debug feature off
+        session.debug.set()  # turns every debug feature off
 
     Note:
         This feature is experimental. Do not use it in production.
@@ -63,30 +66,24 @@ class DebugConfig:
             }
             self._update_tracing_count()
 
-    def __getattr__(self, name: str) -> bool:
-        # The status of a feature, e.g. session.debug.eager_schema_validation.
-        if name.startswith("_") or name not in _FEATURES:
-            raise AttributeError(
-                f"'{type(self).__name__}' object has no attribute '{name}'"
-            )
+    def set(self, **features: Optional[bool]) -> None:
+        """Sets the debug features of this session, as
+        :func:`snowflake.snowpark.context.configure_development_features` does for every session.
+
+        Only the features passed explicitly are changed: ``True`` turns a feature on, ``False``
+        turns it off and ``None`` keeps its current setting. Calling it without any argument turns
+        every debug feature off.
+        """
+        _check(features)
+        if not features:
+            features = {name: False for name in _FEATURES}
+        self._apply({name: on for name, on in features.items() if on is not None})
+
+    def _get(self, name: str) -> bool:
         with _lock:
             return self._enabled.get(name, False)
 
-    def enable(self, **features: bool) -> None:
-        """Turns on the debug features passed as ``True``, for this session."""
-        self._set({name: True for name, on in _check(features).items() if on})
-
-    def disable(self, **features: bool) -> None:
-        """Turns off the debug features passed as ``True``, for this session. Without arguments,
-        turns off every debug feature."""
-        names = (
-            [name for name, on in _check(features).items() if on]
-            if features
-            else list(_FEATURES)
-        )
-        self._set({name: False for name in names})
-
-    def _set(self, values: Dict[str, bool]) -> None:
+    def _apply(self, values: Dict[str, bool]) -> None:
         with _lock:
             self._enabled.update(values)
             self._update_tracing_count()
@@ -131,4 +128,4 @@ def _apply_to_all_sessions(values: Dict[str, bool]) -> None:
         for session in list(
             session_module._get_active_sessions(require_at_least_one=False)
         ):
-            session.debug._set(values)
+            session._debug._apply(values)
