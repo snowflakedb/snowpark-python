@@ -1402,66 +1402,57 @@ class DataFrameReader:
     @private_preview(version="1.56.0")
     @publicapi
     def documents(self, path: str, _emit_ast: bool = True) -> DataFrame:
-        """Specify the path of the document(s) to read: the files are parsed to text, or
-        a schema or a prompt turns the read into an extraction of structured values.
+        """Specify the path of the document(s) to read. Each document is read as text,
+        or, with a ``schema`` or a ``prompt``, structured values or an answer are
+        extracted from it.
 
-        The reader chooses the model, how files are parsed and how a long document is
-        split across model calls; none of that is configurable. Options set with
-        :meth:`option` or :meth:`options` (names are case-insensitive, any other option is
-        ignored):
+        Options set with :meth:`option` or :meth:`options` (names are case-insensitive,
+        any other option is ignored):
 
             - ``schema``: the fields to extract. A JSON Schema dict (with a ``properties``
               dict), a dict of ``{field: question}``, or a list of field names or
               ``"field: question"`` strings. The result has one column per field,
               named in upper case.
-            - ``prompt``: instructions for the model. With a ``schema`` it guides the
-              extraction. Without one the model's answer is returned as text.
+            - ``prompt``: instructions for the extraction. With a ``schema`` it guides
+              how the fields are extracted. Without one, the answer to the prompt is
+              returned as text.
 
-        With neither a ``schema`` nor a ``prompt``, every file is parsed to text with
-        :func:`~snowflake.snowpark.functions.ai_parse_document` in ``LAYOUT`` mode. With
-        either one, the file is sent to the model directly, which keeps layout such as
-        table columns that parsing would flatten.
+        The returned DataFrame has one row per document, with these columns:
 
-        The returned DataFrame has these columns:
-
-            - no ``schema`` or ``prompt``: one row per file with ``SOURCE_FILE``,
-              ``TOTAL_PAGES`` and ``CONTENT`` (the parsed text of the whole file).
+            - no ``schema`` or ``prompt``: ``SOURCE_FILE``, ``TOTAL_PAGES`` and
+              ``CONTENT`` (the text of the whole document).
             - ``schema``: ``SOURCE_FILE``, one column per schema field, and
               ``EXTRACTION_SCORES``. ``EXTRACTION_SCORES`` is an object that maps each
               top-level schema field to a confidence score between 0 and 1 for its
-              extracted value (one score for a whole array or object field). The model
-              reports the scores itself, so they are not calibrated probabilities, and
-              a field without a score is left out.
+              extracted value (one score for a whole array or object field). The
+              scores are not calibrated probabilities, and a field without a score is
+              left out.
             - ``prompt`` only: ``SOURCE_FILE`` and ``RESPONSE``.
 
         Every read also has a case-sensitive ``"_document_error"`` column (quote the name
-        when you select it). A document that fails does not
-        fail the read: its row holds an array of ``{stage, message}`` entries describing
-        what went wrong, and ``NULL`` when the document succeeded. A read stops early with
-        an error when most of its documents fail, or when no supported model is available
-        to the account.
+        when you select it). A document that fails does not fail the read: its row holds
+        an array of ``{stage, message}`` entries describing what went wrong, and
+        ``NULL`` when the document succeeded. A read stops early with an error when most
+        of its documents fail, or when document extraction is not available to the
+        account.
 
         Note:
-            The reader registers temporary procedures and functions in the current
-            session. When ``documents()`` is called from inside a stored procedure, that
-            procedure must run with caller's rights (``execute_as="caller"``): an
-            owner's-rights procedure cannot create temporary objects, and the read fails
-            with "Unsupported statement type 'temporary FUNCTION'".
+            When ``documents()`` is called from inside a stored procedure, that
+            procedure must run with caller's rights (``execute_as="caller"``).
 
         Note:
-            The read is lazy: the documents are read (and the model calls are made, and
-            billed) when an action such as ``collect()`` or ``show()`` runs, and every
-            action runs the whole read again. To use the result more than once, call
-            ``df.cache_result()`` or write the DataFrame to a table first.
+            The read is lazy: the documents are read (and billed) when an action such as
+            ``collect()`` or ``show()`` runs, and every action runs the whole read again.
+            To use the result more than once, call ``df.cache_result()`` or write the
+            DataFrame to a table first.
 
         Note:
             With a ``schema``, the supported file types are ``.txt``, ``.md``, ``.pdf``,
             ``.doc``, ``.docx``, ``.xls``, ``.xlsx``, ``.csv`` and ``.xhtml``. Other files
-            in the path are not sent to the model; each gets an error in its
-            ``_document_error``. Only PDFs are split into page ranges, so a large file of
-            another type can exceed the model's input size and fail as a whole. With a
-            ``prompt`` only, every file in the path is sent to the model, and a file it
-            cannot read gets an error in its ``_document_error``.
+            in the path are not read; each gets an error in its ``_document_error``. A
+            very large file of a type other than PDF can fail as a whole. With a
+            ``prompt`` only, every file in the path is read, and a file that cannot be
+            read gets an error in its ``_document_error``.
 
         Args:
             path: The stage location of a document, or a stage location that has documents.
