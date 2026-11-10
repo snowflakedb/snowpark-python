@@ -215,8 +215,25 @@ def test_eager_schema_validation_is_set_in_every_session(sessions):
     assert second._debug.eager_schema_validation is True
     assert make_session()._debug.eager_schema_validation is True
     # one session can still turn it off for itself
-    first._debug.disable(eager_schema_validation=True)
+    first._debug.disable_eager_schema_validation()
     assert first._debug.eager_schema_validation is False
     assert second._debug.eager_schema_validation is True
     context.configure_development_features()
     assert second._debug.eager_schema_validation is False
+
+
+def test_eager_schema_validation_methods_change_only_that_feature():
+    session = make_session()
+    debug = session._debug
+    debug.enable_eager_schema_validation()
+    assert debug.eager_schema_validation is True
+    assert {name for name, on in debug._enabled.items() if on} == {
+        "eager_schema_validation"
+    }
+    debug.disable_eager_schema_validation()
+    assert debug.eager_schema_validation is False
+    # set() gives the same result
+    debug.set(eager_schema_validation=True)
+    assert debug.eager_schema_validation is True
+    debug.set()
+    assert debug.eager_schema_validation is False

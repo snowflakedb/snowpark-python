@@ -77,6 +77,20 @@ class DebugConfig:
             features = {name: False for name in _FEATURES}
         self._apply({name: on for name, on in features.items() if on is not None})
 
+    @property
+    def eager_schema_validation(self) -> bool:
+        """Whether the schema of each dataframe is validated when the dataframe is created."""
+        return self._get("eager_schema_validation")
+
+    def enable_eager_schema_validation(self) -> None:
+        """Validates the schema of each dataframe of this session when the dataframe is created,
+        by querying its column metadata. This adds queries."""
+        self._apply({"eager_schema_validation": True})
+
+    def disable_eager_schema_validation(self) -> None:
+        """Turns off the eager schema validation of this session."""
+        self._apply({"eager_schema_validation": False})
+
     def _get(self, name: str) -> bool:
         with _lock:
             return self._enabled.get(name, False)

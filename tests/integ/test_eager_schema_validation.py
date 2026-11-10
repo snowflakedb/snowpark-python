@@ -20,17 +20,11 @@ from tests.utils import IS_IN_STORED_PROC
 def eager_validation(session, enabled):
     """Turns eager schema validation on or off for ``session`` and restores it afterwards."""
     original = session.debug.eager_schema_validation
-    if enabled:
-        session.debug.enable(eager_schema_validation=True)
-    else:
-        session.debug.disable(eager_schema_validation=True)
+    session.debug.set(eager_schema_validation=enabled)
     try:
         yield
     finally:
-        if original:
-            session.debug.enable(eager_schema_validation=True)
-        else:
-            session.debug.disable(eager_schema_validation=True)
+        session.debug.set(eager_schema_validation=original)
 
 
 @pytest.mark.skipif(
