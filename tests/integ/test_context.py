@@ -20,9 +20,16 @@ def test_context_configure_development_features():
             context.configure_development_features(
                 enable_trace_sql_errors_to_dataframe=True
             )
-            assert context._development_feature_settings["trace_sql_errors_to_dataframe"] is True
-            assert not context._development_feature_settings.get("dataframe_trace_on_error", False)
-            assert not context._development_feature_settings.get("eager_schema_validation", False)
+            assert (
+                context._development_feature_settings["trace_sql_errors_to_dataframe"]
+                is True
+            )
+            assert not context._development_feature_settings.get(
+                "dataframe_trace_on_error", False
+            )
+            assert not context._development_feature_settings.get(
+                "eager_schema_validation", False
+            )
 
         # Test when _get_active_sessions() returns a valid session
         mock_session1 = mock.MagicMock()
@@ -36,8 +43,13 @@ def test_context_configure_development_features():
             context.configure_development_features(
                 enable_trace_sql_errors_to_dataframe=True
             )
-            assert context._development_feature_settings["trace_sql_errors_to_dataframe"] is True
-            assert not context._development_feature_settings.get("dataframe_trace_on_error", False)
+            assert (
+                context._development_feature_settings["trace_sql_errors_to_dataframe"]
+                is True
+            )
+            assert not context._development_feature_settings.get(
+                "dataframe_trace_on_error", False
+            )
             mock_session1._set_ast_enabled_internal.assert_not_called()
             mock_session2._set_ast_enabled_internal.assert_not_called()
 
