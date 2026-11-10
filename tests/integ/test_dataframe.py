@@ -7539,7 +7539,6 @@ def test_map_vectorized(session, func, output_types, expected):
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required for this test")
 @pytest.mark.udf
 def test_map_vectorized_default_pandas_package(session):
-    # Unlike test_map_vectorized, no packages= is passed, so map adds pandas itself.
     df = session.create_dataframe([[1], [2]], schema=["A"])
     Utils.check_answer(
         map(df, lambda pdf: pdf["A"] * 10, [IntegerType()], vectorized=True),

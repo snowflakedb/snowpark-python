@@ -324,8 +324,6 @@ def test_union_all_self(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [src("a.union_all(a)"), FAIL]
-    if trace_settings.cte:
-        mapped = [OTHER, src('other(session).filter(col("ID") > 0)')]
     if not trace_settings.simplifier:
         mapped = [FAIL]
     assert_debug_output(
@@ -387,8 +385,6 @@ def test_large_create_dataframe_reused(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [src('big.union_all(big.filter(col("ID") > 5))'), FAIL]
-    if trace_settings.cte:
-        mapped = [src("session.create_dataframe...")]
     if not trace_settings.simplifier:
         mapped = [FAIL]
     assert_debug_output(
@@ -409,8 +405,6 @@ def test_three_way_reuse(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [src("a.union_all(a).union_all(a)"), FAIL]
-    if trace_settings.cte:
-        mapped = [OTHER, src('other(session).with_column("K", lit(1))')]
     if not trace_settings.simplifier:
         mapped = [FAIL]
     assert_debug_output(
@@ -432,8 +426,6 @@ def test_crosstab_reused(session, trace_settings):
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
     mapped = [src("x.union_all(x)"), FAIL]
-    if trace_settings.cte:
-        mapped = [src('base(session).stat.crosstab("ID", "NAME")')]
     if not trace_settings.simplifier:
         mapped = [FAIL]
     assert_debug_output(

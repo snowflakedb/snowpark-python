@@ -11,6 +11,7 @@ import functools
 import hashlib
 import heapq
 import importlib
+import importlib.metadata
 import io
 import itertools
 import logging
@@ -31,6 +32,7 @@ from itertools import count
 from json import JSONEncoder
 from time import perf_counter
 from random import Random
+from types import ModuleType
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -174,6 +176,13 @@ PACKAGE_NAME_TO_MODULE_NAME_MAP = {
 MODULE_NAME_TO_PACKAGE_NAME_MAP = {
     v: k for k, v in PACKAGE_NAME_TO_MODULE_NAME_MAP.items()
 }
+
+
+def module_to_requirement(module: ModuleType) -> str:
+    """The requirement that pins the locally installed version of an imported module."""
+    package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(module.__name__, module.__name__)
+    return f"{package_name}=={importlib.metadata.version(package_name)}"
+
 
 GENERATED_PY_FILE_EXT = (".pyc", ".pyo", ".pyd", ".pyi")
 
@@ -2687,7 +2696,12 @@ def get_plan_from_line_numbers(
         idx = find_interval_containing_line(query_line_intervals, line_number)
         if idx >= 0:
             uuid = query_line_intervals[idx].uuid
-            if node.uuid == uuid:
+            # When the plan compiler regenerates a plan from its source selectable, the plan
+            # takes the queries of the selectable, so its own lines carry the selectable's uuid.
+            source_plan = getattr(node, "source_plan", None)
+            if node.uuid == uuid or (
+                isinstance(source_plan, Selectable) and source_plan.uuid == uuid
+            ):
                 node.df_trace_nodes = df_trace_nodes
                 return node
             else:

@@ -8,6 +8,7 @@ import pickle
 import threading
 from unittest import mock
 
+import cloudpickle
 import pytest
 
 from snowflake.snowpark import Session
@@ -566,9 +567,19 @@ def test_ar_explicit_packages_ignore_session_packages(session):
 def test_ar_non_str_packages_raise_typeerror(session):
     with pytest.raises(
         TypeError,
-        match="Non-conda artifact repository requires that all packages be passed as str",
+        match="Non-conda artifact repository requires that all packages be passed as str or module",
     ):
         _resolve_ar_packages(session, [1], False)
+
+
+@pytest.mark.parametrize("use_session", [True, False])
+def test_ar_module_packages_pinned_to_local_version(session, use_session):
+    import importlib.metadata
+
+    all_packages = _resolve_ar_packages(
+        session if use_session else None, [cloudpickle], False
+    )
+    assert f"cloudpickle=={importlib.metadata.version('cloudpickle')}" in all_packages
 
 
 def test_sandbox_ar_pandas_udf_unparseable_spec_still_injects_pandas():

@@ -7448,16 +7448,6 @@ Query List:
     # withColumns = with_columns
 
 
-def _pandas_package_for_map(session: "snowflake.snowpark.Session"):
-    """The pandas requirement map(vectorized=True) adds; only the Anaconda repository accepts a module object."""
-    if (
-        session._get_default_artifact_repository()
-        != context._ANACONDA_SHARED_REPOSITORY
-    ):
-        return f"pandas=={pandas.__version__}"
-    return pandas
-
-
 def map(
     dataframe: DataFrame,
     func: Callable,
@@ -7623,11 +7613,7 @@ def map(
         # If the map is vectorized, we need to add pandas to packages if not
         # already added. Also update the input_types and output_schema to
         # be PandasDataFrameType.
-        if not any(
-            (p if isinstance(p, str) else p.__name__).startswith("pandas")
-            for p in packages
-        ):
-            packages.append(_pandas_package_for_map(dataframe._session))
+        packages = add_package_to_existing_packages(packages, pandas)
         input_types = [PandasDataFrameType(input_types)]
         output_schema = PandasDataFrameType(output_types, udtf_output_cols)
 

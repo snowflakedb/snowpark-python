@@ -1334,3 +1334,26 @@ def test_time_travel_version_ref_validation():
         TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at", branch=123
         )
+
+
+def test_get_plan_from_line_numbers_lines_of_the_source_selectable():
+    """The plan compiler regenerates a plan from its source selectable, so the plan's own lines
+    carry the uuid of the selectable."""
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
+
+    selectable = mock.Mock(spec=SelectStatement)
+    selectable.uuid = "selectable-uuid"
+    query = mock.Mock()
+    query.query_line_intervals = [QueryLineInterval(0, 3, "selectable-uuid")]
+    plan = mock.Mock(spec=SnowflakePlan)
+    plan.uuid = "plan-uuid"
+    plan.source_plan = selectable
+    plan.children_plan_nodes = []
+    plan.queries = [query]
+    plan.df_trace_nodes = ["node"]
+    assert get_plan_from_line_numbers(plan, 2) is plan
+
+    # an interval of an unknown uuid is still not attributed to the plan
+    query.query_line_intervals = [QueryLineInterval(0, 3, "unknown-uuid")]
+    with pytest.raises(ValueError):
+        get_plan_from_line_numbers(plan, 2)
