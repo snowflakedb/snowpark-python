@@ -5,7 +5,7 @@
 import json
 import os
 import weakref
-from typing import Any, List, Optional, Tuple, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
@@ -16,7 +16,6 @@ from snowflake.snowpark._internal.document_reader_options import (
     DocumentReaderOptions,
     EXTRACTION_SCORES_COLUMN,
     ExtractionSpec,
-    PAGES_COLUMN,
     RESPONSE_COLUMN,
     SOURCE_FILE_COLUMN,
     TOTAL_PAGES_COLUMN,
@@ -32,7 +31,6 @@ from snowflake.snowpark.functions import (
     ai_complete,
     ai_extract,
     ai_parse_document,
-    array_agg,
     array_compact,
     array_construct,
     array_size,
@@ -40,12 +38,7 @@ from snowflake.snowpark.functions import (
     coalesce,
     col,
     concat,
-    count,
-    flatten,
-    listagg,
     lit,
-    lower,
-    max as max_,
     object_construct_keep_null,
     random,
     substring,
@@ -55,7 +48,6 @@ from snowflake.snowpark.functions import (
     when,
 )
 from snowflake.snowpark.types import (
-    ArrayType,
     IntegerType,
     StringType,
     StructField,
@@ -117,11 +109,6 @@ _STAGE_PATH_COLUMN = "_DOC_STAGE_PATH"
 _PARSED_COLUMN = "_DOC_PARSED"
 _EXTRACTED_COLUMN = "_DOC_EXTRACTED"
 
-# The file types AI_PARSE_DOCUMENT can split into pages; page_split fails on any other.
-_PAGE_SPLIT_FILE_TYPES = ("pdf", "pptx", "docx")
-# Joins the pages of a split document into its CONTENT.
-PAGE_SEPARATOR = "\n\n"
-
 
 # ---------------------------------------------------------------------------
 # Pipeline orchestration
@@ -155,7 +142,7 @@ def read_documents(
 def output_columns(options: DocumentReaderOptions) -> List[str]:
     names = [SOURCE_FILE_COLUMN]
     if options.parse_enabled:
-        names.extend([TOTAL_PAGES_COLUMN, CONTENT_COLUMN, PAGES_COLUMN])
+        names.extend([TOTAL_PAGES_COLUMN, CONTENT_COLUMN])
     if options.extract_enabled:
         names.extend(options.extraction.field_columns)
         if options.scores_enabled:
@@ -235,10 +222,11 @@ def split_stage(path: str) -> Tuple[str, int]:
 def access(
     session: "Session", path: str, options: DocumentReaderOptions
 ) -> "DataFrame":
-    # The plain string path is kept as its own column: parse() reads the file type from
-    # it and rebuilds SOURCE_FILE from it after grouping pages. Each file is referenced
-    # through the stage as the user wrote it (see split_stage), so it resolves for user
-    # and table stages, quoted names and stages outside the current schema.
+    # The plain string path is kept as its own column so SOURCE_FILE can be rebuilt
+    # from it where a FILE value can't be carried (materialize_parsed_content). Each
+    # file is referenced through the stage as the user wrote it (see split_stage), so
+    # it resolves for user and table stages, quoted names and stages outside the
+    # current schema.
     stage, listed_prefix = split_stage(path)
     stage_path = concat(lit(f"{stage}/"), substring(col('"name"'), listed_prefix + 1))
     files_df = session.sql(
@@ -257,95 +245,26 @@ def access(
 
 
 def parse(files_df: "DataFrame") -> "DataFrame":
-    """Parse every file with AI_PARSE_DOCUMENT in LAYOUT mode into one row per file:
-    its whole text in CONTENT and, for the file types AI_PARSE_DOCUMENT can split by
-    page, each page's ``{index, content}`` in PAGES (NULL for any other file type)."""
-    splittable = lower(col(_STAGE_PATH_COLUMN)).rlike(
-        lit(f".*[.]({'|'.join(_PAGE_SPLIT_FILE_TYPES)})")
-    )
-    # The page_split option is one constant per AI_PARSE_DOCUMENT call, so the two
-    # kinds of file are parsed apart. Both branches share the one LIST: a union runs
-    # each pre-query of its inputs once.
-    paged = parse_pages(files_df.filter(splittable))
-    whole = parse_whole(files_df.filter(~splittable))
-    # SOURCE_FILE is rebuilt after the union rather than unioned, because FILE is
-    # neither a groupable type (parse_pages) nor a type to rely on in a UNION.
-    columns = [_STAGE_PATH_COLUMN, TOTAL_PAGES_COLUMN, CONTENT_COLUMN, PAGES_COLUMN]
-    return (
-        paged.select(*columns, _PARSE_ERROR_COLUMN)
-        .union_all(whole.select(*columns, _PARSE_ERROR_COLUMN))
-        .with_column(SOURCE_FILE_COLUMN, to_file(col(_STAGE_PATH_COLUMN)))
-    )
-
-
-def parse_with_details(files_df: "DataFrame", **parse_kwargs: Any) -> "DataFrame":
-    """``files_df`` with AI_PARSE_DOCUMENT's LAYOUT parse of each file in
-    _PARSED_COLUMN and its error, if any, in _PARSE_ERROR_COLUMN."""
+    """Parse every file whole with AI_PARSE_DOCUMENT in LAYOUT mode: one row per file,
+    with its text in CONTENT."""
     df = files_df.with_column(
         _PARSED_COLUMN,
         as_variant(
             ai_parse_document(
-                col(SOURCE_FILE_COLUMN),
-                return_error_details=True,
-                mode="LAYOUT",
-                **parse_kwargs,
+                col(SOURCE_FILE_COLUMN), return_error_details=True, mode="LAYOUT"
             )
         ),
     )
-    return df.with_column(
-        _PARSE_ERROR_COLUMN, col(_PARSED_COLUMN)["error"].cast(StringType())
-    )
-
-
-def page_count(parsed: Column) -> Column:
-    return parsed["metadata"]["pageCount"].cast(IntegerType())
-
-
-def parse_whole(files_df: "DataFrame") -> "DataFrame":
-    df = parse_with_details(files_df)
     parsed = col(_PARSED_COLUMN)
-    # return_error_details=True wraps content/pages under `value`, sibling to `error`
-    # and `metadata` -- not at the top level.
+    # return_error_details=True wraps content under `value`, sibling to `error` and
+    # `metadata` -- not at the top level.
     return df.with_columns(
-        [TOTAL_PAGES_COLUMN, CONTENT_COLUMN, PAGES_COLUMN],
+        [_PARSE_ERROR_COLUMN, TOTAL_PAGES_COLUMN, CONTENT_COLUMN],
         [
-            page_count(parsed),
+            parsed["error"].cast(StringType()),
+            parsed["metadata"]["pageCount"].cast(IntegerType()),
             parsed["value"]["content"].cast(StringType()),
-            lit(None).cast(ArrayType()),
         ],
-    )
-
-
-def parse_pages(files_df: "DataFrame") -> "DataFrame":
-    """Split each file into pages and collapse them back to one row per file. A split
-    response carries a `pages` array and no top-level `content`."""
-    df = parse_with_details(files_df, page_split=True)
-    pages = col(_PARSED_COLUMN)["value"]["pages"]
-    # Resolved before the explode so the parsed document isn't referenced above the
-    # join and replicated once per page.
-    df = df.with_column(
-        TOTAL_PAGES_COLUMN, coalesce(page_count(col(_PARSED_COLUMN)), array_size(pages))
-    )
-    # outer=True keeps exactly one row, with a NULL page, for a file whose parse failed
-    # and therefore has no `pages` array to expand.
-    exploded = df.join_table_function(flatten(pages, outer=True))
-    page = col("VALUE")
-    page_index = page["index"].cast(IntegerType())
-    # LISTAGG and ARRAY_AGG skip the NULL page of a failed parse and would return an
-    # empty string and an empty array; the file gets NULLs instead.
-    has_pages = count(page) > 0
-    return exploded.group_by(_STAGE_PATH_COLUMN).agg(
-        max_(col(TOTAL_PAGES_COLUMN)).alias(TOTAL_PAGES_COLUMN),
-        when(
-            has_pages,
-            listagg(page["content"].cast(StringType()), PAGE_SEPARATOR).within_group(
-                page_index.asc()
-            ),
-        ).alias(CONTENT_COLUMN),
-        when(has_pages, array_agg(page).within_group(page_index.asc())).alias(
-            PAGES_COLUMN
-        ),
-        max_(col(_PARSE_ERROR_COLUMN)).alias(_PARSE_ERROR_COLUMN),
     )
 
 
@@ -428,27 +347,21 @@ def materialize_parsed_content(
         _STAGE_PATH_COLUMN,
         TOTAL_PAGES_COLUMN,
         CONTENT_COLUMN,
-        PAGES_COLUMN,
         _PARSE_ERROR_COLUMN,
     ]
     fields = [
         StructField(_STAGE_PATH_COLUMN, StringType()),
         StructField(TOTAL_PAGES_COLUMN, IntegerType()),
         StructField(CONTENT_COLUMN, StringType()),
-        StructField(PAGES_COLUMN, StringType()),
         StructField(_PARSE_ERROR_COLUMN, StringType()),
     ]
 
     rows = [[row[name] for name in columns] for row in df.collect()]
     materialized = df._session.create_dataframe(rows, schema=StructType(fields))
     # SOURCE_FILE (a FILE value) can't round-trip through create_dataframe as a
-    # literal, so it is rebuilt from the stage path -- the same trick
-    # aggregate_pages() already relies on for the same reason.
+    # literal, so it is rebuilt from the stage path.
     materialized = materialized.with_column(
         SOURCE_FILE_COLUMN, to_file(col(_STAGE_PATH_COLUMN))
-    )
-    materialized = materialized.with_column(
-        PAGES_COLUMN, try_parse_json(col(PAGES_COLUMN))
     )
     # Re-applies the same warehouse-parallelism fix as access(): a literal VALUES
     # source generally carries real cardinality, but shuffle regardless so this

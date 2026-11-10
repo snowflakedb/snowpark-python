@@ -259,7 +259,7 @@ class TestOutputColumnsForPromptOnly:
 
 # ---------------------------------------------------------------------------
 # output_columns -- a parse read (no schema or prompt) returns one row per file with
-# its whole text in CONTENT and its pages in PAGES.
+# its whole text in CONTENT.
 # ---------------------------------------------------------------------------
 
 
@@ -269,14 +269,13 @@ class TestOutputColumnsParse:
             "SOURCE_FILE",
             "TOTAL_PAGES",
             "CONTENT",
-            "PAGES",
             '"_document_error"',
         ]
 
     def test_no_parse_columns_without_parsing(self):
         options = DocumentReaderOptions(parse_mode="none", prompt="Summarize.")
         columns = output_columns(options)
-        assert "PAGES" not in columns and "CONTENT" not in columns
+        assert "CONTENT" not in columns and "TOTAL_PAGES" not in columns
 
 
 # ---------------------------------------------------------------------------

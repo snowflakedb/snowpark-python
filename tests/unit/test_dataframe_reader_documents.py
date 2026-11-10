@@ -106,7 +106,7 @@ def test_documents_invalid_schema_or_prompt_raises_before_any_query(options):
 def test_documents_is_a_public_private_preview_method():
     doc = DataFrameReader.documents.__doc__
     assert "in private preview since 1.56.0" in doc
-    assert "PAGES" in doc and "_document_error" in doc
+    assert "CONTENT" in doc and "_document_error" in doc
     for removed in ("parse_mode", "row_boundary", "extract_images"):
         assert removed not in doc
 

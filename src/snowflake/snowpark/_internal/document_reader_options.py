@@ -25,10 +25,7 @@ _EXTRACTION_ENGINES = frozenset({"ai_extract", "ai_complete"})
 # ignored with a warning saying what replaces each one.
 _REMOVED_OPTIONS = {
     "PARSE_MODE": "documents are always parsed with AI_PARSE_DOCUMENT in LAYOUT mode",
-    "ROW_BOUNDARY": (
-        "every read returns one row per document, and the PAGES column holds the "
-        "text of each page"
-    ),
+    "ROW_BOUNDARY": "every read returns one row per document",
     "EXTRACT_IMAGES": (
         "use functions.ai_parse_document(..., mode='LAYOUT', extract_images=True) "
         "to extract images"
@@ -48,7 +45,6 @@ _DEFAULT_CORRUPT_RECORD_COLUMN = "_document_error"
 SOURCE_FILE_COLUMN = "SOURCE_FILE"
 TOTAL_PAGES_COLUMN = "TOTAL_PAGES"
 CONTENT_COLUMN = "CONTENT"
-PAGES_COLUMN = "PAGES"
 EXTRACTION_SCORES_COLUMN = "EXTRACTION_SCORES"
 RESPONSE_COLUMN = "RESPONSE"
 
@@ -64,7 +60,6 @@ _RESERVED_OUTPUT_COLUMNS = frozenset(
         SOURCE_FILE_COLUMN,
         TOTAL_PAGES_COLUMN,
         CONTENT_COLUMN,
-        PAGES_COLUMN,
         EXTRACTION_SCORES_COLUMN,
         RESPONSE_COLUMN,
         _EXTRACTION_STATUS_FIELD,

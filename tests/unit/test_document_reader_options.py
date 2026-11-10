@@ -45,7 +45,7 @@ def _build(options: dict) -> DocumentReaderOptions:
 
 
 def _build_direct(**kwargs) -> DocumentReaderOptions:
-    """`from_reader_options` only reads SCHEMA, PROMPT, PARSE_MODE and ROW_BOUNDARY, so
+    """`from_reader_options` only reads SCHEMA and PROMPT, so
     the remaining fields (mode, extraction_engine, ...) are only reachable by
     constructing DocumentReaderOptions directly and running validate() ourselves, the
     way from_reader_options itself does."""
@@ -168,7 +168,7 @@ class TestRemovedOptions:
         "key,replacement",
         [
             ("PARSE_MODE", "LAYOUT mode"),
-            ("ROW_BOUNDARY", "PAGES column"),
+            ("ROW_BOUNDARY", "one row per document"),
             ("EXTRACT_IMAGES", "functions.ai_parse_document"),
         ],
     )
@@ -662,7 +662,6 @@ class TestSchemaFieldNameCollisions:
             "SOURCE_FILE",
             "content",
             "total_pages",
-            "pages",
             "extraction_scores",
             "extraction_status",
             "response",

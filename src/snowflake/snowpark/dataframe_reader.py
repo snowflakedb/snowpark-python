@@ -1425,11 +1425,7 @@ class DataFrameReader:
         The returned DataFrame has these columns:
 
             - no ``schema`` or ``prompt``: one row per file with ``SOURCE_FILE``,
-              ``TOTAL_PAGES``, ``CONTENT`` (the parsed text of the whole file) and
-              ``PAGES``. For ``.pdf``, ``.pptx`` and ``.docx`` files, ``PAGES`` is an array
-              with one ``{index, content}`` object per page, in page order (``index``
-              counts from 0); flatten it for one row per page. It is ``NULL`` for other
-              file types, which are not split into pages.
+              ``TOTAL_PAGES`` and ``CONTENT`` (the parsed text of the whole file).
             - ``schema``: ``SOURCE_FILE``, one column per schema field, and
               ``EXTRACTION_SCORES``. ``EXTRACTION_SCORES`` is an object that maps each
               top-level schema field to a confidence score between 0 and 1 for its
@@ -1486,15 +1482,6 @@ class DataFrameReader:
             ... }
             >>> df = session.read.option("schema", schema).documents("@mystage/invoices/")  # doctest: +SKIP
             >>> df.select("SOURCE_FILE", "INVOICE_NUMBER", "TOTAL", '"_document_error"').show()  # doctest: +SKIP
-
-            >>> # One row per page of every PDF, PPTX and DOCX file.
-            >>> from snowflake.snowpark.functions import col, flatten
-            >>> df = session.read.documents("@mystage/docs/")  # doctest: +SKIP
-            >>> pages = df.join_table_function(flatten(col("PAGES"))).select(  # doctest: +SKIP
-            ...     "SOURCE_FILE",
-            ...     col("VALUE")["index"].alias("PAGE_INDEX"),
-            ...     col("VALUE")["content"].alias("PAGE_CONTENT"),
-            ... )
         """
         if isinstance(self._session._conn, MockServerConnection):
             self._session._conn.log_not_supported_error(

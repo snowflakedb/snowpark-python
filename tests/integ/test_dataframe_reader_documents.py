@@ -3,9 +3,6 @@
 #
 
 import json
-import os
-import shutil
-import tempfile
 
 import pytest
 
@@ -63,7 +60,7 @@ ARRAY_FIELD_SCHEMA = {
 FLAT_NL_SCHEMA = {"invoice_number": "What is the invoice number?"}
 
 
-PARSE_COLUMNS = ["SOURCE_FILE", "TOTAL_PAGES", "CONTENT", "PAGES", "_document_error"]
+PARSE_COLUMNS = ["SOURCE_FILE", "TOTAL_PAGES", "CONTENT", "_document_error"]
 
 
 def _unquoted(df) -> list:
@@ -122,9 +119,6 @@ def test_documents_default_options(session, invoice_path):
     assert rows[0]["TOTAL_PAGES"] == 1
     assert rows[0]["CONTENT"]
     assert rows[0]["_document_error"] is None
-    pages = json.loads(rows[0]["PAGES"])
-    assert [page["index"] for page in pages] == [0]
-    assert pages[0]["content"] == rows[0]["CONTENT"]
 
 
 @pytest.mark.parametrize("stage_kind", ["user", "quoted"])
@@ -162,33 +156,6 @@ def test_multiple_files_produce_one_row_each(session, doc_stage):
     assert len(rows) == 2
     assert all(row["CONTENT"] for row in rows)
     assert {row["TOTAL_PAGES"] for row in rows} == {1, DOC_PAGE_COUNT}
-    for row in rows:
-        # One PAGES entry per page, in page order, and CONTENT is their text joined.
-        pages = json.loads(row["PAGES"])
-        assert [page["index"] for page in pages] == list(range(row["TOTAL_PAGES"]))
-        assert row["CONTENT"] == "\n\n".join(page["content"] for page in pages)
-
-
-def test_files_that_cannot_be_split_into_pages_have_no_pages(session, resources_path):
-    # AI_PARSE_DOCUMENT splits only PDF, PPTX and DOCX files into pages; an image is
-    # parsed whole, in the same read as an upper-case .PDF that is split.
-    upper_pdf = os.path.join(tempfile.mkdtemp(), "INVOICE.PDF")
-    shutil.copy(TestFiles(resources_path).test_invoice_pdf, upper_pdf)
-    stage_name = _stage_with(session, {"": TestFiles(resources_path).test_dog_image})
-    session.file.put(upper_pdf, f"@{stage_name}", auto_compress=False)
-    try:
-        rows = {
-            json.loads(row["SOURCE_FILE"])["RELATIVE_PATH"]: row
-            for row in session.read.documents(f"@{stage_name}").collect()
-        }
-        assert set(rows) == {"dog.jpg", "INVOICE.PDF"}
-        assert rows["dog.jpg"]["_document_error"] is None
-        assert rows["dog.jpg"]["PAGES"] is None
-        assert rows["dog.jpg"]["CONTENT"] is not None
-        assert rows["INVOICE.PDF"]["_document_error"] is None
-        assert len(json.loads(rows["INVOICE.PDF"]["PAGES"])) == 1
-    finally:
-        Utils.drop_stage(session, stage_name)
 
 
 # ---------------------------------------------------------------------------
@@ -312,7 +279,7 @@ def test_permissive_captures_a_parse_error_without_aborting(session, unsupported
     rows = session.read.documents(f"@{unsupported_stage}").collect()
 
     assert len(rows) == 1
-    assert rows[0]["CONTENT"] is None and rows[0]["PAGES"] is None
+    assert rows[0]["CONTENT"] is None
     # _document_error is an array, one entry per phase that failed -- not a single
     # struct -- so that a row failing in both Parse and Extract doesn't lose one.
     errors = json.loads(rows[0]["_document_error"])
@@ -509,19 +476,17 @@ def test_documents_can_be_called_from_inside_a_stored_procedure(session, doc_sta
 
         from snowflake.snowpark._internal import document_reader
 
-        # The imported package lives in a zip, so the helper files the reader
-        # uploads by path don't exist on disk (an installed package is a plain
-        # directory). Write them out and point the reader at the copies.
-        out_dir = tempfile.mkdtemp()
-        for attr in ("_EXTRACT_PROC_FILE_PATH", "_PDF_READER_FILE_PATH"):
-            src_path = getattr(document_reader, attr)
-            if os.path.isfile(src_path):
-                continue
+        # The imported package lives in a zip, so the extraction procedure's file,
+        # which the reader uploads by path, doesn't exist on disk (an installed
+        # package is a plain directory). Write it out and point the reader at the copy.
+        src_path = document_reader._EXTRACT_PROC_FILE_PATH
+        if not os.path.isfile(src_path):
             name = os.path.basename(src_path)
             data = pkgutil.get_data("snowflake.snowpark._internal", name)
-            with open(os.path.join(out_dir, name), "wb") as f:
+            copy_path = os.path.join(tempfile.mkdtemp(), name)
+            with open(copy_path, "wb") as f:
                 f.write(data)
-            setattr(document_reader, attr, os.path.join(out_dir, name))
+            document_reader._EXTRACT_PROC_FILE_PATH = copy_path
         return len(sess.read.option("schema", INVOICE_SCHEMA).documents(path).collect())
 
     package_dir = os.path.dirname(snowflake.snowpark.__file__)
