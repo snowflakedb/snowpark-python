@@ -94,6 +94,21 @@ class DebugConfig:
         """Turns off the eager schema validation of this session."""
         self._apply({"eager_schema_validation": False})
 
+    @property
+    def trace_sql_errors_to_dataframe(self) -> bool:
+        """Whether SQL compilation errors are mapped to the dataframe operations."""
+        return self._get("trace_sql_errors_to_dataframe")
+
+    def enable_trace_sql_errors_to_dataframe(self) -> None:
+        """Maps the SQL compilation errors of this session to the Python lines of the dataframe
+        operations that generated the SQL, and adds the context of missing and existing objects to
+        the errors."""
+        self._apply({"trace_sql_errors_to_dataframe": True})
+
+    def disable_trace_sql_errors_to_dataframe(self) -> None:
+        """Turns off the SQL error tracing of this session."""
+        self._apply({"trace_sql_errors_to_dataframe": False})
+
     def _get(self, name: str) -> bool:
         with _lock:
             return self._enabled.get(name, False)

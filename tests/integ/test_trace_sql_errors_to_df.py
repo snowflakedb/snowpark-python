@@ -784,7 +784,7 @@ def test_sql_error_tracing_is_per_session(session, db_parameters):
 
     with Session.builder.configs(db_parameters).create() as other:
         other.sql_simplifier_enabled = session.sql_simplifier_enabled
-        other.debug.disable(trace_sql_errors_to_dataframe=True)
+        other.debug.disable_trace_sql_errors_to_dataframe()
         assert session.debug.trace_sql_errors_to_dataframe is True
         on, off = build(session), build(other)
         # the session with the feature off sends the same SQL and records no line intervals

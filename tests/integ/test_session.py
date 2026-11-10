@@ -1122,7 +1122,7 @@ def test_session_enable_development_features(db_parameters):
 
     # The tracing features do not depend on the AST and do not change its setting.
     with Session.builder.configs(db_parameters).create() as new_session:
-        new_session.debug.enable(trace_sql_errors_to_dataframe=True)
+        new_session.debug.enable_trace_sql_errors_to_dataframe()
         assert new_session.ast_enabled is ast_enabled
 
     with patch.object(context, "_enable_dataframe_trace_on_error", True):
