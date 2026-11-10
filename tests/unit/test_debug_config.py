@@ -7,24 +7,21 @@ from unittest import mock
 
 import pytest
 
-from snowflake.snowpark import session as session_module
+from snowflake.snowpark import Session
 from snowflake.snowpark._internal import debug_config
-from snowflake.snowpark._internal.debug_config import (
-    DebugConfig,
-    _apply_to_all_sessions,
-    tracing_sessions,
-)
+from snowflake.snowpark._internal.debug_config import DebugConfig
+from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.mock._connection import MockServerConnection
 
 
 @pytest.fixture(autouse=True)
 def features():
     """Two features for the tests: ``check`` and the trace feature ``trace``."""
-    with mock.patch.dict(debug_config._FEATURES, clear=True), mock.patch.dict(
-        debug_config._defaults, clear=True
-    ), mock.patch.object(debug_config, "_tracing_sessions", 0):
-        debug_config._register_feature("check")
-        debug_config._register_feature("trace", trace=True)
+    with mock.patch.dict(
+        debug_config._FEATURES, {"check": False, "trace": True}, clear=True
+    ), mock.patch.dict(debug_config._defaults, clear=True), mock.patch.object(
+        debug_config, "_tracing_sessions", 0
+    ):
         yield
 
 
@@ -36,6 +33,22 @@ class _Session:
 
 def _session(conn=None):
     return _Session(conn or mock.Mock())
+
+
+def tracing_sessions():
+    return debug_config._tracing_sessions
+
+
+def _real_session():
+    """A Session on a fake connection, so that Session.close() runs."""
+    conn = mock.create_autospec(ServerConnection)
+    conn._conn = mock.Mock()
+    conn._conn._session_parameters = None
+    conn._thread_safe_session_enabled = True
+    conn._get_client_side_session_parameter = (
+        lambda x, y: ServerConnection._get_client_side_session_parameter(conn, x, y)
+    )
+    return Session(conn)
 
 
 def _status(s):
@@ -77,33 +90,24 @@ def test_unknown_features_raise():
     assert _status(s) == (True, False)
 
 
-def test_apply_to_all_sessions_reaches_every_session_and_new_ones():
-    a, b = _session(), _session()
-    with mock.patch.object(session_module, "_active_sessions", {a, b}):
-        _apply_to_all_sessions({"check": True})
-    assert _status(a) == (True, False) and _status(b) == (True, False)
-    assert _status(_session()) == (True, False)
-    _apply_to_all_sessions({"check": False})
-    assert _status(_session()) == (False, False)
-
-
 def test_tracing_count():
-    a, b = _session(), _session()
+    a, b = _real_session(), _real_session()
     assert tracing_sessions() == 0
-    a.debug.set(check=True)
+    a._debug.set(check=True)
     assert tracing_sessions() == 0  # not a trace feature
-    a.debug.set(trace=True)
-    b.debug.set(trace=True)
+    a._debug.set(trace=True)
+    b._debug.set(trace=True)
     assert tracing_sessions() == 2
-    a.debug.set(trace=True)  # no change
+    a._debug.set(trace=True)  # no change
     assert tracing_sessions() == 2
-    a.debug.set(trace=False)
+    a._debug.set(trace=False)
     assert tracing_sessions() == 1
-    b.debug._close()
+    b.close()
     assert tracing_sessions() == 0
     # a closed session is not counted again
-    b.debug.set(trace=True)
+    b._debug.set(trace=True)
     assert tracing_sessions() == 0
+    a.close()
 
 
 def test_local_testing_sessions_are_not_tracing():
@@ -114,13 +118,13 @@ def test_local_testing_sessions_are_not_tracing():
 
 
 def test_concurrent_changes_keep_the_count():
-    sessions = [_session() for _ in range(8)]
+    sessions = [_real_session() for _ in range(8)]
 
     def flip(s):
         for _ in range(200):
-            s.debug.set(trace=True)
-            s.debug.set(trace=False)
-        s.debug.set(trace=True)
+            s._debug.set(trace=True)
+            s._debug.set(trace=False)
+        s._debug.set(trace=True)
 
     threads = [threading.Thread(target=flip, args=(s,)) for s in sessions]
     for t in threads:
@@ -129,11 +133,11 @@ def test_concurrent_changes_keep_the_count():
         t.join()
     assert tracing_sessions() == len(sessions)
     for s in sessions:
-        s.debug._close()
+        s.close()
     assert tracing_sessions() == 0
 
 
 def test_session_has_debug_config():
-    from snowflake.snowpark import Session
-
-    assert isinstance(Session.debug, property)
+    session = _real_session()
+    assert isinstance(session.debug, DebugConfig)
+    session.close()

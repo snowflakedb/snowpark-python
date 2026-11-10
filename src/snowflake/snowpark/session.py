@@ -211,6 +211,7 @@ from snowflake.snowpark._internal.df_trace import (
     ObjectCreationRegistry,
     record_object_creation,
 )
+from snowflake.snowpark._internal import debug_config
 from snowflake.snowpark._internal.debug_config import DebugConfig
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
@@ -1114,7 +1115,10 @@ class Session:
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
-                self._debug._close()
+                # A closed session is no longer counted as tracing.
+                with debug_config._lock:
+                    self._debug._closed = True
+                    self._debug._update_tracing_count()
 
     @property
     @experimental(version="1.57.0")

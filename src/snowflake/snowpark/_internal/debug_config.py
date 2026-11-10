@@ -24,17 +24,6 @@ _tracing_sessions = 0
 _lock = threading.RLock()
 
 
-def _register_feature(name: str, trace: bool = False) -> None:
-    """Makes ``name`` a debug feature of every session."""
-    with _lock:
-        _FEATURES[name] = trace
-
-
-def tracing_sessions() -> int:
-    """The number of sessions with a trace feature on."""
-    return _tracing_sessions
-
-
 class DebugConfig:
     """The debug features of a session.
 
@@ -74,7 +63,11 @@ class DebugConfig:
         turns it off and ``None`` keeps its current setting. Calling it without any argument turns
         every debug feature off.
         """
-        _check(features)
+        unknown = sorted(set(features) - set(_FEATURES))
+        if unknown:
+            raise ValueError(
+                f"Unknown debug features {unknown}; the debug features are {sorted(_FEATURES)}"
+            )
         if not features:
             features = {name: False for name in _FEATURES}
         self._apply({name: on for name, on in features.items() if on is not None})
@@ -88,12 +81,6 @@ class DebugConfig:
             self._enabled.update(values)
             self._update_tracing_count()
 
-    def _close(self) -> None:
-        """Releases the session from the count of tracing sessions."""
-        with _lock:
-            self._closed = True
-            self._update_tracing_count()
-
     def _update_tracing_count(self) -> None:
         global _tracing_sessions
         tracing = (
@@ -104,28 +91,3 @@ class DebugConfig:
         if tracing != self._tracing:
             _tracing_sessions += 1 if tracing else -1
             self._tracing = tracing
-
-
-def _check(features: Dict[str, bool]) -> Dict[str, bool]:
-    unknown = sorted(set(features) - set(_FEATURES))
-    if unknown:
-        raise ValueError(
-            f"Unknown debug features {unknown}; the debug features are {sorted(_FEATURES)}"
-        )
-    return features
-
-
-def _apply_to_all_sessions(values: Dict[str, bool]) -> None:
-    """Sets debug features in every active session and for the sessions created later, as
-    ``configure_development_features`` does."""
-    from snowflake.snowpark import session as session_module
-
-    _check(values)
-    with session_module._session_management_lock:
-        with _lock:
-            _defaults.update(values)
-        # _get_active_sessions returns the live set, iterate a copy.
-        for session in list(
-            session_module._get_active_sessions(require_at_least_one=False)
-        ):
-            session._debug._apply(values)
