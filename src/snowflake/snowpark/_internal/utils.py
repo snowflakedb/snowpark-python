@@ -11,6 +11,7 @@ import functools
 import hashlib
 import heapq
 import importlib
+import importlib.metadata
 import io
 import itertools
 import logging
@@ -31,6 +32,7 @@ from itertools import count
 from json import JSONEncoder
 from time import perf_counter
 from random import Random
+from types import ModuleType
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -175,6 +177,13 @@ PACKAGE_NAME_TO_MODULE_NAME_MAP = {
 MODULE_NAME_TO_PACKAGE_NAME_MAP = {
     v: k for k, v in PACKAGE_NAME_TO_MODULE_NAME_MAP.items()
 }
+
+
+def module_to_requirement(module: ModuleType) -> str:
+    """The requirement that pins the locally installed version of an imported module."""
+    package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(module.__name__, module.__name__)
+    return f"{package_name}=={importlib.metadata.version(package_name)}"
+
 
 GENERATED_PY_FILE_EXT = (".pyc", ".pyo", ".pyd", ".pyi")
 

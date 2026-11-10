@@ -2187,7 +2187,7 @@ def execute_mock_plan(
             aggfunc=agg_function,
             index=indices,
         )
-        result.reset_index(inplace=True)
+        result = result.reset_index()
 
         # Select down to indices and provided values if specific values were requested
         if pivot_values:
@@ -2195,8 +2195,8 @@ def execute_mock_plan(
 
         # Non-indice columns lack an sf_type, add them back in.
         for res_col in set(result.columns) - set(indices):
-            # fill_na will not fill na like values with None, but it can replace them with a sentinel value
-            filled = result[res_col].fillna(sentinel)
+            column = result[res_col].astype(object)
+            filled = column.where(column.notna(), sentinel)
 
             # Sentinel values are replaced with None, then all Nones are replaced with the default if provided
             data = filled.replace({sentinel: None}).replace({None: default}).values
@@ -2205,7 +2205,7 @@ def execute_mock_plan(
 
             # Column name should be quoted string
             quoted_col = quote_name(str(res_col))
-            result.rename(columns={res_col: quoted_col}, inplace=True)
+            result = result.rename(columns={res_col: quoted_col})
             result.sf_types[quoted_col] = result.sf_types.pop(res_col)
 
         # Update column index map
