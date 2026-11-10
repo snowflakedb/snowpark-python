@@ -8,6 +8,7 @@ from unittest import mock
 import pytest
 
 import snowflake.snowpark.context as context
+from snowflake.snowpark._internal import debug_config
 from snowflake.snowpark._internal.debug_config import DebugConfig
 from snowflake.snowpark import session as session_module
 from snowflake.snowpark.session import Session
@@ -19,7 +20,7 @@ FLAGS = {
         "eager_schema_validation", False
     ),
     "enable_dataframe_trace_on_error": lambda: context._enable_dataframe_trace_on_error,
-    "enable_trace_sql_errors_to_dataframe": lambda: debug_config._defaults.get(
+    "enable_trace_sql_errors_to_dataframe": lambda: context._development_feature_settings.get(
         "trace_sql_errors_to_dataframe", False
     ),
 }
