@@ -352,6 +352,11 @@ def _get_active_sessions(require_at_least_one: bool = True) -> Set["Session"]:
 
 def _add_session(session: "Session") -> None:
     with _session_management_lock:
+        if session not in _active_sessions:
+            # Apply the settings of context.configure_development_features under the lock it
+            # holds, so that a session created while it runs is not missed. Remove together with
+            # configure_development_features.
+            session._debug._apply(dict(context._development_feature_settings))
         _active_sessions.add(session)
 
 

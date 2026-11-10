@@ -6,7 +6,7 @@
 """Context module for Snowpark."""
 import logging
 import sys
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 import snowflake.snowpark
 import threading
@@ -161,6 +161,10 @@ _KNOWN_AGGREGATION_FUNCTIONS = frozenset(
     ]
 )
 
+
+# The debug features set by configure_development_features, applied to every new session (see
+# session._add_session). Remove together with configure_development_features.
+_development_feature_settings: Dict[str, bool] = {}
 
 _cte_error_threshold = 3  # 0 to disable auto-cte-disable, otherwise the number of times CTE optimization can fail before it is automatically disabled for the remainder of the session.
 

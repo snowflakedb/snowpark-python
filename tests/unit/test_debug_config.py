@@ -7,7 +7,8 @@ from unittest import mock
 
 import pytest
 
-from snowflake.snowpark import Session
+from snowflake.snowpark import Session, context
+from snowflake.snowpark import session as session_module
 from snowflake.snowpark._internal import debug_config
 from snowflake.snowpark._internal.debug_config import DebugConfig
 from snowflake.snowpark._internal.server_connection import ServerConnection
@@ -19,7 +20,9 @@ def features():
     """Two features for the tests: ``check`` and the trace feature ``trace``."""
     with mock.patch.dict(
         debug_config._FEATURES, {"check": False, "trace": True}, clear=True
-    ), mock.patch.dict(debug_config._defaults, clear=True), mock.patch.object(
+    ), mock.patch.dict(
+        context._development_feature_settings, clear=True
+    ), mock.patch.object(
         debug_config, "_tracing_sessions", 0
     ):
         yield
@@ -141,3 +144,29 @@ def test_session_has_debug_config():
     session = _real_session()
     assert isinstance(session.debug, DebugConfig)
     session.close()
+
+
+def test_a_session_created_while_configure_runs_gets_its_settings():
+    # The order of the race: the session is built, configure_development_features updates the
+    # settings and the active sessions, and only then the session is added to them.
+    session = _real_session()
+    assert _status(session) == (False, False)
+    with session_module._session_management_lock:
+        context._development_feature_settings.update({"check": True})
+    session_module._add_session(session)
+    try:
+        assert _status(session) == (True, False)
+    finally:
+        session.close()
+
+
+def test_adding_an_active_session_again_keeps_its_settings():
+    context._development_feature_settings.update({"check": True})
+    session = _real_session()
+    session_module._add_session(session)
+    try:
+        session._debug.set(check=False)
+        session_module._add_session(session)
+        assert _status(session) == (False, False)
+    finally:
+        session.close()

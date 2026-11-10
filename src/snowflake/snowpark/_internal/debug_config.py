@@ -14,9 +14,6 @@ if TYPE_CHECKING:
 # trace while it is on).
 _FEATURES: Dict[str, bool] = {}
 
-# The settings of new sessions, changed by configure_development_features.
-_defaults: Dict[str, bool] = {}
-
 # The number of sessions with a trace feature on, so the public API wrapper, which has no
 # session, checks one integer while every session is off.
 _tracing_sessions = 0
@@ -50,9 +47,7 @@ class DebugConfig:
         self._tracing = False
         self._closed = False
         with _lock:
-            self._enabled: Dict[str, bool] = {
-                name: _defaults.get(name, False) for name in _FEATURES
-            }
+            self._enabled: Dict[str, bool] = {name: False for name in _FEATURES}
             self._update_tracing_count()
 
     def set(self, **features: Optional[bool]) -> None:
