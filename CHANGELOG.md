@@ -7,10 +7,13 @@
 #### New Features
 
 - Added `Session.semantic_view()` (PuPr) to query a semantic view. Pass the semantic view name plus any of `dimensions`, `metrics`, `facts`, and `where`; it returns a `DataFrame`.
+- Added `Session.debug` (Experimental) to turn the debug features on and off per session, with `session.debug.set(...)`.
+
+  `snowflake.snowpark.context.configure_development_features` is now a mirror of `Session.debug` that applies to every session.
 
 #### Improvements
 
-- `snowflake.snowpark.context.configure_development_features` (Experimental) no longer depends on AST collection and no longer changes the AST collection setting.
+- The debug features of `Session.debug` (Experimental) and `snowflake.snowpark.context.configure_development_features` (Experimental) no longer depend on AST collection and no longer change the AST collection setting.
 - `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them.
 
 #### Bug Fixes
