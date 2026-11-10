@@ -151,6 +151,8 @@ from snowflake.snowpark.functions import (
     to_double,
     to_json,
     to_object,
+    to_timestamp_ltz,
+    to_timestamp_tz,
     to_varchar,
     to_variant,
     to_xml,
@@ -2819,13 +2821,21 @@ def test_try_to_timestamp(session, local_testing_mode):
         [Row(ntz), Row(None), Row(None)],
     )
 
-    # LTZ/TZ values depend on the session timezone, so only check None-ness
-    res = df.select(
+    # Compare with to_timestamp_* of the same string, independent of session timezone
+    valid = _str_df(session, [["2024-01-15 10:30:45"]], "a")
+    res = valid.select(
         try_to_timestamp("a"),
         try_to_timestamp_ltz("a"),
         try_to_timestamp_tz("a"),
+        to_timestamp_ltz("a"),
+        to_timestamp_tz("a"),
     ).collect()
-    assert all(v is not None for v in res[0])
+    assert res[0][0] is not None
+    assert res[0][1] == res[0][3] and res[0][1] is not None
+    assert res[0][2] == res[0][4] and res[0][2] is not None
+    res = df.select(
+        try_to_timestamp("a"), try_to_timestamp_ltz("a"), try_to_timestamp_tz("a")
+    ).collect()
     assert all(v is None for v in res[1])
     assert all(v is None for v in res[2])
 
@@ -2846,11 +2856,18 @@ def test_try_to_timestamp(session, local_testing_mode):
                 [Row(ntz, ntz), Row(None, None)],
             )
         res = df.select(
+            try_to_timestamp_ltz("a", fmt), try_to_timestamp_tz("a", col("fmt"))
+        ).collect()
+        assert all(v is None for v in res[1])
+        valid = df.limit(1)
+        res = valid.select(
             try_to_timestamp_ltz("a", fmt),
             try_to_timestamp_tz("a", col("fmt")),
+            to_timestamp_ltz("a", fmt),
+            to_timestamp_tz("a", col("fmt")),
         ).collect()
-        assert all(v is not None for v in res[0])
-        assert all(v is None for v in res[1])
+        assert res[0][0] == res[0][2] and res[0][0] is not None
+        assert res[0][1] == res[0][3] and res[0][1] is not None
 
 
 def test_try_to_decimal(session, local_testing_mode):
@@ -2901,6 +2918,12 @@ def test_try_to_decimal(session, local_testing_mode):
                 Row(None, None, None),
             ],
         )
+    else:
+        df = _str_df(session, [["12.34", "99.99"]], "a", "f")
+        with pytest.raises(NotImplementedError):
+            df.select(try_to_decimal("a", 10, 2, fmt="99.99")).collect()
+        with pytest.raises(NotImplementedError):
+            df.select(try_to_decimal("a", 10, 2, fmt=col("f"))).collect()
 
 
 def test_try_to_double_decfloat(session, local_testing_mode):
@@ -2940,3 +2963,10 @@ def test_try_to_double_decfloat(session, local_testing_mode):
                 Row(None, None, None),
             ],
         )
+    else:
+        df = _str_df(session, [["1.2", "9.99"]], "a", "fmt")
+        for f in (try_to_double, try_to_decfloat):
+            with pytest.raises(NotImplementedError):
+                df.select(f("a", "9.99")).collect()
+            with pytest.raises(NotImplementedError):
+                df.select(f("a", col("fmt"))).collect()

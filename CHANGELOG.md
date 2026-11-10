@@ -50,6 +50,8 @@
 - Fixed a bug where `DataFrame.pivot` in local testing raised `TypeError` when an aggregated value came from `date_part` with the `week`, `weekiso` or `yearofweekiso` part and a pivot cell was empty.
 - Fixed a bug where `DataFrameReader.csv` in local testing accepted a string or a number for `SKIP_BLANK_LINES` and treated it as true. It now raises an error unless the value is `True` or `False`, as Snowflake does.
 - Fixed a bug where `DataFrameReader.csv` in local testing read strings such as `NA` and `null` as `NaN` in a column of a type it does not convert, such as `VariantType`.
+- Fixed a bug where `Column.try_cast` to `TimeType` failed instead of returning NULL for invalid input in local testing.
+- Fixed a bug where `Column.try_cast` to `DoubleType` returned NaN instead of NULL for invalid input in local testing.
 
 ## 1.56.0 (2026-10-29)
 
