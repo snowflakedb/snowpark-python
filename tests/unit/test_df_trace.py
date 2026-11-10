@@ -6,6 +6,7 @@ import ast
 import copy
 import inspect
 import threading
+from unittest import mock
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -13,8 +14,8 @@ import pytest
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.snowpark import context
-from snowflake.snowpark._internal.debug_config import DebugConfig
+from snowflake.snowpark import Session, context
+from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.ast.utils import with_src_position
 from snowflake.snowpark._internal.utils import publicapi
 from snowflake.snowpark._internal.df_trace import (
@@ -242,13 +243,19 @@ def _plan_with(node):
 @contextmanager
 def _tracing_session():
     """A session with the lineage trace on, so the public API wrapper records the trace."""
-    session = type("Session", (), {"_conn": None})()
-    session._debug = DebugConfig(session)
+    conn = mock.create_autospec(ServerConnection)
+    conn._conn = mock.Mock()
+    conn._conn._session_parameters = None
+    conn._thread_safe_session_enabled = True
+    conn._get_client_side_session_parameter = (
+        lambda x, y: ServerConnection._get_client_side_session_parameter(conn, x, y)
+    )
+    session = Session(conn)
     session._debug.enable_dataframe_trace_on_error()
     try:
         yield session
     finally:
-        session._debug._close()
+        session.close()
 
 
 @pytest.fixture()
