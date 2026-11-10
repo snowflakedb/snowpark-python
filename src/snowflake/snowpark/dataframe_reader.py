@@ -1405,9 +1405,10 @@ class DataFrameReader:
         """Specify the path of the document(s) to read: the files are parsed to text, or
         a schema or a prompt turns the read into an extraction of structured values.
 
-        The reader chooses the model and how a long document is split across model calls;
-        none of that is configurable. Options set with :meth:`option` or :meth:`options`
-        (names are case-insensitive, any other option is ignored):
+        The reader chooses the model, how files are parsed and how a long document is
+        split across model calls; none of that is configurable. Options set with
+        :meth:`option` or :meth:`options` (names are case-insensitive, any other option is
+        ignored):
 
             - ``schema``: the fields to extract. A JSON Schema dict (with a ``properties``
               dict), a dict of ``{field: question}``, or a list of field names or
@@ -1415,25 +1416,16 @@ class DataFrameReader:
               named in upper case.
             - ``prompt``: instructions for the model. With a ``schema`` it guides the
               extraction. Without one the model's answer is returned as text.
-            - ``parse_mode``: how files are parsed when there is no ``schema`` or ``prompt``:
-              ``"layout"`` (the default), ``"ocr"`` or ``"text"``.
-            - ``row_boundary``: ``"document"`` (the default) returns one row per file;
-              ``"page"`` returns one row per page. Used with ``parse_mode`` only.
-            - ``extract_images``: ``True`` or ``False`` (the default). When ``True`` the
-              images embedded in the documents are extracted too. It needs
-              ``parse_mode`` ``"layout"`` and raises an error with any other mode.
 
-        ``parse_mode``, ``row_boundary`` and ``extract_images`` are ignored when a
-        ``schema`` or ``prompt`` is set: the file is then sent to the model directly, which keeps layout such as table
-        columns that parsing would flatten.
+        With neither a ``schema`` nor a ``prompt``, every file is parsed to text with
+        :func:`~snowflake.snowpark.functions.ai_parse_document` in ``LAYOUT`` mode. With
+        either one, the file is sent to the model directly, which keeps layout such as
+        table columns that parsing would flatten.
 
         The returned DataFrame has these columns:
 
-            - no ``schema`` or ``prompt``: ``SOURCE_FILE``, ``TOTAL_PAGES`` and
-              ``CONTENT`` (the parsed text); ``PAGE_INDEX`` is added when ``row_boundary``
-              is ``"page"``. ``IMAGES`` is added when ``extract_images`` is ``True``: an
-              array of objects with an ``id``, the bounding-box coordinates of the image
-              and its data as base64 text, so rows of image-heavy documents can be large.
+            - no ``schema`` or ``prompt``: one row per file with ``SOURCE_FILE``,
+              ``TOTAL_PAGES`` and ``CONTENT`` (the parsed text of the whole file).
             - ``schema``: ``SOURCE_FILE``, one column per schema field, and
               ``EXTRACTION_SCORES``. ``EXTRACTION_SCORES`` is an object that maps each
               top-level schema field to a confidence score between 0 and 1 for its
@@ -1490,13 +1482,6 @@ class DataFrameReader:
             ... }
             >>> df = session.read.option("schema", schema).documents("@mystage/invoices/")  # doctest: +SKIP
             >>> df.select("SOURCE_FILE", "INVOICE_NUMBER", "TOTAL", '"_document_error"').show()  # doctest: +SKIP
-
-            >>> # Read one row per page.
-            >>> df = session.read.option("row_boundary", "page").documents("@mystage/docs/")  # doctest: +SKIP
-
-            >>> # Also extract the images embedded in the documents.
-            >>> df = session.read.option("extract_images", True).documents("@mystage/docs/")  # doctest: +SKIP
-            >>> df.select("SOURCE_FILE", "IMAGES").show()  # doctest: +SKIP
         """
         if isinstance(self._session._conn, MockServerConnection):
             self._session._conn.log_not_supported_error(

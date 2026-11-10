@@ -10,6 +10,7 @@
 
 #### Improvements
 
+- `DataFrameReader.documents()` (Private Preview) no longer takes the `parse_mode`, `row_boundary` and `extract_images` options; they are ignored with a warning. A read without a `schema` or `prompt` now always parses each file with `AI_PARSE_DOCUMENT` in `LAYOUT` mode and returns one row per file.
 - `snowflake.snowpark.context.configure_development_features` (Experimental) no longer depends on AST collection and no longer changes the AST collection setting.
 - `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them.
 
