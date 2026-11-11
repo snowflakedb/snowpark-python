@@ -10,7 +10,6 @@ import decimal
 import functools
 import hashlib
 import heapq
-import importlib
 import importlib.metadata
 import io
 import itertools
@@ -59,11 +58,7 @@ from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.options import (
-    MissingOptionalDependency,
-    ModuleLikeObject,
-    installed_pandas,
-)
+from snowflake.snowpark._internal.options import installed_pandas
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
@@ -1817,24 +1812,6 @@ def check_agg_exprs(
                     "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should "
                     "contain only Column objects, or pairs of Column object (or column name) and strings."
                 )
-
-
-class MissingModin(MissingOptionalDependency):
-    """The class is specifically for modin optional dependency."""
-
-    _dep_name = "modin"
-
-
-def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
-    """This function tries importing the following packages: modin.pandas
-
-    If available it returns modin package with a flag of whether it was imported.
-    """
-    try:
-        modin = importlib.import_module("modin.pandas")
-        return modin, True
-    except ImportError:
-        return MissingModin(), False
 
 
 class GlobalCounter:

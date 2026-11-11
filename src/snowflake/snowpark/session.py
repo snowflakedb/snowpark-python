@@ -131,7 +131,6 @@ from snowflake.snowpark._internal.utils import (
     get_stage_file_prefix_length,
     get_temp_type_for_object,
     get_version,
-    import_or_missing_modin_pandas,
     is_in_stored_procedure,
     module_to_requirement,
     normalize_local_file,
@@ -3945,8 +3944,8 @@ class Session:
                         stacklevel=1,
                     )
 
-            modin_pandas, modin_is_imported = import_or_missing_modin_pandas()
-            if modin_is_imported and isinstance(
+            modin_pandas = sys.modules.get("modin.pandas")
+            if modin_pandas is not None and isinstance(
                 df, (modin_pandas.DataFrame, modin_pandas.Series)
             ):
                 # use_logical_type should be ignored for Snowpark pandas

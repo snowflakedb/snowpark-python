@@ -9,6 +9,17 @@
 - Added `Session.semantic_view()` (PuPr) to query a semantic view. Pass the semantic view name plus any of `dimensions`, `metrics`, `facts`, and `where`; it returns a `DataFrame`.
 - Added `Session.debug` (Experimental) to turn the debug features on and off per session, with `session.debug.set(...)`.
   `snowflake.snowpark.context.configure_development_features` is now a mirror of `Session.debug` that applies to every session.
+- Added support for the following functions in `functions.py`:
+  - `try_to_boolean`
+  - `try_to_date`
+  - `try_to_decfloat`
+  - `try_to_decimal` (with aliases `try_to_number` and `try_to_numeric`)
+  - `try_to_double`
+  - `try_to_time`
+  - `try_to_timestamp`
+  - `try_to_timestamp_ltz`
+  - `try_to_timestamp_ntz`
+  - `try_to_timestamp_tz`
 
 #### Improvements
 
@@ -43,6 +54,8 @@
 - Fixed a bug where `DataFrame.pivot` in local testing raised `TypeError` when an aggregated value came from `date_part` with the `week`, `weekiso` or `yearofweekiso` part and a pivot cell was empty.
 - Fixed a bug where `DataFrameReader.csv` in local testing accepted a string or a number for `SKIP_BLANK_LINES` and treated it as true. It now raises an error unless the value is `True` or `False`, as Snowflake does.
 - Fixed a bug where `DataFrameReader.csv` in local testing read strings such as `NA` and `null` as `NaN` in a column of a type it does not convert, such as `VariantType`.
+- Fixed a bug where `Column.try_cast` to `TimeType` failed instead of returning NULL for invalid input in local testing.
+- Fixed a bug where `Column.try_cast` to `DoubleType` returned NaN instead of NULL for invalid input in local testing.
 
 ## 1.56.0 (2026-10-29)
 
