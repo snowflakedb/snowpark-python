@@ -210,6 +210,8 @@ from snowflake.snowpark._internal.df_trace import (
     ObjectCreationRegistry,
     record_object_creation,
 )
+from snowflake.snowpark._internal import debug_config
+from snowflake.snowpark._internal.debug_config import DebugConfig
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -349,6 +351,11 @@ def _get_active_sessions(require_at_least_one: bool = True) -> Set["Session"]:
 
 def _add_session(session: "Session") -> None:
     with _session_management_lock:
+        if session not in _active_sessions:
+            # Apply the settings of context.configure_development_features under the lock it
+            # holds, so that a session created while it runs is not missed. Remove together with
+            # configure_development_features.
+            session._debug._apply(dict(context._development_feature_settings))
         _active_sessions.add(session)
 
 
@@ -962,6 +969,7 @@ class Session:
         self._udf_profiler = UDFProfiler(session=self)
         self._dataframe_profiler = DataframeProfiler(session=self)
         self._df_trace_registry = ObjectCreationRegistry()
+        self._debug = DebugConfig(self)
         self._catalog = None
         self._client_telemetry = EventTableTelemetry(session=self)
 
@@ -1111,6 +1119,21 @@ class Session:
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
+                # A closed session is no longer counted as tracing.
+                with debug_config._lock:
+                    self._debug._closed = True
+                    self._debug._update_tracing_count()
+
+    @property
+    @experimental(version="1.57.0")
+    def debug(self) -> DebugConfig:
+        """The debug features of this session: ``session.debug.set(...)`` sets several of them,
+        and ``session.debug.enable_<feature>()`` / ``session.debug.disable_<feature>()`` set one.
+
+        See :func:`snowflake.snowpark.context.configure_development_features` to set them for
+        every session.
+        """
+        return self._debug
 
     @property
     def conf(self) -> RuntimeConfig:
