@@ -18,6 +18,8 @@ _FEATURES: Dict[str, bool] = {
     # Maps SQL compilation errors to the Python lines of the dataframe operations, and adds the
     # context of missing and existing objects to the errors.
     "trace_sql_errors_to_dataframe": True,
+    # Adds the most recent dataframe operations (the lineage) of a failed dataframe to the error.
+    "dataframe_trace_on_error": True,
 }
 
 # The number of sessions with a trace feature on, so the public API wrapper, which has no
@@ -108,6 +110,20 @@ class DebugConfig:
     def disable_trace_sql_errors_to_dataframe(self) -> None:
         """Turns off the SQL error tracing of this session."""
         self._apply({"trace_sql_errors_to_dataframe": False})
+
+    @property
+    def dataframe_trace_on_error(self) -> bool:
+        """Whether the errors of a dataframe show its most recent dataframe operations."""
+        return self._get("dataframe_trace_on_error")
+
+    def enable_dataframe_trace_on_error(self) -> None:
+        """Adds the most recent dataframe operations of a failed dataframe of this session to the
+        error."""
+        self._apply({"dataframe_trace_on_error": True})
+
+    def disable_dataframe_trace_on_error(self) -> None:
+        """Turns off the dataframe trace on error of this session."""
+        self._apply({"dataframe_trace_on_error": False})
 
     def _get(self, name: str) -> bool:
         with _lock:

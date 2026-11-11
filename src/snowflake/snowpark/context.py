@@ -168,9 +168,6 @@ _development_feature_settings: Dict[str, bool] = {}
 
 _cte_error_threshold = 3  # 0 to disable auto-cte-disable, otherwise the number of times CTE optimization can fail before it is automatically disabled for the remainder of the session.
 
-# Following are internal-only global flags, used to enable development features.
-_enable_dataframe_trace_on_error = False
-
 # SNOW-2362050: Enable this fix by default.
 # Global flag for fix 2360274. When enabled schema queries will use NULL as a place holder for any values inside structured objects
 _enable_fix_2360274 = False
@@ -199,7 +196,12 @@ def configure_development_features(
     enable_trace_sql_errors_to_dataframe: Optional[bool] = None,
 ) -> None:
     """
-    Configure development features for the session.
+    Configure development features for every session.
+
+    The features are applied to every active session and to the sessions created later. To
+    configure one session, use ``session.debug.set(...)`` or ``session.debug.enable_<feature>()`` /
+    ``session.debug.disable_<feature>()``
+    (see :attr:`Session.debug`).
 
     Only the features passed explicitly are changed; features that are not passed keep their
     current setting. Calling this function without any argument disables every development
@@ -226,8 +228,6 @@ def configure_development_features(
     _logger.warning(
         "configure_development_features() is experimental since 1.33.0. Do not use it in production.",
     )
-    global _enable_dataframe_trace_on_error
-
     requested = (
         enable_eager_schema_validation,
         enable_dataframe_trace_on_error,
@@ -247,21 +247,19 @@ def configure_development_features(
         name: value
         for name, value in (
             ("eager_schema_validation", eager_schema_validation),
+            ("dataframe_trace_on_error", dataframe_trace_on_error),
             ("trace_sql_errors_to_dataframe", trace_sql_errors_to_dataframe),
         )
         if value is not None
     }
-    if values:
-        # Set in every active session and for the sessions created later.
-        with session_module._session_management_lock:
-            _development_feature_settings.update(values)
-            # _get_active_sessions returns the live set, iterate a copy.
-            for active in list(
-                session_module._get_active_sessions(require_at_least_one=False)
-            ):
-                active._debug._apply(values)
-    if dataframe_trace_on_error is not None:
-        _enable_dataframe_trace_on_error = dataframe_trace_on_error
+    # Set in every active session and for the sessions created later.
+    with session_module._session_management_lock:
+        _development_feature_settings.update(values)
+        # _get_active_sessions returns the live set, iterate a copy.
+        for active in list(
+            session_module._get_active_sessions(require_at_least_one=False)
+        ):
+            active._debug._apply(values)
 
 
 def _should_use_structured_type_semantics():
