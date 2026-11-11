@@ -170,10 +170,6 @@ _cte_error_threshold = 3  # 0 to disable auto-cte-disable, otherwise the number 
 
 # Following are internal-only global flags, used to enable development features.
 _enable_dataframe_trace_on_error = False
-_debug_eager_schema_validation = False
-
-# This is an internal-only global flag, used to determine whether to enable query line tracking for tracing sql compilation errors.
-_enable_trace_sql_errors_to_dataframe = False
 
 # SNOW-2362050: Enable this fix by default.
 # Global flag for fix 2360274. When enabled schema queries will use NULL as a place holder for any values inside structured objects
@@ -230,9 +226,7 @@ def configure_development_features(
     _logger.warning(
         "configure_development_features() is experimental since 1.33.0. Do not use it in production.",
     )
-    global _debug_eager_schema_validation
     global _enable_dataframe_trace_on_error
-    global _enable_trace_sql_errors_to_dataframe
 
     requested = (
         enable_eager_schema_validation,
@@ -247,12 +241,27 @@ def configure_development_features(
         trace_sql_errors_to_dataframe,
     ) = requested
 
-    if eager_schema_validation is not None:
-        _debug_eager_schema_validation = eager_schema_validation
+    from snowflake.snowpark import session as session_module
+
+    values = {
+        name: value
+        for name, value in (
+            ("eager_schema_validation", eager_schema_validation),
+            ("trace_sql_errors_to_dataframe", trace_sql_errors_to_dataframe),
+        )
+        if value is not None
+    }
+    if values:
+        # Set in every active session and for the sessions created later.
+        with session_module._session_management_lock:
+            _development_feature_settings.update(values)
+            # _get_active_sessions returns the live set, iterate a copy.
+            for active in list(
+                session_module._get_active_sessions(require_at_least_one=False)
+            ):
+                active._debug._apply(values)
     if dataframe_trace_on_error is not None:
         _enable_dataframe_trace_on_error = dataframe_trace_on_error
-    if trace_sql_errors_to_dataframe is not None:
-        _enable_trace_sql_errors_to_dataframe = trace_sql_errors_to_dataframe
 
 
 def _should_use_structured_type_semantics():

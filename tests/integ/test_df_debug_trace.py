@@ -312,9 +312,12 @@ def test_error_in_lineage_extraction_is_safe(session):
 def test_lineage_trace_for_error_raised_during_construction(session):
     if not session.sql_simplifier_enabled:
         pytest.skip("SQL simplifier must be enabled for this test")
-    with mock.patch.object(context, "_debug_eager_schema_validation", True):
+    session.debug.enable_eager_schema_validation()
+    try:
         with pytest.raises(SnowparkSQLException) as exc_info:
             DataFrameGenerator1(session).simple_dataframe().select("does_not_exist")
+    finally:
+        session.debug.disable_eager_schema_validation()
 
     assert (
         "Trace of the most recent dataframe operations associated with the error"

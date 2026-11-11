@@ -209,7 +209,11 @@ def test_configure_development_features_does_not_use_the_ast():
     source = inspect.getsource(context.configure_development_features)
     assert (
         "ast"
-        not in source.replace("last", "").replace("fast", "").lower().split('"""')[-1]
+        not in source.replace("last", "")
+        .replace("fast", "")
+        .replace("least", "")
+        .lower()
+        .split('"""')[-1]
     )
 
 
@@ -428,7 +432,7 @@ def test_publicapi_records_only_when_tracing_is_on():
     context.configure_development_features()
     off = _dataframe()
     _returning(off)(column)
-    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
+    context.configure_development_features(enable_dataframe_trace_on_error=True)
     try:
         on = _dataframe()
         _returning(on)(column)

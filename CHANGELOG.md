@@ -7,7 +7,10 @@
 #### New Features
 
 - Added `Session.semantic_view()` (PuPr) to query a semantic view. Pass the semantic view name plus any of `dimensions`, `metrics`, `facts`, and `where`; it returns a `DataFrame`.
-- Added `Session.debug` (Experimental) to turn the debug features on and off per session, with `session.debug.set(...)`.
+- Added `Session.debug` (Experimental) to turn the debug features on and off per session, with `session.debug.set(...)` or `session.debug.enable_<feature>()` / `disable_<feature>()`. The features are:
+  - `eager_schema_validation`: validates the schema of a DataFrame when it is created, so an invalid operation fails at the line that defines it.
+  - `trace_sql_errors_to_dataframe`: maps a SQL compilation error to the Python lines of the DataFrame operations that generated the failing SQL.
+
   `snowflake.snowpark.context.configure_development_features` is now a mirror of `Session.debug` that applies to every session.
 - Added support for the following functions in `functions.py`:
   - `try_to_boolean`
@@ -29,14 +32,14 @@
 
 #### Bug Fixes
 
-- Fixed a bug where `enable_trace_sql_errors_to_dataframe` of `snowflake.snowpark.context.configure_development_features` (Experimental) reported a wrong Python source position when CTE optimization was enabled.
-- Fixed a bug where `enable_trace_sql_errors_to_dataframe` of `snowflake.snowpark.context.configure_development_features` (Experimental) reported extra Python source lines when the failing DataFrame operation wraps earlier operations in a subquery.
+- Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) reported a wrong Python source position when CTE optimization was enabled.
+- Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) reported extra Python source lines when the failing DataFrame operation wraps earlier operations in a subquery.
 - Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
 - Fixed a bug where importing Snowpark failed if the `requests` package was not installed. Event table telemetry now treats `requests` as an optional dependency of the `opentelemetry` extra.
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file in accounts that return structured types in the native Arrow format (for example, with `ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT` set).
 - Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file, instead of falling back to the next model, when `AI_COMPLETE` reported the first model as unavailable (`Model "<name>" is unavailable`).
 - Fixed a bug where a UDF, UDTF or stored procedure with an imported module in `packages` failed with `TypeError` on a non-Anaconda artifact repository, such as PyPI. The module is now pinned to its local version, as `Session.add_packages` does. This also fixes `snowflake.snowpark.dataframe.map` with `vectorized=True` on such a repository when `packages` is not given.
-- Fixed a bug where `enable_trace_sql_errors_to_dataframe` of `snowflake.snowpark.context.configure_development_features` (Experimental) reported no Python source position for errors in a non-SELECT statement passed to `Session.sql()`.
+- Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) reported no Python source position for errors in a non-SELECT statement passed to `Session.sql()`.
 
 #### Dependency Updates
 

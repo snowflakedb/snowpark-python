@@ -21,6 +21,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
+from snowflake.snowpark._internal import debug_config
+
 SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
 
 _logger = logging.getLogger(__name__)
@@ -136,7 +138,8 @@ def capture_user_src_position(
 
 
 def is_tracing_enabled(session=None) -> bool:
-    """Whether a debug feature that needs the DataFrame trace is on.
+    """Whether a debug feature that needs the DataFrame trace is on for ``session``, or, without
+    a session, the trace on error of the process.
 
     The trace is not supported for local testing sessions.
     """
@@ -144,7 +147,7 @@ def is_tracing_enabled(session=None) -> bool:
 
     if not (
         context._enable_dataframe_trace_on_error
-        or context._enable_trace_sql_errors_to_dataframe
+        or debug_config.enabled(session, "trace_sql_errors_to_dataframe")
     ):
         return False
     if session is not None:
@@ -315,7 +318,8 @@ _context_module = None
 
 
 def tracing_flags_on() -> bool:
-    """Fast check of the tracing flags for the public API wrapper."""
+    """Fast check of the tracing flags for the public API wrapper: whether any session may
+    record the DataFrame trace."""
     global _context_module
     if _context_module is None:
         from snowflake.snowpark import context
@@ -323,7 +327,7 @@ def tracing_flags_on() -> bool:
         _context_module = context
     return (
         _context_module._enable_dataframe_trace_on_error
-        or _context_module._enable_trace_sql_errors_to_dataframe
+        or debug_config._tracing_sessions > 0
     )
 
 

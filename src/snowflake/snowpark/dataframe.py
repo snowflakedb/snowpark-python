@@ -111,7 +111,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
-from snowflake.snowpark._internal import df_trace
+from snowflake.snowpark._internal import debug_config, df_trace
 from snowflake.snowpark._internal.df_trace import (
     TraceNode,
     traces_inputs,
@@ -767,7 +767,7 @@ class DataFrame:
 
         self._alias: Optional[str] = None
 
-        if context._debug_eager_schema_validation:
+        if debug_config.enabled(self._session, "eager_schema_validation"):
             # Getting the plan attributes may run a describe query
             # and populates the schema for the dataframe.
             self._plan.attributes
@@ -1804,7 +1804,6 @@ class DataFrame:
         return snowpandas_df
 
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
-
         _emit_ast = self._ast_id is not None and self._session.ast_enabled
 
         if isinstance(item, str):
