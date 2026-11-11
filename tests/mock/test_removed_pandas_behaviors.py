@@ -6,11 +6,13 @@
 
 import datetime
 
-import pandas as pd
+import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import col, concat_ws, date_trunc, dateadd, lit
 from snowflake.snowpark.types import DateType, LongType, StructField, StructType
+
+pd = pytest.importorskip("pandas")
 
 
 def test_concat_ws_with_column_separator(session):
