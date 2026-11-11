@@ -12,6 +12,13 @@ entry of a call from the source of the test, so every position is checked exactl
 
 import pytest
 
+try:
+    import pandas  # noqa: F401
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, lit, udf
 from snowflake.snowpark.types import IntegerType
@@ -301,6 +308,9 @@ def test_udf_register_named(session, trace_settings):
     )
 
 
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
+)
 def test_udf_vectorized(session, trace_settings):
     from snowflake.snowpark.functions import pandas_udf
     from snowflake.snowpark.types import PandasSeriesType

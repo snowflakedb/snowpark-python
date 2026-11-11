@@ -4,7 +4,7 @@
 
 # pandas 3 infers the str dtype for string columns; NULL must still come back as None.
 
-import pandas as pd
+import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import (
@@ -20,6 +20,8 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
+
+pd = pytest.importorskip("pandas")
 
 
 def test_udf_receives_none_for_null(session):
