@@ -185,41 +185,41 @@ class SnowflakePlan(LogicalPlan):
                             break
                     if top_plan is not None and top_plan.df_trace_nodes:
                         trace_node = top_plan.df_trace_nodes[-1]
-                    trace_sql_errors = top_plan is not None and debug_config.enabled(
-                        top_plan.session, "trace_sql_errors_to_dataframe"
-                    )
-
                     debug_context_arr = []
                     try:
-                        if (
-                            "SQL compilation error:" in e.msg
-                            and "error line" in e.msg
-                            and trace_sql_errors
-                        ):
-                            if error_source_context := get_python_source_from_sql_error(
-                                top_plan, e.msg, query
+                        if top_plan is not None:
+                            trace_sql_errors = debug_config.enabled(
+                                top_plan.session, "trace_sql_errors_to_dataframe"
+                            )
+                            if (
+                                "SQL compilation error:" in e.msg
+                                and "error line" in e.msg
+                                and trace_sql_errors
                             ):
-                                debug_context_arr.append(error_source_context)
-                        if trace_node is not None and debug_config.enabled(
-                            top_plan.session, "dataframe_trace_on_error"
-                        ):
-                            if df_transform_trace := get_df_transform_trace_message(
-                                trace_node
+                                if error_source_context := get_python_source_from_sql_error(
+                                    top_plan, e.msg, query
+                                ):
+                                    debug_context_arr.append(error_source_context)
+                            if trace_node is not None and debug_config.enabled(
+                                top_plan.session, "dataframe_trace_on_error"
                             ):
-                                debug_context_arr.append(df_transform_trace)
-                        if (
-                            "does not exist or not authorized" in e.msg
-                            and trace_sql_errors
-                        ):
-                            if missing_object_context := get_missing_object_context(
-                                top_plan, e.msg
+                                if df_transform_trace := get_df_transform_trace_message(
+                                    trace_node
+                                ):
+                                    debug_context_arr.append(df_transform_trace)
+                            if (
+                                "does not exist or not authorized" in e.msg
+                                and trace_sql_errors
                             ):
-                                debug_context_arr.append(missing_object_context)
-                        if ("already exists" in e.msg) and trace_sql_errors:
-                            if existing_object_context := get_existing_object_context(
-                                top_plan, e.msg
-                            ):
-                                debug_context_arr.append(existing_object_context)
+                                if missing_object_context := get_missing_object_context(
+                                    top_plan, e.msg
+                                ):
+                                    debug_context_arr.append(missing_object_context)
+                            if ("already exists" in e.msg) and trace_sql_errors:
+                                if existing_object_context := get_existing_object_context(
+                                    top_plan, e.msg
+                                ):
+                                    debug_context_arr.append(existing_object_context)
                     except Exception as trace_error:
                         # If we encounter an error when getting the df_transform_debug_trace,
                         # we will ignore the error and not add the debug trace to the error message.
