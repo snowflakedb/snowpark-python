@@ -1602,15 +1602,15 @@ def mock_to_binary(
             res.sf_type = ColumnType(BinaryType(), True)
             return res
         fmt = unique_fmts[0] if len(unique_fmts) == 1 else None
-    fmt = fmt.upper() if fmt else "HEX"
+    # Only an omitted format defaults to HEX; an empty string is invalid, as in Snowflake.
     fmt_decoder = {
         "HEX": binascii.unhexlify,
         "BASE64": base64.b64decode,
         "UTF-8": lambda x: x.encode("utf-8"),
-    }.get(fmt)
+    }.get("HEX" if fmt is None else fmt.upper())
 
-    if fmt is None:
-        raise SnowparkLocalTestingException(f"Invalid binary format {fmt}")
+    if fmt_decoder is None:
+        raise SnowparkLocalTestingException(f"Invalid binary format string '{fmt}'")
 
     if isinstance(column.sf_type.datatype, (StringType, NullType, VariantType)):
         res = column.apply(lambda x: try_convert(fmt_decoder, try_cast, x))

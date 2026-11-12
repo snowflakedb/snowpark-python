@@ -71,6 +71,7 @@
 - Fixed a bug where `DataFrameReader.csv` in local testing read strings such as `NA` and `null` as `NaN` in a column of a type it does not convert, such as `VariantType`.
 - Fixed a bug where `Column.try_cast` to `TimeType` failed instead of returning NULL for invalid input in local testing.
 - Fixed a bug where `Column.try_cast` to `DoubleType` returned NaN instead of NULL for invalid input in local testing.
+- Fixed a bug where `to_binary` in local testing treated an empty-string format as `HEX` and failed with an unclear error for an unknown format, instead of raising an invalid binary format error as Snowflake does.
 
 ## 1.56.0 (2026-10-29)
 

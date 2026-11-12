@@ -1546,6 +1546,11 @@ def test_to_binary_fmt_literal_and_column(session, local_testing_mode):
     assert res == [Row(bytearray(b"A"))]
     res = df.where(col("f") == "UTF-8").select(to_binary(col("v"), "UTF-8")).collect()
     assert res == [Row(bytearray(b"abc"))]
+    # an empty fmt is passed to Snowflake, which rejects it
+    with pytest.raises(SnowparkSQLException, match="Invalid binary format"):
+        df.select(to_binary("v", "")).collect()
+    with pytest.raises(SnowparkSQLException, match="Invalid binary format"):
+        df.select(to_binary("v", "FOO")).collect()
     # Column fmt with different formats per row
     if local_testing_mode:
         with pytest.raises(NotImplementedError):
@@ -1568,6 +1573,9 @@ def test_try_to_binary_fmt_literal_and_column(session):
     assert res == [Row(bytearray(b"A")), Row(None), Row(None), Row(None)]
     res = df.select(try_to_binary("v", col("f"))).collect()
     assert res == [Row(bytearray(b"A")), Row(bytearray(b"A")), Row(None), Row(None)]
+    # an empty fmt is passed to Snowflake, which returns NULL even for valid input
+    res = df.select(try_to_binary("v", "")).collect()
+    assert res == [Row(None), Row(None), Row(None), Row(None)]
 
 
 @pytest.mark.parametrize("convert_func", [to_char, to_varchar])
