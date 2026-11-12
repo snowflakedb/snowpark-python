@@ -33,6 +33,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug that `Session.debug` (Experimental) report wrong debug information when imported through a symlinked path.
 - Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) reported a wrong Python source position when CTE optimization was enabled.
 - Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) reported extra Python source lines when the failing DataFrame operation wraps earlier operations in a subquery.
 - Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
