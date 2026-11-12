@@ -24,6 +24,12 @@ from typing import List, Optional
 from snowflake.snowpark._internal import debug_config
 
 SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
+# The path of the package as Python imported it, which is what the code objects of its frames
+# report: it differs from the resolved path when the package is installed under a symlink (e.g.
+# the lib64 -> lib symlink of a venv on Linux), so frames are matched against both.
+SNOWPARK_LIB_PATHS = frozenset(
+    {Path(__file__).absolute().parent.parent, SNOWPARK_LIB_PATH}
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -98,9 +104,8 @@ def capture_user_src_position(
             return None
         if caller_frame_depth is None:
             frame = frame.f_back.f_back  # type: ignore[union-attr]
-            while (
-                frame is not None
-                and SNOWPARK_LIB_PATH in Path(frame.f_code.co_filename).parents
+            while frame is not None and not SNOWPARK_LIB_PATHS.isdisjoint(
+                Path(frame.f_code.co_filename).parents
             ):
                 frame = frame.f_back
         else:
