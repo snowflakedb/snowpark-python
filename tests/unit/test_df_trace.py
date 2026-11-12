@@ -58,6 +58,51 @@ def test_capture_steps_out_of_the_library():
     assert pos.start_line == inspect.currentframe().f_lineno - 2 or pos.filename
 
 
+_SYMLINKED_IMPORT_SCRIPT = """
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+import snowflake.snowpark._internal.df_trace as df_trace
+
+# a library frame whose filename goes through the symlink, like the frames of an installed package
+lib_file = Path(df_trace.__file__).parent / "fake_library_module.py"
+code = compile(
+    "def outer():\\n    return inner()\\n"
+    "def inner():\\n    return capture_user_src_position()\\n",
+    str(lib_file),
+    "exec",
+)
+namespace = {"capture_user_src_position": df_trace.capture_user_src_position}
+exec(code, namespace)
+
+
+def user_code():
+    return namespace["outer"]()
+
+
+print(user_code().filename)
+"""
+
+
+def test_capture_steps_out_of_the_library_imported_through_a_symlink(tmp_path):
+    # e.g. the lib64 -> lib symlink of a venv on Linux: the frames report the unresolved path
+    import subprocess
+    import sys
+
+    link = tmp_path / "lib64"
+    link.symlink_to(SRC_DIR.parent.parent, target_is_directory=True)
+    script = tmp_path / "user_script.py"
+    script.write_text(_SYMLINKED_IMPORT_SCRIPT)
+    out = subprocess.run(
+        [sys.executable, str(script), str(link)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert out.stdout.strip() == str(script)
+
+
 # ------------------------------------------------------------------ graph basics
 def test_trace_node_is_shared_by_copies():
     node = TraceNode(SrcPosition("f.py", 1), [])
