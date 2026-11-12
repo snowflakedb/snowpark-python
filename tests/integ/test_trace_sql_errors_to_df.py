@@ -153,7 +153,12 @@ def test_sql_error_of_another_query_reports_all_operations(session, multiline):
     right = session.create_dataframe([(1, "z")], schema=["a", "y"])
     with pytest.raises(SnowparkSQLException) as ex:
         left.join(right, left["a"] == right["a"])
-    assert _mapped_lines(ex) == [first, first + 1, first + 4]
+    if session.sql_simplifier_enabled:
+        assert _mapped_lines(ex) == [first, first + 1, first + 4]
+    else:
+        # Without the simplifier the join resolves the schema of ``left`` with the sql
+        # of its own plan, so the line maps precisely to the failing operation.
+        assert _mapped_lines(ex) == [first + 1]
 
 
 def test_python_source_location_in_session_sql(session):
@@ -700,6 +705,10 @@ def _large_query_breakdown_partition(session):
     # The invalid column is deep in the plan, so it fails in a partition query that
     # runs before the last query. The partition is not owned by a node of the original
     # plan, so no source location is reported rather than a wrong one.
+    if not session.sql_simplifier_enabled:
+        # without the simplifier, with_column resolves the schema eagerly and the
+        # error is raised while the DataFrame is built, before any partition runs
+        pytest.skip("SQL simplifier must be enabled for this test")
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     df = df.filter(col("no_such_col") > 0)
     for i in range(12):
