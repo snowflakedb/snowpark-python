@@ -8,6 +8,13 @@ import json
 
 import pytest
 
+try:
+    import pandas  # noqa: F401
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
 from snowflake.snowpark.functions import (
@@ -100,6 +107,8 @@ def test_try_cast_double_invalid_is_none(session):
     rows = res.collect()
     assert rows[1][0] is None
 
+    if not is_pandas_available:
+        return
     valid = session.create_dataframe([["1.5"], ["2"]], schema=["a"])
     pdf = valid.select(valid["a"].try_cast(DoubleType())).to_pandas()
     assert str(pdf.iloc[:, 0].dtype) == "float64"
