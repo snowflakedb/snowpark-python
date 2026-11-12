@@ -160,6 +160,10 @@ def test_a_failure_in_the_cte_segments_does_not_fail_the_query(session, monkeypa
         raise TypeError("broken segments")
 
     monkeypatch.setattr(compiler_utils, "CteSegment", broken)
+    # Without the SQL simplifier the select in error_in_reused_part describes its
+    # child eagerly, so the error comes from a non-CTE query and is mapped
+    # without the CTE segments. Keep the simplifier on to exercise them.
+    monkeypatch.setattr(session, "sql_simplifier_enabled", True)
     session.cte_optimization_enabled = True
     b = _small(session).with_column("X", lit(1))
     df = b.filter(col("ID") > 0).union_all(b.filter(col("ID") > 1))
