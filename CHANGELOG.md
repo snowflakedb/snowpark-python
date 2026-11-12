@@ -1,5 +1,15 @@
 # Release History
 
+## 1.58.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Improvements
+
+#### Bug Fixes
+
 ## 1.57.0 (2026-11-12)
 
 ### Snowpark Python API Updates
