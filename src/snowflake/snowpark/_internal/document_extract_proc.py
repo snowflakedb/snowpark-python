@@ -234,14 +234,32 @@ def is_throttle_error(error: str) -> bool:
 # rejected 15.19 MB with a bare "malformed request"); parts stay well under that.
 MAX_FILE_BYTES = 12_000_000
 
+# File types AI_COMPLETE accepts for Claude models. Other files are rejected before their
+# bytes are read, so they are never sent to the model. Images are not PDFs, so each is
+# sent whole in one call; AI_COMPLETE reports an image over its size limit (3.75 MB for
+# Claude) as that file's error.
+SUPPORTED_FILE_EXTENSIONS = frozenset(
+    {
+        ".txt",
+        ".md",
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".csv",
+        ".xhtml",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".webp",
+    }
+)
+
 # Every file is read whole into the procedure's memory before it is cut into parts, so a
 # file larger than this (by the size LIST reports) is not read: it gets its own error
 # row instead of exhausting the procedure's memory.
-# File types AI_COMPLETE accepts for Claude models. Other files are rejected before their
-# bytes are read, so they are never sent to the model.
-SUPPORTED_FILE_EXTENSIONS = frozenset(
-    {".txt", ".md", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".xhtml"}
-)
 MAX_FILE_READ_BYTES = 300_000_000
 
 

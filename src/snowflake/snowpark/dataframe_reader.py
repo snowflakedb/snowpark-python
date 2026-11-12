@@ -1448,11 +1448,14 @@ class DataFrameReader:
 
         Note:
             With a ``schema``, the supported file types are ``.txt``, ``.md``, ``.pdf``,
-            ``.doc``, ``.docx``, ``.xls``, ``.xlsx``, ``.csv`` and ``.xhtml``. Other files
+            ``.doc``, ``.docx``, ``.xls``, ``.xlsx``, ``.csv`` and ``.xhtml``, and the
+            images ``.jpg``, ``.jpeg``, ``.png``, ``.gif`` and ``.webp``. Other files
             in the path are not read; each gets an error in its ``_document_error``. A
-            very large file of a type other than PDF can fail as a whole. With a
-            ``prompt`` only, every file in the path is read, and a file that cannot be
-            read gets an error in its ``_document_error``.
+            very large file of a type other than PDF can fail as a whole, and an image
+            over the model's size limit gets an error. With a ``prompt`` only, or with
+            neither, every file in the path is read, and a file that cannot be read gets
+            an error in its ``_document_error``. A read with neither also parses
+            ``.jpg``, ``.jpeg``, ``.png`` and ``.tiff`` images.
 
         Args:
             path: The stage location of a document, or a stage location that has documents.
