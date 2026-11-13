@@ -1412,9 +1412,22 @@ class DataFrameReader:
             - ``schema``: the fields to extract. A JSON Schema dict (with a ``properties``
               dict), a dict of ``{field: question}``, or a list of field names or
               ``"field: question"`` strings. The result has one column per field,
-              named in upper case.
-            - ``prompt``: instructions for the model. With a ``schema`` it guides the
-              extraction. Without one the model's answer is returned as text.
+              named in upper case. In a JSON Schema, give each field a ``description``
+              that tells the model what to extract (it is the field's question), and
+              ``enum`` to limit a field to a set of values. A field of type ``string``,
+              ``number``, ``integer`` or ``boolean`` becomes a column of that type; a
+              value that does not match the type is ``NULL`` and gets an error in its
+              ``_document_error``. Fields of type ``array`` or ``object``, or with no
+              type, are returned as ``VARIANT``. Keywords that state rules about the
+              whole answer, such as ``required``, ``format``, ``pattern``, ``minimum``
+              or ``maxItems``, are removed before the schema is sent to the model, so
+              the result is not checked against them. A field must not be named like an
+              output column (``SOURCE_FILE``, ``CONTENT``, ``RESPONSE``,
+              ``EXTRACTION_SCORES`` and the others below) or like another field once
+              both are upper-cased.
+            - ``prompt``: instructions for the model, a non-empty string. With a
+              ``schema`` it guides the extraction. Without one the model's answer is
+              returned as text.
             - ``parse_mode``: how files are parsed when there is no ``schema`` or ``prompt``:
               ``"layout"`` (the default), ``"ocr"`` or ``"text"``.
             - ``row_boundary``: ``"document"`` (the default) returns one row per file;
@@ -1422,6 +1435,9 @@ class DataFrameReader:
             - ``extract_images``: ``True`` or ``False`` (the default). When ``True`` the
               images embedded in the documents are extracted too. It needs
               ``parse_mode`` ``"layout"`` and raises an error with any other mode.
+
+        A value outside the ones listed for an option raises an error when
+        ``documents()`` is called, as does a ``schema`` that is not a dict or a list.
 
         ``parse_mode``, ``row_boundary`` and ``extract_images`` are ignored when a
         ``schema`` or ``prompt`` is set: the file is then sent to the model directly, which keeps layout such as table
@@ -1445,9 +1461,12 @@ class DataFrameReader:
         Every read also has a case-sensitive ``"_document_error"`` column (quote the name
         when you select it). A document that fails does not
         fail the read: its row holds an array of ``{stage, message}`` entries describing
-        what went wrong, and ``NULL`` when the document succeeded. A read stops early with
-        an error when most of its documents fail, or when no supported model is available
-        to the account.
+        what went wrong, and ``NULL`` when the document succeeded. A ``schema`` read stops
+        sending documents to the model when, after at least 10 documents have finished,
+        more than 75% of them failed: the finished rows are still returned, and each
+        document not yet read gets an error in its ``_document_error``. A read with a
+        ``schema`` or a ``prompt`` fails with an error when no supported model is
+        available to the account.
 
         Note:
             The reader registers temporary procedures and functions in the current
@@ -1480,16 +1499,59 @@ class DataFrameReader:
             >>> df = session.read.documents("@mystage/docs/")  # doctest: +SKIP
             >>> df.select("SOURCE_FILE", "TOTAL_PAGES", "CONTENT").show()  # doctest: +SKIP
 
-            >>> # Extract fields from every document in a stage.
+            >>> # Extract fields from every document in a stage. Each field's description
+            >>> # tells the model what to look for.
             >>> schema = {  # doctest: +SKIP
             ...     "type": "object",
             ...     "properties": {
-            ...         "invoice_number": {"type": "string"},
-            ...         "total": {"type": "number"},
+            ...         "invoice_number": {
+            ...             "type": "string",
+            ...             "description": "The invoice number printed in the header, not the order or PO number.",
+            ...         },
+            ...         "invoice_date": {
+            ...             "type": "string",
+            ...             "description": "The date the invoice was issued, as YYYY-MM-DD.",
+            ...         },
+            ...         "currency": {
+            ...             "type": "string",
+            ...             "enum": ["USD", "EUR", "GBP"],
+            ...             "description": "The currency of the amounts.",
+            ...         },
+            ...         "total": {
+            ...             "type": "number",
+            ...             "description": "The final amount due, including tax.",
+            ...         },
+            ...         "line_items": {
+            ...             "type": "array",
+            ...             "description": "Every line of the invoice table, from all pages.",
+            ...             "items": {
+            ...                 "type": "object",
+            ...                 "properties": {
+            ...                     "description": {"type": "string", "description": "What was billed."},
+            ...                     "quantity": {"type": "number"},
+            ...                     "amount": {"type": "number", "description": "The line total."},
+            ...                 },
+            ...             },
+            ...         },
             ...     },
             ... }
             >>> df = session.read.option("schema", schema).documents("@mystage/invoices/")  # doctest: +SKIP
-            >>> df.select("SOURCE_FILE", "INVOICE_NUMBER", "TOTAL", '"_document_error"').show()  # doctest: +SKIP
+            >>> df.select(  # doctest: +SKIP
+            ...     "SOURCE_FILE", "INVOICE_NUMBER", "TOTAL", "LINE_ITEMS", "EXTRACTION_SCORES", '"_document_error"'
+            ... ).show()
+
+            >>> # Extract fields with the short form: a dict of {field: question}.
+            >>> schema = {  # doctest: +SKIP
+            ...     "vendor": "Which company issued the invoice?",
+            ...     "due_date": "When is payment due?",
+            ... }
+            >>> df = session.read.option("schema", schema).documents("@mystage/invoices/")  # doctest: +SKIP
+
+            >>> # Ask a question about each document and get the answer as text.
+            >>> df = session.read.option(  # doctest: +SKIP
+            ...     "prompt", "Summarize the payment terms in one sentence."
+            ... ).documents("@mystage/contracts/")
+            >>> df.select("SOURCE_FILE", "RESPONSE").show()  # doctest: +SKIP
 
             >>> # Read one row per page.
             >>> df = session.read.option("row_boundary", "page").documents("@mystage/docs/")  # doctest: +SKIP
