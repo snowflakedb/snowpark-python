@@ -66,6 +66,7 @@ from snowflake.snowpark._internal.xml_schema_inference import (
 from snowflake.snowpark._internal.utils import (
     SNOWURL_PREFIX,
     STAGE_PREFIX,
+    TimeTravelConfig,
     XML_ROW_TAG_STRING,
     XML_ROW_DATA_COLUMN_NAME,
     XML_READER_FILE_PATH,
@@ -803,6 +804,11 @@ class DataFrameReader:
             if end_snapshot_id is None:
                 end_snapshot_id = changes_from_options.get("end_snapshot_id")
 
+        # Validate before building the AST, which only holds int offsets.
+        offset = TimeTravelConfig.normalize_offset(
+            offset, emit_ast=_emit_ast and self._ast is not None
+        )
+
         # AST.
         stmt = None
         if _emit_ast and self._ast is not None:
@@ -814,7 +820,7 @@ class DataFrameReader:
                 ast.time_travel_mode.value = time_travel_mode
             if statement is not None:
                 ast.statement.value = statement
-            if offset is not None:
+            if isinstance(offset, int):
                 ast.offset.value = offset
             if timestamp is not None:
                 build_expr_from_python_val(ast.timestamp, timestamp)
@@ -873,6 +879,10 @@ class DataFrameReader:
         else:
             # if time_travel_mode is not provided, extract time travel config from options
             time_travel_params = _extract_time_travel_from_options(self._cur_options)
+            TimeTravelConfig.normalize_offset(
+                time_travel_params.get("offset"),
+                emit_ast=_emit_ast and self._ast is not None,
+            )
             table = self._session.table(name, _emit_ast=False, **time_travel_params)
 
         if _emit_ast and stmt is not None:

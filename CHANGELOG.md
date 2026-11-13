@@ -12,6 +12,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug where the time travel `offset` of `Session.table`, `DataFrameReader.table` and `Table` (including the `offset` reader option) was inserted into the SQL without validation. It now must be an integer or an integer arithmetic expression such as `-30*60`.
 - Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
 
 ### Snowpark Local Testing Updates
