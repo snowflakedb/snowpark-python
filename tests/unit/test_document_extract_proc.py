@@ -2365,7 +2365,15 @@ class TestPerFileFailures:
         assert not good.failed and good.pages == 3 and good.splittable
 
     @pytest.mark.parametrize(
-        "name", ["s/run.exe", "s/archive.zip", "s/image.png", "s/no_extension"]
+        "name",
+        [
+            "s/run.exe",
+            "s/archive.zip",
+            "s/scan.tiff",
+            "s/photo.heic",
+            "s/image.bmp",
+            "s/no_extension",
+        ],
     )
     def test_an_unsupported_file_type_is_refused_before_it_is_read(
         self, monkeypatch, name
@@ -2379,13 +2387,33 @@ class TestPerFileFailures:
         assert document_outcomes([state], []) == (0, 0, [])
 
     @pytest.mark.parametrize(
-        "name", ["s/a.PDF", "s/notes.txt", "s/data.XLSX", "s/t.docx"]
+        "name",
+        [
+            "s/a.PDF",
+            "s/notes.txt",
+            "s/data.XLSX",
+            "s/t.docx",
+            "s/photo.jpg",
+            "s/PHOTO.JPG",
+            "s/photo.jpeg",
+            "s/image.png",
+            "s/IMAGE.PNG",
+            "s/anim.gif",
+            "s/image.webp",
+        ],
     )
     def test_a_supported_file_type_is_read_whatever_the_case(self, monkeypatch, name):
         extraction = _doc_extraction(_FakeSession())
         monkeypatch.setattr(extraction, "read_bytes", lambda name: b"plain text")
         state = extraction.load_file(f"@{name}", 30, None)
         assert not state.failed
+
+    def test_an_image_is_one_page_sent_whole(self, monkeypatch):
+        extraction = _doc_extraction(_FakeSession())
+        monkeypatch.setattr(extraction, "read_bytes", lambda name: b"\x89PNG\r\n")
+        image = extraction.load_file("@s/scan.png", 30, None)
+        assert not image.failed and image.pages == 1 and not image.splittable
+        assert extraction.stage_part(image, 1, 1) == "@s/scan.png"
 
     def test_a_file_over_the_read_limit_is_not_read_and_is_a_failed_state(
         self, monkeypatch

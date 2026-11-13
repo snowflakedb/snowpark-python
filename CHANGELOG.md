@@ -13,6 +13,7 @@
 #### Bug Fixes
 
 - Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
+- Fixed a bug where `DataFrameReader.documents()` (Private Preview) reads with a schema refused `.jpg`, `.jpeg`, `.png`, `.gif` and `.webp` images with a "file type is not supported" error. Each image is now sent to `AI_COMPLETE` whole, in one call.
 
 ### Snowpark Local Testing Updates
 

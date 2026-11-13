@@ -1733,6 +1733,10 @@ class TestFiles:
         return os.path.join(self.resources_path, "dog.jpg")
 
     @property
+    def test_kitchen_image(self):
+        return os.path.join(self.resources_path, "kitchen.png")
+
+    @property
     def test_dk_trace_sample_xml(self):
         return os.path.join(self.resources_path, "dk_trace_sample.xml")
 
