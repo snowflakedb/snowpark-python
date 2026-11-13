@@ -8,7 +8,17 @@
 
 #### Improvements
 
+- `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.
+
 #### Bug Fixes
+
+- Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug where `to_binary` in local testing treated an empty-string format as `HEX` and failed with an unclear error for an unknown format, instead of raising an invalid binary format error as Snowflake does.
 
 ## 1.57.0 (2026-11-12)
 

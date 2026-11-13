@@ -1585,15 +1585,32 @@ def mock_to_binary(
     if isinstance(column.sf_type.datatype, BinaryType):
         return column.copy()
 
-    fmt = fmt.upper() if fmt else "HEX"
+    if isinstance(fmt, ColumnEmulator):
+        # A literal format also arrives as a ColumnEmulator holding one repeated value.
+        # A per-row format is not supported.
+        unique_fmts = fmt.dropna().unique()
+        if len(unique_fmts) > 1 or (len(unique_fmts) == 1 and fmt.hasnans):
+            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                external_feature_name="Using a column with different values as the format in TO_BINARY/TRY_TO_BINARY",
+                internal_feature_name="mock_to_binary",
+                parameters_info={"fmt": "ColumnEmulator"},
+                raise_error=NotImplementedError,
+            )
+        if len(unique_fmts) == 0 and len(fmt) > 0:
+            # A NULL format yields NULL, as in Snowflake.
+            res = ColumnEmulator(data=[None] * len(column), index=column.index)
+            res.sf_type = ColumnType(BinaryType(), True)
+            return res
+        fmt = unique_fmts[0] if len(unique_fmts) == 1 else None
+    # Only an omitted format defaults to HEX; an empty string is invalid, as in Snowflake.
     fmt_decoder = {
         "HEX": binascii.unhexlify,
         "BASE64": base64.b64decode,
         "UTF-8": lambda x: x.encode("utf-8"),
-    }.get(fmt)
+    }.get("HEX" if fmt is None else fmt.upper())
 
-    if fmt is None:
-        raise SnowparkLocalTestingException(f"Invalid binary format {fmt}")
+    if fmt_decoder is None:
+        raise SnowparkLocalTestingException(f"Invalid binary format string '{fmt}'")
 
     if isinstance(column.sf_type.datatype, (StringType, NullType, VariantType)):
         res = column.apply(lambda x: try_convert(fmt_decoder, try_cast, x))
