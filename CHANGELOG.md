@@ -82,6 +82,10 @@
 - Fixed a bug where `Column.try_cast` to `TimeType` failed instead of returning NULL for invalid input in local testing.
 - Fixed a bug where `Column.try_cast` to `DoubleType` returned NaN instead of NULL for invalid input in local testing.
 
+#### Dependency Updates
+
+- Updated dependency of `snowflake-connector-python>=3.17.0,!=5.0.*,!=5.1.*,<6.0.0`.
+
 ## 1.56.0 (2026-10-29)
 
 ### Snowpark Python API Updates
