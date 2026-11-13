@@ -3480,10 +3480,12 @@ class Session:
                     "name should be a string, or a sequence of name parts, not "
                     f"{type(name).__name__}."
                 )
-            name = ".".join(name)
-        validate_object_name(name)
+            qualified_name = ".".join(name)
+        else:
+            qualified_name = name
+        validate_object_name(qualified_name)
 
-        parts = [name]
+        parts = [qualified_name]
         for keyword, value in (
             ("DIMENSIONS", dimensions),
             ("METRICS", metrics),
@@ -3494,8 +3496,31 @@ class Session:
         if where is not None:
             parts.append(_render_semantic_view_where(where))
 
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            ast = with_src_position(stmt.expr.semantic_view, stmt)
+            build_table_name(ast.name, name)
+            for field, value in (
+                ("dimensions", dimensions),
+                ("metrics", metrics),
+                ("facts", facts),
+                ("where", where),
+            ):
+                if value is None:
+                    continue
+                clause = getattr(ast, field)
+                if isinstance(value, str):
+                    clause.variadic = True
+                    build_expr_from_python_val(clause.args.add(), value)
+                else:
+                    for member in value:
+                        build_expr_from_python_val(clause.args.add(), member)
+
         df = self.sql(
-            f"SELECT * FROM SEMANTIC_VIEW({' '.join(parts)})", _emit_ast=_emit_ast
+            f"SELECT * FROM SEMANTIC_VIEW({' '.join(parts)})",
+            _ast_stmt=stmt,
+            _emit_ast=_emit_ast,
         )
         set_api_call_source(df, "Session.semantic_view")
         return df

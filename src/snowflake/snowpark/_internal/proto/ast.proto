@@ -1728,6 +1728,7 @@ message Expr {
     SeqMapVal seq_map_val = 175;
     SessionTableFunction session_table_function = 176;
     Sql sql = 177;
+    SemanticView semantic_view = 207;
     SqlExpr sql_expr = 178;
     StoredProcedure stored_procedure = 179;
     StringVal string_val = 180;
@@ -2044,6 +2045,7 @@ message HasSrcPosition {
     SeqMapVal seq_map_val = 179;
     SessionTableFunction session_table_function = 180;
     Sql sql = 181;
+    SemanticView semantic_view = 216;
     SqlExpr sql_expr = 182;
     StoredProcedure stored_procedure = 183;
     StringVal string_val = 184;
@@ -2437,6 +2439,15 @@ message SfQueryResult {
 
 // ast.ir:99
 message ShowResult {
+}
+
+message SemanticView {
+  ExprArgList dimensions = 1;
+  ExprArgList facts = 2;
+  ExprArgList metrics = 3;
+  NameRef name = 4;
+  SrcPosition src = 5;
+  ExprArgList where = 6;
 }
 
 // dataframe.ir:91

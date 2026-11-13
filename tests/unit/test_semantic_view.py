@@ -9,6 +9,7 @@ import pytest
 
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
 from snowflake.snowpark.mock._connection import MockServerConnection
+from snowflake.snowpark._internal.ast.batch import AstBatch
 from snowflake.snowpark.session import Session
 
 
@@ -17,6 +18,7 @@ def fake_session():
     """A Session stand-in whose ``sql`` is a mock, so the emitted text can be asserted."""
     session = mock.create_autospec(Session, _session_id=123456)
     session._conn = mock.MagicMock()
+    session._ast_batch = AstBatch(session)
     return session
 
 
@@ -409,3 +411,29 @@ def test_local_testing_is_rejected(fake_session):
         ]
         == "Session.semantic_view"
     )
+
+
+def test_ast_records_a_dedicated_semantic_view_node(fake_session):
+    call(
+        fake_session,
+        ["db", "sc", "v"],
+        dimensions="d1",
+        metrics=["m1", "m2"],
+        where=["a = 1", "b = 2"],
+        _emit_ast=True,
+    )
+    stmt = fake_session.sql.call_args.kwargs["_ast_stmt"]
+    assert stmt.expr.WhichOneof("variant") == "semantic_view"
+    node = stmt.expr.semantic_view
+    assert list(node.name.name.name_structured.name) == ["db", "sc", "v"]
+    assert node.dimensions.variadic
+    assert [a.string_val.v for a in node.dimensions.args] == ["d1"]
+    assert not node.metrics.variadic
+    assert [a.string_val.v for a in node.metrics.args] == ["m1", "m2"]
+    assert not node.HasField("facts")
+    assert [a.string_val.v for a in node.where.args] == ["a = 1", "b = 2"]
+
+
+def test_no_ast_node_when_emit_ast_is_false(fake_session):
+    call(fake_session, "V", metrics="m", _emit_ast=False)
+    assert fake_session.sql.call_args.kwargs["_ast_stmt"] is None
