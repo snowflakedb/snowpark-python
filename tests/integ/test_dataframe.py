@@ -8695,6 +8695,90 @@ def test_table_changes_clause_sql_simplifier(
     "config.getoption('local_testing_mode', default=False)",
     reason="Change tracking is not supported in Local Testing",
 )
+def test_table_sample_keeps_time_travel_and_changes(session, changes_table):
+    table_name, insert_qid, update_qid, _ = changes_table
+
+    # the current table only has the updated row
+    Utils.check_answer(session.table(table_name).sample(frac=1.0), [Row(1, "a2")])
+
+    # AT(insert) samples the historical rows, not the current ones
+    historical = [Row(1, "a"), Row(2, "b")]
+    at_insert = session.table(table_name, time_travel_mode="at", statement=insert_qid)
+    Utils.check_answer(at_insert.sample(frac=1.0), historical)
+    Utils.check_answer(at_insert.sample(n=10), historical)
+    Utils.check_answer(at_insert.sample(frac=1.0, seed=1), historical)
+    Utils.check_answer(
+        session.table(
+            table_name, time_travel_mode="before", statement=update_qid
+        ).sample(frac=1.0, seed=1),
+        [Row(1, "a"), Row(2, "b")],
+    )
+
+    # CHANGES read keeps its rows and METADATA$ columns
+    changes = session.table(
+        table_name,
+        changes="default",
+        time_travel_mode="at",
+        statement=insert_qid,
+        end_statement=update_qid,
+    )
+    for sampled in (changes.sample(n=10), changes.sample(frac=1.0)):
+        assert sampled.columns == [
+            "ID",
+            "V",
+            "METADATA$ACTION",
+            "METADATA$ISUPDATE",
+            "METADATA$ROW_ID",
+        ]
+        Utils.check_answer(
+            sampled.select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+            [Row(1, "a", "DELETE", True), Row(1, "a2", "INSERT", True)],
+        )
+
+    # Snowflake rejects these combinations with CHANGES: fail before running
+    with pytest.raises(ValueError):
+        changes.sample(frac=1.0, seed=1)
+    for method in ("SYSTEM", "block"):
+        with pytest.raises(ValueError):
+            changes.sample(frac=0.5, sampling_method=method)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+def test_table_changes_end_offset_validation(session, changes_table):
+    table_name, insert_qid, _, _ = changes_table
+    for bad in (-1.7, "abc", "1.5", True):
+        with pytest.raises(ValueError, match="(?i)end_offset"):
+            session.table(
+                table_name,
+                changes="default",
+                time_travel_mode="at",
+                statement=insert_qid,
+                end_offset=bad,
+            )
+
+
+@pytest.mark.parametrize("sample_kwargs", [{"frac": 1.0}, {"n": 10}])
+def test_table_sample_plain_table_unchanged(session, sample_kwargs):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe([[1], [2], [3]], schema=["a"]).write.save_as_table(
+        table_name, table_type="temporary"
+    )
+    try:
+        Utils.check_answer(
+            session.table(table_name).sample(**sample_kwargs),
+            [Row(1), Row(2), Row(3)],
+        )
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
 def test_table_changes_copy_and_validation(session, changes_table):
     table_name, insert_qid, update_qid, _ = changes_table
     table = session.table(

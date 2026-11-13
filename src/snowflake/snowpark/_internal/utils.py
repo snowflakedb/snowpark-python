@@ -17,6 +17,7 @@ import logging
 import os
 import platform
 import random
+import numbers
 import re
 import string
 import sys
@@ -2305,14 +2306,18 @@ class TimeTravelConfig(NamedTuple):
         if end_timestamp_type is not None and end_timestamp is None:
             raise ValueError("'end_timestamp_type' requires 'end_timestamp'.")
         if end_offset is not None:
-            if isinstance(end_offset, bool):
-                raise ValueError("'end_offset' must be an integer.")
-            try:
+            if isinstance(end_offset, numbers.Integral) and not isinstance(
+                end_offset, bool
+            ):
                 end_offset = int(end_offset)
-            except (TypeError, ValueError):
+            elif isinstance(end_offset, str) and re.fullmatch(
+                r"[-+]?[0-9]+", end_offset.strip()
+            ):
+                end_offset = int(end_offset.strip())
+            else:
                 raise ValueError(
-                    f"'end_offset' must be an integer, got {end_offset!r}."
-                ) from None
+                    f"'end_offset' must be an integer number of seconds, got {end_offset!r}."
+                )
 
         # Validate mode
         if time_travel_mode is None:
