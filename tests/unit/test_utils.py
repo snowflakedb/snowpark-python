@@ -762,6 +762,8 @@ def test_validate_and_normalize_time_travel_params():
         (" -30 * 60 ", " -30 * 60 "),
         ("-1+2-3/4", "-1+2-3/4"),
         ("-1*-1", "-1*-1"),
+        ("-1 - -1", "-1 - -1"),
+        ("1\t*\t-60", "1\t*\t-60"),
     ],
 )
 def test_time_travel_offset_accepted(offset, expected):
@@ -785,6 +787,15 @@ def test_time_travel_offset_accepted(offset, expected):
         "1 2",
         "--1",
         "1e3",
+        "-1--1",
+        "5--1",
+        "5\n--1",
+        " -1 -- 1",
+        "1\u00a0-1",
+        "1\u2003*2",
+        "1\n-1",
+        "\u0663",
+        "\u0663*\u0663",
         True,
         False,
         1.5,
@@ -795,6 +806,20 @@ def test_time_travel_offset_rejected(offset):
     with pytest.raises(ValueError, match="(?i)offset"):
         TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at", offset=offset
+        )
+
+
+def test_time_travel_offset_numpy_integers():
+    np = pytest.importorskip("numpy")
+    for value in (np.int64(-60), np.int32(-60), np.uint8(60)):
+        config = TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", offset=value
+        )
+        assert type(config.offset) is int
+        assert config.generate_sql_clause() == f" AT (OFFSET => {int(value)})"
+    with pytest.raises(ValueError, match="(?i)offset"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", offset=np.bool_(True)
         )
 
 

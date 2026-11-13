@@ -17,6 +17,7 @@ import logging
 import os
 import platform
 import random
+import numbers
 import re
 import string
 import sys
@@ -2146,7 +2147,9 @@ def _validate_iceberg_named_version_ref(
     return stripped
 
 
-_TIME_TRAVEL_OFFSET_RE = re.compile(r"\s*[-+]?\d+(\s*[-+*/]\s*[-+]?\d+)*\s*")
+_TIME_TRAVEL_OFFSET_RE = re.compile(
+    r"[ \t]*[-+]?[0-9]+([ \t]*[-+*/][ \t]*[-+]?[0-9]+)*[ \t]*"
+)
 
 
 class TimeTravelConfig(NamedTuple):
@@ -2175,8 +2178,13 @@ class TimeTravelConfig(NamedTuple):
         """
         if offset is None:
             return None
-        if isinstance(offset, int) and not isinstance(offset, bool):
-            return offset
+        if isinstance(offset, numbers.Integral) and not isinstance(offset, bool):
+            return int(offset)
+        if isinstance(offset, str) and "--" in offset:
+            raise ValueError(
+                "'offset' must not contain '--', which starts a SQL comment; "
+                f"write a subtracted negative number as '-1 - -1', got {offset!r}."
+            )
         if isinstance(offset, str) and _TIME_TRAVEL_OFFSET_RE.fullmatch(offset):
             try:
                 return int(offset)

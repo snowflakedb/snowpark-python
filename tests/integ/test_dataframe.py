@@ -8272,6 +8272,11 @@ def test_time_travel_offset_validation(session, collect_ast):
             session.table(table_name, time_travel_mode="before", offset="-1"),
             expected,
         )
+        np = pytest.importorskip("numpy")
+        Utils.check_answer(
+            session.table(table_name, time_travel_mode="before", offset=np.int64(-1)),
+            expected,
+        )
         if collect_ast:
             # arithmetic offsets cannot be recorded in the AST
             for arithmetic in ("-1*1", " -1 * 1 "):
