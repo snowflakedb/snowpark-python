@@ -319,6 +319,11 @@ class Table(DataFrame):
             end_snapshot_id=end_snapshot_id,
         )
 
+        # Validate before building the AST, which only holds int offsets.
+        offset = TimeTravelConfig.normalize_offset(
+            offset, emit_ast=_ast_stmt is None and session is not None and _emit_ast
+        )
+
         if _ast_stmt is None and session is not None and _emit_ast:
             _ast_stmt = session._ast_batch.bind()
             ast = with_src_position(_ast_stmt.expr.table, _ast_stmt)
@@ -329,7 +334,7 @@ class Table(DataFrame):
                 ast.time_travel_mode.value = time_travel_mode
             if statement is not None:
                 ast.statement.value = statement
-            if offset is not None:
+            if isinstance(offset, int):
                 ast.offset.value = offset
             if timestamp is not None:
                 build_expr_from_python_val(ast.timestamp, timestamp)

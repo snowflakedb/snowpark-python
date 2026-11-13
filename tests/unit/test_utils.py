@@ -751,6 +751,78 @@ def test_validate_and_normalize_time_travel_params():
         )
 
 
+@pytest.mark.parametrize(
+    "offset, expected",
+    [
+        (-60, "-60"),
+        (0, "0"),
+        ("-1", "-1"),
+        (" +5 ", "5"),
+        ("-30*60", "-30*60"),
+        (" -30 * 60 ", " -30 * 60 "),
+        ("-1+2-3/4", "-1+2-3/4"),
+        ("-1*-1", "-1*-1"),
+        ("-1 - -1", "-1 - -1"),
+        ("1\t*\t-60", "1\t*\t-60"),
+    ],
+)
+def test_time_travel_offset_accepted(offset, expected):
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", offset=offset
+    )
+    assert config.generate_sql_clause() == f" AT (OFFSET => {expected})"
+
+
+@pytest.mark.parametrize(
+    "offset",
+    [
+        "-1) union all select 42 --",
+        "abc",
+        "1.5",
+        "-1; drop table x",
+        "(-60)",
+        "-60 -- c",
+        "",
+        "  ",
+        "1 2",
+        "--1",
+        "1e3",
+        "-1--1",
+        "5--1",
+        "5\n--1",
+        " -1 -- 1",
+        "1\u00a0-1",
+        "1\u2003*2",
+        "1\n-1",
+        "\u0663",
+        "\u0663*\u0663",
+        True,
+        False,
+        1.5,
+        [1],
+    ],
+)
+def test_time_travel_offset_rejected(offset):
+    with pytest.raises(ValueError, match="(?i)offset"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", offset=offset
+        )
+
+
+def test_time_travel_offset_numpy_integers():
+    np = pytest.importorskip("numpy")
+    for value in (np.int64(-60), np.int32(-60), np.uint8(60)):
+        config = TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", offset=value
+        )
+        assert type(config.offset) is int
+        assert config.generate_sql_clause() == f" AT (OFFSET => {int(value)})"
+    with pytest.raises(ValueError, match="(?i)offset"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", offset=np.bool_(True)
+        )
+
+
 def test_normalize_timestamp():
     """Test timestamp and timestamp_type handling."""
     # timestamp_type handling - various timezone sources

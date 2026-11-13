@@ -8236,6 +8236,80 @@ def test_time_travel_core_functionality(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="Time travel is not supported in Local Testing",
 )
+@pytest.mark.parametrize("collect_ast", [False, True])
+def test_time_travel_offset_validation(session, collect_ast):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        [(1, "a"), (2, "b")], schema=["id", "v"]
+    ).write.save_as_table(table_name, table_type="temporary")
+    original_ast = session.ast_enabled
+    session.ast_enabled = collect_ast
+    bad_offsets = [
+        "-1) union all select 42 --",
+        "abc",
+        "1.5",
+        "-1; drop table x",
+        "(-60)",
+        "-60 -- c",
+        True,
+        1.5,
+    ]
+    try:
+        for bad in bad_offsets:
+            with pytest.raises(ValueError, match="(?i)offset"):
+                session.table(table_name, time_travel_mode="at", offset=bad)
+            with pytest.raises(ValueError, match="(?i)offset"):
+                session.read.table(table_name, time_travel_mode="before", offset=bad)
+            with pytest.raises(ValueError, match="(?i)offset"):
+                session.read.option("time_travel_mode", "at").option(
+                    "offset", bad
+                ).table(table_name)
+
+        # Sleep so the table is old enough for a small negative offset
+        time.sleep(3)
+        expected = [Row(1, "a"), Row(2, "b")]
+        Utils.check_answer(
+            session.table(table_name, time_travel_mode="before", offset="-1"),
+            expected,
+        )
+        np = pytest.importorskip("numpy")
+        Utils.check_answer(
+            session.table(table_name, time_travel_mode="before", offset=np.int64(-1)),
+            expected,
+        )
+        if collect_ast:
+            # arithmetic offsets cannot be recorded in the AST
+            for arithmetic in ("-1*1", " -1 * 1 "):
+                with pytest.raises(ValueError, match="(?i)AST"):
+                    session.table(table_name, time_travel_mode="at", offset=arithmetic)
+                with pytest.raises(ValueError, match="(?i)AST"):
+                    session.read.table(
+                        table_name, time_travel_mode="at", offset=arithmetic
+                    )
+                with pytest.raises(ValueError, match="(?i)AST"):
+                    session.read.option("time_travel_mode", "at").option(
+                        "offset", arithmetic
+                    ).table(table_name)
+        else:
+            Utils.check_answer(
+                session.read.option("time_travel_mode", "at")
+                .option("offset", "-1*1")
+                .table(table_name),
+                expected,
+            )
+            Utils.check_answer(
+                session.table(table_name, time_travel_mode="at", offset=" -1 * 1 "),
+                expected,
+            )
+    finally:
+        session.ast_enabled = original_ast
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Time travel is not supported in Local Testing",
+)
 def test_time_travel_comprehensive_coverage(session):
     # ============== Test Setup ==============
     table1_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)

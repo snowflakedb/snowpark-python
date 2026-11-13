@@ -112,6 +112,7 @@ from snowflake.snowpark._internal.type_utils import (
 from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark._internal.utils import (
     STAGE_PREFIX,
+    TimeTravelConfig,
     SUPPORTED_TABLE_TYPES,
     XPATH_HANDLERS_FILE_PATH,
     XPATH_HANDLER_MAP,
@@ -3020,6 +3021,9 @@ class Session:
                 f"table() got unexpected keyword arguments: {sorted(kwargs)}"
             )
 
+        # Validate before building the AST, which only holds int offsets.
+        offset = TimeTravelConfig.normalize_offset(offset, emit_ast=_emit_ast)
+
         if _emit_ast:
             stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.table, stmt)
@@ -3030,7 +3034,7 @@ class Session:
                 ast.time_travel_mode.value = time_travel_mode
             if statement is not None:
                 ast.statement.value = statement
-            if offset is not None:
+            if isinstance(offset, int):
                 ast.offset.value = offset
             if timestamp is not None:
                 build_expr_from_python_val(ast.timestamp, timestamp)
