@@ -503,6 +503,23 @@ class Table(DataFrame):
 
         from snowflake.snowpark.mock._connection import MockServerConnection
 
+        unsupported_sampling = seed is not None or (
+            sampling_method and sampling_method.upper() in ("SYSTEM", "BLOCK")
+        )
+        if unsupported_sampling:
+            if (
+                self._time_travel_config is not None
+                and self._time_travel_config.changes is not None
+            ):
+                raise ValueError(
+                    "seed and SYSTEM/BLOCK sampling are not supported for change-tracking "
+                    f"reads (changes={self._time_travel_config.changes.lower()!r})."
+                )
+            if self._iceberg_changes_config is not None:
+                raise ValueError(
+                    "seed and SYSTEM/BLOCK sampling are not supported for Iceberg incremental reads."
+                )
+
         stmt = None
         if _emit_ast:
             # AST.
@@ -518,7 +535,11 @@ class Table(DataFrame):
                 ast.sampling_method.value = sampling_method
             self._set_ast_ref(ast.df)
 
-        if isinstance(self._session._conn, MockServerConnection):
+        # An Iceberg incremental read is not a plain table reference, so sample over its plan.
+        if (
+            isinstance(self._session._conn, MockServerConnection)
+            or self._iceberg_changes_config is not None
+        ):
             if sampling_method in ("SYSTEM", "BLOCK"):
                 _logger.warning(
                     "[Local Testing] SYSTEM/BLOCK sampling is not supported for Local Testing, falling back to ROW sampling"
@@ -541,7 +562,12 @@ class Table(DataFrame):
         sampling_method_text = sampling_method or ""
         frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} ROWS"
         seed_text = f" SEED ({seed})" if seed is not None else ""
-        sql_text = f"SELECT * FROM {self.table_name} SAMPLE {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
+        time_travel_text = (
+            self._time_travel_config.generate_sql_clause()
+            if self._time_travel_config is not None
+            else ""
+        )
+        sql_text = f"SELECT * FROM {self.table_name}{time_travel_text} SAMPLE {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
         new_df = self._session.sql(sql_text, _ast_stmt=stmt)
         if self._session.reduce_describe_query_enabled:
             new_df._plan._metadata = self._plan._metadata

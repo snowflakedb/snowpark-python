@@ -2985,11 +2985,11 @@ class Session:
                 The result has the extra columns ``METADATA$ACTION``, ``METADATA$ISUPDATE`` and ``METADATA$ROW_ID``.
                 See `CHANGES <https://docs.snowflake.com/en/sql-reference/constructs/changes>`_.
             end_statement: Query ID that sets the end of the changes. Requires ``changes``.
+                At most one of ``end_statement``, ``end_offset`` and ``end_timestamp`` can be given.
             end_offset: Negative integer representing seconds in the past that sets the end of the changes. Requires ``changes``.
             end_timestamp: Timestamp string or datetime object that sets the end of the changes. Requires ``changes``.
                 Handled like ``timestamp``.
             end_timestamp_type: Type of ``end_timestamp`` interpretation ('NTZ', 'LTZ', or 'TZ').
-                At most one of ``end_statement``, ``end_offset`` and ``end_timestamp`` can be given.
 
             Note:
                 If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.

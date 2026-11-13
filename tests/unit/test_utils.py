@@ -876,6 +876,48 @@ def test_changes_passes_through_other_combinations():
     )
 
 
+@pytest.mark.parametrize("end_offset", [-1, "-1", " -1 "])
+def test_changes_end_offset_accepted(end_offset):
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", statement="q1", changes="default", end_offset=end_offset
+    )
+    assert type(config.end_offset) is int and config.end_offset == -1
+    assert config.generate_sql_clause().endswith(" END (OFFSET => -1)")
+
+
+def test_changes_end_offset_numpy_int():
+    np = pytest.importorskip("numpy")
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at",
+        statement="q1",
+        changes="default",
+        end_offset=np.int64(-1),
+    )
+    assert type(config.end_offset) is int and config.end_offset == -1
+
+
+@pytest.mark.parametrize("end_offset", [-1.7, 1.0, "abc", "1.5", "", True, False])
+def test_changes_end_offset_rejected(end_offset):
+    with pytest.raises(ValueError, match="(?i)end_offset"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            statement="q1",
+            changes="default",
+            end_offset=end_offset,
+        )
+
+
+def test_changes_end_offset_rejects_numpy_bool():
+    np = pytest.importorskip("numpy")
+    with pytest.raises(ValueError, match="(?i)end_offset"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            statement="q1",
+            changes="default",
+            end_offset=np.bool_(True),
+        )
+
+
 def test_normalize_timestamp():
     """Test timestamp and timestamp_type handling."""
     # timestamp_type handling - various timezone sources

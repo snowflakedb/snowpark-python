@@ -749,6 +749,7 @@ class DataFrameReader:
                 statement, offset, timestamp or stream. Can also be set via ``option("changes", "default")``.
                 See :meth:`Session.table`.
             end_statement: Query ID that sets the end of the changes. Requires ``changes``.
+                At most one of ``end_statement``, ``end_offset`` and ``end_timestamp`` can be given.
                 Can also be set via ``option("end_statement", "query_id")``.
             end_offset: Negative integer representing seconds in the past that sets the end of the changes.
                 Requires ``changes``. Can also be set via ``option("end_offset", -60)``.
