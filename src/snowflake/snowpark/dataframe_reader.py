@@ -119,6 +119,11 @@ _TIME_TRAVEL_OPTIONS_PARAMS_MAP = {
     "TIMESTAMP": "timestamp",
     "TIMESTAMP_TYPE": "timestamp_type",
     "STREAM": "stream",
+    "CHANGES": "changes",
+    "END_STATEMENT": "end_statement",
+    "END_OFFSET": "end_offset",
+    "END_TIMESTAMP": "end_timestamp",
+    "END_TIMESTAMP_TYPE": "end_timestamp_type",
 }
 
 READER_OPTIONS_ALIAS_MAP = {
@@ -714,6 +719,11 @@ class DataFrameReader:
         timestamp: Optional[Union[str, datetime]] = None,
         timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
+        changes: Optional[Literal["default", "append_only"]] = None,
+        end_statement: Optional[str] = None,
+        end_offset: Optional[int] = None,
+        end_timestamp: Optional[Union[str, datetime]] = None,
+        end_timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         **kwargs,
     ) -> Table:
         """Returns a Table that points to the specified table.
@@ -734,6 +744,18 @@ class DataFrameReader:
             timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
                 Can also be set via ``option("timestamp_type", "LTZ")``.
             stream: Stream name for time travel. Can also be set via ``option("stream", "stream_name")``.
+            changes: ``'default'`` or ``'append_only'`` to read the changes of a table with change tracking
+                enabled (``CHANGES (INFORMATION => ...)``). Requires ``time_travel_mode`` and exactly one of
+                statement, offset, timestamp or stream. Can also be set via ``option("changes", "default")``.
+                See :meth:`Session.table`.
+            end_statement: Query ID that sets the end of the changes. Requires ``changes``.
+                Can also be set via ``option("end_statement", "query_id")``.
+            end_offset: Negative integer representing seconds in the past that sets the end of the changes.
+                Requires ``changes``. Can also be set via ``option("end_offset", -60)``.
+            end_timestamp: Timestamp string or datetime object that sets the end of the changes.
+                Requires ``changes``. Can also be set via ``option("end_timestamp", "2023-01-01 12:00:00")``.
+            end_timestamp_type: Type of ``end_timestamp`` interpretation ('NTZ', 'LTZ', or 'TZ').
+                Can also be set via ``option("end_timestamp_type", "LTZ")``.
 
         Note:
             Time travel options can be set either as direct parameters or via the
@@ -756,6 +778,14 @@ class DataFrameReader:
 
             # PySpark-style as-of-timestamp (automatically sets mode to "at")
             >>> table = session.read.option("as-of-timestamp", "2023-01-01 12:00:00").table("my_table")  # doctest: +SKIP
+
+            # Read the changes of a table with change tracking enabled
+            >>> table = (session.read  # doctest: +SKIP
+            ...     .option("changes", "default")
+            ...     .option("time_travel_mode", "at")
+            ...     .option("statement", "01234567-abcd-1234-5678-123456789012")
+            ...     .option("end_offset", -60)
+            ...     .table("my_table"))
 
             # timestamp_type automatically set to "TZ" due to timezone info
             >>> import datetime, pytz  # doctest: +SKIP
@@ -822,6 +852,8 @@ class DataFrameReader:
                 ast.timestamp_type.value = str(timestamp_type)
             if stream is not None:
                 ast.stream.value = stream
+            # TODO(SNOW-4483962): `changes` and the `end_*` parameters are not encoded
+            # in the AST yet.
 
         if (
             start_snapshot_id is not None
@@ -840,6 +872,11 @@ class DataFrameReader:
             or version_tag is not None
             or version_ref is not None
             or branch is not None
+            or changes is not None
+            or end_statement is not None
+            or end_offset is not None
+            or end_timestamp is not None
+            or end_timestamp_type is not None
         ):
             # If version / named-ref params are provided without mode,
             # default to 'at'.
@@ -868,6 +905,11 @@ class DataFrameReader:
                 "version_tag": version_tag,
                 "version_ref": version_ref,
                 "branch": branch,
+                "changes": changes,
+                "end_statement": end_statement,
+                "end_offset": end_offset,
+                "end_timestamp": end_timestamp,
+                "end_timestamp_type": end_timestamp_type,
             }
             table = self._session.table(name, _emit_ast=False, **time_travel_params)
         else:

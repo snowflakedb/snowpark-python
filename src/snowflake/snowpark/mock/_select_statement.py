@@ -602,5 +602,13 @@ class MockSelectableEntity(MockSelectable):
         analyzer: "Analyzer",
     ) -> None:
         super().__init__(analyzer)
+        if (
+            entity.time_travel_config is not None
+            and entity.time_travel_config.changes is not None
+        ):
+            analyzer.session._conn.log_not_supported_error(
+                external_feature_name="Table reads with the CHANGES clause or END time travel",
+                raise_error=NotImplementedError,
+            )
         self.entity = entity
         self.api_calls = []

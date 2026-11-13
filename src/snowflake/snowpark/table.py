@@ -296,6 +296,11 @@ class Table(DataFrame):
         timestamp: Optional[Union[str, datetime.datetime]] = None,
         timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
+        changes: Optional[Literal["default", "append_only"]] = None,
+        end_statement: Optional[str] = None,
+        end_offset: Optional[int] = None,
+        end_timestamp: Optional[Union[str, datetime.datetime]] = None,
+        end_timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         **kwargs,
     ) -> None:
         # ``version`` (Iceberg snapshot id) and ``version_tag`` (Iceberg tag
@@ -337,6 +342,8 @@ class Table(DataFrame):
                 ast.timestamp_type.value = str(timestamp_type)
             if stream is not None:
                 ast.stream.value = stream
+            # TODO(SNOW-4483962): `changes` and the `end_*` parameters are not encoded
+            # in the AST yet.
 
         time_travel_config = TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode=time_travel_mode,
@@ -349,6 +356,11 @@ class Table(DataFrame):
             version_tag=version_tag,
             version_ref=version_ref,
             branch=branch,
+            changes=changes,
+            end_statement=end_statement,
+            end_offset=end_offset,
+            end_timestamp=end_timestamp,
+            end_timestamp_type=end_timestamp_type,
         )
         if iceberg_changes_config is not None and time_travel_config is not None:
             raise ValueError(
