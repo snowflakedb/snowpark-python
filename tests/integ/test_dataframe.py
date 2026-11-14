@@ -38,6 +38,11 @@ import pytest
 
 from snowflake.connector import IntegrityError, ProgrammingError
 from snowflake.snowpark import Column, Row, Window
+from snowflake.snowpark.column import (
+    METADATA_ACTION,
+    METADATA_ISUPDATE,
+    METADATA_ROW_ID,
+)
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import (
@@ -8511,6 +8516,259 @@ def test_time_travel_comprehensive_coverage(session):
     finally:
         Utils.drop_table(session, table1_name)
         Utils.drop_table(session, table2_name)
+
+
+@pytest.fixture
+def changes_table(session):
+    """Change-tracking temp table: insert (1,'a'),(2,'b'); update id=1; delete id=2."""
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    def run(sql):
+        session.sql(sql).collect()
+        return session.sql("select last_query_id()").collect()[0][0]
+
+    session.sql(
+        f"create temp table {table_name} (id int, v string) change_tracking = true"
+    ).collect()
+    try:
+        insert_qid = run(f"insert into {table_name} values (1, 'a'), (2, 'b')")
+        update_qid = run(f"update {table_name} set v = 'a2' where id = 1")
+        delete_qid = run(f"delete from {table_name} where id = 2")
+        yield table_name, insert_qid, update_qid, delete_qid
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+def test_table_changes_clause(session, changes_table):
+    table_name, insert_qid, update_qid, delete_qid = changes_table
+
+    def read(**kwargs):
+        return session.table(table_name, **kwargs).select(
+            "id",
+            "v",
+            METADATA_ACTION,
+            METADATA_ISUPDATE,
+        )
+
+    # DEFAULT, AT(insert) END(update): net delta of the update only
+    expected_update = [
+        Row(1, "a", "DELETE", True),
+        Row(1, "a2", "INSERT", True),
+    ]
+    for info in ("default", "DEFAULT"):
+        Utils.check_answer(
+            read(
+                changes=info,
+                time_travel_mode="at",
+                statement=insert_qid,
+                end_statement=update_qid,
+            ),
+            expected_update,
+        )
+
+    # without END the delta runs to the present, including the delete
+    Utils.check_answer(
+        read(changes="default", time_travel_mode="at", statement=insert_qid),
+        expected_update + [Row(2, "b", "DELETE", False)],
+    )
+
+    # BEFORE(insert): the whole history collapses into net inserts
+    Utils.check_answer(
+        read(
+            changes="default",
+            time_travel_mode="before",
+            statement=insert_qid,
+            end_statement=update_qid,
+        ),
+        [Row(1, "a2", "INSERT", False), Row(2, "b", "INSERT", False)],
+    )
+
+    # APPEND_ONLY returns only inserted rows
+    for info in ("append_only", "APPEND_ONLY"):
+        Utils.check_answer(
+            read(
+                changes=info,
+                time_travel_mode="before",
+                statement=insert_qid,
+                end_statement=update_qid,
+            ),
+            [Row(1, "a", "INSERT", False), Row(2, "b", "INSERT", False)],
+        )
+    Utils.check_answer(
+        read(changes="append_only", time_travel_mode="at", statement=insert_qid), []
+    )
+
+    # session.read.table accepts the same arguments
+    Utils.check_answer(
+        session.read.table(
+            table_name,
+            changes="default",
+            time_travel_mode="at",
+            statement=insert_qid,
+            end_statement=update_qid,
+        ).select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+        expected_update,
+    )
+
+    # reader options
+    Utils.check_answer(
+        session.read.option("changes", "default")
+        .option("time_travel_mode", "at")
+        .option("statement", insert_qid)
+        .option("end_statement", update_qid)
+        .table(table_name)
+        .select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+        expected_update,
+    )
+
+    # METADATA$ROW_ID is exposed too, and pairs the delete/insert of an update
+    rows = read(
+        changes="default",
+        time_travel_mode="at",
+        statement=insert_qid,
+        end_statement=update_qid,
+    ).collect()
+    assert len(rows) == 2
+    row_ids = (
+        session.table(
+            table_name,
+            changes="default",
+            time_travel_mode="at",
+            statement=insert_qid,
+            end_statement=update_qid,
+        )
+        .select(METADATA_ROW_ID)
+        .collect()
+    )
+    assert len(row_ids) == 2 and row_ids[0][0] == row_ids[1][0]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+@pytest.mark.parametrize("simplifier_enabled", [True, False])
+def test_table_changes_clause_sql_simplifier(
+    session, changes_table, simplifier_enabled
+):
+    table_name, insert_qid, update_qid, _ = changes_table
+    original = session.sql_simplifier_enabled
+    session.sql_simplifier_enabled = simplifier_enabled
+    try:
+        df = session.table(
+            table_name,
+            changes="default",
+            time_travel_mode="at",
+            statement=insert_qid,
+            end_statement=update_qid,
+        )
+        Utils.check_answer(
+            df.select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+            [Row(1, "a", "DELETE", True), Row(1, "a2", "INSERT", True)],
+        )
+        sql = df.select("id")._plan.queries[-1].sql.upper()
+        assert "CHANGES (INFORMATION => DEFAULT)" in sql and " END (STATEMENT" in sql
+
+        Utils.check_answer(
+            session.table(
+                table_name,
+                changes="append_only",
+                time_travel_mode="before",
+                statement=insert_qid,
+                end_statement=update_qid,
+            ).select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+            [Row(1, "a", "INSERT", False), Row(2, "b", "INSERT", False)],
+        )
+        Utils.check_answer(
+            copy.copy(df).select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+            [Row(1, "a", "DELETE", True), Row(1, "a2", "INSERT", True)],
+        )
+    finally:
+        session.sql_simplifier_enabled = original
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+def test_table_changes_sample_not_supported(session, changes_table):
+    table_name, insert_qid, _, _ = changes_table
+    changes = session.table(
+        table_name, changes="default", time_travel_mode="at", statement=insert_qid
+    )
+    with pytest.raises(NotImplementedError, match="change-tracking"):
+        changes.sample(frac=0.5)
+    with pytest.raises(NotImplementedError, match="change-tracking"):
+        changes.sample(n=1)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+def test_table_changes_end_offset_validation(session, changes_table):
+    table_name, insert_qid, _, _ = changes_table
+    for bad in (-1.7, "abc", "1.5", True):
+        with pytest.raises(ValueError, match="(?i)end_offset"):
+            session.table(
+                table_name,
+                changes="default",
+                time_travel_mode="at",
+                statement=insert_qid,
+                end_offset=bad,
+            )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+def test_table_changes_copy_and_validation(session, changes_table):
+    table_name, insert_qid, update_qid, _ = changes_table
+    table = session.table(
+        table_name,
+        changes="default",
+        time_travel_mode="at",
+        statement=insert_qid,
+        end_statement=update_qid,
+    )
+    copied = copy.copy(table)
+    Utils.check_answer(
+        copied.select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+        [Row(1, "a", "DELETE", True), Row(1, "a2", "INSERT", True)],
+    )
+    assert "CHANGES" in table.select("id")._plan.queries[-1].sql.upper()
+
+    with pytest.raises(ValueError):
+        session.table(table_name, changes="bogus", time_travel_mode="at", statement="q")
+    with pytest.raises(ValueError):
+        session.table(table_name, changes="default")
+    with pytest.raises(ValueError):
+        session.table(
+            table_name, time_travel_mode="at", statement=insert_qid, end_statement="q"
+        )
+
+
+@pytest.mark.skipif(
+    "not config.getoption('local_testing_mode', default=False)",
+    reason="Local Testing only",
+)
+def test_table_changes_not_supported_in_local_testing(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe([[1, "a"]], schema=["id", "v"]).write.save_as_table(
+        table_name
+    )
+    try:
+        with pytest.raises(NotImplementedError):
+            session.table(
+                table_name, changes="default", time_travel_mode="at", statement="q1"
+            ).collect()
+    finally:
+        Utils.drop_table(session, table_name)
 
 
 # ----------------------------------------------------------------------

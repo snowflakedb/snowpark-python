@@ -751,6 +751,173 @@ def test_validate_and_normalize_time_travel_params():
         )
 
 
+@pytest.mark.parametrize("info", ["default", "DEFAULT", "Default"])
+def test_changes_clause_default(info):
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", statement="q1", changes=info
+    )
+    assert (
+        config.generate_sql_clause()
+        == " CHANGES (INFORMATION => DEFAULT) AT (STATEMENT => 'q1')"
+    )
+
+
+@pytest.mark.parametrize("info", ["append_only", "APPEND_ONLY", "Append_Only"])
+def test_changes_clause_append_only(info):
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="before", offset=-60, changes=info
+    )
+    assert (
+        config.generate_sql_clause()
+        == " CHANGES (INFORMATION => APPEND_ONLY) BEFORE (OFFSET => -60)"
+    )
+
+
+def test_changes_clause_end_variants():
+    base = {"time_travel_mode": "at", "statement": "q1", "changes": "default"}
+    prefix = " CHANGES (INFORMATION => DEFAULT) AT (STATEMENT => 'q1')"
+
+    def clause(**kwargs):
+        config = TimeTravelConfig.validate_and_normalize_params(**base, **kwargs)
+        return config.generate_sql_clause()
+
+    assert clause(end_statement="q2") == prefix + " END (STATEMENT => 'q2')"
+    assert clause(end_offset=-5) == prefix + " END (OFFSET => -5)"
+    assert (
+        clause(end_timestamp="2023-01-01 12:00:00")
+        == prefix + " END (TIMESTAMP => '2023-01-01 12:00:00')"
+    )
+    assert (
+        clause(end_timestamp="2023-01-01 12:00:00", end_timestamp_type="ltz")
+        == prefix + " END (TIMESTAMP => TO_TIMESTAMP_LTZ('2023-01-01 12:00:00'))"
+    )
+    assert (
+        clause(end_timestamp=datetime(2023, 1, 1, 12, 0, 0))
+        == prefix + " END (TIMESTAMP => '2023-01-01 12:00:00')"
+    )
+    # tz-aware datetime defaults to TZ, like `timestamp`
+    from datetime import timezone
+
+    aware = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    config = TimeTravelConfig.validate_and_normalize_params(**base, end_timestamp=aware)
+    assert config.end_timestamp_type == "TZ"
+    assert config.generate_sql_clause().startswith(
+        prefix + " END (TIMESTAMP => TO_TIMESTAMP_TZ('2023-01-01 12:00:00+00:00'))"
+    )
+    # quotes are escaped
+    assert clause(end_statement="x'); DROP TABLE t; --") == (
+        prefix + " END (STATEMENT => 'x''); DROP TABLE t; --')"
+    )
+
+
+def test_changes_validation_errors():
+    with pytest.raises(ValueError, match="changes"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", statement="q1", changes="bogus"
+        )
+    # changes requires a time travel mode with exactly one argument
+    with pytest.raises(ValueError):
+        TimeTravelConfig.validate_and_normalize_params(changes="default")
+    with pytest.raises(ValueError):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", changes="default"
+        )
+    with pytest.raises(ValueError):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", statement="q1", offset=-1, changes="default"
+        )
+    # END requires changes
+    for end_kwargs in (
+        {"end_statement": "q2"},
+        {"end_offset": -1},
+        {"end_timestamp": "2023-01-01 12:00:00"},
+    ):
+        with pytest.raises(ValueError, match="(?i)changes"):
+            TimeTravelConfig.validate_and_normalize_params(
+                time_travel_mode="at", statement="q1", **end_kwargs
+            )
+    # at most one END argument
+    with pytest.raises(ValueError):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            statement="q1",
+            changes="default",
+            end_statement="q2",
+            end_offset=-1,
+        )
+    with pytest.raises(ValueError):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            statement="q1",
+            changes="default",
+            end_offset=-1,
+            end_timestamp="2023-01-01 12:00:00",
+        )
+    # invalid end_timestamp_type
+    with pytest.raises(ValueError, match="timestamp_type"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            statement="q1",
+            changes="default",
+            end_timestamp="2023-01-01 12:00:00",
+            end_timestamp_type="UTC",
+        )
+
+
+def test_changes_passes_through_other_combinations():
+    # BEFORE with TIMESTAMP is left for Snowflake to validate
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="before",
+        timestamp="2023-01-01 12:00:00",
+        changes="append_only",
+    )
+    assert config.generate_sql_clause() == (
+        " CHANGES (INFORMATION => APPEND_ONLY) BEFORE (TIMESTAMP => '2023-01-01 12:00:00')"
+    )
+
+
+@pytest.mark.parametrize("end_offset", [-1, "-1", " -1 "])
+def test_changes_end_offset_accepted(end_offset):
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", statement="q1", changes="default", end_offset=end_offset
+    )
+    assert type(config.end_offset) is int and config.end_offset == -1
+    assert config.generate_sql_clause().endswith(" END (OFFSET => -1)")
+
+
+def test_changes_end_offset_numpy_int():
+    np = pytest.importorskip("numpy")
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at",
+        statement="q1",
+        changes="default",
+        end_offset=np.int64(-1),
+    )
+    assert type(config.end_offset) is int and config.end_offset == -1
+
+
+@pytest.mark.parametrize("end_offset", [-1.7, 1.0, "abc", "1.5", "", True, False])
+def test_changes_end_offset_rejected(end_offset):
+    with pytest.raises(ValueError, match="(?i)end_offset"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            statement="q1",
+            changes="default",
+            end_offset=end_offset,
+        )
+
+
+def test_changes_end_offset_rejects_numpy_bool():
+    np = pytest.importorskip("numpy")
+    with pytest.raises(ValueError, match="(?i)end_offset"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            statement="q1",
+            changes="default",
+            end_offset=np.bool_(True),
+        )
+
+
 def test_normalize_timestamp():
     """Test timestamp and timestamp_type handling."""
     # timestamp_type handling - various timezone sources

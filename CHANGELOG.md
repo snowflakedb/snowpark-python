@@ -6,6 +6,8 @@
 
 #### New Features
 
+- Added support for change-tracking reads with the `CHANGES` clause. `Session.table`, `DataFrameReader.table` and `Table` accept `changes` (`"default"` or `"append_only"`) together with the existing time travel arguments, and `end_statement`, `end_offset`, `end_timestamp` and `end_timestamp_type` to set the end of the changes (`END` clause). `DataFrameReader` options `changes`, `end_statement`, `end_offset`, `end_timestamp` and `end_timestamp_type` are supported as well. Added the column constants `METADATA_ACTION`, `METADATA_ISUPDATE` and `METADATA_ROW_ID` in `snowflake.snowpark.column` for the extra columns of such reads. These reads are not supported in local testing, and `Table.sample` is not supported on them yet.
+
 #### Improvements
 
 - `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.

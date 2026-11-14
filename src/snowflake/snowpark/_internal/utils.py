@@ -17,6 +17,7 @@ import logging
 import os
 import platform
 import random
+import numbers
 import re
 import string
 import sys
@@ -2159,6 +2160,54 @@ class TimeTravelConfig(NamedTuple):
     version_tag: Optional[str] = None
     version_ref: Optional[str] = None
     branch: Optional[str] = None
+    changes: Optional[str] = None  # 'DEFAULT' or 'APPEND_ONLY'
+    end_statement: Optional[str] = None
+    end_offset: Optional[int] = None
+    end_timestamp: Optional[str] = None
+    end_timestamp_type: Optional[str] = None
+
+    @staticmethod
+    def _normalize_timestamp(
+        timestamp: Optional[Union[str, datetime.datetime]],
+        timestamp_type: Optional[Union[str, "TimestampTimeZone"]],
+        type_param_name: str,
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Returns the normalized ``(timestamp, timestamp_type)`` pair."""
+        normalized_timestamp = None
+        if timestamp is not None:
+            normalized_timestamp = str(timestamp).strip()
+            if isinstance(timestamp, datetime.datetime):
+                if timestamp.tzinfo is not None and timestamp_type is None:
+                    timestamp_type = "TZ"
+
+        if timestamp_type is not None:
+            if hasattr(timestamp_type, "value"):
+                timestamp_type = (
+                    timestamp_type.value.upper()
+                    if timestamp_type.value != "default"
+                    else "NTZ"
+                )
+            else:
+                timestamp_type = timestamp_type.upper()
+
+            if timestamp_type not in ["NTZ", "LTZ", "TZ"]:
+                raise ValueError(
+                    f"'{type_param_name}' value {timestamp_type} must be None or one of 'NTZ', 'LTZ', or 'TZ'."
+                )
+        return normalized_timestamp, timestamp_type
+
+    @staticmethod
+    def _timestamp_to_sql(timestamp: str, timestamp_type: Optional[str]) -> str:
+        from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
+
+        if timestamp_type is None:
+            return str_to_sql(timestamp)
+        func_name = {
+            "NTZ": "TO_TIMESTAMP_NTZ",
+            "LTZ": "TO_TIMESTAMP_LTZ",
+            "TZ": "TO_TIMESTAMP_TZ",
+        }.get(timestamp_type.upper(), "TO_TIMESTAMP")
+        return f"{func_name}({str_to_sql(timestamp)})"
 
     @staticmethod
     def validate_and_normalize_params(
@@ -2172,6 +2221,11 @@ class TimeTravelConfig(NamedTuple):
         version_tag: Optional[str] = None,
         version_ref: Optional[str] = None,
         branch: Optional[str] = None,
+        changes: Optional[Literal["default", "append_only"]] = None,
+        end_statement: Optional[str] = None,
+        end_offset: Optional[int] = None,
+        end_timestamp: Optional[Union[str, datetime.datetime]] = None,
+        end_timestamp_type: Optional[Union[str, "TimestampTimeZone"]] = None,
     ) -> Optional["TimeTravelConfig"]:
         """
         Validates and normalizes time travel parameters.
@@ -2187,6 +2241,12 @@ class TimeTravelConfig(NamedTuple):
         This behavior preserves timezone information for datetime objects, provides sensible defaults
         for naive datetime objects, and lets Snowflake handle string timestamp formats natively unless
         explicit casting is requested.
+
+        ``end_timestamp``/``end_timestamp_type`` are normalized the same way.
+
+        ``changes`` ('default' or 'append_only', case-insensitive) adds a CHANGES clause
+        and requires a time travel mode with exactly one AT/BEFORE argument. The ``end_*``
+        arguments add an END clause, require ``changes`` and are mutually exclusive.
 
         Returns:
             TimeTravelConfig if time travel is specified, None otherwise.
@@ -2220,8 +2280,52 @@ class TimeTravelConfig(NamedTuple):
             )
         )
 
+        if changes is not None:
+            if not isinstance(changes, str) or changes.upper() not in (
+                "DEFAULT",
+                "APPEND_ONLY",
+            ):
+                raise ValueError(
+                    f"Invalid 'changes' value: {changes!r}. Must be 'default' or 'append_only'."
+                )
+            changes = changes.upper()
+
+        end_arg_count = sum(
+            arg is not None for arg in (end_statement, end_offset, end_timestamp)
+        )
+        if end_arg_count > 1:
+            raise ValueError(
+                "Exactly one of 'end_statement', 'end_offset', or 'end_timestamp' "
+                "may be provided."
+            )
+        if end_arg_count == 1 and changes is None:
+            raise ValueError(
+                "'end_statement', 'end_offset' and 'end_timestamp' can only be used "
+                "together with 'changes'."
+            )
+        if end_timestamp_type is not None and end_timestamp is None:
+            raise ValueError("'end_timestamp_type' requires 'end_timestamp'.")
+        if end_offset is not None:
+            if isinstance(end_offset, numbers.Integral) and not isinstance(
+                end_offset, bool
+            ):
+                end_offset = int(end_offset)
+            elif isinstance(end_offset, str) and re.fullmatch(
+                r"[-+]?[0-9]+", end_offset.strip()
+            ):
+                end_offset = int(end_offset.strip())
+            else:
+                raise ValueError(
+                    f"'end_offset' must be an integer number of seconds, got {end_offset!r}."
+                )
+
         # Validate mode
         if time_travel_mode is None:
+            if changes is not None:
+                raise ValueError(
+                    "'changes' requires time travel mode 'at' or 'before' with exactly "
+                    "one of 'statement', 'offset', 'timestamp' or 'stream'."
+                )
             if time_travel_arg_count == 0:
                 return None
             else:
@@ -2273,29 +2377,15 @@ class TimeTravelConfig(NamedTuple):
                 "provided."
             )
 
-        # Normalize timestamp
-        normalized_timestamp = None
-        if timestamp is not None:
-            normalized_timestamp = str(timestamp).strip()
-            if isinstance(timestamp, datetime.datetime):
-                if timestamp.tzinfo is not None and timestamp_type is None:
-                    timestamp_type = "TZ"
-
-        # Normalize timestamp_type
-        if timestamp_type is not None:
-            if hasattr(timestamp_type, "value"):
-                timestamp_type = (
-                    timestamp_type.value.upper()
-                    if timestamp_type.value != "default"
-                    else "NTZ"
-                )
-            else:
-                timestamp_type = timestamp_type.upper()
-
-            if timestamp_type not in ["NTZ", "LTZ", "TZ"]:
-                raise ValueError(
-                    f"'timestamp_type' value {timestamp_type} must be None or one of 'NTZ', 'LTZ', or 'TZ'."
-                )
+        normalized_timestamp, timestamp_type = TimeTravelConfig._normalize_timestamp(
+            timestamp, timestamp_type, "timestamp_type"
+        )
+        (
+            normalized_end_timestamp,
+            end_timestamp_type,
+        ) = TimeTravelConfig._normalize_timestamp(
+            end_timestamp, end_timestamp_type, "end_timestamp_type"
+        )
 
         return TimeTravelConfig(
             time_travel_mode=time_travel_mode,
@@ -2308,6 +2398,11 @@ class TimeTravelConfig(NamedTuple):
             version_tag=version_tag,
             version_ref=version_ref,
             branch=branch,
+            changes=changes,
+            end_statement=end_statement,
+            end_offset=end_offset,
+            end_timestamp=normalized_end_timestamp,
+            end_timestamp_type=end_timestamp_type,
         )
 
     def generate_sql_clause(self) -> str:
@@ -2317,6 +2412,8 @@ class TimeTravelConfig(NamedTuple):
             config: Time travel configuration.
         Returns:
             SQL clause like " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('...'))",
+            " CHANGES (INFORMATION => DEFAULT) AT (STATEMENT => '...') END (OFFSET => -1)"
+            for change-tracking reads,
             " AT (VERSION => 1234567890)" for Iceberg snapshot id time travel,
             or " AT (VERSION_REF => 'audit-branch')" for Iceberg tag/branch
             time travel.
@@ -2340,7 +2437,12 @@ class TimeTravelConfig(NamedTuple):
         """
         from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 
-        clause = f" {self.time_travel_mode.upper()} "
+        clause = (
+            f" CHANGES (INFORMATION => {self.changes})"
+            if self.changes is not None
+            else ""
+        )
+        clause += f" {self.time_travel_mode.upper()} "
 
         if self.statement is not None:
             clause += f"(STATEMENT => {str_to_sql(self.statement)})"
@@ -2357,19 +2459,14 @@ class TimeTravelConfig(NamedTuple):
         elif self.version_tag is not None:
             clause += f"(VERSION_REF => {str_to_sql(self.version_tag)})"
         elif self.timestamp is not None:
-            if self.timestamp_type is not None:
-                timestamp_type = self.timestamp_type.upper()
-                if timestamp_type == "NTZ":
-                    func_name = "TO_TIMESTAMP_NTZ"
-                elif timestamp_type == "LTZ":
-                    func_name = "TO_TIMESTAMP_LTZ"
-                elif timestamp_type == "TZ":
-                    func_name = "TO_TIMESTAMP_TZ"
-                else:
-                    func_name = "TO_TIMESTAMP"
-                clause += f"(TIMESTAMP => {func_name}({str_to_sql(self.timestamp)}))"
-            else:
-                clause += f"(TIMESTAMP => {str_to_sql(self.timestamp)})"
+            clause += f"(TIMESTAMP => {self._timestamp_to_sql(self.timestamp, self.timestamp_type)})"
+
+        if self.end_statement is not None:
+            clause += f" END (STATEMENT => {str_to_sql(self.end_statement)})"
+        elif self.end_offset is not None:
+            clause += f" END (OFFSET => {self.end_offset})"
+        elif self.end_timestamp is not None:
+            clause += f" END (TIMESTAMP => {self._timestamp_to_sql(self.end_timestamp, self.end_timestamp_type)})"
 
         return clause
 
