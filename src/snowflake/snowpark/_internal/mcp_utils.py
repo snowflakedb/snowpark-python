@@ -327,7 +327,9 @@ def _nested_schema(tp: Any) -> Dict[str, Any]:
 
 def _with_null(schema: Dict[str, Any]) -> Dict[str, Any]:
     if "type" in schema and isinstance(schema["type"], str):
-        return {**schema, "type": [schema["type"], "null"]}
+        schema = {**schema, "type": [schema["type"], "null"]}
+        if "enum" in schema:
+            schema["enum"] = [*schema["enum"], None]
     return schema
 
 
@@ -436,7 +438,12 @@ def to_sql_value(param: ToolParameter, value: Any) -> Any:
         parser, kind = datetime.time.fromisoformat, "time"
     if parser is not None:
         try:
-            return parser(value)
+            if kind != "date" and value[-1:] in ("Z", "z"):
+                # Python before 3.11 does not accept a "Z" offset.
+                value = value[:-1] + "+00:00"
+            parsed = parser(value)
+            # A TIMESTAMP_NTZ or TIME argument has no time zone.
+            return parsed if kind == "date" else parsed.replace(tzinfo=None)
         except ValueError as e:
             raise ValueError(
                 f"{param.name} is not a valid ISO {kind} string ({e})"
@@ -540,6 +547,8 @@ def parse_signature(signature: str) -> List[Tuple[str, str]]:
             name, sql_type = part[1:end].replace('""', '"'), part[end + 1 :]
         else:
             name, _, sql_type = part.partition(" ")
+        # DESCRIBE reports the type alone; a default would not be part of it.
+        sql_type = re.sub(r"\s+DEFAULT\b.*$", "", sql_type, flags=re.I | re.S)
         result.append((name, sql_type.strip()))
     return result
 

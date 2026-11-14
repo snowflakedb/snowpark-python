@@ -2432,3 +2432,112 @@ def test_call_tool_non_finite_float(value, literal):
     session = call_session("1")
     MCPServer("S", [scale]).call_tool(session, "scale", {"x": value})
     assert session.statements[0] == f"SELECT APP.MCP.S__SCALE(x => {literal}::DOUBLE)"
+
+
+# ---------------------------------------------------------------------------
+# Re-review follow-ups
+# ---------------------------------------------------------------------------
+
+
+def overload_grant_session(grant_rows, fail_on=()):
+    def grants(statement):
+        return grant_rows if "VARCHAR" in statement else []
+
+    def run(statement):
+        if any(f in statement for f in fail_on):
+            raise RuntimeError("insufficient privileges")
+        return []
+
+    return make_session(
+        [
+            (
+                "SHOW PROCEDURES IN SCHEMA APP.MCP",
+                [show_row("S__GET_ACCOUNT", "VARCHAR", tagged("S", "get_account"))],
+            ),
+            ("SHOW MCP SERVERS", [Row(name="S")]),
+            ("SHOW GRANTS ON MCP SERVER", [GRANT_ROWS[1]]),
+            ("SHOW GRANTS ON PROCEDURE", grants),
+            ("GRANT", run),
+        ]
+    )
+
+
+OVERLOAD_GRANTS = [
+    Row(privilege="OWNERSHIP", granted_to="ROLE", grantee_name="OWNER_ROLE"),
+    Row(
+        privilege="USAGE", granted_to="ROLE", grantee_name="Reader", grant_option="true"
+    ),
+    Row(privilege="USAGE", granted_to="DATABASE_ROLE", grantee_name="APP.READERS"),
+]
+
+
+def test_deploy_moves_grants_of_a_dropped_overload_to_the_new_object():
+    session = overload_grant_session(OVERLOAD_GRANTS)
+    result = python_server("S").deploy(session)
+    new = "PROCEDURE APP.MCP.S__GET_ACCOUNT(STRING, BIGINT)"
+    statements = session.statements
+    assert "SHOW GRANTS ON PROCEDURE APP.MCP.S__GET_ACCOUNT(VARCHAR)" in statements
+    assert statements.index(
+        "SHOW GRANTS ON PROCEDURE APP.MCP.S__GET_ACCOUNT(VARCHAR)"
+    ) < statements.index("DROP PROCEDURE IF EXISTS APP.MCP.S__GET_ACCOUNT(VARCHAR)")
+    grants = [s for s in statements if s.startswith("GRANT") and new in s]
+    assert grants == [
+        f'GRANT USAGE ON {new} TO ROLE "Reader" WITH GRANT OPTION',
+        f'GRANT USAGE ON {new} TO DATABASE ROLE "APP"."READERS"',
+    ]
+    assert result.pruned == ["APP.MCP.S__GET_ACCOUNT(VARCHAR)"]
+
+
+def test_deploy_dry_run_reports_grants_of_a_dropped_overload():
+    session = overload_grant_session(OVERLOAD_GRANTS)
+    result = python_server("S").deploy(session, dry_run=True)
+    new = "PROCEDURE APP.MCP.S__GET_ACCOUNT(STRING, BIGINT)"
+    assert f'GRANT USAGE ON {new} TO ROLE "Reader" WITH GRANT OPTION' in result.sql
+    assert not any(s.startswith("GRANT") for s in session.statements)
+
+
+def test_deploy_overload_grants_not_read_without_preserve_grants():
+    session = overload_grant_session(OVERLOAD_GRANTS)
+    python_server("S").deploy(session, preserve_grants=False)
+    assert not any(s.startswith("SHOW GRANTS") for s in session.statements)
+
+
+def test_deploy_prune_runs_when_grants_fail():
+    session = overload_grant_session(OVERLOAD_GRANTS, fail_on=['"Reader"'])
+    session.responses.insert(
+        0,
+        (
+            "SHOW USER FUNCTIONS IN SCHEMA APP.MCP",
+            [show_row("S__OLD_UDF", "NUMBER", tagged("S", "old_udf"))],
+        ),
+    )
+    with pytest.raises(RuntimeError) as exc_info:
+        python_server("S").deploy(session, prune=True)
+    assert "pruning ran" in str(exc_info.value)
+    assert '"Reader"' in str(exc_info.value)
+    assert "DROP FUNCTION IF EXISTS APP.MCP.S__OLD_UDF(NUMBER)" in session.statements
+    assert any(
+        "DATABASE ROLE" in s for s in session.statements if s.startswith("GRANT")
+    )
+
+
+def test_deploy_grants_do_not_requote_quoted_database_role_parts():
+    session = grant_session(
+        [
+            Row(
+                privilege="USAGE",
+                granted_to="DATABASE_ROLE",
+                grantee_name='"my db".READERS',
+            ),
+            Row(
+                privilege="USAGE",
+                granted_to="APPLICATION_ROLE",
+                grantee_name='APP."my role"',
+            ),
+        ]
+    )
+    python_server("S").deploy(session)
+    assert [s for s in session.statements if s.startswith("GRANT")] == [
+        'GRANT USAGE ON MCP SERVER APP.MCP.S TO DATABASE ROLE "my db"."READERS"',
+        'GRANT USAGE ON MCP SERVER APP.MCP.S TO APPLICATION ROLE "APP"."my role"',
+    ]

@@ -22,7 +22,6 @@ import json
 import logging
 import math
 import sys
-import traceback
 import uuid
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
@@ -33,7 +32,6 @@ DEFAULT_MAX_RESULT_BYTES = 240_000
 PLATFORM_RESULT_LIMIT_BYTES = 250_000
 
 _logger = logging.getLogger("snowflake.snowpark.mcp")
-_LOGGED_TRACEBACK_FRAMES = 1000
 
 
 class ToolError(Exception):
@@ -71,6 +69,8 @@ def to_json_value(value: Any) -> Any:
     """Converts a value returned by a tool to values ``json.dumps`` accepts."""
     if value is None or isinstance(value, (bool, str)):
         return value
+    if type(value).__name__ == "NAType":  # pandas.NA
+        return None
     if isinstance(value, int):
         return value
     if isinstance(value, float):
@@ -263,20 +263,18 @@ def run_tool(
                 getattr(exc, "message", str(exc)),
                 getattr(exc, "hint", None),
             )
-        # Logged so the traceback reaches the event table. The traceback is formatted
-        # here, with an explicit limit, because ``traceback`` and ``logging`` honor
-        # ``sys.tracebacklimit``, which a masked failure sets to 0 for the process.
+        # Logged so the traceback reaches the event table. ``logging`` honors
+        # ``sys.tracebacklimit``, which a masked failure sets to 0 for the process,
+        # so the limit is lifted while logging.
         error_id = uuid.uuid4().hex[:12]
-        _logger.error(
-            "MCP tool %s failed (error ID %s)\n%s",
-            name,
-            error_id,
-            "".join(
-                traceback.format_exception(
-                    type(exc), exc, exc.__traceback__, limit=_LOGGED_TRACEBACK_FRAMES
-                )
-            ),
-        )
+        limit = sys.__dict__.pop("tracebacklimit", None)
+        try:
+            _logger.error(
+                "MCP tool %s failed (error ID %s)", name, error_id, exc_info=exc
+            )
+        finally:
+            if limit is not None:
+                sys.tracebacklimit = limit
         if not mask_error_details:
             raise
         # The MCP server sends a failed call's Python error to the client, with the

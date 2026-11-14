@@ -412,8 +412,8 @@ def test_run_tool_other_exception_is_logged_and_reraised(caplog):
     assert len(records) == 1
     assert records[0].levelno == logging.ERROR
     assert "broken" in records[0].getMessage()
-    assert "Traceback (most recent call last)" in records[0].getMessage()
-    assert "RuntimeError: boom" in records[0].getMessage()
+    assert records[0].exc_info[1].args == ("boom",)
+    assert "RuntimeError: boom" in _formatted(records[0])
 
 
 def test_run_tool_tool_error_is_not_logged(caplog):
@@ -615,6 +615,10 @@ def restore_tracebacklimit():
         del sys.tracebacklimit
 
 
+def _formatted(record):
+    return logging.Formatter().format(record)
+
+
 def _secret_failure():
     raise ValueError("secret detail /home/me/tool.py")
 
@@ -630,7 +634,10 @@ def test_run_tool_masked_raises_generic_error(caplog, restore_tracebacklimit):
     assert "secret detail" not in message
     error_id = re.search(r"error ID ([0-9a-f]{12})\)", message).group(1)
     # The same ID is in the log record.
-    assert any(f"(error ID {error_id})" in r.getMessage() for r in caplog.records)
+    assert any(
+        r.exc_info and f"(error ID {error_id})" in r.getMessage()
+        for r in caplog.records
+    )
     # The original error is not chained into what the client sees...
     assert exc_info.value.__cause__ is None
     assert exc_info.value.__suppress_context__ is True
@@ -638,8 +645,7 @@ def test_run_tool_masked_raises_generic_error(caplog, restore_tracebacklimit):
     assert sys.tracebacklimit == 0
     # The full error is still logged.
     assert any(
-        "ValueError: secret detail" in r.getMessage()
-        and "Traceback (most recent call last)" in r.getMessage()
+        r.exc_info and "ValueError: secret detail" in _formatted(r)
         for r in caplog.records
     )
 
@@ -650,9 +656,11 @@ def test_run_tool_masked_failures_all_log_a_traceback(caplog, restore_tracebackl
         for _ in range(2):
             with pytest.raises(RuntimeError):
                 run_tool(_secret_failure, (), {}, mask_error_details=True)
-    messages = [r.getMessage() for r in caplog.records]
-    assert len(messages) == 2
-    for message in messages:
+    assert len(caplog.records) == 2
+    assert sys.tracebacklimit == 0
+    for record in caplog.records:
+        assert record.exc_info is not None
+        message = _formatted(record)
         assert "Traceback (most recent call last)" in message
         assert "in _secret_failure" in message
         assert "ValueError: secret detail" in message
@@ -921,3 +929,25 @@ def test_to_tool_result_pandas_dataframe_with_duplicate_column_names():
     assert result["rows"] == [{"A": 1, "A_2": 2, "A_2_2": 3}]
     # The caller's DataFrame is not renamed.
     assert list(df.columns) == ["A", "A", "A_2"]
+
+
+def test_run_tool_restores_a_traceback_limit_it_lifted_for_logging():
+    old = getattr(sys, "tracebacklimit", None)
+    sys.tracebacklimit = 5
+    try:
+        with pytest.raises(ValueError):
+            run_tool(_secret_failure, (), {})
+        assert sys.tracebacklimit == 5
+    finally:
+        if old is None:
+            del sys.tracebacklimit
+        else:
+            sys.tracebacklimit = old
+
+
+def test_to_json_value_pandas_na():
+    pd = pytest.importorskip("pandas")
+    assert to_json_value({"a": pd.NA, "b": 1}) == {"a": None, "b": 1}
+    df = pd.DataFrame({"a": pd.array([1, None], dtype="Int64")})
+    result = to_tool_result(df, max_rows=10, max_result_bytes=10_000)
+    assert result["rows"] == [{"a": 1}, {"a": None}]

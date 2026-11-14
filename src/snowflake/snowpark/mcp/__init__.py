@@ -98,7 +98,8 @@ class DeployResult:
     endpoint_url: str
     #: Procedures and UDFs created or replaced, with their argument types.
     objects: List[str]
-    #: Objects dropped because their tool is no longer in the server.
+    #: Objects dropped: those of tools no longer in the server (``prune=True``),
+    #: and old overloads of current tools whose parameter types changed (always).
     pruned: List[str]
     #: SQL statements run (or, with ``dry_run=True``, that would run), apart from
     #: the procedure and UDF registrations listed in ``objects``.
@@ -868,9 +869,9 @@ def mcp_tool(
     The tool's description comes from the docstring, and its argument schema from
     the type hints and the docstring's ``Args:`` section. A parameter is required
     unless it has a default; ``Optional[T]`` without a default is required but
-    accepts null. A function whose first
-    parameter is annotated :class:`~snowflake.snowpark.Session` becomes a stored
-    procedure; any other function becomes a UDF. Nothing is created in Snowflake
+    accepts null. A function whose first parameter is annotated
+    :class:`~snowflake.snowpark.Session` becomes a stored procedure; any other
+    function becomes a UDF. Nothing is created in Snowflake
     until the tool's :class:`MCPServer` is deployed.
 
     The function can return a dict, list, str, number, bool, None, a
@@ -1176,9 +1177,11 @@ class MCPServer:
         objects; register the Python tools; drop the old overloads of the Python
         tools whose parameter types changed; create or replace the server;
         re-apply the server's grants; with ``prune=True``, drop the objects of
-        tools no longer in the server. If a grant cannot be re-applied, the others
-        still are, and the error lists the ones that failed. The tool objects are created before the server is
-        replaced, so the server never refers to a missing object. The deploy is not
+        tools no longer in the server. The grants on a dropped old overload are
+        re-applied to the tool's new object. If a grant cannot be re-applied, the
+        others still are, prune still runs, and the error lists the ones that
+        failed. The tool objects are created before the server is replaced, so
+        the server never refers to a missing object. The deploy is not
         transactional: if replacing the server fails, the old server keeps running
         with the new tool code.
 
@@ -1236,7 +1239,7 @@ class MCPServer:
             (t._grants(target)[0].split()[2], _signature_key(t._signature(target)))
             for t in python_tools
         }
-        current_names = {key[1][0] for key in keep}
+        current = {_signature_key(t._signature(target))[0]: t for t in python_tools}
         tagged = (
             self._tagged_objects(session, target, tolerate_errors=dry_run)
             if python_tools or prune
@@ -1245,16 +1248,26 @@ class MCPServer:
         # An old overload of a current tool, from before its parameter types changed,
         # is dropped even without prune: the server refers to a tool's object by name
         # only, which must be unambiguous.
+        overload_grants: List[str] = []
         for signature in tagged:
             kind, _, sig = signature.partition(" ")
             key = _signature_key(sig)
-            if key[0] in current_names and (kind, key) not in keep:
+            if key[0] in current and (kind, key) not in keep:
+                if preserve_grants:
+                    new_tool = current[key[0]]
+                    overload_grants += _grant_statements(
+                        session,
+                        f"{kind} {sig}",
+                        new_tool._grants(target)[0].partition(" ON ")[2],
+                        tolerate_errors=dry_run,
+                    )
                 pruned.append(signature)
                 run(f"DROP {kind} IF EXISTS {sig}")
 
         grants: List[str] = []
         if preserve_grants:
             grants = _server_grants(session, target, tolerate_errors=dry_run)
+            grants = list(dict.fromkeys(grants + overload_grants))
         run(
             f"CREATE OR REPLACE MCP SERVER {target.server_fqn} FROM SPECIFICATION "
             f"$$\n{spec_yaml}$$"
@@ -1265,13 +1278,6 @@ class MCPServer:
                 run(statement)
             except Exception as e:
                 failed_grants.append((statement, e))
-        if failed_grants:
-            raise RuntimeError(
-                f"The server {target.server_fqn} was replaced, but {len(failed_grants)} "
-                "of its previous grants could not be re-applied; grant them again:\n"
-                + "\n".join(f"{stmt}  -- {err}" for stmt, err in failed_grants)
-            )
-
         if prune:
             for signature in tagged:
                 if signature in pruned:
@@ -1281,6 +1287,14 @@ class MCPServer:
                     pruned.append(signature)
                     run(f"DROP {kind} IF EXISTS {sig}")
 
+        if failed_grants:
+            raise RuntimeError(
+                f"The server {target.server_fqn} was replaced"
+                + (" and pruning ran" if prune else "")
+                + f", but {len(failed_grants)} of its previous grants could not be "
+                "re-applied; grant them again:\n"
+                + "\n".join(f"{stmt}  -- {err}" for stmt, err in failed_grants)
+            )
         if not dry_run:
             self._send_telemetry(session)
         return DeployResult(
@@ -1550,8 +1564,24 @@ def _read_server_grants(session, target: _Target) -> List[str]:
         for row in shown
     ):
         return []
+    return _grant_statements(
+        session, f"MCP SERVER {target.server_fqn}", f"MCP SERVER {target.server_fqn}"
+    )
+
+
+def _grant_statements(
+    session, source: str, destination: str, tolerate_errors: bool = False
+) -> List[str]:
+    """``GRANT`` statements that give ``destination`` (``"<kind> <name>"``) the
+    grants on ``source``, other than OWNERSHIP."""
+    try:
+        rows = session.sql(f"SHOW GRANTS ON {source}").collect()
+    except Exception:
+        if not tolerate_errors:
+            raise
+        return []
     statements = []
-    for row in session.sql(f"SHOW GRANTS ON MCP SERVER {target.server_fqn}").collect():
+    for row in rows:
         values = _row_dict(row)
         privilege = str(values.get("privilege", "")).upper()
         if not privilege or privilege == "OWNERSHIP":
@@ -1560,14 +1590,21 @@ def _read_server_grants(session, target: _Target) -> List[str]:
         grantee = str(values.get("grantee_name"))
         # A database or application role is reported as DB.ROLE.
         parts = (
-            grantee.partition(".")[::2] if granted_to.endswith("_ROLE") else [grantee]
+            mcp_utils.split_qualified_name(grantee)
+            if granted_to.endswith("_ROLE")
+            else [grantee]
         )
         statement = (
-            f"GRANT {privilege} ON MCP SERVER {target.server_fqn} TO "
-            f"{granted_to.replace('_', ' ')} "
-            + ".".join(_quote_identifier(part) for part in parts)
+            f"GRANT {privilege} ON {destination} TO {granted_to.replace('_', ' ')} "
+            + ".".join(_quote_grantee_part(part, granted_to) for part in parts)
         )
         if str(values.get("grant_option", "")).lower() == "true":
             statement += " WITH GRANT OPTION"
         statements.append(statement)
     return statements
+
+
+def _quote_grantee_part(part: str, granted_to: str) -> str:
+    if granted_to.endswith("_ROLE") and _is_quoted_identifier(part):
+        return part
+    return _quote_identifier(part)

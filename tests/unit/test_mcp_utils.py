@@ -939,3 +939,45 @@ def test_to_sql_value_invalid_date():
     param = ToolParameter("day", {"format": "date"}, DateType(), True)
     with pytest.raises(ValueError, match="day is not a valid ISO date string"):
         to_sql_value(param, "yesterday")
+
+
+def test_parse_signature_strips_a_default():
+    assert parse_signature("(TIMES NUMBER DEFAULT 1, NAME VARCHAR default 'a b')") == [
+        ("TIMES", "NUMBER"),
+        ("NAME", "VARCHAR"),
+    ]
+    assert parse_signature('("my col" NUMBER(10,2) DEFAULT 1.5)') == [
+        ("my col", "NUMBER(10,2)")
+    ]
+
+
+def test_to_sql_value_timestamp_with_offset_is_naive():
+    param = ToolParameter("ts", {}, TimestampType(), True)
+    assert to_sql_value(param, "2024-01-02T03:04:05Z") == datetime.datetime(
+        2024, 1, 2, 3, 4, 5
+    )
+    result = to_sql_value(param, "2024-01-02T03:04:05+02:00")
+    assert result == datetime.datetime(2024, 1, 2, 3, 4, 5) and result.tzinfo is None
+    time_param = ToolParameter("t", {}, TimeType(), True)
+    assert to_sql_value(time_param, "03:04:05Z") == datetime.time(3, 4, 5)
+
+
+def test_nullable_enum_includes_null():
+    def f(
+        kind: Optional[Literal["a", "b"]] = None,
+        items: List[Optional[Literal[1, 2]]] = (),
+    ):
+        pass
+
+    params, _ = parameters_from_function(f, False, {})
+    assert params[0].json_schema == {
+        "type": ["string", "null"],
+        "enum": ["a", "b", None],
+    }
+    assert params[1].json_schema["items"] == {
+        "type": ["integer", "null"],
+        "enum": [1, 2, None],
+    }
+    schema = input_schema(params[:1])
+    assert check_arguments(schema, {"kind": None}) == []
+    assert check_arguments(schema, {"kind": "c"}) != []
