@@ -26,6 +26,7 @@
 
 #### New Features
 
+- Added `Session.jobs` (experimental) to submit, deploy and schedule Snowpark Python programs as stored procedures or code bundles (code bundles are in Preview).
 - Added `Session.semantic_view()` (PuPr) to query a semantic view. Pass the semantic view name plus any of `dimensions`, `metrics`, `facts`, and `where`; it returns a `DataFrame`.
 - Added `Session.debug` (Experimental) to turn the debug features on and off per session, with `session.debug.set(...)` or `session.debug.enable_<feature>()` / `disable_<feature>()`. The features are:
   - `eager_schema_validation`: validates the schema of a DataFrame when it is created, so an invalid operation fails at the line that defines it.

@@ -207,6 +207,7 @@ setup(
         "snowflake.snowpark._internal.data_source.dbms_dialects",
         "snowflake.snowpark._internal.data_source.drivers",
         "snowflake.snowpark._internal.proto.generated",
+        "snowflake.snowpark.jobs",
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",
         "snowflake.snowpark.modin.config",
