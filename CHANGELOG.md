@@ -12,6 +12,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug where `Table.sample` on a table read with time travel (`time_travel_mode`) or an Iceberg incremental read ignored it and sampled the current table.
 - Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
 
 ### Snowpark Local Testing Updates

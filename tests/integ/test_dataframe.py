@@ -8236,6 +8236,93 @@ def test_time_travel_core_functionality(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="Time travel is not supported in Local Testing",
 )
+def test_table_sample_keeps_time_travel(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.sql(f"create temp table {table_name} (id int, v string)").collect()
+
+    def run(sql):
+        session.sql(sql).collect()
+        return session.sql("select last_query_id()").collect()[0][0]
+
+    try:
+        insert_qid = run(f"insert into {table_name} values (1, 'a'), (2, 'b')")
+        update_qid = run(f"update {table_name} set v = 'a2' where id = 1")
+        run(f"insert into {table_name} values (3, 'c')")
+
+        # the current table has the update and the later insert
+        Utils.check_answer(
+            session.table(table_name).sample(frac=1.0),
+            [Row(1, "a2"), Row(2, "b"), Row(3, "c")],
+        )
+
+        # AT(insert) samples the historical rows, not the current ones
+        historical = [Row(1, "a"), Row(2, "b")]
+        at_insert = session.table(
+            table_name, time_travel_mode="at", statement=insert_qid
+        )
+        Utils.check_answer(at_insert.sample(frac=1.0), historical)
+        Utils.check_answer(at_insert.sample(n=10), historical)
+        Utils.check_answer(at_insert.sample(frac=1.0, seed=1), historical)
+        Utils.check_answer(
+            at_insert.sample(frac=1.0, sampling_method="SYSTEM"), historical
+        )
+
+        # BEFORE(update) sees the state before the update
+        before_update = session.table(
+            table_name, time_travel_mode="before", statement=update_qid
+        )
+        Utils.check_answer(before_update.sample(frac=1.0), historical)
+        Utils.check_answer(before_update.sample(n=10), historical)
+        Utils.check_answer(before_update.sample(frac=1.0, seed=1), historical)
+
+        # reader API and further transformations
+        read_at = session.read.table(
+            table_name, time_travel_mode="at", statement=insert_qid
+        )
+        Utils.check_answer(read_at.sample(frac=1.0), historical)
+        Utils.check_answer(
+            at_insert.sample(frac=1.0).filter(col("id") > 1), [Row(2, "b")]
+        )
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Iceberg incremental reads are not supported in Local Testing",
+)
+def test_table_sample_iceberg_incremental_read_sql(session):
+    # Table creation is lazy: no query runs and the table doesn't have to exist
+    table = session.table("ANY_NAME", start_snapshot_id=1, end_snapshot_id=2)
+    sql = table.sample(n=2).queries["queries"][-1]
+    assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
+    assert "SAMPLE" in sql.upper()
+
+    with pytest.raises(ValueError):
+        table.sample(frac=0.5, seed=1)
+    with pytest.raises(ValueError):
+        table.sample(frac=0.5, sampling_method="system")
+
+
+@pytest.mark.parametrize("sample_kwargs", [{"frac": 1.0}, {"n": 10}])
+def test_table_sample_plain_table_unchanged(session, sample_kwargs):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe([[1], [2], [3]], schema=["a"]).write.save_as_table(
+        table_name, table_type="temporary"
+    )
+    try:
+        Utils.check_answer(
+            session.table(table_name).sample(**sample_kwargs),
+            [Row(1), Row(2), Row(3)],
+        )
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Time travel is not supported in Local Testing",
+)
 def test_time_travel_comprehensive_coverage(session):
     # ============== Test Setup ==============
     table1_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
