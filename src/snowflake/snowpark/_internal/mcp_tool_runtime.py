@@ -227,14 +227,17 @@ def check_received_arguments(schema: dict, arguments: dict) -> List[str]:
     for name, value in arguments.items():
         allowed = (properties.get(name) or {}).get("enum")
         if value is not None and allowed is not None and value not in allowed:
-            problems.append(f"{name} must be one of {allowed!r}, got {value!r}")
+            shown = [v for v in allowed if v is not None]
+            problems.append(f"{name} must be one of {shown!r}, got {value!r}")
     return problems
 
 
 def _allowed_values_hint(schema: dict, arguments: dict) -> Optional[str]:
     properties = schema.get("properties") or {}
     hints = [
-        f"Allowed values for {name}: " + ", ".join(str(v) for v in allowed) + "."
+        f"Allowed values for {name}: "
+        + ", ".join(str(v) for v in allowed if v is not None)
+        + "."
         for name, value in arguments.items()
         for allowed in [(properties.get(name) or {}).get("enum")]
         if value is not None and allowed is not None and value not in allowed

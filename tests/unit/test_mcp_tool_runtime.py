@@ -951,3 +951,20 @@ def test_to_json_value_pandas_na():
     df = pd.DataFrame({"a": pd.array([1, None], dtype="Int64")})
     result = to_tool_result(df, max_rows=10, max_result_bytes=10_000)
     assert result["rows"] == [{"a": 1}, {"a": None}]
+
+
+def test_enum_error_for_nullable_parameter_does_not_show_none():
+    schema = {
+        "type": "object",
+        "properties": {"mode": {"type": ["string", "null"], "enum": ["a", "b", None]}},
+        "required": ["mode"],
+    }
+
+    def f(mode):
+        return mode
+
+    result = make_handler(f, input_schema=schema)("zzz")
+    assert result["error"]["type"] == "INVALID_ARGUMENTS"
+    assert result["error"]["message"] == "mode must be one of ['a', 'b'], got 'zzz'"
+    assert result["error"]["hint"] == "Allowed values for mode: a, b."
+    assert make_handler(f, input_schema=schema)(None) is None
