@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from snowflake.snowpark._internal.utils import IS_V5_DRIVER
 from snowflake.snowpark.mock._util import ImportContext
 
 
@@ -40,24 +41,57 @@ def test_import_context():
 
 @pytest.mark.parametrize("numpy_available", [True, False])
 def test_numpy_installed(numpy_available):
-    def bad_import(_):
-        raise ModuleNotFoundError()
+    import snowflake.snowpark.mock._options as options
 
-    with patch(
-        "importlib.import_module",
-        importlib.import_module if numpy_available else bad_import,
-    ):
-        import snowflake.snowpark.mock._options
+    # Connector 5 resolves numpy in its extras module. Reloading that module
+    # replaces MissingOptionalDependency, so patch the exported object instead.
+    if IS_V5_DRIVER:
+        import snowflake.connector._common.extras as extras
+        from snowflake.snowpark._internal.options import MissingOptionalDependency
 
-        importlib.reload(snowflake.snowpark.mock._options)
-        assert snowflake.snowpark.mock._options.installed_numpy == numpy_available
-        if numpy_available:
-            assert not isinstance(
-                snowflake.snowpark.mock._options.numpy,
-                snowflake.snowpark.mock._options.MissingNumpy,
-            )
-        else:
-            assert isinstance(
-                snowflake.snowpark.mock._options.numpy,
-                snowflake.snowpark.mock._options.MissingNumpy,
-            )
+        numpy_obj = (
+            importlib.import_module("numpy")
+            if numpy_available
+            else extras.MissingOptionalDependency("numpy")
+        )
+        try:
+            with patch.object(extras, "numpy", numpy_obj):
+                importlib.reload(options)
+                assert options.installed_numpy == numpy_available
+                if numpy_available:
+                    assert not isinstance(options.numpy, MissingOptionalDependency)
+                else:
+                    assert isinstance(options.numpy, MissingOptionalDependency)
+        finally:
+            importlib.reload(options)
+        return
+
+    real_import = importlib.import_module
+
+    def maybe_import(name, package=None):
+        if name == "numpy" and not numpy_available:
+            raise ModuleNotFoundError()
+        return real_import(name, package)
+
+    try:
+        with patch("importlib.import_module", maybe_import):
+            importlib.reload(options)
+            assert options.installed_numpy == numpy_available
+            if numpy_available:
+                assert not isinstance(options.numpy, options.MissingNumpy)
+            else:
+                assert isinstance(options.numpy, options.MissingNumpy)
+    finally:
+        importlib.reload(options)
+
+
+def test_mocked_connection_reports_closed_after_close():
+    from snowflake.snowpark.mock._connection import MockedSnowflakeConnection
+
+    conn = MockedSnowflakeConnection()
+    try:
+        assert conn.is_closed() is False
+        conn.close()
+        assert conn.is_closed() is True
+    finally:
+        conn.close()
