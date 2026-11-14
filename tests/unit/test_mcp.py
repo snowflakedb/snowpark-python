@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
+import decimal
 import inspect
 import json
 import types
@@ -12,7 +14,7 @@ import pytest
 import yaml
 
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal import mcp_utils
+from snowflake.snowpark._internal import mcp_tool_runtime, mcp_utils
 from snowflake.snowpark.mcp import (
     DeployResult,
     MCPLintError,
@@ -25,7 +27,13 @@ from snowflake.snowpark.mcp import (
     mcp_tool,
     tools,
 )
-from snowflake.snowpark.types import LongType, StringType, VariantType
+from snowflake.snowpark.types import (
+    LongType,
+    StringType,
+    TimestampTimeZone,
+    TimestampType,
+    VariantType,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1099,7 +1107,8 @@ def test_deploy_dry_run():
     # Nothing ran or was registered.
     session.sproc.register.assert_not_called()
     session.udf.register.assert_not_called()
-    session.sql.assert_not_called()
+    # Only the read-only SHOW statements ran.
+    assert all(c.args[0].startswith("SHOW") for c in session.sql.call_args_list)
     session._conn._telemetry_client.send_function_usage_telemetry.assert_not_called()
 
 
@@ -1325,8 +1334,8 @@ def test_deploy_preserves_grants():
     assert "SHOW GRANTS ON MCP SERVER APP.MCP.S" in statements
     grants = [s for s in statements if s.startswith("GRANT")]
     assert grants == [
-        "GRANT USAGE ON MCP SERVER APP.MCP.S TO ROLE ANALYST",
-        "GRANT USAGE ON MCP SERVER APP.MCP.S TO DATABASE ROLE APP.READERS",
+        'GRANT USAGE ON MCP SERVER APP.MCP.S TO ROLE "ANALYST"',
+        'GRANT USAGE ON MCP SERVER APP.MCP.S TO DATABASE ROLE "APP"."READERS"',
     ]
     create_index = next(
         i for i, s in enumerate(statements) if s.startswith("CREATE OR REPLACE MCP")
@@ -1346,13 +1355,139 @@ def test_deploy_new_server_has_no_grants_to_preserve():
 def test_deploy_preserve_grants_false():
     session = make_session([("SHOW MCP SERVERS", [Row(name="S")])])
     python_server("S").deploy(session, preserve_grants=False)
-    assert not any(s.startswith("SHOW") for s in session.statements)
+    assert not any(s.startswith("SHOW MCP") for s in session.statements)
+    assert not any(s.startswith("SHOW GRANTS") for s in session.statements)
 
 
-def test_deploy_dry_run_does_not_read_grants():
+def test_deploy_dry_run_reports_grants_without_running_them():
+    session = make_session(
+        [
+            ("SHOW MCP SERVERS", [Row(name="S")]),
+            ("SHOW GRANTS ON MCP SERVER", GRANT_ROWS),
+        ]
+    )
+    result = python_server("S").deploy(session, dry_run=True)
+    assert result.sql[-2:] == [
+        'GRANT USAGE ON MCP SERVER APP.MCP.S TO ROLE "ANALYST"',
+        'GRANT USAGE ON MCP SERVER APP.MCP.S TO DATABASE ROLE "APP"."READERS"',
+    ]
+    assert not any(s.startswith("GRANT") for s in session.statements)
+    assert all(c.args[0].startswith("SHOW") for c in session.sql.call_args_list)
+
+
+def test_deploy_dry_run_tolerates_unreadable_schema():
     session = make_session()
-    python_server("S").deploy(session, dry_run=True)
-    session.sql.assert_not_called()
+    session.sql.side_effect = RuntimeError("Schema does not exist")
+    result = python_server("S").deploy(session, dry_run=True)
+    assert result.pruned == []
+    assert result.sql[0].startswith("CREATE STAGE")
+    assert not any(s.startswith("GRANT") for s in result.sql)
+
+
+def grant_session(rows, fail_on=()):
+    def run(statement):
+        if any(f in statement for f in fail_on):
+            raise RuntimeError("insufficient privileges")
+        return []
+
+    return make_session(
+        [
+            ("SHOW MCP SERVERS", [Row(name="S")]),
+            ("SHOW GRANTS ON MCP SERVER", rows),
+            ("GRANT", run),
+        ]
+    )
+
+
+def test_deploy_grants_quote_grantee_names():
+    session = grant_session(
+        [
+            Row(privilege="USAGE", granted_to="ROLE", grantee_name="Analysts"),
+            Row(privilege="USAGE", granted_to="ROLE", grantee_name="my role"),
+            Row(privilege="USAGE", granted_to="ROLE", grantee_name='odd"name'),
+            Row(
+                privilege="USAGE", granted_to="DATABASE_ROLE", grantee_name="Db.My Role"
+            ),
+        ]
+    )
+    python_server("S").deploy(session)
+    assert [s for s in session.statements if s.startswith("GRANT")] == [
+        'GRANT USAGE ON MCP SERVER APP.MCP.S TO ROLE "Analysts"',
+        'GRANT USAGE ON MCP SERVER APP.MCP.S TO ROLE "my role"',
+        'GRANT USAGE ON MCP SERVER APP.MCP.S TO ROLE "odd""name"',
+        'GRANT USAGE ON MCP SERVER APP.MCP.S TO DATABASE ROLE "Db"."My Role"',
+    ]
+
+
+@pytest.mark.parametrize("grant_option", ["true", "TRUE", True])
+def test_deploy_grants_keep_grant_option(grant_option):
+    session = grant_session(
+        [
+            Row(
+                privilege="USAGE",
+                granted_to="ROLE",
+                grantee_name="A",
+                grant_option=grant_option,
+            ),
+            Row(
+                privilege="USAGE",
+                granted_to="ROLE",
+                grantee_name="B",
+                grant_option="false",
+            ),
+        ]
+    )
+    python_server("S").deploy(session)
+    assert [s for s in session.statements if s.startswith("GRANT")] == [
+        'GRANT USAGE ON MCP SERVER APP.MCP.S TO ROLE "A" WITH GRANT OPTION',
+        'GRANT USAGE ON MCP SERVER APP.MCP.S TO ROLE "B"',
+    ]
+
+
+def test_deploy_applies_all_grants_and_reports_the_failures():
+    session = grant_session(
+        [
+            Row(privilege="USAGE", granted_to="ROLE", grantee_name="A"),
+            Row(privilege="USAGE", granted_to="ROLE", grantee_name="B"),
+            Row(privilege="USAGE", granted_to="ROLE", grantee_name="C"),
+        ],
+        fail_on=['"B"'],
+    )
+    with pytest.raises(RuntimeError) as exc_info:
+        python_server("S").deploy(session, prune=True)
+    message = str(exc_info.value)
+    assert "APP.MCP.S was replaced" in message
+    assert "1 of its previous grants" in message
+    assert 'GRANT USAGE ON MCP SERVER APP.MCP.S TO ROLE "B"' in message
+    assert "insufficient privileges" in message
+    assert '"A"' not in message and '"C"' not in message
+    # The grants after the failing one still ran.
+    grants = [s for s in session.statements if s.startswith("GRANT")]
+    assert len(grants) == 3
+
+
+def test_deploy_grants_ignore_other_servers_matching_the_like_pattern():
+    # LIKE 'S_X' also matches 'SAX'; '_' is a wildcard.
+    session = make_session(
+        [
+            ("SHOW MCP SERVERS", [Row(name="SAX")]),
+            ("SHOW GRANTS ON MCP SERVER", GRANT_ROWS),
+        ]
+    )
+    MCPServer("S_X", [get_account]).deploy(session)
+    assert not any(s.startswith("SHOW GRANTS") for s in session.statements)
+    assert not any(s.startswith("GRANT") for s in session.statements)
+
+
+def test_deploy_grants_exact_server_name_is_case_insensitive():
+    session = make_session(
+        [
+            ("SHOW MCP SERVERS", [Row(name="SAX"), Row(name="s_x")]),
+            ("SHOW GRANTS ON MCP SERVER", GRANT_ROWS),
+        ]
+    )
+    MCPServer("S_X", [get_account]).deploy(session)
+    assert any(s.startswith("SHOW GRANTS") for s in session.statements)
 
 
 # ---------------------------------------------------------------------------
@@ -1400,22 +1535,24 @@ def test_deploy_prune_drops_only_removed_tools_of_this_server():
     result = python_server("S").deploy(session, prune=True)
     drops = [s for s in session.statements if s.startswith("DROP")]
     assert drops == [
-        "DROP PROCEDURE IF EXISTS APP.MCP.S__OLD_TOOL(VARCHAR, NUMBER)",
         "DROP PROCEDURE IF EXISTS APP.MCP.S__GET_ACCOUNT(VARCHAR)",
+        "DROP PROCEDURE IF EXISTS APP.MCP.S__OLD_TOOL(VARCHAR, NUMBER)",
         "DROP FUNCTION IF EXISTS APP.MCP.S__OLD_UDF(NUMBER)",
     ]
     assert result.pruned == [
-        "APP.MCP.S__OLD_TOOL(VARCHAR, NUMBER)",
         "APP.MCP.S__GET_ACCOUNT(VARCHAR)",
+        "APP.MCP.S__OLD_TOOL(VARCHAR, NUMBER)",
         "APP.MCP.S__OLD_UDF(NUMBER)",
     ]
-    # Pruning happens after the server is replaced.
+    # Pruning happens after the server is replaced; the old overload of a current
+    # tool is dropped before it (see the next tests).
     create_index = next(
         i
         for i, s in enumerate(session.statements)
         if s.startswith("CREATE OR REPLACE MCP")
     )
-    assert session.statements.index(drops[0]) > create_index
+    assert session.statements.index(drops[0]) < create_index
+    assert session.statements.index(drops[1]) > create_index
 
 
 def test_deploy_prune_keeps_current_tool_with_show_type_spelling():
@@ -1444,11 +1581,98 @@ def test_deploy_prune_respects_suffix():
     assert drops == ["DROP PROCEDURE IF EXISTS APP.MCP.S_DEV__OLD(VARCHAR)"]
 
 
-def test_deploy_without_prune_never_lists_objects():
+def test_deploy_without_prune_keeps_objects_of_removed_tools():
     session = prune_session([show_row("S__OLD", "VARCHAR", tagged("S", "old"))])
-    python_server("S").deploy(session)
+    result = python_server("S").deploy(session)
     assert not any(s.startswith("DROP") for s in session.statements)
-    assert not any(s.startswith("SHOW PROCEDURES") for s in session.statements)
+    assert result.pruned == []
+
+
+def test_deploy_prune_keeps_datetime_tool_when_show_reports_ntz():
+    @mcp_tool(read_only=True)
+    def events_since(session: Session, since: datetime.datetime):
+        """Events.
+
+        Args:
+            since: Start.
+        """
+
+    session = prune_session(
+        [show_row("S__EVENTS_SINCE", "TIMESTAMP_NTZ", tagged("S", "events_since"))]
+    )
+    result = MCPServer("S", [events_since]).deploy(session, prune=True)
+    assert result.pruned == []
+    assert not any(s.startswith("DROP") for s in session.statements)
+
+
+def test_datetime_parameter_is_registered_as_timestamp_ntz():
+    @mcp_tool(read_only=True)
+    def events_since(since: datetime.datetime):
+        """Events.
+
+        Args:
+            since: Start.
+        """
+
+    assert events_since.parameters[0].datatype == TimestampType(TimestampTimeZone.NTZ)
+    assert events_since._signature(_Target("APP", "MCP", "", "S")).endswith(
+        "(TIMESTAMP_NTZ)"
+    )
+    # An object created under TIMESTAMP_TYPE_MAPPING = TIMESTAMP_LTZ is another
+    # overload: it is dropped, and the current one kept.
+    session = prune_session(
+        [
+            show_row("S__EVENTS_SINCE", "TIMESTAMP_LTZ", tagged("S", "events_since")),
+            show_row("S_DEV__EVENTS_SINCE", "TIMESTAMP_NTZ", tagged("S", "x", "_DEV")),
+        ],
+        functions=[
+            show_row("S__EVENTS_SINCE", "TIMESTAMP_NTZ", tagged("S", "events_since"))
+        ],
+    )
+    result = MCPServer("S", [events_since]).deploy(session)
+    assert result.pruned == ["APP.MCP.S__EVENTS_SINCE(TIMESTAMP_LTZ)"]
+
+
+def test_deploy_drops_old_overload_when_parameter_types_change_without_prune():
+    @mcp_tool(read_only=True)
+    def lookup(session: Session, key: str):
+        """Look up.
+
+        Args:
+            key: The key.
+        """
+
+    session = prune_session(
+        [
+            show_row("S__LOOKUP", "NUMBER", tagged("S", "lookup")),
+            show_row("S__LOOKUP", "VARCHAR", tagged("S", "lookup")),
+            # Untagged, another server's, another suffix's and a removed tool's
+            # objects are left alone without prune.
+            show_row("S__LOOKUP", "BOOLEAN", "user-defined procedure"),
+            show_row("OTHER__LOOKUP", "NUMBER", tagged("OTHER", "lookup")),
+            show_row("S_DEV__LOOKUP", "NUMBER", tagged("S", "lookup", "_DEV")),
+            show_row("S__GONE", "NUMBER", tagged("S", "gone")),
+        ],
+    )
+    result = MCPServer("S", [lookup]).deploy(session)
+    drops = [s for s in session.statements if s.startswith("DROP")]
+    assert drops == ["DROP PROCEDURE IF EXISTS APP.MCP.S__LOOKUP(NUMBER)"]
+    assert result.pruned == ["APP.MCP.S__LOOKUP(NUMBER)"]
+    assert result.sql.index(drops[0]) < next(
+        i for i, s in enumerate(result.sql) if s.startswith("CREATE OR REPLACE MCP")
+    )
+    # Registered before the old overload is dropped.
+    assert session.statements.index("REGISTER PROCEDURE APP.MCP.S__LOOKUP") < (
+        session.statements.index(drops[0])
+    )
+
+
+def test_deploy_dry_run_reports_old_overload():
+    session = prune_session([show_row("S__GET_ACCOUNT", "NUMBER", tagged("S", "x"))])
+    result = python_server("S").deploy(session, dry_run=True)
+    assert result.pruned == ["APP.MCP.S__GET_ACCOUNT(NUMBER)"]
+    assert "DROP PROCEDURE IF EXISTS APP.MCP.S__GET_ACCOUNT(NUMBER)" in result.sql
+    assert not any(s.startswith("DROP") for s in session.statements)
 
 
 def test_deploy_dry_run_prune_reports_but_does_not_drop():
@@ -1696,7 +1920,7 @@ def test_call_tool_existing_procedure_with_string_argument():
     )
     assert (
         session.statements[-1]
-        == "CALL APP.FIN.GET_FINANCIALS(ticker => 'SNOW'::VARCHAR)"
+        == "CALL APP.FIN.GET_FINANCIALS(TICKER => 'SNOW'::VARCHAR)"
     )
 
 
@@ -1708,7 +1932,7 @@ def test_call_tool_existing_procedure_with_number_argument():
     )
     server.call_tool(session, "get_financials", {"ticker": "SNOW", "years": 3})
     assert session.statements[-1] == (
-        "CALL APP.FIN.GET_FINANCIALS(ticker => 'SNOW'::VARCHAR, years => 3::NUMBER)"
+        "CALL APP.FIN.GET_FINANCIALS(TICKER => 'SNOW'::VARCHAR, YEARS => 3::NUMBER)"
     )
 
 
@@ -1980,3 +2204,231 @@ def test_registered_handler_checks_enum_and_does_not_call_function():
     }
     assert called == []
     assert handler(None, kind="a") == "a"
+
+
+# ---------------------------------------------------------------------------
+# Optional parameters without a default
+# ---------------------------------------------------------------------------
+
+
+@mcp_tool(read_only=True)
+def maybe(session: Session, key: str, note: Optional[str], limit: Optional[int] = None):
+    """Look something up.
+
+    Args:
+        key: The key.
+        note: A note, or null.
+        limit: A limit.
+    """
+    return {"key": key, "note": note, "limit": limit}
+
+
+def test_optional_without_default_is_required_in_the_schema():
+    assert maybe.input_schema == {
+        "type": "object",
+        "properties": {
+            "key": {"type": "string", "description": "The key."},
+            "note": {"type": ["string", "null"], "description": "A note, or null."},
+            "limit": {"type": ["integer", "null"], "description": "A limit."},
+        },
+        "required": ["key", "note"],
+    }
+
+
+def test_optional_without_default_invoke():
+    assert maybe.invoke(object(), key="k", note=None) == {
+        "key": "k",
+        "note": None,
+        "limit": None,
+    }
+    assert maybe.invoke(object(), key="k", note="n", limit=2)["limit"] == 2
+    with pytest.raises(ValueError, match="missing required argument 'note'"):
+        maybe.invoke(object(), key="k")
+    with pytest.raises(ValueError, match="key must not be null"):
+        maybe.invoke(object(), key=None, note=None)
+
+
+def test_optional_without_default_deployed_handler_accepts_null():
+    handler = mcp_tool_runtime.make_handler(
+        maybe.func, input_schema=maybe.input_schema, takes_session=True
+    )
+    assert handler(object(), "k", None) == {"key": "k", "note": None, "limit": None}
+    assert handler(object(), "k", note=None, limit=None)["note"] is None
+    assert handler(object(), None, "n") == {
+        "error": {"type": "INVALID_ARGUMENTS", "message": "key must not be null"}
+    }
+
+
+def test_optional_without_default_call_tool_passes_null():
+    session = call_session('{"key": "k"}')
+    MCPServer("S", [maybe]).call_tool(session, "maybe", {"key": "k", "note": None})
+    assert session.statements[0] == (
+        "CALL APP.MCP.S__MAYBE(key => 'k'::STRING, note => NULL)"
+    )
+    with pytest.raises(ValueError, match="missing required argument 'note'"):
+        MCPServer("S", [maybe]).call_tool(session, "maybe", {"key": "k"})
+
+
+def test_optional_container_parameter_is_still_linted():
+    @mcp_tool(read_only=True)
+    def f(items: Optional[List[int]] = None, sql: Optional[str] = None):
+        """Doc.
+
+        Args:
+            items: Items.
+            sql: SQL.
+        """
+
+    issues = MCPServer("S", [f]).lint()
+    assert any("takes a JSON array" in i.message for i in issues)
+
+
+# ---------------------------------------------------------------------------
+# invoke converts arguments like the MCP server
+# ---------------------------------------------------------------------------
+
+
+def test_invoke_converts_arguments_to_sql_types():
+    @mcp_tool(read_only=True)
+    def f(
+        d: datetime.date,
+        ts: datetime.datetime,
+        t: datetime.time,
+        amount: decimal.Decimal,
+        ratio: float,
+        n: int,
+        label: str,
+    ):
+        """Doc.
+
+        Args:
+            d: D.
+            ts: TS.
+            t: T.
+            amount: Amount.
+            ratio: Ratio.
+            n: N.
+            label: Label.
+        """
+        return [type(v).__name__ for v in (d, ts, t, amount, ratio, n, label)], str(
+            amount
+        )
+
+    types_, amount = f.invoke(
+        d="2024-01-02",
+        ts="2024-01-02T03:04:05",
+        t="03:04:05",
+        amount=1.25,
+        ratio=2,
+        n=3,
+        label="2024-01-02",
+    )
+    assert types_ == ["date", "datetime", "time", "Decimal", "float", "int", "str"]
+    assert amount == "1.25"
+
+
+def test_invoke_leaves_null_arguments_alone():
+    @mcp_tool(read_only=True)
+    def f(d: Optional[datetime.date] = None):
+        """Doc."""
+        return {"d": d}
+
+    assert f.invoke(d=None) == {"d": None}
+    assert f.invoke(d="2024-01-02") == {"d": "2024-01-02"}
+
+
+def test_invoke_invalid_date_string():
+    @mcp_tool(read_only=True)
+    def f(d: datetime.date):
+        """Doc."""
+
+    with pytest.raises(ValueError, match="Invalid arguments for tool f: d is not a"):
+        f.invoke(d="yesterday")
+
+
+# ---------------------------------------------------------------------------
+# Annotations that cannot be resolved
+# ---------------------------------------------------------------------------
+
+
+def test_unresolvable_session_annotation_falls_back_to_its_name(tmp_path):
+    path = tmp_path / "tool_module_session.py"
+    path.write_text(
+        "from __future__ import annotations\n"
+        "from typing import TYPE_CHECKING\n"
+        "if TYPE_CHECKING:\n"
+        "    import pandas as pd\n"
+        "def tool(session: Session, n: int) -> pd.DataFrame:\n"
+        "    pass\n"
+    )
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("tool_module_session", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    tool = mcp_tool(module.tool, read_only=True, description="Doc.")
+    assert tool.kind == "procedure"
+    assert [p.name for p in tool.parameters] == ["n"]
+    assert tool._param_problems == []
+
+
+# ---------------------------------------------------------------------------
+# call_tool: existing objects' types and names
+# ---------------------------------------------------------------------------
+
+
+def existing_session(signature, show_arguments):
+    return make_session(
+        [
+            (
+                "SHOW PROCEDURES LIKE",
+                [Row(name="P", arguments=show_arguments, description="Do p")],
+            ),
+            ("DESCRIBE PROCEDURE", [Row(property="signature", value=signature)]),
+            ("CALL", [Row(x="ok")]),
+        ]
+    )
+
+
+def test_call_tool_existing_object_casts_to_the_describe_type():
+    session = existing_session("(AMOUNT NUMBER(10,2))", "P(NUMBER) RETURN VARCHAR")
+    server = MCPServer("S", [Tool.from_procedure("APP.MCP.P", read_only=True)])
+    server.call_tool(session, "p", {"amount": 1.25})
+    assert session.statements[-1] == "CALL APP.MCP.P(AMOUNT => 1.25::NUMBER(10,2))"
+    # Grants and signature matching use SHOW's type.
+    assert server.tool("p")._signature() == "APP.MCP.P(NUMBER)"
+
+
+def test_call_tool_existing_object_quotes_case_sensitive_parameter_names():
+    session = existing_session(
+        '("id" VARCHAR, "My ""Col""" NUMBER, PLAIN VARCHAR)',
+        "P(VARCHAR, NUMBER, VARCHAR) RETURN VARCHAR",
+    )
+    server = MCPServer("S", [Tool.from_procedure("APP.MCP.P", read_only=True)])
+    server.call_tool(session, "p", {"id": "x", 'My "Col"': 1, "plain": "y"})
+    assert session.statements[-1] == (
+        'CALL APP.MCP.P("id" => \'x\'::VARCHAR, "My ""Col""" => 1::NUMBER, '
+        "PLAIN => 'y'::VARCHAR)"
+    )
+
+
+@pytest.mark.parametrize(
+    "value, literal",
+    [
+        (float("nan"), "'NaN'"),
+        (float("inf"), "'inf'"),
+        (float("-inf"), "'-inf'"),
+    ],
+)
+def test_call_tool_non_finite_float(value, literal):
+    @mcp_tool(read_only=True)
+    def scale(x: float):
+        """Scale.
+
+        Args:
+            x: Value.
+        """
+
+    session = call_session("1")
+    MCPServer("S", [scale]).call_tool(session, "scale", {"x": value})
+    assert session.statements[0] == f"SELECT APP.MCP.S__SCALE(x => {literal}::DOUBLE)"

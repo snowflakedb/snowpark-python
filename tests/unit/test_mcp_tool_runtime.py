@@ -412,7 +412,8 @@ def test_run_tool_other_exception_is_logged_and_reraised(caplog):
     assert len(records) == 1
     assert records[0].levelno == logging.ERROR
     assert "broken" in records[0].getMessage()
-    assert records[0].exc_info is not None
+    assert "Traceback (most recent call last)" in records[0].getMessage()
+    assert "RuntimeError: boom" in records[0].getMessage()
 
 
 def test_run_tool_tool_error_is_not_logged(caplog):
@@ -629,10 +630,7 @@ def test_run_tool_masked_raises_generic_error(caplog, restore_tracebacklimit):
     assert "secret detail" not in message
     error_id = re.search(r"error ID ([0-9a-f]{12})\)", message).group(1)
     # The same ID is in the log record.
-    assert any(
-        r.exc_info and f"(error ID {error_id})" in r.getMessage()
-        for r in caplog.records
-    )
+    assert any(f"(error ID {error_id})" in r.getMessage() for r in caplog.records)
     # The original error is not chained into what the client sees...
     assert exc_info.value.__cause__ is None
     assert exc_info.value.__suppress_context__ is True
@@ -640,8 +638,24 @@ def test_run_tool_masked_raises_generic_error(caplog, restore_tracebacklimit):
     assert sys.tracebacklimit == 0
     # The full error is still logged.
     assert any(
-        r.exc_info and "secret detail" in str(r.exc_info[1]) for r in caplog.records
+        "ValueError: secret detail" in r.getMessage()
+        and "Traceback (most recent call last)" in r.getMessage()
+        for r in caplog.records
     )
+
+
+def test_run_tool_masked_failures_all_log_a_traceback(caplog, restore_tracebacklimit):
+    # The first masked failure sets sys.tracebacklimit to 0 for the process.
+    with caplog.at_level(logging.ERROR, logger="snowflake.snowpark.mcp"):
+        for _ in range(2):
+            with pytest.raises(RuntimeError):
+                run_tool(_secret_failure, (), {}, mask_error_details=True)
+    messages = [r.getMessage() for r in caplog.records]
+    assert len(messages) == 2
+    for message in messages:
+        assert "Traceback (most recent call last)" in message
+        assert "in _secret_failure" in message
+        assert "ValueError: secret detail" in message
 
 
 def test_run_tool_masked_formats_without_traceback(restore_tracebacklimit):
@@ -851,3 +865,59 @@ def test_handler_with_wrong_arguments_lets_the_function_raise():
     handler = make_handler(f, input_schema={"type": "object", "properties": {}})
     with pytest.raises(TypeError):
         handler(1, 2)
+
+
+# ---------------------------------------------------------------------------
+# Nullable arguments, numpy arrays and duplicate column names
+# ---------------------------------------------------------------------------
+
+
+def test_handler_null_for_required_nullable_argument_is_accepted():
+    schema = {
+        "type": "object",
+        "properties": {"a": {"type": ["string", "null"]}, "b": {"type": "string"}},
+        "required": ["a", "b"],
+    }
+
+    def tool(a, b):
+        return {"a": a}
+
+    handler = make_handler(tool, input_schema=schema)
+    assert handler(None, "x") == {"a": None}
+    assert handler("x", None) == {
+        "error": {"type": "INVALID_ARGUMENTS", "message": "b must not be null"}
+    }
+
+
+def test_to_json_value_numpy_array():
+    np = pytest.importorskip("numpy")
+    result = to_json_value(np.array([1, 2]))
+    assert result == [1, 2] and type(result[0]) is int
+    assert to_json_value(np.array([[1.5, 2.5], [3.5, 4.5]])) == [
+        [1.5, 2.5],
+        [3.5, 4.5],
+    ]
+    assert to_json_value({"a": np.array([np.float64(1.0)])}) == {"a": [1.0]}
+
+
+def test_to_tool_result_snowpark_dataframe_with_duplicate_column_names():
+    row = Row._builder.build("x", "y", "z").to_row()
+    row.__dict__["_fields"] = ("A", "A", "B")
+    df = FakeDataFrame([row], names=["A", "A", "B"])
+    result = to_tool_result(df, max_rows=10, max_result_bytes=10_000)
+    assert result["columns"] == ["A", "A_2", "B"]
+    assert result["rows"] == [{"A": "x", "A_2": "y", "B": "z"}]
+    empty = to_tool_result(
+        FakeDataFrame([], names=["A", "A"]), max_rows=10, max_result_bytes=10_000
+    )
+    assert empty["columns"] == ["A", "A_2"]
+
+
+def test_to_tool_result_pandas_dataframe_with_duplicate_column_names():
+    pd = pytest.importorskip("pandas")
+    df = pd.DataFrame([[1, 2, 3]], columns=["A", "A", "A_2"])
+    result = to_tool_result(df, max_rows=10, max_result_bytes=10_000)
+    assert result["columns"] == ["A", "A_2", "A_2_2"]
+    assert result["rows"] == [{"A": 1, "A_2": 2, "A_2_2": 3}]
+    # The caller's DataFrame is not renamed.
+    assert list(df.columns) == ["A", "A", "A_2"]

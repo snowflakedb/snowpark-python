@@ -29,6 +29,7 @@ from snowflake.snowpark.types import (
     LongType,
     MapType,
     StringType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
 )
@@ -91,8 +92,12 @@ class ToolParameter:
     datatype: Optional[DataType]
     required: bool
     description: Optional[str] = None
-    # The SQL type as Snowflake reports it, for procedures and UDFs that already exist.
+    # For procedures and UDFs that already exist: the SQL type as SHOW reports it
+    # (no precision or scale), the full type from DESCRIBE, and the name as DESCRIBE
+    # reports it, which may be case-sensitive.
     sql_type: Optional[str] = None
+    cast_type: Optional[str] = None
+    sql_name: Optional[str] = None
 
 
 @dataclasses.dataclass
@@ -270,8 +275,13 @@ def type_hint_to_schema(tp: Any) -> Tuple[Dict[str, Any], DataType, bool]:
     if tp is decimal.Decimal:
         return {"type": "number"}, DecimalType(38, 18), False
     # datetime is a subclass of date, so it is checked first.
+    # Explicitly NTZ: a bare TIMESTAMP is created as whatever TIMESTAMP_TYPE_MAPPING says.
     if tp is datetime.datetime:
-        return {"type": "string", "format": "date-time"}, TimestampType(), False
+        return (
+            {"type": "string", "format": "date-time"},
+            TimestampType(TimestampTimeZone.NTZ),
+            False,
+        )
     if tp is datetime.date:
         return {"type": "string", "format": "date"}, DateType(), False
     if tp is datetime.time:
@@ -312,9 +322,25 @@ def _nested_schema(tp: Any) -> Dict[str, Any]:
     """The schema of a list item, dict value or TypedDict key: there, unlike for a
     top-level argument, Optional[T] means the value may be null."""
     schema, _, nullable = type_hint_to_schema(tp)
-    if nullable and "type" in schema:
-        schema = {**schema, "type": [schema["type"], "null"]}
+    return _with_null(schema) if nullable else schema
+
+
+def _with_null(schema: Dict[str, Any]) -> Dict[str, Any]:
+    if "type" in schema and isinstance(schema["type"], str):
+        return {**schema, "type": [schema["type"], "null"]}
     return schema
+
+
+def base_json_type(schema: Dict[str, Any]) -> Optional[str]:
+    """The JSON type of a schema, ignoring ``"null"`` in a nullable type."""
+    expected = schema.get("type")
+    if isinstance(expected, list):
+        return next((t for t in expected if t != "null"), None)
+    return expected
+
+
+def allows_null(schema: Dict[str, Any]) -> bool:
+    return isinstance(schema.get("type"), list) and "null" in schema["type"]
 
 
 def is_session_annotation(tp: Any) -> bool:
@@ -325,16 +351,26 @@ def is_session_annotation(tp: Any) -> bool:
     ).startswith("snowflake.snowpark")
 
 
+def resolve_annotation(func: Any, parameter: inspect.Parameter) -> Any:
+    """Resolves the annotation of one parameter, which is a string under ``from
+    __future__ import annotations``, in the namespace of ``func``'s module. Unlike
+    ``typing.get_type_hints(func)``, it does not need the other parameters' or the
+    return annotations to resolve. Raises when this one cannot be resolved."""
+    if parameter.annotation is inspect.Parameter.empty:
+        return parameter.annotation
+    holder = types.SimpleNamespace(
+        __annotations__={parameter.name: parameter.annotation},
+        __globals__=getattr(inspect.unwrap(func), "__globals__", {}),
+    )
+    return typing.get_type_hints(holder, include_extras=True)[parameter.name]
+
+
 def parameters_from_function(
     func: Any, skip_first: bool, param_descriptions: Dict[str, str]
 ) -> Tuple[List[ToolParameter], List[str]]:
     """Returns the tool parameters of ``func`` and the problems found, one message per
     parameter that cannot be a tool argument."""
     signature = inspect.signature(func)
-    try:
-        hints = typing.get_type_hints(func, include_extras=True)
-    except Exception:  # unresolvable forward references
-        hints = {}
     params: List[ToolParameter] = []
     problems: List[str] = []
     items = list(signature.parameters.values())[1 if skip_first else 0 :]
@@ -348,13 +384,21 @@ def parameters_from_function(
             )
             continue
         try:
-            schema, datatype, nullable = type_hint_to_schema(
-                hints.get(p.name, p.annotation)
+            hint = resolve_annotation(func, p)
+        except Exception as e:
+            problems.append(
+                f"parameter {p.name}: could not resolve the type hint "
+                f"{p.annotation!r} ({e})"
             )
+            continue
+        try:
+            schema, datatype, nullable = type_hint_to_schema(hint)
         except UnsupportedTypeError as e:
             problems.append(f"parameter {p.name}: {e}")
             continue
         has_default = p.default is not inspect.Parameter.empty
+        if nullable:
+            schema = _with_null(schema)
         if has_default and p.default is not None:
             try:
                 schema = {**schema, "default": json.loads(json.dumps(p.default))}
@@ -370,11 +414,38 @@ def parameters_from_function(
                 name=p.name,
                 json_schema=schema,
                 datatype=datatype,
-                required=not has_default and not nullable,
+                required=not has_default,
                 description=description,
             )
         )
     return params, problems
+
+
+def to_sql_value(param: ToolParameter, value: Any) -> Any:
+    """Converts a JSON argument the way the MCP server does before calling a
+    procedure or UDF: to the Python value of the parameter's SQL type."""
+    datatype = param.datatype
+    if value is None or datatype is None:
+        return value
+    parser = None
+    if isinstance(datatype, DateType):
+        parser, kind = datetime.date.fromisoformat, "date"
+    elif isinstance(datatype, TimestampType):
+        parser, kind = datetime.datetime.fromisoformat, "datetime"
+    elif isinstance(datatype, TimeType):
+        parser, kind = datetime.time.fromisoformat, "time"
+    if parser is not None:
+        try:
+            return parser(value)
+        except ValueError as e:
+            raise ValueError(
+                f"{param.name} is not a valid ISO {kind} string ({e})"
+            ) from None
+    if isinstance(datatype, DecimalType):
+        return decimal.Decimal(str(value))
+    if isinstance(datatype, DoubleType):
+        return float(value)
+    return value
 
 
 def input_schema(params: List[ToolParameter]) -> Dict[str, Any]:
@@ -562,9 +633,10 @@ def name_suggests_write(name: str) -> bool:
 def container_parameter_issue(param: ToolParameter) -> Optional[str]:
     """The MCP server cannot pass a JSON array or object to a GENERIC tool, whatever
     the parameter's SQL type: the call fails before the tool runs."""
-    if param.json_schema.get("type") in ("array", "object"):
+    json_type = base_json_type(param.json_schema)
+    if json_type in ("array", "object"):
         return (
-            f"Parameter {param.name} takes a JSON {param.json_schema['type']}, which "
+            f"Parameter {param.name} takes a JSON {json_type}, which "
             "the MCP server cannot pass to a procedure or UDF. Take it as a str "
             "holding JSON text instead, and parse it in the tool."
         )
@@ -573,7 +645,7 @@ def container_parameter_issue(param: ToolParameter) -> Optional[str]:
 
 def is_sql_parameter(param: ToolParameter) -> bool:
     return (
-        param.json_schema.get("type") == "string"
+        base_json_type(param.json_schema) == "string"
         and "enum" not in param.json_schema
         and param.name.lower() in _SQL_PARAMETER_NAMES
     )
@@ -614,11 +686,9 @@ _JSON_TYPE_CHECKS = {
 
 
 def _check_value(value: Any, schema: Dict[str, Any], path: str) -> List[str]:
-    expected = schema.get("type")
-    if isinstance(expected, list):
-        if value is None and "null" in expected:
-            return []
-        expected = next((t for t in expected if t != "null"), None)
+    if value is None and allows_null(schema):
+        return []
+    expected = base_json_type(schema)
     if expected and not _JSON_TYPE_CHECKS[expected](value):
         return [f"{path} must be of type {expected}, got {type(value).__name__}"]
     problems = []
@@ -656,6 +726,10 @@ def check_arguments(schema: Dict[str, Any], arguments: Dict[str, Any]) -> List[s
     for name, value in arguments.items():
         if name in properties and value is not None:
             problems += _check_value(value, properties[name], name)
-        elif name in properties and name in schema.get("required", []):
+        elif (
+            name in properties
+            and name in schema.get("required", [])
+            and not allows_null(properties[name])
+        ):
             problems.append(f"{name} must not be null")
     return problems

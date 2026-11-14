@@ -43,10 +43,11 @@ MCP Tools and Servers
     MCPServer.to_yaml
     Tool.from_function
     Tool.from_procedure
+    PythonTool.invoke
 
 .. currentmodule:: snowflake.snowpark.mcp.tools
 
-.. rubric:: Built-in and ready-made tools
+.. rubric:: Built-in tools
 
 .. autosummary::
     :toctree: api/

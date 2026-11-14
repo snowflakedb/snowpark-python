@@ -27,6 +27,7 @@ from snowflake.snowpark._internal.mcp_utils import (
     parse_signature,
     split_identifier_and_types,
     sql_type_to_schema,
+    to_sql_value,
     type_hint_to_schema,
 )
 from snowflake.snowpark.types import (
@@ -348,18 +349,34 @@ def test_parameters_defaults_and_required():
     # Optional with a None default: not required, and no "default" key.
     assert by_name["c"].required is False
     assert "default" not in by_name["c"].json_schema
-    assert by_name["d"].json_schema == {"type": "integer", "default": 3}
+    assert by_name["d"].json_schema == {"type": ["integer", "null"], "default": 3}
+    assert by_name["c"].json_schema == {"type": ["string", "null"]}
     schema = input_schema(params)
     assert schema["required"] == ["a"]
     assert list(schema["properties"]) == ["a", "b", "c", "d", "e"]
 
 
-def test_parameters_optional_without_default_is_not_required():
+def test_parameters_optional_without_default_is_required_but_nullable():
     def f(a: Optional[str]):
         pass
 
     params, _ = parameters_from_function(f, False, {})
-    assert params[0].required is False
+    assert params[0].required is True
+    assert params[0].json_schema == {"type": ["string", "null"]}
+    schema = input_schema(params)
+    assert schema["required"] == ["a"]
+    assert check_arguments(schema, {"a": None}) == []
+    assert check_arguments(schema, {"a": "x"}) == []
+    assert check_arguments(schema, {"a": 1}) == ["a must be of type string, got int"]
+    assert check_arguments(schema, {}) == ["missing required argument 'a'"]
+
+
+def test_check_arguments_null_for_required_non_optional_parameter():
+    def f(a: str):
+        pass
+
+    schema = input_schema(parameters_from_function(f, False, {})[0])
+    assert check_arguments(schema, {"a": None}) == ["a must not be null"]
 
 
 def test_parameters_none_default_without_optional_hint_is_not_required():
@@ -837,3 +854,88 @@ def test_check_arguments_round_trip_with_parameters_from_function():
     assert check_arguments(schema, {"a": "s", "b": "y", "c": [1]}) == []
     assert len(check_arguments(schema, {"a": "s", "b": "z"})) == 1
     assert check_arguments(schema, {"a": "s", "c": None}) == []
+
+
+# ---------------------------------------------------------------------------
+# Annotations that cannot be resolved
+# ---------------------------------------------------------------------------
+
+
+def _function_from_source(source, tmp_path):
+    import importlib.util
+
+    path = tmp_path / "tool_module.py"
+    path.write_text(source)
+    spec = importlib.util.spec_from_file_location("tool_module", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.tool
+
+
+def test_unresolvable_return_annotation_does_not_break_parameters(tmp_path):
+    func = _function_from_source(
+        "from __future__ import annotations\n"
+        "from typing import TYPE_CHECKING, Optional\n"
+        "if TYPE_CHECKING:\n"
+        "    import pandas as pd\n"
+        "def tool(n: int, region: Optional[str] = None) -> pd.DataFrame:\n"
+        "    pass\n",
+        tmp_path,
+    )
+    params, problems = parameters_from_function(func, False, {})
+    assert problems == []
+    assert [(p.name, p.json_schema["type"]) for p in params] == [
+        ("n", "integer"),
+        ("region", ["string", "null"]),
+    ]
+
+
+def test_unresolvable_parameter_annotation_is_reported_per_parameter(tmp_path):
+    func = _function_from_source(
+        "from __future__ import annotations\n"
+        "def tool(n: int, other: Missing, name: str) -> int:\n"
+        "    pass\n",
+        tmp_path,
+    )
+    params, problems = parameters_from_function(func, False, {})
+    assert [p.name for p in params] == ["n", "name"]
+    assert len(problems) == 1
+    assert problems[0].startswith(
+        "parameter other: could not resolve the type hint 'Missing' ("
+    )
+    assert "Missing" in problems[0]
+
+
+# ---------------------------------------------------------------------------
+# Conversion of arguments to SQL values
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "datatype, value, expected",
+    [
+        (DateType(), "2024-01-02", datetime.date(2024, 1, 2)),
+        (
+            TimestampType(),
+            "2024-01-02T03:04:05",
+            datetime.datetime(2024, 1, 2, 3, 4, 5),
+        ),
+        (TimeType(), "03:04:05", datetime.time(3, 4, 5)),
+        (DecimalType(38, 18), 1.5, decimal.Decimal("1.5")),
+        (DecimalType(38, 18), 2, decimal.Decimal("2")),
+        (DoubleType(), 2, 2.0),
+        (LongType(), 2, 2),
+        (StringType(), "2024-01-02", "2024-01-02"),
+        (DateType(), None, None),
+    ],
+)
+def test_to_sql_value(datatype, value, expected):
+    param = ToolParameter("p", {}, datatype, True)
+    result = to_sql_value(param, value)
+    assert result == expected and type(result) is type(expected)
+
+
+def test_to_sql_value_invalid_date():
+    param = ToolParameter("day", {"format": "date"}, DateType(), True)
+    with pytest.raises(ValueError, match="day is not a valid ISO date string"):
+        to_sql_value(param, "yesterday")

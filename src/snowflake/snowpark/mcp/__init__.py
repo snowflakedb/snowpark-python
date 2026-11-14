@@ -41,7 +41,7 @@ import dataclasses
 import inspect
 import json
 import logging
-import typing
+import math
 from types import ModuleType
 from typing import Any, Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
 from urllib.parse import quote as url_quote
@@ -327,12 +327,14 @@ class PythonTool(MCPTool):
         self.mask_error_details = mask_error_details
 
         first = next(iter(inspect.signature(func).parameters.values()), None)
-        try:
-            hints = typing.get_type_hints(func)
-        except Exception:
-            hints = {}
+        first_hint = first.annotation if first is not None else None
+        if first is not None:
+            try:
+                first_hint = mcp_utils.resolve_annotation(func, first)
+            except Exception:  # reported as a lint error for the parameter
+                pass
         takes_session = first is not None and mcp_utils.is_session_annotation(
-            hints.get(first.name, first.annotation)
+            first_hint
         )
         if kind == "auto":
             kind = "procedure" if takes_session else "function"
@@ -367,8 +369,11 @@ class PythonTool(MCPTool):
     def invoke(self, session=None, **arguments) -> Any:
         """Runs the tool locally the way the deployed tool runs: checks
         ``arguments`` against :attr:`input_schema`, calls the function, and converts
-        the result to the JSON the tool returns. A :class:`ToolError` becomes an
-        error result; any other exception is raised as is, even when
+        the result to the JSON the tool returns. Like the MCP server, it converts
+        arguments to the parameters' SQL types first: ISO strings to ``date``,
+        ``datetime`` and ``time``, numbers to ``Decimal`` for ``decimal.Decimal``
+        parameters and to ``float`` for ``float`` parameters. A :class:`ToolError`
+        becomes an error result; any other exception is raised as is, even when
         ``mask_error_details`` is set, so it can be debugged locally.
 
         Args:
@@ -383,6 +388,14 @@ class PythonTool(MCPTool):
             )
         if self._takes_session and session is None:
             raise ValueError(f"Tool {self.name} needs a session; pass it to invoke().")
+        try:
+            arguments = {
+                p.name: mcp_utils.to_sql_value(p, arguments[p.name])
+                for p in self.parameters
+                if p.name in arguments
+            }
+        except ValueError as e:
+            raise ValueError(f"Invalid arguments for tool {self.name}: {e}") from None
         args = (session,) if self._takes_session else ()
         return mcp_tool_runtime.run_tool(
             self.func, args, arguments, self.max_rows, self.max_result_bytes
@@ -671,6 +684,8 @@ class ExistingObjectTool(MCPTool):
                     required=not is_optional,
                     description=description,
                     sql_type=show_type,
+                    cast_type=describe_type or show_type,
+                    sql_name=name,
                 )
             )
         self.parameters = params
@@ -760,6 +775,18 @@ def _normalize_sql_type(sql_type: str) -> str:
     return aliases.get(base, base)
 
 
+def _sql_param_name(name: str) -> str:
+    """A parameter name as it must appear in SQL: quoted unless it is a plain
+    upper-case identifier."""
+    if mcp_utils.is_identifier(name) and name == name.upper():
+        return name
+    return _quote_identifier(name)
+
+
+def _quote_identifier(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
+
+
 def _sql_argument(value: Any, sql_type: str) -> str:
     """Renders a JSON tool-call argument as a SQL expression of ``sql_type``."""
     if value is None:
@@ -770,6 +797,8 @@ def _sql_argument(value: Any, sql_type: str) -> str:
         return literal if base == "VARIANT" else f"{literal}::{sql_type}"
     if isinstance(value, bool):
         literal = "TRUE" if value else "FALSE"
+    elif isinstance(value, float) and not math.isfinite(value):
+        literal = "'NaN'" if math.isnan(value) else "'inf'" if value > 0 else "'-inf'"
     elif isinstance(value, (int, float)):
         literal = repr(value)
     else:
@@ -837,7 +866,9 @@ def mcp_tool(
     """Turns a Python function into an MCP tool. Use it as a decorator.
 
     The tool's description comes from the docstring, and its argument schema from
-    the type hints and the docstring's ``Args:`` section. A function whose first
+    the type hints and the docstring's ``Args:`` section. A parameter is required
+    unless it has a default; ``Optional[T]`` without a default is required but
+    accepts null. A function whose first
     parameter is annotated :class:`~snowflake.snowpark.Session` becomes a stored
     procedure; any other function becomes a UDF. Nothing is created in Snowflake
     until the tool's :class:`MCPServer` is deployed.
@@ -864,7 +895,9 @@ def mcp_tool(
             without its ``Args:`` and other sections.
         kind: ``"procedure"``, ``"function"`` (UDF), or ``"auto"``.
         object_name: Name of the procedure or UDF. Defaults to
-            ``<SERVER><SUFFIX>__<TOOL>``.
+            ``<SERVER><SUFFIX>__<TOOL>``. It does not include the suffix, so
+            deployments of the same server to one schema with different suffixes,
+            such as dev and prod, overwrite each other's objects.
         execute_as: For procedure-backed tools: run with the owner's or the
             caller's rights.
         packages: Packages for the procedure or UDF.
@@ -947,7 +980,9 @@ class Tool:
 
         Its parameter names, types and defaults are read with ``SHOW PROCEDURES``
         and ``DESCRIBE PROCEDURE`` when the server is deployed, and its description
-        defaults to the procedure's comment.
+        defaults to the procedure's comment. A name without a database or schema
+        resolves against the session's current ones when the server is first
+        deployed or linted.
 
         Args:
             procedure: ``"DB.SCHEMA.NAME(ARG_TYPES)"``, or a
@@ -1138,9 +1173,11 @@ class MCPServer:
         tools.
 
         Steps: lint (errors stop the deploy); read the tools made from existing
-        objects; register the Python tools; create or replace the server; re-apply
-        the server's grants; with ``prune=True``, drop the objects of tools no
-        longer in the server. The tool objects are created before the server is
+        objects; register the Python tools; drop the old overloads of the Python
+        tools whose parameter types changed; create or replace the server;
+        re-apply the server's grants; with ``prune=True``, drop the objects of
+        tools no longer in the server. If a grant cannot be re-applied, the others
+        still are, and the error lists the ones that failed. The tool objects are created before the server is
         replaced, so the server never refers to a missing object. The deploy is not
         transactional: if replacing the server fails, the old server keeps running
         with the new tool code.
@@ -1156,7 +1193,8 @@ class MCPServer:
             prune: Drop procedures and UDFs this server created for tools it no
                 longer has.
             preserve_grants: Re-apply the server's grants after replacing it.
-            dry_run: Return what would be done without doing it.
+            dry_run: Return what would be done without doing it. The server's
+                grants and the existing objects are still read.
         """
         target = self._target(session, database, schema, suffix)
         self._resolve(session, target)
@@ -1194,29 +1232,53 @@ class MCPServer:
                 else tool._register(session, target, stage_location)
             )
 
-        grants: List[Tuple[str, str, str]] = []
-        if preserve_grants and not dry_run:
-            grants = _server_grants(session, target)
+        keep = {
+            (t._grants(target)[0].split()[2], _signature_key(t._signature(target)))
+            for t in python_tools
+        }
+        current_names = {key[1][0] for key in keep}
+        tagged = (
+            self._tagged_objects(session, target, tolerate_errors=dry_run)
+            if python_tools or prune
+            else []
+        )
+        # An old overload of a current tool, from before its parameter types changed,
+        # is dropped even without prune: the server refers to a tool's object by name
+        # only, which must be unambiguous.
+        for signature in tagged:
+            kind, _, sig = signature.partition(" ")
+            key = _signature_key(sig)
+            if key[0] in current_names and (kind, key) not in keep:
+                pruned.append(signature)
+                run(f"DROP {kind} IF EXISTS {sig}")
+
+        grants: List[str] = []
+        if preserve_grants:
+            grants = _server_grants(session, target, tolerate_errors=dry_run)
         run(
             f"CREATE OR REPLACE MCP SERVER {target.server_fqn} FROM SPECIFICATION "
             f"$$\n{spec_yaml}$$"
         )
-        for privilege, grantee_type, grantee in grants:
-            run(
-                f"GRANT {privilege} ON MCP SERVER {target.server_fqn} TO "
-                f"{grantee_type} {grantee}"
+        failed_grants: List[Tuple[str, Exception]] = []
+        for statement in grants:
+            try:
+                run(statement)
+            except Exception as e:
+                failed_grants.append((statement, e))
+        if failed_grants:
+            raise RuntimeError(
+                f"The server {target.server_fqn} was replaced, but {len(failed_grants)} "
+                "of its previous grants could not be re-applied; grant them again:\n"
+                + "\n".join(f"{stmt}  -- {err}" for stmt, err in failed_grants)
             )
 
         if prune:
-            keep = {
-                (t._grants(target)[0].split()[2], _signature_key(t._signature(target)))
-                for t in python_tools
-            }
-            for signature in self._tagged_objects(session, target):
+            for signature in tagged:
+                if signature in pruned:
+                    continue
                 kind, _, sig = signature.partition(" ")
                 if (kind, _signature_key(sig)) not in keep:
                     pruned.append(signature)
-                    kind, _, sig = signature.partition(" ")
                     run(f"DROP {kind} IF EXISTS {sig}")
 
         if not dry_run:
@@ -1294,13 +1356,15 @@ class MCPServer:
             params = tool.parameters
             identifier = target.object_fqn(tool._object_name(target))
             kind = tool.kind
+            sql_names = {p.name: p.name for p in params}
             sql_types = {p.name: _sql_type(p.datatype) for p in params}
         elif isinstance(tool, ExistingObjectTool):
             tool._resolve(session, target)
             params = tool.parameters or []
             identifier = tool._qualified_name
             kind = tool.kind
-            sql_types = {p.name: p.sql_type or "VARIANT" for p in params}
+            sql_names = {p.name: _sql_param_name(p.sql_name or p.name) for p in params}
+            sql_types = {p.name: p.cast_type or p.sql_type or "VARIANT" for p in params}
         else:
             raise NotImplementedError(
                 f"Tool {tool_name} is a {tool.tool_type} tool; call it through the "
@@ -1312,7 +1376,7 @@ class MCPServer:
                 f"Invalid arguments for tool {tool_name}: " + "; ".join(problems)
             )
         args_sql = ", ".join(
-            f"{name} => {_sql_argument(value, sql_types[name])}"
+            f"{sql_names[name]} => {_sql_argument(value, sql_types[name])}"
             for name, value in arguments.items()
         )
         if kind == "procedure":
@@ -1372,15 +1436,26 @@ class MCPServer:
             if not tool._is_resolved():
                 tool._resolve(session, target)
 
-    def _tagged_objects(self, session, target: _Target) -> List[str]:
+    def _tagged_objects(
+        self, session, target: _Target, tolerate_errors: bool = False
+    ) -> List[str]:
         """``"PROCEDURE DB.SCH.NAME(TYPES)"`` / ``"FUNCTION ..."`` for every object
-        whose comment says this server and suffix created it."""
+        whose comment says this server and suffix created it. With
+        ``tolerate_errors``, a schema that cannot be read, as before a first
+        deploy, has none."""
         found = []
         for keyword, show in (
             ("PROCEDURE", "PROCEDURES"),
             ("FUNCTION", "USER FUNCTIONS"),
         ):
-            rows = session.sql(f"SHOW {show} IN SCHEMA {target.schema_fqn}").collect()
+            try:
+                rows = session.sql(
+                    f"SHOW {show} IN SCHEMA {target.schema_fqn}"
+                ).collect()
+            except Exception:
+                if not tolerate_errors:
+                    raise
+                return []
             for row in rows:
                 values = _row_dict(row)
                 tag = mcp_utils.parse_object_comment(values.get("description"))
@@ -1450,20 +1525,49 @@ def _endpoint_url(session, target: _Target) -> str:
     return f"https://{host}/api/v2/databases/{database}/schemas/{schema}/mcp-servers/{name}"
 
 
-def _server_grants(session, target: _Target) -> List[Tuple[str, str, str]]:
-    """Grants on the server other than OWNERSHIP, if it exists."""
-    exists = session.sql(
-        f"SHOW MCP SERVERS LIKE '{target.server_name}{target.suffix}' IN SCHEMA "
-        f"{target.schema_fqn}"
-    ).collect()
-    if not exists:
+def _server_grants(
+    session, target: _Target, tolerate_errors: bool = False
+) -> List[str]:
+    """``GRANT`` statements that re-apply the grants on the server other than
+    OWNERSHIP, if it exists. With ``tolerate_errors``, a server that cannot be
+    read, as before a first deploy, has none."""
+    try:
+        return _read_server_grants(session, target)
+    except Exception:
+        if not tolerate_errors:
+            raise
         return []
-    grants = []
+
+
+def _read_server_grants(session, target: _Target) -> List[str]:
+    server_name = f"{target.server_name}{target.suffix}".upper()
+    shown = session.sql(
+        f"SHOW MCP SERVERS LIKE '{server_name}' IN SCHEMA {target.schema_fqn}"
+    ).collect()
+    # LIKE treats '_' as a wildcard, so the rows can include other servers.
+    if not any(
+        str(_row_dict(row).get("name", "")).strip('"').upper() == server_name
+        for row in shown
+    ):
+        return []
+    statements = []
     for row in session.sql(f"SHOW GRANTS ON MCP SERVER {target.server_fqn}").collect():
         values = _row_dict(row)
         privilege = str(values.get("privilege", "")).upper()
         if not privilege or privilege == "OWNERSHIP":
             continue
-        grantee_type = str(values.get("granted_to", "ROLE")).upper().replace("_", " ")
-        grants.append((privilege, grantee_type, str(values.get("grantee_name"))))
-    return grants
+        granted_to = str(values.get("granted_to", "ROLE")).upper()
+        grantee = str(values.get("grantee_name"))
+        # A database or application role is reported as DB.ROLE.
+        parts = (
+            grantee.partition(".")[::2] if granted_to.endswith("_ROLE") else [grantee]
+        )
+        statement = (
+            f"GRANT {privilege} ON MCP SERVER {target.server_fqn} TO "
+            f"{granted_to.replace('_', ' ')} "
+            + ".".join(_quote_identifier(part) for part in parts)
+        )
+        if str(values.get("grant_option", "")).lower() == "true":
+            statement += " WITH GRANT OPTION"
+        statements.append(statement)
+    return statements

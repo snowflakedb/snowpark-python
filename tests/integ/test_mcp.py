@@ -235,3 +235,74 @@ def test_deployed_tool_checks_enum_arguments(session, temp_schema):
         assert json.loads(rows[0][0]) == "a"
     finally:
         server.drop(session, schema=schema, include_tools=True)
+
+
+@mcp_tool(read_only=True, name="lookup")
+def lookup_by_number(key: int) -> str:
+    """Look up a value by number.
+
+    Args:
+        key: The key.
+    """
+    return f"number {key}"
+
+
+@mcp_tool(read_only=True, name="lookup")
+def lookup_by_text(key: str) -> str:
+    """Look up a value by text.
+
+    Args:
+        key: The key.
+    """
+    return f"text {key}"
+
+
+def test_redeploy_with_changed_parameter_type_leaves_one_overload(session, temp_schema):
+    schema = _schema_name(temp_schema)
+    first = MCPServer("SNOWPARK_MCP_RETYPE", tools=[lookup_by_number])
+    first.deploy(session, schema=schema)
+    second = MCPServer("SNOWPARK_MCP_RETYPE", tools=[lookup_by_text])
+    try:
+        result = second.deploy(session, schema=schema)
+        assert len(result.pruned) == 1
+        assert result.pruned[0].endswith("SNOWPARK_MCP_RETYPE__LOOKUP(NUMBER)")
+        overloads = session.sql(
+            "SHOW USER FUNCTIONS LIKE 'SNOWPARK_MCP_RETYPE__LOOKUP' "
+            f"IN SCHEMA {temp_schema}"
+        ).collect()
+        assert len(overloads) == 1
+        assert "VARCHAR" in overloads[0]["arguments"]
+        assert (
+            second.call_tool(session, "lookup", {"key": "a"}, schema=schema) == "text a"
+        )
+    finally:
+        second.drop(session, schema=schema, include_tools=True)
+
+
+@mcp_tool(read_only=True)
+def add_or_keep(a: int, b: Optional[int]) -> int:
+    """Add two numbers, or return the first when the second is null.
+
+    Args:
+        a: First number.
+        b: Second number, or null.
+    """
+    return a if b is None else a + b
+
+
+def test_optional_parameter_without_default_can_be_null(session, temp_schema):
+    schema = _schema_name(temp_schema)
+    server = MCPServer("SNOWPARK_MCP_NULLABLE", tools=[add_or_keep])
+    server.deploy(session, schema=schema)
+    try:
+        assert add_or_keep.input_schema["required"] == ["a", "b"]
+        assert (
+            server.call_tool(session, "add_or_keep", {"a": 4, "b": None}, schema=schema)
+            == 4
+        )
+        assert (
+            server.call_tool(session, "add_or_keep", {"a": 4, "b": 3}, schema=schema)
+            == 7
+        )
+    finally:
+        server.drop(session, schema=schema, include_tools=True)

@@ -22,6 +22,7 @@ import json
 import logging
 import math
 import sys
+import traceback
 import uuid
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
@@ -32,6 +33,7 @@ DEFAULT_MAX_RESULT_BYTES = 240_000
 PLATFORM_RESULT_LIMIT_BYTES = 250_000
 
 _logger = logging.getLogger("snowflake.snowpark.mcp")
+_LOGGED_TRACEBACK_FRAMES = 1000
 
 
 class ToolError(Exception):
@@ -91,8 +93,10 @@ def to_json_value(value: Any) -> Any:
         return {str(k): to_json_value(v) for k, v in value.items()}
     if isinstance(value, (list, tuple, set, frozenset)):
         return [to_json_value(v) for v in value]
+    if callable(getattr(value, "tolist", None)):
+        # numpy arrays, and numpy scalars, whose tolist() is the Python value
+        return to_json_value(value.tolist())
     if hasattr(value, "item") and callable(value.item):
-        # numpy scalars
         return to_json_value(value.item())
     raise TypeError(
         f"A tool returned a value of type {type(value).__name__}, which cannot be "
@@ -152,18 +156,46 @@ def table_result(
     return result
 
 
+def unique_names(names: List[str]) -> List[str]:
+    """Appends ``_2``, ``_3``, ... to repeated column names, so rows keyed by column
+    name keep every column."""
+    seen = set()
+    unique = []
+    for name in names:
+        candidate, n = name, 2
+        while candidate in seen:
+            candidate = f"{name}_{n}"
+            n += 1
+        seen.add(candidate)
+        unique.append(candidate)
+    return unique
+
+
 def to_tool_result(value: Any, max_rows: int, max_result_bytes: int) -> Any:
     """Converts what a tool function returned to the JSON value the tool returns."""
     if _is_snowpark_dataframe(value):
         rows = value.limit(max_rows + 1).collect()
-        columns = list(rows[0].asDict()) if rows else list(value.schema.names)
+        # A Row's fields, unlike asDict(), keep repeated column names.
+        fields = getattr(rows[0], "_fields", None) if rows else None
+        columns = unique_names([str(c) for c in fields or value.schema.names])
         return table_result(
-            columns, (row.asDict() for row in rows), max_rows, max_result_bytes
+            columns,
+            (dict(zip(columns, row)) for row in rows),
+            max_rows,
+            max_result_bytes,
         )
     if _is_pandas_dataframe(value):
-        records = value.head(max_rows + 1).to_dict(orient="records")
+        frame = value.head(max_rows + 1)
+        names = [str(c) for c in value.columns]
+        columns = unique_names(names)
+        if columns != names:
+            frame = frame.copy()
+            frame.columns = columns
         return table_result(
-            [str(c) for c in value.columns], records, max_rows, max_result_bytes
+            columns,
+            frame.to_dict(orient="records"),
+            max_rows,
+            max_result_bytes,
         )
 
     result = to_json_value(value)
@@ -188,7 +220,9 @@ def check_received_arguments(schema: dict, arguments: dict) -> List[str]:
     problems = []
     properties = schema.get("properties") or {}
     for name in schema.get("required") or []:
-        if name in arguments and arguments[name] is None:
+        types_ = (properties.get(name) or {}).get("type")
+        nullable = isinstance(types_, list) and "null" in types_
+        if name in arguments and arguments[name] is None and not nullable:
             problems.append(f"{name} must not be null")
     for name, value in arguments.items():
         allowed = (properties.get(name) or {}).get("enum")
@@ -229,9 +263,20 @@ def run_tool(
                 getattr(exc, "message", str(exc)),
                 getattr(exc, "hint", None),
             )
-        # Logged so the traceback reaches the event table.
+        # Logged so the traceback reaches the event table. The traceback is formatted
+        # here, with an explicit limit, because ``traceback`` and ``logging`` honor
+        # ``sys.tracebacklimit``, which a masked failure sets to 0 for the process.
         error_id = uuid.uuid4().hex[:12]
-        _logger.exception("MCP tool %s failed (error ID %s)", name, error_id)
+        _logger.error(
+            "MCP tool %s failed (error ID %s)\n%s",
+            name,
+            error_id,
+            "".join(
+                traceback.format_exception(
+                    type(exc), exc, exc.__traceback__, limit=_LOGGED_TRACEBACK_FRAMES
+                )
+            ),
+        )
         if not mask_error_details:
             raise
         # The MCP server sends a failed call's Python error to the client, with the
