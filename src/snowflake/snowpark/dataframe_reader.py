@@ -1428,28 +1428,14 @@ class DataFrameReader:
             - ``prompt``: instructions for the model, a non-empty string. With a
               ``schema`` it guides the extraction. Without one the model's answer is
               returned as text.
-            - ``parse_mode``: how files are parsed when there is no ``schema`` or ``prompt``:
-              ``"layout"`` (the default), ``"ocr"`` or ``"text"``.
-            - ``row_boundary``: ``"document"`` (the default) returns one row per file;
-              ``"page"`` returns one row per page. Used with ``parse_mode`` only.
-            - ``extract_images``: ``True`` or ``False`` (the default). When ``True`` the
-              images embedded in the documents are extracted too. It needs
-              ``parse_mode`` ``"layout"`` and raises an error with any other mode.
 
-        A value outside the ones listed for an option raises an error when
-        ``documents()`` is called, as does a ``schema`` that is not a dict or a list.
+        ``documents()`` raises an error when ``schema`` is not a dict or a list.
 
-        ``parse_mode``, ``row_boundary`` and ``extract_images`` are ignored when a
-        ``schema`` or ``prompt`` is set: the file is then sent to the model directly, which keeps layout such as table
-        columns that parsing would flatten.
-
-        The returned DataFrame has these columns:
+        The returned DataFrame has these columns. ``SOURCE_FILE`` is a ``FILE`` value
+        that identifies the document; its ``RELATIVE_PATH`` is the path under the stage.
 
             - no ``schema`` or ``prompt``: ``SOURCE_FILE``, ``TOTAL_PAGES`` and
-              ``CONTENT`` (the parsed text); ``PAGE_INDEX`` is added when ``row_boundary``
-              is ``"page"``. ``IMAGES`` is added when ``extract_images`` is ``True``: an
-              array of objects with an ``id``, the bounding-box coordinates of the image
-              and its data as base64 text, so rows of image-heavy documents can be large.
+              ``CONTENT`` (the parsed text).
             - ``schema``: ``SOURCE_FILE``, one column per schema field, and
               ``EXTRACTION_SCORES``. ``EXTRACTION_SCORES`` is an object that maps each
               top-level schema field to a confidence score between 0 and 1 for its
@@ -1467,6 +1453,17 @@ class DataFrameReader:
         document not yet read gets an error in its ``_document_error``. A read with a
         ``schema`` or a ``prompt`` fails with an error when no supported model is
         available to the account.
+
+        Note:
+            All processing runs in Snowflake, through Snowflake Cortex AI Functions:
+            without a ``schema`` or ``prompt`` the documents are parsed with
+            ``AI_PARSE_DOCUMENT``; with one, each document is sent as a file to
+            ``AI_COMPLETE`` with an Anthropic Claude Sonnet model, which reads the page
+            images, so table layout is kept. The parser and the model are chosen by
+            Snowflake and cannot be replaced with your own. The models may be served
+            through cross-region inference, so the account's ``CORTEX_ENABLED_CROSS_REGION``
+            setting must allow a region that has them. Usage is billed as Cortex AI
+            Functions usage.
 
         Note:
             The reader registers temporary procedures and functions in the current
@@ -1495,18 +1492,25 @@ class DataFrameReader:
 
         Example::
 
-            >>> # Parse every document in a stage to text.
-            >>> df = session.read.documents("@mystage/docs/")  # doctest: +SKIP
-            >>> df.select("SOURCE_FILE", "TOTAL_PAGES", "CONTENT").show()  # doctest: +SKIP
+            >>> # Upload a folder of invoice PDFs to a stage.
+            >>> _ = session.sql("CREATE STAGE IF NOT EXISTS invoice_stage").collect()  # doctest: +SKIP
+            >>> _ = session.file.put(  # doctest: +SKIP
+            ...     "invoices/*.pdf", "@invoice_stage/invoices/", auto_compress=False
+            ... )
 
-            >>> # Extract fields from every document in a stage. Each field's description
-            >>> # tells the model what to look for.
+            >>> # Extract the same fields from every invoice and save them to a table.
+            >>> # Each field's description is its question to the model: say what the
+            >>> # field is, and what it is not when a document has look-alike values.
             >>> schema = {  # doctest: +SKIP
             ...     "type": "object",
             ...     "properties": {
+            ...         "vendor_name": {
+            ...             "type": "string",
+            ...             "description": "The legal name of the company that issued the invoice.",
+            ...         },
             ...         "invoice_number": {
             ...             "type": "string",
-            ...             "description": "The invoice number printed in the header, not the order or PO number.",
+            ...             "description": "The invoice number. Not the purchase order (PO) number.",
             ...         },
             ...         "invoice_date": {
             ...             "type": "string",
@@ -1515,50 +1519,44 @@ class DataFrameReader:
             ...         "currency": {
             ...             "type": "string",
             ...             "enum": ["USD", "EUR", "GBP"],
-            ...             "description": "The currency of the amounts.",
+            ...             "description": "The currency of the amounts on the invoice.",
             ...         },
-            ...         "total": {
+            ...         "total_due": {
             ...             "type": "number",
             ...             "description": "The final amount due, including tax.",
             ...         },
             ...         "line_items": {
             ...             "type": "array",
-            ...             "description": "Every line of the invoice table, from all pages.",
+            ...             "description": "Every row of the line-item table, from all pages.",
             ...             "items": {
             ...                 "type": "object",
             ...                 "properties": {
-            ...                     "description": {"type": "string", "description": "What was billed."},
+            ...                     "description": {"type": "string"},
             ...                     "quantity": {"type": "number"},
-            ...                     "amount": {"type": "number", "description": "The line total."},
+            ...                     "amount": {
+            ...                         "type": "number",
+            ...                         "description": "The line total, not the unit price.",
+            ...                     },
             ...                 },
             ...             },
             ...         },
             ...     },
             ... }
-            >>> df = session.read.option("schema", schema).documents("@mystage/invoices/")  # doctest: +SKIP
-            >>> df.select(  # doctest: +SKIP
-            ...     "SOURCE_FILE", "INVOICE_NUMBER", "TOTAL", "LINE_ITEMS", "EXTRACTION_SCORES", '"_document_error"'
+            >>> df = session.read.option("schema", schema).documents("@invoice_stage/invoices/")  # doctest: +SKIP
+            >>> df.write.save_as_table("invoices_extracted", mode="overwrite")  # doctest: +SKIP
+            >>> session.table("invoices_extracted").select(  # doctest: +SKIP
+            ...     "SOURCE_FILE", "VENDOR_NAME", "INVOICE_NUMBER", "CURRENCY", "TOTAL_DUE", '"_document_error"'
             ... ).show()
-
-            >>> # Extract fields with the short form: a dict of {field: question}.
-            >>> schema = {  # doctest: +SKIP
-            ...     "vendor": "Which company issued the invoice?",
-            ...     "due_date": "When is payment due?",
-            ... }
-            >>> df = session.read.option("schema", schema).documents("@mystage/invoices/")  # doctest: +SKIP
 
             >>> # Ask a question about each document and get the answer as text.
             >>> df = session.read.option(  # doctest: +SKIP
-            ...     "prompt", "Summarize the payment terms in one sentence."
-            ... ).documents("@mystage/contracts/")
+            ...     "prompt", "What are the payment terms, and on what date is payment due? Answer in one sentence."
+            ... ).documents("@invoice_stage/invoices/")
             >>> df.select("SOURCE_FILE", "RESPONSE").show()  # doctest: +SKIP
 
-            >>> # Read one row per page.
-            >>> df = session.read.option("row_boundary", "page").documents("@mystage/docs/")  # doctest: +SKIP
-
-            >>> # Also extract the images embedded in the documents.
-            >>> df = session.read.option("extract_images", True).documents("@mystage/docs/")  # doctest: +SKIP
-            >>> df.select("SOURCE_FILE", "IMAGES").show()  # doctest: +SKIP
+            >>> # Parse every document to text, for example to build a search index.
+            >>> df = session.read.documents("@invoice_stage/invoices/")  # doctest: +SKIP
+            >>> df.select("SOURCE_FILE", "TOTAL_PAGES", "CONTENT").show()  # doctest: +SKIP
         """
         if isinstance(self._session._conn, MockServerConnection):
             self._session._conn.log_not_supported_error(
