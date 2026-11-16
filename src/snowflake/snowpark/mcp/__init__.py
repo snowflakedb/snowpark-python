@@ -65,7 +65,6 @@ __all__ = [
     "LintIssue",
     "MCPLintError",
     "MCPServer",
-    "MCPTool",
     "Tool",
     "ToolError",
     "mcp_tool",
@@ -134,9 +133,10 @@ class _Target:
 # ---------------------------------------------------------------------------
 
 
-class MCPTool:
-    """A tool of an :class:`MCPServer`. Create tools with :func:`mcp_tool`,
-    :meth:`Tool.from_procedure`, :meth:`Tool.from_function`, or the functions in
+class Tool:
+    """A tool of an :class:`MCPServer`. Create tools with :func:`mcp_tool`, from
+    procedures and UDFs that already exist, in any language, with
+    :meth:`from_procedure` and :meth:`from_function`, or with the classes in
     :mod:`snowflake.snowpark.mcp.tools`."""
 
     #: The ``type`` of the tool in the server spec.
@@ -197,6 +197,72 @@ class MCPTool:
         """Grant clauses (``<privilege> ON <object>``) a role needs to call the tool."""
         return []
 
+    def _warehouses(self) -> List[str]:
+        """Warehouses the MCP server runs the tool on, which a role needs usage on."""
+        return []
+
+    @staticmethod
+    @private_preview(version=_PREVIEW_VERSION)
+    def from_procedure(
+        procedure: Union[str, "snowflake.snowpark.stored_procedure.StoredProcedure"],
+        *,
+        read_only: bool,
+        destructive: Optional[bool] = None,
+        idempotent: bool = False,
+        open_world: bool = False,
+        name: Optional[str] = None,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        param_descriptions: Optional[Dict[str, str]] = None,
+        warehouse: Optional[str] = None,
+        query_timeout: Optional[int] = None,
+    ) -> "ExistingObjectTool":
+        """Makes a tool from an existing stored procedure.
+
+        Its parameter names, types and defaults are read with ``SHOW PROCEDURES``
+        and ``DESCRIBE PROCEDURE`` when the server is deployed, and its description
+        defaults to the procedure's comment. A name without a database or schema
+        resolves against the session's current ones when the server is first
+        deployed or linted.
+
+        Args:
+            procedure: ``"DB.SCHEMA.NAME(ARG_TYPES)"``, or a
+                :class:`~snowflake.snowpark.stored_procedure.StoredProcedure`. The
+                argument types can be omitted when the procedure is not overloaded.
+            read_only: Whether the tool only reads data. Required.
+            destructive: Whether it may delete or overwrite data. Defaults to
+                ``not read_only``.
+            idempotent: Whether repeating a call has no further effect.
+            open_world: Whether it reaches systems outside Snowflake.
+            name: The tool name. Defaults to the procedure name in lowercase.
+            title: A human-readable title.
+            description: The description the model reads.
+            param_descriptions: Descriptions of the parameters, by name.
+            warehouse: Warehouse the MCP server runs the tool on.
+            query_timeout: Timeout, in seconds, of the tool call.
+        """
+        return _existing_object_tool("procedure", procedure, locals())
+
+    @staticmethod
+    @private_preview(version=_PREVIEW_VERSION)
+    def from_function(
+        function: Union[str, "snowflake.snowpark.udf.UserDefinedFunction"],
+        *,
+        read_only: bool,
+        destructive: Optional[bool] = None,
+        idempotent: bool = False,
+        open_world: bool = False,
+        name: Optional[str] = None,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        param_descriptions: Optional[Dict[str, str]] = None,
+        warehouse: Optional[str] = None,
+        query_timeout: Optional[int] = None,
+    ) -> "ExistingObjectTool":
+        """Makes a tool from an existing scalar UDF. Takes the same arguments as
+        :meth:`from_procedure`."""
+        return _existing_object_tool("function", function, locals())
+
     def _spec_base(self, identifier: Optional[str]) -> Dict[str, Any]:
         spec: Dict[str, Any] = {"name": self.name, "title": self.title}
         spec["type"] = self.tool_type
@@ -250,7 +316,7 @@ def _sql_type(datatype: DataType) -> str:
     return convert_sp_to_sf_type(datatype)
 
 
-class PythonTool(MCPTool):
+class PythonTool(Tool):
     """A tool backed by a Python function, created with :func:`mcp_tool`.
 
     Calling it runs the function unchanged. :meth:`invoke` runs it the way the
@@ -348,6 +414,16 @@ class PythonTool(MCPTool):
             self._kind_problem = (
                 "A procedure-backed tool's first parameter must be the Session."
             )
+        elif (
+            kind == "procedure"
+            and first.annotation is not inspect.Parameter.empty
+            and not takes_session
+        ):
+            self._kind_problem = (
+                f"The first parameter of a procedure-backed tool receives the Session, "
+                f"but is annotated {first.annotation!r}; annotate it as "
+                "snowflake.snowpark.Session or leave it unannotated."
+            )
         elif kind == "function" and first is not None and first.name == "session":
             self._kind_problem = (
                 "The first parameter is named 'session' but is not annotated as "
@@ -377,12 +453,33 @@ class PythonTool(MCPTool):
         becomes an error result; any other exception is raised as is, even when
         ``mask_error_details`` is set, so it can be debugged locally.
 
+        A missing, unknown or wrongly typed argument raises :class:`ValueError`. An
+        argument that is not one of an ``enum``, or a null for a required argument,
+        returns the ``INVALID_ARGUMENTS`` error result the deployed tool returns,
+        because the MCP server passes such arguments to the tool.
+
         Args:
             session: The session passed to a procedure-backed tool. Not used by
                 UDF-backed tools.
             arguments: The tool-call arguments, by name.
         """
-        problems = mcp_utils.check_arguments(self.input_schema, arguments)
+        # Enum values and nulls are not rejected: the deployed tool returns an error
+        # result for them, as the MCP server does not validate arguments.
+        schema = self.input_schema
+        problems = [
+            p
+            for p in mcp_utils.check_arguments(
+                {
+                    **schema,
+                    "properties": {
+                        name: {k: v for k, v in prop.items() if k != "enum"}
+                        for name, prop in schema["properties"].items()
+                    },
+                },
+                arguments,
+            )
+            if p not in {f"{name} must not be null" for name in arguments}
+        ]
         if problems:
             raise ValueError(
                 f"Invalid arguments for tool {self.name}: " + "; ".join(problems)
@@ -397,6 +494,9 @@ class PythonTool(MCPTool):
             }
         except ValueError as e:
             raise ValueError(f"Invalid arguments for tool {self.name}: {e}") from None
+        invalid = mcp_tool_runtime.invalid_arguments_result(schema, arguments)
+        if invalid is not None:
+            return invalid
         args = (session,) if self._takes_session else ()
         return mcp_tool_runtime.run_tool(
             self.func, args, arguments, self.max_rows, self.max_result_bytes
@@ -434,10 +534,31 @@ class PythonTool(MCPTool):
                     "a UDF because its first parameter is not a Session.",
                 )
             )
+        seen_names: Dict[str, str] = {}
         for p in self.parameters:
             container_issue = mcp_utils.container_parameter_issue(p)
             if container_issue:
                 issues.append(LintIssue("error", self.name, container_issue))
+            if not mcp_utils.is_identifier(p.name):
+                issues.append(
+                    LintIssue(
+                        "error",
+                        self.name,
+                        f"Parameter {p.name} is not a plain identifier (letters A-Z, "
+                        "digits and '_'), which a procedure or UDF parameter name "
+                        "must be; rename it.",
+                    )
+                )
+            other = seen_names.setdefault(p.name.upper(), p.name)
+            if other != p.name:
+                issues.append(
+                    LintIssue(
+                        "error",
+                        self.name,
+                        f"Parameters {other} and {p.name} differ only in case, which "
+                        "Snowflake does not distinguish; rename one.",
+                    )
+                )
             if p.name.upper() in mcp_utils.RESERVED_PARAMETER_NAMES:
                 issues.append(
                     LintIssue(
@@ -494,6 +615,9 @@ class PythonTool(MCPTool):
         kind = "PROCEDURE" if self.kind == "procedure" else "FUNCTION"
         return [f"USAGE ON {kind} {self._signature(target)}"]
 
+    def _warehouses(self) -> List[str]:
+        return [self.warehouse] if self.warehouse else []
+
     def _register(self, session, target: _Target, stage_location: str) -> str:
         """Registers the procedure or UDF behind the tool and returns its signature."""
         _pickle_runtime_by_value()
@@ -504,6 +628,19 @@ class PythonTool(MCPTool):
             self.mask_error_details,
             input_schema=self.input_schema,
             takes_session=self._takes_session,
+        )
+        # Snowpark registers no defaults at all if it cannot render one, such as 0 for
+        # a FLOAT parameter.
+        types_by_name = {p.name: p.datatype for p in self.parameters}
+        handler.__signature__ = handler.__signature__.replace(
+            parameters=[
+                p.replace(
+                    default=mcp_utils.sql_default(types_by_name[p.name], p.default)
+                )
+                if p.name in types_by_name and p.default is not p.empty
+                else p
+                for p in handler.__signature__.parameters.values()
+            ]
         )
         comment = mcp_utils.object_comment(
             target.server_name,
@@ -536,7 +673,7 @@ class PythonTool(MCPTool):
         return self._signature(target)
 
 
-class ExistingObjectTool(MCPTool):
+class ExistingObjectTool(Tool):
     """A tool backed by a procedure or UDF that already exists, created with
     :meth:`Tool.from_procedure` or :meth:`Tool.from_function`. Its signature and
     comment are read from Snowflake when the server is deployed."""
@@ -616,19 +753,35 @@ class ExistingObjectTool(MCPTool):
             ]
         db, sch, obj = parts
         show = "PROCEDURES" if self.kind == "procedure" else "USER FUNCTIONS"
-        object_name_literal = obj.strip('"').replace("'", "''")
+        quoted = obj.startswith('"')
+        object_name = obj.strip('"').replace('""', '"') if quoted else obj
+        object_name_literal = object_name.replace("'", "''")
         rows = session.sql(
             f"SHOW {show} LIKE '{object_name_literal}' IN SCHEMA {db}.{sch}"
         ).collect()
         candidates = []
         for row in rows:
             values = _row_dict(row)
-            if str(values.get("name", "")).upper() != obj.strip('"').upper():
+            shown_name = str(values.get("name", ""))
+            if (
+                shown_name != object_name
+                if quoted
+                else shown_name.upper() != object_name.upper()
+            ):
                 continue
             _, types_, optional = mcp_utils.parse_arguments_column(
                 str(values.get("arguments", ""))
             )
-            candidates.append((types_, optional, values.get("description")))
+            unsupported = (
+                "a table function"
+                if str(values.get("is_table_function", "")).upper() == "Y"
+                else "an aggregate function"
+                if str(values.get("is_aggregate", "")).upper() == "Y"
+                else None
+            )
+            candidates.append(
+                (types_, optional, values.get("description"), unsupported)
+            )
         if self.arg_types is not None:
             wanted = [_normalize_sql_type(t) for t in self.arg_types]
             candidates = [
@@ -641,12 +794,19 @@ class ExistingObjectTool(MCPTool):
                 f"{self._keyword.lower().capitalize()} {self.object_identifier} was "
                 "not found, or the role cannot see it."
             )
+        scalar = [c for c in candidates if not c[3]]
+        if not scalar:
+            raise ValueError(
+                f"{self.object_identifier} is {candidates[0][3]}; a tool can call "
+                "only a scalar function."
+            )
+        candidates = scalar
         if len(candidates) > 1:
             raise ValueError(
                 f"{self.object_identifier} has {len(candidates)} overloads; give the "
                 f"argument types, e.g. Tool.from_{self.kind}('{db}.{sch}.{obj}(VARCHAR)')."
             )
-        types_, optional, comment = candidates[0]
+        types_, optional, comment, _ = candidates[0]
         self._qualified_name = f"{db}.{sch}.{obj}"
         describe = session.sql(
             f"DESCRIBE {self._keyword} {self._qualified_name}({', '.join(types_)})"
@@ -742,7 +902,12 @@ class ExistingObjectTool(MCPTool):
         return spec
 
     def _grants(self, target: _Target) -> List[str]:
-        return [f"USAGE ON {self._keyword} {self._signature()}"]
+        return mcp_utils.schema_usage_grants(self._qualified_name) + [
+            f"USAGE ON {self._keyword} {self._signature()}"
+        ]
+
+    def _warehouses(self) -> List[str]:
+        return [self.warehouse] if self.warehouse else []
 
 
 def _row_dict(row) -> Dict[str, Any]:
@@ -958,72 +1123,6 @@ def mcp_tool(
     return PythonTool(func, **options)
 
 
-class Tool:
-    """Creates tools from procedures and UDFs that already exist, in any language."""
-
-    @staticmethod
-    @private_preview(version=_PREVIEW_VERSION)
-    def from_procedure(
-        procedure: Union[str, "snowflake.snowpark.stored_procedure.StoredProcedure"],
-        *,
-        read_only: bool,
-        destructive: Optional[bool] = None,
-        idempotent: bool = False,
-        open_world: bool = False,
-        name: Optional[str] = None,
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        param_descriptions: Optional[Dict[str, str]] = None,
-        warehouse: Optional[str] = None,
-        query_timeout: Optional[int] = None,
-    ) -> ExistingObjectTool:
-        """Makes a tool from an existing stored procedure.
-
-        Its parameter names, types and defaults are read with ``SHOW PROCEDURES``
-        and ``DESCRIBE PROCEDURE`` when the server is deployed, and its description
-        defaults to the procedure's comment. A name without a database or schema
-        resolves against the session's current ones when the server is first
-        deployed or linted.
-
-        Args:
-            procedure: ``"DB.SCHEMA.NAME(ARG_TYPES)"``, or a
-                :class:`~snowflake.snowpark.stored_procedure.StoredProcedure`. The
-                argument types can be omitted when the procedure is not overloaded.
-            read_only: Whether the tool only reads data. Required.
-            destructive: Whether it may delete or overwrite data. Defaults to
-                ``not read_only``.
-            idempotent: Whether repeating a call has no further effect.
-            open_world: Whether it reaches systems outside Snowflake.
-            name: The tool name. Defaults to the procedure name in lowercase.
-            title: A human-readable title.
-            description: The description the model reads.
-            param_descriptions: Descriptions of the parameters, by name.
-            warehouse: Warehouse the MCP server runs the tool on.
-            query_timeout: Timeout, in seconds, of the tool call.
-        """
-        return _existing_object_tool("procedure", procedure, locals())
-
-    @staticmethod
-    @private_preview(version=_PREVIEW_VERSION)
-    def from_function(
-        function: Union[str, "snowflake.snowpark.udf.UserDefinedFunction"],
-        *,
-        read_only: bool,
-        destructive: Optional[bool] = None,
-        idempotent: bool = False,
-        open_world: bool = False,
-        name: Optional[str] = None,
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        param_descriptions: Optional[Dict[str, str]] = None,
-        warehouse: Optional[str] = None,
-        query_timeout: Optional[int] = None,
-    ) -> ExistingObjectTool:
-        """Makes a tool from an existing scalar UDF. Takes the same arguments as
-        :meth:`from_procedure`."""
-        return _existing_object_tool("function", function, locals())
-
-
 def _existing_object_tool(
     kind: str, obj: Any, args: Dict[str, Any]
 ) -> ExistingObjectTool:
@@ -1052,30 +1151,32 @@ class MCPServer:
     The definition is independent of where it is deployed: pass ``database``,
     ``schema`` and ``suffix`` to each method to work with, for example, a dev and a
     prod copy of the same server. ``database`` and ``schema`` default to the
-    session's current ones.
+    session's current ones. Pass ``database``, ``schema`` and ``suffix`` the same way
+    to ``deploy``, ``grant_usage``, ``call_tool`` and ``drop``: each call targets the
+    copy they name.
 
     Args:
         name: The server name, an unquoted identifier.
         tools: The server's tools.
     """
 
-    def __init__(self, name: str, tools: Iterable[MCPTool] = ()) -> None:
+    def __init__(self, name: str, tools: Iterable[Tool] = ()) -> None:
         if not mcp_utils.is_identifier(name):
             raise ValueError(
                 f"Invalid MCP server name {name!r}: use an unquoted identifier."
             )
         self.name = name.upper()
-        self.tools: List[MCPTool] = []
+        self.tools: List[Tool] = []
         self.add(*tools)
 
     def __repr__(self) -> str:
         return f"MCPServer(name={self.name!r}, tools={[t.name for t in self.tools]})"
 
-    def add(self, *tools: Union[MCPTool, Iterable[MCPTool]]) -> "MCPServer":
+    def add(self, *tools: Union[Tool, Iterable[Tool]]) -> "MCPServer":
         """Adds tools. Accepts tools and iterables of tools. Returns the
         server."""
         for tool in tools:
-            if isinstance(tool, MCPTool):
+            if isinstance(tool, Tool):
                 self.tools.append(tool)
             elif isinstance(tool, Iterable) and not isinstance(tool, (str, bytes)):
                 self.add(*tool)
@@ -1086,7 +1187,7 @@ class MCPServer:
                 )
         return self
 
-    def tool(self, name: str) -> MCPTool:
+    def tool(self, name: str) -> Tool:
         """Returns the tool with this name."""
         for tool in self.tools:
             if tool.name == name:
@@ -1104,6 +1205,21 @@ class MCPServer:
         issues = mcp_utils.lint_tool_count_and_names([t.name for t in self.tools])
         for tool in self.tools:
             issues += tool._lint()
+        object_owners: Dict[str, str] = {}
+        for tool in self.tools:
+            if isinstance(tool, PythonTool):
+                object_name = tool._object_name(_Target("", "", "", self.name))
+                owner = object_owners.setdefault(object_name, tool.name)
+                if owner != tool.name:
+                    issues.append(
+                        LintIssue(
+                            "error",
+                            tool.name,
+                            f"The tool's procedure or UDF is named {object_name}, "
+                            f"like the one of tool {owner}, so one would replace the "
+                            "other; set object_name on one of them.",
+                        )
+                    )
         return issues
 
     def to_spec(
@@ -1174,16 +1290,15 @@ class MCPServer:
         tools.
 
         Steps: lint (errors stop the deploy); read the tools made from existing
-        objects; register the Python tools; drop the old overloads of the Python
-        tools whose parameter types changed; create or replace the server;
-        re-apply the server's grants; with ``prune=True``, drop the objects of
-        tools no longer in the server. The grants on a dropped old overload are
-        re-applied to the tool's new object. If a grant cannot be re-applied, the
-        others still are, prune still runs, and the error lists the ones that
-        failed. The tool objects are created before the server is replaced, so
-        the server never refers to a missing object. The deploy is not
-        transactional: if replacing the server fails, the old server keeps running
-        with the new tool code.
+        objects; register the Python tools; move the grants of the old overloads of
+        the Python tools, whose parameter types changed, to the tools' new objects
+        and drop the old overloads; create or replace the server; re-apply the
+        server's grants; with ``prune=True``, drop the objects of tools no longer in
+        the server. If a grant cannot be applied, the others still are, prune still
+        runs, and the error lists the ones that failed. The tool objects are created
+        before the server is replaced, so the server never refers to a missing
+        object. The deploy is not transactional: if replacing the server fails, the
+        old server keeps running with the new tool code.
 
         Args:
             session: The session to deploy with.
@@ -1245,14 +1360,26 @@ class MCPServer:
             if python_tools or prune
             else []
         )
+        failed_grants: List[Tuple[str, Exception]] = []
+
+        def apply_grants(statements: List[str]) -> None:
+            for statement in statements:
+                try:
+                    run(statement)
+                except Exception as e:
+                    failed_grants.append((statement, e))
+
         # An old overload of a current tool, from before its parameter types changed,
         # is dropped even without prune: the server refers to a tool's object by name
-        # only, which must be unambiguous.
+        # only, which must be unambiguous. Its grants move to the new object first,
+        # so a failure to replace the server below does not lose them.
+        old_overloads = []
         overload_grants: List[str] = []
         for signature in tagged:
             kind, _, sig = signature.partition(" ")
             key = _signature_key(sig)
             if key[0] in current and (kind, key) not in keep:
+                old_overloads.append(signature)
                 if preserve_grants:
                     new_tool = current[key[0]]
                     overload_grants += _grant_statements(
@@ -1261,23 +1388,32 @@ class MCPServer:
                         new_tool._grants(target)[0].partition(" ON ")[2],
                         tolerate_errors=dry_run,
                     )
-                pruned.append(signature)
-                run(f"DROP {kind} IF EXISTS {sig}")
-
         grants: List[str] = []
         if preserve_grants:
             grants = _server_grants(session, target, tolerate_errors=dry_run)
-            grants = list(dict.fromkeys(grants + overload_grants))
-        run(
-            f"CREATE OR REPLACE MCP SERVER {target.server_fqn} FROM SPECIFICATION "
-            f"$$\n{spec_yaml}$$"
-        )
-        failed_grants: List[Tuple[str, Exception]] = []
-        for statement in grants:
-            try:
-                run(statement)
-            except Exception as e:
-                failed_grants.append((statement, e))
+        apply_grants(list(dict.fromkeys(overload_grants)))
+        for signature in old_overloads:
+            pruned.append(signature)
+            kind, _, sig = signature.partition(" ")
+            run(f"DROP {kind} IF EXISTS {sig}")
+
+        def failed_grants_text() -> str:
+            return "\n".join(f"{stmt}  -- {err}" for stmt, err in failed_grants)
+
+        try:
+            run(
+                f"CREATE OR REPLACE MCP SERVER {target.server_fqn} FROM SPECIFICATION "
+                f"$$\n{spec_yaml}$$"
+            )
+        except Exception as e:
+            if failed_grants:
+                raise RuntimeError(
+                    f"{e}\nThese grants of the old overloads of tools could not be "
+                    f"moved to their new objects; grant them again:\n"
+                    f"{failed_grants_text()}"
+                ) from e
+            raise
+        apply_grants(grants)
         if prune:
             for signature in tagged:
                 if signature in pruned:
@@ -1292,8 +1428,7 @@ class MCPServer:
                 f"The server {target.server_fqn} was replaced"
                 + (" and pruning ran" if prune else "")
                 + f", but {len(failed_grants)} of its previous grants could not be "
-                "re-applied; grant them again:\n"
-                + "\n".join(f"{stmt}  -- {err}" for stmt, err in failed_grants)
+                f"re-applied; grant them again:\n{failed_grants_text()}"
             )
         if not dry_run:
             self._send_telemetry(session)
@@ -1318,11 +1453,13 @@ class MCPServer:
     ) -> List[str]:
         """Grants ``role`` what it needs to connect to the server and call each of
         its tools: usage on the database, schema and server, usage on every tool's
-        procedure, UDF, agent or search service, and select on semantic views.
-        Returns the statements, which are not run when ``dry_run`` is True.
+        procedure, UDF, agent or search service and its database and schema, select
+        on semantic views, and usage on every warehouse set on a tool. Returns the
+        statements, which are not run when ``dry_run`` is True.
 
-        Tools made from agents also need the agent's own resources (search services,
-        semantic views, warehouses) granted; those are not covered.
+        It does not grant what a tool uses internally: the search services, semantic
+        views, tables and warehouses an agent uses, or the objects a procedure or
+        UDF reads. Grant those separately.
         """
         role = role.strip()
         if role.strip('"').upper() == "PUBLIC":
@@ -1340,6 +1477,7 @@ class MCPServer:
         ]
         for tool in self.tools:
             clauses += tool._grants(target)
+            clauses += [f"USAGE ON WAREHOUSE {w}" for w in tool._warehouses()]
         statements = [
             f"GRANT {clause} TO ROLE {role}" for clause in dict.fromkeys(clauses)
         ]

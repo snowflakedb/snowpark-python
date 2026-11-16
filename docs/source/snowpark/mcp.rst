@@ -13,7 +13,6 @@ MCP Tools and Servers
     :toctree: api/
 
     MCPServer
-    MCPTool
     Tool
     ToolError
     DeployResult

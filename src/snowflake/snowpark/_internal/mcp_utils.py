@@ -19,6 +19,9 @@ import types
 import typing
 from typing import Any, Dict, List, Optional, Tuple
 
+from snowflake.snowpark._internal.analyzer.datatype_mapper import (
+    to_sql_for_default_arg,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BooleanType,
@@ -399,6 +402,10 @@ def parameters_from_function(
             problems.append(f"parameter {p.name}: {e}")
             continue
         has_default = p.default is not inspect.Parameter.empty
+        if has_default:
+            default_problem = sql_default_problem(datatype, p.default)
+            if default_problem:
+                problems.append(f"parameter {p.name}: {default_problem}")
         if nullable:
             schema = _with_null(schema)
         if has_default and p.default is not None:
@@ -421,6 +428,35 @@ def parameters_from_function(
             )
         )
     return params, problems
+
+
+def sql_default(datatype: DataType, value: Any) -> Any:
+    """Converts a parameter's Python default to the Python type Snowpark renders as a
+    SQL default for ``datatype``, where that is lossless: an ``int`` for a ``float``
+    parameter, a number for a ``decimal.Decimal`` one. Snowpark registers a procedure
+    or UDF with none of its defaults when it cannot render one of them."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(datatype, DoubleType) and isinstance(value, int):
+        return float(value)
+    if isinstance(datatype, DecimalType) and isinstance(value, (int, float)):
+        return decimal.Decimal(str(value))
+    return value
+
+
+def sql_default_problem(datatype: DataType, value: Any) -> Optional[str]:
+    """Why Snowpark cannot register ``value`` as the SQL default of a parameter of
+    ``datatype``, or None."""
+    if value is None:
+        return None
+    try:
+        to_sql_for_default_arg(sql_default(datatype, value), datatype)
+    except Exception:
+        return (
+            f"the default value {value!r} cannot be a SQL default for type "
+            f"{type(datatype).__name__}; use a value of the parameter's type."
+        )
+    return None
 
 
 def to_sql_value(param: ToolParameter, value: Any) -> Any:
@@ -449,7 +485,17 @@ def to_sql_value(param: ToolParameter, value: Any) -> Any:
                 f"{param.name} is not a valid ISO {kind} string ({e})"
             ) from None
     if isinstance(datatype, DecimalType):
-        return decimal.Decimal(str(value))
+        # The platform passes the value with the parameter's scale.
+        try:
+            return decimal.Decimal(str(value)).quantize(
+                decimal.Decimal(1).scaleb(-datatype.scale),
+                context=decimal.Context(prec=max(datatype.precision, 38)),
+            )
+        except decimal.InvalidOperation:
+            raise ValueError(
+                f"{param.name} does not fit in NUMBER({datatype.precision}, "
+                f"{datatype.scale})"
+            ) from None
     if isinstance(datatype, DoubleType):
         return float(value)
     return value
@@ -589,6 +635,14 @@ def split_identifier_and_types(identifier: str) -> Tuple[str, Optional[List[str]
 def split_qualified_name(name: str) -> List[str]:
     """Splits ``DB.SCH.NAME`` on dots outside double quotes."""
     return split_top_level(name, sep=".")
+
+
+def schema_usage_grants(identifier: str) -> List[str]:
+    """``USAGE`` clauses on the database and schema of a fully qualified object."""
+    parts = split_qualified_name(identifier)
+    if len(parts) != 3:
+        return []
+    return [f"USAGE ON DATABASE {parts[0]}", f"USAGE ON SCHEMA {parts[0]}.{parts[1]}"]
 
 
 def is_default_comment(comment: Optional[str]) -> bool:

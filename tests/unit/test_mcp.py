@@ -6,6 +6,7 @@ import datetime
 import decimal
 import inspect
 import json
+import sys
 import types
 from typing import List, Literal, Optional
 from unittest import mock
@@ -2244,8 +2245,9 @@ def test_optional_without_default_invoke():
     assert maybe.invoke(object(), key="k", note="n", limit=2)["limit"] == 2
     with pytest.raises(ValueError, match="missing required argument 'note'"):
         maybe.invoke(object(), key="k")
-    with pytest.raises(ValueError, match="key must not be null"):
-        maybe.invoke(object(), key=None, note=None)
+    assert maybe.invoke(object(), key=None, note=None) == {
+        "error": {"type": "INVALID_ARGUMENTS", "message": "key must not be null"}
+    }
 
 
 def test_optional_without_default_deployed_handler_accepts_null():
@@ -2324,7 +2326,7 @@ def test_invoke_converts_arguments_to_sql_types():
         label="2024-01-02",
     )
     assert types_ == ["date", "datetime", "time", "Decimal", "float", "int", "str"]
-    assert amount == "1.25"
+    assert amount == "1.250000000000000000"
 
 
 def test_invoke_leaves_null_arguments_alone():
@@ -2541,3 +2543,355 @@ def test_deploy_grants_do_not_requote_quoted_database_role_parts():
         'GRANT USAGE ON MCP SERVER APP.MCP.S TO DATABASE ROLE "my db"."READERS"',
         'GRANT USAGE ON MCP SERVER APP.MCP.S TO APPLICATION ROLE "APP"."my role"',
     ]
+
+
+# ---------------------------------------------------------------------------
+# Review round 1
+# ---------------------------------------------------------------------------
+
+
+def registered_defaults(tool, takes_session=True):
+    """The SQL defaults Snowpark would register for the tool's handler, captured from
+    the ``func`` handed to ``session.sproc.register`` or ``session.udf.register``."""
+    from snowflake.snowpark._internal.udf_utils import get_opt_arg_defaults
+    from snowflake.snowpark._internal.utils import TempObjectType
+
+    session = make_session()
+    tool._register(session, _Target("APP", "MCP", "", "S"), "@STAGE")
+    register = session.sproc.register if takes_session else session.udf.register
+    kwargs = register.call_args.kwargs
+    return get_opt_arg_defaults(
+        kwargs["func"],
+        TempObjectType.PROCEDURE if takes_session else TempObjectType.FUNCTION,
+        kwargs["input_types"],
+    )
+
+
+def test_registered_defaults_are_coerced_to_the_sql_type():
+    @mcp_tool(read_only=True)
+    def top(
+        session: Session,
+        region: str = "EMEA",
+        min_score: float = 0,
+        limit: int = 10,
+        amount: decimal.Decimal = 1,
+    ):
+        """Top.
+
+        Args:
+            region: Region.
+            min_score: Score.
+            limit: Limit.
+            amount: Amount.
+        """
+
+    assert not [i for i in MCPServer("S", [top]).lint() if i.level == "error"]
+    defaults = registered_defaults(top)
+    assert all(d is not None for d in defaults)
+    assert len(defaults) == 4
+    assert "EMEA" in defaults[0]
+    assert "0.0" in defaults[1]
+    assert defaults[2] == "10"
+
+
+def test_lint_default_that_cannot_be_a_sql_default():
+    @mcp_tool(read_only=True)
+    def f(x: float = "a"):
+        """F.
+
+        Args:
+            x: X.
+        """
+
+    errors = messages(MCPServer("S", [f]).lint(), "error")
+    assert any(
+        "parameter x: the default value 'a' cannot be a SQL default" in e
+        for e in errors
+    )
+
+
+def test_deploy_issues_overload_grants_before_replacing_the_server():
+    session = overload_grant_session(OVERLOAD_GRANTS)
+    orig = session.sql.side_effect
+
+    def sql(statement, params=None):
+        if statement.startswith("CREATE OR REPLACE MCP SERVER"):
+            session.statements.append(statement)
+            raise RuntimeError("server create failed")
+        return orig(statement, params)
+
+    session.sql.side_effect = sql
+    with pytest.raises(RuntimeError, match="server create failed"):
+        python_server("S").deploy(session)
+    new = "PROCEDURE APP.MCP.S__GET_ACCOUNT(STRING, BIGINT)"
+    statements = session.statements
+    assert f'GRANT USAGE ON {new} TO ROLE "Reader" WITH GRANT OPTION' in statements
+    create = next(
+        i for i, s in enumerate(statements) if s.startswith("CREATE OR REPLACE MCP")
+    )
+    assert statements.index(
+        f'GRANT USAGE ON {new} TO ROLE "Reader" WITH GRANT OPTION'
+    ) < statements.index("DROP PROCEDURE IF EXISTS APP.MCP.S__GET_ACCOUNT(VARCHAR)")
+    assert (
+        statements.index("DROP PROCEDURE IF EXISTS APP.MCP.S__GET_ACCOUNT(VARCHAR)")
+        < create
+    )
+
+
+def test_deploy_reports_failed_overload_grants_after_the_rest_ran():
+    session = overload_grant_session(OVERLOAD_GRANTS, fail_on=['"Reader"'])
+    session.responses.insert(
+        0,
+        (
+            "SHOW USER FUNCTIONS IN SCHEMA APP.MCP",
+            [show_row("S__OLD_UDF", "NUMBER", tagged("S", "old_udf"))],
+        ),
+    )
+    with pytest.raises(RuntimeError, match='"Reader"'):
+        python_server("S").deploy(session, prune=True)
+    statements = session.statements
+    assert any(s.startswith("CREATE OR REPLACE MCP SERVER") for s in statements)
+    assert "DROP FUNCTION IF EXISTS APP.MCP.S__OLD_UDF(NUMBER)" in statements
+    assert "DROP PROCEDURE IF EXISTS APP.MCP.S__GET_ACCOUNT(VARCHAR)" in statements
+
+
+def test_existing_object_grants_include_database_and_schema_usage():
+    session = financials_session()
+    server = MCPServer(
+        "S", [Tool.from_procedure("APP.FIN.GET_FINANCIALS", read_only=True)]
+    )
+    statements = server.grant_usage(session, "ANALYST", dry_run=True)
+    assert "GRANT USAGE ON DATABASE APP TO ROLE ANALYST" in statements
+    assert "GRANT USAGE ON SCHEMA APP.FIN TO ROLE ANALYST" in statements
+    tool = server.tool("get_financials")
+    assert tool._grants(None)[:2] == [
+        "USAGE ON DATABASE APP",
+        "USAGE ON SCHEMA APP.FIN",
+    ]
+
+
+def test_lint_procedure_first_parameter_annotated_with_another_type():
+    @mcp_tool(read_only=True, kind="procedure")
+    def f(x: str):
+        """F.
+
+        Args:
+            x: X.
+        """
+
+    errors = messages(MCPServer("S", [f]).lint(), "error")
+    assert len(errors) == 1 and "annotated" in errors[0] and "Session" in errors[0]
+
+
+def test_lint_procedure_with_unannotated_first_parameter_is_fine():
+    @mcp_tool(read_only=True, kind="procedure")
+    def f(session, x: str):
+        """F.
+
+        Args:
+            x: X.
+        """
+
+    assert messages(MCPServer("S", [f]).lint(), "error") == []
+
+
+def named_tool(name, **options):
+    @mcp_tool(read_only=True, name=name, **options)
+    def f(x: str):
+        """F.
+
+        Args:
+            x: X.
+        """
+
+    return f
+
+
+def test_lint_two_python_tools_with_the_same_object_name():
+    server = MCPServer(
+        "S",
+        [
+            named_tool("a", object_name="SHARED"),
+            named_tool("b", object_name="shared"),
+        ],
+    )
+    errors = messages(server.lint(), "error")
+    assert len(errors) == 1 and "SHARED" in errors[0] and "object_name" in errors[0]
+
+
+def test_lint_object_name_equal_to_another_tools_default():
+    server = MCPServer("S", [named_tool("a"), named_tool("b", object_name="S__A")])
+    assert len(messages(server.lint(), "error")) == 1
+
+
+def test_grant_usage_includes_warehouses_of_tools():
+    server = MCPServer(
+        "S",
+        [
+            named_tool("a", warehouse="WH1"),
+            named_tool("b", warehouse="WH1"),
+            Tool.from_procedure(
+                "APP.FIN.GET_FINANCIALS", read_only=True, warehouse="WH2"
+            ),
+            tools.SqlExecution(warehouse="WH3"),
+            tools.SqlExecution(name="other"),
+        ],
+    )
+    statements = server.grant_usage(financials_session(), "ANALYST", dry_run=True)
+    warehouses = [s for s in statements if "WAREHOUSE" in s]
+    assert warehouses == [
+        "GRANT USAGE ON WAREHOUSE WH1 TO ROLE ANALYST",
+        "GRANT USAGE ON WAREHOUSE WH2 TO ROLE ANALYST",
+        "GRANT USAGE ON WAREHOUSE WH3 TO ROLE ANALYST",
+    ]
+
+
+@mcp_tool(read_only=True)
+def pick(mode: Literal["a", "b"], note: str) -> str:
+    """Pick.
+
+    Args:
+        mode: Mode.
+        note: Note.
+    """
+    return mode
+
+
+def test_invoke_returns_the_deployed_error_result_for_enum_and_null():
+    handler = mcp_tool_runtime.make_handler(pick.func, input_schema=pick.input_schema)
+    expected = handler("c", "n")
+    assert expected["error"]["type"] == "INVALID_ARGUMENTS"
+    assert pick.invoke(mode="c", note="n") == expected
+    assert expected["error"]["hint"] == "Allowed values for mode: a, b."
+    assert pick.invoke(mode="a", note=None) == handler("a", None)
+    assert pick.invoke(mode="a", note="n") == "a"
+
+
+def test_invoke_still_raises_for_missing_unknown_and_mistyped_arguments():
+    with pytest.raises(ValueError, match="missing required argument 'note'"):
+        pick.invoke(mode="a")
+    with pytest.raises(ValueError, match="unknown argument 'x'"):
+        pick.invoke(mode="a", note="n", x=1)
+    with pytest.raises(ValueError, match="note must be of type string"):
+        pick.invoke(mode="a", note=1)
+
+
+def test_tool_is_the_base_class_of_every_tool():
+    assert isinstance(get_account, Tool)
+    assert isinstance(Tool.from_procedure("APP.FIN.P", read_only=True), Tool)
+    assert isinstance(Tool.from_function("APP.FIN.F", read_only=True), Tool)
+    assert isinstance(tools.CortexAgent("APP.AG.A", description="d"), Tool)
+    assert not hasattr(sys.modules["snowflake.snowpark.mcp"], "MCPTool")
+
+
+def test_resolve_compares_a_quoted_name_case_sensitively():
+    rows = [
+        Row(
+            name="Get_Fin", arguments="Get_Fin(VARCHAR) RETURN VARCHAR", description="a"
+        ),
+        Row(
+            name="GET_FIN", arguments="GET_FIN(NUMBER) RETURN VARCHAR", description="b"
+        ),
+    ]
+    describe = [Row(property="signature", value="(X VARCHAR)")]
+    session = make_session(
+        [("SHOW PROCEDURES LIKE", rows), ("DESCRIBE PROCEDURE", describe)]
+    )
+    tool = Tool.from_procedure('APP.FIN."Get_Fin"', read_only=True)
+    MCPServer("S", [tool]).to_spec(session)
+    assert tool._signature() == 'APP.FIN."Get_Fin"(VARCHAR)'
+    # Unquoted names still match any case.
+    session = make_session(
+        [("SHOW PROCEDURES LIKE", rows), ("DESCRIBE PROCEDURE", describe)]
+    )
+    with pytest.raises(ValueError, match="2 overloads"):
+        MCPServer(
+            "S", [Tool.from_procedure("APP.FIN.get_fin", read_only=True)]
+        ).to_spec(session)
+
+
+def test_resolve_quoted_name_does_not_match_other_case():
+    rows = [
+        Row(name="GET_FIN", arguments="GET_FIN(NUMBER) RETURN VARCHAR", description="b")
+    ]
+    session = make_session([("SHOW PROCEDURES LIKE", rows)])
+    tool = Tool.from_procedure('APP.FIN."Get_Fin"', read_only=True)
+    with pytest.raises(ValueError, match="not found"):
+        MCPServer("S", [tool]).to_spec(session)
+
+
+@pytest.mark.parametrize(
+    "flag, text",
+    [("is_table_function", "table function"), ("is_aggregate", "aggregate")],
+)
+def test_from_function_rejects_table_and_aggregate_functions(flag, text):
+    row = {
+        "name": "F",
+        "arguments": "F(VARCHAR) RETURN VARCHAR",
+        "description": "d",
+        "is_table_function": "N",
+        "is_aggregate": "N",
+        flag: "Y",
+    }
+    session = make_session([("SHOW USER FUNCTIONS LIKE", [Row(**row)])])
+    tool = Tool.from_function("APP.FIN.F", read_only=True)
+    with pytest.raises(ValueError, match=text):
+        MCPServer("S", [tool]).to_spec(session)
+
+
+def test_from_function_accepts_scalar_function():
+    row = Row(
+        name="F",
+        arguments="F(VARCHAR) RETURN VARCHAR",
+        description="d",
+        is_table_function="N",
+        is_aggregate="N",
+    )
+    session = make_session(
+        [
+            ("SHOW USER FUNCTIONS LIKE", [row]),
+            ("DESCRIBE FUNCTION", [Row(property="signature", value="(X VARCHAR)")]),
+        ]
+    )
+    tool = Tool.from_function("APP.FIN.F", read_only=True)
+    MCPServer("S", [tool]).to_spec(session)
+    assert tool.parameters[0].name == "x"
+
+
+def test_lint_parameter_names_must_be_ascii_identifiers():
+    def f(naïve: str):
+        """F.
+
+        Args:
+            naïve: N.
+        """
+
+    errors = messages(MCPServer("S", [mcp_tool(f, read_only=True)]).lint(), "error")
+    assert len(errors) == 1 and "naïve" in errors[0] and "identifier" in errors[0]
+
+
+def test_lint_parameter_names_differing_only_in_case():
+    def f(Name: str, name: str):
+        """F.
+
+        Args:
+            Name: N.
+            name: N.
+        """
+
+    errors = messages(MCPServer("S", [mcp_tool(f, read_only=True)]).lint(), "error")
+    assert len(errors) == 1 and "differ only in case" in errors[0]
+
+
+def test_invoke_quantizes_decimal_to_the_parameter_scale():
+    @mcp_tool(read_only=True)
+    def f(amount: decimal.Decimal) -> str:
+        """F.
+
+        Args:
+            amount: Amount.
+        """
+        return repr(amount)
+
+    assert f.invoke(amount=0.1) == "Decimal('0.100000000000000000')"
+    assert f.invoke(amount=3) == "Decimal('3.000000000000000000')"

@@ -46,6 +46,17 @@ def add(a: int, b: Optional[int] = None) -> int:
     return a + (1 if b is None else b)
 
 
+@mcp_tool(read_only=True)
+def threshold(region: str = "EMEA", min_score: float = 0) -> dict:
+    """Describe the filter.
+
+    Args:
+        region: Region.
+        min_score: Minimum score, 0 when omitted.
+    """
+    return {"region": region, "min_score": min_score}
+
+
 def _schema_name(temp_schema: str) -> str:
     return temp_schema.split(".")[-1]
 
@@ -97,6 +108,19 @@ def test_deploy_and_call_python_tools(session, temp_schema):
         assert len(servers) == 1
     finally:
         server.drop(session, schema=schema, suffix="_DEV", include_tools=True)
+
+
+def test_int_default_of_a_float_parameter_is_registered(session, temp_schema):
+    schema = _schema_name(temp_schema)
+    server = MCPServer("SNOWPARK_MCP_DEFAULTS", tools=[threshold])
+    server.deploy(session, schema=schema)
+    try:
+        assert server.call_tool(session, "threshold", {}, schema=schema) == {
+            "region": "EMEA",
+            "min_score": 0,
+        }
+    finally:
+        server.drop(session, schema=schema, include_tools=True)
 
 
 def test_redeploy_with_prune_drops_removed_tools(session, temp_schema):

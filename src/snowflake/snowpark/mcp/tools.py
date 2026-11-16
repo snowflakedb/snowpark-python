@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from snowflake.snowpark._internal import mcp_utils
 from snowflake.snowpark._internal.mcp_utils import LintIssue
-from snowflake.snowpark.mcp import MCPTool, _annotations, _Target
+from snowflake.snowpark.mcp import Tool, _annotations, _Target
 
 __all__ = [
     "CodingAgent",
@@ -30,15 +30,7 @@ def _default_name(identifier: str) -> str:
     return mcp_utils.split_qualified_name(identifier)[-1].strip('"').lower()
 
 
-def _schema_usage(identifier: str) -> List[str]:
-    """Usage on the database and schema of a fully qualified object."""
-    parts = mcp_utils.split_qualified_name(identifier)
-    if len(parts) != 3:
-        return []
-    return [f"USAGE ON DATABASE {parts[0]}", f"USAGE ON SCHEMA {parts[0]}.{parts[1]}"]
-
-
-class _BuiltinTool(MCPTool):
+class _BuiltinTool(Tool):
     _object_grant: Optional[str] = None  # e.g. "USAGE ON AGENT"
 
     def __init__(
@@ -80,6 +72,10 @@ class _BuiltinTool(MCPTool):
             )
         return issues
 
+    def _warehouses(self) -> List[str]:
+        warehouse = self.config.get("warehouse")
+        return [warehouse] if warehouse else []
+
     def _spec(self, target: _Target) -> Dict[str, Any]:
         spec = self._spec_base(self.identifier)
         if self.config:
@@ -91,7 +87,7 @@ class _BuiltinTool(MCPTool):
     def _grants(self, target: _Target) -> List[str]:
         if not self._object_grant or not self.identifier:
             return []
-        return _schema_usage(self.identifier) + [
+        return mcp_utils.schema_usage_grants(self.identifier) + [
             f"{self._object_grant} {self.identifier}"
         ]
 

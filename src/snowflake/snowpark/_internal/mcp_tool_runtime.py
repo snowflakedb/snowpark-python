@@ -245,6 +245,17 @@ def _allowed_values_hint(schema: dict, arguments: dict) -> Optional[str]:
     return " ".join(hints) or None
 
 
+def invalid_arguments_result(schema: dict, received: dict) -> Optional[Dict[str, Any]]:
+    """The ``INVALID_ARGUMENTS`` error result for the arguments a deployed tool
+    received, or None if they are valid."""
+    problems = check_received_arguments(schema, received)
+    if not problems:
+        return None
+    return error_result(
+        "INVALID_ARGUMENTS", "; ".join(problems), _allowed_values_hint(schema, received)
+    )
+
+
 def run_tool(
     func: Callable,
     args: tuple,
@@ -322,13 +333,9 @@ def make_handler(
             received = dict(bound)
             if takes_session and func_signature.parameters:
                 received.pop(next(iter(func_signature.parameters)), None)
-            problems = check_received_arguments(input_schema, received)
-            if problems:
-                return error_result(
-                    "INVALID_ARGUMENTS",
-                    "; ".join(problems),
-                    _allowed_values_hint(input_schema, received),
-                )
+            invalid = invalid_arguments_result(input_schema, received)
+            if invalid is not None:
+                return invalid
         return run_tool(
             func, args, kwargs, max_rows, max_result_bytes, mask_error_details
         )
