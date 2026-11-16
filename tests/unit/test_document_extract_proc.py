@@ -1780,6 +1780,10 @@ class TestSplitDetails:
         native = {"value": json.dumps('{"name": "x"}'), "error": None}
         assert split_details(native) == (native, None)
 
+    def test_a_native_arrow_value_that_is_not_json_is_returned_as_it_is(self):
+        native = {"value": "plain text, not JSON", "error": None}
+        assert split_details(native) == (native, None)
+
     def test_a_truncated_answer_keeps_its_usage_and_salvages_its_status(self):
         text = '{"%s": {"complete": false, "last_pdf_page_extracted": 3}, "rows": [' % (
             STATUS_FIELD

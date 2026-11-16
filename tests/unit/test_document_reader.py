@@ -15,11 +15,13 @@ from snowflake.snowpark._internal.document_reader import (
     access,
     build_ai_complete_call,
     cast_extracted_field,
+    details_answer,
     extract_with_split_procedure,
     merge_extract_error,
     output_columns,
     prompt_model,
     quote_stage_path,
+    usage_columns,
     usage_comment,
 )
 from snowflake.snowpark._internal.document_reader_options import (
@@ -27,7 +29,7 @@ from snowflake.snowpark._internal.document_reader_options import (
     ExtractionSpec,
 )
 from snowflake.snowpark.functions import col, lit
-from snowflake.snowpark.types import BooleanType, DoubleType, StringType
+from snowflake.snowpark.types import BooleanType, DoubleType, LongType, StringType
 from snowflake.snowpark.version import VERSION
 
 # _CALL_BUDGETS -- the fixed output-token budgets the split procedure runs
@@ -255,6 +257,45 @@ class TestBuildAiCompleteCall:
         _, kwargs = mock_ai_complete.call_args
         assert kwargs["show_details"] is None
         assert kwargs["return_error_details"] is True
+
+
+# ---------------------------------------------------------------------------
+# details_answer / usage_columns -- where the answer and the token counts sit in an
+# AI_COMPLETE(..., show_details => TRUE) value.
+# ---------------------------------------------------------------------------
+
+
+def _path(column):
+    """The subfield path of ``column``: col("V")["a"][0]["b"] -> ["a", 0, "b"]."""
+    path, expr = [], column._expression
+    while hasattr(expr, "field"):
+        path.insert(0, expr.field)
+        expr = expr.expr
+    return path
+
+
+class TestDetailsAnswer:
+    def test_a_text_answer_is_the_first_choice(self):
+        assert _path(details_answer(col("V"), structured=False)) == [
+            "choices",
+            0,
+            "messages",
+        ]
+
+    def test_a_structured_answer_is_the_first_structured_output(self):
+        # With a response_format, show_details puts the object in structured_output.
+        assert _path(details_answer(col("V"), structured=True)) == [
+            "structured_output",
+            0,
+            "raw_message",
+        ]
+
+    def test_the_token_columns_read_the_usage_fields(self):
+        columns = usage_columns(col("V")["usage"])
+        assert [type(c._expression).__name__ for c in columns] == ["Cast"] * 3
+        assert [c._expression.to for c in columns] == [LongType()] * 3
+        fields = [c._expression.child.field for c in columns]
+        assert fields == ["prompt_tokens", "completion_tokens", "total_tokens"]
 
 
 # ---------------------------------------------------------------------------
