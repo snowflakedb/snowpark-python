@@ -8852,6 +8852,33 @@ def test_read_table_incremental_read_rejects_time_travel(session):
         with pytest.raises(ValueError, match="Cannot combine Iceberg incremental read"):
             read()
 
+    # argument names and option keys are both reported in lowercase
+    with pytest.raises(
+        ValueError, match=re.escape("found ['changes', 'time_travel_mode'].")
+    ):
+        session.read.option("start-snapshot-id", 1).option(
+            "time_travel_mode", "at"
+        ).table(table_name, changes="default")
+
+
+def test_read_table_time_travel_options_set_to_none(session, local_testing_mode):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    # options set to None are ignored instead of failing on the None value
+    table = (
+        session.read.option("time_travel_mode", None)
+        .option("as-of-timestamp", "2020-01-01 00:00:00")
+        .table(table_name)
+    )
+    incremental = (
+        session.read.option("time_travel_mode", None)
+        .option("branch", None)
+        .option("start-snapshot-id", 1)
+        .table(table_name)
+    )
+    if not local_testing_mode:
+        assert " AT (TIMESTAMP => '2020-01-01 00:00:00')" in table._plan.queries[-1].sql
+        assert "SPARK_INCREMENTAL_READ" in incremental._plan.queries[-1].sql
+
 
 @pytest.mark.skipif(
     "not config.getoption('local_testing_mode', default=False)",

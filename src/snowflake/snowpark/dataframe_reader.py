@@ -351,15 +351,12 @@ _OTHER_TIME_TRAVEL_OPTION_KEYS = (
 
 
 def _time_travel_option_keys(options: dict) -> list[str]:
-    """Return reader option keys that configure time travel. Options set to None are ignored."""
+    """Return reader option keys that configure time travel."""
     return [
         key
-        for key, value in options.items()
-        if value is not None
-        and (
-            key.upper() in _TIME_TRAVEL_OPTIONS_PARAMS_MAP
-            or key.upper() in _OTHER_TIME_TRAVEL_OPTION_KEYS
-        )
+        for key in options
+        if key.upper() in _TIME_TRAVEL_OPTIONS_PARAMS_MAP
+        or key.upper() in _OTHER_TIME_TRAVEL_OPTION_KEYS
     ]
 
 
@@ -823,6 +820,8 @@ class DataFrameReader:
                 f"table() got unexpected keyword arguments: {sorted(kwargs)}"
             )
 
+        # Reader options set to None count as unset.
+        options = {k: v for k, v in self._cur_options.items() if v is not None}
         direct_time_travel_args = [
             arg_name
             for arg_name, arg in (
@@ -844,9 +843,9 @@ class DataFrameReader:
             )
             if arg is not None
         ]
-        time_travel_option_keys = _time_travel_option_keys(self._cur_options)
+        time_travel_option_keys = _time_travel_option_keys(options)
 
-        changes_from_options = _extract_iceberg_changes_from_options(self._cur_options)
+        changes_from_options = _extract_iceberg_changes_from_options(options)
         if (
             start_snapshot_id is not None
             or end_snapshot_id is not None
@@ -854,7 +853,9 @@ class DataFrameReader:
         ):
             # The incremental read path ignores every time travel setting, so
             # reject them instead of dropping them silently.
-            conflicting = direct_time_travel_args + time_travel_option_keys
+            conflicting = direct_time_travel_args + [
+                key.lower() for key in time_travel_option_keys
+            ]
             if conflicting:
                 raise ValueError(
                     "Cannot combine Iceberg incremental read "
@@ -966,7 +967,7 @@ class DataFrameReader:
             table = self._session.table(name, _emit_ast=False, **time_travel_params)
         else:
             # if time_travel_mode is not provided, extract time travel config from options
-            time_travel_params = _extract_time_travel_from_options(self._cur_options)
+            time_travel_params = _extract_time_travel_from_options(options)
             table = self._session.table(name, _emit_ast=False, **time_travel_params)
 
         if _emit_ast and stmt is not None:

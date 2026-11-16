@@ -509,7 +509,8 @@ class Table(DataFrame):
         ):
             raise NotImplementedError(
                 "Table.sample is not supported yet for change-tracking reads "
-                f"(changes={self._time_travel_config.changes.lower()!r})."
+                f"(changes={self._time_travel_config.changes.lower()!r}). Use "
+                "DataFrame.sample, e.g. df.select('*').sample(...), instead."
             )
 
         from snowflake.snowpark.mock._connection import MockServerConnection
