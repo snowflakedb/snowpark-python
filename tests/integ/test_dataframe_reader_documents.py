@@ -12,7 +12,13 @@ from snowflake.snowpark._internal.document_reader import (
 )
 from snowflake.snowpark._internal.document_reader_options import ExtractionSpec
 from snowflake.snowpark.functions import col, try_parse_json
-from snowflake.snowpark.types import BooleanType, DoubleType, StringType, VariantType
+from snowflake.snowpark.types import (
+    BooleanType,
+    DoubleType,
+    LongType,
+    StringType,
+    VariantType,
+)
 from tests.utils import TestFiles, Utils
 
 # Tests that make the reader register server-side Python (the extraction procedure for
@@ -62,6 +68,19 @@ FLAT_NL_SCHEMA = {"invoice_number": "What is the invoice number?"}
 
 def _unquoted(df) -> list:
     return [c.strip('"') for c in df.columns]
+
+
+# Every schema or prompt read returns AI_COMPLETE's token usage for each document.
+TOKEN_COLUMNS = ["PROMPT_TOKENS", "COMPLETION_TOKENS", "TOTAL_TOKENS"]
+
+
+def _assert_token_counts(row) -> None:
+    """The document's token counts are reported, as integers: the whole document is
+    prompt, so it is never empty, and the total covers both."""
+    prompt, completion, total = (row[name] for name in TOKEN_COLUMNS)
+    assert all(isinstance(count, int) for count in (prompt, completion, total))
+    assert prompt > 0 and completion > 0
+    assert total >= prompt + completion
 
 
 @pytest.fixture(scope="module")
@@ -183,11 +202,13 @@ def test_schema_scalar_types_are_cast_not_stringified(session, invoice_path):
         "TOTAL_AMOUNT_NUMBER",
         "IS_INVOICE",
         "EXTRACTION_SCORES",
+        *TOKEN_COLUMNS,
         "_document_error",
     ]
     assert isinstance(_datatype(df, "INVOICE_NUMBER"), StringType)
     assert isinstance(_datatype(df, "TOTAL_AMOUNT_NUMBER"), DoubleType)
     assert isinstance(_datatype(df, "IS_INVOICE"), BooleanType)
+    assert all(isinstance(_datatype(df, name), LongType) for name in TOKEN_COLUMNS)
 
     row = df.collect()[0]
     assert row["INVOICE_NUMBER"]
@@ -198,6 +219,7 @@ def test_schema_scalar_types_are_cast_not_stringified(session, invoice_path):
     assert isinstance(row["IS_INVOICE"], bool)
     assert row["IS_INVOICE"] is True
     assert row["_document_error"] is None
+    _assert_token_counts(row)
 
 
 @pytest.mark.udf
@@ -237,10 +259,16 @@ def test_prompt_only_read_returns_a_response_column(session, invoice_path):
         "prompt", "Summarize this document in one sentence."
     ).documents(invoice_path)
 
-    assert _unquoted(df) == ["SOURCE_FILE", "RESPONSE", "_document_error"]
+    assert _unquoted(df) == [
+        "SOURCE_FILE",
+        "RESPONSE",
+        *TOKEN_COLUMNS,
+        "_document_error",
+    ]
     row = df.collect()[0]
     assert row["RESPONSE"]
     assert row["_document_error"] is None
+    _assert_token_counts(row)
 
 
 @pytest.mark.udf
@@ -260,12 +288,14 @@ def test_schema_and_prompt_together(session, invoice_path):
         "INVOICE_NUMBER",
         "TOTAL_AMOUNT",
         "EXTRACTION_SCORES",
+        *TOKEN_COLUMNS,
         "_document_error",
     ]
     row = df.collect()[0]
     assert row["INVOICE_NUMBER"]
     assert row["TOTAL_AMOUNT"]
     assert row["_document_error"] is None
+    _assert_token_counts(row)
     # One confidence score between 0 and 1 per top-level schema field.
     scores = json.loads(row["EXTRACTION_SCORES"])
     assert set(scores) <= {"invoice_number", "total_amount"} and scores
@@ -407,12 +437,15 @@ def test_long_pdf_goes_through_the_split_procedure(session, tmp_path):
             "INVOICE_DATE",
             "TOTAL_AMOUNT",
             "EXTRACTION_SCORES",
+            *TOKEN_COLUMNS,
             "_document_error",
         ]
         rows = df.collect()
         assert len(rows) == 1
         row = rows[0]
         assert row["_document_error"] is None
+        # One set of counts for the document, summed over all of its calls.
+        _assert_token_counts(row)
         assert row["INVOICE_NUMBER"] == "INV-4821"
         # Page 1 only.
         assert "Example Supply" in row["BILL_TO"]

@@ -18,7 +18,8 @@ the steps of ``DocumentExtraction`` just above it, in order:
    (``is_throttle_error``). If most documents are failing, no further rounds are
    submitted (``should_abort``): the documents still waiting get an error and the
    finished rows are returned.
-4. back in ``run``: merge each file's parts, in page order, into one row.
+4. back in ``run``: merge each file's parts, in page order, into one row, with the
+   token usage of every call made for the file summed (``FileState.usage``).
 
 Calls go to the first of the candidate models. A call AI_COMPLETE reports as an
 unknown or unavailable model is not a document failure: ``model_missing`` moves the read
@@ -957,11 +958,17 @@ def qualify_listed_name(path: str, listed_name: str) -> str:
 
 
 # claude-sonnet-5-5 rejects response_format, so the schema travels in the predicate and
-# the answer comes back as text.
+# the answer comes back as text. show_details adds the call's token usage beside it
+# (see split_details).
 _AI_COMPLETE_SQL = (
     "SELECT AI_COMPLETE(model => ?, predicate => ?, file => TO_FILE(?), "
-    "model_parameters => PARSE_JSON(?), return_error_details => TRUE)"
+    "model_parameters => PARSE_JSON(?), show_details => TRUE, "
+    "return_error_details => TRUE)"
 )
+
+# The token counts of a show_details ``usage`` object, summed per file over every call
+# that reported them (``FileState.usage``) and returned in this order (``result_row``).
+USAGE_FIELDS = ("prompt_tokens", "completion_tokens", "total_tokens")
 
 
 _SCORES_INSTRUCTION = (
@@ -1168,6 +1175,54 @@ def _from_variant_text(field: Any) -> Any:
     return decoded if isinstance(decoded, str) else field
 
 
+def _details_text(details: Any) -> Optional[str]:
+    """The answer text of a show_details object, ``{"choices": [{"messages": <text>}],
+    "usage": {...}, ...}``, or None when ``details`` is not one."""
+    if not isinstance(details, dict) or not isinstance(details.get("choices"), list):
+        return None
+    first = details["choices"][0] if details["choices"] else None
+    return first.get("messages") if isinstance(first, dict) else None
+
+
+def split_details(raw: Any) -> Tuple[Any, Optional[Dict[str, Any]]]:
+    """``(raw, usage)`` from one ``AI_COMPLETE(..., show_details => TRUE,
+    return_error_details => TRUE)`` result: ``raw`` in the shape ``read_answer`` takes,
+    with the answer text in place of the show_details object around it, and that
+    object's token ``usage``. In the native Arrow form (see ``read_answer``) the object
+    arrives as JSON text. A result without one, such as a failed call's, is returned as
+    it is, with no usage."""
+    if isinstance(raw, str):
+        result = json.loads(raw)
+        details = result.get("value")
+        text = _details_text(details)
+        if text is None:
+            return raw, None
+        return json.dumps({"value": text, "error": result.get("error")}), details.get(
+            "usage"
+        )
+    details = raw.get("value")
+    if isinstance(details, str):
+        try:
+            details = json.loads(details)
+        except json.JSONDecodeError:
+            return raw, None
+    text = _details_text(details)
+    if text is None:
+        return raw, None
+    return {"value": json.dumps(text), "error": raw.get("error")}, details.get("usage")
+
+
+def add_usage(total: Dict[str, int], usage: Any) -> None:
+    """Add a show_details ``usage`` object's ``USAGE_FIELDS`` into ``total``. A missing
+    or non-integer count is skipped, so it does not hide the rest."""
+    if not isinstance(usage, dict):
+        return
+    for name in USAGE_FIELDS:
+        count = usage.get(name)
+        if isinstance(count, int) and not isinstance(count, bool):
+            total[name] = total.get(name, 0) + count
+
+
 def read_answer(raw: Any) -> Tuple[Any, Optional[str], Optional[Dict[str, Any]]]:
     """(value, error, salvaged status) from one ``AI_COMPLETE(..., return_error_details =>
     TRUE)`` result. The status is salvaged only from a text answer that does not parse.
@@ -1195,7 +1250,8 @@ class FileState:
     (``splittable`` is False). The reader is dropped once the file's batch is done, to
     free its bytes; ``splittable`` still says whether it was a PDF. ``failed`` marks a
     file whose bytes could not be read at all: it has its error, no tasks, and still
-    gets an output row."""
+    gets an output row. ``usage`` sums the token counts of every call made for the file,
+    planning calls and calls sent again included (``add_usage``)."""
 
     path: str
     reader: Any
@@ -1206,6 +1262,7 @@ class FileState:
     parts: List[Tuple[int, Dict[str, Any]]] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     failed: bool = False
+    usage: Dict[str, int] = field(default_factory=dict)
     splittable: bool = field(init=False)
 
     def __post_init__(self) -> None:
@@ -1237,10 +1294,12 @@ class Submitted:
 
 
 def result_row(file: FileState, fields: Optional[List[str]] = None) -> List[Any]:
-    """The output row ``[STAGE_PATH, VALUE, ERROR, SCORES]`` of one file: its parts merged
-    in page order, so a table split across ranges comes back as one table, and the
-    per-field confidence scores merged by ``merge_scores`` (None when there are none).
-    A failure while merging is that file's error, not the read's."""
+    """The output row ``[STAGE_PATH, VALUE, ERROR, SCORES, PROMPT_TOKENS,
+    COMPLETION_TOKENS, TOTAL_TOKENS]`` of one file: its parts merged in page order, so a
+    table split across ranges comes back as one table, the per-field confidence scores
+    merged by ``merge_scores`` (None when there are none), and its summed token counts
+    (each None when no call reported it). A failure while merging is that file's error,
+    not the read's."""
     errors = list(file.errors)
     value = scores = None
     parts = [part for _, part in sorted(file.parts, key=lambda item: item[0])]
@@ -1252,7 +1311,8 @@ def result_row(file: FileState, fields: Optional[List[str]] = None) -> List[Any]
         except Exception as exc:
             value = scores = None
             errors.append(f"could not merge the extracted parts: {exc}")
-    return [file.path, value, "; ".join(errors) if errors else None, scores]
+    tokens = [file.usage.get(name) for name in USAGE_FIELDS]
+    return [file.path, value, "; ".join(errors) if errors else None, scores, *tokens]
 
 
 def document_outcomes(
@@ -1488,12 +1548,15 @@ class DocumentExtraction:
 
     @staticmethod
     def collect(
-        submitted: Submitted,
+        file: FileState, submitted: Submitted
     ) -> Tuple[Any, Optional[str], Optional[Dict[str, Any]]]:
         """The call's answer via ``read_answer``, or ``(None, str(exc), None)`` if it
-        raised."""
+        raised. Its token usage, when it reports any, is added to ``file``'s whatever
+        the answer: a call cut off by max_tokens is billed like one that fit."""
         try:
-            return read_answer(submitted.job.result()[0][0])
+            raw, usage = split_details(submitted.job.result()[0][0])
+            add_usage(file.usage, usage)
+            return read_answer(raw)
         except Exception as exc:
             return None, str(exc), None
 
@@ -1599,7 +1662,7 @@ class DocumentExtraction:
         throttled, or sent to a model AI_COMPLETE did not know."""
         again = []
         for file, a, b, submitted in jobs:
-            value, error, _ = self.collect(submitted)
+            value, error, _ = self.collect(file, submitted)
             if self.model_missing(file, submitted, error):
                 again.append((file, a, b))  # plan it again with the new model
                 continue
@@ -1737,7 +1800,7 @@ class DocumentExtraction:
         """Record one call's answer and return the tasks it leaves. A call whose model
         AI_COMPLETE does not know, or that was throttled, leaves its own task, to be sent
         again."""
-        value, error, salvaged = self.collect(submitted)
+        value, error, salvaged = self.collect(file, submitted)
         if self.model_missing(file, submitted, error):
             return [(file, start, end, budget_name)]
         if self.throttled(file, (id(file), start, end), error):
@@ -1808,15 +1871,17 @@ def run(
 
     Returns:
         STAGE_PATH, VALUE (the merged answer as JSON, or None when no part succeeded),
-        ERROR (every failure for the file, joined with "; ", or None) and SCORES (the
-        per-field confidence scores as JSON, see ``merge_scores``, or None). A failure
-        reading, staging, submitting or merging is a file's own ERROR and does not
-        stop the read. When more than ``MAX_FAILED_FRACTION`` of the readable PDFs finished
+        ERROR (every failure for the file, joined with "; ", or None), SCORES (the
+        per-field confidence scores as JSON, see ``merge_scores``, or None), and
+        PROMPT_TOKENS, COMPLETION_TOKENS and TOTAL_TOKENS (summed over every call made
+        for the file, see ``FileState.usage``, or None when no call reported them).
+        A failure reading, staging, submitting or merging is a file's own ERROR and
+        does not stop the read. When more than ``MAX_FAILED_FRACTION`` of the readable PDFs finished
         so far failed (once ``MIN_DOCUMENTS_BEFORE_ABORT`` have), the read stops
         submitting: files with page ranges still waiting, and files of batches not yet
         read, say so in their ERROR, and every finished row is returned as it is.
     """
-    from snowflake.snowpark.types import StringType, StructField, StructType
+    from snowflake.snowpark.types import LongType, StringType, StructField, StructType
 
     extraction = DocumentExtraction(
         session,
@@ -1841,6 +1906,7 @@ def run(
             StructField("VALUE", StringType()),
             StructField("ERROR", StringType()),
             StructField("SCORES", StringType()),
+            *[StructField(name.upper(), LongType()) for name in USAGE_FIELDS],
         ]
     )
     return session.create_dataframe(rows, schema=schema)

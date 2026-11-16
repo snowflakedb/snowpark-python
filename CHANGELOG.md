@@ -6,6 +6,8 @@
 
 #### New Features
 
+- `DataFrameReader.documents()` (Private Preview) reads with a `schema` or a `prompt` now return the `AI_COMPLETE` token usage of each document in `PROMPT_TOKENS`, `COMPLETION_TOKENS` and `TOTAL_TOKENS` columns. A document sent in several `AI_COMPLETE` calls reports the sum over all of them. A schema field can no longer be named like one of these columns.
+
 #### Improvements
 
 - `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.

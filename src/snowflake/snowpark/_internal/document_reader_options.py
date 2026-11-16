@@ -39,6 +39,11 @@ CONTENT_COLUMN = "CONTENT"
 IMAGES_COLUMN = "IMAGES"
 EXTRACTION_SCORES_COLUMN = "EXTRACTION_SCORES"
 RESPONSE_COLUMN = "RESPONSE"
+# AI_COMPLETE's token usage per document, named after its `usage` fields.
+PROMPT_TOKENS_COLUMN = "PROMPT_TOKENS"
+COMPLETION_TOKENS_COLUMN = "COMPLETION_TOKENS"
+TOTAL_TOKENS_COLUMN = "TOTAL_TOKENS"
+TOKEN_COLUMNS = [PROMPT_TOKENS_COLUMN, COMPLETION_TOKENS_COLUMN, TOTAL_TOKENS_COLUMN]
 
 _PARSE_ERROR_COLUMN = "_DOC_PARSE_ERROR"
 _EXTRACT_ERROR_COLUMN = "_DOC_EXTRACT_ERROR"
@@ -56,6 +61,7 @@ _RESERVED_OUTPUT_COLUMNS = frozenset(
         IMAGES_COLUMN,
         EXTRACTION_SCORES_COLUMN,
         RESPONSE_COLUMN,
+        *TOKEN_COLUMNS,
         _EXTRACTION_STATUS_FIELD,
     }
 )
@@ -184,6 +190,12 @@ class DocumentReaderOptions:
     @property
     def complete_enabled(self) -> bool:
         return self.extraction is not None or self.prompt is not None
+
+    @property
+    def tokens_enabled(self) -> bool:
+        """Whether the read returns TOKEN_COLUMNS: an AI_COMPLETE read reports its token
+        usage; AI_EXTRACT reports none, and a parse-only read is billed per page."""
+        return self.complete_enabled and self.extraction_engine == "ai_complete"
 
     @property
     def read_type(self) -> str:

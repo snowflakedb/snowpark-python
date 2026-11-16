@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.document_reader_options import (
     PAGE_INDEX_COLUMN,
     RESPONSE_COLUMN,
     SOURCE_FILE_COLUMN,
+    TOKEN_COLUMNS,
     TOTAL_PAGES_COLUMN,
     _EXTRACT_ERROR_COLUMN,
     _PARSE_ERROR_COLUMN,
@@ -58,6 +59,7 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.types import (
     IntegerType,
+    LongType,
     StringType,
     StructField,
     StructType,
@@ -167,6 +169,8 @@ def output_columns(options: DocumentReaderOptions) -> List[str]:
             names.append(EXTRACTION_SCORES_COLUMN)
     elif options.complete_enabled:
         names.append(RESPONSE_COLUMN)
+    if options.tokens_enabled:
+        names.extend(TOKEN_COLUMNS)
     if options.has_corrupt_record_column:
         names.append(quote_name_without_upper_casing(options.corrupt_record_column))
     return names
@@ -547,7 +551,8 @@ def build_ai_complete_call(
     # single-string variant. Parse didn't run: input_col is SOURCE_FILE, passed to
     # AI_COMPLETE's file variant instead -- whose prompt argument must then be a plain
     # string, not a Column, so there is no CONTENT to fold in. With no schema there is
-    # no response_format and AI_COMPLETE answers the prompt as free text.
+    # no response_format and AI_COMPLETE answers the prompt as free text. show_details
+    # adds the call's token usage beside the answer (see extract_with_ai_complete).
     response_format = (
         options.extraction.ai_complete_format if options.extract_enabled else None
     )
@@ -562,6 +567,7 @@ def build_ai_complete_call(
             prompt_text,
             model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},
             response_format=response_format,
+            show_details=True,
             return_error_details=True,
         )
     return ai_complete(
@@ -570,8 +576,24 @@ def build_ai_complete_call(
         file=input_col,
         model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},
         response_format=response_format,
+        show_details=True,
         return_error_details=True,
     )
+
+
+def details_answer(value: Column, structured: bool) -> Column:
+    """The answer inside an ``AI_COMPLETE(..., show_details => TRUE)`` value: the
+    ``structured_output`` object when a response_format was sent, else the text of the
+    one ``choices`` entry."""
+    if structured:
+        return value["structured_output"][0]["raw_message"]
+    return value["choices"][0]["messages"]
+
+
+def usage_columns(usage: Column) -> List[Column]:
+    """``TOKEN_COLUMNS``' values from a ``show_details`` ``usage`` object, NULL when
+    the call failed and reported none."""
+    return [usage[name.lower()].cast(LongType()) for name in TOKEN_COLUMNS]
 
 
 def extract_with_ai_complete(
@@ -581,10 +603,12 @@ def extract_with_ai_complete(
     # Unlike AI_PARSE_DOCUMENT/AI_EXTRACT, AI_COMPLETE(..., return_error_details=True)
     # returns a native OBJECT rather than a JSON string -- CAST(... AS VARCHAR), which
     # as_variant() always applies, fails to compile for it. Bracket access works
-    # directly on the raw result, so it skips as_variant() here.
+    # directly on the raw result, so it skips as_variant() here. With show_details the
+    # answer is inside `value`, beside its token `usage`.
     df = df.with_column(_EXTRACTED_COLUMN, call)
     extracted = col(_EXTRACTED_COLUMN)
-    value = extracted["value"]
+    df = df.with_columns(TOKEN_COLUMNS, usage_columns(extracted["value"]["usage"]))
+    value = details_answer(extracted["value"], structured=options.extract_enabled)
     extraction = options.extraction
     if extraction is None:
         return df.with_columns(
@@ -639,6 +663,7 @@ def extract_with_split_procedure(
         try_parse_json(col("VALUE")).alias(_EXTRACTED_COLUMN),
         col("ERROR").alias(_EXTRACT_ERROR_COLUMN),
         try_parse_json(col("SCORES")).alias(EXTRACTION_SCORES_COLUMN),
+        *[col(name) for name in TOKEN_COLUMNS],
     )
     return project_extracted_fields(
         df, col(_EXTRACTED_COLUMN), col(_EXTRACT_ERROR_COLUMN), options.extraction
@@ -781,6 +806,7 @@ def register_extract_proc(session: "Session") -> str:
                 StructField("VALUE", StringType()),
                 StructField("ERROR", StringType()),
                 StructField("SCORES", StringType()),
+                *[StructField(name, LongType()) for name in TOKEN_COLUMNS],
             ]
         ),
         # In the order of run()'s parameters after the session, and of the args

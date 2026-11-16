@@ -1429,6 +1429,15 @@ class DataFrameReader:
               left out.
             - ``prompt`` only: ``SOURCE_FILE`` and ``RESPONSE``.
 
+        A read with a ``schema`` or a ``prompt`` also has ``PROMPT_TOKENS``,
+        ``COMPLETION_TOKENS`` and ``TOTAL_TOKENS``: the AI_COMPLETE token usage of the
+        document (input, output, and their total). A document sent in several
+        AI_COMPLETE calls reports the sum over all of them, including calls whose answer
+        was cut off and sent again in smaller parts, since those are billed too. A
+        count is ``NULL`` when no call for the document reported it. Parsing is billed
+        per page, which ``TOTAL_PAGES`` already reports. A schema field cannot be named
+        like one of these columns.
+
         Every read also has a case-sensitive ``"_document_error"`` column (quote the name
         when you select it). A document that fails does not fail the read: its row holds
         an array of ``{stage, message}`` entries describing what went wrong, and

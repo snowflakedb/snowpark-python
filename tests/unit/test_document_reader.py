@@ -221,6 +221,7 @@ class TestBuildAiCompleteCall:
         assert kwargs["file"] is input_col
         assert kwargs["model_parameters"] == {"max_tokens": 128000}
         assert kwargs["response_format"] is None
+        assert kwargs["show_details"] is True
         assert kwargs["return_error_details"] is True
 
     def test_schema_present_still_sends_the_fixed_model_and_parameters(self):
@@ -238,6 +239,7 @@ class TestBuildAiCompleteCall:
         assert args[0] == "claude-sonnet-5-5"
         assert kwargs["model_parameters"] == {"max_tokens": 128000}
         assert kwargs["response_format"] == options.extraction.ai_complete_format
+        assert kwargs["show_details"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -248,13 +250,52 @@ class TestBuildAiCompleteCall:
 
 
 class TestOutputColumnsForPromptOnly:
-    def test_prompt_only_outputs_source_file_response_and_corrupt_record(self):
+    def test_prompt_only_outputs_source_file_response_tokens_and_corrupt_record(self):
         options = DocumentReaderOptions(parse_mode="none", prompt="Summarize this.")
         assert output_columns(options) == [
             "SOURCE_FILE",
             "RESPONSE",
+            "PROMPT_TOKENS",
+            "COMPLETION_TOKENS",
+            "TOTAL_TOKENS",
             '"_document_error"',
         ]
+
+
+# ---------------------------------------------------------------------------
+# output_columns -- every AI_COMPLETE read returns its token usage after its answer
+# columns; a parse-only read (billed per page) and an AI_EXTRACT read (which reports
+# no usage) have none.
+# ---------------------------------------------------------------------------
+
+
+class TestOutputColumnsTokens:
+    _TOKENS = ["PROMPT_TOKENS", "COMPLETION_TOKENS", "TOTAL_TOKENS"]
+
+    def test_a_schema_read_has_the_tokens_after_its_scores(self):
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+        )
+        assert output_columns(options) == [
+            "SOURCE_FILE",
+            "NAME",
+            "EXTRACTION_SCORES",
+            *self._TOKENS,
+            '"_document_error"',
+        ]
+
+    def test_a_parse_only_read_has_no_tokens(self):
+        columns = output_columns(DocumentReaderOptions())
+        assert not set(self._TOKENS) & set(columns)
+
+    def test_an_ai_extract_read_has_no_tokens(self):
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+            extraction_engine="ai_extract",
+        )
+        assert not set(self._TOKENS) & set(output_columns(options))
 
 
 # ---------------------------------------------------------------------------

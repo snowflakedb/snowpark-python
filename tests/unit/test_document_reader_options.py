@@ -625,6 +625,9 @@ class TestSchemaFieldNameCollisions:
             "extraction_scores",
             "extraction_status",
             "response",
+            "prompt_tokens",
+            "completion_tokens",
+            "total_tokens",
         ],
     )
     def test_field_colliding_with_a_reserved_column_raises_1117(self, reserved_name):
