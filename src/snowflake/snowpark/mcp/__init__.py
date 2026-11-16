@@ -6,7 +6,7 @@
 
 Define tools with :func:`mcp_tool` (from a Python function) or with
 :meth:`Tool.from_procedure` / :meth:`Tool.from_function` (from an object that already
-exists), add built-in tools from :mod:`snowflake.snowpark.mcp.tools`,
+exists), add the MCP server's built-in tool types with :meth:`Tool.builtin`,
 and put them in an :class:`MCPServer`. ``MCPServer.deploy`` registers the Python
 tools as procedures or UDFs and creates the server; ``grant_usage`` grants a role
 everything the server's tools need.
@@ -18,7 +18,7 @@ model to get wrong or abuse.
 Example::
 
     from snowflake.snowpark import Session
-    from snowflake.snowpark.mcp import MCPServer, mcp_tool, tools
+    from snowflake.snowpark.mcp import MCPServer, mcp_tool
 
     @mcp_tool(read_only=True)
     def get_account(session: Session, account_id: str) -> dict:
@@ -43,6 +43,7 @@ import inspect
 import json
 import logging
 import math
+import re
 from types import ModuleType
 from typing import Any, Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
 from urllib.parse import quote as url_quote
@@ -142,8 +143,8 @@ class _Target:
 class Tool:
     """A tool of an :class:`MCPServer`. Create tools with :func:`mcp_tool`, from
     procedures and UDFs that already exist, in any language, with
-    :meth:`from_procedure` and :meth:`from_function`, or with the classes in
-    :mod:`snowflake.snowpark.mcp.tools`."""
+    :meth:`from_procedure` and :meth:`from_function`, or add one of the MCP server's
+    built-in tool types with :meth:`builtin`."""
 
     #: The ``type`` of the tool in the server spec.
     tool_type: str = ""
@@ -272,6 +273,63 @@ class Tool:
         :meth:`from_procedure`."""
         return _existing_object_tool("function", function, locals())
 
+    @staticmethod
+    @private_preview(version=_PREVIEW_VERSION)
+    def builtin(
+        type: str,
+        identifier: Optional[str] = None,
+        *,
+        description: str,
+        name: Optional[str] = None,
+        title: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+        read_only: Optional[bool] = None,
+        destructive: Optional[bool] = None,
+        idempotent: bool = False,
+        open_world: bool = False,
+    ) -> "_BuiltinTool":
+        """Makes a tool of one of the MCP server's built-in types, which it runs
+        itself: ``CORTEX_AGENT_RUN`` (a Cortex Agent), ``CORTEX_ANALYST_MESSAGE``
+        (Cortex Analyst over a semantic view), ``CORTEX_SEARCH_SERVICE_QUERY`` (a
+        Cortex Search service), ``SYSTEM_EXECUTE_SQL`` (runs SQL with the client's
+        role; put it on a server of its own with a least-privileged role) and
+        ``CODING_AGENT`` (runs code in a sandbox). Prefer ``CORTEX_AGENT_RUN`` and
+        ``CORTEX_ANALYST_MESSAGE`` over procedures that call them: they avoid the
+        extra wait of a procedure call. Other type names are passed to the server as
+        they are, so types added later work without a new release; ``GENERIC``
+        tools are made with :func:`mcp_tool`, :meth:`from_procedure` and
+        :meth:`from_function`.
+
+        Args:
+            type: The tool type, in upper case, such as ``"CORTEX_AGENT_RUN"``.
+            identifier: The fully qualified object (``DATABASE.SCHEMA.NAME``) for
+                the types that use one. Required for ``CORTEX_AGENT_RUN``,
+                ``CORTEX_ANALYST_MESSAGE`` and ``CORTEX_SEARCH_SERVICE_QUERY``, and
+                not allowed for ``SYSTEM_EXECUTE_SQL`` and ``CODING_AGENT``.
+            description: What the tool does; the model reads it to choose the tool.
+                Required, and not empty.
+            name: The tool name. Defaults to the object name in lowercase, and is
+                required when there is no identifier.
+            title: A human-readable title.
+            config: The type's configuration, written to the server spec as is. The
+                platform defines its contents, so they are not checked here.
+            read_only: Whether the tool only reads data. When neither ``read_only``
+                nor ``destructive`` is set, the spec has no annotations and clients
+                treat the tool as one that may change data.
+            destructive: Whether it may delete or overwrite data.
+            idempotent: Whether repeating a call has no further effect.
+            open_world: Whether it reaches systems outside Snowflake.
+        """
+        return _BuiltinTool(
+            type,
+            identifier,
+            name,
+            title,
+            description,
+            config,
+            _optional_annotations(read_only, destructive, idempotent, open_world),
+        )
+
     def _spec_base(self, identifier: Optional[str]) -> Dict[str, Any]:
         spec: Dict[str, Any] = {"name": self.name, "title": self.title}
         spec["type"] = self.tool_type
@@ -310,6 +368,17 @@ def _annotations(
         "idempotentHint": idempotent,
         "openWorldHint": open_world,
     }
+
+
+def _optional_annotations(
+    read_only: Optional[bool],
+    destructive: Optional[bool],
+    idempotent: bool,
+    open_world: bool,
+) -> Optional[Dict[str, bool]]:
+    if read_only is None and destructive is None:
+        return None
+    return _annotations(bool(read_only), destructive, idempotent, open_world)
 
 
 def _generic_config(
@@ -978,6 +1047,125 @@ class ExistingObjectTool(Tool):
         return [self.warehouse] if self.warehouse else []
 
 
+_BUILTIN_TYPE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
+_IDENTIFIER_REQUIRED = frozenset(
+    {"CORTEX_AGENT_RUN", "CORTEX_ANALYST_MESSAGE", "CORTEX_SEARCH_SERVICE_QUERY"}
+)
+_IDENTIFIER_REFUSED = frozenset({"SYSTEM_EXECUTE_SQL", "CODING_AGENT"})
+_KNOWN_BUILTIN_TYPES = _IDENTIFIER_REQUIRED | _IDENTIFIER_REFUSED
+# What a role needs on the identifier of a known type, besides usage on its
+# database and schema.
+_OBJECT_GRANTS = {
+    "CORTEX_AGENT_RUN": "USAGE ON AGENT",
+    "CORTEX_ANALYST_MESSAGE": "SELECT ON SEMANTIC VIEW",
+    "CORTEX_SEARCH_SERVICE_QUERY": "USAGE ON CORTEX SEARCH SERVICE",
+}
+_AGENT_ROLE_GRANT = "DATABASE ROLE SNOWFLAKE.CORTEX_AGENT_USER"
+
+
+class _BuiltinTool(Tool):
+    """A tool of one of the MCP server's built-in types. Create it with
+    :meth:`Tool.builtin`."""
+
+    def __init__(
+        self,
+        type: str,
+        identifier: Optional[str],
+        name: Optional[str],
+        title: Optional[str],
+        description: str,
+        config: Optional[Dict[str, Any]],
+        annotations: Optional[Dict[str, bool]],
+    ) -> None:
+        if not isinstance(type, str) or not _BUILTIN_TYPE_PATTERN.match(type):
+            raise ValueError(
+                f"Invalid tool type {type!r}: use upper-case letters, digits and "
+                "'_', starting with a letter, such as 'CORTEX_AGENT_RUN'."
+            )
+        if type == "GENERIC":
+            raise ValueError(
+                "GENERIC is not a built-in tool type. Make tools from Python "
+                "functions with mcp_tool, and from existing procedures and UDFs with "
+                "Tool.from_procedure and Tool.from_function."
+            )
+        if identifier is None and type in _IDENTIFIER_REQUIRED:
+            raise ValueError(f"A {type} tool needs an identifier.")
+        if identifier is not None and type in _IDENTIFIER_REFUSED:
+            raise ValueError(f"A {type} tool does not take an identifier.")
+        if identifier is not None:
+            parts = (
+                mcp_utils.split_qualified_name(identifier)
+                if isinstance(identifier, str)
+                else []
+            )
+            if not 1 <= len(parts) <= 3 or not all(parts):
+                raise ValueError(f"Invalid object name {identifier!r}.")
+        if name is None:
+            if identifier is None:
+                raise ValueError(f"A {type} tool without an identifier needs a name.")
+            name = parts[-1].strip('"').lower()
+        if not isinstance(description, str) or not description.strip():
+            raise ValueError(
+                f"The description of tool {name!r} must be a non-empty string: the "
+                "model chooses tools by their descriptions."
+            )
+        if config is not None and not isinstance(config, dict):
+            raise ValueError(f"config must be a dict, got {config.__class__.__name__}.")
+        super().__init__(name, title, description, annotations)
+        self.tool_type = type
+        self.identifier = identifier
+        self.config: Dict[str, Any] = copy.deepcopy(config) if config else {}
+
+    def _lint(self) -> List[LintIssue]:
+        issues = super()._lint()
+        if (
+            self.identifier
+            and len(mcp_utils.split_qualified_name(self.identifier)) != 3
+        ):
+            issues.append(
+                LintIssue(
+                    "warning",
+                    self.name,
+                    f"{self.identifier} is not fully qualified (DATABASE.SCHEMA.NAME).",
+                )
+            )
+        if self.tool_type not in _KNOWN_BUILTIN_TYPES:
+            issues.append(
+                LintIssue(
+                    "info",
+                    self.name,
+                    f"grant_usage does not know what tool type {self.tool_type} "
+                    "needs beyond usage on its database and schema.",
+                )
+            )
+        return issues
+
+    def _warehouses(self) -> List[str]:
+        warehouse = self.config.get("warehouse")
+        if self.tool_type == "SYSTEM_EXECUTE_SQL" and warehouse:
+            return [warehouse]
+        return []
+
+    def _spec(self, target: _Target) -> Dict[str, Any]:
+        spec = self._spec_base(self.identifier)
+        if self.config:
+            spec["config"] = copy.deepcopy(self.config)
+        if self.annotations:
+            spec["annotations"] = dict(self.annotations)
+        return spec
+
+    def _grants(self, target: _Target) -> List[str]:
+        grants = []
+        if self.tool_type in ("CORTEX_AGENT_RUN", "CODING_AGENT"):
+            grants.append(_AGENT_ROLE_GRANT)
+        if not self.identifier:
+            return grants
+        grants += mcp_utils.schema_usage_grants(self.identifier)
+        if self.tool_type in _OBJECT_GRANTS:
+            grants.append(f"{_OBJECT_GRANTS[self.tool_type]} {self.identifier}")
+        return grants
+
+
 def _row_dict(row) -> Dict[str, Any]:
     values = row.asDict() if hasattr(row, "asDict") else dict(row)
     return {str(k).strip('"').lower(): v for k, v in values.items()}
@@ -1255,7 +1443,7 @@ class MCPServer:
             else:
                 raise TypeError(
                     f"Expected an MCP tool, got {type(tool).__name__}. Create tools "
-                    "with mcp_tool, Tool.from_procedure, or snowflake.snowpark.mcp.tools."
+                    "with mcp_tool, Tool.from_procedure, or Tool.builtin."
                 )
         return self
 

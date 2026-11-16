@@ -340,3 +340,29 @@ def test_optional_parameter_without_default_can_be_null(session, temp_schema):
         )
     finally:
         server.drop(session, schema=schema, include_tools=True)
+
+
+def test_builtin_tool_is_deployed_next_to_a_python_tool(session, temp_schema):
+    schema = _schema_name(temp_schema)
+    server = MCPServer(
+        "SNOWPARK_MCP_BUILTIN",
+        tools=[
+            add,
+            Tool.builtin(
+                "SYSTEM_EXECUTE_SQL",
+                name="run_sql",
+                description="Run a read-only SQL query.",
+                config={"read_only": True},
+            ),
+        ],
+    )
+    server.deploy(session, schema=schema)
+    try:
+        rows = session.sql(
+            f"DESCRIBE MCP SERVER {temp_schema}.SNOWPARK_MCP_BUILTIN"
+        ).collect()
+        (row,) = rows
+        types = {t["name"]: t["type"] for t in json.loads(row["server_spec"])["tools"]}
+        assert types == {"add": "GENERIC", "run_sql": "SYSTEM_EXECUTE_SQL"}
+    finally:
+        server.drop(session, schema=schema, include_tools=True)

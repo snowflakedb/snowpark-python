@@ -26,7 +26,6 @@ from snowflake.snowpark.mcp import (
     _signature_key,
     _Target,
     mcp_tool,
-    tools,
 )
 from snowflake.snowpark.types import (
     LongType,
@@ -110,6 +109,15 @@ def plain(session, x: str):
     Args:
         x: The x.
     """
+
+
+def sql_tool(name, config=None):
+    return Tool.builtin(
+        "SYSTEM_EXECUTE_SQL",
+        name=name,
+        description="Run SQL.",
+        config=config,
+    )
 
 
 def messages(issues, level=None, tool=None):
@@ -430,7 +438,7 @@ def test_server_add_flattens_lists():
         return "pong"
 
     extra = [ping]
-    result = server.add(extra, add_numbers, [[tools.SqlExecution(name="sx")]])
+    result = server.add(extra, add_numbers, [[sql_tool("sx")]])
     assert result is server
     assert [t.name for t in server.tools] == [
         "get_account",
@@ -620,13 +628,16 @@ def test_lint_builtin_tools():
     server = MCPServer(
         "S",
         [
-            tools.CortexAgent("A.B.AGENT"),  # no description
-            tools.CortexSearch("SVC", description="Search."),  # not qualified
+            Tool.builtin(
+                "CORTEX_SEARCH_SERVICE_QUERY", "SVC", description="Search."
+            ),  # not qualified
+            Tool.builtin("CORTEX_AGENT_RUN", "A.B.AGENT", description="Agent."),
         ],
     )
     issues = server.lint()
-    assert any("no description" in m for m in messages(issues, "error", "agent"))
     assert any("not fully qualified" in m for m in messages(issues, "warning", "svc"))
+    assert messages(issues, "error") == []
+    assert messages(issues, "info") == []
 
 
 # ---------------------------------------------------------------------------
@@ -694,13 +705,31 @@ def test_to_yaml_builtin_tools():
     server = MCPServer(
         "S",
         [
-            tools.CortexAgent(
-                "APP.AG.SALES_AGENT", description="Agent.", read_only=True
+            Tool.builtin(
+                "CORTEX_AGENT_RUN",
+                "APP.AG.SALES_AGENT",
+                description="Agent.",
+                read_only=True,
             ),
-            tools.CortexAnalyst("APP.SV.REVENUE", description="Revenue."),
-            tools.CortexSearch("APP.SS.DOCS", description="Docs.", name="docs_search"),
-            tools.SqlExecution(warehouse="WH", query_timeout=10),
-            tools.CodingAgent(model="auto", instructions="Be careful."),
+            Tool.builtin(
+                "CORTEX_ANALYST_MESSAGE", "APP.SV.REVENUE", description="Revenue."
+            ),
+            Tool.builtin(
+                "CORTEX_SEARCH_SERVICE_QUERY",
+                "APP.SS.DOCS",
+                description="Docs.",
+                name="docs_search",
+            ),
+            sql_tool(
+                "sql_execution",
+                config={"read_only": True, "warehouse": "WH", "query_timeout": 10},
+            ),
+            Tool.builtin(
+                "CODING_AGENT",
+                name="coding_agent",
+                description="Code.",
+                config={"model": "auto", "instructions": "Be careful."},
+            ),
         ],
     )
     by_name = {t["name"]: t for t in server.to_spec(database="A", schema="B")["tools"]}
@@ -732,7 +761,7 @@ def test_to_yaml_builtin_tools():
 
 
 def test_to_yaml_sql_execution_read_only_false():
-    spec = MCPServer("S", [tools.SqlExecution(read_only=False)]).to_spec(
+    spec = MCPServer("S", [sql_tool("sql", config={"read_only": False})]).to_spec(
         database="A", schema="B"
     )
     assert spec["tools"][0]["config"]["read_only"] is False
@@ -1139,7 +1168,7 @@ def test_deploy_dry_run_stage_location_skips_stage_creation():
 
 
 def test_deploy_dry_run_builtin_only_server_needs_no_stage():
-    server = MCPServer("S", [tools.SqlExecution()])
+    server = MCPServer("S", [sql_tool("sql")])
     result = server.deploy(make_session(), dry_run=True)
     assert len(result.sql) == 1 and result.objects == []
 
@@ -1292,7 +1321,7 @@ def test_deploy_with_suffix_registers_suffixed_names():
 
 def test_deploy_sends_telemetry():
     session = make_session()
-    server = MCPServer("S", [get_account, add_numbers, tools.SqlExecution()])
+    server = MCPServer("S", [get_account, add_numbers, sql_tool("sql")])
     server.deploy(session)
     send = session._conn._telemetry_client.send_function_usage_telemetry
     send.assert_called_once()
@@ -1715,11 +1744,15 @@ def grant_server():
         [
             get_account,
             add_numbers,
-            tools.CortexAgent("APP.AG.SALES", description="Agent."),
-            tools.CortexAgent("APP.AG.OPS", description="Agent."),
-            tools.CortexAnalyst("APP.SV.REVENUE", description="Revenue."),
-            tools.CortexSearch("APP.SS.DOCS", description="Docs."),
-            tools.SqlExecution(),
+            Tool.builtin("CORTEX_AGENT_RUN", "APP.AG.SALES", description="Agent."),
+            Tool.builtin("CORTEX_AGENT_RUN", "APP.AG.OPS", description="Agent."),
+            Tool.builtin(
+                "CORTEX_ANALYST_MESSAGE", "APP.SV.REVENUE", description="Revenue."
+            ),
+            Tool.builtin(
+                "CORTEX_SEARCH_SERVICE_QUERY", "APP.SS.DOCS", description="Docs."
+            ),
+            sql_tool("sql"),
         ],
     )
 
@@ -1910,7 +1943,7 @@ def test_call_tool_unknown_tool():
 
 
 def test_call_tool_builtin_tool_is_not_callable():
-    server = MCPServer("S", [tools.SqlExecution(name="sx")])
+    server = MCPServer("S", [sql_tool("sx")])
     with pytest.raises(NotImplementedError, match="SYSTEM_EXECUTE_SQL"):
         server.call_tool(make_session(), "sx", {})
 
@@ -2788,8 +2821,8 @@ def test_grant_usage_includes_warehouses_of_tools():
             Tool.from_procedure(
                 "APP.FIN.GET_FINANCIALS", read_only=True, warehouse="WH2"
             ),
-            tools.SqlExecution(warehouse="WH3"),
-            tools.SqlExecution(name="other"),
+            sql_tool("sql", config={"warehouse": "WH3"}),
+            sql_tool("other"),
         ],
     )
     statements = server.grant_usage(financials_session(), "ANALYST", dry_run=True)
@@ -2835,7 +2868,9 @@ def test_tool_is_the_base_class_of_every_tool():
     assert isinstance(get_account, Tool)
     assert isinstance(Tool.from_procedure("APP.FIN.P", read_only=True), Tool)
     assert isinstance(Tool.from_function("APP.FIN.F", read_only=True), Tool)
-    assert isinstance(tools.CortexAgent("APP.AG.A", description="d"), Tool)
+    assert isinstance(
+        Tool.builtin("CORTEX_AGENT_RUN", "APP.AG.A", description="d"), Tool
+    )
     assert not hasattr(sys.modules["snowflake.snowpark.mcp"], "MCPTool")
 
 
@@ -3430,20 +3465,10 @@ def test_invoke_converts_the_defaults_of_omitted_arguments():
     assert str(seen[0][0]) == "1.000000000000000000"
 
 
-@pytest.mark.parametrize(
-    "cls, args",
-    [
-        (tools.CortexAgent, ("DB.S.A",)),
-        (tools.CortexAnalyst, ("DB.S.V",)),
-        (tools.CortexSearch, ("DB.S.SVC",)),
-        (tools.SqlExecution, ()),
-        (tools.CodingAgent, ()),
-    ],
-)
-def test_builtin_tool_constructors_are_private_preview(cls, args):
+def test_tool_builtin_is_private_preview():
     with mock.patch("snowflake.snowpark._internal.utils.warning") as warn:
-        cls(*args)
-    assert warn.call_args.args[0] == f"{cls.__name__}.__init__"
+        sql_tool("sql")
+    assert warn.call_args.args[0] == "Tool.builtin"
     assert "private preview" in warn.call_args.args[1]
 
 
@@ -3509,3 +3534,235 @@ def test_invoke_integer_too_large_for_bigint_is_value_error():
     with pytest.raises(ValueError, match=r"x does not fit in NUMBER\(38, 0\)"):
         f.invoke(x=-(10**38))
     assert f.invoke(x=10**38 - 1) == 10**38 - 1
+
+
+# ---------------------------------------------------------------------------
+# Tool.builtin
+# ---------------------------------------------------------------------------
+
+
+def builtin_spec(tool):
+    return MCPServer("S", [tool]).to_spec(database="A", schema="B")["tools"][0]
+
+
+def test_builtin_default_name_and_title():
+    tool = Tool.builtin("CORTEX_AGENT_RUN", "APP.AG.Sales_Agent", description="d")
+    assert tool.name == "sales_agent"
+    assert tool.title == "Sales agent"
+    quoted = Tool.builtin("CORTEX_AGENT_RUN", 'APP.AG."My_Agent"', description="d")
+    assert quoted.name == "my_agent"
+    assert Tool.builtin("CORTEX_AGENT_RUN", "AGENT", description="d").name == "agent"
+
+
+def test_builtin_spec_keys_and_order():
+    spec = builtin_spec(
+        Tool.builtin(
+            "CORTEX_AGENT_RUN",
+            "APP.AG.A",
+            description="Agent.",
+            title="The agent",
+            config={"x": 1},
+            read_only=True,
+            idempotent=True,
+        )
+    )
+    assert list(spec) == [
+        "name",
+        "title",
+        "type",
+        "identifier",
+        "description",
+        "config",
+        "annotations",
+    ]
+    assert spec["title"] == "The agent"
+    assert spec["config"] == {"x": 1}
+    assert spec["annotations"] == {
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    }
+
+
+def test_builtin_spec_omits_optional_parts():
+    spec = builtin_spec(sql_tool("sql", config={}))
+    assert list(spec) == ["name", "title", "type", "description"]
+
+
+def test_builtin_annotations_from_destructive_only():
+    spec = builtin_spec(
+        Tool.builtin("CODING_AGENT", name="c", description="d", destructive=True)
+    )
+    assert spec["annotations"]["readOnlyHint"] is False
+    assert spec["annotations"]["destructiveHint"] is True
+
+
+def test_builtin_read_only_and_destructive_is_an_error():
+    with pytest.raises(ValueError, match="read-only"):
+        Tool.builtin(
+            "CODING_AGENT", name="c", description="d", read_only=True, destructive=True
+        )
+
+
+def test_builtin_future_type_spec_and_lint():
+    tool = Tool.builtin(
+        "NEW_THING_RUN",
+        "APP.X.THING",
+        description="New.",
+        config={"nested": {"a": [1, 2]}},
+    )
+    spec = builtin_spec(tool)
+    assert spec["type"] == "NEW_THING_RUN"
+    assert spec["identifier"] == "APP.X.THING"
+    assert spec["config"] == {"nested": {"a": [1, 2]}}
+    info = messages(MCPServer("S", [tool]).lint(), "info", "thing")
+    assert len(info) == 1 and "NEW_THING_RUN" in info[0]
+
+
+def test_builtin_known_types_have_no_info_lint():
+    server = MCPServer(
+        "S",
+        [
+            Tool.builtin("CORTEX_AGENT_RUN", "A.B.C", description="d"),
+            sql_tool("sql"),
+            Tool.builtin("CODING_AGENT", name="c", description="d"),
+        ],
+    )
+    assert messages(server.lint(), "info") == []
+
+
+def test_builtin_unknown_type_grants_database_and_schema_only():
+    server = MCPServer(
+        "S",
+        [
+            Tool.builtin("NEW_THING_RUN", "APP.X.THING", description="d"),
+            Tool.builtin("OTHER_THING", name="o", description="d"),
+            Tool.builtin("THIRD", "THING", name="t", description="d"),
+        ],
+    )
+    statements = server.grant_usage(make_session(), "ANALYST", dry_run=True)
+    # The database is the server's own, so it is granted once.
+    assert statements[3:] == ["GRANT USAGE ON SCHEMA APP.X TO ROLE ANALYST"]
+
+
+def test_builtin_coding_agent_grant():
+    server = MCPServer("S", [Tool.builtin("CODING_AGENT", name="c", description="d")])
+    statements = server.grant_usage(make_session(), "ANALYST", dry_run=True)
+    assert statements[3:] == [
+        "GRANT DATABASE ROLE SNOWFLAKE.CORTEX_AGENT_USER TO ROLE ANALYST"
+    ]
+
+
+def test_builtin_sql_warehouse_grant_only_for_sql_type():
+    server = MCPServer(
+        "S",
+        [
+            sql_tool("sql", config={"warehouse": "WH"}),
+            Tool.builtin(
+                "CODING_AGENT", name="c", description="d", config={"warehouse": "W2"}
+            ),
+        ],
+    )
+    statements = server.grant_usage(make_session(), "ANALYST", dry_run=True)
+    assert [s for s in statements if "WAREHOUSE" in s] == [
+        "GRANT USAGE ON WAREHOUSE WH TO ROLE ANALYST"
+    ]
+
+
+def test_builtin_telemetry_counts_by_type():
+    session = make_session()
+    server = MCPServer(
+        "S",
+        [
+            sql_tool("a"),
+            sql_tool("b"),
+            Tool.builtin("CORTEX_AGENT_RUN", "A.B.C", description="d"),
+        ],
+    )
+    server.deploy(session)
+    send = session._conn._telemetry_client.send_function_usage_telemetry
+    (payload,) = send.call_args.kwargs["api_calls"]
+    assert json.loads(payload) == {
+        "tools": {"SYSTEM_EXECUTE_SQL": 2, "CORTEX_AGENT_RUN": 1}
+    }
+
+
+@pytest.mark.parametrize("bad", ["cortex_agent_run", "1ABC", "A-B", "", "A B", None])
+def test_builtin_invalid_type(bad):
+    with pytest.raises(ValueError, match="Invalid tool type"):
+        Tool.builtin(bad, name="x", description="d")
+
+
+def test_builtin_generic_type_is_refused():
+    with pytest.raises(ValueError, match="mcp_tool.*Tool.from_procedure"):
+        Tool.builtin("GENERIC", name="x", description="d")
+
+
+@pytest.mark.parametrize(
+    "type_",
+    ["CORTEX_AGENT_RUN", "CORTEX_ANALYST_MESSAGE", "CORTEX_SEARCH_SERVICE_QUERY"],
+)
+def test_builtin_identifier_required(type_):
+    with pytest.raises(ValueError, match="needs an identifier"):
+        Tool.builtin(type_, name="x", description="d")
+
+
+@pytest.mark.parametrize("type_", ["SYSTEM_EXECUTE_SQL", "CODING_AGENT"])
+def test_builtin_identifier_refused(type_):
+    with pytest.raises(ValueError, match="does not take an identifier"):
+        Tool.builtin(type_, "A.B.C", name="x", description="d")
+
+
+@pytest.mark.parametrize("bad", ["", "A.B.C.D", "A..C"])
+def test_builtin_invalid_identifier(bad):
+    with pytest.raises(ValueError, match="Invalid object name"):
+        Tool.builtin("CORTEX_AGENT_RUN", bad, description="d")
+
+
+def test_builtin_name_required_without_identifier():
+    with pytest.raises(ValueError, match="needs a name"):
+        Tool.builtin("SYSTEM_EXECUTE_SQL", description="d")
+    with pytest.raises(ValueError, match="needs a name"):
+        Tool.builtin("OTHER_TYPE", description="d")
+
+
+def test_builtin_invalid_name():
+    with pytest.raises(ValueError, match="Invalid tool name"):
+        Tool.builtin("CORTEX_AGENT_RUN", "A.B.C", name="bad name", description="d")
+    with pytest.raises(ValueError, match="Invalid tool name"):
+        Tool.builtin("CORTEX_AGENT_RUN", 'A.B."a b"', description="d")
+
+
+@pytest.mark.parametrize("bad", [None, "", "  ", 3])
+def test_builtin_description_must_be_a_non_empty_string(bad):
+    with pytest.raises(ValueError, match="non-empty string"):
+        Tool.builtin("CODING_AGENT", name="c", description=bad)
+
+
+def test_builtin_description_is_required():
+    with pytest.raises(TypeError, match="description"):
+        Tool.builtin("CODING_AGENT", name="c")
+
+
+@pytest.mark.parametrize("bad", ["x", [("a", 1)], 3])
+def test_builtin_config_must_be_a_dict(bad):
+    with pytest.raises(ValueError, match="config must be a dict"):
+        Tool.builtin("CODING_AGENT", name="c", description="d", config=bad)
+
+
+def test_builtin_config_is_copied():
+    config = {"tools": [{"type": "x"}], "model": "auto"}
+    tool = Tool.builtin("CODING_AGENT", name="c", description="d", config=config)
+    config["model"] = "other"
+    config["tools"][0]["type"] = "y"
+    assert builtin_spec(tool)["config"] == {"tools": [{"type": "x"}], "model": "auto"}
+    builtin_spec(tool)["config"]["model"] = "z"
+    assert builtin_spec(tool)["config"]["model"] == "auto"
+
+
+def test_builtin_config_values_are_written_as_is():
+    spec = builtin_spec(
+        sql_tool("sql", config={"read_only": True, "warehouse": None, "extra": [1]})
+    )
+    assert spec["config"] == {"read_only": True, "warehouse": None, "extra": [1]}

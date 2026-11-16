@@ -10,7 +10,7 @@
   - `mcp_tool` turns a Python function into a tool, with its argument schema built from the type hints and docstring. A function whose first parameter is a `Session` becomes a stored procedure; any other function becomes a UDF. Results, including DataFrames, are converted to JSON and kept under the MCP server's response limit, and `ToolError` returns an error the model can act on. Deployed tools reject values outside an `enum` and nulls for arguments that don't allow them, since the MCP server does not validate arguments, and return an `INVALID_ARGUMENTS` error. Other errors reach MCP clients as a generic message with an error ID and without the traceback, unless `mask_error_details=False`; the full error is logged with the same ID.
   - `Tool.from_procedure` and `Tool.from_function` turn existing procedures and UDFs, in any language, into tools.
   - `MCPServer` checks a server definition (`lint`), prints its specification (`to_yaml`), deploys it with its Python tools (`deploy`, with a suffix for dev and prod copies), calls deployed tools over a session (`call_tool`), and grants a role everything the tools need (`grant_usage`).
-  - `snowflake.snowpark.mcp.tools` has builders for the MCP server's built-in tool types (`CortexAgent`, `CortexAnalyst`, `CortexSearch`, `SqlExecution`, `CodingAgent`).
+  - `Tool.builtin` adds the MCP server's built-in tool types (such as Cortex Agent, Cortex Analyst and Cortex Search) to a server.
 
 #### Improvements
 

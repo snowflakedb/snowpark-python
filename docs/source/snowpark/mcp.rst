@@ -40,19 +40,7 @@ MCP Tools and Servers
     MCPServer.lint
     MCPServer.to_spec
     MCPServer.to_yaml
+    Tool.builtin
     Tool.from_function
     Tool.from_procedure
     PythonTool.invoke
-
-.. currentmodule:: snowflake.snowpark.mcp.tools
-
-.. rubric:: Built-in tools
-
-.. autosummary::
-    :toctree: api/
-
-    CodingAgent
-    CortexAgent
-    CortexAnalyst
-    CortexSearch
-    SqlExecution
