@@ -3688,7 +3688,10 @@ def test_builtin_telemetry_counts_by_type():
     }
 
 
-@pytest.mark.parametrize("bad", ["cortex_agent_run", "1ABC", "A-B", "", "A B", None])
+@pytest.mark.parametrize(
+    "bad",
+    ["cortex_agent_run", "1ABC", "A-B", "", "A B", None, "CORTEX_AGENT_RUN\n", "FOO\n"],
+)
 def test_builtin_invalid_type(bad):
     with pytest.raises(ValueError, match="Invalid tool type"):
         Tool.builtin(bad, name="x", description="d")
@@ -3781,3 +3784,67 @@ def test_quoted_identifier_ending_in_a_dot_is_accepted():
         "CORTEX_AGENT_RUN", 'DB.SCH."agent."', name="agent", description="x"
     )
     assert tool.identifier == 'DB.SCH."agent."'
+
+
+# ---------------------------------------------------------------------------
+# Review of Tool.builtin
+# ---------------------------------------------------------------------------
+
+
+def test_builtin_return_annotation_is_tool():
+    import inspect as _inspect
+
+    assert _inspect.signature(Tool.builtin).return_annotation == "Tool"
+
+
+@pytest.mark.parametrize("arg", ["read_only", "destructive"])
+@pytest.mark.parametrize("value", ["no", 1, 0])
+def test_builtin_annotation_flags_must_be_bool(arg, value):
+    with pytest.raises(TypeError, match=f"{arg} must be True, False or None"):
+        Tool.builtin("CORTEX_AGENT_RUN", "D.S.A", description="d", **{arg: value})
+
+
+def test_builtin_sql_execution_without_read_only_config_warns():
+    def warnings_of(tool):
+        return [
+            i.message
+            for i in MCPServer("S", [tool]).lint()
+            if i.level == "warning" and "config=" in i.message
+        ]
+
+    hint_only = Tool.builtin(
+        "SYSTEM_EXECUTE_SQL", name="sql", description="Run SQL.", read_only=True
+    )
+    assert len(warnings_of(hint_only)) == 1
+    writable = Tool.builtin(
+        "SYSTEM_EXECUTE_SQL",
+        name="sql",
+        description="Run SQL.",
+        config={"read_only": False},
+    )
+    assert len(warnings_of(writable)) == 1
+    restricted = Tool.builtin(
+        "SYSTEM_EXECUTE_SQL",
+        name="sql",
+        description="Run SQL.",
+        config={"read_only": True},
+    )
+    assert warnings_of(restricted) == []
+
+
+@pytest.mark.parametrize(
+    "value", [{1, 2}, b"x", datetime.date(2024, 1, 2), decimal.Decimal("1")]
+)
+def test_builtin_config_must_hold_json_values(value):
+    with pytest.raises(ValueError, match="must hold only JSON values"):
+        Tool.builtin("CODING_AGENT", name="code", description="d", config={"k": value})
+
+
+def test_builtin_config_with_json_values_is_accepted():
+    tool = Tool.builtin(
+        "CODING_AGENT",
+        name="code",
+        description="d",
+        config={"tools": [{"type": "x", "on": True}], "timeout": 1.5, "note": None},
+    )
+    assert tool.config["note"] is None

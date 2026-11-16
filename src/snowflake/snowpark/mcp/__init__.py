@@ -287,7 +287,7 @@ class Tool:
         destructive: Optional[bool] = None,
         idempotent: bool = False,
         open_world: bool = False,
-    ) -> "_BuiltinTool":
+    ) -> "Tool":
         """Makes a tool of one of the MCP server's built-in types, which it runs
         itself: ``CORTEX_AGENT_RUN`` (a Cortex Agent), ``CORTEX_ANALYST_MESSAGE``
         (Cortex Analyst over a semantic view), ``CORTEX_SEARCH_SERVICE_QUERY`` (a
@@ -312,10 +312,18 @@ class Tool:
                 required when there is no identifier.
             title: A human-readable title.
             config: The type's configuration, written to the server spec as is. The
-                platform defines its contents, so they are not checked here.
-            read_only: Whether the tool only reads data. When neither ``read_only``
-                nor ``destructive`` is set, the spec has no annotations and clients
-                treat the tool as one that may change data.
+                platform defines its contents, so they are not checked here beyond
+                being JSON values. Common keys: ``read_only``, ``warehouse`` and
+                ``query_timeout`` for ``SYSTEM_EXECUTE_SQL``; ``model``,
+                ``instructions``, ``tools``, ``tool_resources`` and ``skills`` for
+                ``CODING_AGENT``. See ``CREATE MCP SERVER`` in the Snowflake
+                documentation for the full list.
+            read_only: Whether the tool only reads data. This only sets the
+                annotation clients see; it doesn't restrict what the tool does. For
+                ``SYSTEM_EXECUTE_SQL``, pass ``config={"read_only": True}`` to allow
+                only SELECT. When neither ``read_only`` nor ``destructive`` is set,
+                the spec has no annotations and clients treat the tool as one that
+                may change data.
             destructive: Whether it may delete or overwrite data.
             idempotent: Whether repeating a call has no further effect.
             open_world: Whether it reaches systems outside Snowflake.
@@ -376,6 +384,9 @@ def _optional_annotations(
     idempotent: bool,
     open_world: bool,
 ) -> Optional[Dict[str, bool]]:
+    for arg, value in (("read_only", read_only), ("destructive", destructive)):
+        if value is not None and not isinstance(value, bool):
+            raise TypeError(f"{arg} must be True, False or None.")
     if read_only is None and destructive is None:
         return None
     return _annotations(bool(read_only), destructive, idempotent, open_world)
@@ -1047,7 +1058,7 @@ class ExistingObjectTool(Tool):
         return [self.warehouse] if self.warehouse else []
 
 
-_BUILTIN_TYPE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
+_BUILTIN_TYPE_PATTERN = re.compile(r"[A-Z][A-Z0-9_]*")
 _IDENTIFIER_REQUIRED = frozenset(
     {"CORTEX_AGENT_RUN", "CORTEX_ANALYST_MESSAGE", "CORTEX_SEARCH_SERVICE_QUERY"}
 )
@@ -1077,7 +1088,7 @@ class _BuiltinTool(Tool):
         config: Optional[Dict[str, Any]],
         annotations: Optional[Dict[str, bool]],
     ) -> None:
-        if not isinstance(type, str) or not _BUILTIN_TYPE_PATTERN.match(type):
+        if not isinstance(type, str) or not _BUILTIN_TYPE_PATTERN.fullmatch(type):
             raise ValueError(
                 f"Invalid tool type {type!r}: use upper-case letters, digits and "
                 "'_', starting with a letter, such as 'CORTEX_AGENT_RUN'."
@@ -1111,6 +1122,14 @@ class _BuiltinTool(Tool):
             )
         if config is not None and not isinstance(config, dict):
             raise ValueError(f"config must be a dict, got {config.__class__.__name__}.")
+        if config:
+            try:
+                json.dumps(config)
+            except (TypeError, ValueError) as e:
+                raise ValueError(
+                    f"config of tool {name!r} must hold only JSON values (str, "
+                    f"number, bool, None, list, dict): {e}"
+                ) from None
         super().__init__(name, title, description, annotations)
         self.tool_type = type
         self.identifier = identifier
@@ -1127,6 +1146,19 @@ class _BuiltinTool(Tool):
                     "warning",
                     self.name,
                     f"{self.identifier} is not fully qualified (DATABASE.SCHEMA.NAME).",
+                )
+            )
+        if (
+            self.tool_type == "SYSTEM_EXECUTE_SQL"
+            and self.config.get("read_only") is not True
+        ):
+            issues.append(
+                LintIssue(
+                    "warning",
+                    self.name,
+                    "The SQL tool can run statements that change data: set "
+                    'config={"read_only": True} to allow only SELECT. The read_only '
+                    "argument only sets the annotation clients see.",
                 )
             )
         if self.tool_type not in _KNOWN_BUILTIN_TYPES:
