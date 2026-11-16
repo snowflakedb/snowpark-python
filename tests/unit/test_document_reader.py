@@ -241,6 +241,21 @@ class TestBuildAiCompleteCall:
         assert kwargs["response_format"] == options.extraction.ai_complete_format
         assert kwargs["show_details"] is True
 
+    @pytest.mark.parametrize("parse_mode", ["none", "layout"])
+    def test_token_usage_off_sends_no_show_details(self, parse_mode):
+        # Off means the call AI_COMPLETE got before the token columns existed.
+        options = DocumentReaderOptions(
+            parse_mode=parse_mode, prompt="Summarize this.", token_usage=False
+        )
+        with mock.patch(
+            "snowflake.snowpark._internal.document_reader.ai_complete"
+        ) as mock_ai_complete:
+            build_ai_complete_call(col("SOURCE_FILE"), options)
+
+        _, kwargs = mock_ai_complete.call_args
+        assert kwargs["show_details"] is None
+        assert kwargs["return_error_details"] is True
+
 
 # ---------------------------------------------------------------------------
 # output_columns -- a prompt-only read (complete_enabled but not extract_enabled)
@@ -296,6 +311,17 @@ class TestOutputColumnsTokens:
             extraction_engine="ai_extract",
         )
         assert not set(self._TOKENS) & set(output_columns(options))
+
+    def test_token_usage_off_gives_the_columns_of_before(self):
+        schema = ExtractionSpec.from_response_format({"name": "What is it?"})
+        assert output_columns(
+            DocumentReaderOptions(
+                parse_mode="none", extraction=schema, token_usage=False
+            )
+        ) == ["SOURCE_FILE", "NAME", "EXTRACTION_SCORES", '"_document_error"']
+        assert output_columns(
+            DocumentReaderOptions(parse_mode="none", prompt="Sum.", token_usage=False)
+        ) == ["SOURCE_FILE", "RESPONSE", '"_document_error"']
 
 
 # ---------------------------------------------------------------------------
@@ -510,3 +536,20 @@ class TestExtractWithSplitProcedureUsageComment:
         query = session.sql.call_args[0][0]
         assert query.startswith("CALL MY_PROC(")
         assert query.endswith(usage_comment(options))
+
+    @pytest.mark.parametrize("token_usage", [True, False])
+    def test_the_call_passes_whether_to_ask_for_token_usage(self, token_usage):
+        # The last CALL argument is run()'s show_details.
+        session = mock.MagicMock()
+        session.get_session_stage.return_value = "@~/session_stage"
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+            token_usage=token_usage,
+        )
+        with mock.patch(
+            "snowflake.snowpark._internal.document_reader.register_extract_proc",
+            return_value="MY_PROC",
+        ):
+            extract_with_split_procedure(session, "@stage/invoices/", options)
+        assert session.sql.call_args[1]["params"][-1] is token_usage

@@ -58,6 +58,7 @@ from snowflake.snowpark.functions import (
     when,
 )
 from snowflake.snowpark.types import (
+    BooleanType,
     IntegerType,
     LongType,
     StringType,
@@ -552,10 +553,12 @@ def build_ai_complete_call(
     # AI_COMPLETE's file variant instead -- whose prompt argument must then be a plain
     # string, not a Column, so there is no CONTENT to fold in. With no schema there is
     # no response_format and AI_COMPLETE answers the prompt as free text. show_details
-    # adds the call's token usage beside the answer (see extract_with_ai_complete).
+    # adds the call's token usage beside the answer (see extract_with_ai_complete);
+    # with the TOKEN_USAGE option off it is not sent at all.
     response_format = (
         options.extraction.ai_complete_format if options.extract_enabled else None
     )
+    show_details = True if options.tokens_enabled else None
     if options.parse_enabled:
         prompt_text = (
             input_col
@@ -567,7 +570,7 @@ def build_ai_complete_call(
             prompt_text,
             model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},
             response_format=response_format,
-            show_details=True,
+            show_details=show_details,
             return_error_details=True,
         )
     return ai_complete(
@@ -576,7 +579,7 @@ def build_ai_complete_call(
         file=input_col,
         model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},
         response_format=response_format,
-        show_details=True,
+        show_details=show_details,
         return_error_details=True,
     )
 
@@ -607,8 +610,10 @@ def extract_with_ai_complete(
     # answer is inside `value`, beside its token `usage`.
     df = df.with_column(_EXTRACTED_COLUMN, call)
     extracted = col(_EXTRACTED_COLUMN)
-    df = df.with_columns(TOKEN_COLUMNS, usage_columns(extracted["value"]["usage"]))
-    value = details_answer(extracted["value"], structured=options.extract_enabled)
+    value = extracted["value"]
+    if options.tokens_enabled:
+        df = df.with_columns(TOKEN_COLUMNS, usage_columns(value["usage"]))
+        value = details_answer(value, structured=options.extract_enabled)
     extraction = options.extraction
     if extraction is None:
         return df.with_columns(
@@ -654,6 +659,7 @@ def extract_with_split_procedure(
         json.dumps(_CALL_BUDGETS),
         _MAX_CALLS_PER_FILE,
         session.get_session_stage(),
+        options.tokens_enabled,
     ]
     df = session.sql(
         f"CALL {proc_name}({', '.join(['?'] * len(args))}) {usage_comment(options)}",
@@ -663,7 +669,7 @@ def extract_with_split_procedure(
         try_parse_json(col("VALUE")).alias(_EXTRACTED_COLUMN),
         col("ERROR").alias(_EXTRACT_ERROR_COLUMN),
         try_parse_json(col("SCORES")).alias(EXTRACTION_SCORES_COLUMN),
-        *[col(name) for name in TOKEN_COLUMNS],
+        *([col(name) for name in TOKEN_COLUMNS] if options.tokens_enabled else []),
     )
     return project_extracted_fields(
         df, col(_EXTRACTED_COLUMN), col(_EXTRACT_ERROR_COLUMN), options.extraction
@@ -819,6 +825,7 @@ def register_extract_proc(session: "Session") -> str:
             StringType(),  # call_budgets: as JSON
             IntegerType(),  # max_calls_per_file
             StringType(),  # work_stage: where page ranges are staged
+            BooleanType(),  # show_details: ask AI_COMPLETE for each call's token usage
         ],
         name=name,
         packages=["snowflake-snowpark-python", "pypdf"],

@@ -32,7 +32,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     FileState,
     NoModelAvailable,
     Submitted,
-    _AI_COMPLETE_SQL,
+    ai_complete_sql,
     _brackets_close,
     _cover,
     _to_document_page,
@@ -1737,8 +1737,14 @@ def _details(text, usage=_USAGE):
 
 class TestSplitDetails:
     def test_the_call_asks_for_details(self):
-        assert "show_details => TRUE" in _AI_COMPLETE_SQL
-        assert "return_error_details => TRUE" in _AI_COMPLETE_SQL
+        assert "show_details => TRUE" in ai_complete_sql(True)
+        assert "return_error_details => TRUE" in ai_complete_sql(True)
+
+    def test_with_token_usage_off_the_call_is_the_one_of_before(self):
+        assert ai_complete_sql(False) == (
+            "SELECT AI_COMPLETE(model => ?, predicate => ?, file => TO_FILE(?), "
+            "model_parameters => PARSE_JSON(?), return_error_details => TRUE)"
+        )
 
     def test_a_string_result_gives_the_answer_text_and_its_usage(self):
         answer = '{"name": "x"}'
@@ -2931,11 +2937,13 @@ class _RunSession:
         self.files, self.answer = files, answer
         self.file = _File()
         self.calls = []
+        self.queries = []
 
     def sql(self, query, params=None):
         if query.startswith("LIST"):
             return _Result(rows=[{"name": f"s/{name}"} for name in self.files])
         self.calls.append(params[2])
+        self.queries.append(query)
         return _Result(raw=self.answer(params[2]))
 
     def create_dataframe(self, rows, schema):
@@ -2956,7 +2964,7 @@ _RUN_SCHEMA = {
 }
 
 
-def _run(monkeypatch, files, answer):
+def _run(monkeypatch, files, answer, show_details=True):
     session = _RunSession(files, answer)
     monkeypatch.setattr(
         DocumentExtraction,
@@ -2972,6 +2980,7 @@ def _run(monkeypatch, files, answer):
         json.dumps(_BUDGETS),
         30,
         "@stage",
+        show_details,
     )
     return session, rows, schema
 
@@ -3010,6 +3019,21 @@ class TestRun:
         assert bad[1] is None and "boom" in bad[2] and bad[3] is None
         # A failed call reports no usage.
         assert bad[4:] == [None, None, None]
+
+    def test_with_token_usage_off_calls_skip_show_details(self, monkeypatch):
+        # AI_COMPLETE then answers in the shape it had before show_details: the answer
+        # text as the value, with no usage.
+        def answer(staged):
+            value = {STATUS_FIELD: {"complete": True}, "invoice": "INV-1", "rows": []}
+            return json.dumps({"value": json.dumps(value), "error": None})
+
+        session, rows, _ = _run(
+            monkeypatch, {"a.pdf": _pdf_bytes(1)}, answer, show_details=False
+        )
+        assert session.queries == [ai_complete_sql(False)]
+        [row] = rows
+        assert json.loads(row[1]) == {"invoice": "INV-1", "rows": []}
+        assert row[4:] == [None, None, None]
 
     def test_a_file_that_does_not_fit_is_split_and_merged(self, monkeypatch):
         def answer(staged):

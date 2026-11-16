@@ -496,6 +496,43 @@ class TestPromptTypeValidation:
 
 
 # ---------------------------------------------------------------------------
+# TOKEN_USAGE -- on by default; False turns the token columns off. Only a bool is
+# taken, so a string such as "false" cannot silently leave it on.
+# ---------------------------------------------------------------------------
+
+
+class TestTokenUsageOption:
+    @pytest.mark.parametrize(
+        "read", [{"SCHEMA": FLAT_SCHEMA}, {"PROMPT": "Summarize."}]
+    )
+    def test_schema_and_prompt_reads_report_tokens_by_default(self, read):
+        options = _build(read)
+        assert options.token_usage is True
+        assert options.tokens_enabled
+
+    @pytest.mark.parametrize(
+        "read", [{"SCHEMA": FLAT_SCHEMA}, {"PROMPT": "Summarize."}]
+    )
+    def test_false_turns_the_tokens_off(self, read):
+        options = _build({**read, "TOKEN_USAGE": False})
+        assert options.token_usage is False
+        assert not options.tokens_enabled
+
+    def test_none_is_the_default(self):
+        assert _build({"PROMPT": "Summarize.", "TOKEN_USAGE": None}).tokens_enabled
+
+    def test_a_parse_read_reports_no_tokens_either_way(self):
+        assert not _build({}).tokens_enabled
+        assert not _build({"TOKEN_USAGE": True}).tokens_enabled
+
+    @pytest.mark.parametrize("value", ["false", "False", 0, 1, [False]])
+    def test_a_value_that_is_not_a_bool_raises_1120(self, value):
+        error = _expect_error("1120", {"PROMPT": "Summarize.", "TOKEN_USAGE": value})
+        assert "token_usage" in error.message
+        assert repr(value) in error.message
+
+
+# ---------------------------------------------------------------------------
 # ExtractionSpec.ai_complete_format -- AI_COMPLETE only accepts a JSON Schema.
 # A bare JSON-Schema dict (has a "properties" dict) is wrapped as given;
 # AI_EXTRACT's own flat Q&A shapes (dict or list) have no question/answer notion

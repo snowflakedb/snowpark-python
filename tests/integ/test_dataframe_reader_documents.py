@@ -271,6 +271,40 @@ def test_prompt_only_read_returns_a_response_column(session, invoice_path):
     _assert_token_counts(row)
 
 
+def test_token_usage_off_returns_a_prompt_read_without_tokens(session, invoice_path):
+    # The read AI_COMPLETE answered before the token columns existed: no show_details,
+    # the same answer, no token columns.
+    df = (
+        session.read.option("prompt", "Summarize this document in one sentence.")
+        .option("token_usage", False)
+        .documents(invoice_path)
+    )
+    assert _unquoted(df) == ["SOURCE_FILE", "RESPONSE", "_document_error"]
+    row = df.collect()[0]
+    assert row["RESPONSE"]
+    assert row["_document_error"] is None
+
+
+@pytest.mark.udf
+def test_token_usage_off_returns_a_schema_read_without_tokens(session, invoice_path):
+    df = (
+        session.read.option("schema", INVOICE_SCHEMA)
+        .option("token_usage", False)
+        .documents(invoice_path)
+    )
+    assert _unquoted(df) == [
+        "SOURCE_FILE",
+        "INVOICE_NUMBER",
+        "TOTAL_AMOUNT",
+        "EXTRACTION_SCORES",
+        "_document_error",
+    ]
+    row = df.collect()[0]
+    assert row["INVOICE_NUMBER"]
+    assert row["TOTAL_AMOUNT"]
+    assert row["_document_error"] is None
+
+
 @pytest.mark.udf
 def test_schema_and_prompt_together(session, invoice_path):
     # schema drives response_format as usual; prompt replaces the default

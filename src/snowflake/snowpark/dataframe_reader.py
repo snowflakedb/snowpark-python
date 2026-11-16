@@ -1416,6 +1416,9 @@ class DataFrameReader:
             - ``prompt``: instructions for the extraction. With a ``schema`` it guides
               how the fields are extracted. Without one, the answer to the prompt is
               returned as text.
+            - ``token_usage``: ``True`` (the default) or ``False``. With ``False``, a
+              read with a ``schema`` or a ``prompt`` does not return the token columns
+              described below.
 
         The returned DataFrame has one row per document, with these columns:
 
@@ -1429,12 +1432,13 @@ class DataFrameReader:
               left out.
             - ``prompt`` only: ``SOURCE_FILE`` and ``RESPONSE``.
 
-        A read with a ``schema`` or a ``prompt`` also has ``PROMPT_TOKENS``,
-        ``COMPLETION_TOKENS`` and ``TOTAL_TOKENS``: the AI_COMPLETE token usage of the
-        document (input, output, and their total). The counts are ``NULL`` when no usage
-        was reported for the document, for example when its file type is not supported.
-        Parsing is billed per page, which ``TOTAL_PAGES`` reports. A schema field cannot
-        be named like one of these columns.
+        Unless ``token_usage`` is ``False``, a read with a ``schema`` or a ``prompt``
+        also has ``PROMPT_TOKENS``, ``COMPLETION_TOKENS`` and ``TOTAL_TOKENS``: the
+        AI_COMPLETE token usage of the document (input, output, and their total). The
+        counts are ``NULL`` when no usage was reported for the document, for example when
+        its file type is not supported. Parsing is billed per page, which
+        ``TOTAL_PAGES`` reports. A schema field cannot be named like one of these
+        columns.
 
         Every read also has a case-sensitive ``"_document_error"`` column (quote the name
         when you select it). A document that fails does not fail the read: its row holds

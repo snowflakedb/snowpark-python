@@ -959,12 +959,16 @@ def qualify_listed_name(path: str, listed_name: str) -> str:
 
 # claude-sonnet-5-5 rejects response_format, so the schema travels in the predicate and
 # the answer comes back as text. show_details adds the call's token usage beside it
-# (see split_details).
-_AI_COMPLETE_SQL = (
-    "SELECT AI_COMPLETE(model => ?, predicate => ?, file => TO_FILE(?), "
-    "model_parameters => PARSE_JSON(?), show_details => TRUE, "
-    "return_error_details => TRUE)"
-)
+# (see split_details); a read with the TOKEN_USAGE option off sends the call without it.
+def ai_complete_sql(show_details: bool) -> str:
+    """The AI_COMPLETE statement each call runs, with or without show_details."""
+    return (
+        "SELECT AI_COMPLETE(model => ?, predicate => ?, file => TO_FILE(?), "
+        "model_parameters => PARSE_JSON(?), "
+        + ("show_details => TRUE, " if show_details else "")
+        + "return_error_details => TRUE)"
+    )
+
 
 # The token counts of a show_details ``usage`` object, summed per file over every call
 # that reported them (``FileState.usage``) and returned in this order (``result_row``).
@@ -1344,12 +1348,15 @@ class DocumentExtraction:
         models: List[str],
         budgets: Dict[str, Any],
         work_stage: str,
+        show_details: bool = True,
     ) -> None:
         """Precompute the schema sent to the model (with the status field added and
         every scalar made nullable) and its instruction text. ``models`` are the
         candidates in order of preference; calls use the first until AI_COMPLETE reports
-        it unknown (see ``model_missing``)."""
+        it unknown (see ``model_missing``). ``show_details`` says whether calls ask for
+        their token usage (``ai_complete_sql``)."""
         self.session = session
+        self.call_sql = ai_complete_sql(show_details)
         self.schema = response_format["schema"]
         self.sent_schema = with_status(response_format)["schema"]
         self.instruction = "\n\n" + schema_instruction(self.sent_schema)
@@ -1541,7 +1548,7 @@ class DocumentExtraction:
         file.calls += 1
         model = self.model
         job = self.session.sql(
-            _AI_COMPLETE_SQL,
+            self.call_sql,
             params=[model, predicate, staged, json.dumps({"max_tokens": max_tokens})],
         ).collect_nowait()
         return Submitted(job, model)
@@ -1848,6 +1855,7 @@ def run(
     call_budgets: str,
     max_calls_per_file: int,
     work_stage: str,
+    show_details: bool = True,
 ) -> DataFrame:
     """Extract the schema's fields from every file under ``path``; one output row per
     file, however many AI_COMPLETE calls it took.
@@ -1864,6 +1872,8 @@ def run(
         max_calls_per_file: starting cap on calls per file; raised for files whose
             answers turn out large, up to HARD_MAX_CALLS_PER_FILE.
         work_stage: stage where page-range part files are written (the session stage).
+        show_details: whether calls ask AI_COMPLETE for their token usage; False (the
+            read's TOKEN_USAGE option off) leaves the token columns None.
 
     Raises:
         NoModelAvailable (a RuntimeError): AI_COMPLETE knows none of ``models`` (not
@@ -1876,10 +1886,10 @@ def run(
         PROMPT_TOKENS, COMPLETION_TOKENS and TOTAL_TOKENS (summed over every call made
         for the file, see ``FileState.usage``, or None when no call reported them).
         A failure reading, staging, submitting or merging is a file's own ERROR and
-        does not stop the read. When more than ``MAX_FAILED_FRACTION`` of the readable PDFs finished
-        so far failed (once ``MIN_DOCUMENTS_BEFORE_ABORT`` have), the read stops
-        submitting: files with page ranges still waiting, and files of batches not yet
-        read, say so in their ERROR, and every finished row is returned as it is.
+        does not stop the read. When more than ``MAX_FAILED_FRACTION`` of the readable
+        PDFs finished so far failed (once ``MIN_DOCUMENTS_BEFORE_ABORT`` have), the read
+        stops submitting: files with page ranges still waiting, and files of batches not
+        yet read, say so in their ERROR, and every finished row is returned as it is.
     """
     from snowflake.snowpark.types import LongType, StringType, StructField, StructType
 
@@ -1890,6 +1900,7 @@ def run(
         json.loads(models),
         json.loads(call_budgets),
         work_stage,
+        show_details,
     )
     # 1. List the files under the path, with their sizes.
     listed = extraction.list_files(path)
