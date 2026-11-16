@@ -3,8 +3,8 @@
 #
 
 """SQL compilation errors of queries the plan compiler rewrites are never mapped to a wrong Python
-line: where the mapping cannot be computed (large query breakdown, or the CTE segments could not be
-recorded) it is absent.
+line: where the mapping cannot be computed (e.g. the CTE segments could not be recorded) it is
+absent.
 
 Each workload marks the lines of its dataframe operations with ``# OP``; a mapped line must be one
 of them.

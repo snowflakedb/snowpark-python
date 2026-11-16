@@ -16,6 +16,7 @@
 
 - Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
 - Fixed a bug where `DataFrameReader.table` failed when a time travel reader option was set to `None`, e.g. `option("time_travel_mode", None)` together with `option("as-of-timestamp", ...)`. Time travel options set to `None` are now treated as unset.
+- Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) reported no Python source position when large query breakdown split the query.
 
 ### Snowpark Local Testing Updates
 

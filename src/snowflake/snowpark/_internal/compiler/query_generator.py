@@ -4,6 +4,8 @@
 import copy
 from typing import DefaultDict, Dict, Iterable, List, NamedTuple, Optional, Union
 
+from snowflake.snowpark._internal import debug_config
+
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -11,6 +13,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    CteSegment,
     PlanQueryType,
     Query,
     SnowflakePlan,
@@ -116,6 +119,21 @@ class QueryGenerator(Analyzer):
                 self.resolved_with_query_block,
                 self.resolved_with_query_block_plan,
             )
+            last_query = plan_queries[PlanQueryType.QUERIES][-1]
+            if (
+                len(snowflake_plans) > 1
+                and debug_config.enabled(
+                    snowflake_plan.session, "trace_sql_errors_to_dataframe"
+                )
+                and last_query.cte_segments is None
+                and not snowflake_plan.referenced_ctes
+            ):
+                # Large query breakdown split the plan: record the plan that generated
+                # each query, so that a SQL error line can be mapped back with its line
+                # intervals.
+                last_query.cte_segments = [
+                    CteSegment(0, len(last_query.sql), snowflake_plan)
+                ]
             # we deduplicate the queries and post actions generated across the logical
             # plans because it is possible for large query breakdown to partition
             # original plan into multiple plans that may contain the same nodes which

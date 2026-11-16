@@ -777,7 +777,11 @@ class SnowflakePlan(LogicalPlan):
             )
         else:
             plan = SnowflakePlan(
-                self.queries.copy() if self.queries else [],
+                # The new plan sets the line intervals of its last query: copy the
+                # queries, so that the line intervals of this plan are kept.
+                [copy.copy(q) for q in (self.queries or [])]
+                if debug_config.enabled(self.session, "trace_sql_errors_to_dataframe")
+                else (self.queries.copy() if self.queries else []),
                 self.schema_query,
                 self.post_actions.copy() if self.post_actions else None,
                 copy.copy(self.expr_to_alias) if self.expr_to_alias else None,
@@ -1430,6 +1434,19 @@ class SnowflakePlanBuilder:
                     iceberg_config=iceberg_config,
                     use_scoped_temp_objects=use_scoped_temp_objects,
                     is_generated=is_generated,
+                    # Large query breakdown splits a plan into partitions: mark the
+                    # child, so that a SQL error in a partition maps to its operations.
+                    # The child plan is a copy, so it is marked with the uuid of the
+                    # node the line intervals are looked up in.
+                    child_uuid=(
+                        source_plan.children[0].uuid
+                        if creation_source == TableCreationSource.LARGE_QUERY_BREAKDOWN
+                        and source_plan is not None
+                        and debug_config.enabled(
+                            self.session, "trace_sql_errors_to_dataframe"
+                        )
+                        else None
+                    ),
                 ),
                 child,
                 source_plan,
@@ -2567,7 +2584,8 @@ class Query:
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
         self.params = params or []
         self.query_line_intervals = query_line_intervals or []
-        # Set when tracing sql errors is enabled and CTE optimization added a WITH clause.
+        # Set when tracing sql errors is enabled and CTE optimization added a WITH clause,
+        # or large query breakdown split the plan into several queries.
         self.cte_segments = cte_segments
 
     def __repr__(self) -> str:
