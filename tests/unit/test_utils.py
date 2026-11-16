@@ -811,18 +811,18 @@ def test_changes_clause_end_variants():
 
 
 def test_changes_validation_errors():
-    with pytest.raises(ValueError, match="changes"):
+    with pytest.raises(ValueError, match="Invalid 'changes' value"):
         TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at", statement="q1", changes="bogus"
         )
     # changes requires a time travel mode with exactly one argument
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="'changes' requires time travel mode"):
         TimeTravelConfig.validate_and_normalize_params(changes="default")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="'changes' requires time travel mode"):
         TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at", changes="default"
         )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="'changes' requires time travel mode"):
         TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at", statement="q1", offset=-1, changes="default"
         )
@@ -832,12 +832,14 @@ def test_changes_validation_errors():
         {"end_offset": -1},
         {"end_timestamp": "2023-01-01 12:00:00"},
     ):
-        with pytest.raises(ValueError, match="(?i)changes"):
+        with pytest.raises(
+            ValueError, match="can only be used together with 'changes'"
+        ):
             TimeTravelConfig.validate_and_normalize_params(
                 time_travel_mode="at", statement="q1", **end_kwargs
             )
     # at most one END argument
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Exactly one of 'end_statement'"):
         TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at",
             statement="q1",
@@ -845,7 +847,7 @@ def test_changes_validation_errors():
             end_statement="q2",
             end_offset=-1,
         )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Exactly one of 'end_statement'"):
         TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at",
             statement="q1",

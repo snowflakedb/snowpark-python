@@ -8524,8 +8524,9 @@ def changes_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
     def run(sql):
-        session.sql(sql).collect()
-        return session.sql("select last_query_id()").collect()[0][0]
+        job = session.sql(sql).collect_nowait()
+        job.result()
+        return job.query_id
 
     session.sql(
         f"create temp table {table_name} (id int, v string) change_tracking = true"
@@ -8651,6 +8652,83 @@ def test_table_changes_clause(session, changes_table):
     "config.getoption('local_testing_mode', default=False)",
     reason="Change tracking is not supported in Local Testing",
 )
+def test_table_changes_end_timestamp_and_stream(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    stream_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    def run(sql):
+        job = session.sql(sql).collect_nowait()
+        job.result()
+        return job.query_id
+
+    session.sql(
+        f"create temp table {table_name} (id int, v string) change_tracking = true"
+    ).collect()
+    try:
+        insert_qid = run(f"insert into {table_name} values (1, 'a'), (2, 'b')")
+        # the stream offset is right after the insert
+        run(f"create stream {stream_name} on table {table_name}")
+        run(f"update {table_name} set v = 'a2' where id = 1")
+        # leave a gap on both sides of the timestamp so it falls strictly
+        # between the update and the delete
+        time.sleep(1)
+        ts_after_update = session.sql("select current_timestamp()").collect()[0][0]
+        time.sleep(1)
+        run(f"delete from {table_name} where id = 2")
+
+        def read(**kwargs):
+            return session.table(table_name, changes="default", **kwargs).select(
+                "id", "v", METADATA_ACTION, METADATA_ISUPDATE
+            )
+
+        expected_update = [
+            Row(1, "a", "DELETE", True),
+            Row(1, "a2", "INSERT", True),
+        ]
+        expected_all = expected_update + [Row(2, "b", "DELETE", False)]
+
+        # END(TIMESTAMP) with a tz-aware datetime stops before the delete
+        assert ts_after_update.tzinfo is not None
+        Utils.check_answer(
+            read(
+                time_travel_mode="at",
+                statement=insert_qid,
+                end_timestamp=ts_after_update,
+            ),
+            expected_update,
+        )
+        # the same point as a naive string with an explicit end_timestamp_type
+        Utils.check_answer(
+            read(
+                time_travel_mode="at",
+                statement=insert_qid,
+                end_timestamp=ts_after_update.strftime("%Y-%m-%d %H:%M:%S.%f %z"),
+                end_timestamp_type="TZ",
+            ),
+            expected_update,
+        )
+
+        # AT(STREAM) starts at the stream offset
+        Utils.check_answer(
+            read(time_travel_mode="at", stream=stream_name), expected_all
+        )
+        Utils.check_answer(
+            read(
+                time_travel_mode="at",
+                stream=stream_name,
+                end_timestamp=ts_after_update,
+            ),
+            expected_update,
+        )
+    finally:
+        session.sql(f"drop stream if exists {stream_name}").collect()
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
 @pytest.mark.parametrize("simplifier_enabled", [True, False])
 def test_table_changes_clause_sql_simplifier(
     session, changes_table, simplifier_enabled
@@ -8743,11 +8821,11 @@ def test_table_changes_copy_and_validation(session, changes_table):
     )
     assert "CHANGES" in table.select("id")._plan.queries[-1].sql.upper()
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Invalid 'changes' value"):
         session.table(table_name, changes="bogus", time_travel_mode="at", statement="q")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="'changes' requires time travel mode"):
         session.table(table_name, changes="default")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="can only be used together with 'changes'"):
         session.table(
             table_name, time_travel_mode="at", statement=insert_qid, end_statement="q"
         )

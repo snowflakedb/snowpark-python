@@ -15,7 +15,7 @@
 #### Bug Fixes
 
 - Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
-- Fixed a bug where `DataFrameReader.table` silently ignored time travel arguments and options, including the `tag`, `version_ref` and `branch` options, when combined with an Iceberg incremental read (`start_snapshot_id` / `end_snapshot_id` or the `start-snapshot-id` option). It now raises a `ValueError`.
+- Fixed a bug where `DataFrameReader.table` silently ignored time travel arguments and options, including the `tag`, `version_ref` and `branch` options, when combined with an Iceberg incremental read (the `start-snapshot-id` / `end-snapshot-id` reader options). It now raises a `ValueError`.
 
 ### Snowpark Local Testing Updates
 

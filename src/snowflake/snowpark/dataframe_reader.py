@@ -751,7 +751,7 @@ class DataFrameReader:
             end_statement: Query ID that sets the end of the changes. Requires ``changes``.
                 At most one of ``end_statement``, ``end_offset`` and ``end_timestamp`` can be given.
                 Can also be set via ``option("end_statement", "query_id")``.
-            end_offset: Negative integer representing seconds in the past that sets the end of the changes.
+            end_offset: Zero or a negative integer representing seconds in the past that sets the end of the changes.
                 Requires ``changes``. Can also be set via ``option("end_offset", -60)``.
             end_timestamp: Timestamp string or datetime object that sets the end of the changes.
                 Requires ``changes``. Can also be set via ``option("end_timestamp", "2023-01-01 12:00:00")``.
@@ -1613,7 +1613,7 @@ class DataFrameReader:
             - ``changes``: ``'default'`` or ``'append_only'`` to read the changes of a table with
               change tracking enabled.
             - ``end_statement``: Query ID that sets the end of the changes.
-            - ``end_offset``: Seconds to go back in time that set the end of the changes (negative integer).
+            - ``end_offset``: Seconds to go back in time that set the end of the changes (zero or a negative integer).
             - ``end_timestamp``: Timestamp that sets the end of the changes.
             - ``end_timestamp_type``: Type of ``end_timestamp`` interpretation ('NTZ', 'LTZ', or 'TZ').
 
