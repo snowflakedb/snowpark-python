@@ -78,7 +78,7 @@ __all__ = [
 
 _logger = logging.getLogger(__name__)
 
-_PREVIEW_VERSION = "1.56.0"
+_PREVIEW_VERSION = "1.58.0"
 _DEFAULT_STAGE_NAME = "SNOWPARK_MCP_STAGE"
 
 

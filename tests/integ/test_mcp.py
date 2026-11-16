@@ -22,6 +22,16 @@ pytestmark = [
 ]
 
 
+@pytest.fixture(scope="module", autouse=True)
+def setup(session):
+    # Like the stored procedure tests: without this, registering a procedure pins
+    # snowflake-snowpark-python to the client's version, which the test account may
+    # not have yet right after a release.
+    session.add_packages("snowflake-snowpark-python")
+    yield
+    session.remove_package("snowflake-snowpark-python")
+
+
 @mcp_tool(read_only=True)
 def numbers(session: Session, first: int, count: int = 3) -> object:
     """Return a range of numbers.
