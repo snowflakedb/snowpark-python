@@ -512,25 +512,23 @@ class Table(DataFrame):
                 f"'sampling_method' value {sampling_method} must be None or one of 'BERNOULLI', 'ROW', 'SYSTEM', or 'BLOCK'."
             )
 
-        # Table.sample builds its SQL from the bare table name, which would drop the
-        # CHANGES clause and silently sample the current table instead.
-        if (
-            self._time_travel_config is not None
-            and self._time_travel_config.changes is not None
-        ):
-            raise NotImplementedError(
-                "Table.sample is not supported yet for change-tracking reads "
-                f"(changes={self._time_travel_config.changes.lower()!r}). Use "
-                "DataFrame.sample, e.g. df.select('*').sample(...), instead."
-            )
-
         from snowflake.snowpark.mock._connection import MockServerConnection
 
         # Seeded and SYSTEM/BLOCK sampling work on tables, including plain time travel reads,
-        # but Snowflake rejects them for Iceberg incremental reads.
+        # but Snowflake rejects them for change-tracking (CHANGES) and Iceberg incremental reads.
         seeded_or_block_sampling = seed is not None or (
             sampling_method and sampling_method.upper() in ("SYSTEM", "BLOCK")
         )
+        if (
+            seeded_or_block_sampling
+            and self._time_travel_config is not None
+            and self._time_travel_config.changes is not None
+        ):
+            raise ValueError(
+                "Table.sample does not support 'seed' or the SYSTEM/BLOCK sampling method for "
+                f"change-tracking reads (changes={self._time_travel_config.changes.lower()!r}). "
+                "Use BERNOULLI/ROW sampling without a seed, or DataFrame.sample."
+            )
         if seeded_or_block_sampling and self._iceberg_changes_config is not None:
             raise ValueError(
                 "seed and SYSTEM/BLOCK sampling are not supported for Iceberg incremental reads."

@@ -8860,15 +8860,31 @@ def test_table_changes_clause_sql_simplifier(
     "config.getoption('local_testing_mode', default=False)",
     reason="Change tracking is not supported in Local Testing",
 )
-def test_table_changes_sample_not_supported(session, changes_table):
+def test_table_changes_sample(session, changes_table):
     table_name, insert_qid, _, _ = changes_table
     changes = session.table(
         table_name, changes="default", time_travel_mode="at", statement=insert_qid
     )
-    with pytest.raises(NotImplementedError, match="change-tracking"):
-        changes.sample(frac=0.5)
-    with pytest.raises(NotImplementedError, match="change-tracking"):
-        changes.sample(n=1)
+    expected = [
+        Row(1, "a", "DELETE", True),
+        Row(1, "a2", "INSERT", True),
+        Row(2, "b", "DELETE", False),
+    ]
+    cols = ("id", "v", METADATA_ACTION, METADATA_ISUPDATE)
+    # sampling everything is deterministic, and the CHANGES clause is kept
+    full = changes.sample(frac=1.0)
+    assert "CHANGES (INFORMATION => DEFAULT)" in full.queries["queries"][-1].upper()
+    Utils.check_answer(full.select(*cols), expected)
+    Utils.check_answer(
+        changes.sample(frac=1.0, sampling_method="BERNOULLI").select(*cols), expected
+    )
+    Utils.check_answer(changes.sample(n=10).select(*cols), expected)
+    assert len(changes.sample(n=1).collect()) == 1
+
+    with pytest.raises(ValueError, match="change-tracking"):
+        changes.sample(frac=0.5, seed=1)
+    with pytest.raises(ValueError, match="change-tracking"):
+        changes.sample(frac=0.5, sampling_method="SYSTEM")
 
 
 @pytest.mark.skipif(
