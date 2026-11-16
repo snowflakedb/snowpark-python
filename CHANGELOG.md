@@ -6,7 +6,7 @@
 
 #### New Features
 
-- `DataFrameReader.documents()` (Private Preview) reads with a `schema` or a `prompt` now return the `AI_COMPLETE` token usage of each document in `PROMPT_TOKENS`, `COMPLETION_TOKENS` and `TOTAL_TOKENS` columns. A document sent in several `AI_COMPLETE` calls reports the sum over all of them. A schema field can no longer be named like one of these columns.
+- `DataFrameReader.documents()` (Private Preview) reads with a `schema` or a `prompt` now return the `AI_COMPLETE` token usage of each document in `PROMPT_TOKENS`, `COMPLETION_TOKENS` and `TOTAL_TOKENS` columns. A schema field can no longer be named like one of these columns.
 
 #### Improvements
 
