@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.debug_utils import (
 )
 
 if TYPE_CHECKING:
+    from snowflake.snowpark._internal.df_trace import TraceNode  # pragma: no cover
     from snowflake.snowpark._internal.analyzer.select_statement import (
         Selectable,
     )  # pragma: no cover
@@ -142,6 +143,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 import snowflake.snowpark.context as context
+from snowflake.snowpark._internal import debug_config
 
 from collections.abc import Iterable
 
@@ -165,11 +167,6 @@ class SnowflakePlan(LogicalPlan):
             """
 
             def wrap(*args, **kwargs):
-                from snowflake.snowpark.context import (
-                    _enable_dataframe_trace_on_error,
-                    _enable_trace_sql_errors_to_dataframe,
-                )
-
                 try:
                     return func(*args, **kwargs)
                 except snowflake.connector.errors.ProgrammingError as e:
@@ -180,55 +177,49 @@ class SnowflakePlan(LogicalPlan):
                     query = getattr(e, "query", None)
                     tb = sys.exc_info()[2]
                     assert e.msg is not None
-                    # extract top_plan, df_ast_id, stmt_cache from args
-                    top_plan, df_ast_id, stmt_cache = None, None, None
+                    # extract top_plan and its most recent trace node from args
+                    top_plan, trace_node = None, None
                     for arg in args:
                         if isinstance(arg, SnowflakePlan):
                             top_plan = arg
                             break
-                    if top_plan is not None and top_plan.df_ast_ids:
-                        df_ast_id = top_plan.df_ast_ids[-1]
-                        stmt_cache = top_plan.session._ast_batch._bind_stmt_cache
-
+                    if top_plan is not None and top_plan.df_trace_nodes:
+                        trace_node = top_plan.df_trace_nodes[-1]
                     debug_context_arr = []
                     try:
-                        if (
-                            "SQL compilation error:" in e.msg
-                            and "error line" in e.msg
-                            and top_plan is not None
-                            and _enable_trace_sql_errors_to_dataframe
-                        ):
-                            if error_source_context := get_python_source_from_sql_error(
-                                top_plan, e.msg
+                        if top_plan is not None:
+                            trace_sql_errors = debug_config.enabled(
+                                top_plan.session, "trace_sql_errors_to_dataframe"
+                            )
+                            if (
+                                "SQL compilation error:" in e.msg
+                                and "error line" in e.msg
+                                and trace_sql_errors
                             ):
-                                debug_context_arr.append(error_source_context)
-                        if (
-                            _enable_dataframe_trace_on_error
-                            and df_ast_id is not None
-                            and stmt_cache is not None
-                        ):
-                            if df_transform_trace := get_df_transform_trace_message(
-                                df_ast_id, stmt_cache
+                                if error_source_context := get_python_source_from_sql_error(
+                                    top_plan, e.msg, query
+                                ):
+                                    debug_context_arr.append(error_source_context)
+                            if trace_node is not None and debug_config.enabled(
+                                top_plan.session, "dataframe_trace_on_error"
                             ):
-                                debug_context_arr.append(df_transform_trace)
-                        if (
-                            "does not exist or not authorized" in e.msg
-                            and top_plan is not None
-                            and _enable_trace_sql_errors_to_dataframe
-                        ):
-                            if missing_object_context := get_missing_object_context(
-                                top_plan, e.msg
+                                if df_transform_trace := get_df_transform_trace_message(
+                                    trace_node
+                                ):
+                                    debug_context_arr.append(df_transform_trace)
+                            if (
+                                "does not exist or not authorized" in e.msg
+                                and trace_sql_errors
                             ):
-                                debug_context_arr.append(missing_object_context)
-                        if (
-                            ("already exists" in e.msg)
-                            and top_plan is not None
-                            and context._enable_trace_sql_errors_to_dataframe
-                        ):
-                            if existing_object_context := get_existing_object_context(
-                                top_plan, e.msg
-                            ):
-                                debug_context_arr.append(existing_object_context)
+                                if missing_object_context := get_missing_object_context(
+                                    top_plan, e.msg
+                                ):
+                                    debug_context_arr.append(missing_object_context)
+                            if ("already exists" in e.msg) and trace_sql_errors:
+                                if existing_object_context := get_existing_object_context(
+                                    top_plan, e.msg
+                                ):
+                                    debug_context_arr.append(existing_object_context)
                     except Exception as trace_error:
                         # If we encounter an error when getting the df_transform_debug_trace,
                         # we will ignore the error and not add the debug trace to the error message.
@@ -500,6 +491,11 @@ class SnowflakePlan(LogicalPlan):
         # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
         # we will store the ast_id here.
         self.df_ast_ids: Optional[List[int]] = None
+        self.df_trace_nodes: Optional[List["TraceNode"]] = None
+        # the queries of the last compilation, kept only while tracing sql errors is enabled
+        self._last_execution_queries: Optional[
+            Dict["PlanQueryType", List["Query"]]
+        ] = None
 
     @property
     def uuid(self) -> str:
@@ -518,7 +514,7 @@ class SnowflakePlan(LogicalPlan):
         from snowflake.snowpark._internal.compiler.plan_compiler import PlanCompiler
 
         compiler = PlanCompiler(self)
-        return compiler.compile()
+        return self._remember_execution_queries(compiler.compile())
 
     def get_execution_queries_without_cte(self) -> Dict["PlanQueryType", List["Query"]]:
         """Compile execution queries with CTE optimization skipped.
@@ -526,7 +522,19 @@ class SnowflakePlan(LogicalPlan):
         from snowflake.snowpark._internal.compiler.plan_compiler import PlanCompiler
 
         compiler = PlanCompiler(self)
-        return compiler.compile(skip_cte_optimization=True)
+        return self._remember_execution_queries(
+            compiler.compile(skip_cte_optimization=True)
+        )
+
+    def _remember_execution_queries(
+        self, queries: Dict["PlanQueryType", List["Query"]]
+    ) -> Dict["PlanQueryType", List["Query"]]:
+        """When tracing sql errors is enabled, keeps the most recently compiled queries so that
+        an error of a compiled query can be mapped back to the plan that generated it.
+        """
+        if debug_config.enabled(self.session, "trace_sql_errors_to_dataframe"):
+            self._last_execution_queries = queries
+        return queries
 
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", "SnowflakePlan"]]:
@@ -729,7 +737,7 @@ class SnowflakePlan(LogicalPlan):
         and then remove the comments to get the final SQL query. When tracing sql errors is not enabled,
         this function will do nothing.
         """
-        if not context._enable_trace_sql_errors_to_dataframe:
+        if not debug_config.enabled(self.session, "trace_sql_errors_to_dataframe"):
             # No action is needed if feature is not enabled
             return
         from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -781,6 +789,7 @@ class SnowflakePlan(LogicalPlan):
                 referenced_ctes=self.referenced_ctes,
             )
         plan.df_ast_ids = self.df_ast_ids
+        plan.df_trace_nodes = self.df_trace_nodes
         return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -820,6 +829,7 @@ class SnowflakePlan(LogicalPlan):
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
         copied_plan.df_ast_ids = self.df_ast_ids
+        copied_plan.df_trace_nodes = self.df_trace_nodes
 
         return copied_plan
 
@@ -848,6 +858,18 @@ class SnowflakePlan(LogicalPlan):
         elif self.df_ast_ids[-1] != ast_id:
             self.df_ast_ids.append(ast_id)
         self.propagate_ast_id_to_select_sql(ast_id)
+
+    def add_df_trace_node(self, node: "TraceNode") -> None:
+        """Adds the trace node of the DataFrame operation that created this plan."""
+        from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
+
+        if self.df_trace_nodes is None:
+            self.df_trace_nodes = [node]
+        elif not self.df_trace_nodes or self.df_trace_nodes[-1] is not node:
+            self.df_trace_nodes.append(node)
+        for child in self.children_plan_nodes:
+            if isinstance(child, SelectSQL):
+                child.add_df_trace_node(node)
 
 
 class SnowflakePlanBuilder:
@@ -1105,7 +1127,6 @@ class SnowflakePlanBuilder:
         is_distinct: bool = False,
         ilike_pattern: Optional[str] = None,
     ) -> SnowflakePlan:
-
         return self.build(
             lambda x: project_statement(
                 project_list,
@@ -1113,7 +1134,9 @@ class SnowflakePlanBuilder:
                 is_distinct=is_distinct,
                 child_uuid=(
                     child.uuid
-                    if context._enable_trace_sql_errors_to_dataframe
+                    if debug_config.enabled(
+                        self.session, "trace_sql_errors_to_dataframe"
+                    )
                     else None
                 ),
                 ilike_pattern=ilike_pattern,
@@ -1136,7 +1159,9 @@ class SnowflakePlanBuilder:
                 x,
                 child_uuid=(
                     child.uuid
-                    if context._enable_trace_sql_errors_to_dataframe
+                    if debug_config.enabled(
+                        self.session, "trace_sql_errors_to_dataframe"
+                    )
                     else None
                 ),
             ),
@@ -1158,7 +1183,9 @@ class SnowflakePlanBuilder:
                 x,
                 child_uuid=(
                     child.uuid
-                    if context._enable_trace_sql_errors_to_dataframe
+                    if debug_config.enabled(
+                        self.session, "trace_sql_errors_to_dataframe"
+                    )
                     else None
                 ),
             ),
@@ -1181,7 +1208,9 @@ class SnowflakePlanBuilder:
                 row_count=row_count,
                 child_uuid=(
                     child.uuid
-                    if context._enable_trace_sql_errors_to_dataframe
+                    if debug_config.enabled(
+                        self.session, "trace_sql_errors_to_dataframe"
+                    )
                     else None
                 ),
             ),
@@ -1217,7 +1246,9 @@ class SnowflakePlanBuilder:
                 x,
                 child_uuid=(
                     child.uuid
-                    if context._enable_trace_sql_errors_to_dataframe
+                    if debug_config.enabled(
+                        self.session, "trace_sql_errors_to_dataframe"
+                    )
                     else None
                 ),
             ),
@@ -1259,11 +1290,17 @@ class SnowflakePlanBuilder:
                 match_condition,
                 use_constant_subquery_alias,
                 left_uuid=(
-                    left.uuid if context._enable_trace_sql_errors_to_dataframe else None
+                    left.uuid
+                    if debug_config.enabled(
+                        self.session, "trace_sql_errors_to_dataframe"
+                    )
+                    else None
                 ),
                 right_uuid=(
                     right.uuid
-                    if context._enable_trace_sql_errors_to_dataframe
+                    if debug_config.enabled(
+                        self.session, "trace_sql_errors_to_dataframe"
+                    )
                     else None
                 ),
                 directed=directed,
@@ -1551,7 +1588,9 @@ class SnowflakePlanBuilder:
                 on_top_of_oder_by,
                 child_uuid=(
                     child.uuid
-                    if context._enable_trace_sql_errors_to_dataframe
+                    if debug_config.enabled(
+                        self.session, "trace_sql_errors_to_dataframe"
+                    )
                     else None
                 ),
             ),
@@ -1579,7 +1618,9 @@ class SnowflakePlanBuilder:
                 should_alias_column_with_agg,
                 child_uuid=(
                     child.uuid
-                    if context._enable_trace_sql_errors_to_dataframe
+                    if debug_config.enabled(
+                        self.session, "trace_sql_errors_to_dataframe"
+                    )
                     else None
                 ),
             ),
@@ -1605,7 +1646,9 @@ class SnowflakePlanBuilder:
                 x,
                 child_uuid=(
                     child.uuid
-                    if context._enable_trace_sql_errors_to_dataframe
+                    if debug_config.enabled(
+                        self.session, "trace_sql_errors_to_dataframe"
+                    )
                     else None
                 ),
             ),
@@ -1753,7 +1796,6 @@ class SnowflakePlanBuilder:
         iceberg_config: Optional[dict] = None,
         copy_grants: bool = False,
     ) -> SnowflakePlan:
-
         child = self.find_and_update_table_function_plan(child)
 
         if len(child.queries) != 1:
@@ -2360,7 +2402,9 @@ class SnowflakePlanBuilder:
                 x,
                 child_uuid=(
                     child.uuid
-                    if context._enable_trace_sql_errors_to_dataframe
+                    if debug_config.enabled(
+                        self.session, "trace_sql_errors_to_dataframe"
+                    )
                     else None
                 ),
             ),
@@ -2396,7 +2440,9 @@ class SnowflakePlanBuilder:
                 use_constant_subquery_alias,
                 child_uuid=(
                     child.uuid
-                    if context._enable_trace_sql_errors_to_dataframe
+                    if debug_config.enabled(
+                        self.session, "trace_sql_errors_to_dataframe"
+                    )
                     else None
                 ),
             ),
@@ -2478,6 +2524,18 @@ class QueryLineInterval:
     uuid: str
 
 
+@dataclass
+class CteSegment:
+    """A part of a query compiled with CTE optimization: the definition of a CTE or the main
+    query after the ``WITH`` clause. ``start`` and ``end`` are character offsets in the compiled
+    sql; ``plan`` is the plan that generated the part, and its last query has the line intervals
+    of the part."""
+
+    start: int
+    end: int
+    plan: "SnowflakePlan"
+
+
 class Query:
     def __init__(
         self,
@@ -2488,6 +2546,7 @@ class Query:
         temp_obj_name_placeholder: Optional[Tuple[str, TempObjectType]] = None,
         params: Optional[Sequence[Any]] = None,
         query_line_intervals: Optional[List[QueryLineInterval]] = None,
+        cte_segments: Optional[List[CteSegment]] = None,
     ) -> None:
         self.sql = sql
         self.query_id_place_holder = (
@@ -2508,6 +2567,8 @@ class Query:
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
         self.params = params or []
         self.query_line_intervals = query_line_intervals or []
+        # Set when tracing sql errors is enabled and CTE optimization added a WITH clause.
+        self.cte_segments = cte_segments
 
     def __repr__(self) -> str:
         return (
@@ -2527,6 +2588,7 @@ class Query:
             temp_obj_name_placeholder=self.temp_obj_name_placeholder,
             params=self.params,
             query_line_intervals=self.query_line_intervals,
+            cte_segments=self.cte_segments,
         )
 
     def __eq__(self, other: "Query") -> bool:

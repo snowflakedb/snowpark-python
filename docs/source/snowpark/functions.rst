@@ -572,6 +572,18 @@ Functions
     try_cast
     try_parse_json
     try_to_binary
+    try_to_boolean
+    try_to_date
+    try_to_decfloat
+    try_to_decimal
+    try_to_double
+    try_to_number
+    try_to_numeric
+    try_to_time
+    try_to_timestamp
+    try_to_timestamp_ltz
+    try_to_timestamp_ntz
+    try_to_timestamp_tz
     typeof
     udaf
     udf

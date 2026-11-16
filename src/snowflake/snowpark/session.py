@@ -111,7 +111,6 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark._internal.utils import (
-    MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
     SUPPORTED_TABLE_TYPES,
     XPATH_HANDLERS_FILE_PATH,
@@ -132,8 +131,8 @@ from snowflake.snowpark._internal.utils import (
     get_stage_file_prefix_length,
     get_temp_type_for_object,
     get_version,
-    import_or_missing_modin_pandas,
     is_in_stored_procedure,
+    module_to_requirement,
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
@@ -153,6 +152,7 @@ from snowflake.snowpark._internal.utils import (
     AstFlagSource,
     AstMode,
     private_preview,
+    public_preview,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
@@ -206,6 +206,12 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
 from snowflake.snowpark.dataframe_profiler import DataframeProfiler
+from snowflake.snowpark._internal.df_trace import (
+    ObjectCreationRegistry,
+    record_object_creation,
+)
+from snowflake.snowpark._internal import debug_config
+from snowflake.snowpark._internal.debug_config import DebugConfig
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -345,6 +351,11 @@ def _get_active_sessions(require_at_least_one: bool = True) -> Set["Session"]:
 
 def _add_session(session: "Session") -> None:
     with _session_management_lock:
+        if session not in _active_sessions:
+            # Apply the settings of context.configure_development_features under the lock it
+            # holds, so that a session created while it runs is not missed. Remove together with
+            # configure_development_features.
+            session._debug._apply(dict(context._development_feature_settings))
         _active_sessions.add(session)
 
 
@@ -363,6 +374,65 @@ def _remove_session(session: "Session") -> None:
             _active_sessions.remove(session)
         except KeyError:
             pass
+
+
+def _render_semantic_view_where(value: Union[str, Sequence[str]]) -> str:
+    """Renders the ``WHERE`` clause of a ``SEMANTIC_VIEW(...)`` call.
+
+    A ``str`` is emitted verbatim. A sequence is ``AND``-joined with each condition
+    parenthesized, so ``["a OR b", "c"]`` does not become ``a OR (b AND c)``.
+    """
+    if isinstance(value, str):
+        if not value.strip():
+            raise ValueError("where is empty; omit it instead.")
+        return "WHERE " + value
+    if not isinstance(value, Sequence):
+        raise TypeError(
+            f"where should be a string, or a sequence of conditions, not "
+            f"{type(value).__name__}."
+        )
+    if not value:
+        raise ValueError(f"where is an empty {type(value).__name__}; omit it instead.")
+    conditions = []
+    for i, condition in enumerate(value):
+        if not isinstance(condition, str):
+            raise TypeError(
+                f"where[{i}] should be a string, not {type(condition).__name__}."
+            )
+        if not condition.strip():
+            raise ValueError(f"where[{i}] is an empty condition.")
+        conditions.append("(" + condition + ")")
+    return "WHERE " + " AND ".join(conditions)
+
+
+def _render_semantic_view_clause(keyword: str, value: Union[str, Sequence[str]]) -> str:
+    """Renders one clause of a ``SEMANTIC_VIEW(...)`` call.
+
+    A ``str`` is emitted verbatim.
+    """
+    param = keyword.lower()
+    if isinstance(value, str):
+        if not value.strip():
+            raise ValueError(f"{param} is empty; omit it instead.")
+        # Not an f-string: a (str, Enum) member would format as its repr.
+        return keyword + " " + value
+    if not isinstance(value, Sequence):
+        raise TypeError(
+            f"{param} should be a string, or a sequence of members, not "
+            f"{type(value).__name__}."
+        )
+    if not value:
+        raise ValueError(
+            f"{param} is an empty {type(value).__name__}; omit it instead."
+        )
+    for i, member in enumerate(value):
+        if not isinstance(member, str):
+            raise TypeError(
+                f"{param}[{i}] should be a string, not {type(member).__name__}."
+            )
+        if not member.strip():
+            raise ValueError(f"{param}[{i}] is an empty member name.")
+    return keyword + " " + ", ".join(value)
 
 
 class Session:
@@ -735,6 +805,8 @@ class Session:
                 _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION
             )
         )
+        # Set when enabling AST turned the automatic temp table clean-up off, so disabling AST restores it.
+        self._auto_clean_up_temp_table_disabled_by_ast: bool = False
         self._reduce_describe_query_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED, False
@@ -814,15 +886,6 @@ class Session:
                     ast_enabled = False
 
         set_ast_state(AstFlagSource.SERVER, ast_enabled)
-
-        # development features require AST to be enabled
-        from snowflake.snowpark.context import (
-            _enable_trace_sql_errors_to_dataframe,
-            _enable_dataframe_trace_on_error,
-        )
-
-        if _enable_trace_sql_errors_to_dataframe or _enable_dataframe_trace_on_error:
-            self._set_ast_enabled_internal(True)
 
         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
         # in Snowflake. This is the limit where we start seeing compilation errors.
@@ -905,6 +968,8 @@ class Session:
         self._sp_profiler = StoredProcedureProfiler(session=self)
         self._udf_profiler = UDFProfiler(session=self)
         self._dataframe_profiler = DataframeProfiler(session=self)
+        self._df_trace_registry = ObjectCreationRegistry()
+        self._debug = DebugConfig(self)
         self._catalog = None
         self._client_telemetry = EventTableTelemetry(session=self)
 
@@ -1054,6 +1119,21 @@ class Session:
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
+                # A closed session is no longer counted as tracing.
+                with debug_config._lock:
+                    self._debug._closed = True
+                    self._debug._update_tracing_count()
+
+    @property
+    @experimental(version="1.57.0")
+    def debug(self) -> DebugConfig:
+        """The debug features of this session: ``session.debug.set(...)`` sets several of them,
+        and ``session.debug.enable_<feature>()`` / ``session.debug.disable_<feature>()`` set one.
+
+        See :func:`snowflake.snowpark.context.configure_development_features` to set them for
+        every session.
+        """
+        return self._debug
 
     @property
     def conf(self) -> RuntimeConfig:
@@ -1118,6 +1198,11 @@ class Session:
                 " Disabling auto temp cleaner for full test suite due to buggy behavior."
             )
             self._auto_clean_up_temp_table_enabled = False
+            self._auto_clean_up_temp_table_disabled_by_ast = True
+        elif not value and self._auto_clean_up_temp_table_disabled_by_ast:
+            # Restore the clean-up that enabling AST turned off.
+            self._auto_clean_up_temp_table_enabled = True
+            self._auto_clean_up_temp_table_disabled_by_ast = False
         set_ast_state(AstFlagSource.USER, value)
 
     @ast_enabled.setter
@@ -1293,6 +1378,8 @@ class Session:
                     self._session_id, value
                 )
                 self._auto_clean_up_temp_table_enabled = value
+                # An explicit user choice replaces what the development features did.
+                self._auto_clean_up_temp_table_disabled_by_ast = False
         else:
             raise ValueError(
                 "value for auto_clean_up_temp_table_enabled must be True or False!"
@@ -2060,10 +2147,7 @@ class Session:
         package_dict = dict()
         for package in packages:
             if isinstance(package, ModuleType):
-                package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
-                    package.__name__, package.__name__
-                )
-                package = f"{package_name}=={importlib.metadata.version(package_name)}"
+                package = module_to_requirement(package)
                 use_local_version = True
             else:
                 package = package.strip().lower()
@@ -3265,6 +3349,8 @@ class Session:
             >>> session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]).sort("column1").collect()
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
+        record_object_creation(self, "sql", query)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -3313,6 +3399,131 @@ class Session:
             )
         set_api_call_source(d, "Session.sql")
         return d
+
+    @public_preview(version="1.57.0")
+    @publicapi
+    def semantic_view(
+        self,
+        name: Union[str, Sequence[str]],
+        *,
+        dimensions: Optional[Union[str, Sequence[str]]] = None,
+        metrics: Optional[Union[str, Sequence[str]]] = None,
+        facts: Optional[Union[str, Sequence[str]]] = None,
+        where: Optional[Union[str, Sequence[str]]] = None,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """Returns a :class:`DataFrame` for a query against a semantic view.
+
+        At least one of ``dimensions``, ``metrics``, or ``facts`` is required;
+        ``where`` alone is not a valid query.
+
+        A clause string is emitted verbatim, so several members and inline ``AS``
+        aliases can be written in one string. Clauses are always emitted in the
+        order ``DIMENSIONS``, ``METRICS``, ``FACTS``, ``WHERE``, which sets the
+        default column order; reorder with :meth:`DataFrame.select`.
+
+        Note:
+            The strings passed to ``dimensions``, ``metrics``, ``facts``, and
+            ``where`` are emitted verbatim, without any check or escaping. Do not
+            build them from untrusted input.
+
+        Args:
+            name: A string, or a sequence of strings, that specifies the
+                semantic view name or fully-qualified object identifier (database
+                name, schema name, and semantic view name).
+            dimensions: Members to group by, as a verbatim clause string or a
+                sequence of member strings, which are comma-joined. A member may
+                carry an inline alias, as ``"orders.revenue AS REV"``.
+            metrics: Members to aggregate, in the same forms as ``dimensions``.
+            facts: Row-level members, in the same forms as ``dimensions``. The
+                server rejects ``facts`` together with ``metrics``.
+            where: A condition applied *before* aggregation. Pass a string, which
+                is emitted verbatim, or a sequence of conditions, which are
+                ``AND``-joined with each one parenthesized. ``WHERE`` takes a
+                single expression, so a sequence is how several conditions
+                compose. A condition may reference dimensions and facts, but not
+                metrics: a metric is filtered *after* aggregation, with
+                :meth:`DataFrame.filter` on the returned DataFrame.
+
+        Examples::
+
+            >>> df = session.semantic_view(
+            ...     "my_semantic_view",
+            ...     dimensions="customers.region",
+            ...     metrics="orders.revenue",
+            ... )  # doctest: +SKIP
+
+            >>> df = session.semantic_view(
+            ...     "my_db.my_schema.my_semantic_view",
+            ...     dimensions=["customers.region", "customers.customer"],
+            ...     metrics=["orders.revenue", "orders.order_count"],
+            ...     where="customers.region = 'EMEA'",
+            ... )  # doctest: +SKIP
+            >>> from snowflake.snowpark.functions import col  # doctest: +SKIP
+            >>> df.filter(col("REVENUE") > 400).sort(col("REGION")).show()  # doctest: +SKIP
+        """
+        if isinstance(self._conn, MockServerConnection):
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.semantic_view",
+                raise_error=NotImplementedError,
+            )
+
+        if dimensions is None and metrics is None and facts is None:
+            raise ValueError(
+                "semantic_view() requires at least one of dimensions, metrics, "
+                "or facts. A where condition alone is not a valid query."
+            )
+
+        if not isinstance(name, str):
+            if not isinstance(name, Sequence):
+                raise TypeError(
+                    "name should be a string, or a sequence of name parts, not "
+                    f"{type(name).__name__}."
+                )
+            qualified_name = ".".join(name)
+        else:
+            qualified_name = name
+        validate_object_name(qualified_name)
+
+        parts = [qualified_name]
+        for keyword, value in (
+            ("DIMENSIONS", dimensions),
+            ("METRICS", metrics),
+            ("FACTS", facts),
+        ):
+            if value is not None:
+                parts.append(_render_semantic_view_clause(keyword, value))
+        if where is not None:
+            parts.append(_render_semantic_view_where(where))
+
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            ast = with_src_position(stmt.expr.semantic_view, stmt)
+            build_table_name(ast.name, name)
+            for field, value in (
+                ("dimensions", dimensions),
+                ("metrics", metrics),
+                ("facts", facts),
+                ("where", where),
+            ):
+                if value is None:
+                    continue
+                clause = getattr(ast, field)
+                if isinstance(value, str):
+                    clause.variadic = True
+                    build_expr_from_python_val(clause.args.add(), value)
+                else:
+                    for member in value:
+                        build_expr_from_python_val(clause.args.add(), member)
+
+        df = self.sql(
+            f"SELECT * FROM SEMANTIC_VIEW({' '.join(parts)})",
+            _ast_stmt=stmt,
+            _emit_ast=_emit_ast,
+        )
+        set_api_call_source(df, "Session.semantic_view")
+        return df
 
     @property
     def read(self) -> "DataFrameReader":
@@ -3758,8 +3969,8 @@ class Session:
                         stacklevel=1,
                     )
 
-            modin_pandas, modin_is_imported = import_or_missing_modin_pandas()
-            if modin_is_imported and isinstance(
+            modin_pandas = sys.modules.get("modin.pandas")
+            if modin_pandas is not None and isinstance(
                 df, (modin_pandas.DataFrame, modin_pandas.Series)
             ):
                 # use_logical_type should be ignored for Snowpark pandas

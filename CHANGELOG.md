@@ -1,12 +1,11 @@
 # Release History
 
-## 1.56.0 (TBD)
+## 1.58.0 (TBD)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
-- Added `DataFrameReader.documents` (private preview) to read documents from a stage: parse them to text, or extract structured values with a `schema` and/or a `prompt` option. Long documents are split across several model calls automatically. Schema reads also return an `EXTRACTION_SCORES` column with a model-reported confidence score (0 to 1) for each top-level field.
 - Added the `snowflake.snowpark.mcp` module (private preview) to build tools and servers for the Snowflake-managed MCP server in Python:
   - `mcp_tool` turns a Python function into a tool, with its argument schema built from the type hints and docstring. A function whose first parameter is a `Session` becomes a stored procedure; any other function becomes a UDF. Results, including DataFrames, are converted to JSON and kept under the MCP server's response limit, and `ToolError` returns an error the model can act on. Deployed tools reject values outside an `enum` and nulls for arguments that don't allow them, since the MCP server does not validate arguments, and return an `INVALID_ARGUMENTS` error. Other errors reach MCP clients as a generic message with an error ID and without the traceback, unless `mask_error_details=False`; the full error is logged with the same ID.
   - `Tool.from_procedure` and `Tool.from_function` turn existing procedures and UDFs, in any language, into tools.
@@ -15,11 +14,94 @@
 
 #### Improvements
 
+- `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.
+
+#### Bug Fixes
+
+- Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug where `to_binary` in local testing treated an empty-string format as `HEX` and failed with an unclear error for an unknown format, instead of raising an invalid binary format error as Snowflake does.
+
+## 1.57.0 (2026-11-12)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added `Session.semantic_view()` (PuPr) to query a semantic view. Pass the semantic view name plus any of `dimensions`, `metrics`, `facts`, and `where`; it returns a `DataFrame`.
+- Added `Session.debug` (Experimental) to turn the debug features on and off per session, with `session.debug.set(...)` or `session.debug.enable_<feature>()` / `disable_<feature>()`. The features are:
+  - `eager_schema_validation`: validates the schema of a DataFrame when it is created, so an invalid operation fails at the line that defines it.
+  - `trace_sql_errors_to_dataframe`: maps a SQL compilation error to the Python lines of the DataFrame operations that generated the failing SQL.
+  - `dataframe_trace_on_error`: adds the most recent DataFrame operations of a failed DataFrame to the error.
+
+  `snowflake.snowpark.context.configure_development_features` is now a mirror of `Session.debug` that applies to every session.
+- Added support for the following functions in `functions.py`:
+  - `try_to_boolean`
+  - `try_to_date`
+  - `try_to_decfloat`
+  - `try_to_decimal` (with aliases `try_to_number` and `try_to_numeric`)
+  - `try_to_double`
+  - `try_to_time`
+  - `try_to_timestamp`
+  - `try_to_timestamp_ltz`
+  - `try_to_timestamp_ntz`
+  - `try_to_timestamp_tz`
+
+#### Improvements
+
+- The debug features of `Session.debug` (Experimental) and `snowflake.snowpark.context.configure_development_features` (Experimental) no longer depend on AST collection and no longer change the AST collection setting.
+- `DataFrameReader.documents()` (Private Preview) no longer takes the `parse_mode`, `row_boundary` and `extract_images` options. A read without a `schema` or `prompt` now always parses each file with `AI_PARSE_DOCUMENT` in `LAYOUT` mode and returns one row per file.
+- `snowflake.snowpark.context.configure_development_features` now changes only the features that are passed explicitly and keeps the others; calling it without arguments disables all of them.
+
+#### Bug Fixes
+
+- Fixed a bug that `Session.debug` (Experimental) report wrong debug information when imported through a symlinked path.
+- Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) reported a wrong Python source position when CTE optimization was enabled.
+- Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) reported extra Python source lines when the failing DataFrame operation wraps earlier operations in a subquery.
+- Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
+- Fixed a bug where importing Snowpark failed if the `requests` package was not installed. Event table telemetry now treats `requests` as an optional dependency of the `opentelemetry` extra.
+- Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file in accounts that return structured types in the native Arrow format (for example, with `ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT` set).
+- Fixed a bug where `DataFrameReader.documents()` reads with a schema failed on every file, instead of falling back to the next model, when `AI_COMPLETE` reported the first model as unavailable (`Model "<name>" is unavailable`).
+- Fixed a bug where a UDF, UDTF or stored procedure with an imported module in `packages` failed with `TypeError` on a non-Anaconda artifact repository, such as PyPI. The module is now pinned to its local version, as `Session.add_packages` does. This also fixes `snowflake.snowpark.dataframe.map` with `vectorized=True` on such a repository when `packages` is not given.
+- Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) reported no Python source position for errors in a non-SELECT statement passed to `Session.sql()`.
+
+#### Dependency Updates
+
+- The `[pandas]` install extra now declares `pandas` and `pyarrow` directly instead of coupling them through `snowflake-connector-python[pandas]`. The version bounds are unchanged.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug where a column in local testing lost its name when it was copied or filtered.
+- Fixed a bug where arithmetic on columns with NULL values returned an extra row in local testing when it followed a `filter`.
+- Fixed a bug where `Column.isin` on a datetime column in local testing did not match any value when the subquery it was given also contained NULL or a value that cannot be parsed as a timestamp.
+- Fixed a bug where `dateadd` with the `year`, `quarter` or `month` part raised an error instead of returning NULL for a NULL date in local testing.
+- Fixed a bug where `Session.create_dataframe` raised `OverflowError` in local testing for a pandas DataFrame with a datetime column outside the nanosecond range (for example, year 3000).
+- Fixed a bug where `DataFrame.pivot` in local testing raised `TypeError` when an aggregated value came from `date_part` with the `week`, `weekiso` or `yearofweekiso` part and a pivot cell was empty.
+- Fixed a bug where `DataFrameReader.csv` in local testing accepted a string or a number for `SKIP_BLANK_LINES` and treated it as true. It now raises an error unless the value is `True` or `False`, as Snowflake does.
+- Fixed a bug where `DataFrameReader.csv` in local testing read strings such as `NA` and `null` as `NaN` in a column of a type it does not convert, such as `VariantType`.
+- Fixed a bug where `Column.try_cast` to `TimeType` failed instead of returning NULL for invalid input in local testing.
+- Fixed a bug where `Column.try_cast` to `DoubleType` returned NaN instead of NULL for invalid input in local testing.
+
+## 1.56.0 (2026-10-29)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added `DataFrameReader.documents()` (private preview) to read staged documents into DataFrames. Provide a schema to extract structured fields, or omit it to return parsed document content. Schema-based reads also return an EXTRACTION_SCORES column with model-reported scores from 0 to 1 for each top-level field. The reader can process a single file or a document directory, automatically configures token limits, and splits long documents across model calls. It also parallelizes processing across documents, and isolates single-file failures so other documents in the directory can continue processing.
+
+#### Improvements
+
 - Eager schema validation (`context.configure_development_features(enable_eager_schema_validation=True)`) now raises invalid column references in `DataFrame.filter` and `DataFrame.sort` when the DataFrame is created.
 
 #### Bug Fixes
 
-- Fixed a bug that caused invalid identifier errors when `Session.reduce_describe_query_enabled` is turned on and `DataFrame.group_by` is used on a case-sensitive quoted column.
 - Fixed a bug that the dataframe trace and missing-object information were missing from errors raised while a DataFrame is being created, when debuggability features are enabled by `context.configure_development_features`.
 - Fixed `Session.client_telemetry` failing to obtain a workload-identity auth token on the v5 / universal-driver connector, which does not expose `auth_class`, `_session_manager`, or top-level `wif_util`.
 

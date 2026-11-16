@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import importlib.abc
 import json
 import logging
 import os
@@ -380,6 +381,44 @@ def test_write_pandas_wrong_table_type(mock_server_connection):
         session.write_pandas(
             mock.create_autospec(pandas.DataFrame), table_name="t", table_type="aaa"
         )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
+def test_write_pandas_with_unimportable_modin(mock_server_connection, monkeypatch):
+    # modin 0.37 is installable next to pandas 3.0 but raises AttributeError on import.
+    class UnimportableModin(importlib.abc.MetaPathFinder):
+        def find_spec(self, name, path, target=None):
+            if name.split(".")[0] == "modin":
+                raise AttributeError("module 'pandas' has no attribute 'read_gbq'")
+
+    for name in [m for m in sys.modules if m.split(".")[0] == "modin"]:
+        monkeypatch.delitem(sys.modules, name)
+    monkeypatch.setattr(sys, "meta_path", [UnimportableModin(), *sys.meta_path])
+
+    session = Session(mock_server_connection)
+    with mock.patch(
+        "snowflake.snowpark.session.write_pandas", return_value=(True, 1, 1, [])
+    ) as write_pandas:
+        session.write_pandas(pandas.DataFrame({"A": [1]}), table_name="t")
+    write_pandas.assert_called_once()
+    assert "modin" not in sys.modules
+
+
+def test_write_pandas_snowpark_pandas_object(mock_server_connection, monkeypatch):
+    modin_pandas = types.ModuleType("modin.pandas")
+    modin_pandas.DataFrame = type("DataFrame", (), {"columns": ["A"]})
+    modin_pandas.Series = type("Series", (), {})
+    monkeypatch.setitem(sys.modules, "modin.pandas", modin_pandas)
+
+    session = Session(mock_server_connection)
+    with mock.patch.object(
+        session, "_write_modin_pandas_helper"
+    ) as modin_helper, mock.patch(
+        "snowflake.snowpark.session.write_pandas"
+    ) as write_pandas:
+        session.write_pandas(modin_pandas.DataFrame(), table_name="t")
+    modin_helper.assert_called_once()
+    write_pandas.assert_not_called()
 
 
 def test_create_dataframe_empty_schema(mock_server_connection):

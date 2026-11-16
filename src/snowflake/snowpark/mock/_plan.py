@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
 import importlib
 import inspect
 import json
@@ -13,7 +14,7 @@ import uuid
 from collections import defaultdict
 from collections.abc import Iterable
 from enum import Enum
-from functools import cached_property, partial, reduce
+from functools import cached_property, reduce
 from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union, Tuple
 from unittest.mock import MagicMock
 
@@ -148,7 +149,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry, cast_column_to
-from snowflake.snowpark.mock._options import pandas as pd
+from snowflake.snowpark.mock._options import pandas as pd, pandas_major_version
 from snowflake.snowpark.mock._select_statement import (
     MockSelectable,
     MockSelectableEntity,
@@ -290,6 +291,66 @@ def coerce_order_by_arguments(order_by: List[Expression]):
     ]
 
 
+def _assign_rows(
+    target: TableEmulator, rows: Any, column_name: str, value: ColumnEmulator
+) -> None:
+    """target.loc[rows, column_name] = value, falling back to an object column on pandas 3.
+
+    pandas 3 raises TypeError for a value that does not fit the dtype (for example NULL
+    into a bool column); pandas 2 widens the column instead.
+    """
+    try:
+        target.loc[rows, column_name] = value
+        return
+    except TypeError:
+        if pandas_major_version < 3 or isinstance(
+            target[column_name].dtype, pd.api.extensions.ExtensionDtype
+        ):
+            raise
+    sf_type = target.sf_types.get(column_name)
+    null_rows_idxs = target._null_rows_idxs_map.get(column_name)
+    target[column_name] = target[column_name].astype(object)
+    if sf_type is not None:
+        target.sf_types[column_name] = sf_type
+    if null_rows_idxs is not None:
+        target._null_rows_idxs_map[column_name] = null_rows_idxs
+    target.loc[rows, column_name] = value
+
+
+def _assign_case_rows(
+    output_data: ColumnEmulator, index: Any, value: ColumnEmulator
+) -> ColumnEmulator:
+    """output_data[index] = value, with the same pandas 3 fallback as _assign_rows."""
+    try:
+        output_data[index] = value
+        return output_data
+    except TypeError:
+        if pandas_major_version < 3 or isinstance(
+            output_data.dtype, pd.api.extensions.ExtensionDtype
+        ):
+            raise
+    sf_type = output_data.sf_type
+    output_data = output_data.astype(object)
+    output_data.sf_type = sf_type
+    output_data[index] = value
+    return output_data
+
+
+def _isin(lhs: ColumnEmulator, values: Any) -> ColumnEmulator:
+    """lhs.isin(values) for IN. On a datetime64 column (kind "M"), parse string and date
+    candidates first, as pandas 3 no longer does; unparsable ones are skipped."""
+    if lhs.dtype.kind != "M":
+        return lhs.isin(values)
+
+    def castable(v):
+        return isinstance(v, str) or type(v) is datetime.date
+
+    values = list(values)
+    parsed = [pd.to_datetime(v, errors="coerce") for v in values if castable(v)]
+    others = [v for v in values if not castable(v) and not pd.isna(v)]
+    return lhs.isin([ts for ts in parsed if ts is not pd.NaT] + others)
+
+
 def handle_order_by_clause(
     order_by: List[SortOrder],
     result_df: TableEmulator,
@@ -317,8 +378,9 @@ def handle_order_by_clause(
     for column, ascending, null_first in reversed(
         list(zip(sort_columns_array, sort_orders_array, null_first_last_array))
     ):
-        comparator = partial(custom_comparator, ascending, null_first)
-        result_df = result_df.sort_values(by=column, key=comparator)
+        # Rank the column itself: pandas 3 turns None into NaN in the copy passed to key.
+        ranks = custom_comparator(ascending, null_first, result_df[column])
+        result_df = result_df.sort_values(by=column, key=lambda _: ranks)
 
     result_df.sorted_by = sort_columns_array
     if not keep_added_columns:
@@ -1809,7 +1871,7 @@ def execute_mock_plan(
                     new_expr, rows_to_update, analyzer, expr_to_alias
                 )
                 new_val.index = target_index
-                target.loc[rows_to_update[ROW_ID], column_name] = new_val
+                _assign_rows(target, rows_to_update[ROW_ID], column_name, new_val)
 
             # Delete row_id
             target = target.drop(ROW_ID, axis=1)
@@ -1916,7 +1978,9 @@ def execute_mock_plan(
                             new_expr, rows_to_update, analyzer, expr_to_alias
                         )
                         new_val.index = target_index
-                        target.loc[rows_to_update[ROW_ID], column_name] = new_val
+                        _assign_rows(
+                            target, rows_to_update[ROW_ID], column_name, new_val
+                        )
 
                     # Update updated row id set
                     for _, row in rows_to_update.iterrows():
@@ -2005,9 +2069,9 @@ def execute_mock_plan(
                         for unspecified_col in set(rows_to_insert.columns).difference(
                             inserted_columns
                         ):
-                            rows_to_insert[unspecified_col].replace(
-                                np.nan, None, inplace=True
-                            )
+                            rows_to_insert[unspecified_col] = rows_to_insert[
+                                unspecified_col
+                            ].replace(np.nan, None)
 
                     else:
                         if len(clause.values) != len(rows_to_insert.columns):
@@ -2123,7 +2187,7 @@ def execute_mock_plan(
             aggfunc=agg_function,
             index=indices,
         )
-        result.reset_index(inplace=True)
+        result = result.reset_index()
 
         # Select down to indices and provided values if specific values were requested
         if pivot_values:
@@ -2131,8 +2195,8 @@ def execute_mock_plan(
 
         # Non-indice columns lack an sf_type, add them back in.
         for res_col in set(result.columns) - set(indices):
-            # fill_na will not fill na like values with None, but it can replace them with a sentinel value
-            filled = result[res_col].fillna(sentinel)
+            column = result[res_col].astype(object)
+            filled = column.where(column.notna(), sentinel)
 
             # Sentinel values are replaced with None, then all Nones are replaced with the default if provided
             data = filled.replace({sentinel: None}).replace({None: default}).values
@@ -2141,7 +2205,7 @@ def execute_mock_plan(
 
             # Column name should be quoted string
             quoted_col = quote_name(str(res_col))
-            result.rename(columns={res_col: quoted_col}, inplace=True)
+            result = result.rename(columns={res_col: quoted_col})
             result.sf_types[quoted_col] = result.sf_types.pop(res_col)
 
         # Update column index map
@@ -2496,9 +2560,9 @@ def calculate_expression(
             rhs = calculate_expression(val, input_data, analyzer, expr_to_alias)
             if isinstance(lhs, ColumnEmulator):
                 if isinstance(rhs, ColumnEmulator):
-                    res = res | lhs.isin(rhs)
+                    res = res | _isin(lhs, rhs)
                 elif isinstance(rhs, TableEmulator):
-                    res = res | lhs.isin(rhs.iloc[:, 0])
+                    res = res | _isin(lhs, rhs.iloc[:, 0])
                 else:
                     analyzer.session._conn.log_not_supported_error(
                         external_feature_name=f"IN expression with type {type(rhs).__name__} on the right",
@@ -2557,7 +2621,7 @@ def calculate_expression(
                     value = cast_column_to(value, coerce_result)
 
             true_index = remaining[condition].index
-            output_data[true_index] = value[true_index]
+            output_data = _assign_case_rows(output_data, true_index, value[true_index])
             remaining = remaining[~remaining.index.isin(true_index)]
 
             if len(remaining) == 0:
@@ -2585,7 +2649,9 @@ def calculate_expression(
                     )
                 else:
                     value = cast_column_to(value, coerce_result)
-            output_data[remaining.index] = value[remaining.index]
+            output_data = _assign_case_rows(
+                output_data, remaining.index, value[remaining.index]
+            )
 
         return output_data
     if isinstance(exp, WindowExpression):

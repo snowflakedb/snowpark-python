@@ -5,7 +5,6 @@
 import os
 import copy
 import datetime
-import sys
 import decimal
 import json
 import logging
@@ -7430,14 +7429,6 @@ def test_dataframe_to_local_iterator_with_to_pandas_isolation(
     "config.getoption('local_testing_mode', default=False)",
     reason="Table function is not supported in Local Testing",
 )
-@pytest.mark.skipif(
-    sys.version_info[:2] == (3, 13),
-    reason=(
-        "SNOW-4145327: this map UDF installs Snowpark from PyPI, which "
-        "still pins the old cloudpickle. Skip on 3.13 until the next "
-        "client is published."
-    ),
-)
 @pytest.mark.udf
 @pytest.mark.parametrize("overlapping_columns", [True, False])
 @pytest.mark.parametrize(
@@ -7529,6 +7520,20 @@ def test_map_vectorized(session, func, output_types, expected):
 
     Utils.check_answer(
         map(df, func, output_types, vectorized=True, packages=["pandas"]), expected
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required for this test")
+@pytest.mark.udf
+def test_map_vectorized_default_pandas_package(session):
+    df = session.create_dataframe([[1], [2]], schema=["A"])
+    Utils.check_answer(
+        map(df, lambda pdf: pdf["A"] * 10, [IntegerType()], vectorized=True),
+        [Row(10), Row(20)],
     )
 
 

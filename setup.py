@@ -43,8 +43,12 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.10"
 
 PANDAS_REQUIREMENTS = [
-    f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
-    "pandas<3.0.0",
+    # Same bounds as the [pandas] extra of snowflake-connector-python 4.8.1, declared
+    # here directly so the pandas range no longer depends on the connector's extra.
+    "pandas>=1.0.0,<3.0.0; python_version < '3.13'",
+    "pandas>=2.1.2,<3.0.0; python_version >= '3.13'",
+    "pyarrow>=14.0.1,<24; python_version >= '3.14'",
+    "pyarrow>=14.0.1; python_version < '3.14'",
 ]
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
@@ -59,7 +63,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "wrapt",  # used for functools.wraps(...) in testing.
     "coverage",
     "sphinx==5.0.2",
-    "cachetools",  # used in UDF doctest
+    "cachetools<8",  # used in UDF doctest; 8.x cached wrappers pickle by reference and break the doctest
     "pytest-timeout",
     "pytest-xdist",
     "openpyxl",  # used in read_excel test, not a requirement for distribution
@@ -242,6 +246,7 @@ setup(
             "opentelemetry-api>=1.0.0, <2.0.0",
             "opentelemetry-sdk>=1.0.0, <2.0.0",
             "opentelemetry-exporter-otlp>=1.0.0, <2.0.0",
+            "requests",
         ],
     },
     classifiers=[

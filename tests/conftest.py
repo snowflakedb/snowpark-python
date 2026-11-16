@@ -36,15 +36,29 @@ try:
         InMemorySpanExporter,
     )
 
-    @pytest.fixture(scope="session")
+    from opentelemetry.util._once import Once
+
+    def _force_set_tracer_provider(provider):
+        # trace.set_tracer_provider only takes effect once per process, and the
+        # event table telemetry (test_external_telemetry.py) installs its own
+        # provider. Reset the guard so the provider of the test is the one used
+        # regardless of which tests ran before on the same xdist worker.
+        trace._TRACER_PROVIDER_SET_ONCE = Once()
+        trace._TRACER_PROVIDER = None
+        if provider is not None:
+            trace.set_tracer_provider(provider)
+
+    @pytest.fixture
     def dict_exporter():
         resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
         trace_provider = TracerProvider(resource=resource)
         dict_exporter = InMemorySpanExporter()
         processor = SimpleSpanProcessor(dict_exporter)
         trace_provider.add_span_processor(processor)
-        trace.set_tracer_provider(trace_provider)
+        old_provider = trace._TRACER_PROVIDER
+        _force_set_tracer_provider(trace_provider)
         yield dict_exporter
+        _force_set_tracer_provider(old_provider)
 
     opentelemetry_installed = True
 

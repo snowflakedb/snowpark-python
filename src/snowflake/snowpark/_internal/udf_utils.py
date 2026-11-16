@@ -55,6 +55,7 @@ from snowflake.snowpark._internal.utils import (
     escape_single_quotes,
     get_udf_upload_prefix,
     is_single_quoted,
+    module_to_requirement,
     normalize_remote_file_or_dir,
     random_name_for_temp_object,
     random_number,
@@ -1250,12 +1251,14 @@ def resolve_imports_and_packages(
 
     if artifact_repository != _ANACONDA_SHARED_REPOSITORY:
         # Non-conda artifact repository - skip conda-based package resolution
-        if packages is not None and not all(
-            isinstance(package, str) for package in packages
-        ):
-            raise TypeError(
-                "Non-conda artifact repository requires that all packages be passed as str."
-            )
+        if packages is not None:
+            if not all(isinstance(p, (str, ModuleType)) for p in packages):
+                raise TypeError(
+                    "Non-conda artifact repository requires that all packages be passed as str or module."
+                )
+            packages = [
+                p if isinstance(p, str) else module_to_requirement(p) for p in packages
+            ]
         if session is None:
             resolved_packages = []
             if packages is not None:

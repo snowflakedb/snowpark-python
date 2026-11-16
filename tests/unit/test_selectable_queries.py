@@ -54,6 +54,7 @@ def test_select_statement_sql_query(mock_session, mock_analyzer):
     mock_from.expr_to_alias = {}
     mock_from.df_aliased_col_name_to_real_col_name = {}
     mock_from.df_ast_ids = None
+    mock_from.df_trace_nodes = None
 
     select_statement = SelectStatement(
         from_=mock_from,
@@ -81,6 +82,7 @@ def test_select_statement_sql_query_with_projection(mock_session, mock_analyzer)
     mock_from.expr_to_alias = {}
     mock_from.df_aliased_col_name_to_real_col_name = {}
     mock_from.df_ast_ids = None
+    mock_from.df_trace_nodes = None
 
     def mock_analyze(expr, df_alias_map, parse_local_name=False):
         if hasattr(expr, "name"):
@@ -180,6 +182,7 @@ def test_select_snowflake_plan_commented_sql(mock_session, mock_analyzer):
     mock_snowflake_plan.expr_to_alias = {}
     mock_snowflake_plan.df_aliased_col_name_to_real_col_name = {}
     mock_snowflake_plan.df_ast_ids = None
+    mock_snowflake_plan.df_trace_nodes = None
     select_snowflake_plan = SelectSnowflakePlan(
         snowflake_plan=mock_snowflake_plan,
         analyzer=mock_analyzer,

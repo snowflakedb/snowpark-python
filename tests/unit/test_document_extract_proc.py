@@ -1643,6 +1643,54 @@ class TestReadAnswer:
             None,
         )
 
+    def test_a_native_arrow_result_is_read_like_a_string_one(self):
+        # SNOW-4418944: with structured types in the native Arrow format, the result is
+        # a dict whose value is the answer text JSON-encoded once more.
+        answer = '{"invoice_number": "INV-1042", "total": 500.00}'
+        native = {"value": json.dumps(answer), "error": None}
+        assert read_answer(native) == read_answer(
+            json.dumps({"value": answer, "error": None})
+        )
+        assert read_answer(native) == (
+            {"invoice_number": "INV-1042", "total": 500.0},
+            None,
+            None,
+        )
+
+    @pytest.mark.parametrize(
+        "answer", ['[{"name": "x"}]', "123", '{"name": "x"}', "true", "null"]
+    )
+    def test_a_plain_answer_in_an_object_result_is_not_decoded(self, answer):
+        # Only a JSON-encoded string is unwrapped; a plain answer that is itself valid
+        # JSON reads exactly as it does in the string result.
+        assert read_answer({"value": answer, "error": None}) == read_answer(
+            json.dumps({"value": answer, "error": None})
+        )
+
+    def test_a_plain_list_answer_in_an_object_result_reports_the_parse_error(self):
+        # Decoded, it would be a list and report "answer was not text" instead.
+        assert read_answer({"value": '[{"name": "x"}]', "error": None}) == (
+            None,
+            "answer JSON was not an object",
+            None,
+        )
+
+    def test_a_native_arrow_error_is_decoded(self):
+        assert read_answer({"value": None, "error": '"malformed request"'}) == (
+            None,
+            "malformed request",
+            None,
+        )
+
+    def test_a_truncated_native_arrow_answer_salvages_its_status(self):
+        text = '{"%s": {"complete": false, "last_pdf_page_extracted": 3}, "rows": [' % (
+            STATUS_FIELD
+        )
+        value, error, salvaged = read_answer({"value": json.dumps(text), "error": None})
+        assert value is None
+        assert error == TRUNCATED_TEXT_ERROR
+        assert salvaged == {"complete": False, "last_pdf_page_extracted": 3}
+
     def test_an_ai_complete_error_is_returned_without_parsing_or_salvage(self):
         assert read_answer({"value": None, "error": "malformed request"}) == (
             None,
@@ -1679,12 +1727,34 @@ class TestUnknownModel:
         )
         assert is_unknown_model_error(error) is True
 
+    @pytest.mark.parametrize(
+        "error",
+        [
+            'Model "claude-sonnet-5-5" is unavailable',
+            "Request failed for external function COMPLETE with remote service error: "
+            "'400 'model \"claude-sonnet-5-5\" is unavailable''",
+            # As Snowhouse reported it, from AI_COMPLETE on a FILE (query
+            # 01c81603-091c-0e52-0001-dda0c1e760db).
+            "Request failed for external function _COMPLETE_WITH_PROMPT_HISTORY_LLM$V1 "
+            "with remote service error: 400 "
+            '\'"Model \\"claude-sonnet-5-5\\" is unavailable"\\n\'',
+        ],
+    )
+    def test_an_unavailable_model_is_recognized(self, error):
+        assert is_unknown_model_error(error) is True
+
     def test_it_is_case_insensitive(self):
         assert is_unknown_model_error("Unknown Model foo") is True
 
     @pytest.mark.parametrize(
         "error",
-        ["429 too many requests", "malformed request", "unexpected end of JSON input"],
+        [
+            "429 too many requests",
+            "malformed request",
+            "unexpected end of JSON input",
+            "503 Service Unavailable",
+            "the service is unavailable",
+        ],
     )
     def test_other_failures_are_not_terminal(self, error):
         assert is_unknown_model_error(error) is False
@@ -1710,6 +1780,7 @@ _BUDGETS = {
     "plan_first": {"range_target": 1000, "max_tokens": 100},
 }
 _UNKNOWN_TEXT = "Request failed ... 400 'unknown model \"x\"'"
+_UNAVAILABLE_TEXT = "Request failed ... 'Model \"x\" is unavailable'"
 _GOOD = {"value": '{"a": "x"}', "error": None}
 
 
@@ -1763,13 +1834,16 @@ class TestModelFallback:
         assert extraction.model == "m1"
         assert file.calls == 1 and file.errors == [] and len(file.parts) == 1
 
+    @pytest.mark.parametrize("text", [_UNKNOWN_TEXT, _UNAVAILABLE_TEXT])
     @pytest.mark.parametrize("as_exception", [True, False])
-    def test_an_unknown_first_model_moves_the_read_to_the_next_one(self, as_exception):
+    def test_an_unknown_first_model_moves_the_read_to_the_next_one(
+        self, as_exception, text
+    ):
         def behave(model, predicate):
             if model == "m1":
                 if as_exception:
-                    raise RuntimeError(_UNKNOWN_TEXT)
-                return {"value": None, "error": _UNKNOWN_TEXT}
+                    raise RuntimeError(text)
+                return {"value": None, "error": text}
             return _GOOD
 
         session = _ModelSession(behave)
@@ -2043,6 +2117,7 @@ class TestThrottling:
         [
             "malformed request",
             '400 unknown model "x"',
+            'Model "x" is unavailable',
             "unexpected end of JSON input",
             "query 01c800c4-0a1b-e95c-4290-a91512d070ef failed",
             "pages 1-4: boom",

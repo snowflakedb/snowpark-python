@@ -892,7 +892,7 @@ def mock_to_time(
                 )
         except BaseException as exc:
             if try_cast:
-                data.append(None)
+                res.append(None)
             else:
                 SnowparkLocalTestingException.raise_from_error(exc)
 
@@ -1348,7 +1348,24 @@ def mock_to_double(
     if isinstance(
         column.sf_type.datatype, (_NumericType, StringType, VariantType, NullType)
     ):
-        res = column.apply(lambda x: try_convert(float, try_cast, x))
+        failed_mask = []
+
+        def convert_float(x):
+            try:
+                failed_mask.append(x is None)
+                return float(x) if x is not None else None
+            except BaseException as exc:
+                if try_cast:
+                    failed_mask[-1] = True
+                    return None
+                SnowparkLocalTestingException.raise_from_error(exc)
+
+        res = column.apply(convert_float)
+        if any(failed_mask):
+            # keep failed conversions (and NULLs) as None rather than NaN
+            res = res.astype(object).where(
+                ~pandas.Series(failed_mask, index=res.index), None
+            )
         res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable or res.hasnans)
         return res
     else:
@@ -1463,6 +1480,100 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
         )
 
 
+@patch("try_to_boolean")
+def mock_try_to_boolean(column: ColumnEmulator) -> ColumnEmulator:
+    return mock_to_boolean(column, try_cast=True)
+
+
+@patch("try_to_date")
+def mock_try_to_date(column: ColumnEmulator, fmt: Optional[str] = None):
+    return mock_to_date(column, fmt, try_cast=True)
+
+
+@patch("try_to_time")
+def mock_try_to_time(column: ColumnEmulator, fmt: Optional[str] = None):
+    return mock_to_time(column, fmt, try_cast=True)
+
+
+@patch("try_to_timestamp")
+def mock_try_to_timestamp(column: ColumnEmulator, fmt: Optional[ColumnEmulator] = None):
+    return mock_to_timestamp(column, fmt, try_cast=True)
+
+
+@patch("try_to_timestamp_ntz")
+def mock_try_to_timestamp_ntz(
+    column: ColumnEmulator, fmt: Optional[ColumnEmulator] = None
+):
+    return mock_to_timestamp_ntz(column, fmt, try_cast=True)
+
+
+@patch("try_to_timestamp_ltz")
+def mock_try_to_timestamp_ltz(
+    column: ColumnEmulator, fmt: Optional[ColumnEmulator] = None
+):
+    return mock_to_timestamp_ltz(column, fmt, try_cast=True)
+
+
+@patch("try_to_timestamp_tz")
+def mock_try_to_timestamp_tz(
+    column: ColumnEmulator, fmt: Optional[ColumnEmulator] = None
+):
+    return mock_to_timestamp_tz(column, fmt, try_cast=True)
+
+
+@patch("try_to_double")
+def mock_try_to_double(
+    column: ColumnEmulator, fmt: Optional[str] = None
+) -> ColumnEmulator:
+    if fmt is not None:
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="Using format strings in TRY_TO_DOUBLE",
+            internal_feature_name="mock_try_to_double",
+            parameters_info={"fmt": str(fmt)},
+            raise_error=NotImplementedError,
+        )
+    return mock_to_double(column, fmt, try_cast=True)
+
+
+@patch("try_to_decfloat")
+def mock_try_to_decfloat(
+    column: ColumnEmulator, fmt: Optional[str] = None
+) -> ColumnEmulator:
+    if fmt is not None:
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="Using format strings in TRY_TO_DECFLOAT",
+            internal_feature_name="mock_try_to_decfloat",
+            parameters_info={"fmt": str(fmt)},
+            raise_error=NotImplementedError,
+        )
+    return mock_to_decfloat(column, fmt, try_cast=True)
+
+
+@patch("try_to_decimal")
+def mock_try_to_decimal(
+    e: ColumnEmulator,
+    arg2: Optional[Any] = None,
+    arg3: Optional[Any] = None,
+    arg4: Optional[Any] = None,
+):
+    # SQL argument order is (e [, fmt] [, precision [, scale]]).
+    has_fmt = arg2 is not None and not isinstance(arg2, int)
+    if has_fmt:
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="Using format strings in TRY_TO_DECIMAL",
+            internal_feature_name="mock_try_to_decimal",
+            parameters_info={"fmt": str(arg2)},
+            raise_error=NotImplementedError,
+        )
+    precision, scale = (arg3, arg4) if has_fmt else (arg2, arg3)
+    return mock_to_decimal(
+        e,
+        38 if precision is None else precision,
+        0 if scale is None else scale,
+        try_cast=True,
+    )
+
+
 @patch("to_binary")
 def mock_to_binary(
     column: ColumnEmulator, fmt: str = None, try_cast: bool = False
@@ -1474,15 +1585,32 @@ def mock_to_binary(
     if isinstance(column.sf_type.datatype, BinaryType):
         return column.copy()
 
-    fmt = fmt.upper() if fmt else "HEX"
+    if isinstance(fmt, ColumnEmulator):
+        # A literal format also arrives as a ColumnEmulator holding one repeated value.
+        # A per-row format is not supported.
+        unique_fmts = fmt.dropna().unique()
+        if len(unique_fmts) > 1 or (len(unique_fmts) == 1 and fmt.hasnans):
+            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                external_feature_name="Using a column with different values as the format in TO_BINARY/TRY_TO_BINARY",
+                internal_feature_name="mock_to_binary",
+                parameters_info={"fmt": "ColumnEmulator"},
+                raise_error=NotImplementedError,
+            )
+        if len(unique_fmts) == 0 and len(fmt) > 0:
+            # A NULL format yields NULL, as in Snowflake.
+            res = ColumnEmulator(data=[None] * len(column), index=column.index)
+            res.sf_type = ColumnType(BinaryType(), True)
+            return res
+        fmt = unique_fmts[0] if len(unique_fmts) == 1 else None
+    # Only an omitted format defaults to HEX; an empty string is invalid, as in Snowflake.
     fmt_decoder = {
         "HEX": binascii.unhexlify,
         "BASE64": base64.b64decode,
         "UTF-8": lambda x: x.encode("utf-8"),
-    }.get(fmt)
+    }.get("HEX" if fmt is None else fmt.upper())
 
-    if fmt is None:
-        raise SnowparkLocalTestingException(f"Invalid binary format {fmt}")
+    if fmt_decoder is None:
+        raise SnowparkLocalTestingException(f"Invalid binary format string '{fmt}'")
 
     if isinstance(column.sf_type.datatype, (StringType, NullType, VariantType)):
         res = column.apply(lambda x: try_convert(fmt_decoder, try_cast, x))
@@ -1687,10 +1815,14 @@ def cast_to_datetime(date):
 
 
 def add_years(date, duration):
+    if date is None:
+        return date
     return date.replace(year=date.year + duration)
 
 
 def add_months(scalar, date, duration):
+    if date is None:
+        return date
     res = (
         pandas.to_datetime(date) + pandas.DateOffset(months=scalar * duration)
     ).to_pydatetime()
@@ -1773,11 +1905,13 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
         res = pandas.to_datetime(datetime_expr).dt.isocalendar().week
     elif unaliased == "yearofweekiso":
         res = pandas.to_datetime(datetime_expr).dt.isocalendar().year
-    elif unaliased in {"quarter", "dayofyear"}:
-        res = getattr(pandas.to_datetime(datetime_expr).dt, unaliased, None)
+    elif unaliased == "quarter":
+        res = pandas.to_datetime(datetime_expr).dt.quarter
+    elif unaliased == "dayofyear":
+        res = pandas.to_datetime(datetime_expr).dt.day_of_year
     elif unaliased in {"dayofweek", "dayofweekiso"}:
         # Pandas has Monday as 0 while Snowflake uses Sunday as 0
-        res = (pandas.to_datetime(datetime_expr).dt.dayofweek + 1) % 7
+        res = (pandas.to_datetime(datetime_expr).dt.day_of_week + 1) % 7
     elif unaliased == "nanosecond" and isinstance(datatype, TimestampType):
         res = datetime_expr.apply(lambda x: None if x is None else x.microsecond * 1000)
     elif unaliased in {
@@ -1873,7 +2007,7 @@ def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
     elif time_unit == "week":
         truncated = pandas.to_datetime(datetime_expr)
         # Calculate offset from start of week
-        offsets = pandas.to_timedelta(truncated.dt.dayofweek, unit="d")
+        offsets = pandas.to_timedelta(truncated.dt.day_of_week, unit="D")
         # Subtract off offset
         truncated = truncated.combine(offsets, operator.sub)
         # Trim data smaller than a day
@@ -2168,7 +2302,7 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
     result = pdf.T.apply(
         lambda c: None
         if c.isnull().values.any()
-        else c[1:].astype(str).str.cat(sep=c[0])
+        else c.iloc[1:].astype(str).str.cat(sep=c.iloc[0])
     )
     result.sf_type = ColumnType(StringType(), result.hasnans)
     return result

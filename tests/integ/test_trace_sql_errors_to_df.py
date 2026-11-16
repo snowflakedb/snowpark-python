@@ -3,20 +3,30 @@
 #
 
 import os
+import re
 import sys
 
 import pytest
 import snowflake.snowpark.context as context
+from snowflake.snowpark import Session
 
-from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
+from snowflake.snowpark._internal.utils import (
+    AstFlagSource,
+    is_ast_enabled,
+    set_ast_state,
+)
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     col,
+    lit,
+    sql_expr,
     sum,
+    when,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.window import Window
-from tests.utils import Utils
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -40,9 +50,11 @@ pytestmark = [
 @pytest.fixture(autouse=True)
 def setup(request, session):
     original = session.ast_enabled
-    set_ast_state(AstFlagSource.TEST, True)
+    # The SQL error tracing does not use the AST collection; keep it off to make sure.
+    set_ast_state(AstFlagSource.TEST, False)
     context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
     yield
+    assert not is_ast_enabled(), "the debug features must not turn the AST on"
     context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
     set_ast_state(AstFlagSource.TEST, original)
 
@@ -58,6 +70,95 @@ def test_python_source_location_in_sql_error(session):
     )
     line_number = Utils.get_current_line_number_sys()
     assert f"line {line_number - 6}" in str(ex.value.debug_context)
+
+
+def _mapped_lines(ex) -> list:
+    """The lines of this file that the debug context maps the SQL error to."""
+    return [
+        int(line)
+        for line in re.findall(
+            re.escape(os.path.basename(__file__)) + r": line (\d+)",
+            str(ex.value.debug_context),
+        )
+    ]
+
+
+@pytest.fixture(params=[True, False], ids=["multiline", "singleline"])
+def multiline(request, session):
+    original = session._generate_multiline_queries
+    if request.param:
+        session._enable_multiline_queries()
+    else:
+        session._disable_multiline_queries()
+    yield request.param
+    if original:
+        session._enable_multiline_queries()
+    else:
+        session._disable_multiline_queries()
+
+
+def test_sql_error_maps_to_operation_of_its_subquery(session, multiline):
+    """An operation that wraps the previous ones in a subquery is reported alone, not
+    with the operations of the subquery (SNOW-4412764)."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    bad = sql_expr("TO_DATE(a, b, a, b)")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.with_column("c", col("a") + 1)
+    df = df.with_column("d", bad)
+    line = Utils.get_current_line_number_sys() - 1
+    df = df.with_column("e", col("a") * 2)
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+def test_sql_error_in_case_expression(session, multiline):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    bad = sql_expr("TO_DATE(a, b, a, b)")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.with_column("c", col("a") + 1)
+    df = df.with_column("k", when(col("a") > 0, bad).otherwise(lit(None)))
+    line = Utils.get_current_line_number_sys() - 1
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+def test_sql_error_in_flattened_operations(session, multiline):
+    """Operations the SQL simplifier flattens into one SELECT share the SQL lines, so they
+    are all reported; the offending one is among them."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    bad = sql_expr("TO_DATE(a, b, a, b)")
+    first = Utils.get_current_line_number_sys() + 1
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.select("a", "b")
+    df = df.filter(col("a") > 0)
+    df = df.filter(bad.is_not_null())
+    df = df.sort(col("a"))
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == list(range(first, first + 5))
+
+
+def test_sql_error_of_another_query_reports_all_operations(session, multiline):
+    """The schema query run when the join is created has other lines than the sql of the
+    plan, so all the operations of the matched plan are reported."""
+    bad = sql_expr("TO_DATE(a, b, a, b)")
+    first = Utils.get_current_line_number_sys() + 1
+    left = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    left = left.with_column("x", bad)
+    right = session.create_dataframe([(1, "z")], schema=["a", "y"])
+    with pytest.raises(SnowparkSQLException) as ex:
+        left.join(right, left["a"] == right["a"])
+    if session.sql_simplifier_enabled:
+        assert _mapped_lines(ex) == [first, first + 1, first + 4]
+    else:
+        # Without the simplifier the join resolves the schema of ``left`` with the sql
+        # of its own plan, so the line maps precisely to the failing operation.
+        assert _mapped_lines(ex) == [first + 1]
 
 
 def test_python_source_location_in_session_sql(session):
@@ -491,21 +592,6 @@ def test_existing_view_with_schema_qualified_names_using_dataframe_methods(sessi
     Utils.drop_view(session, temp_view_name)
 
 
-def test_existing_object_debug_context_when_ast_disabled(session):
-    """Test that the debug context function gracefully handles the case when AST is disabled."""
-    original_ast_state = session.ast_enabled
-    set_ast_state(AstFlagSource.TEST, False)
-    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    session.sql(f"CREATE TABLE {temp_table_name} (a INT, b INT)").collect()
-    with pytest.raises(SnowparkSQLException) as ex:
-        session.sql(f"CREATE TABLE {temp_table_name} (a INT, b INT)").collect()
-
-    assert f"Object '{temp_table_name}' already exists" in str(ex.value)
-
-    Utils.drop_table(session, temp_table_name)
-    set_ast_state(AstFlagSource.TEST, original_ast_state)
-
-
 def test_existing_table_with_dataframe_write_operations(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df1 = session.create_dataframe([{"a": 1, "b": 2}])
@@ -552,3 +638,174 @@ def test_existing_view_with_all_dataframe_methods(session, view_method):
     ), f"Expected object reference not found in debug context for {view_method}: {ex.value.debug_context}"
 
     Utils.drop_view(session, view_name)
+
+
+def _create_temp_table_sql(column_lines):
+    """A multi-line non-select statement, so session.sql() runs it as a pre-action."""
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    return f"create or replace temp table {table_name} as\nselect\n" + ",\n".join(
+        column_lines
+    )
+
+
+# Fails at SQL line 10, after the last line of the main query that RESULT_SCANs it.
+_LONG_BAD_SQL_COLUMNS = [f"{i} as c{i}" for i in range(7)] + ["no_such_col as bad"]
+
+
+def _pre_action_beyond_main_query_lines(session):
+    sql = _create_temp_table_sql(_LONG_BAD_SQL_COLUMNS)
+    sql_line = Utils.get_current_line_number_sys() + 1
+    df = session.sql(sql)
+    return df.filter(col("c0") > 1), [sql_line], []
+
+
+def _pre_action_within_main_query_lines(session):
+    # Fails at SQL line 5, which also exists in the main query.
+    sql = _create_temp_table_sql(["1 as a", "2 as b", "no_such_col as bad"])
+    sql_line = Utils.get_current_line_number_sys() + 1
+    df = session.sql(sql)
+    return df.filter(col("a") > 1), [sql_line], []
+
+
+def _second_of_two_pre_actions(session):
+    sql_ok = _create_temp_table_sql(["1 as a"])
+    sql_bad = _create_temp_table_sql(["1 as b", "no_such_col as bad"])
+    ok_line = Utils.get_current_line_number_sys() + 1
+    df_ok = session.sql(sql_ok)
+    bad_line = Utils.get_current_line_number_sys() + 1
+    df_bad = session.sql(sql_bad)
+    df = df_ok.cross_join(df_bad)
+    assert len(df._plan.queries) == 3
+    return df, [bad_line], [ok_line]
+
+
+def _pre_action_repeated_by_cte(session):
+    sql = _create_temp_table_sql(_LONG_BAD_SQL_COLUMNS)
+    sql_line = Utils.get_current_line_number_sys() + 1
+    df = session.sql(sql).filter(col("c0") > 1)
+    return df.union_all(df), [sql_line], []
+
+
+def _main_query_after_session_sql_pre_action(session):
+    df = session.sql(_create_temp_table_sql(["1 as a"]))
+    filter_line = Utils.get_current_line_number_sys() + 1
+    df = df.filter(col("no_such_col") > 1)
+    return df, [filter_line], []
+
+
+def _main_query_after_large_local_data_pre_actions(session):
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+    select_line = Utils.get_current_line_number_sys() + 1
+    df = df.select(col("a"), col("no_such_col"))
+    assert len(df._plan.queries) > 1
+    return df, [select_line], []
+
+
+def _large_query_breakdown_partition(session):
+    # The invalid column is deep in the plan, so it fails in a partition query that
+    # runs before the last query. The partition is not owned by a node of the original
+    # plan, so no source location is reported rather than a wrong one.
+    if not session.sql_simplifier_enabled:
+        # without the simplifier, with_column resolves the schema eagerly and the
+        # error is raised while the DataFrame is built, before any partition runs
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df = df.filter(col("no_such_col") > 0)
+    for i in range(12):
+        df = df.with_column("a", col("a") + lit(i)).filter(col("a") > i)
+        df = df.union_all(df.select("a", "b"))
+    assert len(df._plan.execution_queries[PlanQueryType.QUERIES]) > 1
+    return df, None, []
+
+
+@pytest.mark.parametrize(
+    "build_df, session_settings",
+    [
+        (_pre_action_beyond_main_query_lines, {}),
+        (_pre_action_beyond_main_query_lines, {"sql_simplifier_enabled": False}),
+        (_pre_action_within_main_query_lines, {}),
+        (_second_of_two_pre_actions, {}),
+        (_pre_action_repeated_by_cte, {"cte_optimization_enabled": True}),
+        (_main_query_after_session_sql_pre_action, {}),
+        (_main_query_after_large_local_data_pre_actions, {}),
+        (
+            _large_query_breakdown_partition,
+            {
+                # with CTE optimization the plan is compiled into one query instead
+                "cte_optimization_enabled": False,
+                "large_query_breakdown_enabled": True,
+                "_large_query_breakdown_complexity_bounds": (300, 600),
+            },
+        ),
+    ],
+)
+def test_sql_error_in_query_before_or_after_pre_actions(
+    session, build_df, session_settings
+):
+    # SNOW-4412768: an error raised by a query that runs before the last query of the
+    # plan maps to the DataFrame operation that produced it.
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_settings = {name: getattr(session, name) for name in session_settings}
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        for name, value in session_settings.items():
+            setattr(session, name, value)
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df, expected_lines, unexpected_lines = build_df(session)
+        with pytest.raises(SnowparkSQLException) as ex:
+            df.collect()
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+        for name, value in original_settings.items():
+            setattr(session, name, value)
+    debug_context = str(ex.value.debug_context)
+    if expected_lines is None:
+        assert "SQL compilation error corresponds to Python source" not in debug_context
+        return
+    assert "SQL compilation error corresponds to Python source" in debug_context
+    for line in expected_lines:
+        assert f"line {line}" in debug_context
+    for line in unexpected_lines:
+        assert f"line {line}" not in debug_context
+
+
+def test_pre_action_owner_carries_session_sql_trace_node(session):
+    # The source location of a pre-action error comes from the trace nodes of the plan
+    # that owns the pre-action, which must include the session.sql() call.
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    from snowflake.snowpark._internal.utils import get_plan_from_pre_query_line_number
+
+    df = session.sql(_create_temp_table_sql(["1 as a"]))
+    filtered = df.filter(col("a") > 1)
+    owner = get_plan_from_pre_query_line_number(
+        filtered._plan, filtered._plan.queries[0], 1
+    )
+    assert any(node is df._trace_node for node in owner.df_trace_nodes)
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_sql_error_tracing_is_per_session(session, db_parameters):
+    def build(s):
+        df = s.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        return df.select(col("a").alias("x")).select(col("x") + col("b"))
+
+    with Session.builder.configs(db_parameters).create() as other:
+        other.sql_simplifier_enabled = session.sql_simplifier_enabled
+        other.debug.disable_trace_sql_errors_to_dataframe()
+        assert session.debug.trace_sql_errors_to_dataframe is True
+        on, off = build(session), build(other)
+        # the session with the feature off sends the same SQL and records no line intervals
+        assert off.queries == on.queries
+        assert not any(q.query_line_intervals for q in off._plan.queries)
+        with pytest.raises(SnowparkSQLException) as ex_on:
+            on.collect()
+        with pytest.raises(SnowparkSQLException) as ex_off:
+            off.collect()
+    assert "SQL compilation error corresponds to Python source" in str(
+        ex_on.value.debug_context
+    )
+    assert "SQL compilation error corresponds to Python source" not in str(
+        ex_off.value.debug_context or ""
+    )

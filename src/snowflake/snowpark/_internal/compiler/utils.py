@@ -3,9 +3,11 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
+import logging
 import tempfile
 from typing import Dict, List, Optional, Set, Union
 
+from snowflake.snowpark._internal import debug_config
 from snowflake.snowpark._internal.analyzer.binary_plan_node import BinaryNode
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
@@ -19,6 +21,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    CteSegment,
     PlanQueryType,
     Query,
     SnowflakePlan,
@@ -46,6 +49,8 @@ from snowflake.snowpark._internal.compiler.query_generator import (
 )
 
 TreeNode = Union[SnowflakePlan, Selectable]
+
+_logger = logging.getLogger(__name__)
 
 
 def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
@@ -306,10 +311,18 @@ def update_resolvable_node(
 
 
 def get_snowflake_plan_queries(
-    plan: SnowflakePlan, resolved_with_query_blocks: Dict[str, Query]
+    plan: SnowflakePlan,
+    resolved_with_query_blocks: Dict[str, Query],
+    resolved_with_query_block_plans: Optional[Dict[str, SnowflakePlan]] = None,
 ) -> Dict[PlanQueryType, List[Query]]:
-
-    from snowflake.snowpark._internal.analyzer.analyzer_utils import cte_statement
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+        AS,
+        COMMA,
+        LEFT_PARENTHESIS,
+        RIGHT_PARENTHESIS,
+        WITH,
+        cte_statement,
+    )
 
     plan_queries = plan.queries
     post_action_queries = plan.post_actions
@@ -351,7 +364,38 @@ def get_snowflake_plan_queries(
                 definition_queries.append(definition_query.sql)
                 final_query_params.extend(definition_query.params)
         with_query = cte_statement(definition_queries, table_names)
+        cte_segments = None
+        if resolved_with_query_block_plans is not None and debug_config.enabled(
+            plan.session, "trace_sql_errors_to_dataframe"
+        ):
+            # Record which plan generated each part of the compiled query, so that a SQL
+            # error line can be mapped back with the line intervals of that plan.
+            try:
+                cte_segments = []
+                pos = len(WITH)
+                for i, (name, definition) in enumerate(
+                    zip(table_names, definition_queries)
+                ):
+                    pos += len(name) + len(AS) + len(LEFT_PARENTHESIS)
+                    definition_plan = resolved_with_query_block_plans.get(name)
+                    if definition_plan is not None:
+                        cte_segments.append(
+                            CteSegment(pos, pos + len(definition), definition_plan)
+                        )
+                    pos += len(definition) + len(RIGHT_PARENTHESIS)
+                    if i < len(table_names) - 1:
+                        pos += len(COMMA)
+                body_start = len(with_query)
+                cte_segments.append(
+                    CteSegment(body_start, body_start + len(plan_queries[-1].sql), plan)
+                )
+            except Exception:
+                # Only debug information: an error of this query is then not mapped, and
+                # the query itself still runs.
+                _logger.debug("Failed to record the CTE segments", exc_info=True)
+                cte_segments = None
         plan_queries[-1].sql = with_query + plan_queries[-1].sql
+        plan_queries[-1].cte_segments = cte_segments
         final_query_params.extend(plan_queries[-1].params)
         plan_queries[-1].params = final_query_params
 

@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeCreateTable,
     TableCreationSource,
 )
+from snowflake.snowpark._internal.df_trace import record_object_creation
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
     build_expr_from_snowpark_column_or_sql_str,
@@ -394,6 +395,8 @@ class DataFrameWriter:
                 'please consider using `table_type="temporary"` instead.',
             )
             table_type = "temporary"
+
+        record_object_creation(self._dataframe._session, "table", table_name)
 
         if _emit_ast and self._ast is not None:
             # Add an Bind node that applies WriteTable() to the input, followed by its Eval.

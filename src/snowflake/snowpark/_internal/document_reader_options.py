@@ -220,10 +220,8 @@ class DocumentReaderOptions:
     def from_reader_options(
         cls, cur_options: Dict[str, Any]
     ) -> "DocumentReaderOptions":
-        """The user options are SCHEMA, PROMPT, PARSE_MODE, ROW_BOUNDARY and
-        EXTRACT_IMAGES; any other key is ignored, because everything else is chosen by
-        the reader. PARSE_MODE, ROW_BOUNDARY and EXTRACT_IMAGES only apply to a read with
-        neither a schema nor a prompt, and EXTRACT_IMAGES needs parse_mode "layout"."""
+        """The user options are SCHEMA and PROMPT; any other key is ignored, because
+        everything else is chosen by the reader."""
         options = cls(
             extraction=ExtractionSpec.from_response_format(
                 cls._validated_schema(cur_options.get("SCHEMA"))
@@ -235,18 +233,6 @@ class DocumentReaderOptions:
         # With neither, the parsed text is the read's only output, so parsing stays on.
         if options.complete_enabled:
             options.parse_mode = "none"
-        else:
-            options.parse_mode = cls.user_choice(
-                cur_options, "PARSE_MODE", "layout", _USER_PARSE_MODES
-            )
-            options.row_boundary = cls.user_choice(
-                cur_options, "ROW_BOUNDARY", "document", _ROW_BOUNDARIES
-            )
-            options.extract_images = cls.user_bool(cur_options, "EXTRACT_IMAGES")
-            if options.extract_images and options.parse_mode != "layout":
-                raise SnowparkClientExceptionMessages.DF_DOCUMENTS_EXTRACT_IMAGES_NEEDS_LAYOUT(
-                    options.parse_mode
-                )
         options.validate()
         return options
 

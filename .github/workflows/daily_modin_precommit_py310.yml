@@ -234,7 +234,8 @@ jobs:
       - if: ${{ !contains('macos', matrix.os.download_name) }}
         name: Run Snowpark pandas API tests (excluding doctests)
         # Use regular github setup for large windows and linux instance
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci"
+        # lowparallel caps xdist at 36: at -n logical, these tiny-input UDTF queries exhaust server-side UDF sandboxes.
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci-lowparallel"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}

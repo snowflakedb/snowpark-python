@@ -508,9 +508,13 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
         structured_type_session, structured_type_support
     ).to_pandas()
     if structured_type_support:
-        assert (
-            pdf.to_json()
-            == '{"MAP":{"0":[["k1",1.0]]},"OBJ":{"0":{"A":"foo","b":0.05}},"ARR":{"0":[1.0,3.1,4.5]}}'
+        import pandas
+
+        # pandas 3 writes the Decimal MAP value as a JSON string.
+        map_value = '"1"' if int(pandas.__version__.split(".")[0]) >= 3 else "1.0"
+        assert pdf.to_json() == (
+            '{"MAP":{"0":[["k1",' + map_value + "]]},"
+            '"OBJ":{"0":{"A":"foo","b":0.05}},"ARR":{"0":[1.0,3.1,4.5]}}'
         )
     else:
         assert (

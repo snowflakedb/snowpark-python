@@ -13,6 +13,7 @@ import re
 from textwrap import dedent
 from typing import Callable
 
+import cloudpickle
 import pytest
 
 try:
@@ -40,9 +41,11 @@ try:
 
     is_pandas_available = True
     numpy_funcs = [numpy.min, numpy.sqrt, numpy.tan, numpy.sum, numpy.median]
+    _is_pandas_3 = int(pandas.__version__.split(".")[0]) >= 3
 except ImportError:
     is_pandas_available = False
     numpy_funcs = []
+    _is_pandas_3 = False
 
 from typing import Dict, List, Optional, Union
 
@@ -93,6 +96,13 @@ from tests.utils import (
     TestData,
     TestFiles,
     Utils,
+)
+
+STRING_DTYPE = "str" if _is_pandas_3 else "object"
+TIMESTAMP_CLASS = (
+    "<class 'pandas.Timestamp'>"
+    if _is_pandas_3
+    else "<class 'pandas._libs.tslibs.timestamps.Timestamp'>"
 )
 
 pytestmark = [
@@ -2374,7 +2384,7 @@ def test_pandas_udf_input_variant(session):
             ("<class 'numpy.float64'>", "<class 'float'>"),
             ("float64",),
         ),
-        (StringType, [["1"]], ("<class 'str'>",), ("object",)),
+        (StringType, [["1"]], ("<class 'str'>",), (STRING_DTYPE,)),
         (
             BooleanType,
             [[True]],
@@ -2397,7 +2407,7 @@ def test_pandas_udf_input_variant(session):
             ("<class 'datetime.date'>",),
             ("object",),
         ),
-        (ArrayType, [[[1]]], ("<class 'list'>",), ("object",)),
+        (ArrayType, [[[1]]], ("<class 'list'>",), (STRING_DTYPE,)),
         (
             TimeType,
             [[datetime.time(1, 1, 1)]],
@@ -2407,12 +2417,12 @@ def test_pandas_udf_input_variant(session):
         (
             TimestampType,
             [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
-            ("<class 'pandas._libs.tslibs.timestamps.Timestamp'>",),
+            (TIMESTAMP_CLASS,),
             ("datetime64[ns]",),
         ),
-        (GeographyType, [["POINT(30 10)"]], ("<class 'dict'>",), ("object",)),
-        (GeometryType, [["POINT(30 10)"]], ("<class 'dict'>",), ("object",)),
-        (MapType, [[{1: 2}]], ("<class 'dict'>",), ("object",)),
+        (GeographyType, [["POINT(30 10)"]], ("<class 'dict'>",), (STRING_DTYPE,)),
+        (GeometryType, [["POINT(30 10)"]], ("<class 'dict'>",), (STRING_DTYPE,)),
+        (MapType, [[{1: 2}]], ("<class 'dict'>",), (STRING_DTYPE,)),
     ],
 )
 def test_pandas_udf_return_types(session, _type, data, expected_types, expected_dtypes):
@@ -2429,7 +2439,7 @@ def test_pandas_udf_return_types(session, _type, data, expected_types, expected_
         immutable=True,
     )
     result_df = df.select(series_udf("a")).to_pandas()
-    result_val = result_df.iloc[0][0]
+    result_val = result_df.iloc[0, 0]
     if _type in (ArrayType, MapType, GeographyType, GeometryType):  # TODO: SNOW-573478
         result_val = json.loads(result_val)
 
@@ -2437,8 +2447,8 @@ def test_pandas_udf_return_types(session, _type, data, expected_types, expected_
         str(type(result_val)) in expected_types
     ), f"returned type is {type(result_val)} instead of {expected_types}"
     assert (
-        result_df.dtypes[0] in expected_dtypes
-    ), f"returned dtype is {result_df.dtypes[0]} instead of {expected_dtypes}"
+        result_df.dtypes.iloc[0] in expected_dtypes
+    ), f"returned dtype is {result_df.dtypes.iloc[0]} instead of {expected_dtypes}"
 
 
 @pytest.mark.skipif(
@@ -2482,12 +2492,12 @@ def test_pandas_udf_return_variant(session):
     )
     temp = df.select(series_udf("a")).to_pandas()
     assert (
-        temp.dtypes[0] == object
-    ), f"returned dtype is {temp.dtypes[0]} instead of object"
+        temp.dtypes.iloc[0] == STRING_DTYPE
+    ), f"returned dtype is {temp.dtypes.iloc[0]} instead of {STRING_DTYPE}"
     for i, row in temp.iterrows():
         assert isinstance(
-            row[0], expected_types[i]
-        ), f"returned type is {type(row[0])} instead of {expected_types[i]}"
+            row.iloc[0], expected_types[i]
+        ), f"returned type is {type(row.iloc[0])} instead of {expected_types[i]}"
 
 
 @pytest.mark.skipif(
@@ -3036,6 +3046,32 @@ def test_access_snowflake_import_directory(session, resources_path):
 
     # clean
     session.clear_imports()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+def test_register_module_package_on_pypi_artifact_repository(session):
+    def cloudpickle_version() -> str:
+        import cloudpickle
+
+        return cloudpickle.__version__
+
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    try:
+        udf(
+            func=cloudpickle_version,
+            name=temp_func_name,
+            artifact_repository="snowflake.snowpark.pypi_shared_repository",
+            packages=[cloudpickle],
+        )
+        df = session.create_dataframe([1]).to_df(["a"])
+        Utils.check_answer(
+            df.select(call_udf(temp_func_name)), [Row(cloudpickle.__version__)]
+        )
+    finally:
+        session._run_query(f"drop function if exists {temp_func_name}()")
 
 
 @pytest.mark.skipif(

@@ -58,6 +58,12 @@ FAIL_ON_MISSING_AST = True
 
 # The path to the snowpark package.
 SNOWPARK_LIB_PATH = Path(__file__).parent.parent.parent.resolve()
+# The path of the package as Python imported it, which is what the code objects of its frames
+# report: it differs from the resolved path when the package is installed under a symlink (e.g.
+# the lib64 -> lib symlink of a venv on Linux), so frames are matched against both.
+SNOWPARK_LIB_PATHS = frozenset(
+    {Path(__file__).absolute().parent.parent.parent, SNOWPARK_LIB_PATH}
+)
 
 # Test mode. In test mode, the source filename is ignored.
 SRC_POSITION_TEST_MODE = False
@@ -720,9 +726,8 @@ def with_src_position(
             # frame contains the code of interest from the user if they are using a simple public API with no further
             # nesting or indirection. This is the most common case.
             frame, prev_frame = frame.f_back.f_back, frame.f_back  # type: ignore[union-attr] # TODO(SNOW-1491199) # Item "None" of "Optional[FrameType]" has no attribute "f_back", Item "None" of "Union[FrameType, Any, None]" has no attribute "f_back"
-            while (
-                frame is not None
-                and SNOWPARK_LIB_PATH in Path(frame.f_code.co_filename).parents
+            while frame is not None and not SNOWPARK_LIB_PATHS.isdisjoint(
+                Path(frame.f_code.co_filename).parents
             ):
                 frame, prev_frame = frame.f_back, frame
         else:
@@ -735,9 +740,9 @@ def with_src_position(
 
         if debug:
             last_snowpark_file = prev_frame.f_code.co_filename  # type: ignore[union-attr] # TODO(SNOW-1491199) # Item "None" of "Union[FrameType, Any, None]" has no attribute "f_code"
-            assert SNOWPARK_LIB_PATH in Path(last_snowpark_file).parents
+            assert not SNOWPARK_LIB_PATHS.isdisjoint(Path(last_snowpark_file).parents)
             first_non_snowpark_file = frame.f_code.co_filename  # type: ignore[union-attr] # TODO(SNOW-1491199) # Item "None" of "Optional[FrameType]" has no attribute "f_code"
-            assert SNOWPARK_LIB_PATH not in Path(first_non_snowpark_file).parents
+            assert SNOWPARK_LIB_PATHS.isdisjoint(Path(first_non_snowpark_file).parents)
 
         # Once we've stepped out of the snowpark package, we should be in the code of interest.
         # However, the code of interest may execute in an environment that is not accessible via the filesystem.
