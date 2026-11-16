@@ -246,7 +246,7 @@ def test_deployed_tool_checks_enum_arguments(session, temp_schema):
     result = server.deploy(session, schema=schema)
     try:
         fq_name = result.objects[0].split("(")[0]
-        # Raw SQL bypasses the client-side check of call_tool.
+        # Raw SQL, as call_tool sends it: the enum is checked by the tool only.
         rows = session.sql(f"SELECT {fq_name}(kind => 'zzz')").collect()
         assert json.loads(rows[0][0]) == {
             "error": {

@@ -51,7 +51,14 @@ def make_session(responses=None, database='"APP"', schema='"MCP"'):
     session.get_current_schema.return_value = schema
     session.get_current_role.return_value = '"APP_ROLE"'
     session.connection.host = "my_org-my_acct.snowflakecomputing.com"
-    session.responses = list(responses or [])
+    # By default, the session's role owns every procedure and UDF.
+    session.responses = list(responses or []) + [
+        (
+            f"SHOW GRANTS ON {kind}",
+            [Row(privilege="OWNERSHIP", grantee_name="APP_ROLE")],
+        )
+        for kind in ("PROCEDURE", "FUNCTION")
+    ]
     session.statements = []
 
     def sql(statement, params=None):
@@ -2465,7 +2472,7 @@ def overload_grant_session(grant_rows, fail_on=()):
 
 
 OVERLOAD_GRANTS = [
-    Row(privilege="OWNERSHIP", granted_to="ROLE", grantee_name="OWNER_ROLE"),
+    Row(privilege="OWNERSHIP", granted_to="ROLE", grantee_name="APP_ROLE"),
     Row(
         privilege="USAGE", granted_to="ROLE", grantee_name="Reader", grant_option="true"
     ),
@@ -2501,7 +2508,8 @@ def test_deploy_dry_run_reports_grants_of_a_dropped_overload():
 def test_deploy_overload_grants_not_read_without_preserve_grants():
     session = overload_grant_session(OVERLOAD_GRANTS)
     python_server("S").deploy(session, preserve_grants=False)
-    assert not any(s.startswith("SHOW GRANTS") for s in session.statements)
+    assert not any(s.startswith("SHOW GRANTS ON MCP") for s in session.statements)
+    assert not any(s.startswith("GRANT") for s in session.statements)
 
 
 def test_deploy_prune_runs_when_grants_fail():
@@ -2895,3 +2903,186 @@ def test_invoke_quantizes_decimal_to_the_parameter_scale():
 
     assert f.invoke(amount=0.1) == "Decimal('0.100000000000000000')"
     assert f.invoke(amount=3) == "Decimal('3.000000000000000000')"
+
+
+# ---------------------------------------------------------------------------
+# Review round 2
+# ---------------------------------------------------------------------------
+
+FORGED = "PROCEDURE APP.MCP.S__GET_ACCOUNT(VARCHAR)"
+ATTACKER_GRANTS = [
+    Row(privilege="OWNERSHIP", granted_to="ROLE", grantee_name="ATTACKER"),
+    Row(privilege="USAGE", granted_to="ROLE", grantee_name="ATTACKER_FRIEND"),
+]
+
+
+def forged_session(grants, role='"APP_ROLE"'):
+    session = make_session(
+        [
+            (
+                "SHOW PROCEDURES IN SCHEMA APP.MCP",
+                [show_row("S__GET_ACCOUNT", "VARCHAR", tagged("S", "get_account"))],
+            ),
+            ("SHOW GRANTS ON PROCEDURE", grants),
+        ]
+    )
+    session.get_current_role.return_value = role
+    return session
+
+
+@pytest.mark.parametrize("prune", [False, True])
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_deploy_leaves_tagged_objects_owned_by_another_role_alone(prune, dry_run):
+    session = forged_session(ATTACKER_GRANTS)
+    result = python_server("S").deploy(session, prune=prune, dry_run=dry_run)
+    assert not any("ATTACKER_FRIEND" in s for s in session.statements)
+    assert not any(s.startswith("DROP PROCEDURE") for s in session.statements)
+    assert result.pruned == []
+    assert messages(result.issues, "warning") == [
+        "APP.MCP.S__GET_ACCOUNT(VARCHAR) has this server's tag but is owned by "
+        "ATTACKER, not APP_ROLE; it was left alone."
+    ]
+
+
+def test_deploy_handles_tagged_objects_owned_by_the_deploying_role():
+    session = forged_session(
+        [
+            Row(privilege="OWNERSHIP", granted_to="ROLE", grantee_name="app_role"),
+            Row(privilege="USAGE", granted_to="ROLE", grantee_name="READER"),
+        ]
+    )
+    result = python_server("S").deploy(session)
+    assert result.pruned == ["APP.MCP.S__GET_ACCOUNT(VARCHAR)"]
+    assert (
+        'GRANT USAGE ON PROCEDURE APP.MCP.S__GET_ACCOUNT(STRING, BIGINT) TO ROLE "READER"'
+        in (session.statements)
+    )
+    assert not messages(result.issues, "warning")
+
+
+@pytest.mark.parametrize(
+    "role, owner, owned",
+    [
+        ('"my role"', "my role", True),
+        ('"my role"', "MY ROLE", False),
+        ('"APP_ROLE"', "APP_ROLE", True),
+    ],
+)
+def test_deploy_ownership_compares_quoted_roles_exactly(role, owner, owned):
+    session = forged_session(
+        [Row(privilege="OWNERSHIP", granted_to="ROLE", grantee_name=owner)], role
+    )
+    result = python_server("S").deploy(session)
+    assert bool(result.pruned) == owned
+    assert bool(messages(result.issues, "warning")) != owned
+
+
+def test_drop_include_tools_skips_objects_owned_by_another_role(caplog):
+    session = forged_session(ATTACKER_GRANTS)
+    with caplog.at_level("WARNING", logger="snowflake.snowpark.mcp"):
+        statements = python_server("S").drop(session, include_tools=True)
+    assert statements == ["DROP MCP SERVER IF EXISTS APP.MCP.S"]
+    assert "owned by ATTACKER, not APP_ROLE" in caplog.text
+
+
+def test_invoke_session_is_positional_only():
+    @mcp_tool(read_only=True)
+    def f(term: str, session: str = "current") -> str:
+        """F.
+
+        Args:
+            term: Term.
+            session: Which session.
+        """
+        return f"{term}:{session}"
+
+    assert f.invoke(None, term="x", session="previous") == "x:previous"
+    assert f.invoke(term="x") == "x:current"
+
+
+def enum_tool():
+    @mcp_tool(read_only=True)
+    def pick(mode: Literal["a", "b"], note: Optional[str]) -> str:
+        """Pick.
+
+        Args:
+            mode: Mode.
+            note: Note.
+        """
+        return mode
+
+    return pick
+
+
+def test_call_tool_does_not_reject_enum_and_null_problems_locally():
+    session = call_session('"ok"')
+    server = MCPServer("S", [enum_tool()])
+    assert server.call_tool(session, "pick", {"mode": "c", "note": None}) == "ok"
+    assert session.statements[0].startswith("SELECT APP.MCP.S__PICK(")
+    with pytest.raises(ValueError, match="mode must be of type string"):
+        server.call_tool(session, "pick", {"mode": 1, "note": "x"})
+    with pytest.raises(ValueError, match="unknown argument"):
+        server.call_tool(session, "pick", {"mode": "a", "note": "x", "z": 1})
+
+
+def test_lint_default_that_does_not_match_its_type():
+    def f(n: int = "a", x: float = 0, mode: Literal["a", "b"] = "c"):
+        """F.
+
+        Args:
+            n: N.
+            x: X.
+            mode: Mode.
+        """
+
+    errors = messages(MCPServer("S", [mcp_tool(f, read_only=True)]).lint(), "error")
+    assert "parameter n: default value 'a' does not match its type (integer)" in errors
+    assert (
+        "parameter mode: default value 'c' does not match its type (string)" in errors
+    )
+    assert not any("parameter x" in e for e in errors)
+
+
+@pytest.mark.parametrize(
+    "alias, canonical",
+    [("DOUBLE PRECISION", "FLOAT"), ("NCHAR(3)", "VARCHAR"), ("VARBINARY", "BINARY")],
+)
+def test_normalize_sql_type_aliases(alias, canonical):
+    from snowflake.snowpark.mcp import _normalize_sql_type
+
+    assert _normalize_sql_type(alias) == canonical
+
+
+def test_from_procedure_type_mismatch_lists_what_show_reports():
+    session = make_session(
+        [
+            (
+                "SHOW PROCEDURES LIKE",
+                [
+                    Row(
+                        name="GET_FIN",
+                        arguments="GET_FIN(VARCHAR, TIMESTAMP_LTZ) RETURN VARCHAR",
+                        description="x",
+                    )
+                ],
+            )
+        ]
+    )
+    tool = Tool.from_procedure(
+        "APP.FIN.GET_FIN(VARCHAR, TIMESTAMP_NTZ)", read_only=True
+    )
+    with pytest.raises(ValueError) as exc_info:
+        MCPServer("S", [tool]).to_spec(session)
+    message = str(exc_info.value)
+    assert "found: GET_FIN(VARCHAR, TIMESTAMP_LTZ)" in message
+    assert "compared with what SHOW reports" in message
+
+
+def test_existing_object_name_literal_escapes_backslashes():
+    session = make_session([("SHOW PROCEDURES LIKE", [])])
+    tool = Tool.from_procedure('APP.FIN."A\\B\'C"', read_only=True, name="t")
+    with pytest.raises(ValueError, match="was not found"):
+        MCPServer("S", [tool]).to_spec(session)
+    assert session.statements[0] == (
+        "SHOW PROCEDURES LIKE 'A\\\\B''C' IN SCHEMA APP.FIN"
+    )

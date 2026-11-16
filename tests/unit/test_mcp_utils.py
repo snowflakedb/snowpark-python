@@ -981,3 +981,28 @@ def test_nullable_enum_includes_null():
     schema = input_schema(params[:1])
     assert check_arguments(schema, {"kind": None}) == []
     assert check_arguments(schema, {"kind": "c"}) != []
+
+
+def test_check_arguments_without_strict_values_accepts_enum_and_null_problems():
+    schema = {
+        "properties": {
+            "mode": {"type": "string", "enum": ["a", "b"]},
+            "tags": {
+                "type": "array",
+                "items": {"type": "string", "enum": ["x"]},
+            },
+            "n": {"type": "integer"},
+        },
+        "required": ["mode", "n"],
+    }
+    arguments = {"mode": "c", "tags": ["y", None], "n": None}
+    assert len(mcp_utils.check_arguments(schema, arguments)) == 4
+    assert mcp_utils.check_arguments(schema, arguments, strict_values=False) == []
+    # Other problems are still reported.
+    assert mcp_utils.check_arguments(
+        schema, {"mode": 1, "n": "x", "z": 1}, strict_values=False
+    ) == [
+        "unknown argument 'z'",
+        "mode must be of type string, got int",
+        "n must be of type integer, got str",
+    ]

@@ -415,6 +415,14 @@ def parameters_from_function(
                 problems.append(
                     f"parameter {p.name}: the default value is not JSON-serializable"
                 )
+            else:
+                if check_arguments(
+                    {"properties": {p.name: schema}}, {p.name: p.default}
+                ):
+                    problems.append(
+                        f"parameter {p.name}: default value {p.default!r} does not "
+                        f"match its type ({base_json_type(schema)})"
+                    )
         description = schema.get("description") or param_descriptions.get(p.name)
         if description:
             schema = {**schema, "description": description}
@@ -748,18 +756,22 @@ _JSON_TYPE_CHECKS = {
 }
 
 
-def _check_value(value: Any, schema: Dict[str, Any], path: str) -> List[str]:
-    if value is None and allows_null(schema):
+def _check_value(
+    value: Any, schema: Dict[str, Any], path: str, strict_values: bool = True
+) -> List[str]:
+    if value is None and (allows_null(schema) or not strict_values):
         return []
     expected = base_json_type(schema)
     if expected and not _JSON_TYPE_CHECKS[expected](value):
         return [f"{path} must be of type {expected}, got {type(value).__name__}"]
     problems = []
-    if "enum" in schema and value not in schema["enum"]:
+    if strict_values and "enum" in schema and value not in schema["enum"]:
         problems.append(f"{path} must be one of {schema['enum']}")
     if expected == "array" and "items" in schema:
         for i, item in enumerate(value):
-            problems += _check_value(item, schema["items"], f"{path}[{i}]")
+            problems += _check_value(
+                item, schema["items"], f"{path}[{i}]", strict_values
+            )
     if expected == "object":
         for key in schema.get("required", []):
             if key not in value:
@@ -768,15 +780,21 @@ def _check_value(value: Any, schema: Dict[str, Any], path: str) -> List[str]:
         extra = schema.get("additionalProperties")
         for key, item in value.items():
             if key in properties:
-                problems += _check_value(item, properties[key], f"{path}.{key}")
+                problems += _check_value(
+                    item, properties[key], f"{path}.{key}", strict_values
+                )
             elif isinstance(extra, dict):
-                problems += _check_value(item, extra, f"{path}.{key}")
+                problems += _check_value(item, extra, f"{path}.{key}", strict_values)
     return problems
 
 
-def check_arguments(schema: Dict[str, Any], arguments: Dict[str, Any]) -> List[str]:
+def check_arguments(
+    schema: Dict[str, Any], arguments: Dict[str, Any], strict_values: bool = True
+) -> List[str]:
     """Checks tool-call arguments against an input schema built by
-    ``input_schema``. Returns one message per problem."""
+    ``input_schema``. Returns one message per problem. Without ``strict_values``,
+    values outside an ``enum`` and nulls are accepted at every level, as the MCP
+    server passes them to the tool, which checks them itself."""
     properties = schema.get("properties", {})
     problems = [
         f"unknown argument {name!r}" for name in arguments if name not in properties
@@ -788,9 +806,10 @@ def check_arguments(schema: Dict[str, Any], arguments: Dict[str, Any]) -> List[s
     ]
     for name, value in arguments.items():
         if name in properties and value is not None:
-            problems += _check_value(value, properties[name], name)
+            problems += _check_value(value, properties[name], name, strict_values)
         elif (
-            name in properties
+            strict_values
+            and name in properties
             and name in schema.get("required", [])
             and not allows_null(properties[name])
         ):

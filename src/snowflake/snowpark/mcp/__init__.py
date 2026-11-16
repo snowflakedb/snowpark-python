@@ -443,7 +443,7 @@ class PythonTool(Tool):
         """The JSON schema of the tool's arguments, as the model sees it."""
         return mcp_utils.input_schema(self.parameters)
 
-    def invoke(self, session=None, **arguments) -> Any:
+    def invoke(self, session=None, /, **arguments) -> Any:
         """Runs the tool locally the way the deployed tool runs: checks
         ``arguments`` against :attr:`input_schema`, calls the function, and converts
         the result to the JSON the tool returns. Like the MCP server, it converts
@@ -460,26 +460,14 @@ class PythonTool(Tool):
 
         Args:
             session: The session passed to a procedure-backed tool. Not used by
-                UDF-backed tools.
+                UDF-backed tools. It is positional-only, so a tool argument can be
+                named ``session``: pass it by keyword.
             arguments: The tool-call arguments, by name.
         """
         # Enum values and nulls are not rejected: the deployed tool returns an error
         # result for them, as the MCP server does not validate arguments.
         schema = self.input_schema
-        problems = [
-            p
-            for p in mcp_utils.check_arguments(
-                {
-                    **schema,
-                    "properties": {
-                        name: {k: v for k, v in prop.items() if k != "enum"}
-                        for name, prop in schema["properties"].items()
-                    },
-                },
-                arguments,
-            )
-            if p not in {f"{name} must not be null" for name in arguments}
-        ]
+        problems = mcp_utils.check_arguments(schema, arguments, strict_values=False)
         if problems:
             raise ValueError(
                 f"Invalid arguments for tool {self.name}: " + "; ".join(problems)
@@ -755,9 +743,8 @@ class ExistingObjectTool(Tool):
         show = "PROCEDURES" if self.kind == "procedure" else "USER FUNCTIONS"
         quoted = obj.startswith('"')
         object_name = obj.strip('"').replace('""', '"') if quoted else obj
-        object_name_literal = object_name.replace("'", "''")
         rows = session.sql(
-            f"SHOW {show} LIKE '{object_name_literal}' IN SCHEMA {db}.{sch}"
+            f"SHOW {show} LIKE {_sql_string(object_name)} IN SCHEMA {db}.{sch}"
         ).collect()
         candidates = []
         for row in rows:
@@ -782,6 +769,7 @@ class ExistingObjectTool(Tool):
             candidates.append(
                 (types_, optional, values.get("description"), unsupported)
             )
+        shown_signatures = [f"{obj}({', '.join(c[0])})" for c in candidates]
         if self.arg_types is not None:
             wanted = [_normalize_sql_type(t) for t in self.arg_types]
             candidates = [
@@ -790,10 +778,16 @@ class ExistingObjectTool(Tool):
                 if [_normalize_sql_type(t) for t in c[0]] == wanted
             ]
         if not candidates:
-            raise ValueError(
+            message = (
                 f"{self._keyword.lower().capitalize()} {self.object_identifier} was "
                 "not found, or the role cannot see it."
             )
+            if shown_signatures and self.arg_types is not None:
+                message += (
+                    " Argument types are compared with what SHOW reports; found: "
+                    + ", ".join(shown_signatures)
+                )
+            raise ValueError(message)
         scalar = [c for c in candidates if not c[3]]
         if not scalar:
             raise ValueError(
@@ -923,6 +917,8 @@ def _normalize_sql_type(sql_type: str) -> str:
         "CHAR": "VARCHAR",
         "CHARACTER": "VARCHAR",
         "NVARCHAR": "VARCHAR",
+        "NCHAR": "VARCHAR",
+        "VARBINARY": "BINARY",
         "INT": "NUMBER",
         "INTEGER": "NUMBER",
         "BIGINT": "NUMBER",
@@ -932,6 +928,7 @@ def _normalize_sql_type(sql_type: str) -> str:
         "DECIMAL": "NUMBER",
         "NUMERIC": "NUMBER",
         "DOUBLE": "FLOAT",
+        "DOUBLE PRECISION": "FLOAT",
         "REAL": "FLOAT",
         "FLOAT4": "FLOAT",
         "FLOAT8": "FLOAT",
@@ -1355,11 +1352,12 @@ class MCPServer:
             for t in python_tools
         }
         current = {_signature_key(t._signature(target))[0]: t for t in python_tools}
-        tagged = (
+        tagged, ownership_warnings = (
             self._tagged_objects(session, target, tolerate_errors=dry_run)
             if python_tools or prune
-            else []
+            else ({}, [])
         )
+        issues += ownership_warnings
         failed_grants: List[Tuple[str, Exception]] = []
 
         def apply_grants(statements: List[str]) -> None:
@@ -1375,18 +1373,16 @@ class MCPServer:
         # so a failure to replace the server below does not lose them.
         old_overloads = []
         overload_grants: List[str] = []
-        for signature in tagged:
+        for signature, grant_rows in tagged.items():
             kind, _, sig = signature.partition(" ")
             key = _signature_key(sig)
             if key[0] in current and (kind, key) not in keep:
                 old_overloads.append(signature)
                 if preserve_grants:
                     new_tool = current[key[0]]
-                    overload_grants += _grant_statements(
-                        session,
-                        f"{kind} {sig}",
+                    overload_grants += _statements_from_grants(
+                        grant_rows,
                         new_tool._grants(target)[0].partition(" ON ")[2],
-                        tolerate_errors=dry_run,
                     )
         grants: List[str] = []
         if preserve_grants:
@@ -1522,7 +1518,10 @@ class MCPServer:
                 f"Tool {tool_name} is a {tool.tool_type} tool; call it through the "
                 "MCP endpoint."
             )
-        problems = mcp_utils.check_arguments(mcp_utils.input_schema(params), arguments)
+        # Enum values and nulls are not rejected: the deployed tool checks them.
+        problems = mcp_utils.check_arguments(
+            mcp_utils.input_schema(params), arguments, strict_values=False
+        )
         if problems:
             raise ValueError(
                 f"Invalid arguments for tool {tool_name}: " + "; ".join(problems)
@@ -1550,11 +1549,15 @@ class MCPServer:
         include_tools: bool = False,
     ) -> List[str]:
         """Drops the server and, with ``include_tools=True``, the procedures and
-        UDFs it created. Returns the statements run."""
+        UDFs it created, which the session's role owns. Returns the statements
+        run."""
         target = self._target(session, database, schema, suffix)
         statements = [f"DROP MCP SERVER IF EXISTS {target.server_fqn}"]
         if include_tools:
-            for signature in self._tagged_objects(session, target):
+            owned, warnings = self._tagged_objects(session, target)
+            for warning in warnings:
+                _logger.warning("%s", warning.message)
+            for signature in owned:
                 kind, _, sig = signature.partition(" ")
                 statements.append(f"DROP {kind} IF EXISTS {sig}")
         for statement in statements:
@@ -1590,12 +1593,17 @@ class MCPServer:
 
     def _tagged_objects(
         self, session, target: _Target, tolerate_errors: bool = False
-    ) -> List[str]:
-        """``"PROCEDURE DB.SCH.NAME(TYPES)"`` / ``"FUNCTION ..."`` for every object
-        whose comment says this server and suffix created it. With
-        ``tolerate_errors``, a schema that cannot be read, as before a first
-        deploy, has none."""
-        found = []
+    ) -> Tuple[Dict[str, list], List[LintIssue]]:
+        """``{"PROCEDURE DB.SCH.NAME(TYPES)": grants}`` (or ``"FUNCTION ..."``) for
+        every object whose comment says this server and suffix created it and that
+        the session's role owns, with the rows of ``SHOW GRANTS`` on it; and a
+        warning for each tagged object owned by another role, whose comment may be
+        copied. With ``tolerate_errors``, a schema that cannot be read, as before a
+        first deploy, has none."""
+        role = session.get_current_role()
+        role = _normalize_identifier(role) if role else None
+        found: Dict[str, list] = {}
+        warnings: List[LintIssue] = []
         for keyword, show in (
             ("PROCEDURE", "PROCEDURES"),
             ("FUNCTION", "USER FUNCTIONS"),
@@ -1607,7 +1615,7 @@ class MCPServer:
             except Exception:
                 if not tolerate_errors:
                     raise
-                return []
+                return {}, []
             for row in rows:
                 values = _row_dict(row)
                 tag = mcp_utils.parse_object_comment(values.get("description"))
@@ -1618,10 +1626,35 @@ class MCPServer:
                 name, types_, _ = mcp_utils.parse_arguments_column(
                     str(values.get("arguments", ""))
                 )
-                found.append(
-                    f"{keyword} {target.object_fqn(name)}({', '.join(types_)})"
+                signature = f"{target.object_fqn(name)}({', '.join(types_)})"
+                try:
+                    grant_rows = session.sql(
+                        f"SHOW GRANTS ON {keyword} {signature}"
+                    ).collect()
+                except Exception:
+                    if not tolerate_errors:
+                        raise
+                    grant_rows = []
+                owner = next(
+                    (
+                        str(_row_dict(r).get("grantee_name"))
+                        for r in grant_rows
+                        if str(_row_dict(r).get("privilege", "")).upper() == "OWNERSHIP"
+                    ),
+                    None,
                 )
-        return found
+                if role is not None and _is_role(owner, role):
+                    found[f"{keyword} {signature}"] = grant_rows
+                else:
+                    warnings.append(
+                        LintIssue(
+                            "warning",
+                            None,
+                            f"{signature} has this server's tag but is owned by "
+                            f"{owner or 'an unknown role'}, not {role}; it was left alone.",
+                        )
+                    )
+        return found, warnings
 
     def _send_telemetry(self, session) -> None:
         try:
@@ -1707,17 +1740,28 @@ def _read_server_grants(session, target: _Target) -> List[str]:
     )
 
 
-def _grant_statements(
-    session, source: str, destination: str, tolerate_errors: bool = False
-) -> List[str]:
+def _is_role(name: Optional[str], role: str) -> bool:
+    """Whether the role name ``SHOW GRANTS`` reports is ``role``, as
+    ``_normalize_identifier`` returns it: case-insensitive for an unquoted role,
+    exact for a quoted one."""
+    if name is None:
+        return False
+    if _is_quoted_identifier(role):
+        return name == role[1:-1].replace('""', '"')
+    return name.upper() == role
+
+
+def _grant_statements(session, source: str, destination: str) -> List[str]:
     """``GRANT`` statements that give ``destination`` (``"<kind> <name>"``) the
     grants on ``source``, other than OWNERSHIP."""
-    try:
-        rows = session.sql(f"SHOW GRANTS ON {source}").collect()
-    except Exception:
-        if not tolerate_errors:
-            raise
-        return []
+    return _statements_from_grants(
+        session.sql(f"SHOW GRANTS ON {source}").collect(), destination
+    )
+
+
+def _statements_from_grants(rows: list, destination: str) -> List[str]:
+    """``GRANT`` statements that give ``destination`` the grants in the rows of
+    ``SHOW GRANTS``, other than OWNERSHIP."""
     statements = []
     for row in rows:
         values = _row_dict(row)
