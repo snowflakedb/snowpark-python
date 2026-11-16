@@ -140,6 +140,7 @@ from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark.mock._plan import MockExecutionPlan
 from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.mock._select_statement import (
+    CHANGES_READ_FEATURE_NAME,
     MockSelectable,
     MockSelectableEntity,
     MockSelectExecutionPlan,
@@ -918,6 +919,15 @@ class MockAnalyzer:
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, SnowflakeTable):
+            if (
+                logical_plan.time_travel_config is not None
+                and logical_plan.time_travel_config.changes is not None
+            ):
+                self._conn.log_not_supported_error(
+                    external_feature_name=CHANGES_READ_FEATURE_NAME,
+                    raise_error=NotImplementedError,
+                )
+
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
