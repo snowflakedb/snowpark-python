@@ -58,7 +58,12 @@ from snowflake.snowpark._internal.mcp_tool_runtime import (
 )
 from snowflake.snowpark._internal.mcp_utils import LintIssue, ToolParameter
 from snowflake.snowpark._internal.utils import private_preview
-from snowflake.snowpark.types import DataType, VariantType
+from snowflake.snowpark.types import (
+    DataType,
+    DecimalType,
+    DoubleType,
+    VariantType,
+)
 
 __all__ = [
     "DeployResult",
@@ -489,6 +494,18 @@ class PythonTool(Tool):
             )
         if self._takes_session and session is None:
             raise ValueError(f"Tool {self.name} needs a session; pass it to invoke().")
+        # The deployed tool receives an omitted argument's SQL default, converted to
+        # the parameter's SQL type.
+        defaults = inspect.signature(self.func).parameters
+        arguments = dict(arguments)
+        for p in self.parameters:
+            default = defaults[p.name].default if p.name in defaults else None
+            if (
+                p.name not in arguments
+                and default is not inspect.Parameter.empty
+                and isinstance(p.datatype, (DecimalType, DoubleType))
+            ):
+                arguments[p.name] = mcp_utils.sql_default(p.datatype, default)
         try:
             arguments = {
                 p.name: mcp_utils.to_sql_value(p, arguments[p.name])
@@ -1316,7 +1333,9 @@ class MCPServer:
         tools.
 
         Steps: lint (errors stop the deploy); read the tools made from existing
-        objects; register the Python tools; move the grants of the old overloads of
+        objects; read the schema's objects, and stop, before creating anything, if
+        an overload of a tool's object would make the server's reference to it
+        ambiguous; register the Python tools; move the grants of the old overloads of
         the Python tools, whose parameter types changed, to the tools' new objects
         and drop the old overloads; create or replace the server; re-apply the
         server's grants; with ``prune=True``, drop the objects of tools no longer in
@@ -1365,17 +1384,6 @@ class MCPServer:
             return session.sql(statement).collect()
 
         python_tools = [t for t in self.tools if isinstance(t, PythonTool)]
-        if python_tools and stage_location is None:
-            stage = target.object_fqn(_DEFAULT_STAGE_NAME)
-            run(f"CREATE STAGE IF NOT EXISTS {stage}")
-            stage_location = f"@{stage}"
-        for tool in python_tools:
-            objects.append(
-                tool._signature(target)
-                if dry_run
-                else tool._register(session, target, stage_location)
-            )
-
         keep = {
             (t._grants(target)[0].split()[2], _signature_key(t._signature(target)))
             for t in python_tools
@@ -1387,15 +1395,6 @@ class MCPServer:
             else ({}, [], [])
         )
         issues += ownership_warnings
-        failed_grants: List[Tuple[str, Exception]] = []
-
-        def apply_grants(statements: List[str]) -> None:
-            for statement in statements:
-                try:
-                    run(statement)
-                except Exception as e:
-                    failed_grants.append((statement, e))
-
         # An old overload of a current tool, from before its parameter types changed,
         # is dropped even without prune: the server refers to a tool's object by name
         # only, which must be unambiguous. Its grants move to the new object first,
@@ -1438,6 +1437,27 @@ class MCPServer:
             if not dry_run:
                 raise ValueError(message)
             issues.append(LintIssue("error", tool_name, message))
+
+        if python_tools and stage_location is None:
+            stage = target.object_fqn(_DEFAULT_STAGE_NAME)
+            run(f"CREATE STAGE IF NOT EXISTS {stage}")
+            stage_location = f"@{stage}"
+        for tool in python_tools:
+            objects.append(
+                tool._signature(target)
+                if dry_run
+                else tool._register(session, target, stage_location)
+            )
+
+        failed_grants: List[Tuple[str, Exception]] = []
+
+        def apply_grants(statements: List[str]) -> None:
+            for statement in statements:
+                try:
+                    run(statement)
+                except Exception as e:
+                    failed_grants.append((statement, e))
+
         grants: List[str] = []
         if preserve_grants:
             grants = _server_grants(session, target, tolerate_errors=dry_run)
@@ -1770,11 +1790,17 @@ def _normalize_identifier(name: str) -> str:
 
 def _endpoint_url(session, target: _Target) -> str:
     host = session.connection.host.replace("_", "-")
-    parts = [
-        p.strip('"').replace('""', '"')
+
+    def part(name: str) -> str:
+        # Only a plain upper-case identifier is addressed unquoted.
+        if not (mcp_utils.is_identifier(name) and name == name.upper()):
+            name = name if _is_quoted_identifier(name) else '"' + name + '"'
+        return url_quote(name, safe="")
+
+    database, schema, name = (
+        part(p)
         for p in (target.database, target.schema, target.server_name + target.suffix)
-    ]
-    database, schema, name = (url_quote(p, safe="") for p in parts)
+    )
     return f"https://{host}/api/v2/databases/{database}/schemas/{schema}/mcp-servers/{name}"
 
 

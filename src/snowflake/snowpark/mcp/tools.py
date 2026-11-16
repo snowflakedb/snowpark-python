@@ -15,7 +15,8 @@ from typing import Any, Dict, List, Optional
 
 from snowflake.snowpark._internal import mcp_utils
 from snowflake.snowpark._internal.mcp_utils import LintIssue
-from snowflake.snowpark.mcp import Tool, _annotations, _Target
+from snowflake.snowpark._internal.utils import private_preview
+from snowflake.snowpark.mcp import _PREVIEW_VERSION, Tool, _annotations, _Target
 
 __all__ = [
     "CodingAgent",
@@ -121,6 +122,7 @@ class CortexAgent(_BuiltinTool):
     tool_type = "CORTEX_AGENT_RUN"
     _object_grant = "USAGE ON AGENT"
 
+    @private_preview(version=_PREVIEW_VERSION)
     def __init__(
         self,
         agent: str,
@@ -160,6 +162,7 @@ class CortexAnalyst(_BuiltinTool):
     tool_type = "CORTEX_ANALYST_MESSAGE"
     _object_grant = "SELECT ON SEMANTIC VIEW"
 
+    @private_preview(version=_PREVIEW_VERSION)
     def __init__(
         self,
         semantic_view: str,
@@ -184,6 +187,7 @@ class CortexSearch(_BuiltinTool):
     tool_type = "CORTEX_SEARCH_SERVICE_QUERY"
     _object_grant = "USAGE ON CORTEX SEARCH SERVICE"
 
+    @private_preview(version=_PREVIEW_VERSION)
     def __init__(
         self,
         service: str,
@@ -213,6 +217,7 @@ class SqlExecution(_BuiltinTool):
     tool_type = "SYSTEM_EXECUTE_SQL"
     _fallback_name = "sql_execution"
 
+    @private_preview(version=_PREVIEW_VERSION)
     def __init__(
         self,
         *,
@@ -254,6 +259,7 @@ class CodingAgent(_BuiltinTool):
     tool_type = "CODING_AGENT"
     _fallback_name = "coding_agent"
 
+    @private_preview(version=_PREVIEW_VERSION)
     def __init__(
         self,
         *,

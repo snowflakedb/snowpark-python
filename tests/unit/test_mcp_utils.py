@@ -1012,3 +1012,10 @@ def test_check_arguments_without_strict_values_accepts_enum_and_null_problems():
         "mode must be of type string, got int",
         "n must be of type integer, got str",
     ]
+
+
+def test_to_sql_value_rejects_decimal_with_too_many_digits_for_precision():
+    param = ToolParameter("x", {}, DecimalType(5, 2), True)
+    assert to_sql_value(param, 123.45) == decimal.Decimal("123.45")
+    with pytest.raises(ValueError, match=r"NUMBER\(5, 2\)"):
+        to_sql_value(param, 12345.67)

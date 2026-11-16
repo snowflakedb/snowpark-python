@@ -498,7 +498,7 @@ def to_sql_value(param: ToolParameter, value: Any) -> Any:
         try:
             return decimal.Decimal(str(value)).quantize(
                 decimal.Decimal(1).scaleb(-datatype.scale),
-                context=decimal.Context(prec=max(datatype.precision, 38)),
+                context=decimal.Context(prec=datatype.precision),
             )
         except decimal.InvalidOperation:
             raise ValueError(

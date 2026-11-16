@@ -1199,17 +1199,15 @@ def test_deploy_spec_with_dollar_quotes_in_description_is_refused():
 def test_deploy_registers_tools():
     session = make_session()
     result = python_server("S").deploy(session)
-    assert (
-        session.statements[0] == "CREATE STAGE IF NOT EXISTS APP.MCP.SNOWPARK_MCP_STAGE"
-    )
+    statements = [s for s in session.statements if not s.startswith("SHOW")]
+    assert statements[0] == "CREATE STAGE IF NOT EXISTS APP.MCP.SNOWPARK_MCP_STAGE"
     # Objects are created before the server is replaced.
-    assert session.statements[1:3] == [
+    assert statements[1:3] == [
         "REGISTER PROCEDURE APP.MCP.S__GET_ACCOUNT",
         "REGISTER FUNCTION APP.MCP.S__ADD_NUMBERS",
     ]
     assert any(
-        s.startswith("CREATE OR REPLACE MCP SERVER APP.MCP.S ")
-        for s in session.statements[3:]
+        s.startswith("CREATE OR REPLACE MCP SERVER APP.MCP.S ") for s in statements[3:]
     )
     assert result.objects == [
         "APP.MCP.S__GET_ACCOUNT(STRING, BIGINT)",
@@ -2022,7 +2020,15 @@ def test_endpoint_url_explicit_database_and_schema():
 
 def test_endpoint_url_quotes_special_names():
     url = MCPServer("S").endpoint_url(make_session(), database='"my db"', schema="MCP")
-    assert "/databases/my%20db/schemas/MCP/" in url
+    assert "/databases/%22my%20db%22/schemas/MCP/" in url
+
+
+def test_endpoint_url_keeps_quotes_of_case_sensitive_names():
+    server = MCPServer("S")
+    url = server.endpoint_url(make_session(), database='"app"', schema='"mcp_case"')
+    assert url.endswith("/databases/%22app%22/schemas/%22mcp_case%22/mcp-servers/S")
+    url = server.endpoint_url(make_session(), database="app", schema="mcp")
+    assert url.endswith("/databases/APP/schemas/MCP/mcp-servers/S")
 
 
 def test_signature_key_normalizes_type_synonyms():
@@ -3291,3 +3297,85 @@ def test_from_procedure_with_overloads_warns_that_the_server_uses_the_name_only(
     tool = Tool.from_procedure("APP.MCP.P(VARCHAR)", read_only=True)
     warnings = messages(MCPServer("S", [tool]).lint(session), "warning", "p")
     assert not any("by name only" in w for w in warnings)
+
+
+# ---------------------------------------------------------------------------
+# Round 4 review findings
+# ---------------------------------------------------------------------------
+
+
+def _foreign_overload_session():
+    # An untagged overload of the first tool's object that the deploy neither
+    # replaces nor drops.
+    return make_session(
+        [
+            (
+                "SHOW PROCEDURES IN SCHEMA",
+                [
+                    Row(
+                        name="S__GET_ACCOUNT",
+                        arguments="S__GET_ACCOUNT(BOOLEAN) RETURN VARIANT",
+                        description="x",
+                    )
+                ],
+            )
+        ]
+    )
+
+
+def test_deploy_refuses_ambiguous_overload_before_any_side_effect():
+    session = _foreign_overload_session()
+    with pytest.raises(ValueError, match="ambiguous"):
+        python_server("S").deploy(session)
+    assert all(s.startswith("SHOW") for s in session.statements)
+    session.sproc.register.assert_not_called()
+    session.udf.register.assert_not_called()
+
+
+def test_deploy_dry_run_reports_ambiguous_overload_and_lists_sql():
+    session = _foreign_overload_session()
+    result = python_server("S").deploy(session, dry_run=True)
+    assert [i.level for i in result.issues] == ["error"]
+    assert "ambiguous" in result.issues[0].message
+    assert result.sql[0] == "CREATE STAGE IF NOT EXISTS APP.MCP.SNOWPARK_MCP_STAGE"
+    assert any(s.startswith("CREATE OR REPLACE MCP SERVER") for s in result.sql)
+    session.sproc.register.assert_not_called()
+
+
+def test_invoke_converts_the_defaults_of_omitted_arguments():
+    seen = []
+
+    @mcp_tool(read_only=True)
+    def f(a: decimal.Decimal = 1, b: float = 2, c: Optional[str] = None) -> dict:
+        """F.
+
+        Args:
+            a: a.
+            b: b.
+            c: c.
+        """
+        seen.append((a, b, c))
+        return {}
+
+    f.invoke()
+    f.invoke(a=1, b=2)
+    assert seen[0] == seen[1] == (decimal.Decimal("1.000000000000000000"), 2.0, None)
+    assert isinstance(seen[0][1], float)
+    assert str(seen[0][0]) == "1.000000000000000000"
+
+
+@pytest.mark.parametrize(
+    "cls, args",
+    [
+        (tools.CortexAgent, ("DB.S.A",)),
+        (tools.CortexAnalyst, ("DB.S.V",)),
+        (tools.CortexSearch, ("DB.S.SVC",)),
+        (tools.SqlExecution, ()),
+        (tools.CodingAgent, ()),
+    ],
+)
+def test_builtin_tool_constructors_are_private_preview(cls, args):
+    with mock.patch("snowflake.snowpark._internal.utils.warning") as warn:
+        cls(*args)
+    assert warn.call_args.args[0] == f"{cls.__name__}.__init__"
+    assert "private preview" in warn.call_args.args[1]

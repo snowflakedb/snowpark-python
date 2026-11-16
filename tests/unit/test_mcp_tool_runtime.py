@@ -225,7 +225,14 @@ def test_table_result_never_exceeds_limit_when_row_count_gains_digits(extra):
     bigger = dict(result)
     bigger["rows"] = rows[: result["row_count"] + 1]
     bigger["row_count"] = 1000
+    bigger["truncated"] = False  # the longer spelling, as table_result measures
     assert _size(bigger) > limit
+
+
+def test_table_result_with_false_truncated_footer_stays_within_limit():
+    for limit in range(60, 200):
+        result = table_result(["a"], [{"a": "x" * 20}, {"a": "y" * 20}], 2, limit)
+        assert _size(result) <= limit
 
 
 # ---------------------------------------------------------------------------

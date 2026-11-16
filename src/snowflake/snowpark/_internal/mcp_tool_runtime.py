@@ -137,9 +137,9 @@ def table_result(
     """Builds ``{"columns", "rows", "row_count", "truncated"}`` from at most
     ``max_rows + 1`` rows, keeping the rows that fit in ``max_result_bytes``."""
     result = {"columns": columns, "rows": [], "row_count": 0, "truncated": False}
-    # Bytes used by everything except the rows, with "truncated" set to true so the
-    # final result is never larger than what was measured.
-    size = _json_size({**result, "row_count": max_rows, "truncated": True})
+    # Bytes used by everything except the rows, with "truncated" left false, the
+    # longer spelling, so the final result is never larger than what was measured.
+    size = _json_size({**result, "row_count": max_rows})
     kept = result["rows"]
     for row in rows:
         if len(kept) >= max_rows:
