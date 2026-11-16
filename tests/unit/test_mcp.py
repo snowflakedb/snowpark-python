@@ -2572,6 +2572,7 @@ def test_deploy_error_lists_failed_prune_drops():
     assert "was replaced" in message
     assert "DROP FUNCTION IF EXISTS APP.MCP.S__OLD_UDF(NUMBER)" in message
     assert "grants" not in message
+    assert "1 unused object could not be dropped" in message
 
 
 def test_deploy_grants_do_not_requote_quoted_database_role_parts():
@@ -3441,3 +3442,45 @@ def test_builtin_tool_constructors_are_private_preview(cls, args):
         cls(*args)
     assert warn.call_args.args[0] == f"{cls.__name__}.__init__"
     assert "private preview" in warn.call_args.args[1]
+
+
+# ---------------------------------------------------------------------------
+# Review round 6
+# ---------------------------------------------------------------------------
+
+
+def test_deepcopy_shares_module_packages():
+    import copy
+
+    @mcp_tool(read_only=True, packages=[json, "pandas"])
+    def lookup(x: int) -> int:
+        """Look up.
+
+        Args:
+            x: A number.
+        """
+        return x
+
+    clone = copy.deepcopy(lookup)
+    assert isinstance(clone, type(lookup))
+    assert clone.packages == [json, "pandas"]
+    assert clone.packages is not lookup.packages
+    assert clone.packages[0] is json
+    assert clone.func is lookup.func
+    server = copy.deepcopy(MCPServer("S", [lookup]))
+    assert server.tools[0].packages[0] is json
+    assert server.lint() == MCPServer("S", [lookup]).lint()
+
+
+def test_invoke_integer_too_large_for_float_is_value_error():
+    @mcp_tool(read_only=True)
+    def f(x: float) -> float:
+        """F.
+
+        Args:
+            x: A number.
+        """
+        return x
+
+    with pytest.raises(ValueError, match="x does not fit in FLOAT"):
+        f.invoke(x=10**400)

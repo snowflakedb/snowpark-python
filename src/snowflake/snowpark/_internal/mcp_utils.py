@@ -507,7 +507,10 @@ def to_sql_value(param: ToolParameter, value: Any) -> Any:
                 f"{datatype.scale})"
             ) from None
     if isinstance(datatype, DoubleType):
-        return float(value)
+        try:
+            return float(value)
+        except OverflowError:
+            raise ValueError(f"{param.name} does not fit in FLOAT") from None
     return value
 
 

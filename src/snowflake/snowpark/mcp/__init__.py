@@ -281,6 +281,16 @@ class Tool:
         return spec
 
 
+def _deepcopy_sharing_modules(value: Any, memo: dict) -> Any:
+    """``copy.deepcopy`` that shares modules, which cannot be copied, such as the
+    ones a tool's ``packages`` may list."""
+    if isinstance(value, ModuleType):
+        return value
+    if isinstance(value, (list, tuple)):
+        return type(value)(_deepcopy_sharing_modules(v, memo) for v in value)
+    return copy.deepcopy(value, memo)
+
+
 def _annotations(
     read_only: bool,
     destructive: Optional[bool],
@@ -470,7 +480,9 @@ class PythonTool(Tool):
         memo[id(self)] = clone
         for name, value in self.__dict__.items():
             clone.__dict__[name] = (
-                value if name == "func" else copy.deepcopy(value, memo)
+                value
+                if name in ("func", "__wrapped__")
+                else _deepcopy_sharing_modules(value, memo)
             )
         return clone
 
@@ -1355,10 +1367,11 @@ class MCPServer:
         the Python tools, whose parameter types changed, to the tools' new objects
         and drop the old overloads; create or replace the server; re-apply the
         server's grants; with ``prune=True``, drop the objects of tools no longer in
-        the server. If a grant cannot be applied, the others still are, prune still
-        runs, and the error lists the ones that failed. The tool objects are created
-        before the server is replaced, so the server never refers to a missing
-        object. The deploy is not transactional: if replacing the server fails, the
+        the server. If a grant or a prune drop fails, the remaining grants and drops
+        still run, and the error lists the ones that failed; a failure to drop an
+        old overload stops the deploy before the server is replaced. The tool
+        objects are created before the server is replaced, so the server never
+        refers to a missing object. The deploy is not transactional: if replacing the server fails, the
         old server keeps running with the new tool code.
 
         Args:
@@ -1522,7 +1535,9 @@ class MCPServer:
                 )
             if failed_drops:
                 problems.append(
-                    f"{len(failed_drops)} unused objects could not be dropped; "
+                    f"{len(failed_drops)} unused "
+                    f"{'object' if len(failed_drops) == 1 else 'objects'} could not "
+                    "be dropped; "
                     "drop them:\n"
                     + "\n".join(f"{stmt}  -- {err}" for stmt, err in failed_drops)
                 )
