@@ -117,6 +117,7 @@ from snowflake.snowpark._internal.utils import (
     XPATH_HANDLER_MAP,
     PythonObjJSONEncoder,
     TempObjectType,
+    TimeTravelConfig,
     calculate_checksum,
     check_flatten_mode,
     create_rlock,
@@ -3043,6 +3044,9 @@ class Session:
             )
 
         if _emit_ast:
+            # The AST stores end_offset as an int, so normalize integer strings
+            # first. Invalid values raise the usual ValueError.
+            end_offset = TimeTravelConfig._normalize_end_offset(end_offset)
             stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.table, stmt)
             build_table_name(ast.name, name)
@@ -3060,8 +3064,16 @@ class Session:
                 ast.timestamp_type.value = str(timestamp_type)
             if stream is not None:
                 ast.stream.value = stream
-            # TODO(SNOW-4483962): `changes` and the `end_*` parameters are not encoded
-            # in the AST yet.
+            if changes is not None:
+                ast.changes.value = changes
+            if end_statement is not None:
+                ast.end_statement.value = end_statement
+            if end_offset is not None:
+                ast.end_offset.value = end_offset
+            if end_timestamp is not None:
+                build_expr_from_python_val(ast.end_timestamp, end_timestamp)
+            if end_timestamp_type is not None:
+                ast.end_timestamp_type.value = str(end_timestamp_type)
         else:
             stmt = None
 

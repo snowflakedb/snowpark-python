@@ -2167,6 +2167,30 @@ class TimeTravelConfig(NamedTuple):
     end_timestamp_type: Optional[str] = None
 
     @staticmethod
+    def _normalize_end_offset(end_offset: Optional[Union[int, str]]) -> Optional[int]:
+        """Returns ``end_offset`` as an int, accepting integer strings."""
+        if end_offset is None:
+            return None
+        if isinstance(end_offset, numbers.Integral) and not isinstance(
+            end_offset, bool
+        ):
+            normalized = int(end_offset)
+        elif isinstance(end_offset, str) and re.fullmatch(
+            r"[-+]?[0-9]+", end_offset.strip()
+        ):
+            normalized = int(end_offset.strip())
+        else:
+            raise ValueError(
+                f"'end_offset' must be an integer number of seconds, got {end_offset!r}."
+            )
+        if normalized > 0:
+            raise ValueError(
+                "'end_offset' must be zero or a negative number of seconds in the "
+                f"past, got {normalized}."
+            )
+        return normalized
+
+    @staticmethod
     def _normalize_timestamp(
         timestamp: Optional[Union[str, datetime.datetime]],
         timestamp_type: Optional[Union[str, "TimestampTimeZone"]],
@@ -2301,24 +2325,7 @@ class TimeTravelConfig(NamedTuple):
             )
         if end_timestamp_type is not None and end_timestamp is None:
             raise ValueError("'end_timestamp_type' requires 'end_timestamp'.")
-        if end_offset is not None:
-            if isinstance(end_offset, numbers.Integral) and not isinstance(
-                end_offset, bool
-            ):
-                end_offset = int(end_offset)
-            elif isinstance(end_offset, str) and re.fullmatch(
-                r"[-+]?[0-9]+", end_offset.strip()
-            ):
-                end_offset = int(end_offset.strip())
-            else:
-                raise ValueError(
-                    f"'end_offset' must be an integer number of seconds, got {end_offset!r}."
-                )
-            if end_offset > 0:
-                raise ValueError(
-                    "'end_offset' must be zero or a negative number of seconds in the "
-                    f"past, got {end_offset}."
-                )
+        end_offset = TimeTravelConfig._normalize_end_offset(end_offset)
 
         # Validate mode
         if time_travel_mode is None:
