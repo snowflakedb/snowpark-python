@@ -3592,7 +3592,7 @@ def test_builtin_spec_omits_optional_parts():
 
 def test_builtin_annotations_from_destructive_only():
     spec = builtin_spec(
-        Tool.builtin("CODING_AGENT", name="c", description="d", destructive=True)
+        Tool.builtin("CORTEX_AGENT_RUN", "D.S.A", description="d", destructive=True)
     )
     assert spec["annotations"]["readOnlyHint"] is False
     assert spec["annotations"]["destructiveHint"] is True
@@ -3601,7 +3601,11 @@ def test_builtin_annotations_from_destructive_only():
 def test_builtin_read_only_and_destructive_is_an_error():
     with pytest.raises(ValueError, match="read-only"):
         Tool.builtin(
-            "CODING_AGENT", name="c", description="d", read_only=True, destructive=True
+            "CORTEX_AGENT_RUN",
+            "D.S.A",
+            description="d",
+            read_only=True,
+            destructive=True,
         )
 
 
@@ -3812,10 +3816,8 @@ def test_builtin_sql_execution_without_read_only_config_warns():
             if i.level == "warning" and "config=" in i.message
         ]
 
-    hint_only = Tool.builtin(
-        "SYSTEM_EXECUTE_SQL", name="sql", description="Run SQL.", read_only=True
-    )
-    assert len(warnings_of(hint_only)) == 1
+    no_config = Tool.builtin("SYSTEM_EXECUTE_SQL", name="sql", description="Run SQL.")
+    assert len(warnings_of(no_config)) == 1
     writable = Tool.builtin(
         "SYSTEM_EXECUTE_SQL",
         name="sql",
@@ -3848,3 +3850,37 @@ def test_builtin_config_with_json_values_is_accepted():
         config={"tools": [{"type": "x", "on": True}], "timeout": 1.5, "note": None},
     )
     assert tool.config["note"] is None
+
+
+@pytest.mark.parametrize(
+    "type_, identifier",
+    [
+        ("SYSTEM_EXECUTE_SQL", None),
+        ("CODING_AGENT", None),
+        ("CORTEX_ANALYST_MESSAGE", "D.S.V"),
+        ("CORTEX_SEARCH_SERVICE_QUERY", "D.S.SVC"),
+    ],
+)
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        {"read_only": True},
+        {"destructive": False},
+        {"idempotent": True},
+        {"open_world": True},
+    ],
+)
+def test_builtin_annotations_are_refused_where_the_server_rejects_them(
+    type_, identifier, annotation
+):
+    # Verified on a real account: CREATE MCP SERVER fails with "Tool annotations
+    # are supported only for GENERIC and CORTEX_AGENT_RUN tool types."
+    with pytest.raises(ValueError, match="does not accept annotations"):
+        Tool.builtin(type_, identifier, name="t", description="d", **annotation)
+
+
+def test_builtin_annotations_are_allowed_for_agents_and_unknown_types():
+    agent = Tool.builtin("CORTEX_AGENT_RUN", "D.S.A", description="d", read_only=True)
+    assert builtin_spec(agent)["annotations"]["readOnlyHint"] is True
+    future = Tool.builtin("NEW_THING_RUN", name="t", description="d", read_only=True)
+    assert builtin_spec(future)["annotations"]["readOnlyHint"] is True

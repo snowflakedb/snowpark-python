@@ -319,15 +319,25 @@ class Tool:
                 ``CODING_AGENT``. See ``CREATE MCP SERVER`` in the Snowflake
                 documentation for the full list.
             read_only: Whether the tool only reads data. This only sets the
-                annotation clients see; it doesn't restrict what the tool does. For
-                ``SYSTEM_EXECUTE_SQL``, pass ``config={"read_only": True}`` to allow
-                only SELECT. When neither ``read_only`` nor ``destructive`` is set,
-                the spec has no annotations and clients treat the tool as one that
-                may change data.
+                annotation clients see; it doesn't restrict what the tool does. The
+                MCP server accepts annotations only on ``CORTEX_AGENT_RUN`` among the
+                built-in types, so ``read_only``, ``destructive``, ``idempotent`` and
+                ``open_world`` raise :class:`ValueError` for the other known types.
+                To allow only SELECT in ``SYSTEM_EXECUTE_SQL``, pass
+                ``config={"read_only": True}``. When neither ``read_only`` nor
+                ``destructive`` is set, the spec has no annotations.
             destructive: Whether it may delete or overwrite data.
             idempotent: Whether repeating a call has no further effect.
             open_world: Whether it reaches systems outside Snowflake.
         """
+        if type in _KNOWN_BUILTIN_TYPES - {"CORTEX_AGENT_RUN"} and (
+            read_only is not None or destructive is not None or idempotent or open_world
+        ):
+            raise ValueError(
+                f"The MCP server does not accept annotations on {type} tools: "
+                "read_only, destructive, idempotent and open_world apply only to "
+                "CORTEX_AGENT_RUN among the built-in types."
+            )
         return _BuiltinTool(
             type,
             identifier,
@@ -1157,8 +1167,7 @@ class _BuiltinTool(Tool):
                     "warning",
                     self.name,
                     "The SQL tool can run statements that change data: set "
-                    'config={"read_only": True} to allow only SELECT. The read_only '
-                    "argument only sets the annotation clients see.",
+                    'config={"read_only": True} to allow only SELECT.',
                 )
             )
         if self.tool_type not in _KNOWN_BUILTIN_TYPES:
