@@ -506,6 +506,8 @@ def to_sql_value(param: ToolParameter, value: Any) -> Any:
                 f"{param.name} does not fit in NUMBER({datatype.precision}, "
                 f"{datatype.scale})"
             ) from None
+    if isinstance(datatype, LongType) and abs(value) >= 10**38:
+        raise ValueError(f"{param.name} does not fit in NUMBER(38, 0)")
     if isinstance(datatype, DoubleType):
         try:
             return float(value)

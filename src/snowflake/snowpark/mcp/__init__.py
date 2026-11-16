@@ -501,10 +501,11 @@ class PythonTool(Tool):
         becomes an error result; any other exception is raised as is, even when
         ``mask_error_details`` is set, so it can be debugged locally.
 
-        A missing, unknown or wrongly typed argument raises :class:`ValueError`. An
-        argument that is not one of an ``enum``, or a null for a required argument,
-        returns the ``INVALID_ARGUMENTS`` error result the deployed tool returns,
-        because the MCP server passes such arguments to the tool.
+        A missing, unknown, wrongly typed or out-of-range argument raises
+        :class:`ValueError`. A value outside an ``enum``, or a null for an argument
+        that does not allow null, returns the ``INVALID_ARGUMENTS`` error result the
+        deployed tool returns, because the MCP server passes such arguments to the
+        tool.
 
         Args:
             session: The session passed to a procedure-backed tool. Not used by
@@ -1371,8 +1372,8 @@ class MCPServer:
         still run, and the error lists the ones that failed; a failure to drop an
         old overload stops the deploy before the server is replaced. The tool
         objects are created before the server is replaced, so the server never
-        refers to a missing object. The deploy is not transactional: if replacing the server fails, the
-        old server keeps running with the new tool code.
+        refers to a missing object. The deploy is not transactional: if replacing
+        the server fails, the old server keeps running with the new tool code.
 
         Args:
             session: The session to deploy with.
@@ -1529,23 +1530,24 @@ class MCPServer:
         if failed_grants or failed_drops:
             problems = []
             if failed_grants:
+                one = len(failed_grants) == 1
                 problems.append(
-                    f"{len(failed_grants)} of its previous grants could not be "
-                    f"re-applied; grant them again:\n{failed_grants_text()}"
+                    f"{len(failed_grants)} {'grant' if one else 'grants'} could not "
+                    f"be applied; grant {'it' if one else 'them'} again:\n"
+                    f"{failed_grants_text()}"
                 )
             if failed_drops:
+                one = len(failed_drops) == 1
                 problems.append(
-                    f"{len(failed_drops)} unused "
-                    f"{'object' if len(failed_drops) == 1 else 'objects'} could not "
-                    "be dropped; "
-                    "drop them:\n"
+                    f"{len(failed_drops)} unused {'object' if one else 'objects'} "
+                    f"could not be dropped; drop {'it' if one else 'them'}:\n"
                     + "\n".join(f"{stmt}  -- {err}" for stmt, err in failed_drops)
                 )
             raise RuntimeError(
                 f"The server {target.server_fqn} was replaced"
                 + (" and pruning ran" if prune else "")
                 + ", but "
-                + "\n".join(problems)
+                + "\n\nAlso, ".join(problems)
             )
         if not dry_run:
             self._send_telemetry(session)

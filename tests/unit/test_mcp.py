@@ -1463,7 +1463,7 @@ def test_deploy_applies_all_grants_and_reports_the_failures():
         python_server("S").deploy(session, prune=True)
     message = str(exc_info.value)
     assert "APP.MCP.S was replaced" in message
-    assert "1 of its previous grants" in message
+    assert "1 grant could not be applied; grant it again:" in message
     assert 'GRANT USAGE ON MCP SERVER APP.MCP.S TO ROLE "B"' in message
     assert "insufficient privileges" in message
     assert '"A"' not in message and '"C"' not in message
@@ -2557,11 +2557,14 @@ def test_deploy_error_lists_failed_grants_and_failed_prune_drops():
     session = failing_drop_session(fail_on=['"Reader"'])
     with pytest.raises(RuntimeError) as exc_info:
         python_server("S").deploy(session, prune=True)
-    message = str(exc_info.value)
-    assert "was replaced" in message
-    assert '"Reader"' in message
-    assert "DROP FUNCTION IF EXISTS APP.MCP.S__OLD_UDF(NUMBER)" in message
-    assert "cannot drop" in message
+    assert str(exc_info.value) == (
+        "The server APP.MCP.S was replaced and pruning ran, but 1 grant could not "
+        "be applied; grant it again:\n"
+        "GRANT USAGE ON PROCEDURE APP.MCP.S__GET_ACCOUNT(STRING, BIGINT) TO ROLE "
+        '"Reader" WITH GRANT OPTION  -- insufficient privileges'
+        "\n\nAlso, 1 unused object could not be dropped; drop it:\n"
+        "DROP FUNCTION IF EXISTS APP.MCP.S__OLD_UDF(NUMBER)  -- cannot drop"
+    )
 
 
 def test_deploy_error_lists_failed_prune_drops():
@@ -3484,3 +3487,25 @@ def test_invoke_integer_too_large_for_float_is_value_error():
 
     with pytest.raises(ValueError, match="x does not fit in FLOAT"):
         f.invoke(x=10**400)
+
+
+# ---------------------------------------------------------------------------
+# Review round 7
+# ---------------------------------------------------------------------------
+
+
+def test_invoke_integer_too_large_for_bigint_is_value_error():
+    @mcp_tool(read_only=True)
+    def f(x: int) -> int:
+        """F.
+
+        Args:
+            x: A number.
+        """
+        return x
+
+    with pytest.raises(ValueError, match=r"x does not fit in NUMBER\(38, 0\)"):
+        f.invoke(x=10**40)
+    with pytest.raises(ValueError, match=r"x does not fit in NUMBER\(38, 0\)"):
+        f.invoke(x=-(10**38))
+    assert f.invoke(x=10**38 - 1) == 10**38 - 1
