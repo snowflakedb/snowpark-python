@@ -184,7 +184,6 @@ def test_ttl_cache():
 
 
 def test_remove_comments():
-
     # Test with one uuid
     sql_query = """SELECT * FROM table1
 -- uuid-1
@@ -357,6 +356,75 @@ WHERE col1 > 0"""
     assert len(result) == len(expected)
     for i, a in enumerate(result):
         assert repr(a) == repr(expected[i])
+
+
+@pytest.mark.parametrize(
+    "child_sql",
+    [
+        "SELECT 'a\n\nb' AS s",
+        'SELECT 1 AS "x\n\ny"',
+        "SELECT 1\n",
+        "SELECT 1 -- trailing comment",
+    ],
+    ids=["literal", "quoted_identifier", "trailing_new_line", "ending_in_comment"],
+)
+def test_remove_comments_keeps_sql_without_comments(child_sql):
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import format_uuid
+
+    def generate(uuid_1, uuid_2):
+        # Nested and adjacent comments, as the analyzer generates them
+        nested = (
+            f"SELECT * FROM (\n{format_uuid(uuid_2)}{child_sql}\n{format_uuid(uuid_2)})"
+        )
+        return (
+            f"(\n{format_uuid(uuid_1)}{nested}\n{format_uuid(uuid_1)})"
+            f"\n{format_uuid(uuid_1)}{child_sql}\n{format_uuid(uuid_1)}"
+            f"{format_uuid(uuid_2)}{child_sql}\n{format_uuid(uuid_2)}"
+        )
+
+    sql = generate(None, None)
+    commented_sql = generate("uuid-1", "uuid-2")
+    assert remove_comments(commented_sql, ["uuid-1", "uuid-2"]) == sql
+
+    # The intervals count every new line of the sql, as the server does
+    result = get_line_numbers(commented_sql, ["uuid-1", "uuid-2"], "parent-uuid")
+    assert result[-1].end == sql.count("\n")
+
+
+def test_remove_comments_single_line_sql():
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import format_uuid
+
+    child_sql = "SELECT 'a\n\nb' AS s"
+    commented_sql = (
+        f"SELECT * FROM ({format_uuid('uuid-1')}{child_sql}{format_uuid('uuid-1')})"
+    )
+    # A new line is kept where a comment separates two parts of a line
+    assert (
+        remove_comments(commented_sql, ["uuid-1"]) == f"SELECT * FROM (\n{child_sql}\n)"
+    )
+    result = get_line_numbers(commented_sql, ["uuid-1"], "parent-uuid")
+    expected = [
+        QueryLineInterval(0, 0, "parent-uuid"),
+        QueryLineInterval(1, 3, "uuid-1"),
+        QueryLineInterval(4, 4, "parent-uuid"),
+    ]
+    assert [repr(a) for a in result] == [repr(e) for e in expected]
+
+
+def test_get_line_numbers_counts_new_lines_in_literals():
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import format_uuid
+
+    commented_sql = (
+        f"SELECT * FROM (\n{format_uuid('uuid-1')}SELECT 'a\n\nb' AS s"
+        f"\n{format_uuid('uuid-1')})"
+    )
+    result = get_line_numbers(commented_sql, ["uuid-1"], "parent-uuid")
+    expected = [
+        QueryLineInterval(0, 0, "parent-uuid"),
+        QueryLineInterval(1, 3, "uuid-1"),
+        QueryLineInterval(4, 4, "parent-uuid"),
+    ]
+    assert [repr(a) for a in result] == [repr(e) for e in expected]
 
 
 def test_get_plan_from_line_numbers():
