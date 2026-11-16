@@ -2327,6 +2327,11 @@ class TimeTravelConfig(NamedTuple):
                 raise ValueError(
                     f"'end_offset' must be an integer number of seconds, got {end_offset!r}."
                 )
+            if end_offset > 0:
+                raise ValueError(
+                    "'end_offset' must be zero or a negative number of seconds in the "
+                    f"past, got {end_offset}."
+                )
 
         # Validate mode
         if time_travel_mode is None:

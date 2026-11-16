@@ -329,37 +329,6 @@ def _extract_iceberg_changes_from_options(options: dict) -> dict:
     return {"start_snapshot_id": start_id, "end_snapshot_id": end_id}
 
 
-def _reader_options_conflict_with_incremental_read(options: dict) -> list[str]:
-    """Return reader option keys that cannot coexist with incremental read."""
-    incremental_keys = {
-        "start-snapshot-id",
-        "start_snapshot_id",
-        "end-snapshot-id",
-        "end_snapshot_id",
-    }
-    if not any(
-        k.upper().replace("_", "-") in {x.replace("_", "-") for x in incremental_keys}
-        for k in options
-    ):
-        return []
-    blocked = []
-    for key in options:
-        upper = key.upper()
-        if upper in incremental_keys or upper.replace("_", "-") in {
-            x.replace("_", "-") for x in incremental_keys
-        }:
-            continue
-        if upper in _TIME_TRAVEL_OPTIONS_PARAMS_MAP or upper in (
-            "SNAPSHOT-ID",
-            "SNAPSHOT_ID",
-            "AS-OF-TIMESTAMP",
-            "VERSION_TAG",
-            "VERSION-TAG",
-        ):
-            blocked.append(key)
-    return blocked
-
-
 _CHANGES_OPTION_KEYS = (
     "CHANGES",
     "END_STATEMENT",
@@ -368,24 +337,28 @@ _CHANGES_OPTION_KEYS = (
     "END_TIMESTAMP_TYPE",
 )
 
+_OTHER_TIME_TRAVEL_OPTION_KEYS = (
+    "AS-OF-TIMESTAMP",
+    "SNAPSHOT-ID",
+    "SNAPSHOT_ID",
+    "VERSION_TAG",
+    "VERSION-TAG",
+    "TAG",
+    "VERSION_REF",
+    "VERSION-REF",
+    "BRANCH",
+)
+
 
 def _time_travel_option_keys(options: dict) -> list[str]:
-    """Return reader option keys that configure time travel."""
+    """Return reader option keys that configure time travel. Options set to None are ignored."""
     return [
         key
-        for key in options
-        if key.upper() in _TIME_TRAVEL_OPTIONS_PARAMS_MAP
-        or key.upper()
-        in (
-            "AS-OF-TIMESTAMP",
-            "SNAPSHOT-ID",
-            "SNAPSHOT_ID",
-            "VERSION_TAG",
-            "VERSION-TAG",
-            "TAG",
-            "VERSION_REF",
-            "VERSION-REF",
-            "BRANCH",
+        for key, value in options.items()
+        if value is not None
+        and (
+            key.upper() in _TIME_TRAVEL_OPTIONS_PARAMS_MAP
+            or key.upper() in _OTHER_TIME_TRAVEL_OPTION_KEYS
         )
     ]
 
@@ -850,25 +823,6 @@ class DataFrameReader:
                 f"table() got unexpected keyword arguments: {sorted(kwargs)}"
             )
 
-        changes_from_options = _extract_iceberg_changes_from_options(self._cur_options)
-        if changes_from_options:
-            conflicting = _reader_options_conflict_with_incremental_read(
-                self._cur_options
-            )
-            if conflicting:
-                raise ValueError(
-                    "Cannot combine Iceberg incremental read "
-                    "('start-snapshot-id' / 'end-snapshot-id') with time travel "
-                    f"options on the same read; found {conflicting!r}."
-                )
-            if start_snapshot_id is None:
-                start_snapshot_id = changes_from_options["start_snapshot_id"]
-            if end_snapshot_id is None:
-                end_snapshot_id = changes_from_options.get("end_snapshot_id")
-
-        # Direct time travel arguments override reader options. For a CHANGES
-        # read that would silently drop part of the settings, so all of them
-        # must come from one source.
         direct_time_travel_args = [
             arg_name
             for arg_name, arg in (
@@ -891,6 +845,30 @@ class DataFrameReader:
             if arg is not None
         ]
         time_travel_option_keys = _time_travel_option_keys(self._cur_options)
+
+        changes_from_options = _extract_iceberg_changes_from_options(self._cur_options)
+        if (
+            start_snapshot_id is not None
+            or end_snapshot_id is not None
+            or changes_from_options
+        ):
+            # The incremental read path ignores every time travel setting, so
+            # reject them instead of dropping them silently.
+            conflicting = direct_time_travel_args + time_travel_option_keys
+            if conflicting:
+                raise ValueError(
+                    "Cannot combine Iceberg incremental read "
+                    "('start-snapshot-id' / 'end-snapshot-id') with time travel "
+                    f"options on the same read; found {conflicting!r}."
+                )
+            if start_snapshot_id is None:
+                start_snapshot_id = changes_from_options.get("start_snapshot_id")
+            if end_snapshot_id is None:
+                end_snapshot_id = changes_from_options.get("end_snapshot_id")
+
+        # Direct time travel arguments override reader options. For a CHANGES
+        # read that would silently drop part of the settings, so all of them
+        # must come from one source.
         if (
             direct_time_travel_args
             and time_travel_option_keys
@@ -1631,6 +1609,12 @@ class DataFrameReader:
             - ``timestamp``: Specific timestamp for time travel
             - ``timestamp_type``: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
             - ``stream``: Stream name for time travel.
+            - ``changes``: ``'default'`` or ``'append_only'`` to read the changes of a table with
+              change tracking enabled.
+            - ``end_statement``: Query ID that sets the end of the changes.
+            - ``end_offset``: Seconds to go back in time that set the end of the changes (negative integer).
+            - ``end_timestamp``: Timestamp that sets the end of the changes.
+            - ``end_timestamp_type``: Type of ``end_timestamp`` interpretation ('NTZ', 'LTZ', or 'TZ').
 
         Special PySpark compatibility option:
             - ``as-of-timestamp``: Automatically sets ``time_travel_mode`` to "at" and uses the

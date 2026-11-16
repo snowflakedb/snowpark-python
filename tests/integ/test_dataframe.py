@@ -8783,11 +8783,21 @@ def test_read_table_changes_mixed_options_and_arguments(session, local_testing_m
             read()
 
     # plain time travel keeps letting direct arguments override options
-    session.read.option("time_travel_mode", "before").option("offset", -60).table(
+    overridden = (
+        session.read.option("time_travel_mode", "before")
+        .option("offset", -60)
+        .table(table_name, time_travel_mode="at", offset=-3600)
+    )
+    # options set to None count as unset
+    unset_option = session.read.option("changes", None).table(
         table_name, time_travel_mode="at", offset=-3600
     )
 
     if not local_testing_mode:
+        for table in (overridden, unset_option):
+            sql = table._plan.queries[-1].sql
+            assert " AT (OFFSET => -3600)" in sql and "CHANGES" not in sql
+
         all_direct = session.read.table(
             table_name,
             changes="default",
@@ -8808,6 +8818,39 @@ def test_read_table_changes_mixed_options_and_arguments(session, local_testing_m
                 " CHANGES (INFORMATION => DEFAULT) AT (STATEMENT => 'q1')"
                 " END (OFFSET => -60)" in sql
             )
+
+
+def test_read_table_incremental_read_rejects_time_travel(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    incremental_reads = [
+        # time travel arguments passed directly
+        lambda: session.read.option("start-snapshot-id", 1).table(
+            table_name, changes="default", time_travel_mode="at", statement="q1"
+        ),
+        lambda: session.read.option("start-snapshot-id", 1).table(
+            table_name, time_travel_mode="at", statement="q1"
+        ),
+        lambda: session.read.table(
+            table_name, start_snapshot_id=1, time_travel_mode="at", statement="q1"
+        ),
+        lambda: session.read.table(
+            table_name, start_snapshot_id=1, end_snapshot_id=2, branch="b1"
+        ),
+        # time travel reader options
+        lambda: session.read.option("start-snapshot-id", 1)
+        .option("time_travel_mode", "at")
+        .option("statement", "q1")
+        .table(table_name),
+        lambda: session.read.option("start-snapshot-id", 1)
+        .option("branch", "b1")
+        .table(table_name),
+        lambda: session.read.option("time_travel_mode", "at")
+        .option("Changes", "default")
+        .table(table_name, start_snapshot_id=1),
+    ]
+    for read in incremental_reads:
+        with pytest.raises(ValueError, match="Cannot combine Iceberg incremental read"):
+            read()
 
 
 @pytest.mark.skipif(

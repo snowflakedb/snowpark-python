@@ -939,6 +939,27 @@ def test_changes_end_offset_rejected(end_offset):
         )
 
 
+@pytest.mark.parametrize("end_offset", [0, "0"])
+def test_changes_end_offset_zero_accepted(end_offset):
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", statement="q1", changes="default", end_offset=end_offset
+    )
+    assert config.generate_sql_clause().endswith(" END (OFFSET => 0)")
+
+
+@pytest.mark.parametrize("end_offset", [5, "5", "+5"])
+def test_changes_end_offset_positive_rejected(end_offset):
+    with pytest.raises(
+        ValueError, match="'end_offset' must be zero or a negative number"
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at",
+            statement="q1",
+            changes="default",
+            end_offset=end_offset,
+        )
+
+
 def test_changes_end_offset_rejects_numpy_bool():
     np = pytest.importorskip("numpy")
     with pytest.raises(ValueError, match="(?i)end_offset"):
