@@ -296,6 +296,11 @@ class Table(DataFrame):
         timestamp: Optional[Union[str, datetime.datetime]] = None,
         timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
+        changes: Optional[Literal["default", "append_only"]] = None,
+        end_statement: Optional[str] = None,
+        end_offset: Optional[int] = None,
+        end_timestamp: Optional[Union[str, datetime.datetime]] = None,
+        end_timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         **kwargs,
     ) -> None:
         # ``version`` (Iceberg snapshot id) and ``version_tag`` (Iceberg tag
@@ -320,6 +325,9 @@ class Table(DataFrame):
         )
 
         if _ast_stmt is None and session is not None and _emit_ast:
+            # The AST stores end_offset as an int, so normalize integer strings
+            # first. Invalid values raise the usual ValueError.
+            end_offset = TimeTravelConfig._normalize_end_offset(end_offset)
             _ast_stmt = session._ast_batch.bind()
             ast = with_src_position(_ast_stmt.expr.table, _ast_stmt)
             build_table_name(ast.name, table_name)
@@ -337,6 +345,16 @@ class Table(DataFrame):
                 ast.timestamp_type.value = str(timestamp_type)
             if stream is not None:
                 ast.stream.value = stream
+            if changes is not None:
+                ast.changes.value = changes
+            if end_statement is not None:
+                ast.end_statement.value = end_statement
+            if end_offset is not None:
+                ast.end_offset.value = end_offset
+            if end_timestamp is not None:
+                build_expr_from_python_val(ast.end_timestamp, end_timestamp)
+            if end_timestamp_type is not None:
+                ast.end_timestamp_type.value = str(end_timestamp_type)
 
         time_travel_config = TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode=time_travel_mode,
@@ -349,6 +367,11 @@ class Table(DataFrame):
             version_tag=version_tag,
             version_ref=version_ref,
             branch=branch,
+            changes=changes,
+            end_statement=end_statement,
+            end_offset=end_offset,
+            end_timestamp=end_timestamp,
+            end_timestamp_type=end_timestamp_type,
         )
         if iceberg_changes_config is not None and time_travel_config is not None:
             raise ValueError(
@@ -487,6 +510,18 @@ class Table(DataFrame):
         ):
             raise ValueError(
                 f"'sampling_method' value {sampling_method} must be None or one of 'BERNOULLI', 'ROW', 'SYSTEM', or 'BLOCK'."
+            )
+
+        # Table.sample builds its SQL from the bare table name, which would drop the
+        # CHANGES clause and silently sample the current table instead.
+        if (
+            self._time_travel_config is not None
+            and self._time_travel_config.changes is not None
+        ):
+            raise NotImplementedError(
+                "Table.sample is not supported yet for change-tracking reads "
+                f"(changes={self._time_travel_config.changes.lower()!r}). Use "
+                "DataFrame.sample, e.g. df.select('*').sample(...), instead."
             )
 
         from snowflake.snowpark.mock._connection import MockServerConnection

@@ -38,6 +38,11 @@ import pytest
 
 from snowflake.connector import IntegrityError, ProgrammingError
 from snowflake.snowpark import Column, Row, Window
+from snowflake.snowpark.column import (
+    METADATA_ACTION,
+    METADATA_ISUPDATE,
+    METADATA_ROW_ID,
+)
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import (
@@ -8598,6 +8603,506 @@ def test_time_travel_comprehensive_coverage(session):
     finally:
         Utils.drop_table(session, table1_name)
         Utils.drop_table(session, table2_name)
+
+
+@pytest.fixture
+def changes_table(session):
+    """Change-tracking temp table: insert (1,'a'),(2,'b'); update id=1; delete id=2."""
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    def run(sql):
+        job = session.sql(sql).collect_nowait()
+        job.result()
+        return job.query_id
+
+    session.sql(
+        f"create temp table {table_name} (id int, v string) change_tracking = true"
+    ).collect()
+    try:
+        insert_qid = run(f"insert into {table_name} values (1, 'a'), (2, 'b')")
+        update_qid = run(f"update {table_name} set v = 'a2' where id = 1")
+        delete_qid = run(f"delete from {table_name} where id = 2")
+        yield table_name, insert_qid, update_qid, delete_qid
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+def test_table_changes_clause(session, changes_table):
+    table_name, insert_qid, update_qid, delete_qid = changes_table
+
+    def read(**kwargs):
+        return session.table(table_name, **kwargs).select(
+            "id",
+            "v",
+            METADATA_ACTION,
+            METADATA_ISUPDATE,
+        )
+
+    # DEFAULT, AT(insert) END(update): net delta of the update only
+    expected_update = [
+        Row(1, "a", "DELETE", True),
+        Row(1, "a2", "INSERT", True),
+    ]
+    for info in ("default", "DEFAULT"):
+        Utils.check_answer(
+            read(
+                changes=info,
+                time_travel_mode="at",
+                statement=insert_qid,
+                end_statement=update_qid,
+            ),
+            expected_update,
+        )
+
+    # without END the delta runs to the present, including the delete
+    Utils.check_answer(
+        read(changes="default", time_travel_mode="at", statement=insert_qid),
+        expected_update + [Row(2, "b", "DELETE", False)],
+    )
+
+    # BEFORE(insert): the whole history collapses into net inserts
+    Utils.check_answer(
+        read(
+            changes="default",
+            time_travel_mode="before",
+            statement=insert_qid,
+            end_statement=update_qid,
+        ),
+        [Row(1, "a2", "INSERT", False), Row(2, "b", "INSERT", False)],
+    )
+
+    # APPEND_ONLY returns only inserted rows
+    for info in ("append_only", "APPEND_ONLY"):
+        Utils.check_answer(
+            read(
+                changes=info,
+                time_travel_mode="before",
+                statement=insert_qid,
+                end_statement=update_qid,
+            ),
+            [Row(1, "a", "INSERT", False), Row(2, "b", "INSERT", False)],
+        )
+    Utils.check_answer(
+        read(changes="append_only", time_travel_mode="at", statement=insert_qid), []
+    )
+
+    # session.read.table accepts the same arguments
+    Utils.check_answer(
+        session.read.table(
+            table_name,
+            changes="default",
+            time_travel_mode="at",
+            statement=insert_qid,
+            end_statement=update_qid,
+        ).select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+        expected_update,
+    )
+
+    # reader options
+    Utils.check_answer(
+        session.read.option("changes", "default")
+        .option("time_travel_mode", "at")
+        .option("statement", insert_qid)
+        .option("end_statement", update_qid)
+        .table(table_name)
+        .select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+        expected_update,
+    )
+
+    # METADATA$ROW_ID is exposed too, and pairs the delete/insert of an update
+    rows = read(
+        changes="default",
+        time_travel_mode="at",
+        statement=insert_qid,
+        end_statement=update_qid,
+    ).collect()
+    assert len(rows) == 2
+    row_ids = (
+        session.table(
+            table_name,
+            changes="default",
+            time_travel_mode="at",
+            statement=insert_qid,
+            end_statement=update_qid,
+        )
+        .select(METADATA_ROW_ID)
+        .collect()
+    )
+    assert len(row_ids) == 2 and row_ids[0][0] == row_ids[1][0]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+def test_table_changes_end_timestamp_and_stream(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    stream_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    def run(sql):
+        job = session.sql(sql).collect_nowait()
+        job.result()
+        return job.query_id
+
+    session.sql(
+        f"create temp table {table_name} (id int, v string) change_tracking = true"
+    ).collect()
+    try:
+        insert_qid = run(f"insert into {table_name} values (1, 'a'), (2, 'b')")
+        # the stream offset is right after the insert
+        run(f"create stream {stream_name} on table {table_name}")
+        run(f"update {table_name} set v = 'a2' where id = 1")
+        # leave a gap on both sides of the timestamp so it falls strictly
+        # between the update and the delete
+        time.sleep(1)
+        ts_after_update = session.sql("select current_timestamp()").collect()[0][0]
+        time.sleep(1)
+        run(f"delete from {table_name} where id = 2")
+
+        def read(**kwargs):
+            return session.table(table_name, changes="default", **kwargs).select(
+                "id", "v", METADATA_ACTION, METADATA_ISUPDATE
+            )
+
+        expected_update = [
+            Row(1, "a", "DELETE", True),
+            Row(1, "a2", "INSERT", True),
+        ]
+        expected_all = expected_update + [Row(2, "b", "DELETE", False)]
+
+        # END(TIMESTAMP) with a tz-aware datetime stops before the delete
+        assert ts_after_update.tzinfo is not None
+        Utils.check_answer(
+            read(
+                time_travel_mode="at",
+                statement=insert_qid,
+                end_timestamp=ts_after_update,
+            ),
+            expected_update,
+        )
+        # the same point as a string with an offset and an explicit end_timestamp_type
+        Utils.check_answer(
+            read(
+                time_travel_mode="at",
+                statement=insert_qid,
+                end_timestamp=ts_after_update.strftime("%Y-%m-%d %H:%M:%S.%f %z"),
+                end_timestamp_type="TZ",
+            ),
+            expected_update,
+        )
+
+        # AT(STREAM) starts at the stream offset
+        Utils.check_answer(
+            read(time_travel_mode="at", stream=stream_name), expected_all
+        )
+        Utils.check_answer(
+            read(
+                time_travel_mode="at",
+                stream=stream_name,
+                end_timestamp=ts_after_update,
+            ),
+            expected_update,
+        )
+    finally:
+        session.sql(f"drop stream if exists {stream_name}").collect()
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+@pytest.mark.parametrize("simplifier_enabled", [True, False])
+def test_table_changes_clause_sql_simplifier(
+    session, changes_table, simplifier_enabled
+):
+    table_name, insert_qid, update_qid, _ = changes_table
+    original = session.sql_simplifier_enabled
+    session.sql_simplifier_enabled = simplifier_enabled
+    try:
+        df = session.table(
+            table_name,
+            changes="default",
+            time_travel_mode="at",
+            statement=insert_qid,
+            end_statement=update_qid,
+        )
+        Utils.check_answer(
+            df.select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+            [Row(1, "a", "DELETE", True), Row(1, "a2", "INSERT", True)],
+        )
+        sql = df.select("id")._plan.queries[-1].sql.upper()
+        assert "CHANGES (INFORMATION => DEFAULT)" in sql and " END (STATEMENT" in sql
+
+        Utils.check_answer(
+            session.table(
+                table_name,
+                changes="append_only",
+                time_travel_mode="before",
+                statement=insert_qid,
+                end_statement=update_qid,
+            ).select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+            [Row(1, "a", "INSERT", False), Row(2, "b", "INSERT", False)],
+        )
+        Utils.check_answer(
+            copy.copy(df).select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+            [Row(1, "a", "DELETE", True), Row(1, "a2", "INSERT", True)],
+        )
+    finally:
+        session.sql_simplifier_enabled = original
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+def test_table_changes_sample_not_supported(session, changes_table):
+    table_name, insert_qid, _, _ = changes_table
+    changes = session.table(
+        table_name, changes="default", time_travel_mode="at", statement=insert_qid
+    )
+    with pytest.raises(NotImplementedError, match="change-tracking"):
+        changes.sample(frac=0.5)
+    with pytest.raises(NotImplementedError, match="change-tracking"):
+        changes.sample(n=1)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+def test_table_changes_end_offset_validation(session, changes_table):
+    table_name, insert_qid, _, _ = changes_table
+    for bad in (-1.7, "abc", "1.5", True):
+        with pytest.raises(ValueError, match="(?i)end_offset"):
+            session.table(
+                table_name,
+                changes="default",
+                time_travel_mode="at",
+                statement=insert_qid,
+                end_offset=bad,
+            )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+def test_table_changes_copy_and_validation(session, changes_table):
+    table_name, insert_qid, update_qid, _ = changes_table
+    table = session.table(
+        table_name,
+        changes="default",
+        time_travel_mode="at",
+        statement=insert_qid,
+        end_statement=update_qid,
+    )
+    copied = copy.copy(table)
+    Utils.check_answer(
+        copied.select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+        [Row(1, "a", "DELETE", True), Row(1, "a2", "INSERT", True)],
+    )
+    assert "CHANGES" in table.select("id")._plan.queries[-1].sql.upper()
+
+    with pytest.raises(ValueError, match="Invalid 'changes' value"):
+        session.table(table_name, changes="bogus", time_travel_mode="at", statement="q")
+    with pytest.raises(ValueError, match="'changes' requires time travel mode"):
+        session.table(table_name, changes="default")
+    with pytest.raises(ValueError, match="can only be used together with 'changes'"):
+        session.table(
+            table_name, time_travel_mode="at", statement=insert_qid, end_statement="q"
+        )
+
+
+def test_read_table_changes_mixed_options_and_arguments(session, local_testing_mode):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    mixed_reads = [
+        # changes / end_* as options, time travel arguments passed directly
+        lambda: session.read.option("changes", "default").table(
+            table_name, time_travel_mode="at", statement="q1"
+        ),
+        lambda: session.read.option("Changes", "default")
+        .option("time_travel_mode", "at")
+        .table(table_name, statement="q1"),
+        lambda: session.read.option("END_OFFSET", -60).table(
+            table_name, changes="default", time_travel_mode="at", statement="q1"
+        ),
+        # changes / end_* passed directly, time travel settings as options
+        lambda: session.read.option("time_travel_mode", "at")
+        .option("statement", "q1")
+        .table(table_name, changes="default"),
+        lambda: session.read.option("as-of-timestamp", "2023-01-01 12:00:00").table(
+            table_name, changes="default"
+        ),
+        lambda: session.read.option("changes", "default")
+        .option("time_travel_mode", "at")
+        .option("statement", "q1")
+        .table(table_name, end_statement="q2"),
+    ]
+    for read in mixed_reads:
+        with pytest.raises(ValueError, match="Cannot mix time travel arguments"):
+            read()
+
+    # plain time travel keeps letting direct arguments override options
+    overridden = (
+        session.read.option("time_travel_mode", "before")
+        .option("offset", -60)
+        .table(table_name, time_travel_mode="at", offset=-3600)
+    )
+    # options set to None count as unset
+    unset_option = session.read.option("changes", None).table(
+        table_name, time_travel_mode="at", offset=-3600
+    )
+
+    if not local_testing_mode:
+        for table in (overridden, unset_option):
+            sql = table._plan.queries[-1].sql
+            assert " AT (OFFSET => -3600)" in sql and "CHANGES" not in sql
+
+        all_direct = session.read.table(
+            table_name,
+            changes="default",
+            time_travel_mode="at",
+            statement="q1",
+            end_offset=-60,
+        )
+        all_options = (
+            session.read.option("CHANGES", "default")
+            .option("Time_Travel_Mode", "at")
+            .option("statement", "q1")
+            .option("end_offset", -60)
+            .table(table_name)
+        )
+        for table in (all_direct, all_options):
+            sql = table._plan.queries[-1].sql
+            assert (
+                " CHANGES (INFORMATION => DEFAULT) AT (STATEMENT => 'q1')"
+                " END (OFFSET => -60)" in sql
+            )
+
+
+def test_read_table_incremental_read_with_time_travel(session, local_testing_mode):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    # plain time travel settings are ignored by an incremental read, as before
+    ignored = [
+        # time travel arguments passed directly
+        session.read.option("start-snapshot-id", 1).table(
+            table_name, time_travel_mode="at", statement="q1"
+        ),
+        session.read.table(
+            table_name, start_snapshot_id=1, time_travel_mode="at", offset=-60
+        ),
+        # time travel reader options
+        session.read.option("start-snapshot-id", 1)
+        .option("time_travel_mode", "at")
+        .option("statement", "q1")
+        .table(table_name),
+        session.read.option("start-snapshot-id", 1)
+        .option("tag", "t1")
+        .table(table_name),
+        session.read.option("start-snapshot-id", 1)
+        .option("as-of-timestamp", "2020-01-01 00:00:00")
+        .table(table_name),
+        session.read.option("time_travel_mode", "at")
+        .option("stream", "s1")
+        .table(table_name, start_snapshot_id=1),
+    ]
+    ignored_with_end = [
+        session.read.table(
+            table_name, start_snapshot_id=1, end_snapshot_id=2, branch="b1"
+        ),
+        session.read.option("start-snapshot-id", 1)
+        .option("end-snapshot-id", 2)
+        .option("branch", "b1")
+        .table(table_name),
+    ]
+    if not local_testing_mode:
+        expected = session.read.table(table_name, start_snapshot_id=1)
+        expected_sql = expected._plan.queries[-1].sql
+        assert "SPARK_INCREMENTAL_READ" in expected_sql
+        for table in ignored:
+            assert table._plan.queries[-1].sql == expected_sql
+        expected_with_end_sql = (
+            session.read.table(table_name, start_snapshot_id=1, end_snapshot_id=2)
+            ._plan.queries[-1]
+            .sql
+        )
+        for table in ignored_with_end:
+            assert table._plan.queries[-1].sql == expected_with_end_sql
+
+    # `changes` and `end_*` would turn the read into a CHANGES read, so they
+    # cannot be dropped silently
+    rejected = [
+        # as direct arguments
+        lambda: session.read.option("start-snapshot-id", 1).table(
+            table_name, changes="default", time_travel_mode="at", statement="q1"
+        ),
+        lambda: session.read.table(table_name, start_snapshot_id=1, end_statement="q2"),
+        # as reader options
+        lambda: session.read.option("start-snapshot-id", 1)
+        .option("Changes", "default")
+        .option("time_travel_mode", "at")
+        .option("statement", "q1")
+        .table(table_name),
+        lambda: session.read.option("end_offset", -60).table(
+            table_name, start_snapshot_id=1
+        ),
+    ]
+    for read in rejected:
+        with pytest.raises(
+            ValueError,
+            match="Cannot combine an Iceberg incremental read .* with 'changes' or "
+            "'end_\\*' time travel settings",
+        ):
+            read()
+
+    # only the changes / end_* settings are reported, in lowercase
+    with pytest.raises(ValueError, match=re.escape("found ['changes', 'end_offset'].")):
+        session.read.option("start-snapshot-id", 1).option(
+            "time_travel_mode", "at"
+        ).option("end_offset", -60).table(table_name, changes="default")
+
+
+def test_read_table_time_travel_options_set_to_none(session, local_testing_mode):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    # options set to None are ignored instead of failing on the None value
+    table = (
+        session.read.option("time_travel_mode", None)
+        .option("as-of-timestamp", "2020-01-01 00:00:00")
+        .table(table_name)
+    )
+    incremental = (
+        session.read.option("time_travel_mode", None)
+        .option("branch", None)
+        .option("start-snapshot-id", 1)
+        .table(table_name)
+    )
+    if not local_testing_mode:
+        assert " AT (TIMESTAMP => '2020-01-01 00:00:00')" in table._plan.queries[-1].sql
+        assert "SPARK_INCREMENTAL_READ" in incremental._plan.queries[-1].sql
+
+
+@pytest.mark.skipif(
+    "not config.getoption('local_testing_mode', default=False)",
+    reason="Local Testing only",
+)
+def test_table_changes_not_supported_in_local_testing(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe([[1, "a"]], schema=["id", "v"]).write.save_as_table(
+        table_name
+    )
+    try:
+        with pytest.raises(NotImplementedError):
+            session.table(
+                table_name, changes="default", time_travel_mode="at", statement="q1"
+            ).collect()
+    finally:
+        Utils.drop_table(session, table_name)
 
 
 # ----------------------------------------------------------------------
