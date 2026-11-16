@@ -9,6 +9,7 @@ from enum import Enum
 from functools import cached_property
 from typing import Optional, Union, List, TYPE_CHECKING
 
+from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.data_source import DataSourcePartitioner
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.utils import (
@@ -311,8 +312,10 @@ class JDBC:
         self.session.sql(
             infer_schema_udtf_registration, _emit_ast=self._emit_ast
         ).collect()
+        # The inference query is passed as a SQL string literal, so it must be escaped:
+        # otherwise quotes, backslashes or newlines in a user `query` break or alter it.
         self.raw_schema = self.session.sql(
-            f"SELECT * FROM TABLE({infer_schema_udtf_name}('{self.infer_schema_sql()}'))",
+            f"SELECT * FROM TABLE({infer_schema_udtf_name}({str_to_sql(self.infer_schema_sql())}))",
             _emit_ast=self._emit_ast,
         ).collect()
 

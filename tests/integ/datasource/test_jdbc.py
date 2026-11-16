@@ -463,3 +463,59 @@ def test_connect_sql_server(session, sql_server_udtf_configs):
         query=SQL_SERVER_QUERY,
     ).order_by("ID")
     assert df.collect() == sql_sever_expected_data
+
+
+def _with_string_literals(query):
+    """Wrap a query in an always-true filter that uses string literals, an escaped
+    quote, a backslash and a newline (SNOW-4522827)."""
+    return (
+        f"SELECT * FROM ({query}) LITERAL_Q\n"
+        "WHERE 'O''Brien' = 'O''Brien' AND 'a\\b' <> 'x'"
+    )
+
+
+def test_query_with_string_literals_oracle(session, udtf_configs):
+    df = session.read.jdbc(
+        url=URL, udtf_configs=udtf_configs, query=_with_string_literals(SELECT_QUERY)
+    ).order_by("ID")
+    assert df.collect() == expected_data
+
+
+def test_query_with_string_literal_filter_oracle(session, udtf_configs):
+    # A literal that actually filters rows, compared with the same filter as a predicate.
+    query = f"SELECT * FROM ({SELECT_QUERY}) Q WHERE VARCHAR2_COL <> 'no such value'"
+    df = session.read.jdbc(url=URL, udtf_configs=udtf_configs, query=query)
+    df_predicate = session.read.jdbc(
+        url=URL,
+        udtf_configs=udtf_configs,
+        table=TABLE_NAME,
+        predicates=["VARCHAR2_COL <> 'no such value'"],
+    )
+    assert df.order_by("ID").collect() == df_predicate.order_by("ID").collect()
+
+
+def test_query_with_string_literals_postgres(session, postgres_udtf_configs):
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query=_with_string_literals(POSTGRES_SELECT_QUERY),
+    ).order_by("BIGSERIAL_COL")
+    assert df.collect() == postgres_expected_data
+
+
+def test_query_with_string_literals_mysql(session, mysql_udtf_configs):
+    df = session.read.jdbc(
+        url=MYSQL_URL,
+        udtf_configs=mysql_udtf_configs,
+        query=_with_string_literals(MYSQL_SELECT_QUERY),
+    ).order_by("ID")
+    assert df.collect() == mysql_expected_data
+
+
+def test_query_with_string_literals_sql_server(session, sql_server_udtf_configs):
+    df = session.read.jdbc(
+        url=SQL_SERVER_URL,
+        udtf_configs=sql_server_udtf_configs,
+        query=_with_string_literals(SQL_SERVER_QUERY),
+    ).order_by("ID")
+    assert df.collect() == sql_sever_expected_data

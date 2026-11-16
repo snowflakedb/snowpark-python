@@ -13,6 +13,7 @@
 #### Bug Fixes
 
 - Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
+- Fixed a bug in `DataFrameReader.jdbc` where a `query` that contained string literals, backslashes or newlines failed with a SQL compilation error during schema inference.
 
 ### Snowpark Local Testing Updates
 
