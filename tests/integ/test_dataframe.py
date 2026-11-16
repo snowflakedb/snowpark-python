@@ -8697,7 +8697,7 @@ def test_table_changes_end_timestamp_and_stream(session):
             ),
             expected_update,
         )
-        # the same point as a naive string with an explicit end_timestamp_type
+        # the same point as a string with an offset and an explicit end_timestamp_type
         Utils.check_answer(
             read(
                 time_travel_mode="at",
