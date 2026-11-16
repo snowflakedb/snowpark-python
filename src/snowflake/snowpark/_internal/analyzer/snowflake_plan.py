@@ -38,6 +38,7 @@ from snowflake.snowpark._internal.debug_utils import (
     get_df_transform_trace_message,
     get_python_source_from_sql_error,
     get_existing_object_context,
+    get_invalid_identifier_context,
     get_missing_object_context,
 )
 
@@ -200,6 +201,14 @@ class SnowflakePlan(LogicalPlan):
                                     top_plan, e.msg, query
                                 ):
                                     debug_context_arr.append(error_source_context)
+                            elif (
+                                "invalid identifier" in e.msg.lower()
+                                and trace_sql_errors
+                            ):
+                                if invalid_identifier_context := get_invalid_identifier_context(
+                                    top_plan, e.msg
+                                ):
+                                    debug_context_arr.append(invalid_identifier_context)
                             if trace_node is not None and debug_config.enabled(
                                 top_plan.session, "dataframe_trace_on_error"
                             ):

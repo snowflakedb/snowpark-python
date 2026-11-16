@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.debug_utils import (
     QueryProfiler,
     _format_source_location,
     _get_own_trace_nodes,
+    _parse_invalid_identifier,
     _resolve_error_line,
     get_python_source_from_sql_error,
 )
@@ -957,3 +958,20 @@ def test_get_plan_from_pre_query_line_number(
     else:
         assert result.uuid == expected_uuid
         assert result.df_trace_nodes == expected_trace_nodes
+
+
+@pytest.mark.parametrize(
+    "error_msg, expected",
+    [
+        ("002004 (42601): SQL compilation error:\nInvalid identifier TYPE", '"TYPE"'),
+        ("SQL compilation error:\nInvalid identifier type", '"TYPE"'),
+        ("SQL compilation error:\nInvalid identifier SNOWPARK_LEFT.TYPE", '"TYPE"'),
+        ('SQL compilation error:\nInvalid identifier "my col"', '"my col"'),
+        ("000904 (42000): SQL compilation error:\ninvalid identifier 'C'", '"C"'),
+        ("SQL compilation error:\ninvalid identifier '\"abC\"'", '"abC"'),
+        ("SQL compilation error:\ninvalid identifier 'T.C'", '"C"'),
+        ("SQL compilation error:\nObject 'T' does not exist or not authorized.", None),
+    ],
+)
+def test_parse_invalid_identifier(error_msg, expected):
+    assert _parse_invalid_identifier(error_msg) == expected

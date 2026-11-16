@@ -400,6 +400,81 @@ def get_python_source_from_sql_error(
     return ""
 
 
+def _parse_invalid_identifier(error_msg: str) -> Optional[str]:
+    """
+    Return the identifier of an invalid identifier error as a quoted identifier, e.g.
+    '"TYPE"' for "002004 ... Invalid identifier TYPE" and "000904 ... invalid
+    identifier 'TYPE'", or None if the message has no identifier.
+    """
+    match = re.search(
+        r"""invalid identifier\s+(?:'([^']+)'|("(?:[^"]|"")*"|[^\s'"]+))""",
+        error_msg,
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    identifier = match.group(1) or match.group(2)
+    if identifier.startswith('"'):
+        return identifier
+    # Unquoted identifiers are case-insensitive and may be qualified (e.g. T.COL).
+    return f'"{identifier.split(".")[-1].upper()}"'
+
+
+def get_invalid_identifier_context(top_plan: "SnowflakePlan", error_msg: str) -> str:
+    """
+    Map an invalid identifier error that has no line number to the DataFrame operations
+    whose output no longer provides the identifier although one of their inputs does.
+    Only the column metadata already known on the plans is used, so no query is issued.
+
+    Args:
+        top_plan: The top level SnowflakePlan object that contains the SQL compilation error.
+        error_msg: The error message from the SQL compilation error.
+
+    Returns:
+        Error message with the affected Python lines numbers if found, otherwise an empty string.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+
+    identifier = _parse_invalid_identifier(error_msg)
+    if identifier is None:
+        return ""
+
+    def known_columns(node) -> Optional[List[str]]:
+        plan = node._snowflake_plan if isinstance(node, Selectable) else node
+        metadata = getattr(plan, "_metadata", None)
+        if metadata is None:
+            return None
+        if metadata.attributes is not None:
+            return [attr.name for attr in metadata.attributes]
+        return metadata.quoted_identifiers
+
+    source_locations = []
+    visited = set()
+    stack: list = [top_plan]
+    while stack:
+        node = stack.pop()
+        if id(node) in visited:
+            continue
+        visited.add(id(node))
+        children = node.children_plan_nodes
+        stack.extend(children)
+        columns = known_columns(node)
+        if columns is None or identifier in columns:
+            continue
+        if any(identifier in (known_columns(child) or []) for child in children):
+            for location in _extract_source_locations_from_plan(node, own_only=True):
+                if location not in source_locations:
+                    source_locations.append(location)
+
+    if source_locations:
+        if len(source_locations) == 1:
+            return f"\nSQL compilation error corresponds to Python source at {source_locations[0]}.\n"
+        else:
+            locations_str = "\n  - ".join(source_locations)
+            return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
+    return ""
+
+
 def get_missing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> str:
     """
     Extract Python source location context for missing object errors.

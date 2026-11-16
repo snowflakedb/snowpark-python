@@ -23,6 +23,7 @@ from snowflake.snowpark.functions import (
     sum,
     when,
 )
+from snowflake.snowpark.types import IntegerType
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.window import Window
@@ -263,6 +264,79 @@ def test_invalid_identifier_error_message(session):
     assert "SQL compilation error corresponds to Python source" in str(ex.value)
     line_number = Utils.get_current_line_number_sys()
     assert f"line {line_number - 3}" in str(ex.value)
+
+
+def test_invalid_identifier_without_line_number(session):
+    """The join reports no error line: the operation that removed the column is reported."""
+    df = session.create_dataframe(
+        [("cat", "1"), ("dog", "1")], schema=["object", "type"]
+    )
+    lookup = session.create_dataframe([(1, "Animal")], schema=["type", "category"])
+    select_line = Utils.get_current_line_number_sys() + 1
+    normalized = df.select("OBJECT", df.TYPE.cast(IntegerType()))
+    filtered = normalized.where(col("TYPE") < 3)
+    joined = filtered.join(lookup, on="TYPE")
+    with pytest.raises(SnowparkSQLException) as ex:
+        joined.collect()
+    assert "Invalid identifier TYPE" in str(ex.value)
+    assert "error line" not in str(ex.value)
+    assert select_line in _mapped_lines(ex)
+    # the lookup dataframe provides TYPE
+    assert select_line - 2 not in _mapped_lines(ex)
+
+
+def test_invalid_identifier_join_on_renamed_column(session):
+    table_name = Utils.random_table_name()
+    session.create_dataframe([(1, 2)], schema=["a", "b"]).write.save_as_table(
+        table_name, table_type="temp"
+    )
+    try:
+        rename_line = Utils.get_current_line_number_sys() + 1
+        renamed = session.table(table_name).with_column_renamed("a", "x")
+        other = session.table(table_name)
+        with pytest.raises(SnowparkSQLException) as ex:
+            renamed.join(other, on="a").collect()
+        assert "error line" not in str(ex.value)
+        assert _mapped_lines(ex) == [rename_line]
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+def test_invalid_identifier_join_on_dropped_column(session):
+    df = session.create_dataframe([(1, 2)], schema=["a", "b"])
+    other = session.create_dataframe([(1, 3)], schema=["a", "b"])
+    drop_line = Utils.get_current_line_number_sys() + 1
+    dropped = df.drop("b")
+    with pytest.raises(SnowparkSQLException) as ex:
+        dropped.join(other, on="b").collect()
+    assert "error line" not in str(ex.value)
+    assert drop_line in _mapped_lines(ex)
+
+
+def test_invalid_identifier_in_filter_on_table(session):
+    table_name = Utils.random_table_name()
+    session.create_dataframe([(1, 2)], schema=["a", "b"]).write.save_as_table(
+        table_name, table_type="temp"
+    )
+    try:
+        filter_line = Utils.get_current_line_number_sys() + 1
+        df = session.table(table_name).filter(col("c") > 1)
+        with pytest.raises(SnowparkSQLException) as ex:
+            df.collect()
+        assert "invalid identifier 'C'" in str(ex.value)
+        assert _mapped_lines(ex) == [filter_line]
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+def test_invalid_identifier_select_of_dropped_column(session):
+    df = session.create_dataframe([(1, 2)], schema=["a", "b"])
+    select_line = Utils.get_current_line_number_sys() + 1
+    df = df.drop("b").select("b")
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert "invalid identifier 'B'" in str(ex.value)
+    assert _mapped_lines(ex) == [select_line]
 
 
 def test_missing_table_with_session_table(session):
