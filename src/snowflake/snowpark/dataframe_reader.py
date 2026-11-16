@@ -112,6 +112,15 @@ _NOT_NULL_RE = re.compile(r"\s+NOT\s+NULL", re.IGNORECASE)
 
 LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
 
+# Time travel parameters that make a read a change-tracking (CHANGES) read.
+_CHANGES_PARAMS = (
+    "changes",
+    "end_statement",
+    "end_offset",
+    "end_timestamp",
+    "end_timestamp_type",
+)
+
 _TIME_TRAVEL_OPTIONS_PARAMS_MAP = {
     "TIME_TRAVEL_MODE": "time_travel_mode",
     "STATEMENT": "statement",
@@ -119,11 +128,7 @@ _TIME_TRAVEL_OPTIONS_PARAMS_MAP = {
     "TIMESTAMP": "timestamp",
     "TIMESTAMP_TYPE": "timestamp_type",
     "STREAM": "stream",
-    "CHANGES": "changes",
-    "END_STATEMENT": "end_statement",
-    "END_OFFSET": "end_offset",
-    "END_TIMESTAMP": "end_timestamp",
-    "END_TIMESTAMP_TYPE": "end_timestamp_type",
+    **{param.upper(): param for param in _CHANGES_PARAMS},
 }
 
 READER_OPTIONS_ALIAS_MAP = {
@@ -329,13 +334,15 @@ def _extract_iceberg_changes_from_options(options: dict) -> dict:
     return {"start_snapshot_id": start_id, "end_snapshot_id": end_id}
 
 
-_CHANGES_OPTION_KEYS = (
-    "CHANGES",
-    "END_STATEMENT",
-    "END_OFFSET",
-    "END_TIMESTAMP",
-    "END_TIMESTAMP_TYPE",
-)
+_CHANGES_OPTION_KEYS = {param.upper() for param in _CHANGES_PARAMS}
+
+# Iceberg selectors that default the time travel mode to 'at'.
+_ICEBERG_TIME_TRAVEL_PARAMS = {"version", "version_tag", "version_ref", "branch"}
+
+# Direct time travel arguments that do not select the direct-argument path of
+# DataFrameReader.table on their own; without a mode they fall through to the
+# reader options.
+_POINT_IN_TIME_PARAMS = {"statement", "offset", "timestamp", "timestamp_type", "stream"}
 
 _OTHER_TIME_TRAVEL_OPTION_KEYS = (
     "AS-OF-TIMESTAMP",
@@ -755,6 +762,8 @@ class DataFrameReader:
                 Requires ``changes``. Can also be set via ``option("end_offset", -60)``.
             end_timestamp: Timestamp string or datetime object that sets the end of the changes.
                 Requires ``changes``. Can also be set via ``option("end_timestamp", "2023-01-01 12:00:00")``.
+                A string or naive datetime is not interpreted in the session time zone, so pass
+                ``end_timestamp_type`` or a tz-aware datetime to be explicit.
             end_timestamp_type: Type of ``end_timestamp`` interpretation ('NTZ', 'LTZ', or 'TZ').
                 Can also be set via ``option("end_timestamp_type", "LTZ")``.
 
@@ -822,34 +831,35 @@ class DataFrameReader:
 
         # Reader options set to None count as unset.
         options = {k: v for k, v in self._cur_options.items() if v is not None}
+        direct_time_travel_params = {
+            "time_travel_mode": time_travel_mode,
+            "statement": statement,
+            "offset": offset,
+            "timestamp": timestamp,
+            "timestamp_type": timestamp_type,
+            "stream": stream,
+            "version": version,
+            "version_tag": version_tag,
+            "version_ref": version_ref,
+            "branch": branch,
+            "changes": changes,
+            "end_statement": end_statement,
+            "end_offset": end_offset,
+            "end_timestamp": end_timestamp,
+            "end_timestamp_type": end_timestamp_type,
+        }
         direct_time_travel_args = [
-            arg_name
-            for arg_name, arg in (
-                ("time_travel_mode", time_travel_mode),
-                ("statement", statement),
-                ("offset", offset),
-                ("timestamp", timestamp),
-                ("timestamp_type", timestamp_type),
-                ("stream", stream),
-                ("version", version),
-                ("version_tag", version_tag),
-                ("version_ref", version_ref),
-                ("branch", branch),
-                ("changes", changes),
-                ("end_statement", end_statement),
-                ("end_offset", end_offset),
-                ("end_timestamp", end_timestamp),
-                ("end_timestamp_type", end_timestamp_type),
-            )
-            if arg is not None
+            param
+            for param, value in direct_time_travel_params.items()
+            if value is not None
         ]
         time_travel_option_keys = _time_travel_option_keys(options)
 
-        changes_from_options = _extract_iceberg_changes_from_options(options)
+        incremental_read_options = _extract_iceberg_changes_from_options(options)
         if (
             start_snapshot_id is not None
             or end_snapshot_id is not None
-            or changes_from_options
+            or incremental_read_options
         ):
             # The incremental read path ignores every time travel setting, so
             # reject them instead of dropping them silently.
@@ -858,14 +868,14 @@ class DataFrameReader:
             ]
             if conflicting:
                 raise ValueError(
-                    "Cannot combine Iceberg incremental read "
-                    "('start-snapshot-id' / 'end-snapshot-id') with time travel "
-                    f"options on the same read; found {conflicting!r}."
+                    "Cannot combine an Iceberg incremental read (start/end snapshot "
+                    "id) with time travel arguments or options on the same read; "
+                    f"found {conflicting!r}."
                 )
             if start_snapshot_id is None:
-                start_snapshot_id = changes_from_options.get("start_snapshot_id")
+                start_snapshot_id = incremental_read_options.get("start_snapshot_id")
             if end_snapshot_id is None:
-                end_snapshot_id = changes_from_options.get("end_snapshot_id")
+                end_snapshot_id = incremental_read_options.get("end_snapshot_id")
 
         # Direct time travel arguments override reader options. For a CHANGES
         # read that would silently drop part of the settings, so all of them
@@ -911,7 +921,7 @@ class DataFrameReader:
         if (
             start_snapshot_id is not None
             or end_snapshot_id is not None
-            or changes_from_options
+            or incremental_read_options
         ):
             table = self._session.table(
                 name,
@@ -919,18 +929,7 @@ class DataFrameReader:
                 start_snapshot_id=start_snapshot_id,
                 end_snapshot_id=end_snapshot_id,
             )
-        elif (
-            time_travel_mode is not None
-            or version is not None
-            or version_tag is not None
-            or version_ref is not None
-            or branch is not None
-            or changes is not None
-            or end_statement is not None
-            or end_offset is not None
-            or end_timestamp is not None
-            or end_timestamp_type is not None
-        ):
+        elif set(direct_time_travel_args) - _POINT_IN_TIME_PARAMS:
             # If version / named-ref params are provided without mode,
             # default to 'at'.
             effective_mode = (
@@ -938,31 +937,13 @@ class DataFrameReader:
                 if time_travel_mode
                 else (
                     "at"
-                    if (
-                        version is not None
-                        or version_tag is not None
-                        or version_ref is not None
-                        or branch is not None
-                    )
+                    if _ICEBERG_TIME_TRAVEL_PARAMS.intersection(direct_time_travel_args)
                     else None
                 )
             )
             time_travel_params = {
+                **direct_time_travel_params,
                 "time_travel_mode": effective_mode,
-                "statement": statement,
-                "offset": offset,
-                "timestamp": timestamp,
-                "timestamp_type": timestamp_type,
-                "stream": stream,
-                "version": version,
-                "version_tag": version_tag,
-                "version_ref": version_ref,
-                "branch": branch,
-                "changes": changes,
-                "end_statement": end_statement,
-                "end_offset": end_offset,
-                "end_timestamp": end_timestamp,
-                "end_timestamp_type": end_timestamp_type,
             }
             table = self._session.table(name, _emit_ast=False, **time_travel_params)
         else:

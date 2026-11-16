@@ -839,7 +839,7 @@ def test_changes_validation_errors():
                 time_travel_mode="at", statement="q1", **end_kwargs
             )
     # at most one END argument
-    with pytest.raises(ValueError, match="Exactly one of 'end_statement'"):
+    with pytest.raises(ValueError, match="At most one of 'end_statement'"):
         TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at",
             statement="q1",
@@ -847,7 +847,7 @@ def test_changes_validation_errors():
             end_statement="q2",
             end_offset=-1,
         )
-    with pytest.raises(ValueError, match="Exactly one of 'end_statement'"):
+    with pytest.raises(ValueError, match="At most one of 'end_statement'"):
         TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at",
             statement="q1",

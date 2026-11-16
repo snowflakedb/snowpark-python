@@ -2989,7 +2989,8 @@ class Session:
             end_offset: Zero or a negative integer representing seconds in the past that sets the end of the changes.
                 Requires ``changes``.
             end_timestamp: Timestamp string or datetime object that sets the end of the changes. Requires ``changes``.
-                Handled like ``timestamp``.
+                Handled like ``timestamp``. A string or naive datetime is not interpreted in the session time zone,
+                so pass ``end_timestamp_type`` or a tz-aware datetime to be explicit.
             end_timestamp_type: Type of ``end_timestamp`` interpretation ('NTZ', 'LTZ', or 'TZ').
 
             Note:

@@ -14,10 +14,10 @@ import importlib.metadata
 import io
 import itertools
 import logging
+import numbers
 import os
 import platform
 import random
-import numbers
 import re
 import string
 import sys
@@ -2197,19 +2197,6 @@ class TimeTravelConfig(NamedTuple):
         return normalized_timestamp, timestamp_type
 
     @staticmethod
-    def _timestamp_to_sql(timestamp: str, timestamp_type: Optional[str]) -> str:
-        from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
-
-        if timestamp_type is None:
-            return str_to_sql(timestamp)
-        func_name = {
-            "NTZ": "TO_TIMESTAMP_NTZ",
-            "LTZ": "TO_TIMESTAMP_LTZ",
-            "TZ": "TO_TIMESTAMP_TZ",
-        }.get(timestamp_type.upper(), "TO_TIMESTAMP")
-        return f"{func_name}({str_to_sql(timestamp)})"
-
-    @staticmethod
     def validate_and_normalize_params(
         time_travel_mode: Optional[Literal["at", "before"]] = None,
         statement: Optional[str] = None,
@@ -2304,7 +2291,7 @@ class TimeTravelConfig(NamedTuple):
         )
         if end_arg_count > 1:
             raise ValueError(
-                "Exactly one of 'end_statement', 'end_offset', or 'end_timestamp' "
+                "At most one of 'end_statement', 'end_offset', or 'end_timestamp' "
                 "may be provided."
             )
         if end_arg_count == 1 and changes is None:
@@ -2456,6 +2443,16 @@ class TimeTravelConfig(NamedTuple):
         """
         from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 
+        def timestamp_to_sql(timestamp: str, timestamp_type: Optional[str]) -> str:
+            if timestamp_type is None:
+                return str_to_sql(timestamp)
+            func_name = {
+                "NTZ": "TO_TIMESTAMP_NTZ",
+                "LTZ": "TO_TIMESTAMP_LTZ",
+                "TZ": "TO_TIMESTAMP_TZ",
+            }.get(timestamp_type.upper(), "TO_TIMESTAMP")
+            return f"{func_name}({str_to_sql(timestamp)})"
+
         clause = (
             f" CHANGES (INFORMATION => {self.changes})"
             if self.changes is not None
@@ -2478,14 +2475,14 @@ class TimeTravelConfig(NamedTuple):
         elif self.version_tag is not None:
             clause += f"(VERSION_REF => {str_to_sql(self.version_tag)})"
         elif self.timestamp is not None:
-            clause += f"(TIMESTAMP => {self._timestamp_to_sql(self.timestamp, self.timestamp_type)})"
+            clause += f"(TIMESTAMP => {timestamp_to_sql(self.timestamp, self.timestamp_type)})"
 
         if self.end_statement is not None:
             clause += f" END (STATEMENT => {str_to_sql(self.end_statement)})"
         elif self.end_offset is not None:
             clause += f" END (OFFSET => {self.end_offset})"
         elif self.end_timestamp is not None:
-            clause += f" END (TIMESTAMP => {self._timestamp_to_sql(self.end_timestamp, self.end_timestamp_type)})"
+            clause += f" END (TIMESTAMP => {timestamp_to_sql(self.end_timestamp, self.end_timestamp_type)})"
 
         return clause
 

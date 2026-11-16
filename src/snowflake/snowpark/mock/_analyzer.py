@@ -140,6 +140,7 @@ from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark.mock._plan import MockExecutionPlan
 from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.mock._select_statement import (
+    CHANGES_READ_FEATURE_NAME,
     MockSelectable,
     MockSelectableEntity,
     MockSelectExecutionPlan,
@@ -923,7 +924,7 @@ class MockAnalyzer:
                 and logical_plan.time_travel_config.changes is not None
             ):
                 self._conn.log_not_supported_error(
-                    external_feature_name="Table reads with the CHANGES clause or END time travel",
+                    external_feature_name=CHANGES_READ_FEATURE_NAME,
                     raise_error=NotImplementedError,
                 )
 

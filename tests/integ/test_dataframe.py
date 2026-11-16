@@ -8927,7 +8927,9 @@ def test_read_table_incremental_read_rejects_time_travel(session):
         .table(table_name, start_snapshot_id=1),
     ]
     for read in incremental_reads:
-        with pytest.raises(ValueError, match="Cannot combine Iceberg incremental read"):
+        with pytest.raises(
+            ValueError, match="Cannot combine an Iceberg incremental read"
+        ):
             read()
 
     # argument names and option keys are both reported in lowercase
