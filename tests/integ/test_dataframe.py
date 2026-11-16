@@ -8753,6 +8753,63 @@ def test_table_changes_copy_and_validation(session, changes_table):
         )
 
 
+def test_read_table_changes_mixed_options_and_arguments(session, local_testing_mode):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    mixed_reads = [
+        # changes / end_* as options, time travel arguments passed directly
+        lambda: session.read.option("changes", "default").table(
+            table_name, time_travel_mode="at", statement="q1"
+        ),
+        lambda: session.read.option("Changes", "default")
+        .option("time_travel_mode", "at")
+        .table(table_name, statement="q1"),
+        lambda: session.read.option("END_OFFSET", -60).table(
+            table_name, changes="default", time_travel_mode="at", statement="q1"
+        ),
+        # changes / end_* passed directly, time travel settings as options
+        lambda: session.read.option("time_travel_mode", "at")
+        .option("statement", "q1")
+        .table(table_name, changes="default"),
+        lambda: session.read.option("as-of-timestamp", "2023-01-01 12:00:00").table(
+            table_name, changes="default"
+        ),
+        lambda: session.read.option("changes", "default")
+        .option("time_travel_mode", "at")
+        .option("statement", "q1")
+        .table(table_name, end_statement="q2"),
+    ]
+    for read in mixed_reads:
+        with pytest.raises(ValueError, match="Cannot mix time travel arguments"):
+            read()
+
+    # plain time travel keeps letting direct arguments override options
+    session.read.option("time_travel_mode", "before").option("offset", -60).table(
+        table_name, time_travel_mode="at", offset=-3600
+    )
+
+    if not local_testing_mode:
+        all_direct = session.read.table(
+            table_name,
+            changes="default",
+            time_travel_mode="at",
+            statement="q1",
+            end_offset=-60,
+        )
+        all_options = (
+            session.read.option("CHANGES", "default")
+            .option("Time_Travel_Mode", "at")
+            .option("statement", "q1")
+            .option("end_offset", -60)
+            .table(table_name)
+        )
+        for table in (all_direct, all_options):
+            sql = table._plan.queries[-1].sql
+            assert (
+                " CHANGES (INFORMATION => DEFAULT) AT (STATEMENT => 'q1')"
+                " END (OFFSET => -60)" in sql
+            )
+
+
 @pytest.mark.skipif(
     "not config.getoption('local_testing_mode', default=False)",
     reason="Local Testing only",

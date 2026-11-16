@@ -864,6 +864,38 @@ def test_changes_validation_errors():
         )
 
 
+@pytest.mark.parametrize(
+    "iceberg_kwargs",
+    [
+        {"version": 123},
+        {"version_tag": "t1"},
+        {"version_ref": "r1"},
+        {"branch": "b1"},
+        {"statement": "q1", "version": 123},
+    ],
+)
+def test_changes_rejects_iceberg_selectors(iceberg_kwargs):
+    with pytest.raises(
+        ValueError,
+        match="'changes' cannot be used with 'version', 'version_tag', "
+        "'version_ref' or 'branch'",
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", changes="default", **iceberg_kwargs
+        )
+
+
+def test_changes_requires_exactly_one_start_argument_message():
+    for kwargs in ({}, {"statement": "q1", "offset": -1}):
+        with pytest.raises(
+            ValueError,
+            match="exactly one of 'statement', 'offset', 'timestamp' or 'stream'\\.$",
+        ):
+            TimeTravelConfig.validate_and_normalize_params(
+                time_travel_mode="at", changes="default", **kwargs
+            )
+
+
 def test_changes_passes_through_other_combinations():
     # BEFORE with TIMESTAMP is left for Snowflake to validate
     config = TimeTravelConfig.validate_and_normalize_params(

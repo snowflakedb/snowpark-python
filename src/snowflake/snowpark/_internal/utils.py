@@ -2245,7 +2245,8 @@ class TimeTravelConfig(NamedTuple):
         ``end_timestamp``/``end_timestamp_type`` are normalized the same way.
 
         ``changes`` ('default' or 'append_only', case-insensitive) adds a CHANGES clause
-        and requires a time travel mode with exactly one AT/BEFORE argument. The ``end_*``
+        and requires a time travel mode with exactly one of ``statement``, ``offset``,
+        ``timestamp`` or ``stream``; the Iceberg selectors are rejected. The ``end_*``
         arguments add an END clause, require ``changes`` and are mutually exclusive.
 
         Returns:
@@ -2289,6 +2290,14 @@ class TimeTravelConfig(NamedTuple):
                     f"Invalid 'changes' value: {changes!r}. Must be 'default' or 'append_only'."
                 )
             changes = changes.upper()
+            if any(
+                arg is not None for arg in (version, version_tag, version_ref, branch)
+            ):
+                raise ValueError(
+                    "'changes' cannot be used with 'version', 'version_tag', "
+                    "'version_ref' or 'branch'. It requires exactly one of "
+                    "'statement', 'offset', 'timestamp' or 'stream'."
+                )
 
         end_arg_count = sum(
             arg is not None for arg in (end_statement, end_offset, end_timestamp)
@@ -2370,6 +2379,11 @@ class TimeTravelConfig(NamedTuple):
                 )
 
         # Validate exactly one parameter is provided
+        if time_travel_arg_count != 1 and changes is not None:
+            raise ValueError(
+                "'changes' requires time travel mode 'at' or 'before' with exactly "
+                "one of 'statement', 'offset', 'timestamp' or 'stream'."
+            )
         if time_travel_arg_count != 1:
             raise ValueError(
                 "Exactly one of 'statement', 'offset', 'timestamp', 'stream', "

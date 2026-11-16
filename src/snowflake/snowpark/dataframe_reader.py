@@ -360,6 +360,36 @@ def _reader_options_conflict_with_incremental_read(options: dict) -> list[str]:
     return blocked
 
 
+_CHANGES_OPTION_KEYS = (
+    "CHANGES",
+    "END_STATEMENT",
+    "END_OFFSET",
+    "END_TIMESTAMP",
+    "END_TIMESTAMP_TYPE",
+)
+
+
+def _time_travel_option_keys(options: dict) -> list[str]:
+    """Return reader option keys that configure time travel."""
+    return [
+        key
+        for key in options
+        if key.upper() in _TIME_TRAVEL_OPTIONS_PARAMS_MAP
+        or key.upper()
+        in (
+            "AS-OF-TIMESTAMP",
+            "SNAPSHOT-ID",
+            "SNAPSHOT_ID",
+            "VERSION_TAG",
+            "VERSION-TAG",
+            "TAG",
+            "VERSION_REF",
+            "VERSION-REF",
+            "BRANCH",
+        )
+    ]
+
+
 class DataFrameReader:
     """Provides methods to load data in various supported formats from a Snowflake
     stage to a :class:`DataFrame`. The paths provided to the DataFrameReader must refer
@@ -762,6 +792,8 @@ class DataFrameReader:
             Time travel options can be set either as direct parameters or via the
             :meth:`option` method, but NOT both. If any direct time travel parameter
             is provided, all time travel options will be ignored to avoid conflicts.
+            The exception is ``changes`` and the ``end_*`` parameters: if any of them is
+            used, mixing direct parameters and options raises a ``ValueError``.
 
             PySpark Compatibility: The ``as-of-timestamp`` option automatically sets
             ``time_travel_mode="at"`` and cannot be used with ``time_travel_mode="before"``.
@@ -833,6 +865,47 @@ class DataFrameReader:
                 start_snapshot_id = changes_from_options["start_snapshot_id"]
             if end_snapshot_id is None:
                 end_snapshot_id = changes_from_options.get("end_snapshot_id")
+
+        # Direct time travel arguments override reader options. For a CHANGES
+        # read that would silently drop part of the settings, so all of them
+        # must come from one source.
+        direct_time_travel_args = [
+            arg_name
+            for arg_name, arg in (
+                ("time_travel_mode", time_travel_mode),
+                ("statement", statement),
+                ("offset", offset),
+                ("timestamp", timestamp),
+                ("timestamp_type", timestamp_type),
+                ("stream", stream),
+                ("version", version),
+                ("version_tag", version_tag),
+                ("version_ref", version_ref),
+                ("branch", branch),
+                ("changes", changes),
+                ("end_statement", end_statement),
+                ("end_offset", end_offset),
+                ("end_timestamp", end_timestamp),
+                ("end_timestamp_type", end_timestamp_type),
+            )
+            if arg is not None
+        ]
+        time_travel_option_keys = _time_travel_option_keys(self._cur_options)
+        if (
+            direct_time_travel_args
+            and time_travel_option_keys
+            and any(
+                arg_name.upper() in _CHANGES_OPTION_KEYS
+                for arg_name in direct_time_travel_args + time_travel_option_keys
+            )
+        ):
+            raise ValueError(
+                "Cannot mix time travel arguments of table() "
+                f"({', '.join(direct_time_travel_args)}) with time travel reader "
+                f"options ({', '.join(k.lower() for k in time_travel_option_keys)}) "
+                "when 'changes' or an 'end_*' setting is used. Pass all time travel "
+                "settings either as arguments to table() or as reader options."
+            )
 
         # AST.
         stmt = None
