@@ -88,7 +88,14 @@ def to_json_value(value: Any) -> Any:
     if isinstance(value, (bytes, bytearray, memoryview)):
         return base64.b64encode(bytes(value)).decode("ascii")
     if _is_row(value):
-        return {str(k): to_json_value(v) for k, v in value.asDict().items()}
+        # Unlike asDict(), this keeps repeated field names and allows none.
+        fields = getattr(value, "_fields", None)
+        if not fields:
+            return [to_json_value(v) for v in value]
+        return {
+            str(k): to_json_value(v)
+            for k, v in zip(unique_names([str(f) for f in fields]), value)
+        }
     if isinstance(value, dict):
         return {str(k): to_json_value(v) for k, v in value.items()}
     if isinstance(value, (list, tuple, set, frozenset)):

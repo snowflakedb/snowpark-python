@@ -498,6 +498,7 @@ def to_sql_value(param: ToolParameter, value: Any) -> Any:
         try:
             return decimal.Decimal(str(value)).quantize(
                 decimal.Decimal(1).scaleb(-datatype.scale),
+                rounding=decimal.ROUND_HALF_UP,
                 context=decimal.Context(prec=datatype.precision),
             )
         except decimal.InvalidOperation:

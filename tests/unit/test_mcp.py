@@ -2537,6 +2537,43 @@ def test_deploy_prune_runs_when_grants_fail():
     )
 
 
+def failing_drop_session(fail_on=()):
+    session = overload_grant_session(OVERLOAD_GRANTS, fail_on=fail_on)
+
+    def drop(statement):
+        raise RuntimeError("cannot drop")
+
+    session.responses[0:0] = [
+        (
+            "SHOW USER FUNCTIONS IN SCHEMA APP.MCP",
+            [show_row("S__OLD_UDF", "NUMBER", tagged("S", "old_udf"))],
+        ),
+        ("DROP FUNCTION", drop),
+    ]
+    return session
+
+
+def test_deploy_error_lists_failed_grants_and_failed_prune_drops():
+    session = failing_drop_session(fail_on=['"Reader"'])
+    with pytest.raises(RuntimeError) as exc_info:
+        python_server("S").deploy(session, prune=True)
+    message = str(exc_info.value)
+    assert "was replaced" in message
+    assert '"Reader"' in message
+    assert "DROP FUNCTION IF EXISTS APP.MCP.S__OLD_UDF(NUMBER)" in message
+    assert "cannot drop" in message
+
+
+def test_deploy_error_lists_failed_prune_drops():
+    session = failing_drop_session()
+    with pytest.raises(RuntimeError) as exc_info:
+        python_server("S").deploy(session, prune=True)
+    message = str(exc_info.value)
+    assert "was replaced" in message
+    assert "DROP FUNCTION IF EXISTS APP.MCP.S__OLD_UDF(NUMBER)" in message
+    assert "grants" not in message
+
+
 def test_deploy_grants_do_not_requote_quoted_database_role_parts():
     session = grant_session(
         [
@@ -3165,6 +3202,31 @@ def test_python_tool_pickles_as_its_function():
     restored = cloudpickle.loads(cloudpickle.dumps(inner))
     assert not isinstance(restored, Tool)
     assert restored(4) == 8
+
+
+def test_copy_and_deepcopy_keep_python_tools():
+    import copy
+
+    @mcp_tool(read_only=True)
+    def inner(x: int) -> int:
+        """Inner.
+
+        Args:
+            x: The number.
+        """
+        return x
+
+    for clone in (copy.copy(inner), copy.deepcopy(inner)):
+        assert isinstance(clone, Tool) and clone is not inner
+        assert clone.func is inner.func
+        assert clone.parameters == inner.parameters
+    assert copy.deepcopy(inner).parameters is not inner.parameters
+    for clone in (
+        copy.copy(MCPServer("S", [inner])),
+        copy.deepcopy(MCPServer("S", [inner])),
+    ):
+        assert all(isinstance(t, Tool) for t in clone.tools)
+        clone.lint()
 
 
 def test_call_tool_resolves_an_existing_object_only_once():

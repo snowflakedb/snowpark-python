@@ -1014,6 +1014,12 @@ def test_check_arguments_without_strict_values_accepts_enum_and_null_problems():
     ]
 
 
+def test_to_sql_value_rounds_decimal_half_away_from_zero():
+    param = ToolParameter("x", {}, DecimalType(38, 18), True)
+    assert to_sql_value(param, 2.5e-18) == decimal.Decimal("3E-18")
+    assert to_sql_value(param, -2.5e-18) == decimal.Decimal("-3E-18")
+
+
 def test_to_sql_value_rejects_decimal_with_too_many_digits_for_precision():
     param = ToolParameter("x", {}, DecimalType(5, 2), True)
     assert to_sql_value(param, 123.45) == decimal.Decimal("123.45")

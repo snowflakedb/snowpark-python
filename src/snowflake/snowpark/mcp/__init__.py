@@ -37,6 +37,7 @@ Example::
     server.grant_usage(session, role="SALES_MCP_USER", schema="MCP_DEV", suffix="_DEV")
 """
 
+import copy
 import dataclasses
 import inspect
 import json
@@ -457,6 +458,21 @@ class PythonTool(Tool):
         # pickled with the deployed one. It is pickled as the plain function, so the
         # warehouse does not import this module, which its Snowpark may not have.
         return (mcp_tool_runtime._return_value, (self.func,))
+
+    # __reduce__ would make copies plain functions, so copy as a PythonTool.
+    def __copy__(self):
+        clone = object.__new__(type(self))
+        clone.__dict__.update(self.__dict__)
+        return clone
+
+    def __deepcopy__(self, memo):
+        clone = object.__new__(type(self))
+        memo[id(self)] = clone
+        for name, value in self.__dict__.items():
+            clone.__dict__[name] = (
+                value if name == "func" else copy.deepcopy(value, memo)
+            )
+        return clone
 
     @property
     def input_schema(self) -> Dict[str, Any]:
@@ -1450,6 +1466,7 @@ class MCPServer:
             )
 
         failed_grants: List[Tuple[str, Exception]] = []
+        failed_drops: List[Tuple[str, Exception]] = []
 
         def apply_grants(statements: List[str]) -> None:
             for statement in statements:
@@ -1491,14 +1508,29 @@ class MCPServer:
                 kind, _, sig = signature.partition(" ")
                 if (kind, _signature_key(sig)) not in keep:
                     pruned.append(signature)
-                    run(f"DROP {kind} IF EXISTS {sig}")
+                    try:
+                        run(f"DROP {kind} IF EXISTS {sig}")
+                    except Exception as e:
+                        failed_drops.append((f"DROP {kind} IF EXISTS {sig}", e))
 
-        if failed_grants:
+        if failed_grants or failed_drops:
+            problems = []
+            if failed_grants:
+                problems.append(
+                    f"{len(failed_grants)} of its previous grants could not be "
+                    f"re-applied; grant them again:\n{failed_grants_text()}"
+                )
+            if failed_drops:
+                problems.append(
+                    f"{len(failed_drops)} unused objects could not be dropped; "
+                    "drop them:\n"
+                    + "\n".join(f"{stmt}  -- {err}" for stmt, err in failed_drops)
+                )
             raise RuntimeError(
                 f"The server {target.server_fqn} was replaced"
                 + (" and pruning ran" if prune else "")
-                + f", but {len(failed_grants)} of its previous grants could not be "
-                f"re-applied; grant them again:\n{failed_grants_text()}"
+                + ", but "
+                + "\n".join(problems)
             )
         if not dry_run:
             self._send_telemetry(session)

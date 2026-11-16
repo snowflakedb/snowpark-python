@@ -1040,3 +1040,11 @@ def test_enum_error_for_nullable_parameter_does_not_show_none():
     assert result["error"]["message"] == "mode must be one of ['a', 'b'], got 'zzz'"
     assert result["error"]["hint"] == "Allowed values for mode: a, b."
     assert make_handler(f, input_schema=schema)(None) is None
+
+
+def test_to_json_value_row_with_repeated_or_no_field_names():
+    repeated = Row("ID", "ID")(1, 2)
+    assert to_json_value(repeated) == {"ID": 1, "ID_2": 2}
+    assert to_json_value(Row(1, 2)) == [1, 2]
+    assert to_json_value(Row(A=1, B=2)) == {"A": 1, "B": 2}
+    assert to_json_value([repeated, Row(1, 2)]) == [{"ID": 1, "ID_2": 2}, [1, 2]]
