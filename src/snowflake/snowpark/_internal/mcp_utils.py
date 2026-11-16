@@ -406,7 +406,8 @@ def parameters_from_function(
             default_problem = sql_default_problem(datatype, p.default)
             if default_problem:
                 problems.append(f"parameter {p.name}: {default_problem}")
-        if nullable:
+        # A parameter that defaults to None accepts null, whatever its type hint.
+        if nullable or (has_default and p.default is None):
             schema = _with_null(schema)
         if has_default and p.default is not None:
             try:
@@ -810,7 +811,7 @@ def check_arguments(
         elif (
             strict_values
             and name in properties
-            and name in schema.get("required", [])
+            and "type" in properties[name]
             and not allows_null(properties[name])
         ):
             problems.append(f"{name} must not be null")

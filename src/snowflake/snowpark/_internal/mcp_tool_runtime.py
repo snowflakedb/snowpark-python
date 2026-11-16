@@ -171,13 +171,22 @@ def unique_names(names: List[str]) -> List[str]:
     return unique
 
 
+def _unquote(name: str) -> str:
+    """A column name of a schema without its quotes, as ``Row`` reports it."""
+    if len(name) >= 2 and name.startswith('"') and name.endswith('"'):
+        return name[1:-1].replace('""', '"')
+    return name
+
+
 def to_tool_result(value: Any, max_rows: int, max_result_bytes: int) -> Any:
     """Converts what a tool function returned to the JSON value the tool returns."""
     if _is_snowpark_dataframe(value):
         rows = value.limit(max_rows + 1).collect()
         # A Row's fields, unlike asDict(), keep repeated column names.
         fields = getattr(rows[0], "_fields", None) if rows else None
-        columns = unique_names([str(c) for c in fields or value.schema.names])
+        columns = unique_names(
+            [str(c) for c in fields or map(_unquote, value.schema.names)]
+        )
         return table_result(
             columns,
             (dict(zip(columns, row)) for row in rows),
@@ -215,14 +224,15 @@ def check_received_arguments(schema: dict, arguments: dict) -> List[str]:
 
     The MCP server does not validate arguments against the input schema, but converts
     them to the SQL parameter types before the tool runs, so this check is lenient
-    about types: it only checks ``enum`` and that a required argument is not null.
+    about types: it only checks ``enum`` and that no argument is null unless its type
+    allows null.
     """
     problems = []
     properties = schema.get("properties") or {}
-    for name in schema.get("required") or []:
+    for name, value in arguments.items():
         types_ = (properties.get(name) or {}).get("type")
-        nullable = isinstance(types_, list) and "null" in types_
-        if name in arguments and arguments[name] is None and not nullable:
+        nullable = types_ is None or (isinstance(types_, list) and "null" in types_)
+        if value is None and not nullable:
             problems.append(f"{name} must not be null")
     for name, value in arguments.items():
         allowed = (properties.get(name) or {}).get("enum")
@@ -254,6 +264,11 @@ def invalid_arguments_result(schema: dict, received: dict) -> Optional[Dict[str,
     return error_result(
         "INVALID_ARGUMENTS", "; ".join(problems), _allowed_values_hint(schema, received)
     )
+
+
+def _return_value(value: Any) -> Any:
+    """Unpickles an MCP tool as its function."""
+    return value
 
 
 def run_tool(

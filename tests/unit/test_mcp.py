@@ -1656,7 +1656,7 @@ def test_deploy_drops_old_overload_when_parameter_types_change_without_prune():
             show_row("S__LOOKUP", "VARCHAR", tagged("S", "lookup")),
             # Untagged, another server's, another suffix's and a removed tool's
             # objects are left alone without prune.
-            show_row("S__LOOKUP", "BOOLEAN", "user-defined procedure"),
+            show_row("S__UNRELATED", "BOOLEAN", "user-defined procedure"),
             show_row("OTHER__LOOKUP", "NUMBER", tagged("OTHER", "lookup")),
             show_row("S_DEV__LOOKUP", "NUMBER", tagged("S", "lookup", "_DEV")),
             show_row("S__GONE", "NUMBER", tagged("S", "gone")),
@@ -2916,12 +2916,12 @@ ATTACKER_GRANTS = [
 ]
 
 
-def forged_session(grants, role='"APP_ROLE"'):
+def forged_session(grants, role='"APP_ROLE"', name="S__GET_ACCOUNT"):
     session = make_session(
         [
             (
                 "SHOW PROCEDURES IN SCHEMA APP.MCP",
-                [show_row("S__GET_ACCOUNT", "VARCHAR", tagged("S", "get_account"))],
+                [show_row(name, "VARCHAR", tagged("S", "get_account"))],
             ),
             ("SHOW GRANTS ON PROCEDURE", grants),
         ]
@@ -2933,13 +2933,13 @@ def forged_session(grants, role='"APP_ROLE"'):
 @pytest.mark.parametrize("prune", [False, True])
 @pytest.mark.parametrize("dry_run", [False, True])
 def test_deploy_leaves_tagged_objects_owned_by_another_role_alone(prune, dry_run):
-    session = forged_session(ATTACKER_GRANTS)
+    session = forged_session(ATTACKER_GRANTS, name="S__OLD")
     result = python_server("S").deploy(session, prune=prune, dry_run=dry_run)
     assert not any("ATTACKER_FRIEND" in s for s in session.statements)
     assert not any(s.startswith("DROP PROCEDURE") for s in session.statements)
     assert result.pruned == []
     assert messages(result.issues, "warning") == [
-        "APP.MCP.S__GET_ACCOUNT(VARCHAR) has this server's tag but is owned by "
+        "APP.MCP.S__OLD(VARCHAR) has this server's tag but is owned by "
         "ATTACKER, not APP_ROLE; it was left alone."
     ]
 
@@ -2947,7 +2947,7 @@ def test_deploy_leaves_tagged_objects_owned_by_another_role_alone(prune, dry_run
 def test_deploy_handles_tagged_objects_owned_by_the_deploying_role():
     session = forged_session(
         [
-            Row(privilege="OWNERSHIP", granted_to="ROLE", grantee_name="app_role"),
+            Row(privilege="OWNERSHIP", granted_to="ROLE", grantee_name="APP_ROLE"),
             Row(privilege="USAGE", granted_to="ROLE", grantee_name="READER"),
         ]
     )
@@ -2966,19 +2966,24 @@ def test_deploy_handles_tagged_objects_owned_by_the_deploying_role():
         ('"my role"', "my role", True),
         ('"my role"', "MY ROLE", False),
         ('"APP_ROLE"', "APP_ROLE", True),
+        ("app_role", "APP_ROLE", True),
+        ('"app_role"', "APP_ROLE", False),
+        ('"APP_ROLE"', "app_role", False),
     ],
 )
-def test_deploy_ownership_compares_quoted_roles_exactly(role, owner, owned):
+def test_deploy_ownership_compares_roles_exactly(role, owner, owned):
     session = forged_session(
-        [Row(privilege="OWNERSHIP", granted_to="ROLE", grantee_name=owner)], role
+        [Row(privilege="OWNERSHIP", granted_to="ROLE", grantee_name=owner)],
+        role,
+        name="S__OLD",
     )
-    result = python_server("S").deploy(session)
+    result = python_server("S").deploy(session, prune=True)
     assert bool(result.pruned) == owned
     assert bool(messages(result.issues, "warning")) != owned
 
 
 def test_drop_include_tools_skips_objects_owned_by_another_role(caplog):
-    session = forged_session(ATTACKER_GRANTS)
+    session = forged_session(ATTACKER_GRANTS, name="S__OLD")
     with caplog.at_level("WARNING", logger="snowflake.snowpark.mcp"):
         statements = python_server("S").drop(session, include_tools=True)
     assert statements == ["DROP MCP SERVER IF EXISTS APP.MCP.S"]
@@ -3086,3 +3091,203 @@ def test_existing_object_name_literal_escapes_backslashes():
     assert session.statements[0] == (
         "SHOW PROCEDURES LIKE 'A\\\\B''C' IN SCHEMA APP.FIN"
     )
+
+
+# ---------------------------------------------------------------------------
+# Review round 3
+# ---------------------------------------------------------------------------
+
+
+def test_null_for_non_nullable_optional_is_invalid_arguments():
+    @mcp_tool(read_only=True)
+    def top(limit: int = 10) -> dict:
+        """Top.
+
+        Args:
+            limit: How many.
+        """
+        return {"n": limit * 2}
+
+    invalid = {
+        "error": {"type": "INVALID_ARGUMENTS", "message": "limit must not be null"}
+    }
+    assert top.invoke(limit=None) == invalid
+    handler = mcp_tool_runtime.make_handler(top.func, input_schema=top.input_schema)
+    assert handler(None) == invalid
+    assert handler(limit=None) == invalid
+    assert handler() == {"n": 20}
+
+
+def test_parameter_defaulting_to_none_is_nullable():
+    @mcp_tool(read_only=True)
+    def f(x: str = None):  # noqa: RUF013
+        """F.
+
+        Args:
+            x: X.
+        """
+        return {"x": x}
+
+    assert f.input_schema["properties"]["x"]["type"] == ["string", "null"]
+    assert f.invoke(x=None) == {"x": None}
+    handler = mcp_tool_runtime.make_handler(f.func, input_schema=f.input_schema)
+    assert handler(None) == {"x": None}
+    assert mcp_utils.check_arguments(f.input_schema, {"x": None}) == []
+
+
+def test_python_tool_has_the_functions_identity():
+    assert get_account.__name__ == "get_account"
+    assert get_account.__qualname__ == "get_account"
+    assert get_account.__doc__ == get_account.func.__doc__
+    assert get_account.__module__ == __name__
+    assert get_account.__wrapped__ is get_account.func
+    assert inspect.signature(get_account) == inspect.signature(get_account.func)
+    assert "func" not in vars(get_account.func)
+
+
+def test_python_tool_pickles_as_its_function():
+    cloudpickle = pytest.importorskip("cloudpickle")
+    from snowflake.snowpark.mcp import _pickle_runtime_by_value
+
+    _pickle_runtime_by_value()
+
+    @mcp_tool(read_only=True)
+    def inner(x: int) -> int:
+        """Inner."""
+        return x * 2
+
+    restored = cloudpickle.loads(cloudpickle.dumps(inner))
+    assert not isinstance(restored, Tool)
+    assert restored(4) == 8
+
+
+def test_call_tool_resolves_an_existing_object_only_once():
+    session = existing_session("(AMOUNT NUMBER(10,2))", "P(NUMBER) RETURN VARCHAR")
+    server = MCPServer("S", [Tool.from_procedure("APP.MCP.P", read_only=True)])
+    server.call_tool(session, "p", {"amount": 1})
+    first = len(session.statements)
+    server.call_tool(session, "p", {"amount": 2})
+    assert [s.split()[0] for s in session.statements[first:]] == ["CALL"]
+
+
+def test_to_tool_result_empty_dataframe_columns_match_non_empty_ones():
+    class QuotedSchema:
+        names = ['"abc"', "ID"]
+
+    df = FakeDataFrame([])
+    df.schema = QuotedSchema()
+    result = mcp_tool_runtime.to_tool_result(df, 10, 10_000)
+    assert result["columns"] == ["abc", "ID"]
+
+
+@pytest.mark.parametrize("name", ["S$X", "s$"])
+def test_server_name_rejects_dollar(name):
+    with pytest.raises(ValueError, match="Invalid MCP server name"):
+        MCPServer(name)
+
+
+def test_suffix_rejects_dollar():
+    with pytest.raises(ValueError, match="Invalid suffix"):
+        python_server().to_yaml(database="APP", schema="MCP", suffix="_D$")
+
+
+def overload_session(rows, grants=None):
+    responses = [("SHOW PROCEDURES IN SCHEMA APP.MCP", rows)]
+    if grants:
+        responses = [*grants, *responses]
+    return make_session(responses)
+
+
+OTHER_OWNER = [Row(privilege="OWNERSHIP", grantee_name="OTHER_ROLE")]
+
+
+def test_deploy_rejects_foreign_owned_old_overload_of_a_current_tool():
+    session = overload_session(
+        [show_row("S__GET_ACCOUNT", "NUMBER, NUMBER", tagged("S", "get_account"))],
+        [
+            (
+                "SHOW GRANTS ON PROCEDURE APP.MCP.S__GET_ACCOUNT(NUMBER, NUMBER)",
+                OTHER_OWNER,
+            )
+        ],
+    )
+    with pytest.raises(ValueError, match=r"S__GET_ACCOUNT\(NUMBER, NUMBER\)") as e:
+        MCPServer("S", [get_account]).deploy(session)
+    assert "object_name" in str(e.value)
+    assert not any(s.startswith("CREATE OR REPLACE MCP") for s in session.statements)
+    assert not any(s.startswith("DROP") for s in session.statements)
+
+
+def test_deploy_rejects_untagged_overload_of_a_current_tool():
+    session = overload_session(
+        [show_row("S__GET_ACCOUNT", "VARCHAR", "user-defined procedure")]
+    )
+    with pytest.raises(ValueError, match=r"S__GET_ACCOUNT\(VARCHAR\)"):
+        MCPServer("S", [get_account]).deploy(session)
+    assert not any(s.startswith("CREATE OR REPLACE MCP") for s in session.statements)
+
+
+def test_deploy_dry_run_reports_an_overload_as_an_error_issue():
+    session = overload_session(
+        [show_row("S__GET_ACCOUNT", "VARCHAR", "user-defined procedure")]
+    )
+    result = MCPServer("S", [get_account]).deploy(session, dry_run=True)
+    (message,) = messages(result.issues, "error", "get_account")
+    assert "S__GET_ACCOUNT(VARCHAR)" in message
+
+
+def test_deploy_accepts_the_current_signature_and_overloads_being_dropped():
+    session = prune_session(
+        [
+            # The current signature, untagged.
+            show_row("S__GET_ACCOUNT", "VARCHAR, NUMBER", "user-defined procedure"),
+            # An owned, tagged old overload, which the deploy drops.
+            show_row("S__GET_ACCOUNT", "NUMBER", tagged("S", "get_account")),
+        ],
+        # A function of the same name is not an overload of the procedure.
+        [show_row("S__GET_ACCOUNT", "BOOLEAN", "user-defined function")],
+    )
+    result = MCPServer("S", [get_account]).deploy(session)
+    assert result.pruned == ["APP.MCP.S__GET_ACCOUNT(NUMBER)"]
+    assert not messages(result.issues, "error")
+
+
+def test_deploy_quotes_case_sensitive_names_of_tagged_objects():
+    rows = [show_row("get_account", "VARCHAR", tagged("S", "other"))]
+    quoted = 'APP.MCP."get_account"(VARCHAR)'
+    session = overload_session(
+        rows,
+        [(f"SHOW GRANTS ON PROCEDURE {quoted}", OTHER_OWNER)],
+    )
+    result = MCPServer("S", [get_account]).deploy(session, prune=True)
+    assert not any(s.startswith("DROP") for s in session.statements)
+    assert messages(result.issues, "warning") == [
+        f"{quoted} has this server's tag but is owned by OTHER_ROLE, not APP_ROLE; "
+        "it was left alone."
+    ]
+
+    session = overload_session(rows)
+    result = MCPServer("S", [get_account]).deploy(session, prune=True)
+    assert f"DROP PROCEDURE IF EXISTS {quoted}" in session.statements
+    assert result.pruned == [quoted]
+
+
+def test_from_procedure_with_overloads_warns_that_the_server_uses_the_name_only():
+    rows = [
+        Row(name="P", arguments=f"P({types}) RETURN VARCHAR", description="Get p.")
+        for types in ("VARCHAR", "NUMBER")
+    ]
+    session = make_session(
+        [
+            ("SHOW PROCEDURES LIKE", rows),
+            ("DESCRIBE PROCEDURE", [Row(property="signature", value="(X VARCHAR)")]),
+        ]
+    )
+    tool = Tool.from_procedure("APP.MCP.P(VARCHAR)", read_only=True)
+    warnings = messages(MCPServer("S", [tool]).lint(session), "warning", "p")
+    assert any("by name only" in w and "another" in w for w in warnings)
+
+    session.responses.insert(0, ("SHOW PROCEDURES LIKE", rows[:1]))
+    tool = Tool.from_procedure("APP.MCP.P(VARCHAR)", read_only=True)
+    warnings = messages(MCPServer("S", [tool]).lint(session), "warning", "p")
+    assert not any("by name only" in w for w in warnings)

@@ -262,6 +262,12 @@ def test_to_tool_result_empty_snowpark_dataframe_uses_schema_names():
     }
 
 
+def test_to_tool_result_empty_snowpark_dataframe_unquotes_schema_names():
+    df = FakeDataFrame([], names=['"abc"', '"a""b"', "ID", '"'])
+    result = to_tool_result(df, max_rows=3, max_result_bytes=10_000)
+    assert result["columns"] == ["abc", 'a"b', "ID", '"']
+
+
 def test_to_tool_result_pandas_dataframe():
     pd = pytest.importorskip("pandas")
     df = pd.DataFrame({"a": [1, 2, 3, 4], "b": ["w", "x", "y", None]})
@@ -584,6 +590,58 @@ def test_pickled_tool_does_not_import_snowpark(tmp_path):
     assert out["snowpark_imported"] is False
 
 
+_UNPICKLE_NESTED_SCRIPT = textwrap.dedent(
+    """
+    import importlib.abc
+    import sys
+
+    class Blocker(importlib.abc.MetaPathFinder):
+        def find_spec(self, fullname, path=None, target=None):
+            if fullname.startswith("snowflake.snowpark"):
+                raise ImportError("blocked import of " + fullname)
+            return None
+
+    sys.meta_path.insert(0, Blocker())
+
+    import cloudpickle
+
+    with open(sys.argv[1], "rb") as f:
+        handler = cloudpickle.loads(f.read())
+    print("RESULT" + repr(handler(3)))
+    """
+)
+
+
+def test_pickled_tool_that_calls_another_tool_does_not_import_snowpark(tmp_path):
+    cloudpickle = pytest.importorskip("cloudpickle")
+    from snowflake.snowpark.mcp import _pickle_runtime_by_value, mcp_tool
+
+    _pickle_runtime_by_value()
+
+    @mcp_tool(read_only=True)
+    def b(x: int) -> int:
+        """B."""
+        return x * 2
+
+    @mcp_tool(read_only=True)
+    def a(x: int) -> int:
+        """A."""
+        return b(x) + 1
+
+    data = cloudpickle.dumps(make_handler(a.func))
+    assert b"PythonTool" not in data
+    payload = tmp_path / "handler.pkl"
+    payload.write_bytes(data)
+    proc = subprocess.run(
+        [sys.executable, "-c", _UNPICKLE_NESTED_SCRIPT, str(payload)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "RESULT7" in proc.stdout
+
+
 def test_runtime_module_imports_only_stdlib():
     import ast
 
@@ -729,9 +787,10 @@ _ARGS_SCHEMA = {
     "type": "object",
     "properties": {
         "kind": {"type": "string", "enum": ["a", "b"]},
-        "level": {"type": "integer", "enum": [1, 2]},
+        "level": {"type": ["integer", "null"], "enum": [1, 2, None]},
         "day": {"type": "string", "format": "date"},
-        "note": {"type": "string"},
+        "note": {"type": ["string", "null"]},
+        "limit": {"type": "integer"},
     },
     "required": ["kind"],
 }
@@ -766,6 +825,12 @@ def test_check_received_arguments_optional_none_is_ok():
         )
         == []
     )
+
+
+def test_check_received_arguments_none_for_non_nullable_optional():
+    assert check_received_arguments(_ARGS_SCHEMA, {"kind": "a", "limit": None}) == [
+        "limit must not be null"
+    ]
 
 
 def test_check_received_arguments_does_not_check_types():

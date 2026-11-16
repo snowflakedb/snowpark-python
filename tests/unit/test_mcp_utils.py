@@ -830,9 +830,15 @@ def test_check_arguments_additional_properties():
     assert problems and problems[0].startswith("m.a must be of type integer")
 
 
-def test_check_arguments_null_for_optional_is_ok():
-    schema = _schema(a={"type": "string"})
+def test_check_arguments_null_for_nullable_optional_is_ok():
+    schema = _schema(a={"type": ["string", "null"]})
     assert check_arguments(schema, {"a": None}) == []
+
+
+def test_check_arguments_null_for_non_nullable_optional_is_a_problem():
+    schema = _schema(a={"type": "string"})
+    assert check_arguments(schema, {"a": None}) == ["a must not be null"]
+    assert check_arguments(schema, {"a": None}, strict_values=False) == []
 
 
 def test_check_arguments_null_for_required_is_a_problem():

@@ -229,6 +229,9 @@ class Tool:
             procedure: ``"DB.SCHEMA.NAME(ARG_TYPES)"``, or a
                 :class:`~snowflake.snowpark.stored_procedure.StoredProcedure`. The
                 argument types can be omitted when the procedure is not overloaded.
+                The server refers to the procedure by name only, so with overloads
+                the types only choose which signature is read here, and a call may
+                resolve to another overload.
             read_only: Whether the tool only reads data. Required.
             destructive: Whether it may delete or overwrite data. Defaults to
                 ``not read_only``.
@@ -380,6 +383,12 @@ class PythonTool(Tool):
             ),
         )
         self.func = func
+        # Not functools.update_wrapper, which would copy the function's __dict__.
+        self.__name__ = func.__name__
+        self.__qualname__ = func.__qualname__
+        self.__doc__ = func.__doc__
+        self.__module__ = func.__module__
+        self.__wrapped__ = func
         self.read_only = read_only
         self.object_name = object_name
         self.execute_as = execute_as
@@ -437,6 +446,12 @@ class PythonTool(Tool):
 
     def __call__(self, *args, **kwargs):
         return self.func(*args, **kwargs)
+
+    def __reduce__(self):
+        # A tool that calls another tool refers to it as a global, so the tool is
+        # pickled with the deployed one. It is pickled as the plain function, so the
+        # warehouse does not import this module, which its Snowpark may not have.
+        return (mcp_tool_runtime._return_value, (self.func,))
 
     @property
     def input_schema(self) -> Dict[str, Any]:
@@ -707,6 +722,7 @@ class ExistingObjectTool(Tool):
         self._qualified_name: Optional[str] = identifier if len(parts) == 3 else None
         self.parameters: Optional[List[ToolParameter]] = None
         self._open_schema_params: List[str] = []
+        self._overloaded = False
 
     @property
     def _keyword(self) -> str:
@@ -770,6 +786,7 @@ class ExistingObjectTool(Tool):
                 (types_, optional, values.get("description"), unsupported)
             )
         shown_signatures = [f"{obj}({', '.join(c[0])})" for c in candidates]
+        overloaded = len(candidates) > 1
         if self.arg_types is not None:
             wanted = [_normalize_sql_type(t) for t in self.arg_types]
             candidates = [
@@ -844,6 +861,7 @@ class ExistingObjectTool(Tool):
                 )
             )
         self.parameters = params
+        self._overloaded = overloaded
         if not self.description and not mcp_utils.is_default_comment(comment):
             self.description = str(comment)
 
@@ -852,6 +870,16 @@ class ExistingObjectTool(Tool):
             # The description may come from the object's comment.
             return []
         issues = super()._lint()
+        if self._overloaded:
+            issues.append(
+                LintIssue(
+                    "warning",
+                    self.name,
+                    f"{self._qualified_name} has more than one overload. The server "
+                    "refers to it by name only, so a call may resolve to another "
+                    "overload than the one read here.",
+                )
+            )
         for name in self._open_schema_params:
             issues.append(
                 LintIssue(
@@ -1158,9 +1186,10 @@ class MCPServer:
     """
 
     def __init__(self, name: str, tools: Iterable[Tool] = ()) -> None:
-        if not mcp_utils.is_identifier(name):
+        if not mcp_utils.is_identifier(name) or "$" in name:
             raise ValueError(
-                f"Invalid MCP server name {name!r}: use an unquoted identifier."
+                f"Invalid MCP server name {name!r}: use letters, digits and '_', not "
+                "starting with a digit."
             )
         self.name = name.upper()
         self.tools: List[Tool] = []
@@ -1352,10 +1381,10 @@ class MCPServer:
             for t in python_tools
         }
         current = {_signature_key(t._signature(target))[0]: t for t in python_tools}
-        tagged, ownership_warnings = (
+        tagged, ownership_warnings, listed = (
             self._tagged_objects(session, target, tolerate_errors=dry_run)
             if python_tools or prune
-            else ({}, [])
+            else ({}, [], [])
         )
         issues += ownership_warnings
         failed_grants: List[Tuple[str, Exception]] = []
@@ -1384,6 +1413,31 @@ class MCPServer:
                         grant_rows,
                         new_tool._grants(target)[0].partition(" ON ")[2],
                     )
+        # Any other overload of a current tool's object, tagged or not and whatever its
+        # owner, would make the server's name-only reference to the object ambiguous.
+        ambiguous: Dict[str, List[str]] = {}
+        for signature in listed:
+            kind, _, sig = signature.partition(" ")
+            key = _signature_key(sig)
+            tool = current.get(key[0])
+            if (
+                tool is not None
+                and kind == ("PROCEDURE" if tool.kind == "procedure" else "FUNCTION")
+                and (kind, key) not in keep
+                and signature not in old_overloads
+            ):
+                ambiguous.setdefault(tool.name, []).append(sig)
+        for tool_name, signatures in ambiguous.items():
+            message = (
+                f"The object of tool {tool_name} also exists as "
+                f"{', '.join(signatures)}, which this deploy neither replaces nor "
+                "drops. The server refers to a tool's object by name only, so the "
+                "call would be ambiguous. Drop those overloads, or set a different "
+                "object_name on the tool."
+            )
+            if not dry_run:
+                raise ValueError(message)
+            issues.append(LintIssue("error", tool_name, message))
         grants: List[str] = []
         if preserve_grants:
             grants = _server_grants(session, target, tolerate_errors=dry_run)
@@ -1434,7 +1488,7 @@ class MCPServer:
             objects=objects,
             pruned=[s.partition(" ")[2] for s in pruned],
             sql=sql,
-            issues=[i for i in issues if i.level != "error"],
+            issues=issues,
         )
 
     def grant_usage(
@@ -1507,7 +1561,8 @@ class MCPServer:
             sql_names = {p.name: p.name for p in params}
             sql_types = {p.name: _sql_type(p.datatype) for p in params}
         elif isinstance(tool, ExistingObjectTool):
-            tool._resolve(session, target)
+            if not tool._is_resolved():
+                tool._resolve(session, target)
             params = tool.parameters or []
             identifier = tool._qualified_name
             kind = tool.kind
@@ -1554,7 +1609,7 @@ class MCPServer:
         target = self._target(session, database, schema, suffix)
         statements = [f"DROP MCP SERVER IF EXISTS {target.server_fqn}"]
         if include_tools:
-            owned, warnings = self._tagged_objects(session, target)
+            owned, warnings, _ = self._tagged_objects(session, target)
             for warning in warnings:
                 _logger.warning("%s", warning.message)
             for signature in owned:
@@ -1569,7 +1624,7 @@ class MCPServer:
     def _target(
         self, session, database: Optional[str], schema: Optional[str], suffix: str
     ) -> _Target:
-        if suffix and not mcp_utils.is_identifier("X" + suffix):
+        if suffix and (not mcp_utils.is_identifier("X" + suffix) or "$" in suffix):
             raise ValueError(f"Invalid suffix {suffix!r}: use letters, digits and '_'.")
         if session is not None:
             database = database or session.get_current_database()
@@ -1593,17 +1648,19 @@ class MCPServer:
 
     def _tagged_objects(
         self, session, target: _Target, tolerate_errors: bool = False
-    ) -> Tuple[Dict[str, list], List[LintIssue]]:
+    ) -> Tuple[Dict[str, list], List[LintIssue], List[str]]:
         """``{"PROCEDURE DB.SCH.NAME(TYPES)": grants}`` (or ``"FUNCTION ..."``) for
         every object whose comment says this server and suffix created it and that
-        the session's role owns, with the rows of ``SHOW GRANTS`` on it; and a
+        the session's role owns, with the rows of ``SHOW GRANTS`` on it; a
         warning for each tagged object owned by another role, whose comment may be
-        copied. With ``tolerate_errors``, a schema that cannot be read, as before a
-        first deploy, has none."""
+        copied; and the signatures, in the same form, of every procedure and UDF in
+        the schema. With ``tolerate_errors``, a schema that cannot be read, as before
+        a first deploy, has none."""
         role = session.get_current_role()
         role = _normalize_identifier(role) if role else None
         found: Dict[str, list] = {}
         warnings: List[LintIssue] = []
+        listed: List[str] = []
         for keyword, show in (
             ("PROCEDURE", "PROCEDURES"),
             ("FUNCTION", "USER FUNCTIONS"),
@@ -1615,18 +1672,29 @@ class MCPServer:
             except Exception:
                 if not tolerate_errors:
                     raise
-                return {}, []
+                return {}, [], []
             for row in rows:
                 values = _row_dict(row)
                 tag = mcp_utils.parse_object_comment(values.get("description"))
-                if not tag or tag.get("server") != target.server_name:
-                    continue
-                if tag.get("suffix", "") != target.suffix:
-                    continue
-                name, types_, _ = mcp_utils.parse_arguments_column(
-                    str(values.get("arguments", ""))
+                ours = (
+                    tag
+                    and tag.get("server") == target.server_name
+                    and tag.get("suffix", "") == target.suffix
                 )
-                signature = f"{target.object_fqn(name)}({', '.join(types_)})"
+                try:
+                    name, types_, _ = mcp_utils.parse_arguments_column(
+                        str(values.get("arguments", ""))
+                    )
+                except ValueError:
+                    if ours:
+                        raise
+                    continue
+                signature = (
+                    f"{target.object_fqn(_sql_param_name(name))}({', '.join(types_)})"
+                )
+                listed.append(f"{keyword} {signature}")
+                if not ours:
+                    continue
                 try:
                     grant_rows = session.sql(
                         f"SHOW GRANTS ON {keyword} {signature}"
@@ -1654,7 +1722,7 @@ class MCPServer:
                             f"{owner or 'an unknown role'}, not {role}; it was left alone.",
                         )
                     )
-        return found, warnings
+        return found, warnings, listed
 
     def _send_telemetry(self, session) -> None:
         try:
@@ -1742,13 +1810,14 @@ def _read_server_grants(session, target: _Target) -> List[str]:
 
 def _is_role(name: Optional[str], role: str) -> bool:
     """Whether the role name ``SHOW GRANTS`` reports is ``role``, as
-    ``_normalize_identifier`` returns it: case-insensitive for an unquoted role,
-    exact for a quoted one."""
+    ``_normalize_identifier`` returns it. The comparison is exact: ``SHOW GRANTS``
+    reports a role as stored, so an unquoted role is reported in upper case, and
+    ``app_role`` is a different role from ``APP_ROLE``."""
     if name is None:
         return False
     if _is_quoted_identifier(role):
         return name == role[1:-1].replace('""', '"')
-    return name.upper() == role
+    return name == role
 
 
 def _grant_statements(session, source: str, destination: str) -> List[str]:
