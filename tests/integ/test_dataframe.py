@@ -8898,47 +8898,87 @@ def test_read_table_changes_mixed_options_and_arguments(session, local_testing_m
             )
 
 
-def test_read_table_incremental_read_rejects_time_travel(session):
+def test_read_table_incremental_read_with_time_travel(session, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    incremental_reads = [
+
+    # plain time travel settings are ignored by an incremental read, as before
+    ignored = [
         # time travel arguments passed directly
-        lambda: session.read.option("start-snapshot-id", 1).table(
-            table_name, changes="default", time_travel_mode="at", statement="q1"
-        ),
-        lambda: session.read.option("start-snapshot-id", 1).table(
+        session.read.option("start-snapshot-id", 1).table(
             table_name, time_travel_mode="at", statement="q1"
         ),
-        lambda: session.read.table(
-            table_name, start_snapshot_id=1, time_travel_mode="at", statement="q1"
-        ),
-        lambda: session.read.table(
-            table_name, start_snapshot_id=1, end_snapshot_id=2, branch="b1"
+        session.read.table(
+            table_name, start_snapshot_id=1, time_travel_mode="at", offset=-60
         ),
         # time travel reader options
-        lambda: session.read.option("start-snapshot-id", 1)
+        session.read.option("start-snapshot-id", 1)
         .option("time_travel_mode", "at")
         .option("statement", "q1")
         .table(table_name),
-        lambda: session.read.option("start-snapshot-id", 1)
-        .option("branch", "b1")
+        session.read.option("start-snapshot-id", 1)
+        .option("tag", "t1")
         .table(table_name),
-        lambda: session.read.option("time_travel_mode", "at")
-        .option("Changes", "default")
+        session.read.option("start-snapshot-id", 1)
+        .option("as-of-timestamp", "2020-01-01 00:00:00")
+        .table(table_name),
+        session.read.option("time_travel_mode", "at")
+        .option("stream", "s1")
         .table(table_name, start_snapshot_id=1),
     ]
-    for read in incremental_reads:
+    ignored_with_end = [
+        session.read.table(
+            table_name, start_snapshot_id=1, end_snapshot_id=2, branch="b1"
+        ),
+        session.read.option("start-snapshot-id", 1)
+        .option("end-snapshot-id", 2)
+        .option("branch", "b1")
+        .table(table_name),
+    ]
+    if not local_testing_mode:
+        expected = session.read.table(table_name, start_snapshot_id=1)
+        expected_sql = expected._plan.queries[-1].sql
+        assert "SPARK_INCREMENTAL_READ" in expected_sql
+        for table in ignored:
+            assert table._plan.queries[-1].sql == expected_sql
+        expected_with_end_sql = (
+            session.read.table(table_name, start_snapshot_id=1, end_snapshot_id=2)
+            ._plan.queries[-1]
+            .sql
+        )
+        for table in ignored_with_end:
+            assert table._plan.queries[-1].sql == expected_with_end_sql
+
+    # `changes` and `end_*` would turn the read into a CHANGES read, so they
+    # cannot be dropped silently
+    rejected = [
+        # as direct arguments
+        lambda: session.read.option("start-snapshot-id", 1).table(
+            table_name, changes="default", time_travel_mode="at", statement="q1"
+        ),
+        lambda: session.read.table(table_name, start_snapshot_id=1, end_statement="q2"),
+        # as reader options
+        lambda: session.read.option("start-snapshot-id", 1)
+        .option("Changes", "default")
+        .option("time_travel_mode", "at")
+        .option("statement", "q1")
+        .table(table_name),
+        lambda: session.read.option("end_offset", -60).table(
+            table_name, start_snapshot_id=1
+        ),
+    ]
+    for read in rejected:
         with pytest.raises(
-            ValueError, match="Cannot combine an Iceberg incremental read"
+            ValueError,
+            match="Cannot combine an Iceberg incremental read .* with 'changes' or "
+            "'end_\\*' time travel settings",
         ):
             read()
 
-    # argument names and option keys are both reported in lowercase
-    with pytest.raises(
-        ValueError, match=re.escape("found ['changes', 'time_travel_mode'].")
-    ):
+    # only the changes / end_* settings are reported, in lowercase
+    with pytest.raises(ValueError, match=re.escape("found ['changes', 'end_offset'].")):
         session.read.option("start-snapshot-id", 1).option(
             "time_travel_mode", "at"
-        ).table(table_name, changes="default")
+        ).option("end_offset", -60).table(table_name, changes="default")
 
 
 def test_read_table_time_travel_options_set_to_none(session, local_testing_mode):

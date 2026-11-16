@@ -861,16 +861,22 @@ class DataFrameReader:
             or end_snapshot_id is not None
             or incremental_read_options
         ):
-            # The incremental read path ignores every time travel setting, so
-            # reject them instead of dropping them silently.
-            conflicting = direct_time_travel_args + [
-                key.lower() for key in time_travel_option_keys
+            # The incremental read path ignores time travel settings. Plain time
+            # travel has always been ignored there, but dropping `changes` or an
+            # `end_*` setting would silently turn a CHANGES read into a different
+            # read, so reject those.
+            conflicting = [
+                arg for arg in direct_time_travel_args if arg in _CHANGES_PARAMS
+            ] + [
+                key.lower()
+                for key in time_travel_option_keys
+                if key.upper() in _CHANGES_OPTION_KEYS
             ]
             if conflicting:
                 raise ValueError(
                     "Cannot combine an Iceberg incremental read (start/end snapshot "
-                    "id) with time travel arguments or options on the same read; "
-                    f"found {conflicting!r}."
+                    "id) with 'changes' or 'end_*' time travel settings on the same "
+                    f"read; found {conflicting!r}."
                 )
             if start_snapshot_id is None:
                 start_snapshot_id = incremental_read_options.get("start_snapshot_id")
