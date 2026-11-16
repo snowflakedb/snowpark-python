@@ -2315,6 +2315,11 @@ message ReadTable {
   google.protobuf.StringValue time_travel_mode = 7;
   Expr timestamp = 8;
   google.protobuf.StringValue timestamp_type = 9;
+  google.protobuf.StringValue changes = 10;
+  google.protobuf.StringValue end_statement = 11;
+  google.protobuf.Int64Value end_offset = 12;
+  Expr end_timestamp = 13;
+  google.protobuf.StringValue end_timestamp_type = 14;
 }
 
 // dataframe-io.ir:54
@@ -2526,6 +2531,11 @@ message Table {
   Expr timestamp = 8;
   google.protobuf.StringValue timestamp_type = 9;
   TableVariant variant = 10;
+  google.protobuf.StringValue changes = 11;
+  google.protobuf.StringValue end_statement = 12;
+  google.protobuf.Int64Value end_offset = 13;
+  Expr end_timestamp = 14;
+  google.protobuf.StringValue end_timestamp_type = 15;
 }
 
 // table.ir:1
