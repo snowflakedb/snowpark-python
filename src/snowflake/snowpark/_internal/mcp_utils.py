@@ -648,8 +648,12 @@ def split_identifier_and_types(identifier: str) -> Tuple[str, Optional[List[str]
 
 
 def split_qualified_name(name: str) -> List[str]:
-    """Splits ``DB.SCH.NAME`` on dots outside double quotes."""
-    return split_top_level(name, sep=".")
+    """Splits ``DB.SCH.NAME`` on dots outside double quotes. A trailing dot gives an
+    empty last part, so callers that reject empty parts reject ``DB.SCH.``."""
+    parts = split_top_level(name, sep=".")
+    if name.strip().endswith("."):
+        parts.append("")
+    return parts
 
 
 def schema_usage_grants(identifier: str) -> List[str]:

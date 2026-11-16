@@ -3766,3 +3766,18 @@ def test_builtin_config_values_are_written_as_is():
         sql_tool("sql", config={"read_only": True, "warehouse": None, "extra": [1]})
     )
     assert spec["config"] == {"read_only": True, "warehouse": None, "extra": [1]}
+
+
+@pytest.mark.parametrize("identifier", ["A.B.", "ABC.", "A.B.C."])
+def test_identifier_with_a_trailing_dot_is_rejected(identifier):
+    with pytest.raises(ValueError):
+        Tool.builtin("CORTEX_AGENT_RUN", identifier, description="x")
+    with pytest.raises(ValueError):
+        Tool.from_procedure(identifier, read_only=True)
+
+
+def test_quoted_identifier_ending_in_a_dot_is_accepted():
+    tool = Tool.builtin(
+        "CORTEX_AGENT_RUN", 'DB.SCH."agent."', name="agent", description="x"
+    )
+    assert tool.identifier == 'DB.SCH."agent."'
