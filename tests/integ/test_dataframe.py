@@ -8310,7 +8310,9 @@ def test_table_sample_iceberg_incremental_read_sql(session, simplifier_enabled):
         sql = table.sample(frac=0.5).queries["queries"][-1]
         assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
         assert "SAMPLE (50.0)" in " ".join(sql.upper().split())
-        table.sample(frac=0.5, sampling_method="BERNOULLI")
+        sql = table.sample(frac=0.5, sampling_method="BERNOULLI").queries["queries"][-1]
+        assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
+        assert "SAMPLE (50.0)" in " ".join(sql.upper().split())
 
         with pytest.raises(ValueError, match="Iceberg incremental reads"):
             table.sample(frac=0.5, seed=1)

@@ -72,3 +72,20 @@ def test_sample_seed_still_allowed_for_plain_time_travel():
     table = make_table(time_travel_mode="at", statement="q1")
     sql = sampled_sql(table, frac=0.5, seed=3)
     assert "AT (STATEMENT => 'q1') SAMPLE" in sql and "SEED (3)" in sql
+
+
+def test_sample_keeps_iceberg_version_time_travel():
+    table = make_table(time_travel_mode="at", version=1234567890)
+    assert sampled_sql(table, frac=0.5).startswith(
+        "SELECT * FROM T AT (VERSION => 1234567890) SAMPLE  (50.0)"
+    )
+    sql = sampled_sql(table, n=2, seed=7)
+    assert "FROM T AT (VERSION => 1234567890) SAMPLE  (2 ROWS)  SEED (7)" in sql
+
+
+@pytest.mark.parametrize("arg", ["version_ref", "branch", "version_tag"])
+def test_sample_keeps_iceberg_version_ref_time_travel(arg):
+    table = make_table(time_travel_mode="at", **{arg: "audit-branch"})
+    assert sampled_sql(table, frac=0.5).startswith(
+        "SELECT * FROM T AT (VERSION_REF => 'audit-branch') SAMPLE  (50.0)"
+    )

@@ -553,11 +553,13 @@ class Table(DataFrame):
             self._set_ast_ref(ast.df)
 
         # Local testing, and Iceberg incremental reads (not a plain table reference), sample over the plan.
-        if (
-            isinstance(self._session._conn, MockServerConnection)
-            or self._iceberg_changes_config is not None
-        ):
-            if sampling_method in ("SYSTEM", "BLOCK"):
+        is_local_testing = isinstance(self._session._conn, MockServerConnection)
+        if is_local_testing or self._iceberg_changes_config is not None:
+            if (
+                is_local_testing
+                and sampling_method
+                and sampling_method.upper() in ("SYSTEM", "BLOCK")
+            ):
                 _logger.warning(
                     "[Local Testing] SYSTEM/BLOCK sampling is not supported for Local Testing, falling back to ROW sampling"
                 )
