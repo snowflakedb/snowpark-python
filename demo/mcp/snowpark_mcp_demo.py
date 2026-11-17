@@ -152,8 +152,9 @@ def build_server(database: str) -> MCPServer:
         "SYSTEM_EXECUTE_SQL",
         name="run_sql",
         description="Run a read-only SQL query against the demo ORDERS table.",
-        # The server's own read-only switch. The MCP server accepts annotations
-        # (read_only=...) only on CORTEX_AGENT_RUN among the built-in types.
+        # read_only is the default for the SQL tool, made explicit here. The MCP
+        # server accepts annotations (read_only=...) only on CORTEX_AGENT_RUN among
+        # the built-in types.
         config={"read_only": True, "query_timeout": 60},
     )
     return MCPServer(

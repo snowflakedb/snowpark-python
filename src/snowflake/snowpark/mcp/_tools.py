@@ -243,8 +243,8 @@ class Tool:
                 MCP server accepts annotations only on ``CORTEX_AGENT_RUN`` among the
                 built-in types, so ``read_only``, ``destructive``, ``idempotent`` and
                 ``open_world`` raise :class:`ValueError` for the other known types.
-                To allow only SELECT in ``SYSTEM_EXECUTE_SQL``, pass
-                ``config={"read_only": True}``. When neither ``read_only`` nor
+                ``SYSTEM_EXECUTE_SQL`` is read-only by default; pass
+                ``config={"read_only": False}`` to allow writes. When neither ``read_only`` nor
                 ``destructive`` is set, the spec has no annotations.
             destructive: Whether it may delete or overwrite data.
             idempotent: Whether repeating a call has no further effect.
@@ -1067,14 +1067,24 @@ class _BuiltinTool(Tool):
             )
         if (
             self.tool_type == "SYSTEM_EXECUTE_SQL"
-            and self.config.get("read_only") is not True
+            and self.config.get("read_only") is False
         ):
             issues.append(
                 LintIssue(
                     "warning",
                     self.name,
-                    "The SQL tool can run statements that change data: set "
-                    'config={"read_only": True} to allow only SELECT.',
+                    "The SQL tool allows statements that change data (config "
+                    "read_only is False).",
+                )
+            )
+        if self.tool_type == "CODING_AGENT" and _always_allows(self.config):
+            issues.append(
+                LintIssue(
+                    "warning",
+                    self.name,
+                    "The coding agent runs commands and changes data without asking "
+                    "(permission_policy always_allow); use it only for trusted "
+                    "automation.",
                 )
             )
         if self.tool_type not in _KNOWN_BUILTIN_TYPES:
@@ -1112,6 +1122,13 @@ class _BuiltinTool(Tool):
         if self.tool_type in _OBJECT_GRANTS:
             grants.append(f"{_OBJECT_GRANTS[self.tool_type]} {self.identifier}")
         return grants
+
+
+def _always_allows(config: Dict[str, Any]) -> bool:
+    node: Any = config
+    for key in ("tool_resources", "code_toolset_all", "permission_policy"):
+        node = node.get(key) if isinstance(node, dict) else None
+    return isinstance(node, dict) and node.get("type") == "always_allow"
 
 
 def _normalize_sql_type(sql_type: str) -> str:

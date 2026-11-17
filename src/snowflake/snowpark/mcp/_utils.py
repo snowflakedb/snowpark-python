@@ -43,7 +43,19 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
 # The MCP spec's rule for tool names.
 _MCP_TOOL_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
+# "Each MCP server supports a maximum of 50 tools", from the MCP server guide
+# https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-mcp
+# The 50 excludes the tools Snowflake adds for agent tools (verified on an account).
 MAX_TOOLS_PER_SERVER = 50
+# Tool types that make Snowflake add the three tools below to tools/list.
+AGENT_TOOL_TYPES = ("CORTEX_AGENT_RUN", "CODING_AGENT")
+# Names of the tools Snowflake adds. They don't count toward MAX_TOOLS_PER_SERVER, and
+# Snowflake renames its own to <NAME>_2 when a user tool has the exact name.
+AUTOMATIC_AGENT_TOOL_NAMES = (
+    "ASYNC_AGENT_RUN_STATUS",
+    "AGENT_RUN_RESULT",
+    "ASYNC_AGENT_RUN_CANCEL",
+)
 MAX_DESCRIPTION_CHARS = 1024
 OBJECT_COMMENT_ORIGIN = "snowpark_mcp"
 
@@ -751,6 +763,24 @@ def lint_tool_count_and_names(tool_names: List[str]) -> List[LintIssue]:
             issues.append(LintIssue("error", name, "Two tools have this name."))
         seen.add(key)
     return issues
+
+
+def lint_automatic_agent_tool_names(
+    tools: List[Tuple[str, str]],
+) -> List[LintIssue]:
+    """``tools`` holds (name, tool type) pairs."""
+    if not any(tool_type in AGENT_TOOL_TYPES for _, tool_type in tools):
+        return []
+    return [
+        LintIssue(
+            "warning",
+            name,
+            "Snowflake adds a tool with this name for agent tools; it renames its "
+            f"own to {name}_2, so clients won't find it under the documented name.",
+        )
+        for name, _ in tools
+        if name in AUTOMATIC_AGENT_TOOL_NAMES
+    ]
 
 
 # ---------------------------------------------------------------------------

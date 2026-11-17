@@ -29,6 +29,9 @@ DEFAULT_MAX_ROWS = 1000
 # Below the 250 KB at which the MCP server truncates GENERIC tool results, so the
 # model is told a result was cut instead of receiving broken JSON.
 DEFAULT_MAX_RESULT_BYTES = 240_000
+# "Generic tool and SQL execution responses are capped at 250 KB", from the MCP server
+# guide https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-mcp
+# (its 50-tool limit excludes the tools Snowflake adds for agent tools; verified).
 PLATFORM_RESULT_LIMIT_BYTES = 250_000
 
 _logger = logging.getLogger("snowflake.snowpark.mcp")

@@ -470,7 +470,7 @@ def test_server_repr():
 
 
 def test_lint_clean_server():
-    assert python_server().lint() == []
+    assert [i for i in python_server().lint() if i.level != "info"] == []
 
 
 def test_lint_duplicate_names():
@@ -524,9 +524,11 @@ def test_lint_owner_rights_sql_parameter_warns():
             query: The query.
         """
 
-    owner = MCPServer("S", [mcp_tool(f, read_only=True)]).lint()
+    owner = MCPServer("S", [mcp_tool(f, read_only=True, warehouse="WH")]).lint()
     assert any("free-form SQL" in m for m in messages(owner, "warning"))
-    caller = MCPServer("S", [mcp_tool(f, read_only=True, execute_as="caller")]).lint()
+    caller = MCPServer(
+        "S", [mcp_tool(f, read_only=True, warehouse="WH", execute_as="caller")]
+    ).lint()
     assert messages(caller) == []
 
 
@@ -538,7 +540,7 @@ def test_lint_owner_rights_sql_parameter_advice():
             query: The query.
         """
 
-    (issue,) = MCPServer("S", [mcp_tool(f, read_only=True)]).lint()
+    (issue,) = MCPServer("S", [mcp_tool(f, read_only=True, warehouse="WH")]).lint()
     assert issue.level == "warning"
     assert "execute_as='caller'" in issue.message
     assert "read-only role" in issue.message
@@ -552,7 +554,7 @@ def test_lint_udf_sql_parameter_does_not_warn():
             query: The query.
         """
 
-    assert MCPServer("S", [mcp_tool(f, read_only=True)]).lint() == []
+    assert MCPServer("S", [mcp_tool(f, read_only=True, warehouse="WH")]).lint() == []
 
 
 def test_lint_read_only_tool_named_like_a_write():
@@ -564,10 +566,14 @@ def test_lint_read_only_tool_named_like_a_write():
         """
 
     warnings = messages(
-        MCPServer("S", [mcp_tool(write_x, read_only=True)]).lint(), "warning"
+        MCPServer("S", [mcp_tool(write_x, warehouse="WH", read_only=True)]).lint(),
+        "warning",
     )
     assert any("name suggests" in m for m in warnings)
-    assert MCPServer("S", [mcp_tool(write_x, read_only=False)]).lint() == []
+    assert (
+        MCPServer("S", [mcp_tool(write_x, warehouse="WH", read_only=False)]).lint()
+        == []
+    )
 
 
 def test_lint_max_result_bytes_above_platform_limit():
@@ -776,7 +782,8 @@ def test_to_spec_unresolved_tool_without_session():
 
 def test_lint_unresolved_existing_tool_is_skipped_without_session():
     server = MCPServer(
-        "S", [Tool.from_procedure("APP.FIN.GET_FINANCIALS", read_only=True)]
+        "S",
+        [Tool.from_procedure("APP.FIN.GET_FINANCIALS", read_only=True, warehouse="WH")],
     )
     assert server.lint() == []
 
@@ -1135,7 +1142,7 @@ def test_deploy_dry_run():
         "APP.MCP.S__ADD_NUMBERS(BIGINT, BIGINT)",
     ]
     assert result.pruned == []
-    assert result.issues == []
+    assert [i for i in result.issues if i.level != "info"] == []
     assert result.endpoint_url == (
         "https://my-org-my-acct.snowflakecomputing.com/api/v2/databases/APP/"
         "schemas/MCP/mcp-servers/S"
@@ -1176,7 +1183,7 @@ def test_deploy_dry_run_reports_warnings():
     def f(x: str):
         """Doc."""
 
-    server = MCPServer("S", [mcp_tool(f, read_only=True)])
+    server = MCPServer("S", [mcp_tool(f, read_only=True, warehouse="WH")])
     result = server.deploy(make_session(), dry_run=True)
     assert [i.level for i in result.issues] == ["warning"]
 
@@ -3435,8 +3442,9 @@ def test_deploy_refuses_ambiguous_overload_before_any_side_effect():
 def test_deploy_dry_run_reports_ambiguous_overload_and_lists_sql():
     session = _foreign_overload_session()
     result = python_server("S").deploy(session, dry_run=True)
-    assert [i.level for i in result.issues] == ["error"]
-    assert "ambiguous" in result.issues[0].message
+    issues = [i for i in result.issues if i.level != "info"]
+    assert [i.level for i in issues] == ["error"]
+    assert "ambiguous" in issues[0].message
     assert result.sql[0] == "CREATE STAGE IF NOT EXISTS APP.MCP.SNOWPARK_MCP_STAGE"
     assert any(s.startswith("CREATE OR REPLACE MCP SERVER") for s in result.sql)
     session.sproc.register.assert_not_called()
@@ -3807,30 +3815,113 @@ def test_builtin_annotation_flags_must_be_bool(arg, value):
         Tool.builtin("CORTEX_AGENT_RUN", "D.S.A", description="d", **{arg: value})
 
 
-def test_builtin_sql_execution_without_read_only_config_warns():
-    def warnings_of(tool):
-        return [
-            i.message
-            for i in MCPServer("S", [tool]).lint()
-            if i.level == "warning" and "config=" in i.message
+def test_builtin_sql_execution_warns_only_when_read_only_is_false():
+    def warnings_of(config):
+        tool = Tool.builtin(
+            "SYSTEM_EXECUTE_SQL", name="sql", description="Run SQL.", config=config
+        )
+        return messages(MCPServer("S", [tool]).lint(), "warning")
+
+    assert warnings_of(None) == []
+    assert warnings_of({"query_timeout": 5}) == []
+    assert warnings_of({"read_only": True}) == []
+    assert warnings_of({"read_only": False}) == [
+        "The SQL tool allows statements that change data (config read_only is False)."
+    ]
+
+
+AUTOMATIC_NAMES = [
+    "ASYNC_AGENT_RUN_STATUS",
+    "AGENT_RUN_RESULT",
+    "ASYNC_AGENT_RUN_CANCEL",
+]
+
+
+def _agent_tool(type="CORTEX_AGENT_RUN", **kw):
+    identifier = "D.S.A" if type == "CORTEX_AGENT_RUN" else None
+    return Tool.builtin(
+        type, identifier, name=kw.pop("name", "agent"), description="d", **kw
+    )
+
+
+def _sql_tool(name):
+    return Tool.builtin("SYSTEM_EXECUTE_SQL", name=name, description="d")
+
+
+@pytest.mark.parametrize("agent_type", ["CORTEX_AGENT_RUN", "CODING_AGENT"])
+def test_lint_user_tool_named_like_an_automatic_agent_tool_warns(agent_type):
+    tools = [_agent_tool(agent_type)] + [_sql_tool(n) for n in AUTOMATIC_NAMES]
+    issues = MCPServer("S", tools).lint()
+    for name in AUTOMATIC_NAMES:
+        assert messages(issues, "warning", name) == [
+            "Snowflake adds a tool with this name for agent tools; it renames its "
+            f"own to {name}_2, so clients won't find it under the documented name."
         ]
 
-    no_config = Tool.builtin("SYSTEM_EXECUTE_SQL", name="sql", description="Run SQL.")
-    assert len(warnings_of(no_config)) == 1
-    writable = Tool.builtin(
-        "SYSTEM_EXECUTE_SQL",
-        name="sql",
-        description="Run SQL.",
-        config={"read_only": False},
+
+def test_lint_automatic_agent_tool_names_need_an_agent_tool_and_an_exact_match():
+    no_agent = MCPServer("S", [_sql_tool(n) for n in AUTOMATIC_NAMES]).lint()
+    assert messages(no_agent, "warning") == []
+    lower = MCPServer(
+        "S", [_agent_tool(), _sql_tool("agent_run_result"), _sql_tool("AGENT_RUN")]
+    ).lint()
+    assert messages(lower, "warning") == []
+
+
+def test_automatic_agent_tools_do_not_count_toward_the_tool_limit():
+    tools = [_agent_tool()] + [_sql_tool(f"sql_{i}") for i in range(49)]
+    assert messages(MCPServer("S", tools).lint(), "error") == []
+    assert messages(MCPServer("S", tools + [_sql_tool("one_more")]).lint(), "error")
+
+
+def test_lint_coding_agent_always_allow_warns():
+    def warnings_of(config):
+        tool = _agent_tool("CODING_AGENT", name="code", config=config)
+        return messages(MCPServer("S", [tool]).lint(), "warning")
+
+    always = {"tool_resources": {"code_toolset_all": {"permission_policy": {}}}}
+    always["tool_resources"]["code_toolset_all"]["permission_policy"][
+        "type"
+    ] = "always_allow"
+    assert warnings_of(always) == [
+        "The coding agent runs commands and changes data without asking "
+        "(permission_policy always_allow); use it only for trusted automation."
+    ]
+    ask = {"tool_resources": {"code_toolset_all": {"permission_policy": {}}}}
+    ask["tool_resources"]["code_toolset_all"]["permission_policy"][
+        "type"
+    ] = "always_ask"
+    for config in (None, {}, ask, {"tool_resources": "x"}, {"tool_resources": None}):
+        assert warnings_of(config) == []
+    assert warnings_of({"tool_resources": {"code_toolset_all": []}}) == []
+
+
+def test_lint_tools_without_a_warehouse_get_one_info_issue():
+    @mcp_tool(read_only=True, warehouse="WH")
+    def with_wh(x: str):
+        """Doc.
+
+        Args:
+            x: X.
+        """
+
+    server = MCPServer(
+        "S",
+        [
+            with_wh,
+            get_account,
+            add_numbers,
+            Tool.from_procedure("APP.FIN.GET_FINANCIALS", read_only=True),
+            _sql_tool("sql"),
+        ],
     )
-    assert len(warnings_of(writable)) == 1
-    restricted = Tool.builtin(
-        "SYSTEM_EXECUTE_SQL",
-        name="sql",
-        description="Run SQL.",
-        config={"read_only": True},
+    (issue,) = (i for i in server.lint() if i.level == "info")
+    assert issue.tool is None
+    assert issue.message == (
+        "Tools without a warehouse run on the caller's default warehouse, which "
+        "grant_usage doesn't grant: get_account, add_numbers, get_financials."
     )
-    assert warnings_of(restricted) == []
+    assert MCPServer("S", [with_wh, _sql_tool("sql")]).lint() == []
 
 
 @pytest.mark.parametrize(

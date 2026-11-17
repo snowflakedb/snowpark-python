@@ -128,8 +128,26 @@ class MCPServer:
         if session is not None:
             self._resolve(session, self._target(session, None, None, ""))
         issues = _utils.lint_tool_count_and_names([t.name for t in self.tools])
+        issues += _utils.lint_automatic_agent_tool_names(
+            [(t.name, getattr(t, "tool_type", "GENERIC")) for t in self.tools]
+        )
         for tool in self.tools:
             issues += tool._lint()
+        no_warehouse = [
+            t.name
+            for t in self.tools
+            if isinstance(t, (PythonTool, ExistingObjectTool)) and not t.warehouse
+        ]
+        if no_warehouse:
+            issues.append(
+                LintIssue(
+                    "info",
+                    None,
+                    "Tools without a warehouse run on the caller's default "
+                    "warehouse, which grant_usage doesn't grant: "
+                    f"{', '.join(no_warehouse)}.",
+                )
+            )
         object_owners: Dict[str, str] = {}
         for tool in self.tools:
             if isinstance(tool, PythonTool):
@@ -432,6 +450,14 @@ class MCPServer:
         It does not grant what a tool uses internally: the search services, semantic
         views, tables and warehouses an agent uses, or the objects a procedure or
         UDF reads. Grant those separately.
+
+        Tools without a ``warehouse`` run on the caller's default warehouse, which
+        this can't know, so it grants no warehouse for them. It grants
+        ``SNOWFLAKE.CORTEX_AGENT_USER`` for agent and coding agent tools and no other
+        Cortex database role: the Snowflake documentation lists no Cortex role for
+        Cortex Analyst or Cortex Search tools through MCP. If calls to those tools
+        fail, grant the Cortex database role your account uses (such as
+        ``SNOWFLAKE.CORTEX_USER``).
         """
         role = role.strip()
         if role.strip('"').upper() == "PUBLIC":
@@ -472,6 +498,14 @@ class MCPServer:
         name, and returns its result. Use it to test tools as deployed without
         setting up an MCP client. Only tools backed by procedures and UDFs can be
         called this way.
+
+        A call here differs from one through the MCP endpoint: it runs with the
+        session's role, not the role of the client's OAuth token or PAT; it ignores
+        the tool's ``warehouse`` and ``query_timeout``; it doesn't apply the server's
+        250 KB result truncation, which matters for :meth:`Tool.from_procedure` and
+        :meth:`Tool.from_function` tools, as they have no result cap of their own;
+        and it checks argument names and types locally, which the server doesn't
+        (enum values and nulls are left to the deployed tool).
         """
         arguments = arguments or {}
         tool = self.tool(tool_name)
