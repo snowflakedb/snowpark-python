@@ -469,6 +469,8 @@ class Table(DataFrame):
 
         Sampling with a seed is not supported on views or subqueries. This method works on tables so it supports ``seed``.
         This is the main difference between :meth:`DataFrame.sample` and this method.
+        However, ``seed`` and the SYSTEM | BLOCK sampling method raise ``ValueError`` for change-tracking reads
+        (``changes=``) and Iceberg incremental reads, which Snowflake rejects.
 
         Args:
             frac: The fraction of rows to sample, from 0.0 to 1.0 inclusive.
@@ -527,11 +529,12 @@ class Table(DataFrame):
             raise ValueError(
                 "Table.sample does not support 'seed' or the SYSTEM/BLOCK sampling method for "
                 f"change-tracking reads (changes={self._time_travel_config.changes.lower()!r}). "
-                "Use BERNOULLI/ROW sampling without a seed, or DataFrame.sample."
+                "Use BERNOULLI/ROW sampling without a seed."
             )
         if seeded_or_block_sampling and self._iceberg_changes_config is not None:
             raise ValueError(
-                "seed and SYSTEM/BLOCK sampling are not supported for Iceberg incremental reads."
+                "Table.sample does not support 'seed' or the SYSTEM/BLOCK sampling method for "
+                "Iceberg incremental reads. Use BERNOULLI/ROW sampling without a seed."
             )
 
         stmt = None
@@ -549,7 +552,7 @@ class Table(DataFrame):
                 ast.sampling_method.value = sampling_method
             self._set_ast_ref(ast.df)
 
-        # An Iceberg incremental read is not a plain table reference, so sample over its plan.
+        # Local testing, and Iceberg incremental reads (not a plain table reference), sample over the plan.
         if (
             isinstance(self._session._conn, MockServerConnection)
             or self._iceberg_changes_config is not None

@@ -8296,17 +8296,28 @@ def test_table_sample_keeps_time_travel(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="Iceberg incremental reads are not supported in Local Testing",
 )
-def test_table_sample_iceberg_incremental_read_sql(session):
-    # Table creation is lazy: no query runs and the table doesn't have to exist
-    table = session.table("ANY_NAME", start_snapshot_id=1, end_snapshot_id=2)
-    sql = table.sample(n=2).queries["queries"][-1]
-    assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
-    assert "SAMPLE" in sql.upper()
+@pytest.mark.parametrize("simplifier_enabled", [True, False])
+def test_table_sample_iceberg_incremental_read_sql(session, simplifier_enabled):
+    original = session.sql_simplifier_enabled
+    session.sql_simplifier_enabled = simplifier_enabled
+    try:
+        # Table creation is lazy: no query runs and the table doesn't have to exist
+        table = session.table("ANY_NAME", start_snapshot_id=1, end_snapshot_id=2)
+        sql = table.sample(n=2).queries["queries"][-1]
+        assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
+        assert "SAMPLE" in sql.upper()
 
-    with pytest.raises(ValueError):
-        table.sample(frac=0.5, seed=1)
-    with pytest.raises(ValueError):
-        table.sample(frac=0.5, sampling_method="system")
+        sql = table.sample(frac=0.5).queries["queries"][-1]
+        assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
+        assert "SAMPLE (50.0)" in " ".join(sql.upper().split())
+        table.sample(frac=0.5, sampling_method="BERNOULLI")
+
+        with pytest.raises(ValueError, match="Iceberg incremental reads"):
+            table.sample(frac=0.5, seed=1)
+        with pytest.raises(ValueError, match="Iceberg incremental reads"):
+            table.sample(frac=0.5, sampling_method="system")
+    finally:
+        session.sql_simplifier_enabled = original
 
 
 @pytest.mark.parametrize("sample_kwargs", [{"frac": 1.0}, {"n": 10}])
