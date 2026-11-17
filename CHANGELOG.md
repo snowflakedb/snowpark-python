@@ -6,6 +6,7 @@
 
 #### New Features
 
+- Added support for change-tracking reads with the `CHANGES` clause. `Session.table`, `DataFrameReader.table` and `Table` accept `changes` (`"default"` or `"append_only"`) together with the existing time travel arguments, and `end_statement`, `end_offset`, `end_timestamp` and `end_timestamp_type` to set the end of the changes (`END` clause). `DataFrameReader` options `changes`, `end_statement`, `end_offset`, `end_timestamp` and `end_timestamp_type` are supported as well. Added the column constants `METADATA_ACTION`, `METADATA_ISUPDATE` and `METADATA_ROW_ID` in `snowflake.snowpark.column` for the extra columns of such reads. These reads are not supported in local testing, and `Table.sample` is not supported on them yet.
 - Added the `snowflake.snowpark.mcp` module (private preview) to build tools and servers for the Snowflake-managed MCP server in Python:
   - `mcp_tool` turns a Python function into a tool, with its argument schema built from the type hints and docstring. A function whose first parameter is a `Session` becomes a stored procedure; any other function becomes a UDF. Results, including DataFrames, are converted to JSON and kept under the MCP server's response limit, and `ToolError` returns an error the model can act on. Deployed tools reject values outside an `enum` and nulls for arguments that don't allow them, since the MCP server does not validate arguments, and return an `INVALID_ARGUMENTS` error. Other errors reach MCP clients as a generic message with an error ID and without the traceback, unless `mask_error_details=False`; the full error is logged with the same ID.
   - `Tool.from_procedure` and `Tool.from_function` turn existing procedures and UDFs, in any language, into tools.
@@ -19,6 +20,7 @@
 #### Bug Fixes
 
 - Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
+- Fixed a bug where `DataFrameReader.table` failed when a time travel reader option was set to `None`, e.g. `option("time_travel_mode", None)` together with `option("as-of-timestamp", ...)`. Time travel options set to `None` are now treated as unset.
 
 ### Snowpark Local Testing Updates
 
