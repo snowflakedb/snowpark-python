@@ -16,6 +16,7 @@
 
 - Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
 - Fixed a bug where `DataFrameReader.table` failed when a time travel reader option was set to `None`, e.g. `option("time_travel_mode", None)` together with `option("as-of-timestamp", ...)`. Time travel options set to `None` are now treated as unset.
+- Fixed a bug where `DataFrameReader.documents()` (Private Preview) reads with a schema refused `.jpg`, `.jpeg`, `.png`, `.gif` and `.webp` images with a "file type is not supported" error. Each image is now sent to `AI_COMPLETE` whole, in one call.
 
 ### Snowpark Local Testing Updates
 

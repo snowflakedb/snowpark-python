@@ -160,6 +160,41 @@ def test_multiple_files_produce_one_row_each(session, doc_stage):
     assert {row["TOTAL_PAGES"] for row in rows} == {1, DOC_PAGE_COUNT}
 
 
+@pytest.fixture(scope="module")
+def image_stage(session, resources_path):
+    """A stage mixing a PDF with a JPEG and a PNG, read with the default options."""
+    stage_name = Utils.random_stage_name()
+    session.sql(
+        f"CREATE OR REPLACE TEMP STAGE {stage_name} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
+    test_files = TestFiles(resources_path)
+    for path in (
+        test_files.test_invoice_pdf,
+        test_files.test_dog_image,
+        test_files.test_kitchen_image,
+    ):
+        session.file.put(path, f"@{stage_name}", auto_compress=False)
+    yield stage_name
+    Utils.drop_stage(session, stage_name)
+
+
+def test_images_are_parsed_alongside_pdfs(session, image_stage):
+    rows = session.read.documents(f"@{image_stage}").collect()
+
+    assert len(rows) == 3
+    assert all(row["_document_error"] is None for row in rows)
+
+
+@pytest.mark.udf
+def test_images_are_extracted_with_a_schema_alongside_pdfs(session, image_stage):
+    schema = {"main_subject": "What is the main subject of this file?"}
+    rows = session.read.option("schema", schema).documents(f"@{image_stage}").collect()
+
+    assert len(rows) == 3
+    assert all(row["_document_error"] is None for row in rows)
+    assert all(row["MAIN_SUBJECT"] for row in rows)
+
+
 # ---------------------------------------------------------------------------
 # Extract: schema and/or prompt -> AI_COMPLETE on the FILE, unparsed
 # ---------------------------------------------------------------------------
