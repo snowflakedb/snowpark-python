@@ -38,7 +38,7 @@ from snowflake.snowpark._internal.debug_utils import (
     get_df_transform_trace_message,
     get_python_source_from_sql_error,
     get_existing_object_context,
-    get_invalid_identifier_context,
+    get_line_less_error_context,
     get_missing_object_context,
 )
 
@@ -202,13 +202,16 @@ class SnowflakePlan(LogicalPlan):
                                 ):
                                     debug_context_arr.append(error_source_context)
                             elif (
-                                "invalid identifier" in e.msg.lower()
+                                "SQL compilation error:" in e.msg
                                 and trace_sql_errors
+                                # these errors have their own context below
+                                and "does not exist or not authorized" not in e.msg
+                                and "already exists" not in e.msg
                             ):
-                                if invalid_identifier_context := get_invalid_identifier_context(
-                                    top_plan, e.msg
+                                if line_less_error_context := get_line_less_error_context(
+                                    top_plan, e
                                 ):
-                                    debug_context_arr.append(invalid_identifier_context)
+                                    debug_context_arr.append(line_less_error_context)
                             if trace_node is not None and debug_config.enabled(
                                 top_plan.session, "dataframe_trace_on_error"
                             ):

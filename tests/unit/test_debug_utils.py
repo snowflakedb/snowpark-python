@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     QueryLineInterval,
     SnowflakePlan,
 )
+from snowflake.snowpark._internal import debug_utils
 from snowflake.snowpark._internal.df_trace import SrcPosition, TraceNode
 from snowflake.snowpark._internal.utils import get_plan_from_pre_query_line_number
 from snowflake.snowpark._internal.debug_utils import (
@@ -25,8 +26,8 @@ from snowflake.snowpark._internal.debug_utils import (
     QueryProfiler,
     _format_source_location,
     _get_own_trace_nodes,
-    _parse_invalid_identifier,
     _resolve_error_line,
+    get_line_less_error_context,
     get_python_source_from_sql_error,
 )
 
@@ -960,18 +961,121 @@ def test_get_plan_from_pre_query_line_number(
         assert result.df_trace_nodes == expected_trace_nodes
 
 
+def _line_less_error(message="Invalid identifier TYPE", errno=2004):
+    from snowflake.connector.errors import ProgrammingError
+
+    return ProgrammingError(msg=f"SQL compilation error:\n{message}", errno=errno)
+
+
+def _fake_plan(line, children=(), sql=None, queries=None, inherit=True):
+    """A plan whose own operation is at ``line`` (no own operation if None); it inherits the
+    trace nodes of its children like a real plan, unless ``inherit`` is False."""
+    trace_nodes = []
+    if inherit:
+        for child in children:
+            trace_nodes.extend(child.df_trace_nodes)
+    if line is not None:
+        trace_nodes.append(TraceNode(SrcPosition("f.py", line, 0, line, 0)))
+    return types.SimpleNamespace(
+        children_plan_nodes=list(children),
+        df_trace_nodes=trace_nodes,
+        queries=queries or [types.SimpleNamespace(sql=sql or f"select {line}")],
+    )
+
+
+def _line_less_context(top, failing_sql, other_error_sql=()):
+    describes = []
+
+    def describe(sql):
+        describes.append(sql)
+        if sql in other_error_sql:
+            raise _line_less_error("Object 'T' does not exist or not authorized.", 2003)
+        if sql in failing_sql:
+            raise _line_less_error()
+
+    top.session = types.SimpleNamespace(_get_result_attributes=describe)
+    return get_line_less_error_context(top, _line_less_error()), describes
+
+
+def test_line_less_error_reports_the_failing_child():
+    source = _fake_plan(1, sql="source")
+    join = _fake_plan(2, [source], sql="join")
+    top = _fake_plan(3, [join], sql="top")
+    context, describes = _line_less_context(top, {"join", "top"})
+    assert (
+        context
+        == "\nSQL compilation error corresponds to Python source at f.py: line 2.\n"
+    )
+    assert describes == ["join", "source"]
+
+
+def test_line_less_error_reports_the_top_plan():
+    left, right = _fake_plan(1, sql="left"), _fake_plan(2, sql="right")
+    top = _fake_plan(3, [left, right], sql="top")
+    context, _ = _line_less_context(top, {"top"})
+    assert (
+        context
+        == "\nSQL compilation error corresponds to Python source at f.py: line 3.\n"
+    )
+
+
+def test_line_less_error_reports_every_failing_branch():
+    left = _fake_plan(1, [_fake_plan(None, sql="l0")], sql="left")
+    right = _fake_plan(2, [_fake_plan(None, sql="r0")], sql="right")
+    top = _fake_plan(3, [left, right], sql="top")
+    context, _ = _line_less_context(top, {"left", "right", "top"})
+    assert "f.py: line 1" in context and "f.py: line 2" in context
+    assert "f.py: line 3" not in context
+
+
+def test_line_less_error_wrapper_without_operation_uses_its_parent():
+    # e.g. the SelectSnowflakePlan that wraps the plan of a join
+    source = _fake_plan(1, sql="source")
+    wrapper = _fake_plan(None, [source], sql="wrapper", inherit=False)
+    top = _fake_plan(2, [wrapper], sql="top", inherit=False)
+    context, _ = _line_less_context(top, {"wrapper", "top"})
+    assert (
+        context
+        == "\nSQL compilation error corresponds to Python source at f.py: line 2.\n"
+    )
+
+
 @pytest.mark.parametrize(
-    "error_msg, expected",
+    "child",
     [
-        ("002004 (42601): SQL compilation error:\nInvalid identifier TYPE", '"TYPE"'),
-        ("SQL compilation error:\nInvalid identifier type", '"TYPE"'),
-        ("SQL compilation error:\nInvalid identifier SNOWPARK_LEFT.TYPE", '"TYPE"'),
-        ('SQL compilation error:\nInvalid identifier "my col"', '"my col"'),
-        ("000904 (42000): SQL compilation error:\ninvalid identifier 'C'", '"C"'),
-        ("SQL compilation error:\ninvalid identifier '\"abC\"'", '"abC"'),
-        ("SQL compilation error:\ninvalid identifier 'T.C'", '"C"'),
-        ("SQL compilation error:\nObject 'T' does not exist or not authorized.", None),
+        # another error
+        _fake_plan(1, sql="other"),
+        # needs queries that run before it
+        _fake_plan(
+            1,
+            queries=[
+                types.SimpleNamespace(sql="create temp table"),
+                types.SimpleNamespace(sql="child"),
+            ],
+        ),
+        # refers to an object created at execution time
+        _fake_plan(1, sql="select * from temp_name_placeholder_abc"),
     ],
+    ids=["other_error", "pre_queries", "placeholder"],
 )
-def test_parse_invalid_identifier(error_msg, expected):
-    assert _parse_invalid_identifier(error_msg) == expected
+def test_line_less_error_not_verified(child):
+    top = _fake_plan(2, [child], sql="top")
+    context, _ = _line_less_context(top, {"top"}, other_error_sql={"other"})
+    assert context == ""
+
+
+def test_line_less_error_plan_without_own_operation():
+    # the plan only re-wraps its child: the operation that generated its SQL is unknown
+    child = _fake_plan(1, sql="child")
+    rewrap = _fake_plan(None, [child], sql="rewrap")
+    top = _fake_plan(None, [rewrap], sql="top")
+    context, _ = _line_less_context(top, {"rewrap", "top"})
+    assert context == ""
+
+
+def test_line_less_error_describe_limit(monkeypatch):
+    monkeypatch.setattr(debug_utils, "_MAX_LINE_LESS_ERROR_DESCRIBES", 1)
+    top = _fake_plan(3, [_fake_plan(1, sql="a"), _fake_plan(2, sql="b")], sql="top")
+    context, describes = _line_less_context(top, {"top"})
+    assert context == ""
+    assert describes == ["a"]
