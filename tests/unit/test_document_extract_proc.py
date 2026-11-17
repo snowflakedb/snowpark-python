@@ -3010,8 +3010,8 @@ class TestRun:
             "VALUE",
             "ERROR",
             "SCORES",
-            "PROMPT_TOKENS",
-            "COMPLETION_TOKENS",
+            "INPUT_TOKENS",
+            "OUTPUT_TOKENS",
             "TOTAL_TOKENS",
         ]
         by_path = {row[0]: row for row in rows}

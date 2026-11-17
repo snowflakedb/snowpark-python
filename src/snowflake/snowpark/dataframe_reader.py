@@ -1523,10 +1523,11 @@ class DataFrameReader:
               left out.
             - ``prompt`` only: ``SOURCE_FILE`` and ``RESPONSE``.
 
-        A read with a ``schema`` or a ``prompt`` also has ``PROMPT_TOKENS``,
-        ``COMPLETION_TOKENS`` and ``TOTAL_TOKENS``: the AI_COMPLETE token usage of the
-        document (input, output, and their total). The counts are ``NULL`` when no usage
-        was reported for the document, for example when its file type is not supported.
+        A read with a ``schema`` or a ``prompt`` also has ``INPUT_TOKENS``,
+        ``OUTPUT_TOKENS`` and ``TOTAL_TOKENS``: the AI_COMPLETE token usage of the
+        document. Input tokens cover everything sent to the model for it (the document,
+        the prompt and the schema), as billed. The counts are ``NULL`` when no usage was
+        reported for the document, for example when its file type is not supported.
         Parsing is billed per page, which ``TOTAL_PAGES`` reports. A schema field cannot
         be named like one of these columns.
 

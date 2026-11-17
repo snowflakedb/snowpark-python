@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.document_reader_options import (
     RESPONSE_COLUMN,
     SOURCE_FILE_COLUMN,
     TOKEN_COLUMNS,
+    TOKEN_USAGE_FIELDS,
     TOTAL_PAGES_COLUMN,
     _EXTRACT_ERROR_COLUMN,
     _PARSE_ERROR_COLUMN,
@@ -596,7 +597,7 @@ def details_answer(value: Column, structured: bool) -> Column:
 def usage_columns(usage: Column) -> List[Column]:
     """``TOKEN_COLUMNS``' values from a ``show_details`` ``usage`` object, NULL when
     the call failed and reported none."""
-    return [usage[name.lower()].cast(LongType()) for name in TOKEN_COLUMNS]
+    return [usage[TOKEN_USAGE_FIELDS[name]].cast(LongType()) for name in TOKEN_COLUMNS]
 
 
 def extract_with_ai_complete(

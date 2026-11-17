@@ -7,6 +7,7 @@ from unittest import mock
 import pytest
 
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
+import snowflake.snowpark._internal.document_extract_proc as proc
 from snowflake.snowpark._internal.document_reader import (
     _CALL_BUDGETS,
     _EXTRACTION_MODELS,
@@ -25,6 +26,8 @@ from snowflake.snowpark._internal.document_reader import (
     usage_comment,
 )
 from snowflake.snowpark._internal.document_reader_options import (
+    TOKEN_COLUMNS,
+    TOKEN_USAGE_FIELDS,
     DocumentReaderOptions,
     ExtractionSpec,
 )
@@ -291,11 +294,18 @@ class TestDetailsAnswer:
         ]
 
     def test_the_token_columns_read_the_usage_fields(self):
+        # INPUT_TOKENS / OUTPUT_TOKENS / TOTAL_TOKENS from AI_COMPLETE's prompt/completion/
+        # total_tokens.
         columns = usage_columns(col("V")["usage"])
         assert [type(c._expression).__name__ for c in columns] == ["Cast"] * 3
         assert [c._expression.to for c in columns] == [LongType()] * 3
         fields = [c._expression.child.field for c in columns]
         assert fields == ["prompt_tokens", "completion_tokens", "total_tokens"]
+
+    def test_the_procedure_returns_the_same_columns_in_the_same_order(self):
+        # The procedure is a standalone file, so it keeps its own copy of the names.
+        assert list(proc.USAGE_COLUMNS) == TOKEN_COLUMNS
+        assert list(proc.USAGE_FIELDS) == [TOKEN_USAGE_FIELDS[c] for c in TOKEN_COLUMNS]
 
 
 # ---------------------------------------------------------------------------
@@ -311,8 +321,8 @@ class TestOutputColumnsForPromptOnly:
         assert output_columns(options) == [
             "SOURCE_FILE",
             "RESPONSE",
-            "PROMPT_TOKENS",
-            "COMPLETION_TOKENS",
+            "INPUT_TOKENS",
+            "OUTPUT_TOKENS",
             "TOTAL_TOKENS",
             '"_document_error"',
         ]
@@ -326,7 +336,7 @@ class TestOutputColumnsForPromptOnly:
 
 
 class TestOutputColumnsTokens:
-    _TOKENS = ["PROMPT_TOKENS", "COMPLETION_TOKENS", "TOTAL_TOKENS"]
+    _TOKENS = ["INPUT_TOKENS", "OUTPUT_TOKENS", "TOTAL_TOKENS"]
 
     def test_a_schema_read_has_the_tokens_after_its_scores(self):
         options = DocumentReaderOptions(

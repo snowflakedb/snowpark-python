@@ -667,8 +667,8 @@ class TestSchemaFieldNameCollisions:
             "extraction_scores",
             "extraction_status",
             "response",
-            "prompt_tokens",
-            "completion_tokens",
+            "input_tokens",
+            "output_tokens",
             "total_tokens",
         ],
     )
