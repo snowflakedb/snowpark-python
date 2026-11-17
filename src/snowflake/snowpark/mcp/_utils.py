@@ -826,3 +826,37 @@ def check_arguments(
         ):
             problems.append(f"{name} must not be null")
     return problems
+
+
+def _sql_type(datatype: DataType) -> str:
+    from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
+
+    return convert_sp_to_sf_type(datatype)
+
+
+def _row_dict(row) -> Dict[str, Any]:
+    values = row.asDict() if hasattr(row, "asDict") else dict(row)
+    return {str(k).strip('"').lower(): v for k, v in values.items()}
+
+
+def _is_quoted_identifier(name: str) -> bool:
+    return (
+        len(name) >= 2
+        and name.startswith('"')
+        and name.endswith('"')
+        and '"' not in name[1:-1].replace('""', "")
+    )
+
+
+def _normalize_identifier(name: str) -> str:
+    """Unquotes ``"NAME"`` when it is a plain upper-case identifier, as
+    ``Session.get_current_database`` returns it, and upper-cases unquoted names."""
+    name = name.strip()
+    if _is_quoted_identifier(name):
+        inner = name[1:-1]
+        if is_identifier(inner) and inner == inner.upper():
+            return inner
+        return name
+    if not is_identifier(name):
+        raise ValueError(f"Invalid identifier {name!r}.")
+    return name.upper()

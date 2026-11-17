@@ -15,7 +15,7 @@ import pytest
 import yaml
 
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal import mcp_tool_runtime, mcp_utils
+from snowflake.snowpark.mcp import _runtime, _utils
 from snowflake.snowpark.mcp import (
     DeployResult,
     MCPLintError,
@@ -23,10 +23,9 @@ from snowflake.snowpark.mcp import (
     PythonTool,
     Tool,
     ToolError,
-    _signature_key,
-    _Target,
     mcp_tool,
 )
+from snowflake.snowpark.mcp._tools import _signature_key, _Target
 from snowflake.snowpark.types import (
     LongType,
     StringType,
@@ -129,7 +128,7 @@ def messages(issues, level=None, tool=None):
 
 
 def tagged(server, tool, suffix=""):
-    return mcp_utils.object_comment(server, suffix, tool, "1.0.0")
+    return _utils.object_comment(server, suffix, tool, "1.0.0")
 
 
 class FakeSchema:
@@ -1257,7 +1256,7 @@ def test_deploy_registers_tools():
     assert [type(t) for t in kwargs["input_types"]] == [StringType, LongType]
     assert kwargs["source_code_display"] is False
     assert "snowpark_mcp" in kwargs["comment"]
-    comment = mcp_utils.parse_object_comment(kwargs["comment"])
+    comment = _utils.parse_object_comment(kwargs["comment"])
     assert comment["server"] == "S" and comment["tool"] == "get_account"
     assert comment["suffix"] == ""
 
@@ -1313,7 +1312,7 @@ def test_deploy_with_suffix_registers_suffixed_names():
     assert session.sproc.register.call_args.kwargs["name"] == (
         "APP.MCP_DEV.S_DEV__GET_ACCOUNT"
     )
-    comment = mcp_utils.parse_object_comment(
+    comment = _utils.parse_object_comment(
         session.sproc.register.call_args.kwargs["comment"]
     )
     assert comment["suffix"] == "_DEV"
@@ -2297,7 +2296,7 @@ def test_optional_without_default_invoke():
 
 
 def test_optional_without_default_deployed_handler_accepts_null():
-    handler = mcp_tool_runtime.make_handler(
+    handler = _runtime.make_handler(
         maybe.func, input_schema=maybe.input_schema, takes_session=True
     )
     assert handler(object(), "k", None) == {"key": "k", "note": None, "limit": None}
@@ -2846,7 +2845,7 @@ def pick(mode: Literal["a", "b"], note: str) -> str:
 
 
 def test_invoke_returns_the_deployed_error_result_for_enum_and_null():
-    handler = mcp_tool_runtime.make_handler(pick.func, input_schema=pick.input_schema)
+    handler = _runtime.make_handler(pick.func, input_schema=pick.input_schema)
     expected = handler("c", "n")
     assert expected["error"]["type"] == "INVALID_ARGUMENTS"
     assert pick.invoke(mode="c", note="n") == expected
@@ -3135,7 +3134,7 @@ def test_lint_default_that_does_not_match_its_type():
     [("DOUBLE PRECISION", "FLOAT"), ("NCHAR(3)", "VARCHAR"), ("VARBINARY", "BINARY")],
 )
 def test_normalize_sql_type_aliases(alias, canonical):
-    from snowflake.snowpark.mcp import _normalize_sql_type
+    from snowflake.snowpark.mcp._tools import _normalize_sql_type
 
     assert _normalize_sql_type(alias) == canonical
 
@@ -3194,7 +3193,7 @@ def test_null_for_non_nullable_optional_is_invalid_arguments():
         "error": {"type": "INVALID_ARGUMENTS", "message": "limit must not be null"}
     }
     assert top.invoke(limit=None) == invalid
-    handler = mcp_tool_runtime.make_handler(top.func, input_schema=top.input_schema)
+    handler = _runtime.make_handler(top.func, input_schema=top.input_schema)
     assert handler(None) == invalid
     assert handler(limit=None) == invalid
     assert handler() == {"n": 20}
@@ -3212,9 +3211,9 @@ def test_parameter_defaulting_to_none_is_nullable():
 
     assert f.input_schema["properties"]["x"]["type"] == ["string", "null"]
     assert f.invoke(x=None) == {"x": None}
-    handler = mcp_tool_runtime.make_handler(f.func, input_schema=f.input_schema)
+    handler = _runtime.make_handler(f.func, input_schema=f.input_schema)
     assert handler(None) == {"x": None}
-    assert mcp_utils.check_arguments(f.input_schema, {"x": None}) == []
+    assert _utils.check_arguments(f.input_schema, {"x": None}) == []
 
 
 def test_python_tool_has_the_functions_identity():
@@ -3229,7 +3228,7 @@ def test_python_tool_has_the_functions_identity():
 
 def test_python_tool_pickles_as_its_function():
     cloudpickle = pytest.importorskip("cloudpickle")
-    from snowflake.snowpark.mcp import _pickle_runtime_by_value
+    from snowflake.snowpark.mcp._tools import _pickle_runtime_by_value
 
     _pickle_runtime_by_value()
 
@@ -3283,7 +3282,7 @@ def test_to_tool_result_empty_dataframe_columns_match_non_empty_ones():
 
     df = FakeDataFrame([])
     df.schema = QuotedSchema()
-    result = mcp_tool_runtime.to_tool_result(df, 10, 10_000)
+    result = _runtime.to_tool_result(df, 10, 10_000)
     assert result["columns"] == ["abc", "ID"]
 
 

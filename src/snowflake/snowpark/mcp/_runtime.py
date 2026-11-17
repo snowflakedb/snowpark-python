@@ -8,7 +8,7 @@
 It converts the function's result to JSON-safe values, keeps it under the MCP server's
 response limit, and turns a ``ToolError`` into an error result the model can read.
 
-This module is pickled by value together with each tool (see ``mcp_utils``), so the
+This module is pickled by value together with each tool (see ``_pickle_runtime_by_value`` in ``_tools``), so the
 warehouse never imports it by name: tools keep working where the installed Snowpark is
 older than the client that deployed them. For that reason it imports only the standard
 library, and recognizes Snowpark and pandas objects by their attributes.

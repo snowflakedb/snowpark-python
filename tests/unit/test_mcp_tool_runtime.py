@@ -16,7 +16,7 @@ import textwrap
 import pytest
 
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.mcp_tool_runtime import (
+from snowflake.snowpark.mcp._runtime import (
     DEFAULT_MAX_RESULT_BYTES,
     DEFAULT_MAX_ROWS,
     ToolError,
@@ -549,7 +549,7 @@ _UNPICKLE_SCRIPT = textwrap.dedent(
 
 def test_pickled_tool_does_not_import_snowpark(tmp_path):
     cloudpickle = pytest.importorskip("cloudpickle")
-    from snowflake.snowpark.mcp import _pickle_runtime_by_value
+    from snowflake.snowpark.mcp._tools import _pickle_runtime_by_value
 
     _pickle_runtime_by_value()
 
@@ -621,7 +621,8 @@ _UNPICKLE_NESTED_SCRIPT = textwrap.dedent(
 
 def test_pickled_tool_that_calls_another_tool_does_not_import_snowpark(tmp_path):
     cloudpickle = pytest.importorskip("cloudpickle")
-    from snowflake.snowpark.mcp import _pickle_runtime_by_value, mcp_tool
+    from snowflake.snowpark.mcp import mcp_tool
+    from snowflake.snowpark.mcp._tools import _pickle_runtime_by_value
 
     _pickle_runtime_by_value()
 
@@ -652,9 +653,9 @@ def test_pickled_tool_that_calls_another_tool_does_not_import_snowpark(tmp_path)
 def test_runtime_module_imports_only_stdlib():
     import ast
 
-    from snowflake.snowpark._internal import mcp_tool_runtime
+    from snowflake.snowpark.mcp import _runtime
 
-    tree = ast.parse(inspect.getsource(mcp_tool_runtime))
+    tree = ast.parse(inspect.getsource(_runtime))
     names = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):

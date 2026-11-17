@@ -10,8 +10,8 @@ from typing import Annotated, Dict, List, Literal, Optional, Tuple, TypedDict, U
 
 import pytest
 
-from snowflake.snowpark._internal import mcp_utils
-from snowflake.snowpark._internal.mcp_utils import (
+from snowflake.snowpark.mcp import _utils
+from snowflake.snowpark.mcp._utils import (
     LintIssue,
     ToolParameter,
     UnsupportedTypeError,
@@ -610,7 +610,7 @@ def test_split_identifier_and_types(identifier, expected):
 
 
 def test_split_qualified_name_respects_quotes():
-    assert mcp_utils.split_qualified_name('DB."a.b".NAME') == ["DB", '"a.b"', "NAME"]
+    assert _utils.split_qualified_name('DB."a.b".NAME') == ["DB", '"a.b"', "NAME"]
 
 
 # ---------------------------------------------------------------------------
@@ -696,7 +696,7 @@ def test_lint_issue_str():
     ],
 )
 def test_is_mcp_tool_name(name, expected):
-    assert mcp_utils.is_mcp_tool_name(name) is expected
+    assert _utils.is_mcp_tool_name(name) is expected
 
 
 @pytest.mark.parametrize(
@@ -704,40 +704,38 @@ def test_is_mcp_tool_name(name, expected):
     [("get_x", True), ("_x1$", True), ("1x", False), ("a-b", False), ("", False)],
 )
 def test_is_identifier(name, expected):
-    assert mcp_utils.is_identifier(name) is expected
+    assert _utils.is_identifier(name) is expected
 
 
 def test_title_from_name():
-    assert mcp_utils.title_from_name("get_account-info") == "Get account info"
+    assert _utils.title_from_name("get_account-info") == "Get account info"
 
 
 def test_is_sql_parameter():
     def make(name, schema):
         return ToolParameter(name, schema, None, True)
 
-    assert mcp_utils.is_sql_parameter(make("query", {"type": "string"}))
-    assert mcp_utils.is_sql_parameter(make("SQL", {"type": "string"}))
-    assert not mcp_utils.is_sql_parameter(make("query", {"type": "integer"}))
-    assert not mcp_utils.is_sql_parameter(
-        make("query", {"type": "string", "enum": ["a"]})
-    )
-    assert not mcp_utils.is_sql_parameter(make("name", {"type": "string"}))
+    assert _utils.is_sql_parameter(make("query", {"type": "string"}))
+    assert _utils.is_sql_parameter(make("SQL", {"type": "string"}))
+    assert not _utils.is_sql_parameter(make("query", {"type": "integer"}))
+    assert not _utils.is_sql_parameter(make("query", {"type": "string", "enum": ["a"]}))
+    assert not _utils.is_sql_parameter(make("name", {"type": "string"}))
 
 
 def test_is_session_annotation():
     from snowflake.snowpark import Session
 
-    assert mcp_utils.is_session_annotation(Session)
-    assert mcp_utils.is_session_annotation("Session")
-    assert mcp_utils.is_session_annotation("snowflake.snowpark.Session")
-    assert not mcp_utils.is_session_annotation(str)
-    assert not mcp_utils.is_session_annotation(inspect.Parameter.empty)
+    assert _utils.is_session_annotation(Session)
+    assert _utils.is_session_annotation("Session")
+    assert _utils.is_session_annotation("snowflake.snowpark.Session")
+    assert not _utils.is_session_annotation(str)
+    assert not _utils.is_session_annotation(inspect.Parameter.empty)
 
     class Session_:  # noqa: N801
         pass
 
     Session_.__name__ = "Session"
-    assert not mcp_utils.is_session_annotation(Session_)  # not from snowflake.snowpark
+    assert not _utils.is_session_annotation(Session_)  # not from snowflake.snowpark
 
 
 # ---------------------------------------------------------------------------
@@ -1002,10 +1000,10 @@ def test_check_arguments_without_strict_values_accepts_enum_and_null_problems():
         "required": ["mode", "n"],
     }
     arguments = {"mode": "c", "tags": ["y", None], "n": None}
-    assert len(mcp_utils.check_arguments(schema, arguments)) == 4
-    assert mcp_utils.check_arguments(schema, arguments, strict_values=False) == []
+    assert len(_utils.check_arguments(schema, arguments)) == 4
+    assert _utils.check_arguments(schema, arguments, strict_values=False) == []
     # Other problems are still reported.
-    assert mcp_utils.check_arguments(
+    assert _utils.check_arguments(
         schema, {"mode": 1, "n": "x", "z": 1}, strict_values=False
     ) == [
         "unknown argument 'z'",
