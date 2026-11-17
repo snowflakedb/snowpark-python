@@ -479,7 +479,7 @@ class Table(DataFrame):
         Sampling with a seed is not supported on views or subqueries. This method works on tables so it supports ``seed``.
         This is the main difference between :meth:`DataFrame.sample` and this method.
         However, ``seed`` and the SYSTEM | BLOCK sampling method raise ``ValueError`` for change-tracking reads
-        (``changes=``) and Iceberg incremental reads, which Snowflake rejects.
+        (``changes=``), which Snowflake rejects. For Iceberg incremental reads they are ignored with a warning.
 
         Args:
             frac: The fraction of rows to sample, from 0.0 to 1.0 inclusive.
@@ -526,7 +526,7 @@ class Table(DataFrame):
         from snowflake.snowpark.mock._connection import MockServerConnection
 
         # Seeded and SYSTEM/BLOCK sampling work on tables, including plain time travel reads,
-        # but Snowflake rejects them for change-tracking (CHANGES) and Iceberg incremental reads.
+        # but Snowflake rejects them for change-tracking (CHANGES) reads.
         seeded_or_block_sampling = seed is not None or (
             sampling_method and sampling_method.upper() in ("SYSTEM", "BLOCK")
         )
@@ -539,11 +539,6 @@ class Table(DataFrame):
                 "Table.sample does not support 'seed' or the SYSTEM/BLOCK sampling method for "
                 f"change-tracking reads (changes={self._time_travel_config.changes.lower()!r}). "
                 "Use BERNOULLI/ROW sampling without a seed."
-            )
-        if seeded_or_block_sampling and self._iceberg_changes_config is not None:
-            raise ValueError(
-                "Table.sample does not support 'seed' or the SYSTEM/BLOCK sampling method for "
-                "Iceberg incremental reads. Use BERNOULLI/ROW sampling without a seed."
             )
 
         stmt = None
@@ -572,6 +567,17 @@ class Table(DataFrame):
                 _logger.warning(
                     "[Local Testing] SYSTEM/BLOCK sampling is not supported for Local Testing, falling back to ROW sampling"
                 )
+
+            if self._iceberg_changes_config is not None:
+                if seed is not None:
+                    _logger.warning(
+                        "`seed` is ignored for Iceberg incremental reads, which do not support seeded sampling."
+                    )
+                    seed = None
+                if sampling_method and sampling_method.upper() in ("SYSTEM", "BLOCK"):
+                    _logger.warning(
+                        "SYSTEM/BLOCK sampling is not supported for Iceberg incremental reads, falling back to ROW sampling"
+                    )
 
             sample_plan = Sample(
                 self._plan, probability_fraction=frac, row_count=n, seed=seed

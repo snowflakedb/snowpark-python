@@ -8297,7 +8297,7 @@ def test_table_sample_keeps_time_travel(session):
     reason="Iceberg incremental reads are not supported in Local Testing",
 )
 @pytest.mark.parametrize("simplifier_enabled", [True, False])
-def test_table_sample_iceberg_incremental_read_sql(session, simplifier_enabled):
+def test_table_sample_iceberg_incremental_read_sql(session, simplifier_enabled, caplog):
     original = session.sql_simplifier_enabled
     session.sql_simplifier_enabled = simplifier_enabled
     try:
@@ -8314,10 +8314,20 @@ def test_table_sample_iceberg_incremental_read_sql(session, simplifier_enabled):
         assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
         assert "SAMPLE (50.0)" in " ".join(sql.upper().split())
 
-        with pytest.raises(ValueError, match="Iceberg incremental reads"):
-            table.sample(frac=0.5, seed=1)
-        with pytest.raises(ValueError, match="Iceberg incremental reads"):
-            table.sample(frac=0.5, sampling_method="system")
+        # seed and SYSTEM/BLOCK are ignored with a warning
+        with caplog.at_level(logging.WARNING):
+            sql = table.sample(frac=0.5, seed=1).queries["queries"][-1]
+        assert "SEED" not in sql.upper()
+        assert "SAMPLE (50.0)" in " ".join(sql.upper().split())
+        assert "`seed` is ignored for Iceberg incremental reads" in caplog.text
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            sql = table.sample(frac=0.5, sampling_method="system").queries["queries"][
+                -1
+            ]
+        assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
+        assert "SYSTEM" not in sql.upper().replace("SYSTEM$", "")
+        assert "falling back to ROW sampling" in caplog.text
     finally:
         session.sql_simplifier_enabled = original
 
@@ -8875,10 +8885,30 @@ def test_table_changes_clause_sql_simplifier(
     "config.getoption('local_testing_mode', default=False)",
     reason="Change tracking is not supported in Local Testing",
 )
-def test_table_changes_sample(session, changes_table):
+@pytest.mark.parametrize("reduce_describe", [False, True])
+def test_table_changes_sample(session, changes_table, reduce_describe):
+    original = session.reduce_describe_query_enabled
+    session.reduce_describe_query_enabled = reduce_describe
+    try:
+        _check_table_changes_sample(session, changes_table)
+    finally:
+        session.reduce_describe_query_enabled = original
+
+
+def _check_table_changes_sample(session, changes_table):
     table_name, insert_qid, _, _ = changes_table
     changes = session.table(
         table_name, changes="default", time_travel_mode="at", statement=insert_qid
+    )
+    # sample before touching the Table's columns, so cached metadata is exercised
+    sampled = changes.sample(frac=1.0)
+    meta_cols = ["METADATA$ACTION", "METADATA$ISUPDATE", "METADATA$ROW_ID"]
+    assert all(c in sampled.columns for c in meta_cols)
+    assert all(c in [f.name for f in sampled.schema.fields] for c in meta_cols)
+    assert all(c in sampled.collect()[0].as_dict() for c in meta_cols)
+    Utils.check_answer(
+        sampled.select(METADATA_ACTION),
+        [Row("DELETE"), Row("INSERT"), Row("DELETE")],
     )
     expected = [
         Row(1, "a", "DELETE", True),
