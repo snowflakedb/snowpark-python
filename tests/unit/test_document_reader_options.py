@@ -496,12 +496,13 @@ class TestPromptTypeValidation:
 
 
 # ---------------------------------------------------------------------------
-# TOKEN_USAGE -- on by default; False turns the token columns off. Only a bool is
-# taken, so a string such as "false" cannot silently leave it on.
+# The session's PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE switch -- an internal kill switch,
+# not a user option: on by default, and False (or the string "false") turns the token
+# columns off. A TOKEN_USAGE reader option is ignored like any other unknown key.
 # ---------------------------------------------------------------------------
 
 
-class TestTokenUsageOption:
+class TestTokenUsageSwitch:
     @pytest.mark.parametrize(
         "read", [{"SCHEMA": FLAT_SCHEMA}, {"PROMPT": "Summarize."}]
     )
@@ -510,26 +511,30 @@ class TestTokenUsageOption:
         assert options.token_usage is True
         assert options.tokens_enabled
 
+    @pytest.mark.parametrize("value", [False, "false", "FALSE", " False "])
     @pytest.mark.parametrize(
         "read", [{"SCHEMA": FLAT_SCHEMA}, {"PROMPT": "Summarize."}]
     )
-    def test_false_turns_the_tokens_off(self, read):
-        options = _build({**read, "TOKEN_USAGE": False})
+    def test_the_switch_off_turns_the_tokens_off(self, read, value):
+        options = DocumentReaderOptions.from_reader_options(read, token_usage=value)
         assert options.token_usage is False
         assert not options.tokens_enabled
 
-    def test_none_is_the_default(self):
-        assert _build({"PROMPT": "Summarize.", "TOKEN_USAGE": None}).tokens_enabled
+    @pytest.mark.parametrize("value", [True, "true", None, 1])
+    def test_anything_else_leaves_them_on(self, value):
+        options = DocumentReaderOptions.from_reader_options(
+            {"PROMPT": "Summarize."}, token_usage=value
+        )
+        assert options.tokens_enabled
+
+    def test_a_token_usage_reader_option_is_ignored(self):
+        assert _build({"PROMPT": "Summarize.", "TOKEN_USAGE": False}).tokens_enabled
 
     def test_a_parse_read_reports_no_tokens_either_way(self):
         assert not _build({}).tokens_enabled
-        assert not _build({"TOKEN_USAGE": True}).tokens_enabled
-
-    @pytest.mark.parametrize("value", ["false", "False", 0, 1, [False]])
-    def test_a_value_that_is_not_a_bool_raises_1120(self, value):
-        error = _expect_error("1120", {"PROMPT": "Summarize.", "TOKEN_USAGE": value})
-        assert "token_usage" in error.message
-        assert repr(value) in error.message
+        assert not DocumentReaderOptions.from_reader_options(
+            {}, token_usage=True
+        ).tokens_enabled
 
 
 # ---------------------------------------------------------------------------

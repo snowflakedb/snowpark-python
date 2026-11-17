@@ -959,7 +959,7 @@ def qualify_listed_name(path: str, listed_name: str) -> str:
 
 # claude-sonnet-5-5 rejects response_format, so the schema travels in the predicate and
 # the answer comes back as text. show_details adds the call's token usage beside it
-# (see split_details); a read with the TOKEN_USAGE option off sends the call without it.
+# (see split_details); with the session's token switch off the call goes without it.
 def ai_complete_sql(show_details: bool) -> str:
     """The AI_COMPLETE statement each call runs, with or without show_details."""
     return (
@@ -1873,7 +1873,7 @@ def run(
             answers turn out large, up to HARD_MAX_CALLS_PER_FILE.
         work_stage: stage where page-range part files are written (the session stage).
         show_details: whether calls ask AI_COMPLETE for their token usage; False (the
-            read's TOKEN_USAGE option off) leaves the token columns None.
+            session's token switch off) leaves the token columns None.
 
     Raises:
         NoModelAvailable (a RuntimeError): AI_COMPLETE knows none of ``models`` (not

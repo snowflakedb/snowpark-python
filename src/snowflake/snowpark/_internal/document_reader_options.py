@@ -169,8 +169,9 @@ class DocumentReaderOptions:
     extraction_engine: str = "ai_complete"
     extraction: Optional[ExtractionSpec] = None
     prompt: Optional[str] = None
-    # The TOKEN_USAGE option: False reads without asking AI_COMPLETE for its usage, with
-    # no TOKEN_COLUMNS, as reads did before they were added.
+    # The session's PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE switch: False reads without
+    # asking AI_COMPLETE for its usage, with no TOKEN_COLUMNS, as reads did before they
+    # were added.
     token_usage: bool = True
 
     @property
@@ -197,7 +198,7 @@ class DocumentReaderOptions:
     @property
     def tokens_enabled(self) -> bool:
         """Whether the read asks AI_COMPLETE for its token usage and returns it in
-        TOKEN_COLUMNS: an AI_COMPLETE read does unless the TOKEN_USAGE option turns it
+        TOKEN_COLUMNS: an AI_COMPLETE read does unless the session's switch turns it
         off; AI_EXTRACT reports none, and a parse-only read is billed per page."""
         return (
             self.token_usage
@@ -238,16 +239,18 @@ class DocumentReaderOptions:
 
     @classmethod
     def from_reader_options(
-        cls, cur_options: Dict[str, Any]
+        cls, cur_options: Dict[str, Any], token_usage: Any = True
     ) -> "DocumentReaderOptions":
-        """The user options are SCHEMA, PROMPT and TOKEN_USAGE; any other key is ignored,
-        because everything else is chosen by the reader."""
+        """The user options are SCHEMA and PROMPT; any other key is ignored, because
+        everything else is chosen by the reader. ``token_usage`` is the session's
+        PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE value, an internal switch, not a user
+        option (see ``_token_usage_on``)."""
         options = cls(
             extraction=ExtractionSpec.from_response_format(
                 cls._validated_schema(cur_options.get("SCHEMA"))
             ),
             prompt=cls._validated_prompt(cur_options),
-            token_usage=cls._validated_token_usage(cur_options),
+            token_usage=cls._token_usage_on(token_usage),
         )
         # With a schema or prompt the document goes to AI_COMPLETE as a FILE: parsing
         # flattens layout (table columns, printed section numbers) that the page image keeps.
@@ -258,17 +261,11 @@ class DocumentReaderOptions:
         return options
 
     @staticmethod
-    def _validated_token_usage(cur_options: Dict[str, Any]) -> bool:
-        """The TOKEN_USAGE option, True when it is not set. Anything but a bool is
-        refused, so a string such as "false" cannot silently leave it on."""
-        value = cur_options.get("TOKEN_USAGE")
-        if value is None:
-            return True
-        if not isinstance(value, bool):
-            raise SnowparkClientExceptionMessages.DF_DOCUMENTS_INVALID_OPTION_TYPE(
-                "token_usage", value, "True or False"
-            )
-        return value
+    def _token_usage_on(value: Any) -> bool:
+        """Whether the session's PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE value leaves the
+        token columns on: anything but False, or the string "false" in any case, as a
+        session parameter given in the connection config can arrive as text."""
+        return value is not False and str(value).strip().lower() != "false"
 
     @staticmethod
     def _validated_schema(value: Any) -> Any:

@@ -554,7 +554,7 @@ def build_ai_complete_call(
     # string, not a Column, so there is no CONTENT to fold in. With no schema there is
     # no response_format and AI_COMPLETE answers the prompt as free text. show_details
     # adds the call's token usage beside the answer (see extract_with_ai_complete);
-    # with the TOKEN_USAGE option off it is not sent at all.
+    # with the session's token switch off it is not sent at all.
     response_format = (
         options.extraction.ai_complete_format if options.extract_enabled else None
     )

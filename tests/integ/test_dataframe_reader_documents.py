@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.document_reader import (
     merge_extract_error,
 )
 from snowflake.snowpark._internal.document_reader_options import ExtractionSpec
+from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col, try_parse_json
 from snowflake.snowpark.types import (
     BooleanType,
@@ -271,14 +272,45 @@ def test_prompt_only_read_returns_a_response_column(session, invoice_path):
     _assert_token_counts(row)
 
 
-def test_token_usage_off_returns_a_prompt_read_without_tokens(session, invoice_path):
+# PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE -- an internal kill switch for the token
+# columns, read from the session's parameters when the session is created.
+_TOKEN_SWITCH = "PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE"
+
+
+def test_the_token_switch_is_read_from_the_session_parameters(db_parameters):
+    # Set at connection time, it works whether or not the server defines the
+    # parameter.
+    params = {
+        **db_parameters,
+        "session_parameters": {
+            **(db_parameters.get("session_parameters") or {}),
+            _TOKEN_SWITCH: False,
+        },
+    }
+    off = Session.builder.configs(params).create()
+    try:
+        assert off._documents_token_usage is False
+    finally:
+        off.close()
+
+
+@pytest.fixture
+def token_switch_off(session):
+    session._documents_token_usage = False
+    try:
+        yield session
+    finally:
+        session._documents_token_usage = True
+
+
+def test_token_switch_off_returns_a_prompt_read_without_tokens(
+    token_switch_off, invoice_path
+):
     # The read AI_COMPLETE answered before the token columns existed: no show_details,
     # the same answer, no token columns.
-    df = (
-        session.read.option("prompt", "Summarize this document in one sentence.")
-        .option("token_usage", False)
-        .documents(invoice_path)
-    )
+    df = token_switch_off.read.option(
+        "prompt", "Summarize this document in one sentence."
+    ).documents(invoice_path)
     assert _unquoted(df) == ["SOURCE_FILE", "RESPONSE", "_document_error"]
     row = df.collect()[0]
     assert row["RESPONSE"]
@@ -286,12 +318,10 @@ def test_token_usage_off_returns_a_prompt_read_without_tokens(session, invoice_p
 
 
 @pytest.mark.udf
-def test_token_usage_off_returns_a_schema_read_without_tokens(session, invoice_path):
-    df = (
-        session.read.option("schema", INVOICE_SCHEMA)
-        .option("token_usage", False)
-        .documents(invoice_path)
-    )
+def test_token_switch_off_returns_a_schema_read_without_tokens(
+    token_switch_off, invoice_path
+):
+    df = token_switch_off.read.option("schema", INVOICE_SCHEMA).documents(invoice_path)
     assert _unquoted(df) == [
         "SOURCE_FILE",
         "INVOICE_NUMBER",
