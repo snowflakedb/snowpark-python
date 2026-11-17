@@ -25,6 +25,8 @@ INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
     "wheel",
     CONNECTOR_DEPENDENCY,
+    # Imported by session.py; connector 5.x does not depend on it the way 3.x and 4.x do.
+    "packaging",
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
     "pyyaml",
