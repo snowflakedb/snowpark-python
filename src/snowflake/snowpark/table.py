@@ -454,6 +454,15 @@ class Table(DataFrame):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.drop_table()
 
+    def _from_clause_sql(self) -> str:
+        """The table name followed by its time travel clause, if any, for building flat SQL."""
+        time_travel_text = (
+            self._time_travel_config.generate_sql_clause()
+            if self._time_travel_config is not None
+            else ""
+        )
+        return f"{self.table_name}{time_travel_text}"
+
     @traces_inputs("self")
     @publicapi
     def sample(
@@ -581,12 +590,7 @@ class Table(DataFrame):
         sampling_method_text = sampling_method or ""
         frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} ROWS"
         seed_text = f" SEED ({seed})" if seed is not None else ""
-        time_travel_text = (
-            self._time_travel_config.generate_sql_clause()
-            if self._time_travel_config is not None
-            else ""
-        )
-        sql_text = f"SELECT * FROM {self.table_name}{time_travel_text} SAMPLE {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
+        sql_text = f"SELECT * FROM {self._from_clause_sql()} SAMPLE {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
         new_df = self._session.sql(sql_text, _ast_stmt=stmt)
         if self._session.reduce_describe_query_enabled:
             new_df._plan._metadata = self._plan._metadata

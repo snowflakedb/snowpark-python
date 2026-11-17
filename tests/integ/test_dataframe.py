@@ -8305,7 +8305,7 @@ def test_table_sample_iceberg_incremental_read_sql(session, simplifier_enabled):
         table = session.table("ANY_NAME", start_snapshot_id=1, end_snapshot_id=2)
         sql = table.sample(n=2).queries["queries"][-1]
         assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
-        assert "SAMPLE" in sql.upper()
+        assert "SAMPLE (2 ROWS" in " ".join(sql.upper().split())
 
         sql = table.sample(frac=0.5).queries["queries"][-1]
         assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
@@ -8323,16 +8323,18 @@ def test_table_sample_iceberg_incremental_read_sql(session, simplifier_enabled):
 
 
 @pytest.mark.parametrize("sample_kwargs", [{"frac": 1.0}, {"n": 10}])
-def test_table_sample_plain_table_unchanged(session, sample_kwargs):
+def test_table_sample_plain_table_unchanged(session, sample_kwargs, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe([[1], [2], [3]], schema=["a"]).write.save_as_table(
         table_name, table_type="temporary"
     )
     try:
-        Utils.check_answer(
-            session.table(table_name).sample(**sample_kwargs),
-            [Row(1), Row(2), Row(3)],
-        )
+        df = session.table(table_name).sample(**sample_kwargs)
+        Utils.check_answer(df, [Row(1), Row(2), Row(3)])
+        if not local_testing_mode:
+            assert df.queries["queries"][-1].startswith(
+                f"SELECT * FROM {table_name} SAMPLE"
+            )
     finally:
         Utils.drop_table(session, table_name)
 
@@ -8898,6 +8900,38 @@ def test_table_changes_sample(session, changes_table):
         changes.sample(frac=0.5, seed=1)
     with pytest.raises(ValueError, match="change-tracking"):
         changes.sample(frac=0.5, sampling_method="SYSTEM")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+def test_sample_by_seed_keeps_time_travel_and_changes(session, changes_table, caplog):
+    table_name, insert_qid, _, _ = changes_table
+    fractions = {1: 1.0, 2: 1.0}
+
+    # the seeded flat SQL keeps the time travel clause
+    at_insert = session.table(table_name, time_travel_mode="at", statement=insert_qid)
+    Utils.check_answer(
+        at_insert.stat.sample_by("id", fractions, seed=1).select("id", "v"),
+        [Row(1, "a"), Row(2, "b")],
+    )
+
+    # seed is ignored (with a warning) for change-tracking reads, which keep their CHANGES clause
+    changes = session.table(
+        table_name, changes="default", time_travel_mode="at", statement=insert_qid
+    )
+    with caplog.at_level(logging.WARNING):
+        sampled = changes.stat.sample_by("id", fractions, seed=1)
+    assert "change-tracking reads" in caplog.text
+    Utils.check_answer(
+        sampled.select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+        [
+            Row(1, "a", "DELETE", True),
+            Row(1, "a2", "INSERT", True),
+            Row(2, "b", "DELETE", False),
+        ],
+    )
 
 
 @pytest.mark.skipif(

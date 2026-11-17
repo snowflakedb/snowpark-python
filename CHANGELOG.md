@@ -14,7 +14,7 @@
 
 #### Bug Fixes
 
-- Fixed a bug where `Table.sample` on a table read with time travel (`time_travel_mode`) or an Iceberg incremental read ignored it and sampled the current table. `seed` and the `SYSTEM`/`BLOCK` sampling method raise `ValueError` for Iceberg incremental reads.
+- Fixed a bug where `Table.sample` on a table read with time travel (`time_travel_mode`) or an Iceberg incremental read ignored it and sampled the current table. `seed` and the `SYSTEM`/`BLOCK` sampling method raise `ValueError` for Iceberg incremental reads. Fixed the same bug in `DataFrame.stat.sample_by` with `seed` on such tables; `seed` is ignored with a warning for change-tracking and Iceberg incremental reads.
 - Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
 - Fixed a bug where `DataFrameReader.table` failed when a time travel reader option was set to `None`, e.g. `option("time_travel_mode", None)` together with `option("as-of-timestamp", ...)`. Time travel options set to `None` are now treated as unset.
 
