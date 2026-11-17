@@ -507,7 +507,7 @@ class DataFrameStatFunctions:
         else:
             if seed is not None and unseedable_table:
                 warning(
-                    "stat.sample_by",
+                    "stat.sample_by.unseedable_table",
                     "`seed` argument is ignored for change-tracking reads and Iceberg incremental reads, "
                     "which do not support seeded sampling.",
                 )
