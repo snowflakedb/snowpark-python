@@ -371,9 +371,9 @@ def test_empty_query(session, udtf_configs):
 def test_postgres_multiple_partitions_execute(session, postgres_udtf_configs):
     """Actually execute a partitioned read, not just check the generated SQL.
 
-    Each partition is a separate ``process()`` invocation on its own handler
-    instance, so this covers the repeated-invocation path that only renders as
-    SQL strings in ``test_partitions``.
+    Each partition is a separate ``process()`` invocation, so this covers the
+    repeated-invocation path that only renders as SQL strings in
+    ``test_partitions``.
     """
     row_count = 100
     df = session.read.jdbc(
@@ -387,6 +387,24 @@ def test_postgres_multiple_partitions_execute(session, postgres_udtf_configs):
     )
     ids = sorted(int(row["ID"]) for row in df.collect())
     # No rows dropped, none duplicated across partition boundaries.
+    assert ids == list(range(1, row_count + 1))
+
+
+def test_postgres_many_partitions_share_handler(session, postgres_udtf_configs):
+    """SNOW-4537762: with many partitions Snowflake routes several partition rows
+    to one handler instance, so ``process()`` runs more than once per handler and
+    must not reuse a connection closed by the previous call."""
+    row_count = 2000
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query=f"select i as id from generate_series(1,{row_count}) i",
+        column="ID",
+        lower_bound=1,
+        upper_bound=row_count,
+        num_partitions=200,
+    )
+    ids = sorted(int(row["ID"]) for row in df.collect())
     assert ids == list(range(1, row_count + 1))
 
 

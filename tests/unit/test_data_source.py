@@ -225,7 +225,7 @@ def test_jdbc_read_udtf_executes_query_lazily():
     # inside the lazily evaluated supplier. Match the full call sites rather than
     # bare identifiers, which also appear in the surrounding comments.
     assert ddl.index("stmt.executeQuery(query)") > ddl.index("Stream.generate")
-    assert ddl.index("this.conn.createStatement()") > ddl.index("Stream.generate")
+    assert ddl.index("getConnection().createStatement()") > ddl.index("Stream.generate")
     assert ddl.index("stmt.setQueryTimeout(") > ddl.index("Stream.generate")
 
     # Lambda capture requires effectively-final holders.
