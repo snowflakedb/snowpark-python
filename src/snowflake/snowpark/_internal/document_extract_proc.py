@@ -973,8 +973,8 @@ def ai_complete_sql(show_details: bool) -> str:
 # The token counts of a show_details ``usage`` object, summed per file over every call
 # that reported them (``FileState.usage``) and returned in this order (``result_row``),
 # as the output columns ``USAGE_COLUMNS`` (TOKEN_COLUMNS in document_reader_options.py).
-USAGE_FIELDS = ("prompt_tokens", "completion_tokens", "total_tokens")
-USAGE_COLUMNS = ("INPUT_TOKENS", "OUTPUT_TOKENS", "TOTAL_TOKENS")
+USAGE_FIELDS = ("prompt_tokens", "completion_tokens")
+USAGE_COLUMNS = ("INPUT_TOKENS", "OUTPUT_TOKENS")
 
 
 _SCORES_INSTRUCTION = (
@@ -1300,9 +1300,9 @@ class Submitted:
 
 
 def result_row(file: FileState, fields: Optional[List[str]] = None) -> List[Any]:
-    """The output row ``[STAGE_PATH, VALUE, ERROR, SCORES, INPUT_TOKENS, OUTPUT_TOKENS,
-    TOTAL_TOKENS]`` of one file: its parts merged in page order, so a
-    table split across ranges comes back as one table, the per-field confidence scores
+    """The output row ``[STAGE_PATH, VALUE, ERROR, SCORES, INPUT_TOKENS, OUTPUT_TOKENS]``
+    of one file: its parts merged in page order, so a table split across ranges comes
+    back as one table, the per-field confidence scores
     merged by ``merge_scores`` (None when there are none), and its summed token counts
     (each None when no call reported it). A failure while merging is that file's error,
     not the read's."""
@@ -1885,8 +1885,8 @@ def run(
         STAGE_PATH, VALUE (the merged answer as JSON, or None when no part succeeded),
         ERROR (every failure for the file, joined with "; ", or None), SCORES (the
         per-field confidence scores as JSON, see ``merge_scores``, or None), and
-        INPUT_TOKENS, OUTPUT_TOKENS and TOTAL_TOKENS (AI_COMPLETE's prompt_tokens,
-        completion_tokens and total_tokens summed over every call made for the file, see
+        INPUT_TOKENS and OUTPUT_TOKENS (AI_COMPLETE's prompt_tokens and
+        completion_tokens summed over every call made for the file, see
         ``FileState.usage``, or None when no call reported them).
         A failure reading, staging, submitting or merging is a file's own ERROR and
         does not stop the read. When more than ``MAX_FAILED_FRACTION`` of the readable

@@ -1804,11 +1804,8 @@ class TestAddUsage:
         add_usage(
             total, {"prompt_tokens": 9, "completion_tokens": 1, "total_tokens": 10}
         )
-        assert total == {
-            "prompt_tokens": 14250,
-            "completion_tokens": 37,
-            "total_tokens": 14287,
-        }
+        # total_tokens is not summed: it is input plus output.
+        assert total == {"prompt_tokens": 14250, "completion_tokens": 37}
 
     @pytest.mark.parametrize("usage", [None, "x", [], {}])
     def test_no_usage_adds_nothing(self, usage):
@@ -1845,11 +1842,7 @@ class TestCollectSumsUsage:
         assert results[0][1] == TRUNCATED_TEXT_ERROR
         assert results[1][1] is None
         assert results[2][1] == "boom"
-        assert file.usage == {
-            "prompt_tokens": 2 * 14241,
-            "completion_tokens": 2 * 36,
-            "total_tokens": 2 * 14277,
-        }
+        assert file.usage == {"prompt_tokens": 2 * 14241, "completion_tokens": 2 * 36}
 
     def test_a_call_that_raises_adds_nothing(self):
         class _Raises:
@@ -2595,7 +2588,6 @@ class TestPerFileFailures:
             None,
             None,
             None,
-            None,
         ]
 
     def test_a_failed_file_is_not_counted_as_a_document(self):
@@ -2652,7 +2644,6 @@ class TestPerFileFailures:
             None,
             5,
             2,
-            7,
         ]
 
     def test_too_many_failed_documents_stop_the_read_but_keep_every_row(self):
@@ -3012,17 +3003,16 @@ class TestRun:
             "SCORES",
             "INPUT_TOKENS",
             "OUTPUT_TOKENS",
-            "TOTAL_TOKENS",
         ]
         by_path = {row[0]: row for row in rows}
         good, bad = by_path["@s/good.pdf"], by_path["@s/bad.pdf"]
         assert json.loads(good[1]) == {"invoice": "INV-1", "rows": [{"n": 1}]}
         assert good[2] is None
         assert json.loads(good[3]) == {"invoice": 0.9, "rows": 0.8}
-        assert good[4:] == [100, 10, 110]
+        assert good[4:] == [100, 10]
         assert bad[1] is None and "boom" in bad[2] and bad[3] is None
         # A failed call reports no usage.
-        assert bad[4:] == [None, None, None]
+        assert bad[4:] == [None, None]
 
     def test_with_token_usage_off_calls_skip_show_details(self, monkeypatch):
         # AI_COMPLETE then answers in the shape it had before show_details: the answer
@@ -3037,7 +3027,7 @@ class TestRun:
         assert session.queries == [ai_complete_sql(False)]
         [row] = rows
         assert json.loads(row[1]) == {"invoice": "INV-1", "rows": []}
-        assert row[4:] == [None, None, None]
+        assert row[4:] == [None, None]
 
     def test_a_file_that_does_not_fit_is_split_and_merged(self, monkeypatch):
         def answer(staged):
@@ -3064,7 +3054,7 @@ class TestRun:
         assert path == "@s/long.pdf" and error is None
         assert json.loads(value) == {"invoice": "INV-2", "rows": [{"n": 1}, {"n": 2}]}
         # One row for the document, with the tokens of both of its calls summed.
-        assert tokens == [6500, 1200, 7700]
+        assert tokens == [6500, 1200]
         assert session.calls == ["@s/long.pdf", _part_target("@s/long.pdf", 3, 4)]
         # The part for pages 3-4 carries page 2 in front as context.
         [(_, data, _)] = session.file.staged

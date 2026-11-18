@@ -294,13 +294,12 @@ class TestDetailsAnswer:
         ]
 
     def test_the_token_columns_read_the_usage_fields(self):
-        # INPUT_TOKENS / OUTPUT_TOKENS / TOTAL_TOKENS from AI_COMPLETE's prompt/completion/
-        # total_tokens.
+        # INPUT_TOKENS / OUTPUT_TOKENS from AI_COMPLETE's prompt_tokens / completion_tokens.
         columns = usage_columns(col("V")["usage"])
-        assert [type(c._expression).__name__ for c in columns] == ["Cast"] * 3
-        assert [c._expression.to for c in columns] == [LongType()] * 3
+        assert [type(c._expression).__name__ for c in columns] == ["Cast"] * 2
+        assert [c._expression.to for c in columns] == [LongType()] * 2
         fields = [c._expression.child.field for c in columns]
-        assert fields == ["prompt_tokens", "completion_tokens", "total_tokens"]
+        assert fields == ["prompt_tokens", "completion_tokens"]
 
     def test_the_procedure_returns_the_same_columns_in_the_same_order(self):
         # The procedure is a standalone file, so it keeps its own copy of the names.
@@ -323,7 +322,6 @@ class TestOutputColumnsForPromptOnly:
             "RESPONSE",
             "INPUT_TOKENS",
             "OUTPUT_TOKENS",
-            "TOTAL_TOKENS",
             '"_document_error"',
         ]
 
@@ -336,7 +334,7 @@ class TestOutputColumnsForPromptOnly:
 
 
 class TestOutputColumnsTokens:
-    _TOKENS = ["INPUT_TOKENS", "OUTPUT_TOKENS", "TOTAL_TOKENS"]
+    _TOKENS = ["INPUT_TOKENS", "OUTPUT_TOKENS"]
 
     def test_a_schema_read_has_the_tokens_after_its_scores(self):
         options = DocumentReaderOptions(

@@ -72,16 +72,15 @@ def _unquoted(df) -> list:
 
 
 # Every schema or prompt read returns AI_COMPLETE's token usage for each document.
-TOKEN_COLUMNS = ["INPUT_TOKENS", "OUTPUT_TOKENS", "TOTAL_TOKENS"]
+TOKEN_COLUMNS = ["INPUT_TOKENS", "OUTPUT_TOKENS"]
 
 
 def _assert_token_counts(row) -> None:
     """The document's token counts are reported, as integers: the whole document is
-    input, so it is never empty, and the total covers both."""
-    input_tokens, output_tokens, total = (row[name] for name in TOKEN_COLUMNS)
-    assert all(isinstance(n, int) for n in (input_tokens, output_tokens, total))
+    input, so it is never empty."""
+    input_tokens, output_tokens = (row[name] for name in TOKEN_COLUMNS)
+    assert all(isinstance(n, int) for n in (input_tokens, output_tokens))
     assert input_tokens > 0 and output_tokens > 0
-    assert total >= input_tokens + output_tokens
 
 
 @pytest.fixture(scope="module")

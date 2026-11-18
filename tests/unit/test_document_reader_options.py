@@ -669,7 +669,6 @@ class TestSchemaFieldNameCollisions:
             "response",
             "input_tokens",
             "output_tokens",
-            "total_tokens",
         ],
     )
     def test_field_colliding_with_a_reserved_column_raises_1117(self, reserved_name):
