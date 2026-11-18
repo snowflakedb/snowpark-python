@@ -2,6 +2,11 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import inspect
+import shutil
+import subprocess
+from pathlib import Path
+
 import pytest
 import re
 from unittest.mock import Mock, patch
@@ -10,6 +15,12 @@ from snowflake.snowpark._internal.data_source.datasource_reader import DataSourc
 from snowflake.snowpark._internal.data_source.jdbc import JDBC, to_java_string_literal
 from snowflake.snowpark._internal.data_source.utils import (
     DBMS_TYPE,
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    DATA_SOURCE_JDBC_SIGNATURE,
+    DATA_SOURCE_JDBC_SQL_COMMENT,
+    STATEMENT_PARAMS_DATA_SOURCE,
+    STATEMENT_PARAMS_DATA_SOURCE_JDBC,
+    track_data_source_statement_params,
     resolve_udtf_packages,
 )
 from snowflake.snowpark.context import (
@@ -199,7 +210,7 @@ def _render_jdbc_ddls(**jdbc_kwargs):
 
     client = JDBC(
         session=session,
-        url="jdbc:postgresql://host:5432/db",
+        url=jdbc_kwargs.pop("url", "jdbc:postgresql://host:5432/db"),
         table_or_query="SELECT 1",
         external_access_integration="EAI",
         imports=[],
@@ -234,17 +245,158 @@ def test_jdbc_read_udtf_executes_query_lazily():
     # inside the lazily evaluated supplier. Match the full call sites rather than
     # bare identifiers, which also appear in the surrounding comments.
     assert ddl.index("stmt.executeQuery(query)") > ddl.index("Stream.generate")
-    assert ddl.index("getConnection().createStatement()") > ddl.index("Stream.generate")
+    assert ddl.index("resources.connection.createStatement()") > ddl.index(
+        "Stream.generate"
+    )
     assert ddl.index("stmt.setQueryTimeout(") > ddl.index("Stream.generate")
 
     # Lambda capture requires effectively-final holders.
-    assert "final Statement[] stmtRef" in ddl
-    assert "final ResultSet[] rsRef" in ddl
+    assert "final ReadResources resources" in ddl
 
     # The parameters must still be applied, and the timeout must precede the
     # session-init statements so they inherit it.
     assert "stmt.setQueryTimeout(240);" in ddl
     assert "stmt.setFetchSize(100);" in ddl
+
+
+@pytest.mark.parametrize("fetch_size", [None, True, False, -1, 1.5, "10000"])
+def test_jdbc_invalid_fetch_size(fetch_size):
+    with pytest.raises(ValueError, match="fetch_size must be a non-negative integer"):
+        _render_jdbc_ddls(fetch_size=fetch_size)
+
+
+def test_jdbc_default_fetch_size():
+    from snowflake.snowpark.dataframe_reader import DataFrameReader
+
+    assert (
+        inspect.signature(DataFrameReader.jdbc).parameters["fetch_size"].default
+        == 10000
+    )
+    assert "stmt.setFetchSize(10000);" in _render_jdbc_ddls()
+
+
+@pytest.mark.parametrize("dbms", ["postgresql", "oracle", "mysql", "sqlserver"])
+@pytest.mark.parametrize("fetch_size", [0, 7, 10000])
+def test_jdbc_streaming_transaction_scope(dbms, fetch_size):
+    ddl = _render_jdbc_ddls(
+        url=f"jdbc:{dbms}://host/db",
+        fetch_size=fetch_size,
+        session_init_statement=["SET application_name = 'parity'"],
+    )
+    if dbms == "postgresql" and fetch_size > 0:
+        assert (
+            ddl.index('stmt.execute("SET application_name')
+            < ddl.index("resources.connection.setAutoCommit(false)")
+            < ddl.index("stmt.executeQuery(query)")
+        )
+        assert "resources.connection = createConnection();" in ddl
+    else:
+        assert "setAutoCommit(false)" not in ddl
+        assert "resources.connection = getConnection();" in ddl
+    assert ".onClose(resources::close)" in ddl
+    assert DATA_SOURCE_JDBC_SQL_COMMENT in ddl
+
+
+@pytest.mark.parametrize(
+    "source,expected_key",
+    [
+        (DATA_SOURCE_DBAPI_SIGNATURE, STATEMENT_PARAMS_DATA_SOURCE),
+        (DATA_SOURCE_JDBC_SIGNATURE, STATEMENT_PARAMS_DATA_SOURCE_JDBC),
+        ("Session.sql", None),
+        (None, None),
+    ],
+)
+@pytest.mark.parametrize("params", [None, {}, {"QUERY_TAG": "user-tag"}])
+def test_data_source_action_statement_params(source, expected_key, params):
+    dataframe = Mock()
+    dataframe._plan.api_calls = [{"name": source}] if source else []
+    original = dict(params or {})
+    expected = dict(original)
+    if expected_key:
+        expected[expected_key] = "1"
+    assert track_data_source_statement_params(dataframe, params) == (expected or None)
+    if original:
+        assert params["QUERY_TAG"] == "user-tag"
+
+
+@pytest.mark.parametrize("custom_schema", ["A STRING", "B STRING, A STRING"])
+def test_jdbc_custom_schema_preserves_source_order_and_readers(custom_schema):
+    session = Mock()
+    raw_schema = [
+        ("A", "INTEGER", "java.lang.Integer", 10, 0, True, "int4"),
+        ("B", "TIMESTAMP", "java.sql.Timestamp", 35, 6, True, "timestamptz"),
+    ]
+    session.sql.return_value.collect.return_value = raw_schema
+    client = JDBC(
+        session,
+        "jdbc:postgresql://host/db",
+        "T",
+        "EAI",
+        [],
+        False,
+        "cred",
+        custom_schema=custom_schema,
+    )
+    assert client.schema.names == ["A", "B"]
+    assert client.raw_schema == raw_schema
+    assert "java.time.OffsetDateTime.class" in client.create_output_row_java_code()
+    assert client.schema.fields[1].datatype == (
+        StringType()
+        if custom_schema.startswith("B")
+        else TimestampType(TimestampTimeZone.TZ)
+    )
+
+
+def test_jdbc_custom_schema_does_not_hide_inference_failure():
+    session = Mock()
+    session.sql.return_value.collect.side_effect = RuntimeError("metadata unavailable")
+    client = JDBC(
+        session,
+        "jdbc:postgresql://host/db",
+        "T",
+        "EAI",
+        [],
+        False,
+        "cred",
+        custom_schema="A STRING",
+    )
+    with pytest.raises(RuntimeError, match="metadata unavailable"):
+        client.schema
+
+
+@pytest.mark.parametrize("fetch_size", [0, 7])
+def test_jdbc_generated_handler_lifecycle(tmp_path, fetch_size):
+    if not shutil.which("javac") or not shutil.which("java"):
+        pytest.skip("JDK required to execute generated JDBC handler")
+    with patch.object(
+        JDBC,
+        "generate_create_connection",
+        return_value="return JdbcLifecycle.connect();",
+    ):
+        ddl = _render_jdbc_ddls(fetch_size=fetch_size, session_init_statement=["INIT"])
+    source = ddl.split("$$")[1]
+    source = re.sub(r"import com\.snowflake\.[^;]+;", "", source)
+    (tmp_path / "DataLoader.java").write_text(source)
+    harness = (
+        Path(__file__).parents[1]
+        / "resources"
+        / "test_data_source_dir"
+        / "JdbcLifecycle.java"
+    )
+    subprocess.run(
+        ["javac", "-d", str(tmp_path), str(tmp_path / "DataLoader.java"), str(harness)],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    subprocess.run(
+        ["java", "-cp", str(tmp_path), "JdbcLifecycle", str(fetch_size)],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
 
 
 def _render_jdbc_infer_schema_sql(table_or_query, is_query=True):
@@ -667,7 +819,9 @@ def test_jdbc_infer_schema_udtf_is_dropped(inference_fails, use_scoped, temp_typ
     create, _, drop = executed
     name = re.search(rf"CREATE OR REPLACE {temp_type} FUNCTION (\w+)\(", create)
     assert name, create
-    assert drop == f"DROP FUNCTION IF EXISTS {name.group(1)}(VARCHAR)"
+    assert drop == (
+        f"DROP FUNCTION IF EXISTS {name.group(1)}(VARCHAR) {DATA_SOURCE_JDBC_SQL_COMMENT}"
+    )
 
 
 @pytest.mark.parametrize(

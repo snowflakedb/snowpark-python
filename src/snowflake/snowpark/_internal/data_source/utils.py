@@ -682,13 +682,12 @@ def track_data_source_statement_params(
     Helper method to initialize and update data source tracking statement_params based on dataframe attributes.
     """
     statement_params = statement_params or {}
-    if (
-        dataframe._plan
-        and dataframe._plan.api_calls
-        and dataframe._plan.api_calls[0].get("name") == DATA_SOURCE_DBAPI_SIGNATURE
-    ):
-        # Track data source ingestion
-        statement_params[STATEMENT_PARAMS_DATA_SOURCE] = "1"
+    if dataframe._plan and dataframe._plan.api_calls:
+        source = dataframe._plan.api_calls[0].get("name")
+        if source == DATA_SOURCE_DBAPI_SIGNATURE:
+            statement_params[STATEMENT_PARAMS_DATA_SOURCE] = "1"
+        elif source == DATA_SOURCE_JDBC_SIGNATURE:
+            statement_params[STATEMENT_PARAMS_DATA_SOURCE_JDBC] = "1"
 
     return statement_params if statement_params else None
 
