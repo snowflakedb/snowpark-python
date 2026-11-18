@@ -1526,8 +1526,8 @@ class DataFrameReader:
         A read with a ``schema`` or a ``prompt`` also has ``INPUT_TOKENS`` and
         ``OUTPUT_TOKENS``: the token usage AI_COMPLETE reports for the document. Input
         tokens cover everything sent to the model for it (the document, the prompt and
-        the schema). Use them as a cost estimate: billing can be higher in some cases,
-        such as failed calls, and the billed usage is in
+        the schema). Use them as a cost estimate: billing can be higher, for example when
+        Snowflake retries a model call internally, and the billed usage is in
         ``SNOWFLAKE.ACCOUNT_USAGE.CORTEX_AI_FUNCTIONS_USAGE_HISTORY``. The counts are
         ``NULL`` when no usage was reported for the document, for example when its file
         type is not supported. Parsing is billed per page, which ``TOTAL_PAGES``
