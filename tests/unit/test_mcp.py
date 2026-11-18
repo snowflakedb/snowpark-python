@@ -470,12 +470,12 @@ def test_server_repr():
 
 
 def test_lint_clean_server():
-    assert [i for i in python_server().lint() if i.level != "info"] == []
+    assert [i for i in python_server()._lint() if i.level != "info"] == []
 
 
 def test_lint_duplicate_names():
     server = MCPServer("S", [get_account, get_account])
-    errors = messages(server.lint(), "error")
+    errors = messages(server._lint(), "error")
     assert errors == ["Two tools have this name."]
 
 
@@ -484,22 +484,22 @@ def test_lint_too_many_tools():
         mcp_tool(plain, read_only=True, name=f"tool_{i}", description="d")
         for i in range(51)
     ]
-    issues = MCPServer("S", many).lint()
+    issues = MCPServer("S", many)._lint()
     assert any("51 tools" in m for m in messages(issues, "error"))
-    assert not any("tools;" in m for m in messages(MCPServer("S", many[:50]).lint()))
+    assert not any("tools;" in m for m in messages(MCPServer("S", many[:50])._lint()))
 
 
 def test_lint_missing_description():
     def f(x: str):
         pass
 
-    issues = MCPServer("S", [mcp_tool(f, read_only=True)]).lint()
+    issues = MCPServer("S", [mcp_tool(f, read_only=True)])._lint()
     assert any("no description" in m for m in messages(issues, "error", "f"))
 
 
 def test_lint_long_description_warns():
     tool = mcp_tool(plain, read_only=True, description="d" * 1025)
-    assert any("1024" in m for m in messages(MCPServer("S", [tool]).lint(), "warning"))
+    assert any("1024" in m for m in messages(MCPServer("S", [tool])._lint(), "warning"))
 
 
 def test_lint_missing_parameter_description_warns():
@@ -510,7 +510,7 @@ def test_lint_missing_parameter_description_warns():
             x: Described.
         """
 
-    issues = MCPServer("S", [mcp_tool(f, read_only=True)]).lint()
+    issues = MCPServer("S", [mcp_tool(f, read_only=True)])._lint()
     assert messages(issues, "error") == []
     warnings = messages(issues, "warning")
     assert len(warnings) == 1 and "Parameter y has no description" in warnings[0]
@@ -524,11 +524,11 @@ def test_lint_owner_rights_sql_parameter_warns():
             query: The query.
         """
 
-    owner = MCPServer("S", [mcp_tool(f, read_only=True, warehouse="WH")]).lint()
+    owner = MCPServer("S", [mcp_tool(f, read_only=True, warehouse="WH")])._lint()
     assert any("free-form SQL" in m for m in messages(owner, "warning"))
     caller = MCPServer(
         "S", [mcp_tool(f, read_only=True, warehouse="WH", execute_as="caller")]
-    ).lint()
+    )._lint()
     assert messages(caller) == []
 
 
@@ -540,7 +540,7 @@ def test_lint_owner_rights_sql_parameter_advice():
             query: The query.
         """
 
-    (issue,) = MCPServer("S", [mcp_tool(f, read_only=True, warehouse="WH")]).lint()
+    (issue,) = MCPServer("S", [mcp_tool(f, read_only=True, warehouse="WH")])._lint()
     assert issue.level == "warning"
     assert "execute_as='caller'" in issue.message
     assert "read-only role" in issue.message
@@ -554,7 +554,7 @@ def test_lint_udf_sql_parameter_does_not_warn():
             query: The query.
         """
 
-    assert MCPServer("S", [mcp_tool(f, read_only=True, warehouse="WH")]).lint() == []
+    assert MCPServer("S", [mcp_tool(f, read_only=True, warehouse="WH")])._lint() == []
 
 
 def test_lint_read_only_tool_named_like_a_write():
@@ -566,12 +566,12 @@ def test_lint_read_only_tool_named_like_a_write():
         """
 
     warnings = messages(
-        MCPServer("S", [mcp_tool(write_x, warehouse="WH", read_only=True)]).lint(),
+        MCPServer("S", [mcp_tool(write_x, warehouse="WH", read_only=True)])._lint(),
         "warning",
     )
     assert any("name suggests" in m for m in warnings)
     assert (
-        MCPServer("S", [mcp_tool(write_x, warehouse="WH", read_only=False)]).lint()
+        MCPServer("S", [mcp_tool(write_x, warehouse="WH", read_only=False)])._lint()
         == []
     )
 
@@ -585,9 +585,9 @@ def test_lint_max_result_bytes_above_platform_limit():
         """
 
     tool = mcp_tool(f, read_only=True, max_result_bytes=250_001)
-    assert any("250000" in m for m in messages(MCPServer("S", [tool]).lint(), "error"))
+    assert any("250000" in m for m in messages(MCPServer("S", [tool])._lint(), "error"))
     ok = mcp_tool(f, read_only=True, max_result_bytes=250_000)
-    assert messages(MCPServer("S", [ok]).lint(), "error") == []
+    assert messages(MCPServer("S", [ok])._lint(), "error") == []
 
 
 def test_lint_udf_with_execute_as_caller_is_an_error():
@@ -599,7 +599,7 @@ def test_lint_udf_with_execute_as_caller_is_an_error():
         """
 
     tool = mcp_tool(f, read_only=True, execute_as="caller")
-    errors = messages(MCPServer("S", [tool]).lint(), "error")
+    errors = messages(MCPServer("S", [tool])._lint(), "error")
     assert len(errors) == 1 and "execute_as only applies" in errors[0]
 
 
@@ -613,7 +613,7 @@ def test_lint_unannotated_session_parameter_is_an_error():
 
     tool = mcp_tool(f, read_only=True)
     assert tool.kind == "function"
-    errors = messages(MCPServer("S", [tool]).lint(), "error")
+    errors = messages(MCPServer("S", [tool])._lint(), "error")
     assert any("named 'session'" in m for m in errors)
 
 
@@ -625,7 +625,7 @@ def test_lint_unsupported_parameters_are_errors():
             x: X.
         """
 
-    errors = messages(MCPServer("S", [mcp_tool(f, read_only=True)]).lint(), "error")
+    errors = messages(MCPServer("S", [mcp_tool(f, read_only=True)])._lint(), "error")
     assert len(errors) == 2
 
 
@@ -639,7 +639,7 @@ def test_lint_builtin_tools():
             Tool.builtin("CORTEX_AGENT_RUN", "A.B.AGENT", description="Agent."),
         ],
     )
-    issues = server.lint()
+    issues = server._lint()
     assert any("not fully qualified" in m for m in messages(issues, "warning", "svc"))
     assert messages(issues, "error") == []
     assert messages(issues, "info") == []
@@ -785,7 +785,7 @@ def test_lint_unresolved_existing_tool_is_skipped_without_session():
         "S",
         [Tool.from_procedure("APP.FIN.GET_FINANCIALS", read_only=True, warehouse="WH")],
     )
-    assert server.lint() == []
+    assert server._lint() == []
 
 
 # ---------------------------------------------------------------------------
@@ -888,7 +888,7 @@ def test_from_procedure_default_comment_is_not_a_description():
     server = MCPServer(
         "S", [Tool.from_procedure("APP.FIN.GET_FINANCIALS", read_only=True)]
     )
-    assert any("no description" in m for m in messages(server.lint(session), "error"))
+    assert any("no description" in m for m in messages(server._lint(session), "error"))
 
 
 def test_from_procedure_lint_after_resolution():
@@ -901,7 +901,7 @@ def test_from_procedure_lint_after_resolution():
     server = MCPServer(
         "S", [Tool.from_procedure("APP.FIN.GET_FINANCIALS", read_only=True)]
     )
-    issues = server.lint(financials_session([row], describe))
+    issues = server._lint(financials_session([row], describe))
     warnings = messages(issues, "warning")
     assert any("PAYLOAD" in m and "no JSON equivalent" in m for m in warnings)
     assert any("Parameter ticker has no description" in m for m in warnings)
@@ -1186,6 +1186,30 @@ def test_deploy_dry_run_reports_warnings():
     server = MCPServer("S", [mcp_tool(f, read_only=True, warehouse="WH")])
     result = server.deploy(make_session(), dry_run=True)
     assert [i.level for i in result.issues] == ["warning"]
+
+
+def test_deploy_dry_run_registers_nothing_and_raises_for_errors():
+    def f(x: str):
+        """Doc."""
+
+    def g(x: str):
+        pass  # no description
+
+    session = make_session()
+    MCPServer("S", [mcp_tool(f, read_only=True, warehouse="WH")]).deploy(
+        session, dry_run=True
+    )
+    session.sproc.register.assert_not_called()
+    session.udf.register.assert_not_called()
+    with pytest.raises(MCPLintError, match="no description"):
+        MCPServer("S", [mcp_tool(g, read_only=True)]).deploy(session, dry_run=True)
+    session.sproc.register.assert_not_called()
+    session.udf.register.assert_not_called()
+
+
+def test_mcp_server_has_no_public_lint():
+    assert not hasattr(MCPServer, "lint")
+    assert hasattr(MCPServer, "_lint")
 
 
 def test_deploy_lint_errors_stop_before_any_sql():
@@ -2111,7 +2135,7 @@ def test_lint_reserved_parameter_name_is_error(param):
         ns,
     )
     tool = mcp_tool(ns["tool"], read_only=True)
-    issues = MCPServer("S", tools=[tool]).lint()
+    issues = MCPServer("S", tools=[tool])._lint()
     assert any(
         i.level == "error" and "reserved word" in i.message and param in i.message
         for i in issues
@@ -2123,7 +2147,7 @@ def test_lint_allows_non_reserved_parameter_names(param):
     ns = {}
     exec(f'def tool({param}: int) -> int:\n    """Doc."""\n    return 1\n', ns)
     tool = mcp_tool(ns["tool"], read_only=True)
-    issues = MCPServer("S", tools=[tool]).lint()
+    issues = MCPServer("S", tools=[tool])._lint()
     assert not any("reserved word" in i.message for i in issues)
 
 
@@ -2138,7 +2162,7 @@ def test_lint_array_and_object_parameters_are_errors(annotation):
         "    return 1\n",
         ns,
     )
-    issues = MCPServer("S", tools=[mcp_tool(ns["tool"], read_only=True)]).lint()
+    issues = MCPServer("S", tools=[mcp_tool(ns["tool"], read_only=True)])._lint()
     assert any(
         i.level == "error" and "cannot pass to a procedure or UDF" in i.message
         for i in issues
@@ -2333,7 +2357,7 @@ def test_optional_container_parameter_is_still_linted():
             sql: SQL.
         """
 
-    issues = MCPServer("S", [f]).lint()
+    issues = MCPServer("S", [f])._lint()
     assert any("takes a JSON array" in i.message for i in issues)
 
 
@@ -2679,7 +2703,7 @@ def test_registered_defaults_are_coerced_to_the_sql_type():
             amount: Amount.
         """
 
-    assert not [i for i in MCPServer("S", [top]).lint() if i.level == "error"]
+    assert not [i for i in MCPServer("S", [top])._lint() if i.level == "error"]
     defaults = registered_defaults(top)
     assert all(d is not None for d in defaults)
     assert len(defaults) == 4
@@ -2697,7 +2721,7 @@ def test_lint_default_that_cannot_be_a_sql_default():
             x: X.
         """
 
-    errors = messages(MCPServer("S", [f]).lint(), "error")
+    errors = messages(MCPServer("S", [f])._lint(), "error")
     assert any(
         "parameter x: the default value 'a' cannot be a SQL default" in e
         for e in errors
@@ -2773,7 +2797,7 @@ def test_lint_procedure_first_parameter_annotated_with_another_type():
             x: X.
         """
 
-    errors = messages(MCPServer("S", [f]).lint(), "error")
+    errors = messages(MCPServer("S", [f])._lint(), "error")
     assert len(errors) == 1 and "annotated" in errors[0] and "Session" in errors[0]
 
 
@@ -2786,7 +2810,7 @@ def test_lint_procedure_with_unannotated_first_parameter_is_fine():
             x: X.
         """
 
-    assert messages(MCPServer("S", [f]).lint(), "error") == []
+    assert messages(MCPServer("S", [f])._lint(), "error") == []
 
 
 def named_tool(name, **options):
@@ -2809,13 +2833,13 @@ def test_lint_two_python_tools_with_the_same_object_name():
             named_tool("b", object_name="shared"),
         ],
     )
-    errors = messages(server.lint(), "error")
+    errors = messages(server._lint(), "error")
     assert len(errors) == 1 and "SHARED" in errors[0] and "object_name" in errors[0]
 
 
 def test_lint_object_name_equal_to_another_tools_default():
     server = MCPServer("S", [named_tool("a"), named_tool("b", object_name="S__A")])
-    assert len(messages(server.lint(), "error")) == 1
+    assert len(messages(server._lint(), "error")) == 1
 
 
 def test_grant_usage_includes_warehouses_of_tools():
@@ -2962,7 +2986,7 @@ def test_lint_parameter_names_must_be_ascii_identifiers():
             naïve: N.
         """
 
-    errors = messages(MCPServer("S", [mcp_tool(f, read_only=True)]).lint(), "error")
+    errors = messages(MCPServer("S", [mcp_tool(f, read_only=True)])._lint(), "error")
     assert len(errors) == 1 and "naïve" in errors[0] and "identifier" in errors[0]
 
 
@@ -2975,7 +2999,7 @@ def test_lint_parameter_names_differing_only_in_case():
             name: N.
         """
 
-    errors = messages(MCPServer("S", [mcp_tool(f, read_only=True)]).lint(), "error")
+    errors = messages(MCPServer("S", [mcp_tool(f, read_only=True)])._lint(), "error")
     assert len(errors) == 1 and "differ only in case" in errors[0]
 
 
@@ -3128,7 +3152,7 @@ def test_lint_default_that_does_not_match_its_type():
             mode: Mode.
         """
 
-    errors = messages(MCPServer("S", [mcp_tool(f, read_only=True)]).lint(), "error")
+    errors = messages(MCPServer("S", [mcp_tool(f, read_only=True)])._lint(), "error")
     assert "parameter n: default value 'a' does not match its type (integer)" in errors
     assert (
         "parameter mode: default value 'c' does not match its type (string)" in errors
@@ -3271,7 +3295,7 @@ def test_copy_and_deepcopy_keep_python_tools():
         copy.deepcopy(MCPServer("S", [inner])),
     ):
         assert all(isinstance(t, Tool) for t in clone.tools)
-        clone.lint()
+        clone._lint()
 
 
 def test_call_tool_resolves_an_existing_object_only_once():
@@ -3397,12 +3421,12 @@ def test_from_procedure_with_overloads_warns_that_the_server_uses_the_name_only(
         ]
     )
     tool = Tool.from_procedure("APP.MCP.P(VARCHAR)", read_only=True)
-    warnings = messages(MCPServer("S", [tool]).lint(session), "warning", "p")
+    warnings = messages(MCPServer("S", [tool])._lint(session), "warning", "p")
     assert any("by name only" in w and "another" in w for w in warnings)
 
     session.responses.insert(0, ("SHOW PROCEDURES LIKE", rows[:1]))
     tool = Tool.from_procedure("APP.MCP.P(VARCHAR)", read_only=True)
-    warnings = messages(MCPServer("S", [tool]).lint(session), "warning", "p")
+    warnings = messages(MCPServer("S", [tool])._lint(session), "warning", "p")
     assert not any("by name only" in w for w in warnings)
 
 
@@ -3504,7 +3528,7 @@ def test_deepcopy_shares_module_packages():
     assert clone.func is lookup.func
     server = copy.deepcopy(MCPServer("S", [lookup]))
     assert server.tools[0].packages[0] is json
-    assert server.lint() == MCPServer("S", [lookup]).lint()
+    assert server._lint() == MCPServer("S", [lookup])._lint()
 
 
 def test_invoke_integer_too_large_for_float_is_value_error():
@@ -3627,7 +3651,7 @@ def test_builtin_future_type_spec_and_lint():
     assert spec["type"] == "NEW_THING_RUN"
     assert spec["identifier"] == "APP.X.THING"
     assert spec["config"] == {"nested": {"a": [1, 2]}}
-    info = messages(MCPServer("S", [tool]).lint(), "info", "thing")
+    info = messages(MCPServer("S", [tool])._lint(), "info", "thing")
     assert len(info) == 1 and "NEW_THING_RUN" in info[0]
 
 
@@ -3640,7 +3664,7 @@ def test_builtin_known_types_have_no_info_lint():
             Tool.builtin("CODING_AGENT", name="c", description="d"),
         ],
     )
-    assert messages(server.lint(), "info") == []
+    assert messages(server._lint(), "info") == []
 
 
 def test_builtin_unknown_type_grants_database_and_schema_only():
@@ -3820,7 +3844,7 @@ def test_builtin_sql_execution_warns_only_when_read_only_is_false():
         tool = Tool.builtin(
             "SYSTEM_EXECUTE_SQL", name="sql", description="Run SQL.", config=config
         )
-        return messages(MCPServer("S", [tool]).lint(), "warning")
+        return messages(MCPServer("S", [tool])._lint(), "warning")
 
     assert warnings_of(None) == []
     assert warnings_of({"query_timeout": 5}) == []
@@ -3851,7 +3875,7 @@ def _sql_tool(name):
 @pytest.mark.parametrize("agent_type", ["CORTEX_AGENT_RUN", "CODING_AGENT"])
 def test_lint_user_tool_named_like_an_automatic_agent_tool_warns(agent_type):
     tools = [_agent_tool(agent_type)] + [_sql_tool(n) for n in AUTOMATIC_NAMES]
-    issues = MCPServer("S", tools).lint()
+    issues = MCPServer("S", tools)._lint()
     for name in AUTOMATIC_NAMES:
         assert messages(issues, "warning", name) == [
             "Snowflake adds a tool with this name for agent tools; it renames its "
@@ -3860,24 +3884,24 @@ def test_lint_user_tool_named_like_an_automatic_agent_tool_warns(agent_type):
 
 
 def test_lint_automatic_agent_tool_names_need_an_agent_tool_and_an_exact_match():
-    no_agent = MCPServer("S", [_sql_tool(n) for n in AUTOMATIC_NAMES]).lint()
+    no_agent = MCPServer("S", [_sql_tool(n) for n in AUTOMATIC_NAMES])._lint()
     assert messages(no_agent, "warning") == []
     lower = MCPServer(
         "S", [_agent_tool(), _sql_tool("agent_run_result"), _sql_tool("AGENT_RUN")]
-    ).lint()
+    )._lint()
     assert messages(lower, "warning") == []
 
 
 def test_automatic_agent_tools_do_not_count_toward_the_tool_limit():
     tools = [_agent_tool()] + [_sql_tool(f"sql_{i}") for i in range(49)]
-    assert messages(MCPServer("S", tools).lint(), "error") == []
-    assert messages(MCPServer("S", tools + [_sql_tool("one_more")]).lint(), "error")
+    assert messages(MCPServer("S", tools)._lint(), "error") == []
+    assert messages(MCPServer("S", tools + [_sql_tool("one_more")])._lint(), "error")
 
 
 def test_lint_coding_agent_always_allow_warns():
     def warnings_of(config):
         tool = _agent_tool("CODING_AGENT", name="code", config=config)
-        return messages(MCPServer("S", [tool]).lint(), "warning")
+        return messages(MCPServer("S", [tool])._lint(), "warning")
 
     always = {"tool_resources": {"code_toolset_all": {"permission_policy": {}}}}
     always["tool_resources"]["code_toolset_all"]["permission_policy"][
@@ -3915,13 +3939,13 @@ def test_lint_tools_without_a_warehouse_get_one_info_issue():
             _sql_tool("sql"),
         ],
     )
-    (issue,) = (i for i in server.lint() if i.level == "info")
+    (issue,) = (i for i in server._lint() if i.level == "info")
     assert issue.tool is None
     assert issue.message == (
         "Tools without a warehouse run on the caller's default warehouse, which "
         "grant_usage doesn't grant: get_account, add_numbers, get_financials."
     )
-    assert MCPServer("S", [with_wh, _sql_tool("sql")]).lint() == []
+    assert MCPServer("S", [with_wh, _sql_tool("sql")])._lint() == []
 
 
 @pytest.mark.parametrize(

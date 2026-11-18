@@ -39,7 +39,7 @@ _DEFAULT_STAGE_NAME = "SNOWPARK_MCP_STAGE"
 
 
 class MCPLintError(ValueError):
-    """Raised by :meth:`MCPServer.deploy` when :meth:`MCPServer.lint` finds errors."""
+    """Raised by :meth:`MCPServer.deploy` when its checks of the definition find errors."""
 
     def __init__(self, issues: List[LintIssue]) -> None:
         self.issues = issues
@@ -65,7 +65,7 @@ class DeployResult:
     #: SQL statements run (or, with ``dry_run=True``, that would run), apart from
     #: the procedure and UDF registrations listed in ``objects``.
     sql: List[str]
-    #: Lint warnings and notes.
+    #: Warnings and notes from the checks of the definition.
     issues: List[LintIssue]
 
 
@@ -121,7 +121,7 @@ class MCPServer:
 
     # -- definition ---------------------------------------------------------
 
-    def lint(self, session=None) -> List[LintIssue]:
+    def _lint(self, session=None) -> List[LintIssue]:
         """Checks the definition and returns the problems found. Errors stop
         :meth:`deploy`. With a session, tools made from existing objects are read
         from Snowflake first, so they are checked too."""
@@ -232,7 +232,7 @@ class MCPServer:
         """Creates or replaces the server and the procedures and UDFs of its Python
         tools.
 
-        Steps: lint (errors stop the deploy); read the tools made from existing
+        Steps: check the definition (errors stop the deploy); read the tools made from existing
         objects; read the schema's objects, and stop, before creating anything, if
         an overload of a tool's object would make the server's reference to it
         ambiguous; register the Python tools; move the grants of the old overloads of
@@ -262,7 +262,7 @@ class MCPServer:
         """
         target = self._target(session, database, schema, suffix)
         self._resolve(session, target)
-        issues = self.lint()
+        issues = self._lint()
         if any(i.level == "error" for i in issues):
             raise MCPLintError(issues)
         spec_yaml = self.to_yaml(

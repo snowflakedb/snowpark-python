@@ -37,7 +37,6 @@ MCP Tools and Servers
     MCPServer.drop
     MCPServer.endpoint_url
     MCPServer.grant_usage
-    MCPServer.lint
     MCPServer.to_spec
     MCPServer.to_yaml
     Tool.builtin

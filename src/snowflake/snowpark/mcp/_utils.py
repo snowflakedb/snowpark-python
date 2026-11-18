@@ -117,7 +117,7 @@ class ToolParameter:
 
 @dataclasses.dataclass
 class LintIssue:
-    """A problem :meth:`MCPServer.lint` found. ``level`` is ``"error"``,
+    """A problem :meth:`MCPServer.deploy` found in the definition. ``level`` is ``"error"``,
     ``"warning"`` or ``"info"``; errors stop a deploy."""
 
     level: str

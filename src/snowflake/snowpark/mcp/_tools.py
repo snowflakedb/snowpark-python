@@ -150,7 +150,7 @@ class Tool:
         and ``DESCRIBE PROCEDURE`` when the server is deployed, and its description
         defaults to the procedure's comment. A name without a database or schema
         resolves against the session's current ones when the server is first
-        deployed or linted.
+        deployed.
 
         Args:
             procedure: ``"DB.SCHEMA.NAME(ARG_TYPES)"``, or a

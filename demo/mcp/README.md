@@ -11,7 +11,7 @@
 | `top_accounts` | `Tool.from_procedure` on an existing SQL procedure |
 | `run_sql` | `Tool.builtin("SYSTEM_EXECUTE_SQL", ...)`, the server's own read-only SQL tool |
 
-It creates a small `ORDERS` table in a schema of its own, then lints the server, prints
+It creates a small `ORDERS` table in a schema of its own, then checks the server with a dry run of `deploy`, prints
 its spec, runs tools locally with `invoke`, deploys a `_DEV` copy, calls the deployed
 tools with `call_tool`, prints the grants a role would need, and optionally calls the MCP
 endpoint over HTTPS. Everything it created is dropped at the end unless you pass `--keep`.

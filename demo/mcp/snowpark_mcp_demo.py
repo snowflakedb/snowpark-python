@@ -13,7 +13,7 @@ with every kind of tool the API supports:
 - top_accounts        an existing SQL procedure, added with Tool.from_procedure
 - run_sql             the server's built-in read-only SQL tool, added with Tool.builtin
 
-It lints the server, prints its spec, runs a tool locally with invoke(), deploys a dev
+It checks the server with a dry run of deploy, prints its spec, runs a tool locally with invoke(), deploys a dev
 copy, calls the deployed tools with call_tool(), shows the grants a role would need,
 and optionally calls the MCP endpoint over HTTPS. Everything is dropped at the end
 unless --keep is given.
@@ -211,11 +211,14 @@ def main() -> None:
         setup_data(session, args.database)
         show(f"Created {args.database}.{SCHEMA}.ORDERS and TOP_ACCOUNTS")
 
-        section("Lint")
-        issues = server.lint(session)
-        for issue in issues:
+        section("Check with a dry run")
+        check = server.deploy(session, dry_run=True, **target)
+        for issue in check.issues:
             show(issue)
-        show(f"{len(issues)} issue(s); errors would stop deploy")
+        show(
+            f"{len(check.issues)} issue(s); errors would raise MCPLintError; "
+            f"deploy would run {len(check.sql)} SQL statement(s)"
+        )
 
         section("Spec the server will get")
         show(server.to_yaml(session, **target))
