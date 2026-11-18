@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.types import (
     BooleanType,
+    BinaryType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -849,3 +850,160 @@ def test_jdbc_time_zone_columns(
     assert [f.datatype for f in df.schema.fields] == expected_types
     # Aware datetimes compare by instant, whatever offset they are returned in.
     assert tuple(df.collect()[0]) == expected_row
+
+
+@pytest.mark.parametrize("source", ["oracle", "postgres", "mysql", "sql_server"])
+@pytest.mark.parametrize("custom_schema", [None, "PAYLOAD STRING", "PAYLOAD BINARY"])
+def test_jdbc_binary_bytes(
+    session,
+    udtf_configs,
+    postgres_udtf_configs,
+    mysql_udtf_configs,
+    sql_server_udtf_configs,
+    source,
+    custom_schema,
+):
+    """Only connection-local tables; every byte survives even with UTF-8 input format."""
+    values = [
+        None,
+        b"",
+        b"\x00",
+        b"\x80\xff",
+        b"\xde\xad\xbe\xef\x00",
+        bytes(range(256)),
+    ]
+    url, configs = {
+        "oracle": (URL, udtf_configs),
+        "postgres": (POSTGRES_URL, postgres_udtf_configs),
+        "mysql": (MYSQL_URL, mysql_udtf_configs),
+        "sql_server": (SQL_SERVER_URL, sql_server_udtf_configs),
+    }[source]
+    init = []
+    if source == "oracle":
+        # Oracle RAW treats empty as NULL; EMPTY_BLOB preserves an empty LOB.
+        rows = " UNION ALL ".join(
+            f"SELECT {index} AS ID, HEXTORAW('{value.hex() if value is not None else ''}') AS R FROM DUAL"
+            for index, value in enumerate(values)
+        )
+        query = (
+            "SELECT ID, R, CASE WHEN ID = 1 THEN EMPTY_BLOB() ELSE TO_BLOB(R) END AS PAYLOAD "
+            f"FROM ({rows})"
+        )
+        binary_columns = ["R", "PAYLOAD"]
+    else:
+        table, create, types = {
+            "postgres": ("jdbc_binary", "CREATE TEMP TABLE", "PAYLOAD BYTEA"),
+            "mysql": (
+                "jdbc_binary",
+                "CREATE TEMPORARY TABLE",
+                "PAYLOAD VARBINARY(256), FIXED BINARY(255), TINY TINYBLOB, B BLOB, M MEDIUMBLOB, L LONGBLOB",
+            ),
+            "sql_server": (
+                "#jdbc_binary",
+                "CREATE TABLE",
+                "PAYLOAD VARBINARY(256), FIXED BINARY(256), B VARBINARY(MAX), IMG IMAGE",
+            ),
+        }[source]
+        binary_columns = [definition.split()[0] for definition in types.split(", ")]
+        init.append(f"{create} {table} (ID INTEGER, {types})")
+        for index, value in enumerate(values):
+            literal = (
+                "NULL"
+                if value is None
+                else {
+                    "postgres": f"decode('{value.hex()}', 'hex')",
+                    "mysql": f"X'{value.hex()}'",
+                    "sql_server": f"0x{value.hex()}",
+                }[source]
+            )
+            literals = [
+                f"SUBSTRING({literal}, 1, 255)"
+                if source == "mysql" and name in ("TINY", "FIXED")
+                else literal
+                for name in binary_columns
+            ]
+            init.append(f"INSERT INTO {table} VALUES ({index}, {', '.join(literals)})")
+        query = f"SELECT * FROM {table}"
+
+    previous = session.sql(
+        "SHOW PARAMETERS LIKE 'BINARY_INPUT_FORMAT' IN SESSION"
+    ).collect()[0]["value"]
+    try:
+        session.sql("ALTER SESSION SET BINARY_INPUT_FORMAT = 'UTF-8'").collect()
+        df = session.read.jdbc(
+            url=url,
+            udtf_configs=configs,
+            query=query,
+            session_init_statement=init,
+            custom_schema=custom_schema,
+        )
+        rows = df.order_by("ID").collect()
+        assert len(rows) == len(values)
+        for name in binary_columns:
+            is_string = name == "PAYLOAD" and custom_schema == "PAYLOAD STRING"
+            assert df.schema[name].datatype == (
+                StringType() if is_string else BinaryType()
+            )
+            for row, value in zip(rows, values):
+                expected = value
+                if source == "oracle" and name == "R" and value == b"":
+                    expected = None
+                elif name == "FIXED" and value is not None:
+                    width = 255 if source == "mysql" else 256
+                    expected = value[:width].ljust(width, b"\x00")
+                elif name == "TINY" and value is not None:
+                    expected = value[:255]
+                if is_string and expected is not None:
+                    expected = expected.hex().upper()
+                assert row[name] == expected, (source, name, row["ID"])
+    finally:
+        session.sql(f"ALTER SESSION SET BINARY_INPUT_FORMAT = '{previous}'").collect()
+
+
+def test_jdbc_custom_binary_from_text(session, postgres_udtf_configs):
+    previous = session.sql(
+        "SHOW PARAMETERS LIKE 'BINARY_INPUT_FORMAT' IN SESSION"
+    ).collect()[0]["value"]
+    try:
+        session.sql("ALTER SESSION SET BINARY_INPUT_FORMAT = 'UTF-8'").collect()
+        df = session.read.jdbc(
+            url=POSTGRES_URL,
+            udtf_configs=postgres_udtf_configs,
+            query="SELECT 'not hex'::text AS PAYLOAD",
+            custom_schema="PAYLOAD BINARY",
+        )
+        assert df.collect()[0][0] == b"not hex"
+    finally:
+        session.sql(f"ALTER SESSION SET BINARY_INPUT_FORMAT = '{previous}'").collect()
+
+
+def test_jdbc_oracle_table_blob(session, udtf_configs):
+    """Read an existing source table without invoking its destructive setup fixture."""
+    df = session.read.jdbc(
+        url=URL,
+        udtf_configs=udtf_configs,
+        query="SELECT BLOB_COL, RAWTOHEX(DBMS_LOB.SUBSTR(BLOB_COL, 2000, 1)) AS HEX_VALUE FROM ALL_TYPE_TABLE",
+    )
+    assert df.schema["BLOB_COL"].datatype == BinaryType()
+    rows = df.collect()
+    assert rows and any(row[0] is not None for row in rows)
+    for value, hex_value in rows:
+        assert value == (None if hex_value is None else bytes.fromhex(hex_value))
+
+
+@pytest.mark.parametrize("size", [8 * 1024 * 1024, 8 * 1024 * 1024 + 1])
+def test_jdbc_binary_size_limit(session, postgres_udtf_configs, size):
+    from snowflake.snowpark.functions import octet_length
+
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query=f"SELECT decode(repeat('ab', {size}), 'hex') AS PAYLOAD",
+    )
+    if size > 8 * 1024 * 1024:
+        with pytest.raises(
+            SnowparkSQLException, match="8388608-byte limit for hex transport"
+        ):
+            df.collect()
+    else:
+        assert df.select(octet_length("PAYLOAD")).collect()[0][0] == size

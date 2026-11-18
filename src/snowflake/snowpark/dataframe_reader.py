@@ -2330,8 +2330,20 @@ class DataFrameReader:
         3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
         4.Use predicates to defining WHERE conditions for partitions,
         predicates will be ignored if column is specified to generate partition.
-        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
-        column name with table in external data source.
+        5.Set custom_schema to override inferred column types. Column names must match
+        the source; schema inference still runs to determine how to read source values.
+
+        JDBC BINARY, VARBINARY, LONGVARBINARY and BLOB columns are read as BinaryType,
+        preserving bytes (including zeros), empty values and NULLs. They are transported
+        as uppercase hexadecimal and decoded explicitly as HEX, independently of
+        BINARY_INPUT_FORMAT. Each binary value is limited to 8 MiB (8,388,608 bytes),
+        because hexadecimal transport uses two characters per byte in the UDTF's
+        16 MiB VARCHAR output. Larger values raise an ingestion error; LOBs are not streamed.
+        A custom_schema StringType override for a source binary column returns the
+        uppercase hexadecimal string, not the driver's text representation. A BinaryType
+        override for a non-binary source retains Snowflake's normal string-to-binary cast
+        semantics (including BINARY_INPUT_FORMAT). MySQL BIT and TINYINT are not binary
+        columns for this mapping.
 
         Args:
             url: A connection string used to establish connections to external data source with JDBC driver.
