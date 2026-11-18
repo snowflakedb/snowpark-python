@@ -17,6 +17,7 @@
 
 - `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) now maps a SQL compilation error to the single DataFrame operation that caused it when the SQL simplifier merges several operations into one query.
 - `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) now maps SQL compilation errors that have no line number to the DataFrame operations that caused them, using up to 32 extra describe attempts on failure.
+- `DataFrameReader.jdbc` now defaults `fetch_size` to 10000 (previously 0, the driver default) and streams PostgreSQL reads with a cursor. A PostgreSQL read now uses its own connection per partition, with autocommit disabled and its transaction rolled back after reading; pass `fetch_size=0` to keep the previous shared-connection behavior. `fetch_size` must be a non-negative integer.
 
 #### Bug Fixes
 

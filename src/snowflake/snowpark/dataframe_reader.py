@@ -2321,7 +2321,7 @@ class DataFrameReader:
         upper_bound: Optional[Union[str, int]] = None,
         num_partitions: Optional[int] = None,
         query_timeout: Optional[int] = 0,
-        fetch_size: Optional[int] = 0,
+        fetch_size: int = 10000,
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
@@ -2386,9 +2386,12 @@ class DataFrameReader:
                 the query will never time out. The timeout behavior can also be configured within
                 the `create_connection` method when establishing the database connection, depending on the capabilities
                 of the DBMS and its driver.
-            fetch_size: The number of rows to fetch per batch from the external data source.
-                This determines how many rows are retrieved in each round trip,
-                which can improve performance for drivers with a low default fetch size.
+            fetch_size: A JDBC fetch-size hint, in rows. Defaults to 10000; use 0 for the
+                driver's default. Must be a non-negative integer. Actual buffering is driver-dependent.
+                For PostgreSQL, a positive value disables autocommit after session initialization
+                and uses a separate connection and transaction per partition read. The transaction
+                is rolled back when the read finishes or closes; initialization retains its original
+                autocommit behavior. PostgreSQL simple query mode does not support cursor fetching.
             custom_schema: a custom snowflake table schema to read data from external data source,
                 the column names should be identical to corresponded column names external data source.
                 This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING",
