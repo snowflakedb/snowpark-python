@@ -22,6 +22,7 @@
 - Fixed a bug in `DataFrameReader.jdbc` where a read with many partitions failed with `This connection has been closed`, and where JDBC connections were not closed when ingestion failed.
 - Fixed a bug in `DataFrameReader.jdbc` where credentials passed in the URL as query or `;`-separated parameters (for example `?password=`) or in the Oracle `user/password@` form were not removed and were embedded in the generated UDTF.
 - Fixed a bug in `DataFrameReader.jdbc` where double quotes, backslashes, newlines or `$$` in `url`, `properties` or `session_init_statement` caused a compilation error in the generated Java UDTF.
+- Fixed a bug in `DataFrameReader.jdbc` where `session_init_statement` and `query_timeout` were not applied during schema inference.
 
 ### Snowpark Local Testing Updates
 
