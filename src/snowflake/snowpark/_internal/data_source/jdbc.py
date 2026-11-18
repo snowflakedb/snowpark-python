@@ -405,8 +405,14 @@ class JDBC:
 
     def read(self, partition_table: str) -> "DataFrame":
         jdbc_ingestion_name = random_name_for_temp_object(TempObjectType.FUNCTION)
+        # Source column names can be anything (spaces, quotes, unicode, SQL or Java
+        # keywords, names differing only by case), so the UDTF returns positional
+        # columns C0..CN and the real names are restored by alias afterwards.
         udtf_table_return_type = ", ".join(
-            [f"{field.name} VARCHAR" for field in self.schema.fields]
+            [
+                f"{self._udtf_column_name(i)} VARCHAR"
+                for i in range(len(self.schema.fields))
+            ]
         )
 
         jdbc_udtf_registration = f"""
@@ -537,11 +543,18 @@ class JDBC:
             """
 
         self.session.sql(jdbc_udtf_registration, _emit_ast=self._emit_ast).collect()
-        return BaseDriver.to_result_snowpark_df_udtf(
-            self.session.sql(jdbc_udtf, _emit_ast=self._emit_ast),
-            self.schema,
+        res_df = self.session.sql(jdbc_udtf, _emit_ast=self._emit_ast)
+        return res_df.select(
+            [
+                res_df[self._udtf_column_name(i)].cast(field.datatype).alias(field.name)
+                for i, field in enumerate(self.schema.fields)
+            ],
             _emit_ast=self._emit_ast,
         )
+
+    @staticmethod
+    def _udtf_column_name(index: int) -> str:
+        return f"C{index}"
 
     def generate_create_connection(self):
         user_properties_overwrite = ""
@@ -579,18 +592,24 @@ class JDBC:
     def create_output_row_java_code(self):
         return "".join(
             [
-                f"row.{field.name} = rs.getString({i+1});\n"
-                for i, field in enumerate(self.schema.fields)
+                f"row.{self._udtf_column_name(i)} = rs.getString({i+1});\n"
+                for i in range(len(self.schema.fields))
             ]
         )
 
     def create_output_row_class(self):
         return "".join(
-            [f"public String {field.name};\n" for field in self.schema.fields]
+            [
+                f"public String {self._udtf_column_name(i)};\n"
+                for i in range(len(self.schema.fields))
+            ]
         )
 
     def to_snow_type(self) -> StructType:
         fields = []
+        # Source names that differ only by case would both normalize to the same
+        # unquoted Snowflake name, so keep their exact case by quoting them.
+        lowered_names = [row[0].lower() for row in self.raw_schema]
         for (
             field_name,
             jdbc_type,
@@ -599,6 +618,8 @@ class JDBC:
             scale,
             nullable,
         ) in self.raw_schema:
+            if lowered_names.count(field_name.lower()) > 1:
+                field_name = '"' + field_name.replace('"', '""') + '"'
             try:
                 jdbc_type = JDBCType(jdbc_type)
             except Exception:
@@ -642,11 +663,12 @@ class JDBC:
         select_sql_alias = (
             f"SNOWPARK_JDBC_SELECT_SQL_ALIAS_{generate_random_alphanumeric(5)}"
         )
-        cols = [col[0] for col in self.raw_schema]
         if self.is_query:
             return f"SELECT {select_sql_alias}.* FROM ({self.table_or_query}) {select_sql_alias}"
         else:
-            return f"SELECT {', '.join(cols)} FROM {self.table_or_query}"
+            # Columns are read by position, so SELECT * avoids quoting source column
+            # names in each dialect. Inference uses the same SELECT * column order.
+            return f"SELECT * FROM {self.table_or_query}"
 
     def secret_detector(self):
         secret_keys = {

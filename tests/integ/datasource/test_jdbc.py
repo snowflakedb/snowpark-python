@@ -569,3 +569,53 @@ def test_postgres_session_init_statement_applies_to_schema_inference(
         ],
     )
     assert [r["X"] for r in df.collect()] == [1]
+
+
+@pytest.mark.parametrize(
+    "alias, expected_name",
+    [
+        ('"my col"', '"my col"'),
+        ('"select"', "SELECT"),
+        ('"class"', "CLASS"),
+        ('"列名"', '"列名"'),
+        ('"a""b"', '"a""b"'),
+    ],
+)
+def test_postgres_column_names_needing_quotes(
+    session, postgres_udtf_configs, alias, expected_name
+):
+    """SNOW-4537772: column names used to be emitted raw as Java fields and UDTF
+    output columns, so spaces, quotes, unicode and keywords failed to compile."""
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query=f"select 1 as {alias}",
+    )
+    assert df.schema.names == [expected_name]
+    assert df.collect()[0][0] == 1
+
+
+def test_postgres_column_names_differing_by_case(session, postgres_udtf_configs):
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query='select 1 as "a", 2 as "A"',
+    )
+    # "A" quoted is the same Snowflake identifier as A, so it shows unquoted.
+    assert df.schema.names == ['"a"', "A"]
+    assert tuple(df.collect()[0]) == (1, 2)
+
+
+def test_postgres_wide_result(session, postgres_udtf_configs):
+    """SNOW-4537761: 250 columns with 30-character names used to exceed the UDTF
+    signature length limit (090248)."""
+    column_count = 250
+    cols = ", ".join(
+        f"{i} as column_name_padded_to_thirty_{i:03d}" for i in range(column_count)
+    )
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query=f"select {cols}",
+    )
+    assert list(df.collect()[0]) == list(range(column_count))

@@ -397,3 +397,27 @@ def test_jdbc_user_strings_are_java_escaped():
     assert 'stmt.execute("SET search_path TO \\"public\\"");' in ddl
     # Only the two DDL delimiters remain.
     assert ddl.count("$$") == 2
+
+
+def test_jdbc_udtf_uses_positional_column_names():
+    """SNOW-4537772: source names never appear as Java identifiers or UDTF columns."""
+    session = Mock()
+    captured = []
+    session.sql.side_effect = lambda sql, **kwargs: (captured.append(sql), Mock())[1]
+    client = JDBC(
+        session=session,
+        url="jdbc:postgresql://host:5432/db",
+        table_or_query="T",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=False,
+        secret="cred",
+    )
+    client.raw_schema = [
+        ("my col", "INTEGER", "java.lang.Integer", 10, 0, True),
+        ("class", "VARCHAR", "java.lang.String", 10, 0, True),
+    ]
+    client.__dict__["schema"] = client.to_snow_type()
+    assert client.generate_select_sql() == "SELECT * FROM T"
+    assert client.create_output_row_class() == "public String C0;\npublic String C1;\n"
+    assert "row.C1 = rs.getString(2);" in client.create_output_row_java_code()
