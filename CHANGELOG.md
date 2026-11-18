@@ -30,6 +30,10 @@
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` ending with `;` or with a `--` comment failed with a syntax error.
 - `DataFrameReader.jdbc` now supports partitioning on timestamp columns, including Oracle `DATE` columns, which the Oracle JDBC driver reports as timestamps.
 - `DataFrameReader.jdbc` now drops its schema-inference UDTF after use instead of keeping it until the session ends, and creates its UDTFs as scoped temporary objects when `Session` uses scoped temporary objects.
+- Changed the type mapping of `DataFrameReader.jdbc` (Private Preview):
+  - Postgres `boolean` and SQL Server `bit` columns are read as `BooleanType` instead of strings. Postgres `bit(n)` and MySQL `BIT`, `BOOLEAN` and `TINYINT(1)` columns are still read as strings, because MySQL reports `TINYINT(1)` like `BIT(1)` although it can hold any small integer.
+  - Oracle `TIMESTAMP WITH TIME ZONE`, SQL Server `datetimeoffset` and Postgres `timestamptz` are read as `TimestampType(TimestampTimeZone.TZ)`, and Oracle `TIMESTAMP WITH LOCAL TIME ZONE` as `TimestampType(TimestampTimeZone.LTZ)`. Previously the Oracle and SQL Server types were read as `VariantType` strings, and Postgres `timestamptz` lost its time zone and was shifted to the time zone of the UDTF.
+  - Types without a mapping (e.g. Oracle `INTERVAL`, Postgres `xml`, `timetz`) are read as `StringType` instead of `VariantType`, as in `DataFrameReader.dbapi`.
 
 ### Snowpark Local Testing Updates
 

@@ -1,4 +1,6 @@
 import datetime
+
+import pytz
 from decimal import Decimal
 
 
@@ -8,7 +10,6 @@ from snowflake.snowpark.types import (
     StructField,
     DecimalType,
     StringType,
-    VariantType,
     TimestampType,
     TimestampTimeZone,
     FloatType,
@@ -49,6 +50,8 @@ EXTERNAL_ACCESS_INTEGRATION = "SNOWPARK_DBAPI_ORACLEDB_TEST_INTEGRATION"
 SECRET = "ADMIN.PUBLIC.SNOWPARK_DBAPI_ORACLEDB_TEST_CRED"
 
 
+LOS_ANGELES = pytz.timezone("America/Los_Angeles")
+
 expected_schema = StructType(
     [
         StructField("ID", DecimalType(38, 18), nullable=False),
@@ -69,8 +72,16 @@ expected_schema = StructType(
             TimestampType(timezone=TimestampTimeZone.NTZ),
             nullable=True,
         ),
-        StructField("TIMESTAMP_TZ_COL", VariantType(), nullable=True),
-        StructField("TIMESTAMP_LTZ_COL", VariantType(), nullable=True),
+        StructField(
+            "TIMESTAMP_TZ_COL",
+            TimestampType(timezone=TimestampTimeZone.TZ),
+            nullable=True,
+        ),
+        StructField(
+            "TIMESTAMP_LTZ_COL",
+            TimestampType(timezone=TimestampTimeZone.LTZ),
+            nullable=True,
+        ),
         StructField("RAW_COL", StringType(), nullable=True),
         StructField("GUID_COL", StringType(), nullable=True),
     ]
@@ -96,8 +107,16 @@ custom_schema_result = StructType(
             TimestampType(timezone=TimestampTimeZone.NTZ),
             nullable=True,
         ),
-        StructField("TIMESTAMP_TZ_COL", VariantType(), nullable=True),
-        StructField("TIMESTAMP_LTZ_COL", VariantType(), nullable=True),
+        StructField(
+            "TIMESTAMP_TZ_COL",
+            TimestampType(timezone=TimestampTimeZone.TZ),
+            nullable=True,
+        ),
+        StructField(
+            "TIMESTAMP_LTZ_COL",
+            TimestampType(timezone=TimestampTimeZone.LTZ),
+            nullable=True,
+        ),
         StructField("RAW_COL", StringType(), nullable=True),
         StructField("GUID_COL", StringType(), nullable=True),
     ]
@@ -127,6 +146,7 @@ raw_schema = [
         PRECISION=0,
         SCALE=-127,
         NULLABLE=False,
+        TYPE_NAME="NUMBER",
     ),
     Row(
         FIELD_NAME="NUMBER_COL",
@@ -135,6 +155,7 @@ raw_schema = [
         PRECISION=10,
         SCALE=2,
         NULLABLE=True,
+        TYPE_NAME="NUMBER",
     ),
     Row(
         FIELD_NAME="BINARY_FLOAT_COL",
@@ -143,6 +164,7 @@ raw_schema = [
         PRECISION=0,
         SCALE=0,
         NULLABLE=True,
+        TYPE_NAME="BINARY_FLOAT",
     ),
     Row(
         FIELD_NAME="BINARY_DOUBLE_COL",
@@ -151,6 +173,7 @@ raw_schema = [
         PRECISION=0,
         SCALE=0,
         NULLABLE=True,
+        TYPE_NAME="BINARY_DOUBLE",
     ),
     Row(
         FIELD_NAME="VARCHAR2_COL",
@@ -159,6 +182,7 @@ raw_schema = [
         PRECISION=50,
         SCALE=0,
         NULLABLE=True,
+        TYPE_NAME="VARCHAR2",
     ),
     Row(
         FIELD_NAME="CHAR_COL",
@@ -167,6 +191,7 @@ raw_schema = [
         PRECISION=10,
         SCALE=0,
         NULLABLE=True,
+        TYPE_NAME="CHAR",
     ),
     Row(
         FIELD_NAME="CLOB_COL",
@@ -175,6 +200,7 @@ raw_schema = [
         PRECISION=-1,
         SCALE=0,
         NULLABLE=True,
+        TYPE_NAME="CLOB",
     ),
     Row(
         FIELD_NAME="NCHAR_COL",
@@ -183,6 +209,7 @@ raw_schema = [
         PRECISION=10,
         SCALE=0,
         NULLABLE=True,
+        TYPE_NAME="NCHAR",
     ),
     Row(
         FIELD_NAME="NVARCHAR2_COL",
@@ -191,6 +218,7 @@ raw_schema = [
         PRECISION=50,
         SCALE=0,
         NULLABLE=True,
+        TYPE_NAME="NVARCHAR2",
     ),
     Row(
         FIELD_NAME="NCLOB_COL",
@@ -199,6 +227,7 @@ raw_schema = [
         PRECISION=-1,
         SCALE=0,
         NULLABLE=True,
+        TYPE_NAME="NCLOB",
     ),
     Row(
         FIELD_NAME="DATE_COL",
@@ -207,6 +236,7 @@ raw_schema = [
         PRECISION=7,
         SCALE=0,
         NULLABLE=True,
+        TYPE_NAME="DATE",
     ),
     Row(
         FIELD_NAME="TIMESTAMP_COL",
@@ -215,6 +245,7 @@ raw_schema = [
         PRECISION=0,
         SCALE=6,
         NULLABLE=True,
+        TYPE_NAME="TIMESTAMP",
     ),
     Row(
         FIELD_NAME="TIMESTAMP_TZ_COL",
@@ -223,6 +254,7 @@ raw_schema = [
         PRECISION=0,
         SCALE=6,
         NULLABLE=True,
+        TYPE_NAME="TIMESTAMP WITH TIME ZONE",
     ),
     Row(
         FIELD_NAME="TIMESTAMP_LTZ_COL",
@@ -231,6 +263,7 @@ raw_schema = [
         PRECISION=0,
         SCALE=6,
         NULLABLE=True,
+        TYPE_NAME="TIMESTAMP WITH LOCAL TIME ZONE",
     ),
     Row(
         FIELD_NAME="RAW_COL",
@@ -239,6 +272,7 @@ raw_schema = [
         PRECISION=16,
         SCALE=0,
         NULLABLE=True,
+        TYPE_NAME="RAW",
     ),
     Row(
         FIELD_NAME="GUID_COL",
@@ -247,6 +281,7 @@ raw_schema = [
         PRECISION=16,
         SCALE=0,
         NULLABLE=True,
+        TYPE_NAME="RAW",
     ),
 ]
 
@@ -264,8 +299,10 @@ expected_data = [
         NCLOB_COL="ADE2cN3kr2rmqnKZL5WHI9WYh8BmT1A2Z6oIS3go4hG7FewkkIyl8m6uelcYfBxC4lSNW1n4y8zdBQOcBdZAmkkAejVYLbcudKmLulxCmgXZVnzqRKeDB1dteDntM5RvbNunPJ6pg0kwv7zqoAEjnK80e7MWtSBg5qULybgEaTLVZo7GMZXcaaw7Z43RkQ88KbZbRyf6LXo79H9DtBTWZmEZukwFjAzQ2OIz4uZA5LxlBtLuUBFbUhNXbbomPgcy26UNOvYbx2kGVDrZ8vZ60fvLJT4DjwEFy9EHXSI1vEbCv67Ups1rqQU4NU7HrgU1i3tGb19jZcVHJiQLcXeJ2XbeCG1xRsomSFfNnQTC2jQJwIF6LSm4AJ6BVmPfLMr3mwmBncNgclO5LdnaTvob5UaGEp74Uo47ZcNO42fnxcRnHMpNOpPxPL0cnGC6bKzvVjwd4XxZM3xwLi0kaELCLucFWkYi4jR6bvLJKqwhu0eIyQhOwHgFPDmUEDLadotLjVU4NVubIe1qPAZIvfzOs87IbZ9d1TkZP1VvgczsoQEod5AIIgtJTHb7zGoKR0xckSePOxMJ4TVIOIwQAkHwbLpOAOQYIXthRibYzrECqrAQpwyeWTMlqfm7Uc8OgzS4gcWAAfOlE3sPWgtGkg3vxhKbS5IXNBaWzDVh5VjSUVyT9aUyOPGC0uRwnOdVR4SloIMmi0HuEjyWNFohjoarlifE9zQuO5wknopucfbRoYRGX3fDXIiRuf90C1ExLP5j8JJFrRfcbIAIA4YBLaiY4o3P2L81sqXps3Fl0ixvg5UgEDKg3pAyw9jPMXIX2p1BVYBSTZMZjxfL5vVW4IYKoWhHZ7UG6qxTjo3ZG2j7eIRQimQLiQJIFTkVejX1DHza4E3xPoCQWsaOA7iyqRfI7Al3fqQMmcbomjnwgl6uxUftyLqUoEGidm0dd30cHWbX43fOILyE7GGZ2Lvch895aJpsbn0QCnRreZ0TcjSn",
         DATE_COL=datetime.datetime(2024, 3, 20, 0, 0),
         TIMESTAMP_COL=datetime.datetime(2024, 4, 24, 17, 54),
-        TIMESTAMP_TZ_COL='"2024-05-06 14:40:00.0 -7:00"',
-        TIMESTAMP_LTZ_COL='"2024-12-07 13:44:00.0 America/Los_Angeles"',
+        TIMESTAMP_TZ_COL=datetime.datetime(
+            2024, 5, 6, 14, 40, tzinfo=datetime.timezone(datetime.timedelta(hours=-7))
+        ),
+        TIMESTAMP_LTZ_COL=LOS_ANGELES.localize(datetime.datetime(2024, 12, 7, 13, 44)),
         RAW_COL="2DEA9953280E418DBDD37128090BF7C2",
         GUID_COL="31E692C17FAF1D76E0630100007F1CB6",
     ),
@@ -282,8 +319,10 @@ expected_data = [
         NCLOB_COL="Jqasrwt3Pj1hTeE8BikmTHRamPpqwvT7LF5N375ENjnfuUGARQzy4TpYvTLzFDICQ4q2CvnNGWV5xOL1W5k3wqYs7L1xioEBxeGOgxd7iBy16XuKHdnjCaxSqf4KrdHODPvNT6XnSHUFpuq0ZPA0CR3Rcjm4hRi4p9jpmsxpkXMLsQeO9LsQzbsbK3MaUD4VZHRwbKzj3NoZR4dArdq0IkT3eEsWFDl2grOF6kwyLrybHasfk05XXqYiSEWwlk6cIWkf5IYyqmnNYG5SL5rWmDomn2A61HROZ4wxLh8nsMZdj1QdmBSbDgCZrsFctonf3RCztYI94j2EEppwDVW9WSzuJmrNDrykg1QjzkDRxE64wfBsA5KhUWSiAD8bgiDMcWCrS5vovFkE8vbLoVFeNCDSoNNoygwDE7mbJ4xolMpBsDcpjE6yWFNs6W4hdxTgMzvvOa2ffV0KoQQv08VGp5DRxVcuWh9LhjCCoh1CLUPUm9Y8xFMvPeDN0RInRYgEF7Q7udD7WDtbrZyPMAr90Fye8mylTzMj7yQTAKMKZxJPMniQZ5PjsG8oAJqGD9zhgvFMEd2Jqftvz28COPnFvxtGBMfeM4CctyHbqSaGGEln1goKzMxsQlqHVTgrgfEtAjjKMtzbojf1M3TA1uLBoJM0N32rCeBCS5hqS6TkZ62ECKP0otQY3uClYzjXI7f1e2hpHW1nKvTRFI7gNpCACoMcH2HRVMqGFBiDDrxjQi2yF9LI6kbvyHXKOFtghcw7tRxQ9cQgFZDyKoFWgyqnJOszmoXssVfPS1nUHTTePVqRSHqkAsSilCOAJDlBAGwvVsyyRjy3JjL8wCTGErPI2UFXJcd2AMWv5oqRqmDVNcYLKDiF2nHapkM1XBIqQeSYtGoUmsH7SCrhQJKIBBFyzqAtd3B1dPpbtrpVvVQQkybwi3st3tjNu9ciHZhM2CpR2r9mtR70rRP5boTJvnwq8Oqg7lvIGeoe1GwzU5ew",
         DATE_COL=datetime.datetime(2024, 9, 27, 0, 0),
         TIMESTAMP_COL=datetime.datetime(2024, 3, 27, 2, 9),
-        TIMESTAMP_TZ_COL='"2024-04-08 08:17:00.0 -7:00"',
-        TIMESTAMP_LTZ_COL='"2024-05-01 21:07:00.0 America/Los_Angeles"',
+        TIMESTAMP_TZ_COL=datetime.datetime(
+            2024, 4, 8, 8, 17, tzinfo=datetime.timezone(datetime.timedelta(hours=-7))
+        ),
+        TIMESTAMP_LTZ_COL=LOS_ANGELES.localize(datetime.datetime(2024, 5, 1, 21, 7)),
         RAW_COL="4726D2672BEB43DA9FE74618376A0E33",
         GUID_COL="31E692C17FB01D76E0630100007F1CB6",
     ),
@@ -300,8 +339,10 @@ expected_data = [
         NCLOB_COL="1026LQraJdt7iT1wRdukQSiP3ZNnW9wkehNVE9klukNZFmRSu872KxUP5CYNPlJ7RoSq62fc3i6e5AivJ5cCnnTo2DryzUxuMR7VoZDdudvLtusVDn2oWjVbzibL5ttTqu5j3GlGVXYSugouTXqcOUoyaAtiou8wS8JvHF1rM5VcnbrtAdw3KSOkFPJcQwvFndGQhahYgvBJfBfJcWLxFqYEoNDQa4m7GzHVVcqTn7sKGrjG0V6lnqH3KU1ZK5h07LTWQr23ov7IGAeFSJtzP3l4KujwqJj37dMlIWMHbLjdD2kZHK6haXkDgB3lYMs9ZdqDTfwLOOVhDnYltGkbkR1N7ZNJYRdWZecmSlOkg4AEwHfzh2JI7ELAZhgS95D25UO3sB1nkgXqY6rXrMdubnpkws8u98O2tWCqsYSgJIoqdr3ZHSzvuSWr5aewbN0jG5YawBISHBRNE3xpswdJcxuJENVzmU6XJx9X5jpxHZik0bXENGU49izFiSFNNe9EUm93N61gdrqVK9ssttIx2EwZCBSgC9LhpByRR84cDewQXsOVa0xgxvqRjwg0lEPTYJYPdi0yb6GtahnN65r0eIulD59wUu6T9ymFrUgMf27FOEJkbobJRRM57m696mTVN0G9hzTpxYpFHVJjxh6iOYLlM0EqPluh5JnPp4LILxfEhz9K5ohokjrgEODfzJRz8oDTr2JhtouuwJcfKFlVALr29hCsR7uKKiTfv7JtAN8rXB0pWs2PsGD6a51pfw1ca1z3rKOq8l4K4eD3MMCUwalN9vpUKFv1d7HzxDr5J4Bj0COV9cS4QCOj7Dhb12xeZiEgg4mxddHUAWHHe0VvvmFFka5FbJFATmzqwLzLJU7rBTbne8rW260kNI5wlVqZOlC7JTiIHC44FHWYwQigoeMuySuQjrFJk4d9jy8Ci4DQyvRB9T4oF4TmDOt3woNvFAjoi1aKLHEbfMDdfnQsYNqucKxmPNOk15ag1hJq",
         DATE_COL=datetime.datetime(2024, 6, 16, 0, 0),
         TIMESTAMP_COL=datetime.datetime(2024, 11, 10, 0, 23),
-        TIMESTAMP_TZ_COL='"2024-01-24 01:37:00.0 -7:00"',
-        TIMESTAMP_LTZ_COL='"2024-09-11 11:50:00.0 America/Los_Angeles"',
+        TIMESTAMP_TZ_COL=datetime.datetime(
+            2024, 1, 24, 1, 37, tzinfo=datetime.timezone(datetime.timedelta(hours=-7))
+        ),
+        TIMESTAMP_LTZ_COL=LOS_ANGELES.localize(datetime.datetime(2024, 9, 11, 11, 50)),
         RAW_COL="0236B17F7F914FDABDE6A061C2CC7438",
         GUID_COL="31E692C17FB11D76E0630100007F1CB6",
     ),
@@ -318,8 +359,10 @@ expected_data = [
         NCLOB_COL="C3dswh1Ooac6Vrl6aAjj5hPloku5ARwfcNejtxm85T5RmZaGxopjb8uReMdTU1PzDynMiiElURCYneumv1c2vQsyCy2BiSYDNvroxzHTIJKnQtb99lezBNKorcrs7NXIuUUM29UuMLxVYYwxEm1j7O2INP3Xp3hRUMGTUEigDR3RK5LiH6fbX1w0hQcM6PxQihviOaMjP8nXY0VO0qkKmPeSchcgK23H2ZqFUjzai88HPwaj3OTsgl14LLZYYfq1FnI1fwSvCt7Do9ad1vAi80rT2bvZ8o2QekUJjyhrr1NAAHAwTXZhiO8eM8DHZZkVpTnE0gVBYgt5IIUJ2T2lQqqKeg4DhOojFeRzq09wNjgTmkxDADSWlEjpmBjAkhZrQP7PRuCBEBOT2r07GgJ3kgAIYveyrGdqqjs1fdF23jl6u7iovGsM05MR7L6GlVm1sSMNkOeOWeXOWPMqYtbXq2zVfmHU8VVfRd8YZmhpHHDIntjm0BK5UqSb1Fk68IdZj6812m7djfSMhHcspUWKjELLPfejqBz9rS0t1F9NrpOfYUQnQYRwYbjASKrqSiAo4781tpCw3V9UC0kphe5nwEgjy2xk0QW26nIA4RlY401ksBBoj238m1d01kjI2zKoCTXLoKwwdagd4A3vr0xhrVjbzPvBuSaxXe0gIE5xmWWA9Tpb6v7bLp9LfofETGhNHJZqnJbCISCOe4gNXnarqpvGpYtS4P0ByhHeApJzxQAyS3hzvEg2V6B9xJGiPWYyLy3Z8HjZ5mlvfinn0cVVv0d47UCiprkfCQZpNdqAZ6lYRzOSD3ogXFxviJFOgca4mYWhyNLUPJoLG97Ew3PxgQWmzvjRFO1m4AmiAraqun2C1V3kYRLZ8t26YGQnzsKKLyZt3AGCEHH28RYpLzrri3FNh89zg1r2GgEp9PbMO6AkrHP7LfoeTkPJ7Wr2sgMZxHMVZ7sxZBFiZtAi2jT9GMYfge092vbboG8ZfPzA",
         DATE_COL=datetime.datetime(2024, 9, 5, 0, 0),
         TIMESTAMP_COL=datetime.datetime(2024, 2, 1, 23, 47),
-        TIMESTAMP_TZ_COL='"2024-07-09 03:07:00.0 -7:00"',
-        TIMESTAMP_LTZ_COL='"2024-02-27 00:08:00.0 America/Los_Angeles"',
+        TIMESTAMP_TZ_COL=datetime.datetime(
+            2024, 7, 9, 3, 7, tzinfo=datetime.timezone(datetime.timedelta(hours=-7))
+        ),
+        TIMESTAMP_LTZ_COL=LOS_ANGELES.localize(datetime.datetime(2024, 2, 27, 0, 8)),
         RAW_COL="437C726866524F1295792A39CF60F478",
         GUID_COL="31E692C17FB21D76E0630100007F1CB6",
     ),
@@ -336,8 +379,10 @@ expected_data = [
         NCLOB_COL="g99GhtFI2XIqEscpdL0GUpjSp5FCUHav7TO6ZDt7Z2FiksMyYJg5yxM05TlaK04nriOBgVhTKdXckWLSXA4cVtxAaA4Nrj8MaQidqnArq8QYhAuuTTm9h1MyytEQXmXKTIFSyjPSYdZ1NI4zBxzt9WaFfJdmc57UHEKnuGN3Qwbc0nHvrlUFB7H2KWEtloFzB0AGIXWhklJ1kud8NkzH6vtjD6o5tlui0TFKlcL3SiFMFPzyTlsYgMCYwTEjjL7WA5U97Eb4wn4T3r56QS3oT4PXpzz1iHDS0xgK2nJOGurvJDhFZYJM8ekzyJqHqGONc1AdijxM89pMNMqcwiA9XIoiwYATRE7YtsH71B0KfDlmRX4QuTu19WREkOt5LaljiLo6uOA68H2AKxtATwIXO4bgoBK1TvduFrLfFL7WViGZh6tmk5gGrq0YA1UseAp9SuD4hIA3TTUL2jANvSe65Q5iedMz7Hsfl0Ndofaw6l5Hej3o7mZNL1dNBc4KLZgRciN4m7OlYWw1N3TWbO7j9WAspZlGrFPPkVf8sT3qJWhigQKh0v7b1B4sqhRDIFgRFN7f891ddDqMe5vq49ziehm3FoZyqMC8qfZ3IAil05VdbQHgUG1c2WwI2Fz6LM76r0ZnKG87bgnTt4lMYVf2mNNRcgDYhi0yxz2YO4PaWzq8dEy5CRHKoU52xnqEMEiBJYesyPwnG5ajl4TdVbjf88SgLHqcCmst42txzF5CKOlSaUpEQB5n54pKVcce45Uckk7gGsMgTUZr6Qornywfkfo1JWCkWbLV85g3xZLGAwB8T1dU0byrIxd47GsVj0viWTh36THV8IpIZ1L2ByedtmRmmwz1L1w1A3IDgUlQuakkdZyvQuv5qVcVM0yJ7zePslTLB6qaX4apI7oPbqO3OBIDJQV83WP4vncsGwXGGQ2z9Wza3egBsJMMX5CI03aAAkTzo3crWQE7X1hGJGWnUQM2bbcHZ1tLPCmmjV02",
         DATE_COL=datetime.datetime(2024, 11, 28, 0, 0),
         TIMESTAMP_COL=datetime.datetime(2024, 2, 22, 21, 8),
-        TIMESTAMP_TZ_COL='"2024-10-19 22:31:00.0 -7:00"',
-        TIMESTAMP_LTZ_COL='"2024-03-19 16:39:00.0 America/Los_Angeles"',
+        TIMESTAMP_TZ_COL=datetime.datetime(
+            2024, 10, 19, 22, 31, tzinfo=datetime.timezone(datetime.timedelta(hours=-7))
+        ),
+        TIMESTAMP_LTZ_COL=LOS_ANGELES.localize(datetime.datetime(2024, 3, 19, 16, 39)),
         RAW_COL="7D364252FA834DB08F3BEBD3DD75AB40",
         GUID_COL="31E692C17FB31D76E0630100007F1CB6",
     ),
@@ -354,8 +399,10 @@ expected_data = [
         NCLOB_COL="4JcREGhRpCgwcqBJclmCeVKuyqwxnF7spmeh9XiUOuIDGNoTWErqXCW6fNu6lWaS9bhrPVofbyVNAUyOQqE7o7CV6k243Y10FImv0xkpq58tgifCGM8lz4R5Upk1T8jJt17XzWiZH4QWh6hN5VTpKF6sj4S8uTnbuTgDvcc062jFLpdJkYKXacpaxOeUsi77swheD9Nob0uQVUgSEeTrf4QTUKOAwAlRcmQEN3dUrdlXYFZcbAz31UmSEisdRWExQItAkkUPloCOUdLl91AZEHEYbyCVnBYIXZB3CvTN4WonS8rLkEnrlYWheZxoXF639me3zfnW5nJZWc2MHYx1PypbzxomuhhvLPLcnOiHnSmPMYr5fNLAspXCCIcNsYmoSSQmVgAdn5myuoSFJpcrN4QOVGWvrpj6xxzpjfyhS353u0O1AfRb2Hej0npiquYEXSTb8vawefXsypD5D0L3dJSzKfKowoAppyQVwZ8mb1SKKPhjAwDkCANEKtW3oxT5srMPiVHCGhV9jySigPF92AbCVtWSUUk39XxmRnJzoB8bm0ckGbQjJaRkEUriO1Pwk4qwm4nGrxmRiX7f5ZgdtL5PAmNTgKXxJZtFn57H8IRLa8advDPlOrVeNoiFX1JiGtCvxJihzOPqgt825nZLnQzhefUq8VKrmu93B3TTjKjl4juee6ql4kjayrDagDsmldUMfkP0CRP06Rd8RiQa3ZSJWCGc5NPOAzTiRxcaN1TCuwo112TqXgyULwzGb1yyccFH4nCsuWRCJZ8eLfvHhjwbx1WaVwtvuXlbV2j8ojdd7skUtQfe2WECi8uMCSuarknG6N9psbDEcsjLZUrWVYRuauOdE3uyQHCBu4vvbvfMAjwWCbAt7R9FojgJ0XjbLrU1GZQVQDZsuNbkvovJYuZRjmYcQKwvv6vFGa4novNo8GXGriHBIQqfGaUB3ObVjbqqWC0IELjdwJR5mxyY0NVusuZaQ8A3WRRqxtcb",
         DATE_COL=datetime.datetime(2024, 3, 20, 0, 0),
         TIMESTAMP_COL=datetime.datetime(2024, 3, 7, 22, 43),
-        TIMESTAMP_TZ_COL='"2024-04-11 15:32:00.0 -7:00"',
-        TIMESTAMP_LTZ_COL='"2024-04-04 15:34:00.0 America/Los_Angeles"',
+        TIMESTAMP_TZ_COL=datetime.datetime(
+            2024, 4, 11, 15, 32, tzinfo=datetime.timezone(datetime.timedelta(hours=-7))
+        ),
+        TIMESTAMP_LTZ_COL=LOS_ANGELES.localize(datetime.datetime(2024, 4, 4, 15, 34)),
         RAW_COL="A52F993F3FF847759C50662073F3323B",
         GUID_COL="31E692C17FB41D76E0630100007F1CB6",
     ),
@@ -372,8 +419,10 @@ expected_data = [
         NCLOB_COL="NUgcAsWsEoae882kEalk4d9Vh4Z3cqnIn3mRbR7kCKDflrERdnS3YAzfVNUIxPB5RplcAr0vrSl0Je17oFfL1yaCaEry3nTI7RU3fUWLGXQLj2rluonMa2ICDb5pztUiehfJdq7JUTwzfXAPKCyMOLbRhKJSIV8ZftQBJ0Cp9zkE10ZRosewlASMdXEARsXaQGBgz2qYX3gSr2aH5SD0mjedynTIawUiUzPikZYcI8GCu3PMTSCGmFyUeLnWROnOSwmiV64FMEnZzYClHEBaWtPkVxe6zSUnwjqQCftM4lSpOkUfUnjF8wvx8kGMbalAqbDtX8apancLIjQj7IPO6h3ts8WVWYVvwuqoEsy5rD6atBcXqiCfJhyzEg6LgoOwTpbFFS54zrV4CGQ98AFEGbM4VmWfEfQVKDdDR3TiuEyiNdNfYtetrqsDJ0pa089FB5Gee8hQlWElh2JZgqAfsoA7nsfLkrZrtMXrm6vtgpS70v76lHqlUg9SDY6v0Hg6OuHDFKXSnsaqmWbjkfaTqjEIf8mWlHenlfDdubcg9NLdyEs1cbOb5bB2TO0GubA7RF2Ewcq3AH0s799JH6IfaCVbTxXElwepuNip9c4aV5bb5PYkG7Ae6lQHFR3r1T3ZjQ295FWKvTiB8rDrpriDrNyc78rx8ifVZXrFGv0caIggOR7FUwC5WhQwEl5IMvRpSWtwidilyRb9DD4BGASEOs4s2T7soKLClUOL86uV4lUkEkSNuvF7QPXi5Iu2XTTEs6A1TXUDeG0fxXn6IZzueRAUO6QmqJJAuR5vBC2JSL2eUcGYjBpfRvZ9WJTTs8ZmmRAI1bNR6znsVkc6yT0R6mnTUSjo8wTakLR8iaoJuMTceSNbDKBGo1YkVcR7i7mIvuQe4inZF5ig2rSJARJZTjF6YYB2lIugOMHIPDSoBvYiX5YnaCEUZyRk1hhsKQGjhGbe9YOWYJZmaIRLO1tA5hOvpaBPG4ugF2FqxKXA",
         DATE_COL=datetime.datetime(2024, 3, 19, 0, 0),
         TIMESTAMP_COL=datetime.datetime(2024, 3, 18, 18, 6),
-        TIMESTAMP_TZ_COL='"2024-09-11 07:25:00.0 -7:00"',
-        TIMESTAMP_LTZ_COL='"2024-10-08 06:57:00.0 America/Los_Angeles"',
+        TIMESTAMP_TZ_COL=datetime.datetime(
+            2024, 9, 11, 7, 25, tzinfo=datetime.timezone(datetime.timedelta(hours=-7))
+        ),
+        TIMESTAMP_LTZ_COL=LOS_ANGELES.localize(datetime.datetime(2024, 10, 8, 6, 57)),
         RAW_COL="63B49F0FDA144CD58D0C6CC6AC51579D",
         GUID_COL="31E692C17FB51D76E0630100007F1CB6",
     ),
@@ -390,8 +439,10 @@ expected_data = [
         NCLOB_COL="8jEBfvdX9RBjAr48u8GXRDpBazIT2CXTH3ETVn0QvaspDJ2YhZaZtiLSIJjof9Ol2nzwkCX1Moqfk4Ux08U1wKjVx7aFeFmIyQps5G2lEHcjK6HKkT7JvW74GyKuIXE3cj5efVAwnQxEaB4fMBVYj5PBjrYwL0OAX0yJTM1UqwRx8tbmQJ9b8XHcvIwV0fsDZmflzhWHuDojn0GgGwOV2KGxfy7PmNJfOYCVzoHtJ5y6ZI0TEZvv8QNLwpewpcXQBKDt6AmpeGFZKDpfUS6QC1l2bbkNjsfC9FAg1iTHPXNAl7aHrcFbXV1tRpuWUB1qKIELhjaVaDF21sysFiUjLmjtyp7XFvmXIyseguiUHFvzRMnkMGnVE0CDn4sOfpH6inpxVWepCjDVMyydEmFVtRzD0sKdCOAAnx3bxptTrI6hhmGw1iEED9Z8HlNgOStCo2B2ImOj7JI5VXGjH1z1XOtypSNaH8ihaO29Os76drWiaQGpFZIeFedMY1m47QL6LyjSAI2zoK3TY1rZyiYH1vJVZMhgIqIqBtFTVFejRb8TryqEwVW1SvlhY16Jv8Jg7dME2ZVQcSUrohrwtvRPjLgYfY7J6Cs56GNDMGBFr3oZob6xjuFUkyO49uSM7bDnbJ48oq9ttYMPakN28pbmpccdhTuOcvIexpODaoMf8fr7SsHpaFv3BhbjXZFYX8ZSkbZoSEla9UWmltkg47aHqxpEGsrHUiEjT2Y0EfD0MW0E9MjkQdOw8TaQ0mIakcrq2N0l91SK52BSGM1SCawmb75gSZ1zDKZrm3vZ4CzQbBvbZzpvk1HD8X4jAcloAnLtv4A7t4FXdLMJk960Syhvc0yapz4vM0SdtMcQUd5gjYnaJa0HRUjLyC0zAu14bAT2ibGIzN0yjwK8V0tk0eQ4DkMfVE6yhNXn2pM3DGkBAkkZ0XXgXG9kOOFRyZzGyeENIbu1rbi33U03VDdu2TtJnmzUaftneSPohTRH3UMm",
         DATE_COL=datetime.datetime(2024, 5, 2, 0, 0),
         TIMESTAMP_COL=datetime.datetime(2024, 7, 23, 3, 7),
-        TIMESTAMP_TZ_COL='"2024-01-08 16:43:00.0 -7:00"',
-        TIMESTAMP_LTZ_COL='"2024-01-01 08:29:00.0 America/Los_Angeles"',
+        TIMESTAMP_TZ_COL=datetime.datetime(
+            2024, 1, 8, 16, 43, tzinfo=datetime.timezone(datetime.timedelta(hours=-7))
+        ),
+        TIMESTAMP_LTZ_COL=LOS_ANGELES.localize(datetime.datetime(2024, 1, 1, 8, 29)),
         RAW_COL="7AB24CC7264849E583E446C6043FD133",
         GUID_COL="31E692C17FB61D76E0630100007F1CB6",
     ),
@@ -408,8 +459,10 @@ expected_data = [
         NCLOB_COL="feQy1MP85PrhzpBbV9uiCWG5uOuvm9QfMv0GB7l3r6yfm74Weiwvqi84sB7UhelZM0yhqNFjsKW6oZRsDm5fQBUWWXxVg5nGRWTr9O00Nw8K4K3smtsbj68qNCkAFmfXPckQP88nrLFYAc5UfuSq4NdNsYCoKqgV8N3TghivLGrztIIMGtYigV2dzFwhsyumJiL9K2LiIMCCEoxCRepppHXeYfAkHxlU6YWxbCNbbrSoKutK9qTcv8RVU89kpcsmcJ9TyDArRq6IU4czcnOzkYCCBES9aQ5btfELvKLgFlljG74l44LAG7gsRHncBH3YegM3txugKCQsxAvRaoQqb5ypHRkKxHFHp04I3HMWBcWnEgPGMaF66BlO0AXo4A2JT9SVphyAhHzYEb6lTi5b0USg3BN1Bv5Tae1xWOvZd2sEMxI5HRmW46IXhYOzhXFgyyJdmHnWbgoDw8cv49vbt5fenVQGokWT4mBuxybVWixalV3R9xtZu13julXkUmG9dfOxKRrrEyTAiQfSBR93wgu1goUh4lIyaPOzKpf2SaWsO6VWhk0v2gVuZVTcDoTW3J43AoaZ6PbgDYEJ1QDam5I1BEs348dcQ6MOhNzYBthOXkwZtlfjJa0KLXksbH6sB0bOvzNmebxLwi48uwApBuxTkalZEgIJ50vGCkcxrMZa3hehM54gwSRrDR8HlmRKxWUDBsTTjSXyQhy6ilCipJFQ10rpmHPnUvQm4m8x6r0DgZQqE7uKPdOu4soKcWUWZsyri9a1CIJRACxdRwt3GficaPZrhOElCJmmIWaxprnm1UElJAKrduokB6SRroeL2iiCBQjMDz4JgrErWmIM98ITN8P7Zj6qmL2803dNCIuQ8ma0hYTsWm3s0arhhgmJJWjRxjjNiZRJ4lwC9ilZfxTik7bNOGtfbWEUlLGR3ovghagE3W0kqwDV8KyfDlGdC1BOHJMBpCFRxpwuBxV6mLwQhT20X0d5oeYEPkQO",
         DATE_COL=datetime.datetime(2024, 8, 3, 0, 0),
         TIMESTAMP_COL=datetime.datetime(2024, 10, 5, 5, 17),
-        TIMESTAMP_TZ_COL='"2024-01-16 10:46:00.0 -7:00"',
-        TIMESTAMP_LTZ_COL='"2024-09-11 07:22:00.0 America/Los_Angeles"',
+        TIMESTAMP_TZ_COL=datetime.datetime(
+            2024, 1, 16, 10, 46, tzinfo=datetime.timezone(datetime.timedelta(hours=-7))
+        ),
+        TIMESTAMP_LTZ_COL=LOS_ANGELES.localize(datetime.datetime(2024, 9, 11, 7, 22)),
         RAW_COL="03A1F04B5E9F4249B4120A3F0F5DC25C",
         GUID_COL="31E692C17FB71D76E0630100007F1CB6",
     ),
@@ -426,8 +479,10 @@ expected_data = [
         NCLOB_COL="ltLGlmhydXz5iZnPMYGwZ6U3aNV4qVYPLZ4WWPMluMOoZPQsXcc9Jxq2syzOY6xua39rxRU1gayJhW62kqQyOQpKD7yYHTZvJKSQY9ywm5OpKEeSUXtQFSDUj3qMOEzzjFXMAkOXnJjrSOK1icbr9gl6cgIbF8cIPWjC5ctGjXhh92gIqkPxiYUo1mLeQzdAu9cZJZAwmXe69JWjzP2Y07XKilHWI6VVApeO32DTSUeVIdV9BQW2Bxj1YdM32INsxOSadNTHAIeQC7xNgLwdW0hZN1bZr397KmA8pYXL9zncqCnpBotgeSbSIl4kP42LlwXOan7hgN5g1n7dPJAjncbXBSHvPxunV0HBM2Rg1PkwGtqoXHhXEPtV1A5aojY4aYEjuHEd8XynGDLcK08bN54GrfgiblgE6ZBpRNzeudpt6yFmmNyJgacCfbYcXR6AWH5z68bKI4ELS8nmWDOJv8zvoeVLmWe9MoV51dmueuaYmZpetMIuiDnssZSM3ODvgDwzk2VLOeduKXsi9jQ27DscyVfM3OJ8OjBzc1ZELZQrnDAhVtuBSahBjJ5r9NMFAQ3EuQ2aBYPEgfN3FTWJQmZ1FUDZHtFdmJQBeIdsNdaD3SvCSbi3Yxc5ghZf9GFQ4TBv24ba9Aironm4IVlxj5VdXx2kSjxaEqqnR5YdAO0pvXksyj22ayAuMXrTD4yEzfmsi8aFHNJ10iiKbJdMHmPyIXdvrJGG6K1mZiGHrmJkaCQ0eH3yD9yEzEBw0mIIWa9TfcgHfw76vSYlTGlZiIdhI1zhpG4bI29vQbgP1qA9uLquJilDT36UGZ3ydI98wMPJqN9B4bNCAfRR2PEOOV9NAVEDJ3GZj5iFkZMCWPsOat5aT2LSzQYbFUDSXC3z7KI3xeiSdgVukXbNhSkzdxhaD81fLjjLR3TI8pdg0WZmgXIF9z59e8kQYLZPxTCkPeEQQ6Xe5HlxLSaleAs2R8s0h0y9BjXwfB7ms4JH",
         DATE_COL=datetime.datetime(2024, 12, 10, 0, 0),
         TIMESTAMP_COL=datetime.datetime(2024, 5, 25, 22, 37),
-        TIMESTAMP_TZ_COL='"2024-12-11 04:37:00.0 -7:00"',
-        TIMESTAMP_LTZ_COL='"2024-04-19 06:28:00.0 America/Los_Angeles"',
+        TIMESTAMP_TZ_COL=datetime.datetime(
+            2024, 12, 11, 4, 37, tzinfo=datetime.timezone(datetime.timedelta(hours=-7))
+        ),
+        TIMESTAMP_LTZ_COL=LOS_ANGELES.localize(datetime.datetime(2024, 4, 19, 6, 28)),
         RAW_COL="01AEEB7A8A704DF3923AF1E20274DDEC",
         GUID_COL="31E692C17FB81D76E0630100007F1CB6",
     ),
@@ -439,7 +494,7 @@ postgres_expected_data = [
         BIGSERIAL_COL=1,
         BIT_COL="0000",
         BIT_VARYING_COL="10100101",
-        BOOLEAN_COL="f",
+        BOOLEAN_COL=False,
         BOX_COL="(13.68,50.87),(-14.5,-36.82)",
         BYTEA_COL="\\x62333566656231643034386236316163366333",
         CHAR_COL="6U0hXrbbRm",
@@ -470,19 +525,19 @@ postgres_expected_data = [
         TEXT_COL="OaVsansivU5I1BLQdUbRaYyzbYDmK6e",
         TIME_COL=datetime.time(19, 28, 51),
         TIMESTAMP_COL=datetime.datetime(2002, 2, 16, 2, 6),
-        TIMESTAMPTZ_COL=datetime.datetime(2020, 1, 24, 12, 0),
+        TIMESTAMPTZ_COL=LOS_ANGELES.localize(datetime.datetime(2020, 1, 24, 12, 0)),
         TSQUERY_COL="'word3' & 'word1'",
         TSVECTOR_COL="'lex1':1 'lex2':2 'lex4':3",
         TXID_SNAPSHOT_COL="10:20:10,14,15",
         UUID_COL="69ad9235-6c5e-4f95-b179-9730ed771aa8",
-        XML_COL='"<root><element>34</element></root>"',
+        XML_COL="<root><element>34</element></root>",
     ),
     Row(
         BIGINT_COL=-8065880000000000456,
         BIGSERIAL_COL=2,
         BIT_COL="1010",
         BIT_VARYING_COL="11100010",
-        BOOLEAN_COL="f",
+        BOOLEAN_COL=False,
         BOX_COL="(29.78,3.39),(26.92,-5.57)",
         BYTEA_COL="\\xc3ac343937376464663539653033646136633165",
         CHAR_COL="yhrAXej1DO",
@@ -513,19 +568,21 @@ postgres_expected_data = [
         TEXT_COL="M6Z9jw QXfvErDkIj3xYeAg0IVCTrTnWx5hS4kSu",
         TIME_COL=datetime.time(14, 41, 19),
         TIMESTAMP_COL=datetime.datetime(2024, 12, 25, 7, 53, 11),
-        TIMESTAMPTZ_COL=datetime.datetime(2000, 8, 20, 14, 26, 46),
+        TIMESTAMPTZ_COL=LOS_ANGELES.localize(
+            datetime.datetime(2000, 8, 20, 14, 26, 46)
+        ),
         TSQUERY_COL="'word2' & 'word3'",
         TSVECTOR_COL="'lex1':1 'lex2':2 'lex3':3",
         TXID_SNAPSHOT_COL="701:924:720,800",
         UUID_COL="721f1281-9f97-4b0a-b41a-bd789ad318ea",
-        XML_COL='"<root><element>29</element></root>"',
+        XML_COL="<root><element>29</element></root>",
     ),
     Row(
         BIGINT_COL=9083626000000000789,
         BIGSERIAL_COL=3,
         BIT_COL="1100",
         BIT_VARYING_COL="11000110",
-        BOOLEAN_COL="f",
+        BOOLEAN_COL=False,
         BOX_COL="(9.1,86.79),(-46.22,-5.63)",
         BYTEA_COL="\\x52643734356239373534313038336235366239",
         CHAR_COL="wTTtppE3ND",
@@ -556,19 +613,19 @@ postgres_expected_data = [
         TEXT_COL="SWPw6w6zINbqWooVf wC90ixy0Huv9tAIbaNkTrKolY48E",
         TIME_COL=datetime.time(7, 20, 38),
         TIMESTAMP_COL=datetime.datetime(2017, 1, 28, 6, 29, 17),
-        TIMESTAMPTZ_COL=datetime.datetime(2009, 10, 1, 1, 16, 17),
+        TIMESTAMPTZ_COL=LOS_ANGELES.localize(datetime.datetime(2009, 10, 1, 1, 16, 17)),
         TSQUERY_COL="'word3' & 'word2'",
         TSVECTOR_COL="'lex1':2 'lex3':1 'lex4':3",
         TXID_SNAPSHOT_COL="691:960:712,892",
         UUID_COL="d0164090-8196-42f0-88f6-979a4039214d",
-        XML_COL='"<root><element>50</element></root>"',
+        XML_COL="<root><element>50</element></root>",
     ),
     Row(
         BIGINT_COL=8517274000000000123,
         BIGSERIAL_COL=4,
         BIT_COL="1010",
         BIT_VARYING_COL="10100111",
-        BOOLEAN_COL="f",
+        BOOLEAN_COL=False,
         BOX_COL="(-26.08,-37.14),(-51.59,-94.61)",
         BYTEA_COL="\\x6e303435376530333132646439383364633839",
         CHAR_COL="8jCXO6fI1J",
@@ -599,19 +656,19 @@ postgres_expected_data = [
         TEXT_COL="0wMQO5LsnVsn80kMaI 9bWKZnJJcZh VWV2cAG14Q",
         TIME_COL=datetime.time(9, 52, 2),
         TIMESTAMP_COL=datetime.datetime(2015, 5, 26, 19, 39, 51),
-        TIMESTAMPTZ_COL=datetime.datetime(2015, 11, 14, 8, 36, 6),
+        TIMESTAMPTZ_COL=LOS_ANGELES.localize(datetime.datetime(2015, 11, 14, 8, 36, 6)),
         TSQUERY_COL="'word3' & 'word4'",
         TSVECTOR_COL="'lex2':2 'lex3':1 'lex4':3",
         TXID_SNAPSHOT_COL="667:828:699,799",
         UUID_COL="45befd8f-992d-4df6-93f0-b879792d16fe",
-        XML_COL='"<root><element>95</element></root>"',
+        XML_COL="<root><element>95</element></root>",
     ),
     Row(
         BIGINT_COL=-5569903000000000456,
         BIGSERIAL_COL=5,
         BIT_COL="1100",
         BIT_VARYING_COL="11110110",
-        BOOLEAN_COL="f",
+        BOOLEAN_COL=False,
         BOX_COL="(49.79,76.36),(-92.6,65.41)",
         BYTEA_COL="\\xc2b9623833626266363731666635653234343163",
         CHAR_COL="wOR7ebsM5d",
@@ -642,12 +699,12 @@ postgres_expected_data = [
         TEXT_COL="KeS36QdtwKnI9vFZ1GakjEBnNLlRpTrLEyzB",
         TIME_COL=datetime.time(19, 35, 6),
         TIMESTAMP_COL=datetime.datetime(2005, 6, 25, 22, 2, 58),
-        TIMESTAMPTZ_COL=datetime.datetime(2017, 5, 24, 3, 3, 4),
+        TIMESTAMPTZ_COL=LOS_ANGELES.localize(datetime.datetime(2017, 5, 24, 3, 3, 4)),
         TSQUERY_COL="'word2' & 'word3'",
         TSVECTOR_COL="'lex2':2 'lex3':1 'lex4':3",
         TXID_SNAPSHOT_COL="853:868:854,855",
         UUID_COL="960b86a9-a8dd-4634-bc1f-956ae6589726",
-        XML_COL='"<root><element>47</element></root>"',
+        XML_COL="<root><element>47</element></root>",
     ),
     Row(
         BIGINT_COL=None,
@@ -897,7 +954,7 @@ sql_sever_expected_data = [
         INT_COL=2147483647,
         SMALLINT_COL=32767,
         TINYINT_COL=255,
-        BIT_COL="1",
+        BIT_COL=True,
         DECIMAL_COL=Decimal("123456.7890"),
         NUMERIC_COL=Decimal("9999.99"),
         MONEY_COL=Decimal("922337203685477.5000"),
@@ -930,7 +987,7 @@ sql_sever_expected_data = [
         INT_COL=-2147483648,
         SMALLINT_COL=-32768,
         TINYINT_COL=0,
-        BIT_COL="0",
+        BIT_COL=False,
         DECIMAL_COL=Decimal("-123456.7890"),
         NUMERIC_COL=Decimal("-9999.99"),
         MONEY_COL=Decimal("-922337203685477.5000"),
@@ -963,7 +1020,7 @@ sql_sever_expected_data = [
         INT_COL=1000000,
         SMALLINT_COL=1000,
         TINYINT_COL=128,
-        BIT_COL="1",
+        BIT_COL=True,
         DECIMAL_COL=Decimal("0.0001"),
         NUMERIC_COL=Decimal("0.01"),
         MONEY_COL=Decimal("100.5000"),
@@ -996,7 +1053,7 @@ sql_sever_expected_data = [
         INT_COL=-500000,
         SMALLINT_COL=-500,
         TINYINT_COL=64,
-        BIT_COL="0",
+        BIT_COL=False,
         DECIMAL_COL=Decimal("999.9999"),
         NUMERIC_COL=Decimal("999.99"),
         MONEY_COL=Decimal("1000000.0000"),
@@ -1029,7 +1086,7 @@ sql_sever_expected_data = [
         INT_COL=777777,
         SMALLINT_COL=7777,
         TINYINT_COL=200,
-        BIT_COL="1",
+        BIT_COL=True,
         DECIMAL_COL=Decimal("0.0000"),
         NUMERIC_COL=Decimal("0.00"),
         MONEY_COL=Decimal("-50.7500"),
