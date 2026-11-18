@@ -26,6 +26,7 @@
 - Fixed a bug in `DataFrameReader.jdbc` where column names containing spaces, quotes, non-ASCII characters or SQL keywords, or names that differ only by case, failed with a compilation error.
 - Fixed a bug in `DataFrameReader.jdbc` where reading more than about 240 columns failed with `Function name (including parameter and return type) too long`.
 - `DataFrameReader.jdbc` now raises `ValueError` for a non-positive or non-integer `num_partitions`, for a `custom_schema` column that is not in the source, and for a missing `imports` key in `udtf_configs` (previously `KeyError`). It no longer modifies the caller's `udtf_configs["packages"]` list, and no longer adds `com.snowflake:snowpark:latest` when a specific Snowpark version is listed.
+- Fixed a bug in `DataFrameReader.jdbc` where numerics without a declared precision (Oracle `NUMBER`, Postgres `numeric`) were truncated to integers or failed with `out of range`. They are now read as `DecimalType(38, 18)`, and Oracle `FLOAT` as `DoubleType`.
 
 ### Snowpark Local Testing Updates
 

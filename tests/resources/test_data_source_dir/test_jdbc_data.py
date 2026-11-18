@@ -51,7 +51,7 @@ SECRET = "ADMIN.PUBLIC.SNOWPARK_DBAPI_ORACLEDB_TEST_CRED"
 
 expected_schema = StructType(
     [
-        StructField("ID", DecimalType(38, 0), nullable=False),
+        StructField("ID", DecimalType(38, 18), nullable=False),
         StructField("NUMBER_COL", DecimalType(10, 2), nullable=True),
         StructField("BINARY_FLOAT_COL", FloatType(), nullable=True),
         StructField("BINARY_DOUBLE_COL", FloatType(), nullable=True),
@@ -78,7 +78,7 @@ expected_schema = StructType(
 
 custom_schema_result = StructType(
     [
-        StructField("ID", DecimalType(38, 0), nullable=False),
+        StructField("ID", DecimalType(38, 18), nullable=False),
         StructField("NUMBER_COL", DecimalType(10, 2), nullable=True),
         StructField("BINARY_FLOAT_COL", FloatType(), nullable=True),
         StructField("BINARY_DOUBLE_COL", DoubleType(), nullable=True),

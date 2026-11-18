@@ -40,6 +40,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Scale used for numerics without a declared precision or scale (Oracle NUMBER,
+# Postgres numeric): keeps 18 fractional digits and 20 integer digits.
+UNBOUNDED_NUMERIC_SCALE = 18
+
 # reference for java type to snowflake type:
 # https://docs.snowflake.com/en/developer-guide/udf-stored-procedure-data-type-mapping
 
@@ -617,6 +621,34 @@ class JDBC:
             ]
         )
 
+    @staticmethod
+    def _to_numeric_type(
+        field_name: str, precision: Optional[int], scale: Optional[int]
+    ) -> Union[DecimalType, DoubleType]:
+        # Oracle reports scale -127 for floating-point numbers: precision 0 for an
+        # unconstrained NUMBER and the binary precision for FLOAT(p).
+        if scale == -127:
+            if precision:
+                return DoubleType()
+            return DecimalType(38, UNBOUNDED_NUMERIC_SCALE)
+        # Postgres reports precision 0 for numeric without a declared precision.
+        if precision == 0:
+            return DecimalType(38, UNBOUNDED_NUMERIC_SCALE)
+        if BaseDriver.validate_numeric_precision_scale(precision, scale):
+            return DecimalType(
+                precision if precision is not None else 38,
+                scale if scale is not None else 0,
+            )
+        logger.debug(
+            f"Snowpark does not support column {field_name} with precision"
+            f" {precision} and scale {scale}. Precision 38 will be used."
+        )
+        # Keep the fraction when only the precision is too large; a negative scale
+        # (e.g. Oracle NUMBER(5, -2)) means the value is an integer.
+        if scale is not None and 0 <= scale <= 38:
+            return DecimalType(38, scale)
+        return DecimalType(38, 0)
+
     def to_snow_type(self) -> StructType:
         fields = []
         # Source names that differ only by case would both normalize to the same
@@ -643,17 +675,7 @@ class JDBC:
                 java_to_snow_type if jdbc_to_snow_type is None else jdbc_to_snow_type
             )
             if snow_type == DecimalType:
-                if not BaseDriver.validate_numeric_precision_scale(precision, scale):
-                    logger.debug(
-                        f"Snowpark does not support column"
-                        f" {field_name} of type {java_type} with precision {precision} and scale {scale}. "
-                        "The default Numeric precision and scale will be used."
-                    )
-                    precision, scale = None, None
-                data_type = snow_type(
-                    precision if precision is not None else 38,
-                    scale if scale is not None else 0,
-                )
+                data_type = self._to_numeric_type(field_name, precision, scale)
             elif snow_type == TimestampType and jdbc_type in (
                 JDBCType.TIMESTAMP,
                 None,
