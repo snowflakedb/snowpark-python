@@ -4,9 +4,12 @@
 
 from unittest import mock
 
+import numpy as np
 import pytest
 
 from snowflake.snowpark._internal.utils import TimeTravelConfig
+from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.table import Table
 
 
@@ -76,3 +79,89 @@ def test_sample_keeps_iceberg_version_ref_time_travel(arg):
     assert sampled_sql(table, frac=0.5).startswith(
         "SELECT * FROM T AT (VERSION_REF => 'audit-branch') SAMPLE  (50.0)"
     )
+
+
+@pytest.mark.parametrize(
+    "seed, expected",
+    [
+        (0, 0),
+        (7, 7),
+        (2147483647, 2147483647),
+        (np.int64(7), 7),
+        (np.int32(7), 7),
+        ("7", 7),
+        (" 7 ", 7),
+        (1.0, 1),
+        (np.float64(3.0), 3),
+    ],
+)
+def test_sample_accepts_integral_seed(seed, expected):
+    sql = sampled_sql(make_table(), frac=0.5, seed=seed)
+    assert f"SEED ({expected})" in sql
+
+
+@pytest.mark.parametrize(
+    "seed",
+    [
+        True,
+        False,
+        1.5,
+        "7.0",
+        "-1",
+        "1.5",
+        "",
+        "1) WHERE 1=0 --",
+        -1,
+        -1.0,
+        2147483648,
+        "2147483648",
+        float("nan"),
+        float("inf"),
+        [1],
+        np.float64(1.5),
+    ],
+)
+def test_sample_rejects_invalid_seed(seed):
+    table = make_table()
+    with pytest.raises(ValueError, match="'seed' must be an integer between"):
+        table.sample(frac=0.5, seed=seed, _emit_ast=False)
+    table._session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "seed",
+    [True, 1.5, "7.0", "-1", "1) WHERE 1=0 --", -1, 2147483648],
+)
+def test_sample_by_rejects_invalid_seed(seed):
+    table = make_table()
+    with pytest.raises(ValueError, match="'seed' must be an integer between"):
+        DataFrameStatFunctions(table).sample_by(
+            "c", {1: 0.5}, seed=seed, _emit_ast=False
+        )
+    table._session.sql.assert_not_called()
+
+
+def test_sample_by_accepts_string_seed():
+    table = make_table()
+    table._from_clause_sql = lambda: "T"
+    table._plan.df_aliased_col_name_to_real_col_name = {}
+    with mock.patch.object(
+        DataFrameStatFunctions, "_sample_by_with_union_all"
+    ) as union:
+        DataFrameStatFunctions(table).sample_by(
+            "c", {1: 0.5}, seed=" 7 ", _emit_ast=False
+        )
+    assert union.called
+
+
+@pytest.mark.parametrize("seed", ["abc", 1.5, -1, True])
+def test_sample_by_ignored_seed_only_warns(seed):
+    df = mock.MagicMock(spec=DataFrame)
+    df._session = mock.MagicMock()
+    df._session.conf.get.return_value = False
+    stat = DataFrameStatFunctions(df)
+    with mock.patch.object(
+        DataFrameStatFunctions, "_sample_by_with_union_all"
+    ), mock.patch("snowflake.snowpark.dataframe_stat_functions.warning") as warn:
+        stat.sample_by("c", {1: 0.5}, seed=seed, _emit_ast=False)
+    warn.assert_called_once()
