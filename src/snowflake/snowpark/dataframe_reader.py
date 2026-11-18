@@ -1523,6 +1523,16 @@ class DataFrameReader:
               left out.
             - ``prompt`` only: ``SOURCE_FILE`` and ``RESPONSE``.
 
+        A read with a ``schema`` or a ``prompt`` also has ``INPUT_TOKENS`` and
+        ``OUTPUT_TOKENS``: the token usage AI_COMPLETE reports for the document. Input
+        tokens cover everything sent to the model for it (the document, the prompt and
+        the schema). Use them as a cost estimate: billing can be higher, for example when
+        Snowflake retries a model call internally, and the billed usage is in
+        ``SNOWFLAKE.ACCOUNT_USAGE.CORTEX_AI_FUNCTIONS_USAGE_HISTORY``. The counts are
+        ``NULL`` when no usage was reported for the document, for example when its file
+        type is not supported. Parsing is billed per page, which ``TOTAL_PAGES``
+        reports. A schema field cannot be named like one of these columns.
+
         Every read also has a case-sensitive ``"_document_error"`` column (quote the name
         when you select it). A document that fails does not fail the read: its row holds
         an array of ``{stage, message}`` entries describing what went wrong, and
@@ -1578,7 +1588,8 @@ class DataFrameReader:
             )
         path = _validate_stage_path(path)
         options = document_reader.DocumentReaderOptions.from_reader_options(
-            self._cur_options
+            self._cur_options,
+            token_usage=getattr(self._session, "_documents_token_usage", True),
         )
         df = document_reader.read_documents(self._session, path, options)
 

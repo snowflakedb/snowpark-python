@@ -496,6 +496,48 @@ class TestPromptTypeValidation:
 
 
 # ---------------------------------------------------------------------------
+# The session's PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE switch -- an internal kill switch,
+# not a user option: on by default, and False (or the string "false") turns the token
+# columns off. A TOKEN_USAGE reader option is ignored like any other unknown key.
+# ---------------------------------------------------------------------------
+
+
+class TestTokenUsageSwitch:
+    @pytest.mark.parametrize(
+        "read", [{"SCHEMA": FLAT_SCHEMA}, {"PROMPT": "Summarize."}]
+    )
+    def test_schema_and_prompt_reads_report_tokens_by_default(self, read):
+        options = _build(read)
+        assert options.token_usage is True
+        assert options.tokens_enabled
+
+    @pytest.mark.parametrize("value", [False, "false", "FALSE", " False "])
+    @pytest.mark.parametrize(
+        "read", [{"SCHEMA": FLAT_SCHEMA}, {"PROMPT": "Summarize."}]
+    )
+    def test_the_switch_off_turns_the_tokens_off(self, read, value):
+        options = DocumentReaderOptions.from_reader_options(read, token_usage=value)
+        assert options.token_usage is False
+        assert not options.tokens_enabled
+
+    @pytest.mark.parametrize("value", [True, "true", None, 1])
+    def test_anything_else_leaves_them_on(self, value):
+        options = DocumentReaderOptions.from_reader_options(
+            {"PROMPT": "Summarize."}, token_usage=value
+        )
+        assert options.tokens_enabled
+
+    def test_a_token_usage_reader_option_is_ignored(self):
+        assert _build({"PROMPT": "Summarize.", "TOKEN_USAGE": False}).tokens_enabled
+
+    def test_a_parse_read_reports_no_tokens_either_way(self):
+        assert not _build({}).tokens_enabled
+        assert not DocumentReaderOptions.from_reader_options(
+            {}, token_usage=True
+        ).tokens_enabled
+
+
+# ---------------------------------------------------------------------------
 # ExtractionSpec.ai_complete_format -- AI_COMPLETE only accepts a JSON Schema.
 # A bare JSON-Schema dict (has a "properties" dict) is wrapped as given;
 # AI_EXTRACT's own flat Q&A shapes (dict or list) have no question/answer notion
@@ -625,6 +667,8 @@ class TestSchemaFieldNameCollisions:
             "extraction_scores",
             "extraction_status",
             "response",
+            "input_tokens",
+            "output_tokens",
         ],
     )
     def test_field_colliding_with_a_reserved_column_raises_1117(self, reserved_name):
