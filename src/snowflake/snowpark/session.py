@@ -117,7 +117,6 @@ from snowflake.snowpark._internal.utils import (
     XPATH_HANDLER_MAP,
     PythonObjJSONEncoder,
     TempObjectType,
-    TimeTravelConfig,
     calculate_checksum,
     check_flatten_mode,
     create_rlock,
@@ -2966,11 +2965,6 @@ class Session:
         timestamp: Optional[Union[str, datetime.datetime]] = None,
         timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
-        changes: Optional[Literal["default", "append_only"]] = None,
-        end_statement: Optional[str] = None,
-        end_offset: Optional[int] = None,
-        end_timestamp: Optional[Union[str, datetime.datetime]] = None,
-        end_timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         **kwargs,
     ) -> Table:
         """
@@ -2989,19 +2983,6 @@ class Session:
             timestamp: Timestamp string or datetime object.
             timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
             stream: Stream name for time travel.
-            changes: Reads the changes made to a table with change tracking enabled, instead of the table itself:
-                ``'default'`` or ``'append_only'``. Emits ``CHANGES (INFORMATION => ...)``. Requires ``time_travel_mode``
-                and exactly one of statement, offset, timestamp, or stream, which set the start of the changes.
-                The result has the extra columns ``METADATA$ACTION``, ``METADATA$ISUPDATE`` and ``METADATA$ROW_ID``.
-                See `CHANGES <https://docs.snowflake.com/en/sql-reference/constructs/changes>`_.
-            end_statement: Query ID that sets the end of the changes. Requires ``changes``.
-                At most one of ``end_statement``, ``end_offset`` and ``end_timestamp`` can be given.
-            end_offset: Zero or a negative integer representing seconds in the past that sets the end of the changes.
-                Requires ``changes``.
-            end_timestamp: Timestamp string or datetime object that sets the end of the changes. Requires ``changes``.
-                Handled like ``timestamp``. A string or naive datetime is not interpreted in the session time zone,
-                so pass ``end_timestamp_type`` or a tz-aware datetime to be explicit.
-            end_timestamp_type: Type of ``end_timestamp`` interpretation ('NTZ', 'LTZ', or 'TZ').
 
             Note:
                 If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.
@@ -3023,10 +3004,6 @@ class Session:
             >>> df_before = session.table("my_table", time_travel_mode="before", statement="01234567-abcd-1234-5678-123456789012") # doctest: +SKIP
             >>> df_offset = session.table("my_table", time_travel_mode="at", offset=-3600) # doctest: +SKIP
             >>> df_stream = session.table("my_table", time_travel_mode="at", stream="my_stream") # doctest: +SKIP
-
-            # Read the changes of a table with change tracking enabled, since a statement and until another one
-            >>> df_changes = session.table("my_table", changes="default", time_travel_mode="at", statement="01234567-abcd-1234-5678-123456789012", end_statement="01234567-abcd-1234-5678-123456789013") # doctest: +SKIP
-            >>> df_changes.select("a", "METADATA$ACTION", "METADATA$ISUPDATE").show() # doctest: +SKIP
 
             # timestamp_type automatically set to "TZ" due to timezone info
             >>> import datetime, pytz  # doctest: +SKIP
@@ -3053,9 +3030,6 @@ class Session:
             )
 
         if _emit_ast:
-            # The AST stores end_offset as an int, so normalize integer strings
-            # first. Invalid values raise the usual ValueError.
-            end_offset = TimeTravelConfig._normalize_end_offset(end_offset)
             stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.table, stmt)
             build_table_name(ast.name, name)
@@ -3073,16 +3047,6 @@ class Session:
                 ast.timestamp_type.value = str(timestamp_type)
             if stream is not None:
                 ast.stream.value = stream
-            if changes is not None:
-                ast.changes.value = changes
-            if end_statement is not None:
-                ast.end_statement.value = end_statement
-            if end_offset is not None:
-                ast.end_offset.value = end_offset
-            if end_timestamp is not None:
-                build_expr_from_python_val(ast.end_timestamp, end_timestamp)
-            if end_timestamp_type is not None:
-                ast.end_timestamp_type.value = str(end_timestamp_type)
         else:
             stmt = None
 
@@ -3101,11 +3065,6 @@ class Session:
             timestamp=timestamp,
             timestamp_type=timestamp_type,
             stream=stream,
-            changes=changes,
-            end_statement=end_statement,
-            end_offset=end_offset,
-            end_timestamp=end_timestamp,
-            end_timestamp_type=end_timestamp_type,
             version=version,
             version_tag=version_tag,
             start_snapshot_id=start_snapshot_id,

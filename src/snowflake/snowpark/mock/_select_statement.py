@@ -56,9 +56,6 @@ SET_UNION_ALL = analyzer_utils.UNION_ALL
 SET_INTERSECT = analyzer_utils.INTERSECT
 SET_EXCEPT = analyzer_utils.EXCEPT
 
-# Feature name reported when a change-tracking read hits local testing.
-CHANGES_READ_FEATURE_NAME = "Table reads with the CHANGES clause"
-
 
 class MockSelectable(LogicalPlan, ABC):
     """The parent abstract class of a DataFrame's logical plan. It can be converted to and from a SnowflakePlan."""
@@ -605,13 +602,5 @@ class MockSelectableEntity(MockSelectable):
         analyzer: "Analyzer",
     ) -> None:
         super().__init__(analyzer)
-        if (
-            entity.time_travel_config is not None
-            and entity.time_travel_config.changes is not None
-        ):
-            analyzer.session._conn.log_not_supported_error(
-                external_feature_name=CHANGES_READ_FEATURE_NAME,
-                raise_error=NotImplementedError,
-            )
         self.entity = entity
         self.api_calls = []
