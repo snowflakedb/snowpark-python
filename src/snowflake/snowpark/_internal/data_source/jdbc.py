@@ -164,7 +164,10 @@ class JDBC:
     ) -> None:
         self.session = session
         self.url = url
-        self.table_or_query = table_or_query
+        # A query is wrapped in a subquery, where a trailing ';' is a syntax error.
+        self.table_or_query = (
+            table_or_query.strip().rstrip(";").rstrip() if is_query else table_or_query
+        )
 
         self.external_access_integration = external_access_integration
         self.imports = imports
@@ -503,7 +506,7 @@ class JDBC:
             f"SNOWPARK_JDBC_INFER_SCHEMA_ALIAS_{generate_random_alphanumeric(5)}"
         )
         return (
-            f"SELECT {infer_schema_alias}.* FROM ({self.table_or_query}) {infer_schema_alias} WHERE 1 = 0"
+            f"SELECT {infer_schema_alias}.* FROM ({self.table_or_query}\n) {infer_schema_alias} WHERE 1 = 0"
             if self.is_query
             else f"SELECT * FROM {self.table_or_query} WHERE 1 = 0"
         )
@@ -576,7 +579,9 @@ class JDBC:
         )
         cols = [col[0] for col in self.raw_schema]
         if self.is_query:
-            return f"SELECT {select_sql_alias}.* FROM ({self.table_or_query}) {select_sql_alias}"
+            # The closing parenthesis is on its own line so that a trailing "--"
+            # comment in the query does not comment it out.
+            return f"SELECT {select_sql_alias}.* FROM ({self.table_or_query}\n) {select_sql_alias}"
         else:
             return f"SELECT {', '.join(cols)} FROM {self.table_or_query}"
 

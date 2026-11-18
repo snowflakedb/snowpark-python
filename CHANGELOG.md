@@ -26,6 +26,7 @@
 - Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) removed empty lines inside string literals of raw SQL, which changed query results.
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` that contained string literals, backslashes or newlines failed with a SQL compilation error during schema inference.
 - Fixed a bug in `DataFrameReader.jdbc` where reading failed when `DEFAULT_DDL_COLLATION` was set.
+- Fixed a bug in `DataFrameReader.jdbc` where a `query` ending with `;` or with a `--` comment failed with a syntax error.
 
 ## 1.58.0 (2026-11-19)
 

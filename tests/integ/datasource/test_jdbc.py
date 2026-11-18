@@ -540,3 +540,17 @@ def test_postgres_with_default_ddl_collation(session, postgres_udtf_configs):
     finally:
         session.use_schema(original_schema)
         session.sql(f"drop schema if exists {schema}").collect()
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["select 1 as s;", "select 1 as s -- trailing comment", "select 1 as s; \n"],
+)
+def test_postgres_query_trailing_semicolon_and_comment(
+    session, postgres_udtf_configs, query
+):
+    """SNOW-4537775: these used to fail with a syntax error in the wrapping subquery."""
+    df = session.read.jdbc(
+        url=POSTGRES_URL, udtf_configs=postgres_udtf_configs, query=query
+    )
+    assert [r[0] for r in df.collect()] == [1]

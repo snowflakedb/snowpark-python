@@ -270,7 +270,9 @@ def _render_jdbc_infer_schema_sql(table_or_query, is_query=True):
 def _strip_infer_schema_wrapper(infer_sql):
     """Recover the user table/query from JDBC.infer_schema_sql() output."""
     match = re.fullmatch(
-        r"SELECT (?:(\w+)\.)?\* FROM (?:\((.*)\) \1|(.*)) WHERE 1 = 0", infer_sql, re.S
+        r"SELECT (?:(\w+)\.)?\* FROM (?:\((.*)\n\) \1|(.*)) WHERE 1 = 0",
+        infer_sql,
+        re.S,
     )
     assert match, infer_sql
     return match.group(2) if match.group(2) is not None else match.group(3)
@@ -319,12 +321,14 @@ def test_jdbc_infer_schema_sql_escapes_query(query):
 def test_jdbc_infer_schema_sql_unchanged_without_special_chars(
     table_or_query, is_query
 ):
-    """Queries without quotes, backslashes or newlines generate the same SQL as before."""
+    """Queries without quotes or backslashes are not double-escaped."""
     _, literal = _render_jdbc_infer_schema_sql(table_or_query, is_query)
-    # Same format as before the fix: the inference SQL wrapped in plain quotes.
     assert literal.startswith("'SELECT ") and literal.endswith(" WHERE 1 = 0'")
-    assert "\\" not in literal and "''" not in literal
-    assert _strip_infer_schema_wrapper(literal[1:-1]) == table_or_query
+    assert "''" not in literal
+    # Only the newline before the closing parenthesis of a query is escaped.
+    assert literal.count("\\") == (1 if is_query else 0)
+    decoded = _decode_sql_string_literal(literal)
+    assert _strip_infer_schema_wrapper(decoded) == table_or_query
 
 
 def test_jdbc_read_casts_partition_argument_to_varchar():
@@ -349,3 +353,38 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
         sql for sql in captured if "table(" in sql.lower() and "select result" in sql
     )
     assert "(partition::VARCHAR)) AS result" in select
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["SELECT 1 AS s", "SELECT 1 AS s;", "  SELECT 1 AS s ; \n", "SELECT 1 AS s;;"],
+)
+def test_jdbc_query_trailing_semicolon_is_stripped(query):
+    """SNOW-4537775: a trailing ';' is a syntax error inside the wrapping subquery."""
+    client = JDBC(
+        session=Mock(),
+        url="jdbc:postgresql://host/db",
+        table_or_query=query,
+        external_access_integration="EAI",
+        imports=[],
+        is_query=True,
+        secret="cred",
+    )
+    assert client.table_or_query == "SELECT 1 AS s"
+    assert re.match(
+        r"SELECT (\w+)\.\* FROM \(SELECT 1 AS s\n\) \1$", client.generate_select_sql()
+    )
+
+
+def test_jdbc_query_trailing_comment_does_not_hide_closing_paren():
+    client = JDBC(
+        session=Mock(),
+        url="jdbc:postgresql://host/db",
+        table_or_query="SELECT 1 AS s -- note",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=True,
+        secret="cred",
+    )
+    for sql in (client.generate_select_sql(), client.infer_schema_sql()):
+        assert "-- note\n) " in sql
