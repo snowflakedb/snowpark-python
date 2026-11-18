@@ -349,3 +349,32 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
         sql for sql in captured if "table(" in sql.lower() and "select result" in sql
     )
     assert "(partition::VARCHAR)) AS result" in select
+
+
+@pytest.mark.parametrize(
+    "value, literal",
+    [
+        ("plain", '"plain"'),
+        ('a"b', '"a\\"b"'),
+        ("a\\b", '"a\\\\b"'),
+        ("l1\nl2\r\tx", '"l1\\nl2\\r\\tx"'),
+        ("a$$b", '"a\\u0024\\u0024b"'),
+        ("\\u0022", '"\\\\u0022"'),
+        ("日本", '"日本"'),
+    ],
+)
+def test_to_java_string_literal(value, literal):
+    assert to_java_string_literal(value) == literal
+
+
+def test_jdbc_user_strings_are_java_escaped():
+    """SNOW-4537768: url, properties and session_init_statement are written into
+    Java source, so they must be escaped rather than pasted raw."""
+    ddl = _render_jdbc_ddls(
+        properties={"ApplicationName": 'snow"park$$'},
+        session_init_statement=['SET search_path TO "public"'],
+    )
+    assert 'properties.put("ApplicationName", "snow\\"park\\u0024\\u0024");' in ddl
+    assert 'stmt.execute("SET search_path TO \\"public\\"");' in ddl
+    # Only the two DDL delimiters remain.
+    assert ddl.count("$$") == 2

@@ -540,3 +540,19 @@ def test_postgres_with_default_ddl_collation(session, postgres_udtf_configs):
     finally:
         session.use_schema(original_schema)
         session.sql(f"drop schema if exists {schema}").collect()
+
+
+def test_postgres_java_escaped_user_strings(session, postgres_udtf_configs):
+    """SNOW-4537768: double quotes and $$ in properties and session_init_statement
+    used to break compilation of the generated Java UDTF."""
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query="select current_setting('application_name') as app, "
+        "current_setting('search_path') as path",
+        properties={"ApplicationName": 'snow"park$$'},
+        session_init_statement=['SET search_path TO "public"'],
+    )
+    row = df.collect()[0]
+    assert row["APP"] == 'snow"park$$'
+    assert row["PATH"].strip('"') == "public"

@@ -137,6 +137,32 @@ JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
 PARTITION_TABLE_COLUMN_NAME = "partition"
 
 
+def to_java_string_literal(value: object) -> str:
+    """Return ``value`` as a double-quoted Java string literal.
+
+    The generated Java source sits inside a ``$$ ... $$`` UDTF body, so ``$`` is
+    also written as a unicode escape to keep a ``$$`` in user input from ending
+    the body early.
+    """
+    escaped = []
+    for ch in str(value):
+        if ch == "\\":
+            escaped.append("\\\\")
+        elif ch == '"':
+            escaped.append('\\"')
+        elif ch == "\n":
+            escaped.append("\\n")
+        elif ch == "\r":
+            escaped.append("\\r")
+        elif ch == "\t":
+            escaped.append("\\t")
+        elif ch == "$" or ord(ch) < 0x20:
+            escaped.append(f"\\u{ord(ch):04x}")
+        else:
+            escaped.append(ch)
+    return '"' + "".join(escaped) + '"'
+
+
 class JDBC:
     def __init__(
         self,
@@ -480,7 +506,7 @@ class JDBC:
         if self.properties is not None:
             user_properties_overwrite = "\n".join(
                 [
-                    f'properties.put("{key}", "{value}");'
+                    f"properties.put({to_java_string_literal(key)}, {to_java_string_literal(value)});"
                     for key, value in self.properties.items()
                 ]
             )
@@ -491,7 +517,7 @@ class JDBC:
                     properties.put("password", up.getPassword());
         """
         return f"""
-                String url = "{self.url}";
+                String url = {to_java_string_literal(self.url)};
                 java.util.Properties properties = new java.util.Properties();
                 {get_secret}
                 {user_properties_overwrite}
@@ -603,7 +629,10 @@ class JDBC:
     def generate_session_init_statement(self):
         if self.session_init_statement is not None:
             return "\n".join(
-                [f'stmt.execute("{query}");' for query in self.session_init_statement]
+                [
+                    f"stmt.execute({to_java_string_literal(query)});"
+                    for query in self.session_init_statement
+                ]
             )
         else:
             return ""
