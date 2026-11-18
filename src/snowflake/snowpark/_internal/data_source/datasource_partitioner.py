@@ -29,6 +29,7 @@ from snowflake.snowpark.types import (
     _NumericType,
     DateType,
     DataType,
+    TimestampType,
 )
 from typing import TYPE_CHECKING
 
@@ -214,7 +215,15 @@ class DataSourcePartitioner:
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
         num_partitions: Optional[int] = None,
+        allow_timestamp_column: bool = False,
+        bound_literal: Optional[Callable[[datetime.datetime], str]] = None,
     ):
+        """Generate the partition queries.
+
+        ``allow_timestamp_column`` also accepts a timestamp partition column, and
+        ``bound_literal`` renders a date or timestamp bound as a SQL literal for the
+        source database; by default the bound is a quoted string.
+        """
         if column is None:
             if (
                 lower_bound is not None
@@ -249,9 +258,15 @@ class DataSourcePartitioner:
             if column_type is None:
                 raise ValueError(f"Specified column {column} does not exist")
 
-            if not isinstance(column_type, (_NumericType, DateType)):
+            supported_types = (
+                (_NumericType, DateType, TimestampType)
+                if allow_timestamp_column
+                else (_NumericType, DateType)
+            )
+            if not isinstance(column_type, supported_types):
                 raise ValueError(
                     f"unsupported type {column_type}, column must be a numeric type like int and float, or date type"
+                    + (" or timestamp type" if allow_timestamp_column else "")
                 )
             partitioned_queries = (
                 DataSourcePartitioner.generate_partition_with_column_name(
@@ -261,6 +276,7 @@ class DataSourcePartitioner:
                     lower_bound,
                     upper_bound,
                     num_partitions,
+                    bound_literal,
                 )
             )
         return partitioned_queries
@@ -273,7 +289,17 @@ class DataSourcePartitioner:
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
         num_partitions: Optional[int] = None,
+        bound_literal: Optional[Callable[[datetime.datetime], str]] = None,
     ) -> List[str]:
+        def to_literal(value: int) -> str:
+            external_value = to_external_value(value, column_type)
+            if isinstance(column_type, TimestampType):
+                # The source column has no Snowflake time zone; compare wall-clock time.
+                external_value = external_value.replace(tzinfo=None)
+            if bound_literal is not None and not isinstance(column_type, _NumericType):
+                return bound_literal(external_value)
+            return f"'{external_value}'"
+
         processed_lower_bound = to_internal_value(lower_bound, column_type)
         processed_upper_bound = to_internal_value(upper_bound, column_type)
         if processed_lower_bound > processed_upper_bound:
@@ -317,14 +343,10 @@ class DataSourcePartitioner:
 
         partition_queries = []
         for i in range(actual_num_partitions):
-            l_bound = (
-                f"{column} >= '{to_external_value(current_value, column_type)}'"
-                if i != 0
-                else ""
-            )
+            l_bound = f"{column} >= {to_literal(current_value)}" if i != 0 else ""
             current_value += stride
             u_bound = (
-                f"{column} < '{to_external_value(current_value, column_type)}'"
+                f"{column} < {to_literal(current_value)}"
                 if i != actual_num_partitions - 1
                 else ""
             )
