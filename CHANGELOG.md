@@ -1,6 +1,6 @@
 # Release History
 
-## 1.58.0 (TBD)
+## 1.58.0 (2026-11-18)
 
 ### Snowpark Python API Updates
 
@@ -19,7 +19,7 @@
 - Fixed a bug where `Table.sample` and seeded `DataFrame.stat.sample_by` on a table embedded `seed` into the SQL without validating it. A `seed` that is not an integer between 0 and 2147483647 now raises `ValueError`.
 - Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
 - Fixed a bug where `DataFrameReader.table` failed when a time travel reader option was set to `None`, e.g. `option("time_travel_mode", None)` together with `option("as-of-timestamp", ...)`. Time travel options set to `None` are now treated as unset.
-- Fixed a bug where `DataFrameReader.documents()` (Private Preview) reads with a schema refused `.jpg`, `.jpeg`, `.png`, `.gif` and `.webp` images with a "file type is not supported" error. Each image is now sent to `AI_COMPLETE` whole, in one call.
+- Fixed a bug where `DataFrameReader.documents()` (Private Preview) reads with a schema rejected `.jpg`, `.jpeg`, `.png`, `.gif` and `.webp` images with a "file type is not supported" error.
 
 ### Snowpark Local Testing Updates
 
