@@ -2909,3 +2909,32 @@ def measure_time() -> Callable[[], float]:
     start_time = end_time = perf_counter()
     yield lambda: end_time - start_time
     end_time = perf_counter()
+
+
+def validate_sample_seed(seed: Optional[Any]) -> Optional[int]:
+    """Returns ``seed`` as an ``int`` (or ``None`` if unset) after checking that Snowflake accepts it.
+
+    The seed is embedded into the SAMPLE clause of the generated SQL, so it must be an
+    integer in [0, 2147483647]. Integral floats (e.g. ``1.0``) and strings of ASCII digits
+    (e.g. ``"7"``) are converted to ``int`` because they were accepted before this validation.
+    ``bool`` is rejected even though it is an ``int`` subclass.
+    """
+    if seed is None:
+        return None
+    value = None
+    if isinstance(seed, bool):
+        pass
+    elif isinstance(seed, numbers.Integral):
+        value = int(seed)
+    elif isinstance(seed, numbers.Real):
+        if float(seed).is_integer():
+            value = int(seed)
+    elif isinstance(seed, str):
+        stripped = seed.strip()
+        if stripped.isascii() and stripped.isdigit():
+            value = int(stripped)
+    if value is None or not 0 <= value <= 2147483647:
+        raise ValueError(
+            f"'seed' must be an integer between 0 and 2147483647, got {seed!r}."
+        )
+    return value

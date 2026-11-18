@@ -23,7 +23,12 @@ from snowflake.snowpark._internal.telemetry import (
     adjust_api_subcalls,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
-from snowflake.snowpark._internal.utils import column_to_bool, publicapi, warning
+from snowflake.snowpark._internal.utils import (
+    column_to_bool,
+    publicapi,
+    validate_sample_seed,
+    warning,
+)
 from snowflake.snowpark.functions import (
     _to_col_if_str,
     approx_percentile_accumulate,
@@ -475,7 +480,18 @@ class DataFrameStatFunctions:
             return res_df
 
         col = _to_col_if_str(col, "sample_by")
-        if seed is not None and isinstance(self._dataframe, snowflake.snowpark.Table):
+        is_table = isinstance(self._dataframe, snowflake.snowpark.Table)
+        # Snowflake rejects seeded sampling on change-tracking and Iceberg incremental reads, and
+        # these are not plain table references, so they can't use the flat SQL below.
+        unseedable_table = is_table and (
+            (
+                self._dataframe._time_travel_config is not None
+                and self._dataframe._time_travel_config.changes is not None
+            )
+            or self._dataframe._iceberg_changes_config is not None
+        )
+        if seed is not None and is_table and not unseedable_table:
+            seed = validate_sample_seed(seed)
 
             def equal_condition_str(k: LiteralType) -> str:
                 return self._dataframe._session._analyzer.binary_operator_extractor(
@@ -487,7 +503,7 @@ class DataFrameStatFunctions:
             # we just use session.sql to compile a flat query
             def df_generator(self, k, v):
                 return self._dataframe._session.sql(
-                    f"SELECT * FROM {self._dataframe.table_name} SAMPLE ({v * 100.0}) SEED ({seed}) WHERE {equal_condition_str(k)}",
+                    f"SELECT * FROM {self._dataframe._from_clause_sql()} SAMPLE ({v * 100.0}) SEED ({seed}) WHERE {equal_condition_str(k)}",
                     _emit_ast=False,
                 )
 
@@ -495,7 +511,13 @@ class DataFrameStatFunctions:
                 col=col, fractions=fractions, df_generator=df_generator
             )
         else:
-            if seed is not None:
+            if seed is not None and unseedable_table:
+                warning(
+                    "stat.sample_by.unseedable_table",
+                    "`seed` argument is ignored for change-tracking reads and Iceberg incremental reads, "
+                    "which do not support seeded sampling.",
+                )
+            elif seed is not None:
                 warning(
                     "stat.sample_by",
                     "`seed` argument is ignored on `DataFrame` object. Save this DataFrame to a temporary table "
