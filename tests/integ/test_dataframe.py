@@ -8885,51 +8885,64 @@ def test_table_changes_clause_sql_simplifier(
     "config.getoption('local_testing_mode', default=False)",
     reason="Change tracking is not supported in Local Testing",
 )
+def test_table_changes_sample_not_supported(session):
+    # Table creation is lazy: no query runs and the table doesn't have to exist
+    changes = session.table(
+        "ANY_NAME", changes="default", time_travel_mode="at", statement="q1"
+    )
+    for kwargs in (
+        {"frac": 0.5},
+        {"n": 1},
+        {"frac": 0.5, "seed": 1},
+        {"frac": 0.5, "sampling_method": "SYSTEM"},
+    ):
+        with pytest.raises(ValueError, match="not supported for change-tracking"):
+            changes.sample(**kwargs)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Change tracking is not supported in Local Testing",
+)
+@pytest.mark.parametrize("simplifier_enabled", [True, False])
 @pytest.mark.parametrize("reduce_describe", [False, True])
-def test_table_changes_sample(session, changes_table, reduce_describe):
-    original = session.reduce_describe_query_enabled
+def test_table_changes_sample_subquery_workaround(
+    session, changes_table, simplifier_enabled, reduce_describe
+):
+    original = (
+        session.sql_simplifier_enabled,
+        session.reduce_describe_query_enabled,
+    )
+    session.sql_simplifier_enabled = simplifier_enabled
     session.reduce_describe_query_enabled = reduce_describe
     try:
-        _check_table_changes_sample(session, changes_table)
+        table_name, insert_qid, _, _ = changes_table
+        changes = session.table(
+            table_name, changes="default", time_travel_mode="at", statement=insert_qid
+        )
+        sampled = changes.select("*").sample(frac=1.0)
+        # SAMPLE must follow the closing parenthesis of the subquery holding the CHANGES clause
+        sql = " ".join(sampled.queries["queries"][-1].upper().split())
+        assert "CHANGES (INFORMATION => DEFAULT)" in sql
+        assert sql.index("CHANGES") < sql.rindex(") SAMPLE (100.0)")
+        assert sql.count("SAMPLE") == 1
+
+        meta_cols = ["METADATA$ACTION", "METADATA$ISUPDATE", "METADATA$ROW_ID"]
+        assert all(c in sampled.columns for c in meta_cols)
+        assert all(c in [f.name for f in sampled.schema.fields] for c in meta_cols)
+        Utils.check_answer(
+            sampled.select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
+            [
+                Row(1, "a", "DELETE", True),
+                Row(1, "a2", "INSERT", True),
+                Row(2, "b", "DELETE", False),
+            ],
+        )
     finally:
-        session.reduce_describe_query_enabled = original
-
-
-def _check_table_changes_sample(session, changes_table):
-    table_name, insert_qid, _, _ = changes_table
-    changes = session.table(
-        table_name, changes="default", time_travel_mode="at", statement=insert_qid
-    )
-    # sample before touching the Table's columns, so cached metadata is exercised
-    sampled = changes.sample(frac=1.0)
-    meta_cols = ["METADATA$ACTION", "METADATA$ISUPDATE", "METADATA$ROW_ID"]
-    assert all(c in sampled.columns for c in meta_cols)
-    assert all(c in [f.name for f in sampled.schema.fields] for c in meta_cols)
-    assert all(c in sampled.collect()[0].as_dict() for c in meta_cols)
-    Utils.check_answer(
-        sampled.select(METADATA_ACTION),
-        [Row("DELETE"), Row("INSERT"), Row("DELETE")],
-    )
-    expected = [
-        Row(1, "a", "DELETE", True),
-        Row(1, "a2", "INSERT", True),
-        Row(2, "b", "DELETE", False),
-    ]
-    cols = ("id", "v", METADATA_ACTION, METADATA_ISUPDATE)
-    # sampling everything is deterministic, and the CHANGES clause is kept
-    full = changes.sample(frac=1.0)
-    assert "CHANGES (INFORMATION => DEFAULT)" in full.queries["queries"][-1].upper()
-    Utils.check_answer(full.select(*cols), expected)
-    Utils.check_answer(
-        changes.sample(frac=1.0, sampling_method="BERNOULLI").select(*cols), expected
-    )
-    Utils.check_answer(changes.sample(n=10).select(*cols), expected)
-    assert len(changes.sample(n=1).collect()) == 1
-
-    with pytest.raises(ValueError, match="change-tracking"):
-        changes.sample(frac=0.5, seed=1)
-    with pytest.raises(ValueError, match="change-tracking"):
-        changes.sample(frac=0.5, sampling_method="SYSTEM")
+        (
+            session.sql_simplifier_enabled,
+            session.reduce_describe_query_enabled,
+        ) = original
 
 
 @pytest.mark.skipif(

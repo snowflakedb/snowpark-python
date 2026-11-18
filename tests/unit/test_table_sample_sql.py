@@ -30,41 +30,28 @@ def sampled_sql(table, **kwargs):
     return table._session.sql.call_args.args[0]
 
 
-def test_sample_keeps_changes_clause_with_probability():
-    table = make_table(
-        changes="default",
-        time_travel_mode="at",
-        statement="q1",
-        end_offset=-1,
-    )
-    sql = sampled_sql(table, frac=0.5)
-    assert sql.startswith(
-        "SELECT * FROM T CHANGES (INFORMATION => DEFAULT) AT (STATEMENT => 'q1') "
-        "END (OFFSET => -1) SAMPLE  (50.0)"
-    )
-
-
-def test_sample_keeps_changes_clause_with_row_count():
-    table = make_table(changes="append_only", time_travel_mode="before", offset=-60)
-    sql = sampled_sql(table, n=3, sampling_method="ROW")
-    assert sql.startswith(
-        "SELECT * FROM T CHANGES (INFORMATION => APPEND_ONLY) BEFORE (OFFSET => -60) "
-        "SAMPLE ROW (3 ROWS)"
-    )
-
-
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"seed": 1},
-        {"sampling_method": "SYSTEM"},
-        {"sampling_method": "block"},
+        {"frac": 0.5},
+        {"n": 3},
+        {"frac": 0.5, "seed": 1},
+        {"frac": 0.5, "sampling_method": "ROW"},
+        {"frac": 0.5, "sampling_method": "SYSTEM"},
+        {"frac": 0.5, "sampling_method": "block"},
     ],
 )
-def test_sample_seed_and_block_not_supported_for_changes(kwargs):
-    table = make_table(changes="default", time_travel_mode="at", statement="q1")
-    with pytest.raises(ValueError, match="change-tracking reads"):
-        table.sample(frac=0.5, _emit_ast=False, **kwargs)
+@pytest.mark.parametrize(
+    "time_travel_kwargs",
+    [
+        {"changes": "default", "time_travel_mode": "at", "statement": "q1"},
+        {"changes": "append_only", "time_travel_mode": "before", "offset": -60},
+    ],
+)
+def test_sample_not_supported_for_changes(time_travel_kwargs, kwargs):
+    table = make_table(**time_travel_kwargs)
+    with pytest.raises(ValueError, match="not supported for change-tracking reads"):
+        table.sample(_emit_ast=False, **kwargs)
     table._session.sql.assert_not_called()
 
 

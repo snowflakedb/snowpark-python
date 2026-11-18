@@ -478,8 +478,9 @@ class Table(DataFrame):
 
         Sampling with a seed is not supported on views or subqueries. This method works on tables so it supports ``seed``.
         This is the main difference between :meth:`DataFrame.sample` and this method.
-        However, ``seed`` and the SYSTEM | BLOCK sampling method raise ``ValueError`` for change-tracking reads
-        (``changes=``), which Snowflake rejects. For Iceberg incremental reads they are ignored with a warning.
+        However, this method raises ``ValueError`` for change-tracking reads (``changes=``), because Snowflake
+        does not support sampling them directly; sample a subquery such as ``df.select("*")`` instead. For Iceberg
+        incremental reads, ``seed`` and the SYSTEM | BLOCK sampling method are ignored with a warning.
 
         Args:
             frac: The fraction of rows to sample, from 0.0 to 1.0 inclusive.
@@ -525,20 +526,16 @@ class Table(DataFrame):
 
         from snowflake.snowpark.mock._connection import MockServerConnection
 
-        # Seeded and SYSTEM/BLOCK sampling work on tables, including plain time travel reads,
-        # but Snowflake rejects them for change-tracking (CHANGES) reads.
-        seeded_or_block_sampling = seed is not None or (
-            sampling_method and sampling_method.upper() in ("SYSTEM", "BLOCK")
-        )
+        # Snowflake rejects a SAMPLE clause on the same object reference as a CHANGES clause.
         if (
-            seeded_or_block_sampling
-            and self._time_travel_config is not None
+            self._time_travel_config is not None
             and self._time_travel_config.changes is not None
         ):
             raise ValueError(
-                "Table.sample does not support 'seed' or the SYSTEM/BLOCK sampling method for "
-                f"change-tracking reads (changes={self._time_travel_config.changes.lower()!r}). "
-                "Use BERNOULLI/ROW sampling without a seed."
+                "Table.sample is not supported for change-tracking reads "
+                f"(changes={self._time_travel_config.changes.lower()!r}) because Snowflake does not "
+                "support a SAMPLE clause on a CHANGES query. Sample a subquery instead, "
+                "e.g. df.select('*').sample(...)."
             )
 
         stmt = None
