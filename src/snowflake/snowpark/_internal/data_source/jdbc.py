@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.utils import get_jdbc_dbms
 from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
+    get_temp_type_for_object,
     random_name_for_temp_object,
     TempObjectType,
 )
@@ -237,6 +238,9 @@ class JDBC:
             else "PACKAGES=('com.snowflake:snowpark:latest')"
         )
         self.secret_sql = f"SECRETS = ('cred' = {self.secret})"
+        self._temp_function_type = get_temp_type_for_object(
+            self.session._use_scoped_temp_objects, True
+        )
         self._infer_schema_successful = True
         self.secret_detector()
 
@@ -244,7 +248,7 @@ class JDBC:
     def schema(self) -> StructType:
         infer_schema_udtf_name = random_name_for_temp_object(TempObjectType.FUNCTION)
         infer_schema_udtf_registration = f"""
-            CREATE OR REPLACE TEMPORARY FUNCTION {infer_schema_udtf_name}(query VARCHAR)
+            CREATE OR REPLACE {self._temp_function_type} FUNCTION {infer_schema_udtf_name}(query VARCHAR)
             RETURNS TABLE (field_name VARCHAR, jdbc_type VARCHAR, java_type VARCHAR, precision INTEGER, scale INTEGER, nullable BOOLEAN)
             LANGUAGE JAVA
             RUNTIME_VERSION = '{self.java_version}'
@@ -361,12 +365,24 @@ class JDBC:
         self.session.sql(
             infer_schema_udtf_registration, _emit_ast=self._emit_ast
         ).collect()
-        # The inference query is passed as a SQL string literal, so it must be escaped:
-        # otherwise quotes, backslashes or newlines in a user `query` break or alter it.
-        self.raw_schema = self.session.sql(
-            f"SELECT * FROM TABLE({infer_schema_udtf_name}({str_to_sql(self.infer_schema_sql())}))",
-            _emit_ast=self._emit_ast,
-        ).collect()
+        try:
+            # The inference query is passed as a SQL string literal, so it must be
+            # escaped: otherwise quotes, backslashes or newlines in a user `query`
+            # break or alter it.
+            self.raw_schema = self.session.sql(
+                f"SELECT * FROM TABLE({infer_schema_udtf_name}({str_to_sql(self.infer_schema_sql())}))",
+                _emit_ast=self._emit_ast,
+            ).collect()
+        finally:
+            # Only the read UDTF is referenced by the returned DataFrame, so drop the
+            # inference UDTF instead of keeping it until the session ends.
+            try:
+                self.session.sql(
+                    f"DROP FUNCTION IF EXISTS {infer_schema_udtf_name}(VARCHAR)",
+                    _emit_ast=False,
+                ).collect()
+            except Exception as e:
+                logger.debug(f"Failed to drop {infer_schema_udtf_name}: {e}")
 
         auto_infer_schema = self.to_snow_type()
 
@@ -447,7 +463,7 @@ class JDBC:
         )
 
         jdbc_udtf_registration = f"""
-            CREATE OR REPLACE TEMPORARY FUNCTION {jdbc_ingestion_name}(query VARCHAR)
+            CREATE OR REPLACE {self._temp_function_type} FUNCTION {jdbc_ingestion_name}(query VARCHAR)
             RETURNS TABLE ({udtf_table_return_type})
             LANGUAGE JAVA
             RUNTIME_VERSION = '{self.java_version}'

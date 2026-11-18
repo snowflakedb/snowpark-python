@@ -625,3 +625,45 @@ def test_dbapi_partitioner_still_rejects_timestamp_column():
             upper_bound="2024-01-31",
             num_partitions=3,
         )
+
+
+@pytest.mark.parametrize("inference_fails", [False, True])
+@pytest.mark.parametrize(
+    "use_scoped, temp_type", [(True, "SCOPED TEMPORARY"), (False, "TEMPORARY")]
+)
+def test_jdbc_infer_schema_udtf_is_dropped(inference_fails, use_scoped, temp_type):
+    """SNOW-4537773: the inference UDTF used to live until the session ended."""
+    session = Mock()
+    session._use_scoped_temp_objects = use_scoped
+    executed = []
+
+    def sql(text, **kwargs):
+        executed.append(text)
+        result = Mock()
+        if text.startswith("SELECT * FROM TABLE(") and inference_fails:
+            result.collect.side_effect = RuntimeError("source down")
+        else:
+            result.collect.return_value = [
+                ("ID", "INTEGER", "java.lang.Integer", 10, 0, True)
+            ]
+        return result
+
+    session.sql.side_effect = sql
+    client = JDBC(
+        session=session,
+        url="jdbc:postgresql://host/db",
+        table_or_query="T",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=False,
+        secret="cred",
+    )
+    if inference_fails:
+        with pytest.raises(RuntimeError, match="source down"):
+            client.schema
+    else:
+        client.schema
+    create, _, drop = executed
+    name = re.search(rf"CREATE OR REPLACE {temp_type} FUNCTION (\w+)\(", create)
+    assert name, create
+    assert drop == f"DROP FUNCTION IF EXISTS {name.group(1)}(VARCHAR)"
