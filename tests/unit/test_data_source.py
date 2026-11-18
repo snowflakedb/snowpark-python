@@ -17,7 +17,14 @@ from snowflake.snowpark.context import (
     _PYPI_SHARED_REPOSITORY,
 )
 from snowflake.snowpark.exceptions import SnowparkClientException
-from snowflake.snowpark.types import StructType, StructField, StringType
+from snowflake.snowpark.types import (
+    BooleanType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampTimeZone,
+    TimestampType,
+)
 
 
 @pytest.mark.parametrize(
@@ -349,3 +356,102 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
         sql for sql in captured if "table(" in sql.lower() and "select result" in sql
     )
     assert "(partition::VARCHAR)) AS result" in select
+
+
+@pytest.mark.parametrize(
+    "url, raw_row, expected_type, expected_reader",
+    [
+        (
+            "jdbc:postgresql://h/d",
+            ("C", "BIT", "java.lang.Boolean", 1, 0, True, "bool"),
+            BooleanType(),
+            "rs.getString(1)",
+        ),
+        (
+            "jdbc:postgresql://h/d",
+            ("C", "BIT", "java.lang.Boolean", 1, 0, True, "bit"),
+            StringType(),
+            "rs.getString(1)",
+        ),
+        (
+            "jdbc:sqlserver://h:1433",
+            ("C", "BIT", "java.lang.Boolean", 1, 0, True, "bit"),
+            BooleanType(),
+            "rs.getString(1)",
+        ),
+        (
+            "jdbc:mysql://h/d",
+            ("C", "BIT", "java.lang.Boolean", 1, 0, True, "BIT"),
+            StringType(),
+            "rs.getString(1)",
+        ),
+        (
+            "jdbc:oracle:thin:@//h/s",
+            (
+                "C",
+                None,
+                "oracle.sql.TIMESTAMPTZ",
+                0,
+                6,
+                True,
+                "TIMESTAMP WITH TIME ZONE",
+            ),
+            TimestampType(TimestampTimeZone.TZ),
+            "rs.getObject(1, java.time.OffsetDateTime.class)",
+        ),
+        (
+            "jdbc:oracle:thin:@//h/s",
+            (
+                "C",
+                None,
+                "oracle.sql.TIMESTAMPLTZ",
+                0,
+                6,
+                True,
+                "TIMESTAMP WITH LOCAL TIME ZONE",
+            ),
+            TimestampType(TimestampTimeZone.LTZ),
+            "rs.getTimestamp(1)",
+        ),
+        (
+            "jdbc:postgresql://h/d",
+            ("C", "TIMESTAMP", "java.sql.Timestamp", 35, 6, True, "timestamptz"),
+            TimestampType(TimestampTimeZone.TZ),
+            "rs.getObject(1, java.time.OffsetDateTime.class)",
+        ),
+        (
+            "jdbc:postgresql://h/d",
+            ("C", "TIME", "java.sql.Time", 21, 6, True, "timetz"),
+            StringType(),
+            "rs.getString(1)",
+        ),
+        (
+            "jdbc:oracle:thin:@//h/s",
+            ("C", None, "oracle.sql.INTERVALDS", 2, 0, True, "INTERVALDS"),
+            StringType(),
+            "rs.getString(1)",
+        ),
+        # Rows without a type name (older inference output) keep working.
+        (
+            "jdbc:postgresql://h/d",
+            ("C", "BIT", "java.lang.Boolean", 1, 0, True),
+            StringType(),
+            "rs.getString(1)",
+        ),
+    ],
+)
+def test_jdbc_type_mapping_and_readers(url, raw_row, expected_type, expected_reader):
+    """SNOW-4537767: BIT, time-zone and unknown types."""
+    client = JDBC(
+        session=Mock(),
+        url=url,
+        table_or_query="T",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=False,
+        secret="cred",
+    )
+    client.raw_schema = [raw_row]
+    client.__dict__["schema"] = client.to_snow_type()
+    assert client.schema.fields[0].datatype == expected_type
+    assert expected_reader in client.create_output_row_java_code()

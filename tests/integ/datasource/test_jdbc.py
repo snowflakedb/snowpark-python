@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import datetime
 import re
 from unittest.mock import patch
 
@@ -13,7 +14,16 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.types import StructType, StructField, FloatType, DoubleType
+from snowflake.snowpark.types import (
+    BooleanType,
+    DoubleType,
+    FloatType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampTimeZone,
+    TimestampType,
+)
 from tests.resources.test_data_source_dir.test_jdbc_data import (
     URL,
     EXTERNAL_ACCESS_INTEGRATION,
@@ -540,3 +550,133 @@ def test_postgres_with_default_ddl_collation(session, postgres_udtf_configs):
     finally:
         session.use_schema(original_schema)
         session.sql(f"drop schema if exists {schema}").collect()
+
+
+@pytest.mark.parametrize(
+    "url_fixture, init, query, expected_types, expected_rows",
+    [
+        (
+            "postgres",
+            [
+                "create temp table bool_bit (bo bool, b1 bit(1), b4 bit(4))",
+                "insert into bool_bit values (true, B'1', B'1010'), (false, B'0', B'0001'), (null, null, null)",
+            ],
+            "select * from bool_bit",
+            [BooleanType(), StringType(), StringType()],
+            [(True, "1", "1010"), (False, "0", "0001"), (None, None, None)],
+        ),
+        (
+            "mysql",
+            [
+                "create temporary table bool_bit (b1 bit(1), t1 tinyint(1), bo boolean)",
+                "insert into bool_bit values (b'1', 5, true), (b'0', 0, false), (null, null, null)",
+            ],
+            "select * from bool_bit",
+            # MySQL reports TINYINT(1) like BIT(1), and it can hold 5: keep strings.
+            [StringType(), StringType(), StringType()],
+            [("1", "5", "1"), ("0", "0", "0"), (None, None, None)],
+        ),
+        (
+            "sql_server",
+            [
+                "create table #bool_bit (b bit)",
+                "insert into #bool_bit values (1), (0), (null)",
+            ],
+            "select * from #bool_bit",
+            [BooleanType()],
+            [(True,), (False,), (None,)],
+        ),
+    ],
+)
+def test_jdbc_boolean_and_bit_columns(
+    session,
+    postgres_udtf_configs,
+    mysql_udtf_configs,
+    sql_server_udtf_configs,
+    url_fixture,
+    init,
+    query,
+    expected_types,
+    expected_rows,
+):
+    """SNOW-4537767: Postgres bool and SQL Server bit used to be read as strings."""
+    url, configs = {
+        "postgres": (POSTGRES_URL, postgres_udtf_configs),
+        "mysql": (MYSQL_URL, mysql_udtf_configs),
+        "sql_server": (SQL_SERVER_URL, sql_server_udtf_configs),
+    }[url_fixture]
+    df = session.read.jdbc(
+        url=url, udtf_configs=configs, query=query, session_init_statement=init
+    )
+    assert [f.datatype for f in df.schema.fields] == expected_types
+    assert sorted((tuple(r) for r in df.collect()), key=str) == sorted(
+        expected_rows, key=str
+    )
+
+
+UTC = datetime.timezone.utc
+
+
+@pytest.mark.parametrize(
+    "url_fixture, init, query, expected_types, expected_row",
+    [
+        (
+            "oracle",
+            [],
+            "SELECT TIMESTAMP '2024-01-01 10:00:00.123 -08:00' AS TZ, "
+            "TIMESTAMP '2024-07-01 10:00:00 Asia/Kolkata' AS TZR, "
+            "CAST(TIMESTAMP '2024-01-01 10:00:00 +00:00' AS TIMESTAMP WITH LOCAL TIME ZONE) AS LTZ, "
+            "INTERVAL '2' DAY AS IV FROM DUAL",
+            [
+                TimestampType(TimestampTimeZone.TZ),
+                TimestampType(TimestampTimeZone.TZ),
+                TimestampType(TimestampTimeZone.LTZ),
+                StringType(),
+            ],
+            (
+                datetime.datetime(2024, 1, 1, 18, 0, 0, 123000, tzinfo=UTC),
+                datetime.datetime(2024, 7, 1, 4, 30, tzinfo=UTC),
+                datetime.datetime(2024, 1, 1, 10, 0, tzinfo=UTC),
+                "2 0:0:0.0",
+            ),
+        ),
+        (
+            "postgres",
+            [],
+            "select '2024-07-01 10:00+05:30'::timestamptz as tz, '03:04:05-08'::timetz as ttz",
+            [TimestampType(TimestampTimeZone.TZ), StringType()],
+            (datetime.datetime(2024, 7, 1, 4, 30, tzinfo=UTC), "03:04:05-08"),
+        ),
+        (
+            "sql_server",
+            [],
+            "select cast('2024-07-01 10:00:00 +05:30' as datetimeoffset) as dto",
+            [TimestampType(TimestampTimeZone.TZ)],
+            (datetime.datetime(2024, 7, 1, 4, 30, tzinfo=UTC),),
+        ),
+    ],
+)
+def test_jdbc_time_zone_columns(
+    session,
+    udtf_configs,
+    postgres_udtf_configs,
+    sql_server_udtf_configs,
+    url_fixture,
+    init,
+    query,
+    expected_types,
+    expected_row,
+):
+    """SNOW-4537767: time-zone aware values used to be VARIANT strings, and
+    Postgres timestamptz lost its time zone."""
+    url, configs = {
+        "oracle": (URL, udtf_configs),
+        "postgres": (POSTGRES_URL, postgres_udtf_configs),
+        "sql_server": (SQL_SERVER_URL, sql_server_udtf_configs),
+    }[url_fixture]
+    df = session.read.jdbc(
+        url=url, udtf_configs=configs, query=query, session_init_statement=init
+    )
+    assert [f.datatype for f in df.schema.fields] == expected_types
+    # Aware datetimes compare by instant, whatever offset they are returned in.
+    assert tuple(df.collect()[0]) == expected_row
