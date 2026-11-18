@@ -26,6 +26,7 @@
 - Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) removed empty lines inside string literals of raw SQL, which changed query results.
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` that contained string literals, backslashes or newlines failed with a SQL compilation error during schema inference.
 - Fixed a bug in `DataFrameReader.jdbc` where reading failed when `DEFAULT_DDL_COLLATION` was set.
+- `DataFrameReader.jdbc` now raises `ValueError` for a non-positive or non-integer `num_partitions`, for a `custom_schema` column that is not in the source, and for a missing `imports` key in `udtf_configs` (previously `KeyError`). It no longer modifies the caller's `udtf_configs["packages"]` list, and no longer adds `com.snowflake:snowpark:latest` when a specific Snowpark version is listed.
 
 ## 1.58.0 (2026-11-19)
 

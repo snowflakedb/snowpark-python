@@ -349,3 +349,83 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
         sql for sql in captured if "table(" in sql.lower() and "select result" in sql
     )
     assert "(partition::VARCHAR)) AS result" in select
+
+
+def _jdbc_reader():
+    from snowflake.snowpark.dataframe_reader import DataFrameReader
+
+    reader = DataFrameReader.__new__(DataFrameReader)
+    reader._session = Mock()
+    return reader
+
+
+@pytest.mark.parametrize(
+    "missing", ["external_access_integration", "secret", "imports"]
+)
+def test_jdbc_missing_udtf_config_raises_value_error(missing):
+    """SNOW-4537774: a missing key used to raise a bare KeyError for imports."""
+    configs = {"external_access_integration": "E", "secret": "S", "imports": ["@s/j"]}
+    del configs[missing]
+    with pytest.raises(ValueError, match="must be specified in udtf configs"):
+        _jdbc_reader().jdbc(url="jdbc:x://h/d", udtf_configs=configs, query="q")
+
+
+@pytest.mark.parametrize("num_partitions", [0, -1, 2.5, "3", True])
+def test_jdbc_rejects_invalid_num_partitions(num_partitions):
+    configs = {"external_access_integration": "E", "secret": "S", "imports": ["@s/j"]}
+    with pytest.raises(ValueError, match="num_partitions must be a positive integer"):
+        _jdbc_reader().jdbc(
+            url="jdbc:x://h/d",
+            udtf_configs=configs,
+            query="q",
+            column="ID",
+            lower_bound=0,
+            upper_bound=10,
+            num_partitions=num_partitions,
+        )
+
+
+@pytest.mark.parametrize(
+    "packages, expected",
+    [
+        (
+            ["org.example:lib:1.0"],
+            ["org.example:lib:1.0", "com.snowflake:snowpark:latest"],
+        ),
+        (["com.snowflake:snowpark:1.15.0"], ["com.snowflake:snowpark:1.15.0"]),
+        (["com.snowflake:snowpark"], ["com.snowflake:snowpark"]),
+    ],
+)
+def test_jdbc_packages_not_mutated_and_pin_respected(packages, expected):
+    original = list(packages)
+    client = JDBC(
+        session=Mock(),
+        url="jdbc:postgresql://host/db",
+        table_or_query="SELECT 1",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=True,
+        secret="cred",
+        packages=packages,
+    )
+    assert packages == original
+    assert client.packages == expected
+
+
+def test_jdbc_custom_schema_unknown_column_raises():
+    session = Mock()
+    client = JDBC(
+        session=session,
+        url="jdbc:postgresql://host/db",
+        table_or_query="SELECT 1",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=True,
+        secret="cred",
+        custom_schema="ID INTEGER, NOPE STRING",
+    )
+    session.sql.return_value.collect.return_value = [
+        ("ID", "INTEGER", "java.lang.Integer", 10, 0, True)
+    ]
+    with pytest.raises(ValueError, match="NOPE"):
+        client.schema

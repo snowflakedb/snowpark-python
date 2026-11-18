@@ -168,7 +168,7 @@ class JDBC:
 
         self.external_access_integration = external_access_integration
         self.imports = imports
-        self.packages = packages
+        self.packages = list(packages) if packages is not None else None
         self.java_version = java_version
         self.secret = secret
         self.properties = copy.deepcopy(properties)
@@ -190,10 +190,10 @@ class JDBC:
             if self.imports is not None
             else ""
         )
-        if (
-            self.packages is not None
-            and "com.snowflake:snowpark:latest" not in self.packages
-            and "com.snowflake:snowpark" not in self.packages
+        if self.packages is not None and not any(
+            pack == "com.snowflake:snowpark"
+            or pack.startswith("com.snowflake:snowpark:")
+            for pack in self.packages
         ):
             self.packages.append("com.snowflake:snowpark:latest")
         self.packages_sql = (
@@ -338,6 +338,18 @@ class JDBC:
                         "Please choose another name or rename the existing column "
                     )
                 custom_schema_name_to_field[field.name.lower()] = field
+            inferred_names = {field.name.lower() for field in auto_infer_schema.fields}
+            unknown = [
+                field.name
+                for name, field in custom_schema_name_to_field.items()
+                if name not in inferred_names
+            ]
+            if unknown:
+                raise ValueError(
+                    f"Invalid schema: {self.custom_schema}. Columns {unknown} are not "
+                    f"in the source result, whose columns are "
+                    f"{[field.name for field in auto_infer_schema.fields]}."
+                )
             final_fields = []
             for field in auto_infer_schema.fields:
                 final_fields.append(
