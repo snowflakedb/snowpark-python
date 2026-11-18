@@ -35,6 +35,7 @@
 - Fixed a bug in `DataFrameReader.jdbc` where reading failed when `DEFAULT_DDL_COLLATION` was set.
 - Fixed a bug in `DataFrameReader.jdbc` where a read with many partitions failed with `This connection has been closed`.
 - Fixed a bug in `DataFrameReader.jdbc` where JDBC connections were not closed when ingestion failed or a stream was closed before exhaustion.
+- Fixed a bug in `DataFrameReader.jdbc` where credentials passed in the URL as query or `;`-separated parameters (for example `?password=`) or in the Oracle `user/password@` form were not removed and were embedded in the generated UDTF.
 
 ## 1.58.0 (2026-11-19)
 

@@ -637,9 +637,25 @@ class JDBC:
                 if key.lower() in secret_keys:
                     del self.properties[key]
 
+        # The URL is embedded in the UDTF DDL, so credentials in it would end up
+        # in query history. Credentials must come from the secret only.
+        # user[:password]@ after "://", e.g. jdbc:postgresql://u:pw@host/db
+        self.url = re.sub(r"(?<=://)([^:/@]+)(:[^@]*)?@", "", self.url)
+        # Oracle thin syntax user/password@, e.g. jdbc:oracle:thin:u/pw@//host:1521/svc
         self.url = re.sub(
-            r"(?<=://)([^:/]+)(:[^@]+)?@", "", self.url  # Matches user[:password]@
+            r"^(jdbc:oracle:[^:@]+:)[^@/]*(/[^@]*)?@", r"\1@", self.url, flags=re.I
         )
+        # key=value pairs after "?", "&" or ";", e.g. ?password=pw or ;password=pw
+        secret_params = "|".join(sorted(secret_keys))
+        self.url = re.sub(
+            rf"([?&;])(?:{secret_params})=[^&;]*",
+            r"\1",
+            self.url,
+            flags=re.I,
+        )
+        # Tidy separators left behind by removed pairs.
+        self.url = re.sub(r"([?&;])[&;]+", r"\1", self.url)
+        self.url = re.sub(r"[?&;]+$", "", self.url)
 
     def generate_session_init_statement(self):
         if self.session_init_statement is not None:
