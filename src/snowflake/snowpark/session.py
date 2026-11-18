@@ -267,6 +267,10 @@ _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
 _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE = (
     "PYTHON_SNOWPARK_COMPILATION_STAGE_ENABLED"
 )
+# parameter used to turn off the token columns of DataFrameReader.documents() reads. If
+# turned off, AI_COMPLETE is called without show_details and no token columns are
+# returned, as before the columns were added.
+_PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE = "PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE"
 _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION = (
     "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION"
 )
@@ -816,6 +820,11 @@ class Session:
         self._query_compilation_stage_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE, False
+            )
+        )
+        self._documents_token_usage: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE, True
             )
         )
         self._generate_multiline_queries: bool = (
