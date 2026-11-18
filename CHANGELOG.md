@@ -12,6 +12,7 @@
   - `Tool.from_procedure` and `Tool.from_function` turn existing procedures and UDFs, in any language, into tools.
   - `MCPServer` prints its specification (`to_yaml`), deploys it with its Python tools (`deploy`, which checks the definition first and has a `dry_run` option, with a suffix for dev and prod copies), calls deployed tools over a session (`call_tool`), and grants a role everything the tools need (`grant_usage`).
   - `Tool.builtin` adds the MCP server's built-in tool types (such as Cortex Agent, Cortex Analyst and Cortex Search) to a server.
+- `DataFrameReader.jdbc` is now generally available. This release includes changes to numeric, boolean, time-zone and unmapped-type handling; see the JDBC type-mapping entries under Bug Fixes below.
 
 #### Improvements
 
@@ -26,6 +27,7 @@
 - Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) removed empty lines inside string literals of raw SQL, which changed query results.
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` that contained string literals, backslashes or newlines failed with a SQL compilation error during schema inference.
 - Fixed a bug in `DataFrameReader.jdbc` where reading failed when `DEFAULT_DDL_COLLATION` was set.
+- Changed the type mapping of `DataFrameReader.jdbc`:
 
 ## 1.58.0 (2026-11-19)
 

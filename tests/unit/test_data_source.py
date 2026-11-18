@@ -349,3 +349,37 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
         sql for sql in captured if "table(" in sql.lower() and "select result" in sql
     )
     assert "(partition::VARCHAR)) AS result" in select
+
+
+def test_jdbc_docstring_has_no_preview_marker():
+    from snowflake.snowpark.dataframe_reader import DataFrameReader
+
+    assert "preview" not in DataFrameReader.jdbc.__doc__.lower()
+
+
+@pytest.mark.parametrize("use_format", [False, True])
+def test_jdbc_does_not_emit_preview_warning(use_format):
+    from snowflake.snowpark.dataframe_reader import DataFrameReader
+
+    reader = DataFrameReader(Mock(), _emit_ast=False)
+    options = {
+        "url": "jdbc:postgresql://host/db",
+        "udtf_configs": {
+            "external_access_integration": "EAI",
+            "secret": "cred",
+            "imports": ["@stage/driver.jar"],
+        },
+        "query": "SELECT 1",
+    }
+    with patch("snowflake.snowpark._internal.utils.warning") as warn, patch(
+        "snowflake.snowpark.dataframe_reader.JDBC"
+    ) as jdbc:
+        jdbc.return_value.partitions = ["SELECT 1"]
+        if use_format:
+            result = reader.format("jdbc").options(options).load()
+        else:
+            result = reader.jdbc(**options)
+
+    assert result is jdbc.return_value.to_result_snowpark_df.return_value
+    jdbc.return_value.read.assert_called_once()
+    warn.assert_not_called()

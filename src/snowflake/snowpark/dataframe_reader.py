@@ -2306,7 +2306,6 @@ class DataFrameReader:
             set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
 
-    @private_preview(version="1.38.0")
     @publicapi
     def jdbc(
         self,
