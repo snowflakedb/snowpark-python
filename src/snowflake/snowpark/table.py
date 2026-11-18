@@ -454,15 +454,6 @@ class Table(DataFrame):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.drop_table()
 
-    def _from_clause_sql(self) -> str:
-        """The table name followed by its time travel clause, if any, for building flat SQL."""
-        time_travel_text = (
-            self._time_travel_config.generate_sql_clause()
-            if self._time_travel_config is not None
-            else ""
-        )
-        return f"{self.table_name}{time_travel_text}"
-
     @traces_inputs("self")
     @publicapi
     def sample(
@@ -478,9 +469,6 @@ class Table(DataFrame):
 
         Sampling with a seed is not supported on views or subqueries. This method works on tables so it supports ``seed``.
         This is the main difference between :meth:`DataFrame.sample` and this method.
-        However, this method raises ``ValueError`` for change-tracking reads (``changes=``), because Snowflake
-        does not support sampling them directly; sample a subquery such as ``df.select("*")`` instead. For Iceberg
-        incremental reads, ``seed`` and the SYSTEM | BLOCK sampling method are ignored with a warning.
 
         Args:
             frac: The fraction of rows to sample, from 0.0 to 1.0 inclusive.
@@ -524,19 +512,19 @@ class Table(DataFrame):
                 f"'sampling_method' value {sampling_method} must be None or one of 'BERNOULLI', 'ROW', 'SYSTEM', or 'BLOCK'."
             )
 
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
-        # Snowflake rejects a SAMPLE clause on the same object reference as a CHANGES clause.
+        # Table.sample builds its SQL from the bare table name, which would drop the
+        # CHANGES clause and silently sample the current table instead.
         if (
             self._time_travel_config is not None
             and self._time_travel_config.changes is not None
         ):
-            raise ValueError(
-                "Table.sample is not supported for change-tracking reads "
-                f"(changes={self._time_travel_config.changes.lower()!r}) because Snowflake does not "
-                "support a SAMPLE clause on a CHANGES query. Sample a subquery instead, "
-                "e.g. df.select('*').sample(...)."
+            raise NotImplementedError(
+                "Table.sample is not supported yet for change-tracking reads "
+                f"(changes={self._time_travel_config.changes.lower()!r}). Use "
+                "DataFrame.sample, e.g. df.select('*').sample(...), instead."
             )
+
+        from snowflake.snowpark.mock._connection import MockServerConnection
 
         stmt = None
         if _emit_ast:
@@ -553,28 +541,11 @@ class Table(DataFrame):
                 ast.sampling_method.value = sampling_method
             self._set_ast_ref(ast.df)
 
-        # Local testing, and Iceberg incremental reads (not a plain table reference), sample over the plan.
-        is_local_testing = isinstance(self._session._conn, MockServerConnection)
-        if is_local_testing or self._iceberg_changes_config is not None:
-            if (
-                is_local_testing
-                and sampling_method
-                and sampling_method.upper() in ("SYSTEM", "BLOCK")
-            ):
+        if isinstance(self._session._conn, MockServerConnection):
+            if sampling_method in ("SYSTEM", "BLOCK"):
                 _logger.warning(
                     "[Local Testing] SYSTEM/BLOCK sampling is not supported for Local Testing, falling back to ROW sampling"
                 )
-
-            if self._iceberg_changes_config is not None:
-                if seed is not None:
-                    _logger.warning(
-                        "`seed` is ignored for Iceberg incremental reads, which do not support seeded sampling."
-                    )
-                    seed = None
-                if sampling_method and sampling_method.upper() in ("SYSTEM", "BLOCK"):
-                    _logger.warning(
-                        "SYSTEM/BLOCK sampling is not supported for Iceberg incremental reads, falling back to ROW sampling"
-                    )
 
             sample_plan = Sample(
                 self._plan, probability_fraction=frac, row_count=n, seed=seed
@@ -593,7 +564,7 @@ class Table(DataFrame):
         sampling_method_text = sampling_method or ""
         frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} ROWS"
         seed_text = f" SEED ({seed})" if seed is not None else ""
-        sql_text = f"SELECT * FROM {self._from_clause_sql()} SAMPLE {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
+        sql_text = f"SELECT * FROM {self.table_name} SAMPLE {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
         new_df = self._session.sql(sql_text, _ast_stmt=stmt)
         if self._session.reduce_describe_query_enabled:
             new_df._plan._metadata = self._plan._metadata

@@ -8241,118 +8241,6 @@ def test_time_travel_core_functionality(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="Time travel is not supported in Local Testing",
 )
-def test_table_sample_keeps_time_travel(session):
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    session.sql(f"create temp table {table_name} (id int, v string)").collect()
-
-    def run(sql):
-        session.sql(sql).collect()
-        return session.sql("select last_query_id()").collect()[0][0]
-
-    try:
-        insert_qid = run(f"insert into {table_name} values (1, 'a'), (2, 'b')")
-        update_qid = run(f"update {table_name} set v = 'a2' where id = 1")
-        run(f"insert into {table_name} values (3, 'c')")
-
-        # the current table has the update and the later insert
-        Utils.check_answer(
-            session.table(table_name).sample(frac=1.0),
-            [Row(1, "a2"), Row(2, "b"), Row(3, "c")],
-        )
-
-        # AT(insert) samples the historical rows, not the current ones
-        historical = [Row(1, "a"), Row(2, "b")]
-        at_insert = session.table(
-            table_name, time_travel_mode="at", statement=insert_qid
-        )
-        Utils.check_answer(at_insert.sample(frac=1.0), historical)
-        Utils.check_answer(at_insert.sample(n=10), historical)
-        Utils.check_answer(at_insert.sample(frac=1.0, seed=1), historical)
-        Utils.check_answer(
-            at_insert.sample(frac=1.0, sampling_method="SYSTEM"), historical
-        )
-
-        # BEFORE(update) sees the state before the update
-        before_update = session.table(
-            table_name, time_travel_mode="before", statement=update_qid
-        )
-        Utils.check_answer(before_update.sample(frac=1.0), historical)
-        Utils.check_answer(before_update.sample(n=10), historical)
-        Utils.check_answer(before_update.sample(frac=1.0, seed=1), historical)
-
-        # reader API and further transformations
-        read_at = session.read.table(
-            table_name, time_travel_mode="at", statement=insert_qid
-        )
-        Utils.check_answer(read_at.sample(frac=1.0), historical)
-        Utils.check_answer(
-            at_insert.sample(frac=1.0).filter(col("id") > 1), [Row(2, "b")]
-        )
-    finally:
-        Utils.drop_table(session, table_name)
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="Iceberg incremental reads are not supported in Local Testing",
-)
-@pytest.mark.parametrize("simplifier_enabled", [True, False])
-def test_table_sample_iceberg_incremental_read_sql(session, simplifier_enabled, caplog):
-    original = session.sql_simplifier_enabled
-    session.sql_simplifier_enabled = simplifier_enabled
-    try:
-        # Table creation is lazy: no query runs and the table doesn't have to exist
-        table = session.table("ANY_NAME", start_snapshot_id=1, end_snapshot_id=2)
-        sql = table.sample(n=2).queries["queries"][-1]
-        assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
-        assert "SAMPLE (2 ROWS" in " ".join(sql.upper().split())
-
-        sql = table.sample(frac=0.5).queries["queries"][-1]
-        assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
-        assert "SAMPLE (50.0)" in " ".join(sql.upper().split())
-        sql = table.sample(frac=0.5, sampling_method="BERNOULLI").queries["queries"][-1]
-        assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
-        assert "SAMPLE (50.0)" in " ".join(sql.upper().split())
-
-        # seed and SYSTEM/BLOCK are ignored with a warning
-        with caplog.at_level(logging.WARNING):
-            sql = table.sample(frac=0.5, seed=1).queries["queries"][-1]
-        assert "SEED" not in sql.upper()
-        assert "SAMPLE (50.0)" in " ".join(sql.upper().split())
-        assert "`seed` is ignored for Iceberg incremental reads" in caplog.text
-        caplog.clear()
-        with caplog.at_level(logging.WARNING):
-            sql = table.sample(frac=0.5, sampling_method="system").queries["queries"][
-                -1
-            ]
-        assert "SPARK_INCREMENTAL_READ('ANY_NAME', 1, 2)" in sql
-        assert "SYSTEM" not in sql.upper().replace("SYSTEM$", "")
-        assert "falling back to ROW sampling" in caplog.text
-    finally:
-        session.sql_simplifier_enabled = original
-
-
-@pytest.mark.parametrize("sample_kwargs", [{"frac": 1.0}, {"n": 10}])
-def test_table_sample_plain_table_unchanged(session, sample_kwargs, local_testing_mode):
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    session.create_dataframe([[1], [2], [3]], schema=["a"]).write.save_as_table(
-        table_name, table_type="temporary"
-    )
-    try:
-        df = session.table(table_name).sample(**sample_kwargs)
-        Utils.check_answer(df, [Row(1), Row(2), Row(3)])
-        if not local_testing_mode:
-            assert df.queries["queries"][-1].startswith(
-                f"SELECT * FROM {table_name} SAMPLE"
-            )
-    finally:
-        Utils.drop_table(session, table_name)
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="Time travel is not supported in Local Testing",
-)
 def test_time_travel_comprehensive_coverage(session):
     # ============== Test Setup ==============
     table1_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -8885,96 +8773,15 @@ def test_table_changes_clause_sql_simplifier(
     "config.getoption('local_testing_mode', default=False)",
     reason="Change tracking is not supported in Local Testing",
 )
-def test_table_changes_sample_not_supported(session):
-    # Table creation is lazy: no query runs and the table doesn't have to exist
-    changes = session.table(
-        "ANY_NAME", changes="default", time_travel_mode="at", statement="q1"
-    )
-    for kwargs in (
-        {"frac": 0.5},
-        {"n": 1},
-        {"frac": 0.5, "seed": 1},
-        {"frac": 0.5, "sampling_method": "SYSTEM"},
-    ):
-        with pytest.raises(ValueError, match="not supported for change-tracking"):
-            changes.sample(**kwargs)
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="Change tracking is not supported in Local Testing",
-)
-@pytest.mark.parametrize("simplifier_enabled", [True, False])
-@pytest.mark.parametrize("reduce_describe", [False, True])
-def test_table_changes_sample_subquery_workaround(
-    session, changes_table, simplifier_enabled, reduce_describe
-):
-    original = (
-        session.sql_simplifier_enabled,
-        session.reduce_describe_query_enabled,
-    )
-    session.sql_simplifier_enabled = simplifier_enabled
-    session.reduce_describe_query_enabled = reduce_describe
-    try:
-        table_name, insert_qid, _, _ = changes_table
-        changes = session.table(
-            table_name, changes="default", time_travel_mode="at", statement=insert_qid
-        )
-        sampled = changes.select("*").sample(frac=1.0)
-        # SAMPLE must follow the closing parenthesis of the subquery holding the CHANGES clause
-        sql = " ".join(sampled.queries["queries"][-1].upper().split())
-        assert "CHANGES (INFORMATION => DEFAULT)" in sql
-        assert sql.index("CHANGES") < sql.rindex(") SAMPLE (100.0)")
-        assert sql.count("SAMPLE") == 1
-
-        meta_cols = ["METADATA$ACTION", "METADATA$ISUPDATE", "METADATA$ROW_ID"]
-        assert all(c in sampled.columns for c in meta_cols)
-        assert all(c in [f.name for f in sampled.schema.fields] for c in meta_cols)
-        Utils.check_answer(
-            sampled.select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
-            [
-                Row(1, "a", "DELETE", True),
-                Row(1, "a2", "INSERT", True),
-                Row(2, "b", "DELETE", False),
-            ],
-        )
-    finally:
-        (
-            session.sql_simplifier_enabled,
-            session.reduce_describe_query_enabled,
-        ) = original
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="Change tracking is not supported in Local Testing",
-)
-def test_sample_by_seed_keeps_time_travel_and_changes(session, changes_table, caplog):
+def test_table_changes_sample_not_supported(session, changes_table):
     table_name, insert_qid, _, _ = changes_table
-    fractions = {1: 1.0, 2: 1.0}
-
-    # the seeded flat SQL keeps the time travel clause
-    at_insert = session.table(table_name, time_travel_mode="at", statement=insert_qid)
-    Utils.check_answer(
-        at_insert.stat.sample_by("id", fractions, seed=1).select("id", "v"),
-        [Row(1, "a"), Row(2, "b")],
-    )
-
-    # seed is ignored (with a warning) for change-tracking reads, which keep their CHANGES clause
     changes = session.table(
         table_name, changes="default", time_travel_mode="at", statement=insert_qid
     )
-    with caplog.at_level(logging.WARNING):
-        sampled = changes.stat.sample_by("id", fractions, seed=1)
-    assert "change-tracking reads" in caplog.text
-    Utils.check_answer(
-        sampled.select("id", "v", METADATA_ACTION, METADATA_ISUPDATE),
-        [
-            Row(1, "a", "DELETE", True),
-            Row(1, "a2", "INSERT", True),
-            Row(2, "b", "DELETE", False),
-        ],
-    )
+    with pytest.raises(NotImplementedError, match="change-tracking"):
+        changes.sample(frac=0.5)
+    with pytest.raises(NotImplementedError, match="change-tracking"):
+        changes.sample(n=1)
 
 
 @pytest.mark.skipif(
