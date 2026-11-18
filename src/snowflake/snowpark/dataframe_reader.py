@@ -2317,110 +2317,495 @@ class DataFrameReader:
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
-        Reads data from a database table or query into a DataFrame using a JDBC connection string,
-        with support for optional partitioning, parallel processing, and query customization.
+        Reads an external database table or query into a DataFrame using JDBC in
+        Snowflake-hosted Java user-defined table functions (UDTFs).
 
-        There are multiple methods to partition data and accelerate ingestion.
-        These methods can be combined to achieve optimal performance:
+        A live Snowflake session, warehouse, current database and schema, staged JDBC
+        driver, external access integration, and PASSWORD secret are required. The
+        JDBC driver runs in Snowflake, not on the Python client; no local JVM is
+        required. Local testing (mock sessions) is not supported. Java 17 is the
+        default UDTF runtime. Snowflake supports Java 11, 17, and 21; select a
+        runtime compatible with the driver JAR (see `Java UDF runtimes
+        <https://docs.snowflake.com/en/developer-guide/udf/java/udf-java-introduction>`_).
+        For example, ``ojdbc17`` requires Java 17 or later, whereas the SQL Server
+        ``jre11`` JAR below can use Java 11.
 
-        1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
-        These must all be specified together, otherwise error will be raised.
-        2.Set max_workers to a proper positive integer.
-        This defines the maximum number of processes and threads used for parallel execution.
-        3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
-        4.Use predicates to defining WHERE conditions for partitions,
-        predicates will be ignored if column is specified to generate partition.
-        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
-        column name with table in external data source.
+        Calling this method immediately connects to the source to infer its schema
+        and creates temporary Snowflake objects. Source rows are read when an action
+        such as :meth:`DataFrame.collect` or :meth:`DataFrameWriter.save_as_table`
+        executes. Repeated actions can read the source again and see changed data.
+        Persist once when a reusable Snowflake copy is needed. Errors can occur
+        during either schema inference or an action.
 
         Args:
-            url: A connection string used to establish connections to external data source with JDBC driver.
-                Please do not include any secrets in this parameter. Secret in connection string will be removed and ignored.
-            udtf_configs: A dictionary containing configuration parameters for ingesting external data using a Snowflake UDTF.
-                This parameter is required for jdbc.
+            url: JDBC connection URL in the source driver's syntax. Never include
+                credentials in this URL, even though common credential forms are
+                stripped. URLs and properties can appear in generated SQL and logs.
+            udtf_configs: Required dictionary with these keys:
 
-                The dictionary may include the following keys:
+                - ``external_access_integration`` (str, required): Snowflake
+                  integration allowing the source endpoint and secret.
+                - ``secret`` (str, required): Name of a Snowflake ``TYPE = PASSWORD``
+                  secret containing the source username and password. Prefer a fully
+                  qualified name, such as ``JDBC_DEMO.PUBLIC.ORACLE_CRED``.
+                - ``imports`` (List[str], required): Staged driver JAR paths, such as
+                  ``@JDBC_DEMO.PUBLIC.JDBC_DRIVERS/ojdbc17-23.9.0.25.07.jar``.
+                - ``java_version`` (int, optional): Java UDTF runtime version;
+                  defaults to ``17``.
+                - ``packages`` (List[str], optional): Snowflake-supported Java
+                  packages. Defaults to ``["com.snowflake:snowpark:latest"]``;
+                  Snowpark is added if not supplied. This does not download the JDBC
+                  driver: stage its JAR and include it in ``imports``.
 
-                - external_access_integration (str, required): The name of the external access integration,
-                    which allows the UDTF to access external endpoints.
+            properties: Non-secret driver connection properties, passed as strings
+                to ``DriverManager.getConnection``. Use the PASSWORD secret for
+                authentication, never ``user``, ``password``, tokens, or trust-store
+                passwords in this dictionary. Driver-specific options are not
+                interchangeable between databases.
+            table: Source table name, optionally qualified by the source schema or
+                database. Specify exactly one of ``table`` and ``query``.
+            query: Source-dialect SELECT statement that is valid inside a subquery
+                in a FROM clause. String literals are supported; quote them using
+                the source SQL dialect, for example ``'O''Brien'``. Trailing
+                semicolons are stripped. This is SQL text, not a parameter-binding
+                API: do not interpolate untrusted input. On SQL Server, a bare
+                ``ORDER BY`` is invalid in this subquery; omit it and use
+                :meth:`DataFrame.order_by` on the result, or use a source-supported
+                ``TOP``/``OFFSET`` form when required by the query's semantics.
+            column: Numeric, date, or timestamp result column used for range
+                partitioning. Supply ``lower_bound``, ``upper_bound``, and
+                ``num_partitions`` together with it. The column must be present in
+                the source result. Range partitioning takes precedence over
+                ``predicates``.
+            lower_bound: Lower bound used to calculate partition stride, not a row
+                filter. Use integers for numeric bounds and ISO date/timestamp
+                strings for temporal bounds, such as ``"2026-01-01 00:00:00"``.
+            upper_bound: Upper bound used to calculate stride, not a row filter.
+                Must be greater than or equal to ``lower_bound``. The first and last
+                partitions include values outside the bounds; NULLs go to the first
+                partition. Put a WHERE clause in ``query`` to restrict rows.
+            num_partitions: Positive integer specifying the requested number of
+                source range queries. Small ranges can produce fewer partitions;
+                equal bounds or ``1`` produce one unfiltered source query. Snowflake
+                schedules the UDTF work; this is not a guaranteed connection or
+                concurrency count. This method has no ``max_workers`` parameter.
+            query_timeout: JDBC statement timeout in seconds, applied to schema
+                inference, initialization statements, and source reads. ``0``
+                (default) means no JDBC statement timeout, not unlimited execution:
+                driver/network, Snowflake statement, and UDTF timeouts still apply.
+                Enforcement depends on the driver. It is not a connection timeout.
+            fetch_size: Hint passed to JDBC ``Statement.setFetchSize`` for source
+                reads. ``0`` (default) leaves behavior to the driver. It is not a
+                row limit or a guarantee of streaming. For Oracle, try ``10000`` as
+                a starting point to reduce round trips, then tune for row width,
+                memory, source load, and latency. See the streaming caveats below.
+            custom_schema: Partial or complete overrides of the inferred Snowflake
+                schema, as a schema string or :class:`~snowflake.snowpark.types.StructType`.
+                Inference still runs and must succeed. Overrides match inferred
+                names case-insensitively, replace matching fields, and keep source
+                column order; unspecified fields retain their inferred types.
+                Duplicate override names and names absent from the source result
+                raise ``ValueError``. Overrides do not select/reorder source columns
+                or change the JDBC getter; they control subsequent Snowflake casts.
+                A cast can fail or lose precision if the value is incompatible.
+            predicates: Source SQL WHERE expressions, one per partition query.
+                Used only when ``column`` is absent. Predicates should be disjoint
+                to avoid duplicates and collectively cover the desired rows; include
+                ``IS NULL`` explicitly if needed. They can filter rows, unlike range
+                bounds. Do not interpolate untrusted input.
+            session_init_statement: Source SQL string or list of strings executed
+                before schema inference and before each partition query. Connections
+                can be reused across partition queries, so statements should be safe
+                to repeat. Use session settings, not non-idempotent data changes.
+                These statements configure the source session, not Snowflake.
 
-                - secret (str, required): The name of the snowflake secret that contain username and password of
-                    external data source.
+        Example:
+            **1. Provision access and upload drivers.** Replace all example hosts,
+            source credentials, database/schema, role, warehouse, and local paths.
+            The examples use reserved ``example.com`` hosts, not working endpoints.
+            Provision only the sources you need. Have an administrator execute the
+            following SQL using a role allowed to create the objects and grant
+            privileges. The provisioning role needs ``CREATE NETWORK RULE``,
+            ``CREATE SECRET``, and ``CREATE STAGE`` on the schema, plus ``CREATE
+            INTEGRATION`` on the account and ``USAGE`` on referenced secrets and
+            their schema. Creating the demonstration database also requires
+            ``CREATE DATABASE``. ``JDBC_READER`` and ``JDBC_WH`` below are existing
+            role and warehouse placeholders.
 
-                - imports (List[str], required): A list of stage file names to import into the UDTF.
-                    Please include Jar file of jdbc driver to establish connection to external data source.
-                    Download the driver JAR from the database vendor and upload it to a Snowflake stage
-                    before referencing it here.
+            .. code-block:: sql
 
-                - java_version (int, optional): A integer that indicate the java runtime version of udtf.
-                    By default, we use java 17.
+                CREATE DATABASE IF NOT EXISTS JDBC_DEMO;
+                USE DATABASE JDBC_DEMO;
+                USE SCHEMA PUBLIC;
+                CREATE STAGE IF NOT EXISTS JDBC_DRIVERS;
 
-            properties: A dictionary containing key-value pair that is needed during establishing connection with external data source.
-                Please do not include any secrets in this parameter.
+                CREATE NETWORK RULE ORACLE_NETWORK MODE = EGRESS TYPE = HOST_PORT
+                  VALUE_LIST = ('oracle.example.com:1521');
+                CREATE SECRET ORACLE_CRED TYPE = PASSWORD
+                  USERNAME = '<oracle-read-user>' PASSWORD = '<oracle-password>';
+                CREATE EXTERNAL ACCESS INTEGRATION ORACLE_ACCESS
+                  ALLOWED_NETWORK_RULES = (JDBC_DEMO.PUBLIC.ORACLE_NETWORK)
+                  ALLOWED_AUTHENTICATION_SECRETS = (JDBC_DEMO.PUBLIC.ORACLE_CRED)
+                  ENABLED = TRUE;
 
-            table: The name of the table in the external data source.
-                This parameter cannot be used together with the `query` parameter.
-            query: A valid SQL query to be used as the data source in the FROM clause.
-                This parameter cannot be used together with the `table` parameter.
-            column: The column name used for partitioning the table. Partitions will be retrieved in parallel.
-                The column must be of a numeric type (e.g., int or float) or a date type.
-                When specifying `column`, `lower_bound`, `upper_bound`, and `num_partitions` must also be provided.
-            lower_bound: lower bound of partition, decide the stride of partition along with `upper_bound`.
-                This parameter does not filter out data. It must be provided when `column` is specified.
-            upper_bound: upper bound of partition, decide the stride of partition along with `lower_bound`.
-                This parameter does not filter out data. It must be provided when `column` is specified.
-            num_partitions: number of partitions to create when reading in parallel from multiple processes and threads.
-                It must be provided when `column` is specified.
-            query_timeout: The timeout (in seconds) for each query execution. A default value of `0` means
-                the query will never time out. The timeout behavior can also be configured within
-                the `create_connection` method when establishing the database connection, depending on the capabilities
-                of the DBMS and its driver.
-            fetch_size: The number of rows to fetch per batch from the external data source.
-                This determines how many rows are retrieved in each round trip,
-                which can improve performance for drivers with a low default fetch size.
-            custom_schema: a custom snowflake table schema to read data from external data source,
-                the column names should be identical to corresponded column names external data source.
-                This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING",
-                or StructType, for example: StructType([StructField("ID", IntegerType(), False), StructField("INT_COL", IntegerType(), False), StructField("TEXT_COL", StringType(), False)])
-            predicates: A list of expressions suitable for inclusion in WHERE clauses, where each expression defines a partition.
-                Partitions will be retrieved in parallel.
-                If both `column` and `predicates` are specified, `column` takes precedence.
-            session_init_statement: One or more SQL statements executed before fetching data from
-                the external data source.
-                This can be used for session initialization tasks such as setting configurations.
-                For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
-                to avoid row locks and improve read performance.
-                The `session_init_statement` is executed only once at the beginning of each partition read.
+                CREATE NETWORK RULE POSTGRES_NETWORK MODE = EGRESS TYPE = HOST_PORT
+                  VALUE_LIST = ('postgres.example.com:5432');
+                CREATE SECRET POSTGRES_CRED TYPE = PASSWORD
+                  USERNAME = '<postgres-read-user>' PASSWORD = '<postgres-password>';
+                CREATE EXTERNAL ACCESS INTEGRATION POSTGRES_ACCESS
+                  ALLOWED_NETWORK_RULES = (JDBC_DEMO.PUBLIC.POSTGRES_NETWORK)
+                  ALLOWED_AUTHENTICATION_SECRETS = (JDBC_DEMO.PUBLIC.POSTGRES_CRED)
+                  ENABLED = TRUE;
 
-        Example::
+                CREATE NETWORK RULE MYSQL_NETWORK MODE = EGRESS TYPE = HOST_PORT
+                  VALUE_LIST = ('mysql.example.com:3306');
+                CREATE SECRET MYSQL_CRED TYPE = PASSWORD
+                  USERNAME = '<mysql-read-user>' PASSWORD = '<mysql-password>';
+                CREATE EXTERNAL ACCESS INTEGRATION MYSQL_ACCESS
+                  ALLOWED_NETWORK_RULES = (JDBC_DEMO.PUBLIC.MYSQL_NETWORK)
+                  ALLOWED_AUTHENTICATION_SECRETS = (JDBC_DEMO.PUBLIC.MYSQL_CRED)
+                  ENABLED = TRUE;
+
+                CREATE NETWORK RULE SQLSERVER_NETWORK MODE = EGRESS TYPE = HOST_PORT
+                  VALUE_LIST = ('sqlserver.example.com:1433');
+                CREATE SECRET SQLSERVER_CRED TYPE = PASSWORD
+                  USERNAME = '<sqlserver-read-user>' PASSWORD = '<sqlserver-password>';
+                CREATE EXTERNAL ACCESS INTEGRATION SQLSERVER_ACCESS
+                  ALLOWED_NETWORK_RULES = (JDBC_DEMO.PUBLIC.SQLSERVER_NETWORK)
+                  ALLOWED_AUTHENTICATION_SECRETS = (JDBC_DEMO.PUBLIC.SQLSERVER_CRED)
+                  ENABLED = TRUE;
+
+                GRANT USAGE ON DATABASE JDBC_DEMO TO ROLE JDBC_READER;
+                GRANT USAGE ON SCHEMA JDBC_DEMO.PUBLIC TO ROLE JDBC_READER;
+                GRANT USAGE ON WAREHOUSE JDBC_WH TO ROLE JDBC_READER;
+                GRANT CREATE FUNCTION ON SCHEMA JDBC_DEMO.PUBLIC TO ROLE JDBC_READER;
+                GRANT CREATE TABLE ON SCHEMA JDBC_DEMO.PUBLIC TO ROLE JDBC_READER;
+                GRANT READ ON STAGE JDBC_DEMO.PUBLIC.JDBC_DRIVERS TO ROLE JDBC_READER;
+                GRANT READ ON SECRET JDBC_DEMO.PUBLIC.ORACLE_CRED TO ROLE JDBC_READER;
+                GRANT READ ON SECRET JDBC_DEMO.PUBLIC.POSTGRES_CRED TO ROLE JDBC_READER;
+                GRANT READ ON SECRET JDBC_DEMO.PUBLIC.MYSQL_CRED TO ROLE JDBC_READER;
+                GRANT READ ON SECRET JDBC_DEMO.PUBLIC.SQLSERVER_CRED TO ROLE JDBC_READER;
+                GRANT USAGE ON INTEGRATION ORACLE_ACCESS TO ROLE JDBC_READER;
+                GRANT USAGE ON INTEGRATION POSTGRES_ACCESS TO ROLE JDBC_READER;
+                GRANT USAGE ON INTEGRATION MYSQL_ACCESS TO ROLE JDBC_READER;
+                GRANT USAGE ON INTEGRATION SQLSERVER_ACCESS TO ROLE JDBC_READER;
+
+            The reader needs access to the stage, secrets, integration, and their
+            database/schema. The grants above also allow saving a new permanent
+            destination table. Appending to an existing table requires ``INSERT``
+            on that table. The source account needs SELECT access to source tables.
+            Network rules authorize egress but do not establish private routing or
+            configure the source firewall. See `external access setup and privileges
+            <https://docs.snowflake.com/en/developer-guide/external-network-access/creating-using-external-network-access>`_.
+
+            Download compatible drivers from the database vendors. These filenames
+            illustrate driver versions; use the exact names you upload in
+            ``imports``. Run PUT from a client that supports local file uploads
+            (for example, SnowSQL), as the stage owner or a role with stage
+            ``READ`` and ``WRITE``. PUT paths are on that client, not the database
+            server. In a Notebook, upload the JARs to this stage beforehand.
+
+            .. code-block:: sql
+
+                PUT file:///path/to/ojdbc17-23.9.0.25.07.jar
+                  @JDBC_DEMO.PUBLIC.JDBC_DRIVERS AUTO_COMPRESS = FALSE;
+                PUT file:///path/to/postgresql-42.7.7.jar
+                  @JDBC_DEMO.PUBLIC.JDBC_DRIVERS AUTO_COMPRESS = FALSE;
+                PUT file:///path/to/mysql-connector-j-9.5.0.jar
+                  @JDBC_DEMO.PUBLIC.JDBC_DRIVERS AUTO_COMPRESS = FALSE;
+                PUT file:///path/to/mssql-jdbc-13.2.1.jre11.jar
+                  @JDBC_DEMO.PUBLIC.JDBC_DRIVERS AUTO_COMPRESS = FALSE;
+                LIST @JDBC_DEMO.PUBLIC.JDBC_DRIVERS;
+
+            **2. Select a Snowflake session.** In a Snowflake Notebook, use its
+            active session. Ensure the Notebook's role has the grants above.
+            Outside Snowflake, replace ``get_active_session()`` with
+            ``Session.builder.config("connection_name", "my_connection").create()``
+            after ``from snowflake.snowpark import Session``, using a configured
+            Snowflake connection. Headless sessions also need an explicit current
+            database/schema and warehouse.
+
             .. code-block:: python
 
-                udtf_configs={
-                        "external_access_integration": ...,
-                        "secret": ...,
-                        "imports": [...],
-                    }
-                df = session.read.jdbc(
-                    url=...,
-                    udtf_configs=udtf_configs,
-                    query=...,
-                )
+                from snowflake.snowpark.context import get_active_session
 
-        Example::
+                session = get_active_session()
+                session.use_database("JDBC_DEMO")
+                session.use_schema("PUBLIC")
+                session.use_warehouse("JDBC_WH")
+
+            The following Python blocks require the setup above and external
+            resources; they are examples, not automatically executed doctests.
+
+            **3. Oracle: bounded read with Native Network Encryption (NNE).**
+            The service name ``FREEPDB1`` is a placeholder, not a SID. NNE options
+            must agree with the database server's encryption and checksum policy.
+            This example requires AES256 and SHA256; it is not TLS configuration.
+            See `Oracle JDBC client-side security
+            <https://docs.oracle.com/en/database/oracle/oracle-database/19/jjdbc/client-side-security.html>`_.
+
             .. code-block:: python
 
-                udtf_configs={
-                    "external_access_integration": ...,
-                    "secret": ...,
-                    "imports": [...],
+                oracle_url = "jdbc:oracle:thin:@//oracle.example.com:1521/FREEPDB1"
+                oracle_config = {
+                    "external_access_integration": "ORACLE_ACCESS",
+                    "secret": "JDBC_DEMO.PUBLIC.ORACLE_CRED",
+                    "imports": ["@JDBC_DEMO.PUBLIC.JDBC_DRIVERS/ojdbc17-23.9.0.25.07.jar"],
+                    "java_version": 17,
                 }
-                df = (
+                oracle_properties = {
+                    "oracle.net.encryption_client": "REQUIRED",
+                    "oracle.net.encryption_types_client": "(AES256)",
+                    "oracle.net.crypto_checksum_client": "REQUIRED",
+                    "oracle.net.crypto_checksum_types_client": "(SHA256)",
+                }
+                df = session.read.jdbc(
+                    url=oracle_url,
+                    udtf_configs=oracle_config,
+                    properties=oracle_properties,
+                    query="SELECT 1 AS ID, 'O''Brien' AS NAME FROM DUAL",
+                    fetch_size=10000,
+                    query_timeout=60,
+                    session_init_statement="ALTER SESSION SET TIME_ZONE = '+00:00'",
+                )
+                print(df.schema)
+                df.show()
+
+            **4. PostgreSQL, MySQL, and SQL Server: one-row connectivity checks.**
+            These examples require TLS with server certificates matching the
+            hostnames and chains trusted by the Java runtime's default trust store.
+            The PostgreSQL example selects the Java SSL factory explicitly rather
+            than relying on a client-local ``~/.postgresql/root.crt``. Configure
+            trust for your deployment; do not put trust-store passwords in
+            ``properties``. For PostgreSQL, see
+            `SSL configuration <https://jdbc.postgresql.org/documentation/ssl/>`_.
+            For MySQL, see `Connector/J properties
+            <https://dev.mysql.com/doc/connector-j/en/connector-j-reference-configuration-properties.html>`_.
+
+            .. code-block:: python
+
+                postgres_df = session.read.jdbc(
+                    url="jdbc:postgresql://postgres.example.com:5432/appdb",
+                    udtf_configs={
+                        "external_access_integration": "POSTGRES_ACCESS",
+                        "secret": "JDBC_DEMO.PUBLIC.POSTGRES_CRED",
+                        "imports": ["@JDBC_DEMO.PUBLIC.JDBC_DRIVERS/postgresql-42.7.7.jar"],
+                        "java_version": 17,
+                    },
+                    properties={
+                        "sslmode": "verify-full",
+                        "sslfactory": "org.postgresql.ssl.DefaultJavaSSLFactory",
+                        "ApplicationName": "snowpark-jdbc",
+                    },
+                    query="SELECT 1 AS id, 'hello' AS greeting",
+                    query_timeout=60,
+                )
+                postgres_df.show()
+
+                mysql_df = session.read.jdbc(
+                    url="jdbc:mysql://mysql.example.com:3306/appdb",
+                    udtf_configs={
+                        "external_access_integration": "MYSQL_ACCESS",
+                        "secret": "JDBC_DEMO.PUBLIC.MYSQL_CRED",
+                        "imports": ["@JDBC_DEMO.PUBLIC.JDBC_DRIVERS/mysql-connector-j-9.5.0.jar"],
+                        "java_version": 17,
+                    },
+                    properties={"sslMode": "VERIFY_IDENTITY", "useCursorFetch": "true"},
+                    query="SELECT 1 AS id, 'hello' AS greeting",
+                    fetch_size=1000,
+                    query_timeout=60,
+                )
+                mysql_df.show()
+
+                sqlserver_df = session.read.jdbc(
+                    url=("jdbc:sqlserver://sqlserver.example.com:1433;databaseName=appdb;"
+                         "encrypt=true;trustServerCertificate=false;"),
+                    udtf_configs={
+                        "external_access_integration": "SQLSERVER_ACCESS",
+                        "secret": "JDBC_DEMO.PUBLIC.SQLSERVER_CRED",
+                        "imports": ["@JDBC_DEMO.PUBLIC.JDBC_DRIVERS/mssql-jdbc-13.2.1.jre11.jar"],
+                        "java_version": 11,
+                    },
+                    properties={"responseBuffering": "adaptive"},
+                    query="SELECT 1 AS id, 'hello' AS greeting",
+                    query_timeout=60,
+                )
+                sqlserver_df.show()
+
+            SQL Server ``trustServerCertificate=true`` bypasses certificate
+            validation and is only appropriate for explicitly trusted test
+            environments; keep it ``false`` for authenticated TLS. See `Microsoft
+            JDBC encryption
+            <https://learn.microsoft.com/en-us/sql/connect/jdbc/connecting-with-ssl-encryption>`_.
+
+            **5. Partition, override types, and persist.** Reuse the Oracle session
+            and configuration above. This five-row source query needs no user table.
+            Bounds of 2 and 4 still include IDs 1 and 5: bounds determine stride,
+            not filtering. Use a WHERE clause in the source query to restrict rows.
+
+            .. code-block:: python
+
+                source_query = (
+                    "SELECT LEVEL AS ID, 'demo' AS NAME "
+                    "FROM DUAL CONNECT BY LEVEL <= 5"
+                )
+                partitioned_df = session.read.jdbc(
+                    url=oracle_url,
+                    udtf_configs=oracle_config,
+                    properties=oracle_properties,
+                    query=source_query,
+                    column="ID",
+                    lower_bound=2,
+                    upper_bound=4,
+                    num_partitions=2,
+                    custom_schema="ID NUMBER(10, 0)",
+                    fetch_size=10000,
+                    query_timeout=60,
+                )
+                print(partitioned_df.schema)
+                # Default error-if-exists mode avoids overwriting an existing table.
+                partitioned_df.write.save_as_table("JDBC_DEMO.PUBLIC.ORACLE_SAMPLE")
+                session.table("JDBC_DEMO.PUBLIC.ORACLE_SAMPLE").order_by("ID").show()
+
+            The equivalent type override using ``StructType`` is:
+
+            .. code-block:: python
+
+                from snowflake.snowpark.types import DecimalType, StructField, StructType
+
+                schema_override = StructType([StructField("ID", DecimalType(10, 0))])
+                predicate_df = session.read.jdbc(
+                    url=oracle_url,
+                    udtf_configs=oracle_config,
+                    properties=oracle_properties,
+                    query=source_query,
+                    predicates=["ID < 3 OR ID IS NULL", "ID >= 3"],
+                    custom_schema=schema_override,
+                    fetch_size=10000,
+                    query_timeout=60,
+                )
+                predicate_df.order_by("ID").show()
+
+            For a table read, replace ``query`` with ``table``. This example uses
+            Oracle's existing one-row ``DUAL`` table. For application tables, use
+            a qualified name such as ``APP.ORDERS`` and ensure source SELECT access.
+
+            .. code-block:: python
+
+                table_df = session.read.jdbc(
+                    url=oracle_url,
+                    udtf_configs=oracle_config,
+                    properties=oracle_properties,
+                    table="DUAL",
+                    query_timeout=60,
+                )
+                table_df.show()
+
+                # The format/options interface accepts the same JDBC options.
+                option_df = (
                     session.read.format("jdbc")
-                    .option("url", ...)
-                    .option("udtf_configs", udtf_configs)
-                    .option("query", ...)
+                    .option("url", oracle_url)
+                    .option("udtf_configs", oracle_config)
+                    .option("properties", oracle_properties)
+                    .option("query", source_query)
+                    .option("query_timeout", 60)
                     .load()
                 )
+                option_df.show()
+
+        Note:
+            **Type mapping.** Inference uses JDBC type, source type name, Java
+            class, precision, and scale reported by the driver. Inspect ``df.schema``
+            with your driver version and connection properties before persisting.
+            Most values are fetched as strings and cast in Snowflake; this is not
+            identical to every DB-API driver's conversion behavior.
+
+            - JDBC integer types map to integral Snowflake types; character and
+              CLOB types map to STRING; floating-point types map to floating-point
+              Snowflake types. Declared numeric precision/scale is retained when
+              valid for Snowflake. Unconstrained Oracle NUMBER and PostgreSQL
+              NUMERIC use NUMBER(38, 18), leaving 20 integer digits. Oracle FLOAT
+              with floating-point metadata uses DOUBLE. Precision beyond 38 is
+              capped; negative scales use NUMBER(38, 0). Out-of-range values can
+              fail or round; use an explicit source cast or suitable override.
+            - JDBC BOOLEAN, PostgreSQL boolean, and SQL Server BIT map to BOOLEAN.
+              Other JDBC BIT results remain STRING, including MySQL BIT and the
+              default MySQL BOOLEAN/TINYINT(1) metadata. TINYINT(1) can contain values
+              other than 0 and 1, so it is not safe to convert all such columns to
+              BOOLEAN. Driver properties can change the reported metadata. Validate
+              the data before choosing an explicit cast or override.
+            - JDBC TIMESTAMP without timezone maps to TIMESTAMP_NTZ. Oracle DATE
+              reported as TIMESTAMP also uses NTZ, retaining its time of day.
+              Oracle TIMESTAMP WITH TIME ZONE, PostgreSQL TIMESTAMPTZ, SQL Server
+              DATETIMEOFFSET, and JDBC TIMESTAMP_WITH_TIMEZONE use TIMESTAMP_TZ
+              via Java ``OffsetDateTime``. The instant and returned offset are
+              represented, not the original timezone-region name. PostgreSQL's
+              driver returns these values in UTC; the original input offset is
+              not recoverable from TIMESTAMPTZ.
+            - Oracle TIMESTAMP WITH LOCAL TIME ZONE uses TIMESTAMP_LTZ via a Java
+              timestamp converted to an instant. Display depends on Snowflake's
+              session timezone; source/driver timezone settings affect interpretation.
+              TIME WITH TIME ZONE (including PostgreSQL TIMETZ) remains STRING
+              because Snowflake TIME cannot represent its offset. Ordinary JDBC
+              DATE and TIME map to DATE and TIME.
+            - Unmapped JDBC types fall back to a recognized Java-class mapping,
+              then STRING if neither is recognized. JDBC OTHER also maps to STRING
+              unless a specific timezone mapping applies. This is not a general
+              VARIANT/JSON parser or a guarantee of lossless conversion.
+            - Binary values currently use driver string conversion, not a lossless
+              binary transfer. Do not rely on RAW, BINARY, VARBINARY, BYTEA, or BLOB
+              round-tripping arbitrary bytes. Project an explicit source-side hex
+              or base64 encoding as text when byte fidelity is required.
+
+            **Streaming and tuning.** The read UDTF fetches rows lazily, but a JDBC
+            driver can buffer a full result set. ``fetch_size`` alone does not bound
+            memory. PostgreSQL cursor fetching requires autocommit to be disabled;
+            this reader does not call ``Connection.setAutoCommit(false)``, so a
+            positive fetch size alone does not enable it. See `pgJDBC cursor
+            requirements <https://jdbc.postgresql.org/documentation/query/>`_.
+            MySQL cursor fetching requires driver configuration such as
+            ``useCursorFetch=true`` as well as a positive fetch size. SQL Server's
+            adaptive response buffering is driver-specific. Measure your driver
+            and workload; use selective source queries and balanced partitions,
+            rather than assuming all drivers stream identically. Separate queries
+            do not guarantee a transactionally consistent snapshot of a changing
+            source. A Snowpark ``limit()`` after ingestion is not a source row limit.
+
+            **Limits and troubleshooting.**
+
+            - Java UDTFs have a server limit of 500 output columns. The separate
+              error ``Function name (including parameter and return type) too long``
+              concerns total signature length, not row-value size or a universal
+              240-column threshold. This reader uses short positional UDTF names
+              and restores source names afterward, reducing signature length; it
+              does not remove server limits. Project fewer source columns or split
+              a wide read using a stable key. See `Java UDTF limits
+              <https://docs.snowflake.com/en/developer-guide/udf/java/udf-java-tabular-functions>`_.
+            - A blocking Java UDTF call can hit the server's default 600-second
+              handler timeout, including a slow first fetch or a later stalled
+              fetch. Streaming for more than 600 seconds in total is not itself
+              the same condition. ``query_timeout=0`` and a larger fetch size do
+              not disable that limit. Reduce time to first row, tune source SQL,
+              or split the read. Contact Snowflake Support for persistent handler
+              timeouts; there is no JDBC option here that overrides server limits.
+            - For a missing integration/secret or authorization error, check all
+              three required ``udtf_configs`` keys, fully qualified secret name,
+              ``ENABLED = TRUE``, ``ALLOWED_AUTHENTICATION_SECRETS``, and the grants
+              above. A connection failure also warrants checking the allowed
+              host/port, routing, source firewall, credentials, and TLS trust.
+            - For ``No suitable driver`` or Java class-version errors, verify the
+              exact stage/JAR path, stage READ privilege, uncompressed upload, JDBC
+              URL prefix, and compatibility with ``java_version``.
+            - Oracle ``ORA-12660`` indicates incompatible encryption requirements.
+              Coordinate the NNE encryption/checksum settings and supported
+              algorithms with the source administrator; do not disable required
+              encryption to work around the error.
+            - A SQL Server subquery ``ORDER BY`` error requires changing the source
+              query, not Snowflake's sort settings. Remove the source sort and
+              order the returned DataFrame, or use a valid source TOP/OFFSET query.
+            - Inference or cast errors with ``custom_schema`` are not bypassed by
+              supplying more fields. Check source access, reported names/types,
+              and value ranges; override only existing result fields.
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(

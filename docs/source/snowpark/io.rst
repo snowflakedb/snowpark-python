@@ -64,6 +64,15 @@ Input/Output
     GetResult.count
     GetResult.index
 
+.. rubric:: JDBC ingestion
+
+:func:`DataFrameReader.jdbc` includes end-to-end setup and read examples for
+Oracle, PostgreSQL, MySQL, and SQL Server: network rules, PASSWORD secrets,
+external access integrations, staged driver JARs, and required privileges.
+Its usage notes cover schema overrides, partition bounds versus filters, type
+mapping, streaming caveats, and Java UDTF limits. JDBC executes in Snowflake and
+requires a live session; it is not supported by local testing.
+
 .. rubric:: Attributes
 
 .. autosummary::
