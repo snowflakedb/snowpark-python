@@ -37,6 +37,7 @@ from snowflake.snowpark._internal.utils import (
     IcebergChangesConfig,
     publicapi,
     TimeTravelConfig,
+    validate_sample_seed,
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame, _disambiguate
@@ -514,6 +515,7 @@ class Table(DataFrame):
 
         """
         DataFrame._validate_sample_input(frac, n)
+        seed = validate_sample_seed(seed)
         if sampling_method and sampling_method.upper() not in (
             "BERNOULLI",
             "ROW",
