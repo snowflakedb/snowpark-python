@@ -349,3 +349,51 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
         sql for sql in captured if "table(" in sql.lower() and "select result" in sql
     )
     assert "(partition::VARCHAR)) AS result" in select
+
+
+def test_jdbc_documentation_python_examples_compile():
+    """Keep external-resource examples syntactically runnable without connecting."""
+    from snowflake.snowpark.dataframe_reader import DataFrameReader
+
+    lines = inspect.getdoc(DataFrameReader.jdbc).splitlines()
+    examples = []
+    for index, line in enumerate(lines):
+        if line.strip() != ".. code-block:: python":
+            continue
+        directive_indent = len(line) - len(line.lstrip())
+        block = []
+        for candidate in lines[index + 1 :]:
+            if candidate.strip() and (
+                len(candidate) - len(candidate.lstrip()) <= directive_indent
+            ):
+                break
+            block.append(candidate)
+        source = textwrap.dedent("\n".join(block)).strip()
+        assert source
+        compile(source, f"jdbc docstring example {len(examples) + 1}", "exec")
+        examples.append(source)
+    assert len(examples) == 6
+
+
+def test_jdbc_custom_schema_overrides_keep_inference_and_source_order():
+    """The documented partial override is not a schema-inference bypass."""
+    session = Mock()
+    session.sql.return_value.collect.return_value = [
+        ("ID", "NUMERIC", "java.math.BigDecimal", 0, -127, True),
+        ("NAME", "VARCHAR", "java.lang.String", 10, 0, True),
+    ]
+    client = JDBC(
+        session=session,
+        url="jdbc:oracle:thin:@//oracle.example.com:1521/FREEPDB1",
+        table_or_query="DUAL",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=False,
+        secret="cred",
+        custom_schema="id NUMBER(10, 0)",
+    )
+    assert client.schema == StructType(
+        [StructField("ID", DecimalType(10, 0)), StructField("NAME", StringType())]
+    )
+    assert len(session.sql.call_args_list) == 3  # Create, infer, drop.
+    assert "WHERE 1 = 0" in session.sql.call_args_list[1].args[0]
