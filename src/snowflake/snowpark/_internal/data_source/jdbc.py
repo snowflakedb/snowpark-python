@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
+import datetime
 import logging
 import re
 from collections import defaultdict
@@ -12,6 +13,7 @@ from typing import Optional, Union, List, TYPE_CHECKING
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.data_source import DataSourcePartitioner
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
+from snowflake.snowpark._internal.data_source.utils import get_jdbc_dbms
 from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     random_name_for_temp_object,
@@ -420,7 +422,17 @@ class JDBC:
             self.lower_bound,
             self.upper_bound,
             self.num_partitions,
+            allow_timestamp_column=True,
+            bound_literal=self._partition_bound_literal,
         )
+
+    def _partition_bound_literal(self, value: datetime.datetime) -> str:
+        literal = value.strftime("%Y-%m-%d %H:%M:%S")
+        # Oracle does not implicitly convert an ISO string to DATE or TIMESTAMP
+        # under the default NLS formats, so use an ANSI timestamp literal there.
+        if get_jdbc_dbms(self.url) == "oracle":
+            return f"TIMESTAMP '{literal}'"
+        return f"'{literal}'"
 
     def read(self, partition_table: str) -> "DataFrame":
         jdbc_ingestion_name = random_name_for_temp_object(TempObjectType.FUNCTION)

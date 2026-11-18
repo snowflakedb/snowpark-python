@@ -23,6 +23,8 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
+    TimestampType,
 )
 
 
@@ -575,3 +577,51 @@ def test_jdbc_query_trailing_comment_does_not_hide_closing_paren():
     )
     for sql in (client.generate_select_sql(), client.infer_schema_sql()):
         assert "-- note\n) " in sql
+
+
+@pytest.mark.parametrize(
+    "url, lower_literal",
+    [
+        ("jdbc:oracle:thin:@//host:1521/svc", "TIMESTAMP '2024-01-11 00:00:00'"),
+        ("jdbc:postgresql://host/db", "'2024-01-11 00:00:00'"),
+    ],
+)
+def test_jdbc_partitions_on_timestamp_column(url, lower_literal):
+    """SNOW-4537771: TIMESTAMP partition columns (incl. Oracle DATE) were rejected."""
+    client = JDBC(
+        session=Mock(),
+        url=url,
+        table_or_query="T",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=False,
+        secret="cred",
+        column="D",
+        lower_bound="2024-01-01",
+        upper_bound="2024-01-31",
+        num_partitions=3,
+    )
+    client.__dict__["schema"] = StructType(
+        [StructField("D", TimestampType(TimestampTimeZone.NTZ))]
+    )
+    client.raw_schema = []
+    partitions = client.partitions
+    assert len(partitions) == 3
+    assert partitions[1] == (
+        f"SELECT * FROM T WHERE D >= {lower_literal} AND D < "
+        + lower_literal.replace("2024-01-11", "2024-01-21")
+    )
+
+
+def test_dbapi_partitioner_still_rejects_timestamp_column():
+    from snowflake.snowpark._internal.data_source import DataSourcePartitioner
+
+    with pytest.raises(ValueError, match="unsupported type"):
+        DataSourcePartitioner.generate_partitions(
+            "SELECT * FROM T",
+            StructType([StructField("D", TimestampType())]),
+            column="D",
+            lower_bound="2024-01-01",
+            upper_bound="2024-01-31",
+            num_partitions=3,
+        )

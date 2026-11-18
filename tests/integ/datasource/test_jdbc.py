@@ -671,3 +671,27 @@ def test_postgres_query_trailing_semicolon_and_comment(
         url=POSTGRES_URL, udtf_configs=postgres_udtf_configs, query=query
     )
     assert [r[0] for r in df.collect()] == [1]
+
+
+@pytest.mark.parametrize(
+    "lower_bound, upper_bound",
+    [("2024-01-01", "2024-02-10"), ("2024-01-01 00:00:00", "2024-02-10 12:30:00")],
+)
+def test_oracle_partition_on_date_column(
+    session, udtf_configs, lower_bound, upper_bound
+):
+    """SNOW-4537771: Oracle DATE is read as TIMESTAMP and could not be partitioned."""
+    query = (
+        "SELECT LEVEL AS ID, DATE '2024-01-01' + LEVEL * 7 AS D "
+        "FROM DUAL CONNECT BY LEVEL <= 5"
+    )
+    df = session.read.jdbc(
+        url=URL,
+        udtf_configs=udtf_configs,
+        query=query,
+        column="D",
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        num_partitions=3,
+    )
+    assert sorted(int(r["ID"]) for r in df.collect()) == [1, 2, 3, 4, 5]
