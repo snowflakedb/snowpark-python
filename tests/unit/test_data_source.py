@@ -7,7 +7,7 @@ import re
 from unittest.mock import Mock, patch
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
-from snowflake.snowpark._internal.data_source.jdbc import JDBC
+from snowflake.snowpark._internal.data_source.jdbc import JDBC, to_java_string_literal
 from snowflake.snowpark._internal.data_source.utils import (
     DBMS_TYPE,
     resolve_udtf_packages,
@@ -368,3 +368,32 @@ def test_jdbc_secret_detector_strips_url_credentials(url, expected):
         secret="cred",
     )
     assert client.url == expected
+
+
+@pytest.mark.parametrize(
+    "value, literal",
+    [
+        ("plain", '"plain"'),
+        ('a"b', '"a\\"b"'),
+        ("a\\b", '"a\\\\b"'),
+        ("l1\nl2\r\tx", '"l1\\nl2\\r\\tx"'),
+        ("a$$b", '"a\\u0024\\u0024b"'),
+        ("\\u0022", '"\\\\u0022"'),
+        ("日本", '"日本"'),
+    ],
+)
+def test_to_java_string_literal(value, literal):
+    assert to_java_string_literal(value) == literal
+
+
+def test_jdbc_user_strings_are_java_escaped():
+    """SNOW-4537768: url, properties and session_init_statement are written into
+    Java source, so they must be escaped rather than pasted raw."""
+    ddl = _render_jdbc_ddls(
+        properties={"ApplicationName": 'snow"park$$'},
+        session_init_statement=['SET search_path TO "public"'],
+    )
+    assert 'properties.put("ApplicationName", "snow\\"park\\u0024\\u0024");' in ddl
+    assert 'stmt.execute("SET search_path TO \\"public\\"");' in ddl
+    # Only the two DDL delimiters remain.
+    assert ddl.count("$$") == 2
