@@ -903,6 +903,11 @@ class DataFrameReader:
                 "settings either as arguments to table() or as reader options."
             )
 
+        # Validate before building the AST, which only holds int offsets.
+        offset = TimeTravelConfig.normalize_offset(
+            offset, emit_ast=_emit_ast and self._ast is not None
+        )
+
         # AST.
         stmt = None
         if _emit_ast and self._ast is not None:
@@ -917,7 +922,7 @@ class DataFrameReader:
                 ast.time_travel_mode.value = time_travel_mode
             if statement is not None:
                 ast.statement.value = statement
-            if offset is not None:
+            if isinstance(offset, int):
                 ast.offset.value = offset
             if timestamp is not None:
                 build_expr_from_python_val(ast.timestamp, timestamp)
@@ -967,6 +972,10 @@ class DataFrameReader:
         else:
             # if time_travel_mode is not provided, extract time travel config from options
             time_travel_params = _extract_time_travel_from_options(options)
+            TimeTravelConfig.normalize_offset(
+                time_travel_params.get("offset"),
+                emit_ast=_emit_ast and self._ast is not None,
+            )
             table = self._session.table(name, _emit_ast=False, **time_travel_params)
 
         if _emit_ast and stmt is not None:

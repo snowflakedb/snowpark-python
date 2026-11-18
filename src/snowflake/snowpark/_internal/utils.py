@@ -2147,6 +2147,11 @@ def _validate_iceberg_named_version_ref(
     return stripped
 
 
+_TIME_TRAVEL_OFFSET_RE = re.compile(
+    r"[ \t]*[-+]?[0-9]+([ \t]*[-+*/][ \t]*[-+]?[0-9]+)*[ \t]*"
+)
+
+
 class TimeTravelConfig(NamedTuple):
     """Configuration for time travel operations."""
 
@@ -2221,6 +2226,41 @@ class TimeTravelConfig(NamedTuple):
         return normalized_timestamp, timestamp_type
 
     @staticmethod
+    def normalize_offset(
+        offset: Optional[Union[int, str]], emit_ast: bool = False
+    ) -> Optional[Union[int, str]]:
+        """Validates the time travel offset, which is emitted unquoted into the SQL.
+
+        An int is kept. A str must be an integer (returned as int) or an arithmetic
+        expression of integers such as ``-30*60`` (returned unchanged), which cannot be
+        recorded in the AST, so it raises if ``emit_ast`` is set.
+        """
+        if offset is None:
+            return None
+        if isinstance(offset, numbers.Integral) and not isinstance(offset, bool):
+            return int(offset)
+        if isinstance(offset, str) and "--" in offset:
+            raise ValueError(
+                "'offset' must not contain '--', which starts a SQL comment; "
+                f"write a subtracted negative number as '-1 - -1', got {offset!r}."
+            )
+        if isinstance(offset, str) and _TIME_TRAVEL_OFFSET_RE.fullmatch(offset):
+            try:
+                return int(offset)
+            except ValueError:
+                if emit_ast:
+                    raise ValueError(
+                        "An arithmetic 'offset' expression such as '-30*60' is not "
+                        "supported when AST collection is enabled; pass the number of "
+                        "seconds as an int (e.g. -1800)."
+                    ) from None
+                return offset
+        raise ValueError(
+            "'offset' must be an integer number of seconds (e.g. -60) or an integer "
+            f"arithmetic expression (e.g. '-30*60'), got {offset!r}."
+        )
+
+    @staticmethod
     def validate_and_normalize_params(
         time_travel_mode: Optional[Literal["at", "before"]] = None,
         statement: Optional[str] = None,
@@ -2277,6 +2317,8 @@ class TimeTravelConfig(NamedTuple):
                 "Exactly one of 'version_tag', 'version_ref', or 'branch' may be "
                 "provided for Iceberg named-ref time travel."
             )
+
+        offset = TimeTravelConfig.normalize_offset(offset)
 
         time_travel_arg_count = sum(
             arg is not None

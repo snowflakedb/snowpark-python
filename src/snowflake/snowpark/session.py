@@ -3043,6 +3043,9 @@ class Session:
                 f"table() got unexpected keyword arguments: {sorted(kwargs)}"
             )
 
+        # Validate before building the AST, which only holds int offsets.
+        offset = TimeTravelConfig.normalize_offset(offset, emit_ast=_emit_ast)
+
         if _emit_ast:
             # The AST stores end_offset as an int, so normalize integer strings
             # first. Invalid values raise the usual ValueError.
@@ -3056,7 +3059,7 @@ class Session:
                 ast.time_travel_mode.value = time_travel_mode
             if statement is not None:
                 ast.statement.value = statement
-            if offset is not None:
+            if isinstance(offset, int):
                 ast.offset.value = offset
             if timestamp is not None:
                 build_expr_from_python_val(ast.timestamp, timestamp)
