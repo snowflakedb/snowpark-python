@@ -6,6 +6,8 @@
 
 #### New Features
 
+- `DataFrameReader.jdbc` is now generally available. This release includes changes to numeric, boolean, time-zone and unmapped-type handling; see the JDBC type-mapping entries under Bug Fixes below.
+
 - Added support for change-tracking reads with the `CHANGES` clause. `Session.table`, `DataFrameReader.table` and `Table` accept `changes` (`"default"` or `"append_only"`) together with the existing time travel arguments, and `end_statement`, `end_offset`, `end_timestamp` and `end_timestamp_type` to set the end of the changes (`END` clause). `DataFrameReader` options `changes`, `end_statement`, `end_offset`, `end_timestamp` and `end_timestamp_type` are supported as well. Added the column constants `METADATA_ACTION`, `METADATA_ISUPDATE` and `METADATA_ROW_ID` in `snowflake.snowpark.column` for the extra columns of such reads. These reads are not supported in local testing, and `Table.sample` is not supported on them.
 
 #### Improvements
@@ -30,7 +32,7 @@
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` ending with `;` or with a `--` comment failed with a syntax error.
 - `DataFrameReader.jdbc` now supports partitioning on timestamp columns, including Oracle `DATE` columns, which the Oracle JDBC driver reports as timestamps.
 - `DataFrameReader.jdbc` now drops its schema-inference UDTF after use instead of keeping it until the session ends, and creates its UDTFs as scoped temporary objects when `Session` uses scoped temporary objects.
-- Changed the type mapping of `DataFrameReader.jdbc` (Private Preview):
+- Changed the type mapping of `DataFrameReader.jdbc`:
   - Postgres `boolean` and SQL Server `bit` columns are read as `BooleanType` instead of strings. Postgres `bit(n)` and MySQL `BIT`, `BOOLEAN` and `TINYINT(1)` columns are still read as strings, because MySQL reports `TINYINT(1)` like `BIT(1)` although it can hold any small integer.
   - Oracle `TIMESTAMP WITH TIME ZONE`, SQL Server `datetimeoffset` and Postgres `timestamptz` are read as `TimestampType(TimestampTimeZone.TZ)`, and Oracle `TIMESTAMP WITH LOCAL TIME ZONE` as `TimestampType(TimestampTimeZone.LTZ)`. Previously the Oracle and SQL Server types were read as `VariantType` strings, and Postgres `timestamptz` lost its time zone and was shifted to the time zone of the UDTF.
   - Types without a mapping (e.g. Oracle `INTERVAL`, Postgres `xml`, `timetz`) are read as `StringType` instead of `VariantType`, as in `DataFrameReader.dbapi`.
