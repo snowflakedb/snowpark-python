@@ -29,6 +29,7 @@
 - Fixed a bug in `DataFrameReader.jdbc` where numerics without a declared precision (Oracle `NUMBER`, Postgres `numeric`) were truncated to integers or failed with `out of range`. They are now read as `DecimalType(38, 18)`, and Oracle `FLOAT` as `DoubleType`.
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` ending with `;` or with a `--` comment failed with a syntax error.
 - `DataFrameReader.jdbc` now supports partitioning on timestamp columns, including Oracle `DATE` columns, which the Oracle JDBC driver reports as timestamps.
+- `DataFrameReader.jdbc` now drops its schema-inference UDTF after use instead of keeping it until the session ends, and creates its UDTFs as scoped temporary objects when `Session` uses scoped temporary objects.
 
 ### Snowpark Local Testing Updates
 

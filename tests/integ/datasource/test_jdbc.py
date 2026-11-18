@@ -695,3 +695,22 @@ def test_oracle_partition_on_date_column(
         num_partitions=3,
     )
     assert sorted(int(r["ID"]) for r in df.collect()) == [1, 2, 3, 4, 5]
+
+
+def test_postgres_leaves_only_the_read_udtf(session, postgres_udtf_configs):
+    """SNOW-4537773: each call used to leave two temporary functions behind."""
+
+    def temp_functions():
+        return {
+            row["name"]
+            for row in session.sql(
+                "show user functions like 'SNOWPARK_TEMP_FUNCTION%'"
+            ).collect()
+        }
+
+    before = temp_functions()
+    df = session.read.jdbc(
+        url=POSTGRES_URL, udtf_configs=postgres_udtf_configs, query="select 1 as a"
+    )
+    assert [r[0] for r in df.collect()] == [1]
+    assert len(temp_functions() - before) == 1
