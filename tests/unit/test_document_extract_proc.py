@@ -2830,6 +2830,7 @@ def _run(monkeypatch, files, answer):
         json.dumps(_BUDGETS),
         30,
         "@stage",
+        "",
     )
     return session, rows, schema
 
@@ -2940,6 +2941,7 @@ def _run_in_batches(monkeypatch, files, answer, batch_bytes):
         json.dumps(_BUDGETS),
         30,
         "@stage",
+        "",
     )
     return session, rows, loaded_batches
 
@@ -3353,3 +3355,333 @@ class TestZeroPagesAndPlanningErrors:
         file = _pdf_state("@s/a.pdf", pages=3)
         assert _doc_extraction(_FakeSession()).plan_large_files([file]) == []
         assert file.errors == ["could not plan the file: bad sizes"]
+
+
+# ---------------------------------------------------------------------------
+# Routing small documents to their own models, and the per-model output ceilings.
+# ---------------------------------------------------------------------------
+
+# A complete answer, so a call is the file's last; ``_GOOD`` leaves pages to extract.
+_DONE = {
+    "value": json.dumps({STATUS_FIELD: {"complete": True}, "a": "x"}),
+    "error": None,
+}
+_SMALL = "gemini-small"
+_ROUTING = {
+    "small_doc_pages": 5,
+    "small_doc_models": [_SMALL],
+    "model_max_tokens": {_SMALL: 65536},
+}
+_BIG_BUDGET = {"target": 80000, "max_tokens": 128000}
+_BIG_BUDGETS = {
+    "first": _BIG_BUDGET,
+    "range": {"target": 120000, "max_tokens": 128000},
+    "large_range": _BIG_BUDGET,
+    "merge_target": 60000,
+    "plan_first": {"range_target": 60000, "max_tokens": 64000},
+}
+
+
+class _RoutingSession(_ModelSession):
+    """``_ModelSession`` that also records each call's ``max_tokens`` and prompt."""
+
+    def __init__(self, behave) -> None:
+        super().__init__(behave)
+        self.max_tokens, self.prompts = [], []
+
+    def sql(self, query, params):
+        self.max_tokens.append(json.loads(params[3])["max_tokens"])
+        self.prompts.append(params[1])
+        return super().sql(query, params)
+
+
+def _routed(session, routing=_ROUTING, models=("m1", "m2")):
+    schema = {"schema": {"type": "object", "properties": {"a": {"type": "string"}}}}
+    extraction = DocumentExtraction(
+        session, schema, "p", list(models), _BIG_BUDGETS, "@stage", routing
+    )
+    # Staging a part file is not what these tests are about: the call is sent for the file.
+    extraction.stage_part = lambda file, start, end: file.path
+    return extraction
+
+
+def _load(extraction, monkeypatch, name, content):
+    monkeypatch.setattr(extraction, "read_bytes", lambda _: content)
+    return extraction.load_file(f"@s/{name}", 30)
+
+
+class TestSmallDocumentRouting:
+    @pytest.mark.parametrize("pages", [1, 3, 4])
+    def test_a_pdf_of_fewer_than_five_pages_goes_to_the_small_document_model(
+        self, monkeypatch, pages
+    ):
+        session = _RoutingSession(lambda model, predicate: _DONE)
+        extraction = _routed(session)
+        file = _load(extraction, monkeypatch, "a.pdf", _pdf_bytes(pages))
+        assert file.models == [_SMALL, "m1", "m2"]
+        _run_calls(extraction, [file])
+        assert session.submitted == [_SMALL]
+        assert file.calls == 1 and file.errors == [] and len(file.parts) == 1
+
+    @pytest.mark.parametrize("pages", [5, 6, 9, 60])
+    def test_a_pdf_of_five_or_more_pages_uses_the_default_models(
+        self, monkeypatch, pages
+    ):
+        session = _RoutingSession(lambda model, predicate: _DONE)
+        extraction = _routed(session)
+        file = _load(extraction, monkeypatch, "a.pdf", _pdf_bytes(pages))
+        assert file.models == []
+        _run_calls(extraction, [file])
+        assert set(session.submitted) == {"m1"}
+
+    @pytest.mark.parametrize("name", ["notes.txt", "t.docx", "data.XLSX", "scan.png"])
+    def test_a_file_that_is_not_a_pdf_uses_the_default_models(self, monkeypatch, name):
+        session = _RoutingSession(lambda model, predicate: _DONE)
+        extraction = _routed(session)
+        file = _load(extraction, monkeypatch, name, b"plain text")
+        assert file.models == [] and not file.splittable
+        _run_calls(extraction, [file])
+        assert session.submitted == ["m1"]
+
+    @pytest.mark.parametrize(
+        "name, content",
+        [
+            ("photo.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 16),
+            ("photo.jpg", b"\xff\xd8\xff\xe0" + b"\x00" * 16),
+            ("photo.jpeg", b"\xff\xd8\xff\xe0" + b"\x00" * 16),
+            ("anim.gif", b"GIF89a" + b"\x00" * 16),
+            ("image.webp", b"RIFF\x00\x00\x00\x00WEBP"),
+        ],
+    )
+    def test_an_image_is_never_routed_to_the_small_document_model(
+        self, monkeypatch, name, content
+    ):
+        session = _RoutingSession(lambda model, predicate: _DONE)
+        extraction = _routed(session)
+        file = _load(extraction, monkeypatch, name, content)
+        # one page, whatever its size, and still the read's own models
+        assert file.pages == 1 and not file.splittable and file.models == []
+        assert extraction.candidates(file) == ["m1", "m2"]
+        _run_calls(extraction, [file])
+        assert session.submitted == ["m1"]
+        assert _SMALL not in session.submitted
+
+    def test_a_pdf_whose_page_count_cannot_be_read_uses_the_default_models(
+        self, monkeypatch
+    ):
+        session = _RoutingSession(lambda model, predicate: _DONE)
+        extraction = _routed(session)
+        file = _load(extraction, monkeypatch, "broken.pdf", b"%PDF-1.7 not a pdf")
+        assert file.models == [] and file.reader is None
+        _run_calls(extraction, [file])
+        assert session.submitted == ["m1"]
+
+    def test_a_pdf_that_failed_to_load_is_not_routed(self, monkeypatch):
+        extraction = _routed(_RoutingSession(lambda model, predicate: _DONE))
+        file = extraction.load_file("@s/big.pdf", 30, MAX_FILE_READ_BYTES + 1)
+        assert file.failed and file.models == []
+
+    def test_without_routing_nothing_changes(self, monkeypatch):
+        session = _RoutingSession(lambda model, predicate: _DONE)
+        extraction = _routed(session, routing=None)
+        file = _load(extraction, monkeypatch, "a.pdf", _pdf_bytes(2))
+        assert file.models == []
+        _run_calls(extraction, [file])
+        assert session.submitted == ["m1"]
+
+    def test_a_routing_with_no_small_document_models_routes_nothing(self, monkeypatch):
+        extraction = _routed(
+            _RoutingSession(lambda model, predicate: _DONE),
+            routing={"small_doc_pages": 5, "small_doc_models": []},
+        )
+        assert _load(extraction, monkeypatch, "a.pdf", _pdf_bytes(2)).models == []
+
+    def test_small_and_large_documents_in_one_read_each_use_their_own_models(
+        self, monkeypatch
+    ):
+        session = _RoutingSession(lambda model, predicate: _DONE)
+        extraction = _routed(session)
+        small = _load(extraction, monkeypatch, "s.pdf", _pdf_bytes(2))
+        large = _load(extraction, monkeypatch, "l.pdf", _pdf_bytes(8))
+        _run_calls(extraction, [small, large])
+        assert sorted(session.submitted) == sorted([_SMALL, "m1"])
+
+
+class TestSmallDocumentFallback:
+    def test_an_unavailable_small_document_model_falls_back_to_the_defaults(
+        self, monkeypatch
+    ):
+        def behave(model, predicate):
+            if model == _SMALL:
+                return {"value": None, "error": _UNKNOWN_TEXT}
+            return _DONE
+
+        session = _RoutingSession(behave)
+        extraction = _routed(session)
+        file = _load(extraction, monkeypatch, "a.pdf", _pdf_bytes(2))
+        _run_calls(extraction, [file])
+        assert session.submitted == [_SMALL, "m1"]
+        # the call that failed on an unknown model is not counted against the file
+        assert file.calls == 1 and file.errors == [] and len(file.parts) == 1
+        assert extraction.unavailable == {_SMALL}
+        # the read's own model was never in doubt
+        assert extraction.model == "m1"
+
+    def test_the_unavailable_model_is_not_tried_again_by_other_small_documents(
+        self, monkeypatch
+    ):
+        def behave(model, predicate):
+            if model == _SMALL:
+                return {"value": None, "error": _UNKNOWN_TEXT}
+            return _DONE
+
+        session = _RoutingSession(behave)
+        extraction = _routed(session)
+        files = [
+            _load(extraction, monkeypatch, name, _pdf_bytes(2))
+            for name in ("a.pdf", "b.pdf")
+        ]
+        _run_calls(extraction, files)
+        assert session.submitted == [_SMALL, _SMALL, "m1", "m1"]
+        later = _load(extraction, monkeypatch, "c.pdf", _pdf_bytes(2))
+        _run_calls(extraction, [later])
+        assert session.submitted[-1] == "m1" and session.submitted.count(_SMALL) == 2
+
+    def test_a_default_document_never_uses_the_small_document_model(self, monkeypatch):
+        session = _RoutingSession(lambda model, predicate: _DONE)
+        extraction = _routed(session)
+        small = _load(extraction, monkeypatch, "a.pdf", _pdf_bytes(2))
+        plain = _load(extraction, monkeypatch, "b.txt", b"plain text")
+        extraction.unavailable.add("m1")
+        extraction.model = "m2"
+        _run_calls(extraction, [small, plain])
+        assert sorted(session.submitted) == sorted([_SMALL, "m2"])
+
+    def test_the_default_models_failing_too_stops_the_read(self, monkeypatch):
+        session = _RoutingSession(
+            lambda model, predicate: {"value": None, "error": _UNKNOWN_TEXT}
+        )
+        extraction = _routed(session)
+        file = _load(extraction, monkeypatch, "a.pdf", _pdf_bytes(2))
+        with pytest.raises(NoModelAvailable, match="No model is available") as error:
+            _run_calls(extraction, [file])
+        assert session.submitted == [_SMALL, "m1", "m2"]
+        assert _SMALL in str(error.value) and "m2" in str(error.value)
+
+
+class TestModelOutputCeilings:
+    def test_a_call_to_a_capped_model_is_capped_and_its_target_scaled_down(
+        self, monkeypatch
+    ):
+        session = _RoutingSession(lambda model, predicate: _DONE)
+        extraction = _routed(session)
+        file = _load(extraction, monkeypatch, "a.pdf", _pdf_bytes(2))
+        _run_calls(extraction, [file])
+        assert session.max_tokens == [65536]
+        assert "39321 tokens or less" in session.prompts[0]  # 60% of the cap
+        assert "120000" not in session.prompts[0]
+
+    def test_a_call_to_an_uncapped_model_is_untouched(self, monkeypatch):
+        session = _RoutingSession(lambda model, predicate: _DONE)
+        extraction = _routed(session)
+        file = _load(extraction, monkeypatch, "a.txt", b"plain text")
+        _run_calls(extraction, [file])
+        assert session.max_tokens == [128000]
+        assert "120000 tokens or less" in session.prompts[0]
+
+    def test_the_cap_follows_the_model_when_a_call_is_sent_again(self, monkeypatch):
+        def behave(model, predicate):
+            if model == _SMALL:
+                return {"value": None, "error": _UNKNOWN_TEXT}
+            return _DONE
+
+        session = _RoutingSession(behave)
+        extraction = _routed(session)
+        file = _load(extraction, monkeypatch, "a.pdf", _pdf_bytes(2))
+        _run_calls(extraction, [file])
+        assert session.submitted == [_SMALL, "m1"]
+        assert session.max_tokens == [65536, 128000]
+        assert "39321 tokens or less" in session.prompts[0]
+        assert "120000 tokens or less" in session.prompts[1]
+
+    def test_a_default_model_with_a_ceiling_is_capped_too(self, monkeypatch):
+        session = _RoutingSession(lambda model, predicate: _DONE)
+        extraction = _routed(
+            session, routing={"model_max_tokens": {"m1": 64000}}, models=("m1",)
+        )
+        file = _load(extraction, monkeypatch, "a.pdf", _pdf_bytes(2))
+        _run_calls(extraction, [file])
+        assert session.max_tokens == [64000]
+
+    def test_a_planning_call_is_capped_at_the_models_ceiling(self, monkeypatch):
+        session = _RoutingSession(
+            lambda model, predicate: {"value": '{"ranges": [[2, 31]]}', "error": None}
+        )
+        extraction = _routed(
+            session, routing={"model_max_tokens": {"m1": 30}}, models=("m1",)
+        )
+        extraction.stage_part = lambda file, start, end: file.path
+        file = FileState("@s/big.pdf", object(), 60, 1000, 30)
+        extraction.plan_large_files([file])
+        assert session.max_tokens[0] == 30  # plan_first asks for 64000
+
+    def test_cap_budgets_limits_limits_and_targets(self):
+        capped = proc.cap_budgets(_BIG_BUDGETS, 65536)
+        assert capped["first"] == {"target": 39321, "max_tokens": 65536}
+        assert capped["range"] == {"target": 39321, "max_tokens": 65536}
+        assert capped["merge_target"] == 39321
+        assert capped["plan_first"] == {"range_target": 39321, "max_tokens": 64000}
+        # nothing is raised: a budget already under the cap stays as it is
+        small = {"first": {"target": 100, "max_tokens": 200}, "merge_target": 50}
+        assert proc.cap_budgets(small, 65536) == small
+        # the input is not changed
+        assert _BIG_BUDGETS["first"] == {"target": 80000, "max_tokens": 128000}
+
+
+class _RoutedRunSession(_RunSession):
+    """``_RunSession`` that records the model each call was sent to."""
+
+    def __init__(self, files, answer) -> None:
+        super().__init__(files, answer)
+        self.models = []
+
+    def sql(self, query, params=None):
+        if not query.startswith("LIST"):
+            self.models.append(params[0])
+        return super().sql(query, params)
+
+
+class TestRunRouting:
+    def _run(self, monkeypatch, files, routing):
+        session = _RoutedRunSession(
+            files,
+            lambda staged: _answer({STATUS_FIELD: {"complete": True}, "invoice": "I"}),
+        )
+        monkeypatch.setattr(
+            DocumentExtraction,
+            "read_bytes",
+            staticmethod(lambda name: session.files[name.rsplit("/", 1)[-1]]),
+        )
+        proc.run(
+            session,
+            "@s",
+            json.dumps(_RUN_SCHEMA),
+            "Extract.",
+            json.dumps(["m1", "m2"]),
+            json.dumps(_BIG_BUDGETS),
+            30,
+            "@stage",
+            routing or "",
+        )
+        return session
+
+    def test_the_routing_argument_reaches_the_extraction(self, monkeypatch):
+        files = {"short.pdf": _pdf_bytes(2), "long.pdf": _pdf_bytes(7)}
+        session = self._run(monkeypatch, files, json.dumps(_ROUTING))
+        assert sorted(session.models) == sorted([_SMALL, "m1"])
+
+    @pytest.mark.parametrize("routing", [None, ""])
+    def test_an_empty_routing_routes_nothing(self, monkeypatch, routing):
+        files = {"short.pdf": _pdf_bytes(2)}
+        session = self._run(monkeypatch, files, routing)
+        assert session.models == ["m1"]

@@ -11,6 +11,7 @@
 #### Improvements
 
 - `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.
+- `DataFrameReader.documents()` (Private Preview) reads with a schema now send a PDF of fewer than 5 pages to `gemini-3.8-flash`, and every other document (longer PDFs, other file types, or a PDF whose page count cannot be read) to the default Claude models as before. If `gemini-3.8-flash` is not available to the account, the document falls back to the default models. The confidence scores that model reports are often high (nearly all are at least 0.9).
 
 #### Bug Fixes
 
@@ -18,6 +19,7 @@
 - Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
 - Fixed a bug where `DataFrameReader.table` failed when a time travel reader option was set to `None`, e.g. `option("time_travel_mode", None)` together with `option("as-of-timestamp", ...)`. Time travel options set to `None` are now treated as unset.
 - Fixed a bug where `DataFrameReader.documents()` (Private Preview) reads with a schema refused `.jpg`, `.jpeg`, `.png`, `.gif` and `.webp` images with a "file type is not supported" error. Each image is now sent to `AI_COMPLETE` whole, in one call.
+- Fixed a bug where `DataFrameReader.documents()` (Private Preview) reads with a schema sent every call `max_tokens` of 128000, which a model with a lower output limit rejects for every document (for example `gemini-3.8-flash` at 65536). Each call is now capped at the limit of the model it goes to, and the size the model is asked to keep its answer under is scaled down with it.
 
 ### Snowpark Local Testing Updates
 

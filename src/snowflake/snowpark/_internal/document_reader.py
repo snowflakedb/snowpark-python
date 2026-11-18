@@ -78,6 +78,18 @@ _PREFERRED_EXTRACTION_MODEL = "claude-sonnet-5-5"
 _FALLBACK_EXTRACTION_MODEL = "claude-opus-5"
 _EXTRACTION_MODELS = [_PREFERRED_EXTRACTION_MODEL, _FALLBACK_EXTRACTION_MODEL]
 
+# A schema read of a PDF of fewer than _SMALL_DOC_PAGES pages goes to _SMALL_DOC_MODELS
+# first (then to _EXTRACTION_MODELS, if AI_COMPLETE does not know them). Routing applies
+# only to PDFs with a known page count: a document of more pages, an image, any other
+# file type, and a PDF whose page count cannot be read use _EXTRACTION_MODELS. The
+# extraction procedure reads the page count when it loads each file, so nothing is read
+# twice.
+# The confidence scores this model reports were found to be poorly calibrated: nearly all
+# are >= 0.9, so a read of a small document rarely leaves a field below a threshold.
+# The extraction instructions about scores are left as they are.
+_SMALL_DOC_PAGES = 5
+_SMALL_DOC_MODELS = ["gemini-3.8-flash"]
+
 _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
 
 # claude-sonnet-5-5 rejects temperature and response_format (a bare "malformed request"),
@@ -85,6 +97,14 @@ _DEFAULT_EXTRACTION_PROMPT = "Extract the requested fields from this document."
 # max_tokens AI_COMPLETE caps output at 4096, truncating long answers mid-JSON; 128000 is
 # the model's ceiling.
 _MAX_OUTPUT_TOKENS = 128000
+# A model whose output ceiling is below _MAX_OUTPUT_TOKENS: AI_COMPLETE rejects a larger
+# max_tokens outright, which would fail every document sent to it. The procedure caps each
+# call at the ceiling of the model it calls and scales the targets down with it. A model
+# not listed is sent the budgets as they are.
+_MODEL_MAX_OUTPUT_TOKENS = {
+    "gemini-3.8-flash": 65536,
+    "claude-sonnet-4-5": 64000,
+}
 # Each call is asked to stop below `target` output tokens and plan the rest of its pages,
 # and is hard-capped at `max_tokens`. The model underestimates its own output (real output
 # ~1.3x its estimate), so targets stay well below max_tokens.
@@ -100,6 +120,12 @@ _CALL_BUDGETS = {
     "large_range": {"target": 80000, "max_tokens": _MAX_OUTPUT_TOKENS},
     "merge_target": 60000,
     "plan_first": {"range_target": 60000, "max_tokens": 64000},
+}
+# What the procedure is told about routing small documents and model output ceilings.
+_ROUTING = {
+    "small_doc_pages": _SMALL_DOC_PAGES,
+    "small_doc_models": _SMALL_DOC_MODELS,
+    "model_max_tokens": _MODEL_MAX_OUTPUT_TOKENS,
 }
 # Floor for the per-document call cap; the procedure raises it from the answer size it
 # observes, up to its hard maximum.
@@ -630,6 +656,7 @@ def extract_with_split_procedure(
         json.dumps(_CALL_BUDGETS),
         _MAX_CALLS_PER_FILE,
         session.get_session_stage(),
+        json.dumps(_ROUTING),
     ]
     df = session.sql(
         f"CALL {proc_name}({', '.join(['?'] * len(args))}) {usage_comment(options)}",
@@ -793,6 +820,7 @@ def register_extract_proc(session: "Session") -> str:
             StringType(),  # call_budgets: as JSON
             IntegerType(),  # max_calls_per_file
             StringType(),  # work_stage: where page ranges are staged
+            StringType(),  # routing: small-document models and model ceilings, as JSON
         ],
         name=name,
         packages=["snowflake-snowpark-python", "pypdf"],

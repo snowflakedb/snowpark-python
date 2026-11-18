@@ -2,16 +2,24 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import inspect
+import json
 from unittest import mock
 
 import pytest
 
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
+import snowflake.snowpark._internal.document_extract_proc as extract_proc
 from snowflake.snowpark._internal.document_reader import (
     _CALL_BUDGETS,
     _EXTRACTION_MODELS,
     _FALLBACK_EXTRACTION_MODEL,
+    _MAX_OUTPUT_TOKENS,
+    _MODEL_MAX_OUTPUT_TOKENS,
     _PREFERRED_EXTRACTION_MODEL,
+    _ROUTING,
+    _SMALL_DOC_MODELS,
+    _SMALL_DOC_PAGES,
     access,
     build_ai_complete_call,
     cast_extracted_field,
@@ -469,3 +477,67 @@ class TestExtractWithSplitProcedureUsageComment:
         query = session.sql.call_args[0][0]
         assert query.startswith("CALL MY_PROC(")
         assert query.endswith(usage_comment(options))
+
+
+# ---------------------------------------------------------------------------
+# Small-document routing and per-model output ceilings: what the reader tells the
+# extraction procedure.
+# ---------------------------------------------------------------------------
+
+
+class TestSmallDocumentRouting:
+    def test_documents_of_fewer_than_five_pages_go_to_gemini(self):
+        assert _SMALL_DOC_PAGES == 5
+        assert _SMALL_DOC_MODELS == ["gemini-3.8-flash"]
+        # the default models are unchanged
+        assert _EXTRACTION_MODELS == ["claude-sonnet-5-5", "claude-opus-5"]
+
+    def test_the_routing_object_carries_the_rule_and_the_ceilings(self):
+        assert _ROUTING == {
+            "small_doc_pages": 5,
+            "small_doc_models": ["gemini-3.8-flash"],
+            "model_max_tokens": _MODEL_MAX_OUTPUT_TOKENS,
+        }
+        json.dumps(_ROUTING)  # it travels as a JSON argument
+
+    def test_gemini_is_capped_at_its_ceiling_and_no_ceiling_is_above_the_default(self):
+        assert _MODEL_MAX_OUTPUT_TOKENS["gemini-3.8-flash"] == 65536
+        assert all(
+            0 < cap < _MAX_OUTPUT_TOKENS for cap in _MODEL_MAX_OUTPUT_TOKENS.values()
+        )
+        # the default models are not capped: their budgets are used as they are
+        assert not set(_EXTRACTION_MODELS) & set(_MODEL_MAX_OUTPUT_TOKENS)
+
+    def test_the_call_passes_the_routing_as_the_last_argument(self):
+        session = mock.MagicMock()
+        session.get_session_stage.return_value = "@~/session_stage"
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+        )
+        with mock.patch(
+            "snowflake.snowpark._internal.document_reader.register_extract_proc",
+            return_value="MY_PROC",
+        ):
+            extract_with_split_procedure(session, "@stage/invoices/", options)
+        query, params = session.sql.call_args[0][0], session.sql.call_args[1]["params"]
+        assert query.startswith("CALL MY_PROC(") and query.count("?") == len(params)
+        assert json.loads(params[-1]) == _ROUTING
+        assert params[-2] == "@~/session_stage"
+        assert json.loads(params[3]) == _EXTRACTION_MODELS  # the defaults, as before
+        assert json.loads(params[4]) == _CALL_BUDGETS  # the budgets, uncapped
+
+    def test_the_registered_arguments_match_the_procedures_parameters(self):
+        session = mock.MagicMock()
+        session.get_fully_qualified_name_if_possible.side_effect = lambda n: n
+        from snowflake.snowpark._internal.document_reader import register_extract_proc
+
+        with mock.patch(
+            "snowflake.snowpark._internal.document_reader.is_in_stored_procedure",
+            return_value=False,
+        ):
+            register_extract_proc(session)
+        input_types = session.sproc.register_from_file.call_args[1]["input_types"]
+        parameters = list(inspect.signature(extract_proc.run).parameters)[1:]
+        assert len(input_types) == len(parameters)
+        assert parameters[-1] == "routing"

@@ -44,7 +44,7 @@ import re
 import time
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from snowflake.snowpark import DataFrame, Session
 
@@ -1173,6 +1173,30 @@ def no_model_message(models: List[str]) -> str:
     )
 
 
+# A model's output ceiling can sit below the budgets' ``max_tokens`` (AI_COMPLETE rejects a
+# larger value outright, for every call). Each call is capped at the ceiling of the model it
+# goes to, and the targets, which the model is asked to stay under, are cut to this share
+# of that cap so they stay well below it.
+CAP_TARGET_FRACTION = 0.6
+
+
+def cap_budgets(budgets: Dict[str, Any], cap: int) -> Dict[str, Any]:
+    """``budgets`` with every ``max_tokens`` limited to ``cap`` and every target (and
+    ``merge_target``) limited to ``CAP_TARGET_FRACTION`` of it."""
+    target = int(cap * CAP_TARGET_FRACTION)
+    return {
+        key: (
+            {
+                k: (min(v, cap) if k == "max_tokens" else min(v, target))
+                for k, v in value.items()
+            }
+            if isinstance(value, dict)
+            else min(value, target)
+        )
+        for key, value in budgets.items()
+    }
+
+
 def _from_variant_text(field: Any) -> Any:
     """A result field that is a JSON-encoded string, unwrapped; any other field as it
     is. Only a string is unwrapped: a plain answer that happens to be valid JSON, such
@@ -1224,6 +1248,9 @@ class FileState:
     parts: List[Tuple[int, Dict[str, Any]]] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     failed: bool = False
+    # The models this file's calls use, in order of preference, when it is routed to
+    # others than the read's own (``DocumentExtraction.route``); empty otherwise.
+    models: List[str] = field(default_factory=list)
     splittable: bool = field(init=False)
 
     def __post_init__(self) -> None:
@@ -1302,11 +1329,16 @@ class DocumentExtraction:
         models: List[str],
         budgets: Dict[str, Any],
         work_stage: str,
+        routing: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Precompute the schema sent to the model (with the status field added and
         every scalar made nullable) and its instruction text. ``models`` are the
         candidates in order of preference; calls use the first until AI_COMPLETE reports
-        it unknown (see ``model_missing``)."""
+        it unknown (see ``model_missing``).
+
+        ``routing`` is optional: ``small_doc_pages`` and ``small_doc_models`` send a PDF
+        of fewer pages to those models first (see ``route``), and ``model_max_tokens``
+        maps a model to its output ceiling (see ``budgets_for``)."""
         self.session = session
         self.schema = response_format["schema"]
         self.sent_schema = with_status(response_format)["schema"]
@@ -1316,6 +1348,16 @@ class DocumentExtraction:
         self.model = models[0]
         self.budgets = budgets
         self.work_stage = work_stage
+        routing = routing or {}
+        self.small_doc_pages = int(routing.get("small_doc_pages") or 0)
+        self.small_doc_models = list(routing.get("small_doc_models") or [])
+        self.model_max_tokens = {
+            str(m): int(cap)
+            for m, cap in (routing.get("model_max_tokens") or {}).items()
+        }
+        # Models AI_COMPLETE reported unknown; no call goes to one again.
+        self.unavailable: Set[str] = set()
+        self._capped_budgets: Dict[int, Dict[str, Any]] = {}
         # Times each page range was sent again after a throttled answer, and the wait
         # before the next round (see ``throttled``).
         self.throttle_retries: Dict[Tuple[int, ...], int] = {}
@@ -1323,25 +1365,68 @@ class DocumentExtraction:
         # Bytes of the file or part last staged for each (file, start, end) range.
         self.sent_bytes: Dict[Tuple[int, int, int], int] = {}
 
+    def candidates(self, file: FileState) -> List[str]:
+        """The models ``file``'s calls may use, in order of preference."""
+        return file.models or self.models
+
+    def model_of(self, file: FileState) -> str:
+        """The model ``file``'s next call goes to: the first of its candidates AI_COMPLETE
+        has not reported unknown. Raises ``NoModelAvailable`` when none is left."""
+        candidates = self.candidates(file)
+        for model in candidates:
+            if model not in self.unavailable:
+                return model
+        raise NoModelAvailable(no_model_message(candidates))
+
     def model_missing(
         self, file: FileState, submitted: Submitted, error: Optional[str]
     ) -> bool:
         """Whether ``error`` says AI_COMPLETE does not know the model the call was sent
         to. Such a call is not a document failure: it is not counted against ``file``'s
-        calls, and the caller sends it again. The first report for the model in use
-        moves the read on to the next candidate, so the rest of the calls already in
-        flight with the old model only need sending again; when no candidate is left the
-        read stops with ``NoModelAvailable``. Costs no extra call when the first model
-        is available."""
+        calls, and the caller sends it again. The first report for a model takes it out
+        of use for every file, so the calls already in flight with it only need sending
+        again; a routed file moves on along its own list, which ends with the read's
+        models. When no candidate is left for ``file`` the read stops with
+        ``NoModelAvailable``. Costs no extra call when the first model is available."""
         if error is None or not is_unknown_model_error(error):
             return False
         file.calls -= 1
-        if submitted.model == self.model:
-            index = self.models.index(self.model) + 1
-            if index >= len(self.models):
-                raise NoModelAvailable(no_model_message(self.models))
-            self.model = self.models[index]
+        self.unavailable.add(submitted.model)
+        self.model = next(
+            (m for m in self.models if m not in self.unavailable), self.model
+        )
+        self.model_of(file)
         return True
+
+    def budgets_for(
+        self, file: FileState, model: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """The call budgets for ``model`` (default: the one ``file``'s next call goes
+        to): the read's own, or cut down to the model's output ceiling."""
+        cap = self.model_max_tokens.get(model or self.model_of(file))
+        if not cap:
+            return self.budgets
+        if cap not in self._capped_budgets:
+            self._capped_budgets[cap] = cap_budgets(self.budgets, cap)
+        return self._capped_budgets[cap]
+
+    def route(self, file: FileState) -> FileState:
+        """Send a PDF of fewer than ``small_doc_pages`` pages to ``small_doc_models``
+        first, then the read's own models if they are unavailable. The page count is the
+        one ``load_file`` read. Routing applies ONLY to PDFs with a known page count: an
+        image (``.jpg``, ``.jpeg``, ``.png``, ``.gif``, ``.webp``), any other file type,
+        a PDF whose page count could not be read, and a file that failed to load keep the
+        read's models."""
+        if (
+            self.small_doc_models
+            and not file.failed
+            and file.splittable
+            and file.pages < self.small_doc_pages
+        ):
+            file.models = self.small_doc_models + [
+                m for m in self.models if m not in self.small_doc_models
+            ]
+        return file
 
     def throttled(
         self, file: FileState, key: Tuple[int, ...], error: Optional[str]
@@ -1417,7 +1502,9 @@ class DocumentExtraction:
             return FileState.failed_with(
                 name, len(content), max_calls_per_file, "the PDF has no pages"
             )
-        return FileState(name, reader, pages, len(content), max_calls_per_file)
+        return self.route(
+            FileState(name, reader, pages, len(content), max_calls_per_file)
+        )
 
     def list_files(self, path: str) -> List[Tuple[str, Optional[int]]]:
         """Every file under ``path`` as ``(stage reference, listed size)``. Listing the
@@ -1497,7 +1584,10 @@ class DocumentExtraction:
         """Submit one AI_COMPLETE call for ``staged`` to the model in use and return it
         in flight; counts against ``file``'s call budget."""
         file.calls += 1
-        model = self.model
+        model = self.model_of(file)
+        cap = self.model_max_tokens.get(model)
+        if cap:
+            max_tokens = min(max_tokens, cap)
         job = self.session.sql(
             _AI_COMPLETE_SQL,
             params=[model, predicate, staged, json.dumps({"max_tokens": max_tokens})],
@@ -1578,7 +1668,6 @@ class DocumentExtraction:
         """Submit a planning call for each segment in ``chunk``. A segment that gets no
         call (its file is at its cap, or staging or submitting it fails) goes on to
         ``tasks`` as a first call."""
-        plan = self.budgets["plan_first"]
         jobs = []
         for file, a, b in chunk:
             if file.calls >= file.cap:
@@ -1586,6 +1675,7 @@ class DocumentExtraction:
                 # the cap error for it.
                 tasks.append((file, a, b, "first"))
                 continue
+            plan = self.budgets_for(file)["plan_first"]
             prompt = build_plan_predicate(
                 self.predicate,
                 a,
@@ -1699,7 +1789,8 @@ class DocumentExtraction:
             if staged is None:
                 oversized += [(file, a, b, budget_name) for a, b in halves(start, end)]
                 continue
-            budget = self.budgets[budget_name]
+            budgets = self.budgets_for(file)
+            budget = budgets[budget_name]
             prompt = (
                 build_predicate(
                     self.predicate,
@@ -1707,7 +1798,7 @@ class DocumentExtraction:
                     start,
                     end,
                     file.pages,
-                    plan_target=self.budgets[file.range_budget]["target"],
+                    plan_target=budgets[file.range_budget]["target"],
                 )
                 + self.instruction
             )
@@ -1767,7 +1858,8 @@ class DocumentExtraction:
             else:
                 file.parts.append((start, value))
             return []
-        range_target = self.budgets[file.range_budget]["target"]
+        budgets = self.budgets_for(file)
+        range_target = budgets[file.range_budget]["target"]
         if error is None and isinstance(value, dict):
             value = shift_page_fields(value, start, end)
             estimate = document_estimate(value, start, end, file.pages)
@@ -1780,7 +1872,7 @@ class DocumentExtraction:
             end,
             value,
             error,
-            target=self.budgets["merge_target"],
+            target=budgets["merge_target"],
             salvaged=salvaged,
             sent_bytes=self.sent_bytes.get((id(file), start, end)),
         )
@@ -1803,6 +1895,7 @@ def run(
     call_budgets: str,
     max_calls_per_file: int,
     work_stage: str,
+    routing: str,
 ) -> DataFrame:
     """Extract the schema's fields from every file under ``path``; one output row per
     file, however many AI_COMPLETE calls it took.
@@ -1819,6 +1912,10 @@ def run(
         max_calls_per_file: starting cap on calls per file; raised for files whose
             answers turn out large, up to HARD_MAX_CALLS_PER_FILE.
         work_stage: stage where page-range part files are written (the session stage).
+        routing: JSON, or an empty string for none: ``small_doc_pages`` and ``small_doc_models``
+            (a PDF of fewer pages goes to those models first, then to ``models``) and
+            ``model_max_tokens`` (a model's output ceiling, which caps its calls and the
+            targets sent to it).
 
     Raises:
         NoModelAvailable (a RuntimeError): AI_COMPLETE knows none of ``models`` (not
@@ -1843,6 +1940,7 @@ def run(
         json.loads(models),
         json.loads(call_budgets),
         work_stage,
+        json.loads(routing) if routing else None,
     )
     # 1. List the files under the path, with their sizes.
     listed = extraction.list_files(path)
