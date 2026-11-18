@@ -24,6 +24,7 @@ from snowflake.snowpark.types import (
     StringType,
     DateType,
     BooleanType,
+    BinaryType,
     ArrayType,
     StructField,
     VariantType,
@@ -50,7 +51,7 @@ class JDBCType(Enum):
     BIGINT = "BIGINT"
     BINARY = "BINARY"
     BIT = "BIT"
-    # BLOB = "BLOB"  # not supported in snowflake
+    BLOB = "BLOB"
     BOOLEAN = "BOOLEAN"
     CHAR = "CHAR"
     CLOB = "CLOB"
@@ -106,7 +107,8 @@ JAVA_TYPE_TO_SNOWFLAKE_TYPE = {
 }
 JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
     JDBCType.BIGINT: IntegerType,
-    JDBCType.BINARY: StringType,
+    JDBCType.BINARY: BinaryType,
+    JDBCType.BLOB: BinaryType,
     JDBCType.BIT: StringType,
     JDBCType.BOOLEAN: BooleanType,
     JDBCType.CHAR: StringType,
@@ -117,7 +119,7 @@ JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
     JDBCType.FLOAT: FloatType,
     JDBCType.INTEGER: IntegerType,
     JDBCType.LONGNVARCHAR: StringType,
-    JDBCType.LONGVARBINARY: StringType,
+    JDBCType.LONGVARBINARY: BinaryType,
     JDBCType.LONGVARCHAR: StringType,
     JDBCType.NCHAR: StringType,
     JDBCType.NCLOB: StringType,
@@ -130,11 +132,22 @@ JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
     JDBCType.TIMESTAMP: TimestampType,
     JDBCType.TIMESTAMP_WITH_TIMEZONE: TimestampType,
     JDBCType.TINYINT: IntegerType,
-    JDBCType.VARBINARY: StringType,
+    JDBCType.VARBINARY: BinaryType,
     JDBCType.VARCHAR: StringType,
 }
 
 PARTITION_TABLE_COLUMN_NAME = "partition"
+
+# How the read UDTF fetches a column. getString() is used by default; binary
+# values need getBytes() to avoid driver-dependent text decoding.
+STRING_READER = "string"
+BINARY_READER = "binary"
+
+# The read UDTF returns default-length VARCHAR (16 MiB). Hex uses two ASCII
+# characters per byte, limiting each binary value to 8 MiB. The driver loads a
+# value before its size can be checked, so a LOB far above the limit can exhaust
+# the UDTF memory before this error is raised.
+MAX_BINARY_SIZE = 8 * 1024 * 1024
 
 
 class JDBC:
@@ -204,6 +217,8 @@ class JDBC:
         self.secret_sql = f"SECRETS = ('cred' = {self.secret})"
         self._infer_schema_successful = True
         self.secret_detector()
+        # Per-column JDBC getter, set by to_snow_type(); empty means getString().
+        self._column_readers = []
 
     @cached_property
     def schema(self) -> StructType:
@@ -401,6 +416,7 @@ class JDBC:
             public class DataLoader{{
             private final Connection conn;
 
+            {self.create_to_hex_java_code()}
             private static Connection createConnection() {{
                 try {{
                     {self.generate_create_connection()}
@@ -469,11 +485,20 @@ class JDBC:
             """
 
         self.session.sql(jdbc_udtf_registration, _emit_ast=self._emit_ast).collect()
-        return BaseDriver.to_result_snowpark_df_udtf(
-            self.session.sql(jdbc_udtf, _emit_ast=self._emit_ast),
-            self.schema,
-            _emit_ast=self._emit_ast,
-        )
+        from snowflake.snowpark.functions import to_binary
+
+        res_df = self.session.sql(jdbc_udtf, _emit_ast=self._emit_ast)
+        cols = []
+        for field, reader in zip(self.schema.fields, self._readers()):
+            value = res_df[field.name]
+            if reader == BINARY_READER and isinstance(field.datatype, BinaryType):
+                # Only source binary columns carry hex. A custom StringType gets
+                # that canonical hex; other source types retain their cast semantics.
+                value = to_binary(value, "HEX", _emit_ast=self._emit_ast)
+            else:
+                value = value.cast(field.datatype)
+            cols.append(value.alias(field.name))
+        return res_df.select(cols, _emit_ast=self._emit_ast)
 
     def generate_create_connection(self):
         user_properties_overwrite = ""
@@ -509,12 +534,43 @@ class JDBC:
         )
 
     def create_output_row_java_code(self):
-        return "".join(
-            [
-                f"row.{field.name} = rs.getString({i+1});\n"
-                for i, field in enumerate(self.schema.fields)
-            ]
-        )
+        code = []
+        for field, reader in zip(self.schema.fields, self._readers()):
+            i = len(code)
+            if reader == BINARY_READER:
+                code.append(f"row.{field.name} = toHex(rs.getBytes({i+1}));\n")
+            else:
+                code.append(f"row.{field.name} = rs.getString({i+1});\n")
+        return "".join(code)
+
+    def create_to_hex_java_code(self) -> str:
+        if BINARY_READER not in self._readers():
+            return ""
+        return f"""
+            private static String toHex(byte[] bytes) {{
+                if (bytes == null) {{
+                    return null;
+                }}
+                if (bytes.length > {MAX_BINARY_SIZE}) {{
+                    throw new IllegalArgumentException("JDBC binary value exceeds the {MAX_BINARY_SIZE}-byte limit for hex transport");
+                }}
+                // HexFormat requires Java 17; JDBC also supports Java 11.
+                final String digits = "0123456789ABCDEF";
+                char[] hex = new char[bytes.length * 2];
+                for (int index = 0; index < bytes.length; index++) {{
+                    int value = bytes[index] & 0xff;
+                    hex[index * 2] = digits.charAt(value >>> 4);
+                    hex[index * 2 + 1] = digits.charAt(value & 0x0f);
+                }}
+                return new String(hex);
+            }}
+            """
+
+    def _readers(self) -> List[str]:
+        """One reader per schema field; resolving the schema sets _column_readers."""
+        fields = self.schema.fields
+        readers = self._column_readers
+        return [readers[i] if i < len(readers) else STRING_READER for i in range(len(fields))]
 
     def create_output_row_class(self):
         return "".join(
@@ -523,6 +579,7 @@ class JDBC:
 
     def to_snow_type(self) -> StructType:
         fields = []
+        readers = []
         for (
             field_name,
             jdbc_type,
@@ -541,7 +598,13 @@ class JDBC:
             snow_type = (
                 java_to_snow_type if jdbc_to_snow_type is None else jdbc_to_snow_type
             )
-            if snow_type == DecimalType:
+            if java_type == "[B" and jdbc_type in (JDBCType.OTHER, JDBCType.NOT_SUPPORTED):
+                snow_type = BinaryType
+            reader = STRING_READER
+            if snow_type == BinaryType:
+                data_type = BinaryType()
+                reader = BINARY_READER
+            elif snow_type == DecimalType:
                 if not BaseDriver.validate_numeric_precision_scale(precision, scale):
                     logger.debug(
                         f"Snowpark does not support column"
@@ -568,6 +631,8 @@ class JDBC:
                 data_type = snow_type()
 
             fields.append(StructField(field_name, data_type, nullable))
+            readers.append(reader)
+        self._column_readers = readers
         return StructType(fields)
 
     def generate_select_sql(self):

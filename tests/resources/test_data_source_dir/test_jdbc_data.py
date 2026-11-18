@@ -13,6 +13,7 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     FloatType,
     DoubleType,
+    BinaryType,
 )
 
 from tests.parameters import (
@@ -71,8 +72,8 @@ expected_schema = StructType(
         ),
         StructField("TIMESTAMP_TZ_COL", VariantType(), nullable=True),
         StructField("TIMESTAMP_LTZ_COL", VariantType(), nullable=True),
-        StructField("RAW_COL", StringType(), nullable=True),
-        StructField("GUID_COL", StringType(), nullable=True),
+        StructField("RAW_COL", BinaryType(), nullable=True),
+        StructField("GUID_COL", BinaryType(), nullable=True),
     ]
 )
 
@@ -98,8 +99,8 @@ custom_schema_result = StructType(
         ),
         StructField("TIMESTAMP_TZ_COL", VariantType(), nullable=True),
         StructField("TIMESTAMP_LTZ_COL", VariantType(), nullable=True),
-        StructField("RAW_COL", StringType(), nullable=True),
-        StructField("GUID_COL", StringType(), nullable=True),
+        StructField("RAW_COL", BinaryType(), nullable=True),
+        StructField("GUID_COL", BinaryType(), nullable=True),
     ]
 )
 
@@ -1090,3 +1091,42 @@ sql_sever_expected_data = [
         TIMESTAMP_COL="000000000000087F",
     ),
 ]
+
+
+# Keep the large recorded fixtures readable, but compare binary columns as bytes
+# rather than the historical driver-specific getString() representations.
+def _decode_binary_columns(rows, columns, decoder):
+    return [
+        Row(
+            **{
+                name: decoder(value) if name in columns and value is not None else value
+                for name, value in row.as_dict().items()
+            }
+        )
+        for row in rows
+    ]
+
+
+expected_data = _decode_binary_columns(
+    expected_data, {"RAW_COL", "GUID_COL"}, bytes.fromhex
+)
+postgres_expected_data = _decode_binary_columns(
+    postgres_expected_data, {"BYTEA_COL"}, lambda value: bytes.fromhex(value[2:])
+)
+mysql_expected_data = _decode_binary_columns(
+    mysql_expected_data,
+    {
+        "BINARYCOL",
+        "VARBINARYCOL",
+        "TINYBLOBCOL",
+        "BLOBCOL",
+        "MEDIUMBLOBCOL",
+        "LONGBLOBCOL",
+    },
+    lambda value: value.encode("ascii"),
+)
+sql_sever_expected_data = _decode_binary_columns(
+    sql_sever_expected_data,
+    {"BINARY_COL", "VARBINARY_COL", "VARBINARY_MAX_COL", "IMAGE_COL", "TIMESTAMP_COL"},
+    bytes.fromhex,
+)

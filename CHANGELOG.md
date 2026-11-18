@@ -26,6 +26,7 @@
 - Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) removed empty lines inside string literals of raw SQL, which changed query results.
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` that contained string literals, backslashes or newlines failed with a SQL compilation error during schema inference.
 - Fixed a bug in `DataFrameReader.jdbc` where reading failed when `DEFAULT_DDL_COLLATION` was set.
+- Fixed binary corruption and driver-dependent text output in `DataFrameReader.jdbc` (Private Preview). JDBC `BINARY`, `VARBINARY`, `LONGVARBINARY` and `BLOB` now produce `BinaryType` values using byte-preserving hexadecimal transport and explicit HEX decoding, independent of `BINARY_INPUT_FORMAT`. A `custom_schema` string override returns uppercase hex. Binary values larger than 8 MiB raise an ingestion error because hex transport doubles their size; MySQL BIT/TINYINT mappings are unchanged.
 
 ## 1.58.0 (2026-11-19)
 

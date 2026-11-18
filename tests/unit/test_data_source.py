@@ -17,7 +17,7 @@ from snowflake.snowpark.context import (
     _PYPI_SHARED_REPOSITORY,
 )
 from snowflake.snowpark.exceptions import SnowparkClientException
-from snowflake.snowpark.types import StructType, StructField, StringType
+from snowflake.snowpark.types import BinaryType, StructType, StructField, StringType
 
 
 @pytest.mark.parametrize(
@@ -349,3 +349,67 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
         sql for sql in captured if "table(" in sql.lower() and "select result" in sql
     )
     assert "(partition::VARCHAR)) AS result" in select
+
+
+@pytest.mark.parametrize("jdbc_type", ["BINARY", "VARBINARY", "LONGVARBINARY", "BLOB"])
+@pytest.mark.parametrize("custom_schema", [None, "C BINARY", "C STRING"])
+def test_jdbc_binary_reader_and_projection(jdbc_type, custom_schema):
+    from snowflake.snowpark import Session
+
+    # A real local DataFrame exercises the projection, rather than swallowing an
+    # exception after DDL registration as the DDL-only helper does.
+    with Session.builder.config("local_testing", True).create() as local_session:
+        raw = local_session.create_dataframe(
+            [(None,), ("",), ("0080FFDEADBEEF00",)],
+            schema=StructType([StructField("C", StringType())]),
+        )
+        session = Mock()
+        metadata = [("C", jdbc_type, "[B", 256, 0, True)]
+        session.sql.return_value.collect.return_value = metadata
+        client = JDBC(
+            session,
+            "jdbc:mysql://host/db",
+            "T",
+            "EAI",
+            [],
+            False,
+            "cred",
+            custom_schema=custom_schema,
+            _emit_ast=False,
+        )
+        assert client.schema.fields[0].datatype == (
+            StringType() if custom_schema == "C STRING" else BinaryType()
+        )
+        assert "row.C = toHex(rs.getBytes(1));" in client.create_output_row_java_code()
+        session.sql.side_effect = [Mock(), raw]
+        result = client.read("PARTITIONS")
+        values = [row[0] for row in result.collect()]
+        assert values == (
+            [None, "", "0080FFDEADBEEF00"]
+            if custom_schema == "C STRING"
+            else [None, b"", bytes.fromhex("0080FFDEADBEEF00")]
+        )
+
+
+@pytest.mark.parametrize(
+    "jdbc_type, java_type, expected_type, has_to_hex",
+    [
+        ("BIT", "[B", StringType(), False),
+        ("OTHER", "[B", BinaryType(), True),
+        ("VARCHAR", "java.lang.String", StringType(), False),
+    ],
+)
+def test_jdbc_binary_reader_selection(jdbc_type, java_type, expected_type, has_to_hex):
+    client = JDBC(
+        session=Mock(),
+        url="jdbc:mysql://h/d",
+        table_or_query="T",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=False,
+        secret="cred",
+    )
+    client.raw_schema = [("C", jdbc_type, java_type, 8, 0, True)]
+    client.__dict__["schema"] = client.to_snow_type()
+    assert client.schema.fields[0].datatype == expected_type
+    assert ("toHex(byte[] bytes)" in client.create_to_hex_java_code()) == has_to_hex
