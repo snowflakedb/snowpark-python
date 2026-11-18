@@ -540,3 +540,19 @@ def test_postgres_with_default_ddl_collation(session, postgres_udtf_configs):
     finally:
         session.use_schema(original_schema)
         session.sql(f"drop schema if exists {schema}").collect()
+
+
+def test_postgres_session_init_statement_applies_to_schema_inference(
+    session, postgres_udtf_configs
+):
+    """SNOW-4537770: schema inference must see the session set up by
+    session_init_statement, here a temp table that only exists after it runs."""
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query="select x from jdbc_session_init_tmp",
+        session_init_statement=[
+            "CREATE TEMP TABLE IF NOT EXISTS jdbc_session_init_tmp AS SELECT 1 AS x"
+        ],
+    )
+    assert [r["X"] for r in df.collect()] == [1]

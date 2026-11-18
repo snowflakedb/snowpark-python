@@ -264,6 +264,10 @@ class JDBC:
                 public Stream<OutputRow> process(String query) {{
                     try {{
                         Statement stmt = this.conn.createStatement();
+                        // Same timeout and session setup as the read UDTF, so inference
+                        // resolves names and settings the way the read will.
+                        stmt.setQueryTimeout({str(self.query_timeout)});
+                        {self.generate_session_init_statement()}
                         ResultSet rs = stmt.executeQuery(query);
                         ResultSetMetaData meta = rs.getMetaData();
                         int columnCount = meta.getColumnCount();
