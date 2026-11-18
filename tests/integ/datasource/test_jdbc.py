@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import re
+from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
@@ -12,7 +13,13 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.types import StructType, StructField, FloatType, DoubleType
+from snowflake.snowpark.types import (
+    DecimalType,
+    DoubleType,
+    FloatType,
+    StructField,
+    StructType,
+)
 from tests.resources.test_data_source_dir.test_jdbc_data import (
     URL,
     EXTERNAL_ACCESS_INTEGRATION,
@@ -619,3 +626,34 @@ def test_postgres_wide_result(session, postgres_udtf_configs):
         query=f"select {cols}",
     )
     assert list(df.collect()[0]) == list(range(column_count))
+
+
+@pytest.mark.parametrize(
+    "select, expected_type, expected_value",
+    [
+        ("CAST(1.25 AS NUMBER)", DecimalType(38, 18), Decimal("1.25")),
+        ("CAST(2.5 AS FLOAT)", DoubleType(), 2.5),
+    ],
+)
+def test_oracle_unconstrained_number_keeps_fraction(
+    session, udtf_configs, select, expected_type, expected_value
+):
+    """SNOW-4537763: unconstrained NUMBER/FLOAT used to be read as DECIMAL(38, 0)."""
+    df = session.read.jdbc(
+        url=URL,
+        udtf_configs=udtf_configs,
+        query=f"SELECT {select} AS N FROM DUAL",
+    )
+    assert df.schema.fields[0].datatype == expected_type
+    assert df.collect()[0][0] == expected_value
+
+
+def test_postgres_unbounded_numeric(session, postgres_udtf_configs):
+    """SNOW-4537763: numeric without precision used to fail with 'out of range'."""
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query="select 1.5::numeric as n",
+    )
+    assert df.schema.fields[0].datatype == DecimalType(38, 18)
+    assert df.collect()[0][0] == Decimal("1.5")
