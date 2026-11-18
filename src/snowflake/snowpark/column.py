@@ -1606,6 +1606,12 @@ METADATA_FILE_LAST_MODIFIED = Column("METADATA$FILE_LAST_MODIFIED")
 METADATA_START_SCAN_TIME = Column("METADATA$START_SCAN_TIME")
 METADATA_FILENAME = Column("METADATA$FILENAME")
 
+# Columns of a change-tracking read (``Session.table(..., changes=...)``). They are not part of
+# METADATA_COLUMN_TYPES, which is for reads of staged files.
+METADATA_ACTION = Column("METADATA$ACTION")
+METADATA_ISUPDATE = Column("METADATA$ISUPDATE")
+METADATA_ROW_ID = Column("METADATA$ROW_ID")
+
 METADATA_COLUMN_TYPES = {
     METADATA_FILE_ROW_NUMBER.get_name(): IntegerType(),
     METADATA_FILE_CONTENT_KEY.getName(): StringType(),
