@@ -349,3 +349,32 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
         sql for sql in captured if "table(" in sql.lower() and "select result" in sql
     )
     assert "(partition::VARCHAR)) AS result" in select
+
+
+@pytest.mark.parametrize(
+    "precision, scale, expected",
+    [
+        (0, -127, DecimalType(38, 18)),  # Oracle unconstrained NUMBER
+        (126, -127, DoubleType()),  # Oracle FLOAT
+        (0, 0, DecimalType(38, 18)),  # Postgres numeric without precision
+        (10, 2, DecimalType(10, 2)),
+        (50, 10, DecimalType(38, 10)),  # precision above 38 keeps the scale
+        (5, -2, DecimalType(38, 0)),  # Oracle NUMBER(5, -2) is an integer
+        (None, None, DecimalType(38, 0)),
+    ],
+)
+def test_jdbc_numeric_type_mapping(precision, scale, expected):
+    """SNOW-4537763: unconstrained numerics used to be truncated to DECIMAL(38, 0)."""
+    client = JDBC(
+        session=Mock(),
+        url="jdbc:oracle:thin:@host:1521/db",
+        table_or_query="T",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=False,
+        secret="cred",
+    )
+    client.raw_schema = [
+        ("N", "NUMERIC", "java.math.BigDecimal", precision, scale, True)
+    ]
+    assert client.to_snow_type().fields[0].datatype == expected

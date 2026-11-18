@@ -26,6 +26,7 @@
 - Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) removed empty lines inside string literals of raw SQL, which changed query results.
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` that contained string literals, backslashes or newlines failed with a SQL compilation error during schema inference.
 - Fixed a bug in `DataFrameReader.jdbc` where reading failed when `DEFAULT_DDL_COLLATION` was set.
+- Fixed a bug in `DataFrameReader.jdbc` where numerics without a declared precision (Oracle `NUMBER`, Postgres `numeric`) were truncated to integers or failed with `out of range`. They are now read as `DecimalType(38, 18)`, and Oracle `FLOAT` as `DoubleType`.
 
 ## 1.58.0 (2026-11-19)
 
