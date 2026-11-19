@@ -4,6 +4,8 @@
 
 import pytest
 import re
+import shutil
+import subprocess
 from unittest.mock import Mock, patch
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
@@ -19,6 +21,8 @@ from snowflake.snowpark.context import (
 from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.types import (
     BooleanType,
+    BinaryType,
+    IntegerType,
     DecimalType,
     DoubleType,
     StringType,
@@ -767,3 +771,169 @@ def test_jdbc_type_mapping_and_readers(url, raw_row, expected_type, expected_rea
     client.__dict__["schema"] = client.to_snow_type()
     assert client.schema.fields[0].datatype == expected_type
     assert expected_reader in client.create_output_row_java_code()
+
+
+@pytest.mark.parametrize("jdbc_type", ["BINARY", "VARBINARY", "LONGVARBINARY", "BLOB"])
+@pytest.mark.parametrize("custom_schema", [None, "C BINARY", "C STRING"])
+def test_jdbc_binary_reader_and_projection(jdbc_type, custom_schema):
+    from snowflake.snowpark import Session
+
+    # A real local DataFrame exercises the projection, rather than swallowing an
+    # exception after DDL registration as the DDL-only helper does.
+    with Session.builder.config("local_testing", True).create() as local_session:
+        raw = local_session.create_dataframe(
+            [(None,), ("",), ("0080FFDEADBEEF00",)],
+            schema=StructType([StructField("C0", StringType())]),
+        )
+        session = Mock()
+        metadata = [("C", jdbc_type, "[B", 256, 0, True, jdbc_type)]
+        session.sql.return_value.collect.return_value = metadata
+        client = JDBC(
+            session,
+            "jdbc:mysql://host/db",
+            "T",
+            "EAI",
+            [],
+            False,
+            "cred",
+            custom_schema=custom_schema,
+            _emit_ast=False,
+        )
+        assert client.schema.fields[0].datatype == (
+            StringType() if custom_schema == "C STRING" else BinaryType()
+        )
+        assert "row.C0 = toHex(rs.getBytes(1));" in client.create_output_row_java_code()
+        session.sql.side_effect = [Mock(), raw]
+        result = client.read("PARTITIONS")
+        values = [row[0] for row in result.collect()]
+        assert values == (
+            [None, "", "0080FFDEADBEEF00"]
+            if custom_schema == "C STRING"
+            else [None, b"", bytes.fromhex("0080FFDEADBEEF00")]
+        )
+
+
+@pytest.mark.parametrize(
+    "custom_schema, expected_types, expected_values",
+    [
+        (
+            "PAYLOAD STRING",
+            [IntegerType(), StringType(), StringType()],
+            [7, "0080FF", "hello"],
+        ),
+        (
+            "LABEL STRING, PAYLOAD BINARY, ID STRING",
+            [StringType(), BinaryType(), StringType()],
+            ["7", bytes.fromhex("0080FF"), "hello"],
+        ),
+    ],
+)
+def test_jdbc_binary_mixed_schema_preserves_source_positions(
+    custom_schema, expected_types, expected_values
+):
+    from snowflake.snowpark import Session
+
+    with Session.builder.config("local_testing", True).create() as local_session:
+        raw = local_session.create_dataframe(
+            [("7", "0080FF", "hello")],
+            schema=StructType(
+                [StructField(name, StringType()) for name in ("C0", "C1", "C2")]
+            ),
+        )
+        session = Mock()
+        session.sql.return_value.collect.return_value = [
+            ("ID", "INTEGER", "java.lang.Integer", 10, 0, True, "INTEGER"),
+            ("PAYLOAD", "VARBINARY", "[B", 3, 0, True, "VARBINARY"),
+            ("LABEL", "VARCHAR", "java.lang.String", 10, 0, True, "VARCHAR"),
+        ]
+        client = JDBC(
+            session,
+            "jdbc:mysql://host/db",
+            "T",
+            "EAI",
+            [],
+            False,
+            "cred",
+            custom_schema=custom_schema,
+            _emit_ast=False,
+        )
+        assert client.schema.names == ["ID", "PAYLOAD", "LABEL"]
+        assert [field.datatype for field in client.schema.fields] == expected_types
+        assert client.create_output_row_java_code() == (
+            "row.C0 = rs.getString(1);\n"
+            "row.C1 = toHex(rs.getBytes(2));\n"
+            "row.C2 = rs.getString(3);\n"
+        )
+        session.sql.side_effect = [Mock(), raw]
+        result = client.read("PARTITIONS")
+        assert result.columns == ["ID", "PAYLOAD", "LABEL"]
+        assert list(result.collect()[0]) == expected_values
+
+
+@pytest.mark.parametrize(
+    "jdbc_type, java_type, type_name, expected_type",
+    [
+        ("BIT", "[B", "BIT", StringType()),
+        ("BIT", "java.lang.Boolean", "TINYINT", StringType()),
+        ("TINYINT", "java.lang.Integer", "TINYINT", IntegerType()),
+    ],
+)
+def test_jdbc_mysql_nonbinary_readers(jdbc_type, java_type, type_name, expected_type):
+    test_jdbc_type_mapping_and_readers(
+        "jdbc:mysql://h/d",
+        ("C", jdbc_type, java_type, 8, 0, True, type_name),
+        expected_type,
+        "rs.getString(1)",
+    )
+
+
+def test_jdbc_binary_java11_hex_and_limit(tmp_path):
+    if not shutil.which("javac") or not shutil.which("java"):
+        pytest.skip("JDK required to execute generated JDBC reader")
+    ddl = _render_jdbc_ddls(java_version=11)
+    helper = ddl[
+        ddl.index("private static String toHex") : ddl.index(
+            "private static Connection createConnection"
+        )
+    ]
+    source = tmp_path / "BinaryReaderTest.java"
+    source.write_text(
+        "public class BinaryReaderTest {\n"
+        + helper
+        + """
+        public static void main(String[] args) {
+            if (toHex(null) != null || !toHex(new byte[0]).equals("")) {
+                throw new AssertionError("null/empty");
+            }
+            byte[] all = new byte[256];
+            for (int index = 0; index < all.length; index++) all[index] = (byte) index;
+            String hex = toHex(all);
+            for (int index = 0; index < all.length; index++) {
+                if (Integer.parseInt(hex.substring(index * 2, index * 2 + 2), 16) != index) {
+                    throw new AssertionError("byte " + index);
+                }
+            }
+            if (!toHex(new byte[] {0, (byte) 0x80, (byte) 0xff, 0}).equals("0080FF00")) {
+                throw new AssertionError("embedded zero/high bit");
+            }
+            if (toHex(new byte[8388608]).length() != 16777216) {
+                throw new AssertionError("limit");
+            }
+            try {
+                toHex(new byte[8388609]);
+                throw new AssertionError("oversize accepted");
+            } catch (IllegalArgumentException expected) {
+                if (!expected.getMessage().contains("8388608-byte limit")) throw expected;
+            }
+        }
+    }
+    """
+    )
+    subprocess.run(
+        ["javac", "--release", "11", str(source)], check=True, capture_output=True
+    )
+    subprocess.run(
+        ["java", "-cp", str(tmp_path), "BinaryReaderTest"],
+        check=True,
+        capture_output=True,
+    )

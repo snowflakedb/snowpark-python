@@ -27,6 +27,7 @@ from snowflake.snowpark.types import (
     StringType,
     DateType,
     BooleanType,
+    BinaryType,
     ArrayType,
     StructField,
     TimestampType,
@@ -56,7 +57,7 @@ class JDBCType(Enum):
     BIGINT = "BIGINT"
     BINARY = "BINARY"
     BIT = "BIT"
-    # BLOB = "BLOB"  # not supported in snowflake
+    BLOB = "BLOB"
     BOOLEAN = "BOOLEAN"
     CHAR = "CHAR"
     CLOB = "CLOB"
@@ -112,7 +113,8 @@ JAVA_TYPE_TO_SNOWFLAKE_TYPE = {
 }
 JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
     JDBCType.BIGINT: IntegerType,
-    JDBCType.BINARY: StringType,
+    JDBCType.BINARY: BinaryType,
+    JDBCType.BLOB: BinaryType,
     JDBCType.BIT: StringType,
     JDBCType.BOOLEAN: BooleanType,
     JDBCType.CHAR: StringType,
@@ -123,7 +125,7 @@ JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
     JDBCType.FLOAT: FloatType,
     JDBCType.INTEGER: IntegerType,
     JDBCType.LONGNVARCHAR: StringType,
-    JDBCType.LONGVARBINARY: StringType,
+    JDBCType.LONGVARBINARY: BinaryType,
     JDBCType.LONGVARCHAR: StringType,
     JDBCType.NCHAR: StringType,
     JDBCType.NCLOB: StringType,
@@ -136,7 +138,7 @@ JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
     JDBCType.TIMESTAMP: TimestampType,
     JDBCType.TIMESTAMP_WITH_TIMEZONE: TimestampType,
     JDBCType.TINYINT: IntegerType,
-    JDBCType.VARBINARY: StringType,
+    JDBCType.VARBINARY: BinaryType,
     JDBCType.VARCHAR: StringType,
 }
 
@@ -145,9 +147,15 @@ PARTITION_TABLE_COLUMN_NAME = "partition"
 # How the read UDTF fetches a column. getString() is used by default; time-zone
 # aware values need an explicit Java type because getString() renders them in a
 # driver-specific format (e.g. "-8:00", region names) that Snowflake cannot cast.
+# Binary values need getBytes() to avoid driver-dependent text decoding.
 STRING_READER = "string"
 OFFSET_DATETIME_READER = "offset_datetime"
 INSTANT_READER = "instant"
+BINARY_READER = "binary"
+
+# The read UDTF returns default-length VARCHAR (16 MiB). Hex uses two ASCII
+# characters per byte, limiting each binary value to 8 MiB.
+MAX_BINARY_SIZE = 8 * 1024 * 1024
 
 TIMESTAMP_TZ_JAVA_TYPES = {"oracle.sql.TIMESTAMPTZ", "microsoft.sql.DateTimeOffset"}
 TIMESTAMP_LTZ_JAVA_TYPES = {"oracle.sql.TIMESTAMPLTZ"}
@@ -511,6 +519,24 @@ class JDBC:
             private Connection conn;
             private final List<AutoCloseable> openResources = new ArrayList<>();
 
+            private static String toHex(byte[] bytes) {{
+                if (bytes == null) {{
+                    return null;
+                }}
+                if (bytes.length > {MAX_BINARY_SIZE}) {{
+                    throw new IllegalArgumentException("JDBC binary value exceeds the {MAX_BINARY_SIZE}-byte limit for hex transport");
+                }}
+                // HexFormat requires Java 17; JDBC also supports Java 11.
+                final String digits = "0123456789ABCDEF";
+                char[] hex = new char[bytes.length * 2];
+                for (int index = 0; index < bytes.length; index++) {{
+                    int value = bytes[index] & 0xff;
+                    hex[index * 2] = digits.charAt(value >>> 4);
+                    hex[index * 2 + 1] = digits.charAt(value & 0x0f);
+                }}
+                return new String(hex);
+            }}
+
             private static Connection createConnection() {{
                 try {{
                     {self.generate_create_connection()}
@@ -603,13 +629,24 @@ class JDBC:
 
         self.session.sql(jdbc_udtf_registration, _emit_ast=self._emit_ast).collect()
         res_df = self.session.sql(jdbc_udtf, _emit_ast=self._emit_ast)
-        return res_df.select(
-            [
-                res_df[self._udtf_column_name(i)].cast(field.datatype).alias(field.name)
-                for i, field in enumerate(self.schema.fields)
-            ],
-            _emit_ast=self._emit_ast,
-        )
+        from snowflake.snowpark.functions import to_binary
+
+        readers = getattr(self, "_column_readers", None) or []
+        cols = []
+        for i, field in enumerate(self.schema.fields):
+            value = res_df[self._udtf_column_name(i)]
+            if (
+                i < len(readers)
+                and readers[i] == BINARY_READER
+                and isinstance(field.datatype, BinaryType)
+            ):
+                # Only source binary columns carry hex. A custom StringType gets
+                # that canonical hex; other source types retain their cast semantics.
+                value = to_binary(value, "HEX", _emit_ast=self._emit_ast)
+            else:
+                value = value.cast(field.datatype)
+            cols.append(value.alias(field.name))
+        return res_df.select(cols, _emit_ast=self._emit_ast)
 
     @staticmethod
     def _udtf_column_name(index: int) -> str:
@@ -654,7 +691,9 @@ class JDBC:
         for i in range(len(self.schema.fields)):
             column = f"row.{self._udtf_column_name(i)}"
             reader = readers[i] if i < len(readers) else STRING_READER
-            if reader == OFFSET_DATETIME_READER:
+            if reader == BINARY_READER:
+                code.append(f"{column} = toHex(rs.getBytes({i+1}));\n")
+            elif reader == OFFSET_DATETIME_READER:
                 code.append(
                     f"{{ java.time.OffsetDateTime v = rs.getObject({i+1}, java.time.OffsetDateTime.class);"
                     f" {column} = v == null ? null : v.toString(); }}\n"
@@ -728,7 +767,10 @@ class JDBC:
             )
             type_name = (type_name or "").lower()
             reader = STRING_READER
-            if (
+            if snow_type == BinaryType:
+                data_type = BinaryType()
+                reader = BINARY_READER
+            elif (
                 java_type in TIMESTAMP_TZ_JAVA_TYPES
                 or jdbc_type == JDBCType.TIMESTAMP_WITH_TIMEZONE
                 or type_name == "timestamptz"
