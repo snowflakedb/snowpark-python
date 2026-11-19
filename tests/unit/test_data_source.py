@@ -265,6 +265,16 @@ def test_jdbc_invalid_fetch_size(fetch_size):
         _render_jdbc_ddls(fetch_size=fetch_size)
 
 
+def test_jdbc_docstring_describes_supported_parity_contract():
+    from snowflake.snowpark.dataframe_reader import DataFrameReader
+
+    doc = DataFrameReader.jdbc.__doc__
+    assert "max_workers" not in doc
+    assert "Schema inference still runs" in doc
+    assert "even when custom_schema supplies every column" in doc
+    assert "the query will never time out" not in doc
+
+
 def test_jdbc_default_fetch_size():
     from snowflake.snowpark.dataframe_reader import DataFrameReader
 
