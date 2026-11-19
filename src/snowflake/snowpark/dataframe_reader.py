@@ -2331,6 +2331,13 @@ class DataFrameReader:
         Reads data from a database table or query into a DataFrame using a JDBC connection string,
         with support for optional partitioning, parallel processing, and query customization.
 
+        Unconstrained Oracle ``NUMBER`` and PostgreSQL ``numeric`` columns are
+        inferred as ``DECIMAL(38,18)``: up to 20 integer digits and 18 fractional
+        digits. Additional fractional digits are rounded; values outside that
+        integer range raise an error. Use ``custom_schema`` to choose another
+        precision/scale or ``STRING`` to retain the source decimal text. Oracle
+        ``FLOAT(p)`` is inferred as ``DOUBLE`` and may lose decimal precision.
+
         There are multiple methods to partition data and accelerate ingestion.
         These methods can be combined to achieve optimal performance:
 

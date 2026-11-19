@@ -562,12 +562,24 @@ def test_oracle_unconstrained_number_keeps_fraction(
     assert df.collect()[0][0] == expected_value
 
 
-def test_postgres_unbounded_numeric(session, postgres_udtf_configs):
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("1.5", "1.5"),
+        ("1.123456789012345678901234567890", "1.123456789012345679"),
+        (
+            "99999999999999999999.123456789012345678",
+            "99999999999999999999.123456789012345678",
+        ),
+        ("NULL", None),
+    ],
+)
+def test_postgres_unbounded_numeric(session, postgres_udtf_configs, value, expected):
     """SNOW-4537763: numeric without precision used to fail with 'out of range'."""
     df = session.read.jdbc(
         url=POSTGRES_URL,
         udtf_configs=postgres_udtf_configs,
-        query="select 1.5::numeric as n",
+        query=f"select {value}::numeric as n",
     )
     assert df.schema.fields[0].datatype == DecimalType(38, 18)
-    assert df.collect()[0][0] == Decimal("1.5")
+    assert df.collect()[0][0] == (Decimal(expected) if expected is not None else None)
