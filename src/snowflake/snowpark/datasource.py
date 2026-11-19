@@ -60,6 +60,22 @@ Example::
     >>> df.sort("id").collect()
     [Row(ID=0, LABEL='row 0'), Row(ID=1, LABEL='row 1'), Row(ID=2, LABEL='row 2'), Row(ID=3, LABEL='row 3'), Row(ID=4, LABEL='row 4')]
 
+**PySpark data sources**: Snowpark doesn't depend on PySpark, but it can read data sources
+written against ``pyspark.sql.datasource``, such as third-party PySpark data source libraries.
+Any class that follows the :class:`DataSourceLike` protocol can be passed to
+:meth:`DataSourceRegistration.register` or :meth:`DataFrameReader.format()
+<snowflake.snowpark.DataFrameReader.format>`, so a ``pyspark.sql.datasource.DataSource``
+subclass works as is. For these data sources:
+
+- ``reader()`` receives a ``pyspark.sql.types.StructType``, and ``schema()`` can return one.
+- ``TIMESTAMP`` is read as ``TIMESTAMP_LTZ``, following Spark.
+- ``pyspark.sql.Row`` and ``pyspark.sql.types.VariantVal`` values are supported in ``read()``.
+- In server-side ingestion, the ``pyspark`` package is added to ``snowpark.packages`` automatically.
+  Installed libraries that define the data source, such as ``pyspark-data-sources``, and their
+  dependencies must also be available in the UDTF: add them to ``snowpark.packages`` (with
+  ``snowpark.artifact_repository`` for packages from PyPI), or upload them with ``snowpark.imports``.
+  Classes defined in your own local modules are uploaded automatically.
+
 Only batch reads are supported. Streaming readers and writers are not.
 """
 
@@ -224,7 +240,8 @@ class DataSourceReader(ABC):
 
 @runtime_checkable
 class DataSourceReaderLike(Protocol):
-    """The protocol of a data source reader. :class:`DataSourceReader` implements it.
+    """The protocol of a data source reader. :class:`DataSourceReader` and
+    ``pyspark.sql.datasource.DataSourceReader`` implement it.
 
     ``partitions()`` is optional and defaults to a single ``None`` partition.
     """
@@ -235,7 +252,10 @@ class DataSourceReaderLike(Protocol):
 
 @runtime_checkable
 class DataSourceLike(Protocol):
-    """The protocol of a custom data source class. :class:`DataSource` implements it."""
+    """The protocol of a custom data source class. :class:`DataSource` and
+    ``pyspark.sql.datasource.DataSource`` implement it, so Snowpark accepts data sources written
+    with PySpark without depending on PySpark.
+    """
 
     def __init__(self, options: Dict[str, str]) -> None:
         ...  # pragma: no cover
@@ -271,7 +291,7 @@ class DataSourceRegistration:
 
         Args:
             data_source: A subclass of :class:`DataSource`, or another class that follows
-                :class:`DataSourceLike`.
+                :class:`DataSourceLike`, such as a ``pyspark.sql.datasource.DataSource`` subclass.
         """
         name = _validate_data_source_class(data_source)
         with self._lock:
@@ -303,15 +323,15 @@ def _validate_data_source_class(data_source: Any, allow_reserved: bool = False) 
     """Validates a custom data source class and returns its canonical (lower-case) format name.
     A class that is passed directly to ``format()`` isn't looked up by name, so it may have a
     reserved name."""
-    # duck-typed, so that any class that follows the DataSourceLike protocol is accepted
+    # duck-typed, so that PySpark data sources are accepted without importing PySpark
     if not (
         isinstance(data_source, type)
         and callable(getattr(data_source, "name", None))
         and callable(getattr(data_source, "reader", None))
     ):
         raise TypeError(
-            "A custom data source must be a subclass of snowflake.snowpark.datasource.DataSource, "
-            f"got {data_source!r}."
+            "A custom data source must be a subclass of snowflake.snowpark.datasource.DataSource "
+            f"or pyspark.sql.datasource.DataSource, got {data_source!r}."
         )
     name = data_source.name()
     if not isinstance(name, str) or not name.strip():

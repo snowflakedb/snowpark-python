@@ -55,6 +55,15 @@ from snowflake.snowpark._internal.data_source.custom.options import (
     EngineOptions,
     split_options,
 )
+from snowflake.snowpark._internal.data_source.custom.pyspark_compat import (
+    PYSPARK_PACKAGE,
+    is_pyspark_class,
+    is_pyspark_struct_type,
+    pyspark_struct_type_to_snowpark,
+    to_pyspark_struct_type,
+    uses_pyspark,
+    with_spark_timestamp_semantics,
+)
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark._internal.data_source.utils import (
     create_data_source_table_and_stage,
@@ -345,18 +354,37 @@ def read_custom_data_source(
 
     start_time = time.perf_counter()
     user_options, engine_options = split_options(options)
+    is_pyspark_source = is_pyspark_class(data_source_cls)
     data_source = data_source_cls(user_options)
 
     schema = user_schema if user_schema is not None else data_source.schema()
-    if isinstance(schema, str):
+    # the schema passed to reader(), a pyspark.sql.types.StructType for PySpark data sources
+    reader_schema = None
+    if is_pyspark_struct_type(schema):
+        if is_pyspark_source:
+            reader_schema = schema
+        schema = pyspark_struct_type_to_snowpark(schema)
+    elif isinstance(schema, str):
         schema = DataSourcePartitioner.formatting_custom_schema(schema)
     elif not isinstance(schema, StructType):
         raise TypeError(
             f"{data_source_cls.__name__}.schema() must return a StructType or a DDL string, got {schema!r}."
         )
+    if is_pyspark_source:
+        schema = with_spark_timestamp_semantics(schema)
     validate_schema(schema)
+    if reader_schema is None:
+        reader_schema = to_pyspark_struct_type(schema) if is_pyspark_source else schema
 
-    reader = data_source.reader(schema)
+    try:
+        reader = data_source.reader(reader_schema)
+    except NotImplementedError as exc:
+        if not is_pyspark_source:
+            raise
+        raise NotImplementedError(
+            f"{data_source_cls.__name__}.reader() is not implemented. Snowpark only supports "
+            "batch reads of PySpark data sources, not streaming reads."
+        ) from exc
     if not callable(getattr(reader, "read", None)):
         raise TypeError(
             f"{data_source_cls.__name__}.reader() must return a DataSourceReader, got {reader!r}."
@@ -388,6 +416,7 @@ def read_custom_data_source(
             schema,
             engine_options,
             statement_params,
+            requires_pyspark=is_pyspark_source,
             _emit_ast=_emit_ast,
         )
     else:
@@ -417,7 +446,7 @@ def _get_partitions(reader: Any) -> List[Any]:
     try:
         return list(partitions())
     except NotImplementedError:
-        # a reader may not implement partitions()
+        # older PySpark versions don't implement a default partitions()
         return [None]
 
 
@@ -511,12 +540,14 @@ def _build_udtf_handler(pickled_reader: bytes, schema: StructType) -> type:
     return CustomDataSourceIngestion
 
 
-def _resolve_udtf_packages(packages: Optional[List[str]]) -> List[str]:
+def _resolve_udtf_packages(
+    packages: Optional[List[str]], requires_pyspark: bool = False
+) -> List[str]:
     packages = list(packages or [])
     names = {
         re.split(r"[\s<>=!~\[;]", p.strip(), maxsplit=1)[0].lower() for p in packages
     }
-    required = [_SNOWPARK_PACKAGE]
+    required = [_SNOWPARK_PACKAGE] + ([PYSPARK_PACKAGE] if requires_pyspark else [])
     packages.extend(p for p in required if p not in names)
     return packages
 
@@ -540,8 +571,11 @@ def _udtf_ingestion(
     schema: StructType,
     engine_options: EngineOptions,
     statement_params: Dict[str, str],
+    requires_pyspark: bool = False,
     _emit_ast: bool = False,
 ) -> "snowflake.snowpark.DataFrame":
+    # readers and partitions of PySpark data sources are unpickled with PySpark in the UDTF
+    requires_pyspark = requires_pyspark or uses_pyspark([reader] + list(partitions))
     local_modules = _local_modules_of(
         [reader] + list(partitions), engine_options.imports
     )
@@ -592,7 +626,7 @@ def _udtf_ingestion(
             input_types=[LongType(), BinaryType()],
             name=udtf_name,
             is_permanent=False,
-            packages=_resolve_udtf_packages(engine_options.packages),
+            packages=_resolve_udtf_packages(engine_options.packages, requires_pyspark),
             imports=engine_options.imports,
             artifact_repository=engine_options.artifact_repository,
             external_access_integrations=[engine_options.external_access_integration],
