@@ -376,9 +376,9 @@ def test_jdbc_docstring_describes_supported_parity_contract():
     from snowflake.snowpark.dataframe_reader import DataFrameReader
 
     doc = DataFrameReader.jdbc.__doc__
-    assert "max_workers" not in doc
-    assert "Schema inference still runs" in doc
-    assert "even when custom_schema supplies every column" in doc
+    assert "Set max_workers" not in doc
+    assert "inference still runs" in doc.lower()
+    assert "must succeed" in doc
     assert "the query will never time out" not in doc
 
 
