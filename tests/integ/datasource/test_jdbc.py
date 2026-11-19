@@ -550,17 +550,30 @@ def test_postgres_with_default_ddl_collation(session, postgres_udtf_configs):
         ('"class"', "CLASS"),
         ('"列名"', '"列名"'),
         ('"a""b"', '"a""b"'),
+        ('"""quoted"""', '"""quoted"""'),
+        ('"""a""b"""', '"""a""b"""'),
     ],
 )
+@pytest.mark.parametrize("table_mode", [False, True])
 def test_postgres_column_names_needing_quotes(
-    session, postgres_udtf_configs, alias, expected_name
+    session, postgres_udtf_configs, alias, expected_name, table_mode
 ):
     """SNOW-4537772: column names used to be emitted raw as Java fields and UDTF
     output columns, so spaces, quotes, unicode and keywords failed to compile."""
+    source = (
+        {
+            "table": "jdbc_quoted_columns",
+            "session_init_statement": [
+                f"CREATE TEMP TABLE jdbc_quoted_columns AS SELECT 1 AS {alias}"
+            ],
+        }
+        if table_mode
+        else {"query": f"select 1 as {alias}"}
+    )
     df = session.read.jdbc(
         url=POSTGRES_URL,
         udtf_configs=postgres_udtf_configs,
-        query=f"select 1 as {alias}",
+        **source,
     )
     assert df.schema.names == [expected_name]
     assert df.collect()[0][0] == 1

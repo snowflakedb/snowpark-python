@@ -381,6 +381,21 @@ def test_jdbc_width_limit(column_count):
         assert len(client.schema.fields) == column_count
 
 
+@pytest.mark.parametrize("source_name", ['"quoted"', '"a"b"', 'a"b', "my col"])
+def test_jdbc_literal_quotes_in_column_names(source_name):
+    client = JDBC(
+        session=Mock(),
+        url="jdbc:postgresql://host/db",
+        table_or_query="T",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=False,
+        secret="cred",
+    )
+    client.raw_schema = [(source_name, "INTEGER", "java.lang.Integer", 10, 0, True)]
+    assert client.to_snow_type().names == ['"' + source_name.replace('"', '""') + '"']
+
+
 def test_jdbc_udtf_uses_positional_column_names():
     """SNOW-4537772: source names never appear as Java identifiers or UDTF columns."""
     session = Mock()
