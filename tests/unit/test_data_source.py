@@ -4,6 +4,9 @@
 
 import pytest
 import re
+import base64
+import shutil
+import subprocess
 from unittest.mock import Mock, patch
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
@@ -378,3 +381,45 @@ def test_jdbc_user_strings_are_java_escaped():
     assert 'stmt.execute("SET search_path TO \\"public\\"");' in ddl
     # Only the two DDL delimiters remain.
     assert ddl.count("$$") == 2
+
+
+def test_java_literals_roundtrip(tmp_path):
+    if not shutil.which("javac") or not shutil.which("java"):
+        pytest.skip("JDK required for Java literal roundtrip")
+    values = [
+        'quotes" and slash\\',
+        "\n\r\t\b\f\x00",
+        "$$",
+        r"\u0022",
+        r"\\u000a",
+        "\u65e5\u672c",
+        "\U0001f600",
+        "\\$$\\\n",
+    ]
+    literals = ",".join(to_java_string_literal(value) for value in values)
+    assert "$$" not in literals
+    source = (
+        "import java.nio.charset.StandardCharsets; import java.util.Base64; "
+        "class LiteralRoundtrip { public static void main(String[] args) { "
+        f"for (String value : new String[] {{{literals}}}) "
+        "System.out.println(Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8))); }}"
+    )
+    java_file = tmp_path / "LiteralRoundtrip.java"
+    java_file.write_text(source, encoding="utf-8")
+    compiled = subprocess.run(
+        ["javac", "--release", "11", str(java_file)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert compiled.returncode == 0, compiled.stderr
+    result = subprocess.run(
+        ["java", "-cp", str(tmp_path), "LiteralRoundtrip"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert [
+        base64.b64decode(line).decode("utf-8") for line in result.stdout.splitlines()
+    ] == values
