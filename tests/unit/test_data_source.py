@@ -397,3 +397,28 @@ def test_jdbc_user_strings_are_java_escaped():
     assert 'stmt.execute("SET search_path TO \\"public\\"");' in ddl
     # Only the two DDL delimiters remain.
     assert ddl.count("$$") == 2
+
+
+def test_jdbc_inference_initialization_order():
+    session = Mock()
+    session.sql.return_value.collect.return_value = []
+    client = JDBC(
+        session,
+        "jdbc:postgresql://host/db",
+        "SELECT 1",
+        "EAI",
+        [],
+        True,
+        "cred",
+        query_timeout=7,
+        session_init_statement=["SET search_path TO public", "SELECT 1"],
+    )
+    client.schema
+    ddl = session.sql.call_args_list[0].args[0]
+    assert ddl.index("stmt.setQueryTimeout(7)") < ddl.index(
+        'stmt.execute("SET search_path TO public")'
+    )
+    assert ddl.index('stmt.execute("SET search_path TO public")') < ddl.index(
+        'stmt.execute("SELECT 1")'
+    )
+    assert ddl.index('stmt.execute("SELECT 1")') < ddl.index("stmt.executeQuery(query)")
