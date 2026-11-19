@@ -9,7 +9,10 @@ import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.datasource import DataSource, DataSourceReader, InputPartition
-from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeReaderException,
+    SnowparkSQLException,
+)
 from snowflake.snowpark.types import (
     BinaryType,
     BooleanType,
@@ -239,6 +242,14 @@ def _check_all_types(df):
     assert json.loads(r3["V"]) == "s"
 
 
+@pytest.fixture(scope="module")
+def external_access_integration(session):
+    integrations = session.sql("show external access integrations").collect()
+    if not integrations:
+        pytest.skip("no external access integration is available")
+    return integrations[0]["name"]
+
+
 @pytest.fixture(autouse=True)
 def register_range_source(session):
     session.data_source.register(RangeDataSource)
@@ -382,8 +393,65 @@ def test_invalid_engine_option(session):
         session.read.format("range_source").option("snowpark.foo", 1).load()
 
 
-def test_server_side_options_are_not_supported(session):
-    with pytest.raises(NotImplementedError, match="server-side reads"):
-        session.read.format("range_source").option(
-            "snowpark.external_access_integration", "EAI"
-        ).load()
+def test_udtf_ingestion(session, external_access_integration):
+    df = (
+        session.read.format("range_source")
+        .option("n", 10)
+        .option("snowpark.external_access_integration", external_access_integration)
+        .load()
+    )
+    _check_range_schema(df)
+    assert df.sort("id").collect() == _expected_range(10)
+
+
+def test_all_types_udtf_ingestion(session, external_access_integration):
+    df = (
+        session.read.format(AllTypesDataSource)
+        .option("snowpark.external_access_integration", external_access_integration)
+        .option("snowpark.packages", ["pyarrow"])
+        .load()
+    )
+    _check_all_types(df)
+
+
+def test_udtf_ingestion_failing_partition(session, external_access_integration):
+    df = (
+        session.read.format("range_source")
+        .options(
+            {
+                "n": 10,
+                "fail": 4,
+                "snowpark.external_access_integration": external_access_integration,
+            }
+        )
+        .load()
+    )
+    with pytest.raises(SnowparkSQLException, match="partition 1 .*cannot read 4"):
+        df.collect()
+
+
+class OptionsDataSource(DataSource):
+    def schema(self):
+        return "key STRING, value STRING"
+
+    def reader(self, schema):
+        return OptionsReader(self.options)
+
+
+class OptionsReader(DataSourceReader):
+    def __init__(self, options) -> None:
+        # a common pattern: the reader keeps the options, a Snowpark CaseInsensitiveDict
+        self.options = options
+
+    def read(self, partition):
+        yield ("prefix", self.options["PREFIX"])
+
+
+def test_udtf_ingestion_reader_keeps_options(session, external_access_integration):
+    df = (
+        session.read.format(OptionsDataSource)
+        .option("prefix", "abc")
+        .option("snowpark.external_access_integration", external_access_integration)
+        .load()
+    )
+    assert df.collect() == [Row(KEY="prefix", VALUE="abc")]

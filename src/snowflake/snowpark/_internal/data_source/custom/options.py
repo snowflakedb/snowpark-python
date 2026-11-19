@@ -1,9 +1,10 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import json
 import os
 from dataclasses import dataclass
-from typing import Any, Iterator, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple
 
 ENGINE_OPTION_PREFIX = "snowpark."
 DEFAULT_BATCH_SIZE = 100000
@@ -61,9 +62,48 @@ def _to_option_string(value: Any) -> Optional[str]:
 
 @dataclass
 class EngineOptions:
+    external_access_integration: Optional[str] = None
+    packages: Optional[List[str]] = None
+    imports: Optional[List[str]] = None
+    artifact_repository: Optional[str] = None
+    secrets: Optional[Dict[str, str]] = None
     max_workers: Optional[int] = None
     fetch_with_process: bool = False
     batch_size: int = DEFAULT_BATCH_SIZE
+
+    @property
+    def use_udtf_ingestion(self) -> bool:
+        return self.external_access_integration is not None
+
+
+def _parse_list(key: str, value: Any) -> List[str]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.startswith("["):
+            parsed = json.loads(stripped)
+        else:
+            parsed = [v.strip() for v in stripped.split(",") if v.strip()]
+    elif isinstance(value, (list, tuple)):
+        parsed = list(value)
+    else:
+        raise TypeError(
+            f"Option '{key}' must be a list of strings or a comma-separated string, got {value!r}."
+        )
+    if not all(isinstance(v, str) for v in parsed):
+        raise TypeError(f"Option '{key}' must be a list of strings, got {value!r}.")
+    return parsed
+
+
+def _parse_dict(key: str, value: Any) -> Dict[str, str]:
+    if isinstance(value, str):
+        value = json.loads(value)
+    if not isinstance(value, Mapping) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in value.items()
+    ):
+        raise TypeError(
+            f"Option '{key}' must be a dictionary of strings, got {value!r}."
+        )
+    return dict(value)
 
 
 def _parse_bool(key: str, value: Any) -> bool:
@@ -86,18 +126,12 @@ def _parse_positive_int(key: str, value: Any) -> int:
     return result
 
 
-# options of server-side reads, which are not supported yet
-_SERVER_SIDE_OPTIONS = frozenset(
-    [
-        "external_access_integration",
-        "packages",
-        "imports",
-        "artifact_repository",
-        "secrets",
-    ]
-)
-
 _ENGINE_OPTION_PARSERS = {
+    "external_access_integration": lambda k, v: str(v),
+    "packages": _parse_list,
+    "imports": _parse_list,
+    "artifact_repository": lambda k, v: str(v),
+    "secrets": _parse_dict,
     "max_workers": _parse_positive_int,
     "fetch_with_process": _parse_bool,
     "batch_size": _parse_positive_int,
@@ -115,11 +149,6 @@ def split_options(
         lower_key = key.lower()
         if lower_key.startswith(ENGINE_OPTION_PREFIX):
             name = lower_key[len(ENGINE_OPTION_PREFIX) :]
-            if name in _SERVER_SIDE_OPTIONS:
-                raise NotImplementedError(
-                    f"The option '{key}' configures server-side reads, which custom data sources "
-                    "don't support yet."
-                )
             if name not in _ENGINE_OPTION_PARSERS:
                 raise ValueError(
                     f"Unknown option '{key}'. Options starting with '{ENGINE_OPTION_PREFIX}' are reserved "
