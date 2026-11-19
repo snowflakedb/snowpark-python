@@ -1175,12 +1175,14 @@ class SnowflakePlanBuilder:
         is_having: bool,
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
+        is_qualify: bool = False,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: filter_statement(
                 condition,
                 is_having,
                 x,
+                is_qualify=is_qualify,
                 child_uuid=(
                     child.uuid
                     if debug_config.enabled(

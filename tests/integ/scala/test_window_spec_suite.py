@@ -122,40 +122,36 @@ def test_window_function_with_aggregates(session):
     reason="SNOW-1362852: Window functions need better alignment with live.",
 )
 def test_window_function_inside_where_and_having_clauses(session):
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         TestData.test_data2(session).select("a").where(
             rank().over(Window.order_by("b")) == 1
         ).collect()
-    if session.sql_simplifier_enabled:
-        # The SQL has two errors - invalid identifier and using window function in where clause.
-        # After sql is simplified, the SQL error reports using window function first.
-        assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info.value)
-    else:
-        assert "invalid identifier" in str(ex_info.value)
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    Utils.check_answer(
         TestData.test_data2(session).where(
-            (col("b") == 2) & rank().over(Window.order_by("b")) == 1
-        ).collect()
-    assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info.value)
-
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        TestData.test_data2(session).group_by("a").agg(avg("b").as_("avgb")).where(
-            (col("a") > col("avgb")) & rank().over(Window.order_by("a")) == 1
-        ).collect()
-    assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info.value)
-
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        TestData.test_data2(session).group_by("a").agg(
-            [max_("b").as_("avgb"), sum_("b").as_("sumb")]
-        ).where(rank().over(Window.order_by("a")) == 1).collect()
-    assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info.value)
-
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        TestData.test_data2(session).group_by("a").agg(
-            [max_("b").as_("avgb"), sum_("b").as_("sumb")]
-        ).where((col("sumb") == 5) & rank().over(Window.order_by("a")) == 1).collect()
-    assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info.value)
+            (col("b") == 2) & (rank().over(Window.order_by("b")) == 1)
+        ),
+        [],
+    )
+    Utils.check_answer(
+        TestData.test_data2(session)
+        .group_by("a")
+        .agg(avg("b").as_("avgb"))
+        .where((col("a") > col("avgb")) & (rank().over(Window.order_by("a")) == 1)),
+        [],
+    )
+    grouped = (
+        TestData.test_data2(session)
+        .group_by("a")
+        .agg([max_("b").as_("avgb"), sum_("b").as_("sumb")])
+    )
+    Utils.check_answer(
+        grouped.where(rank().over(Window.order_by("a")) == 1), [Row(1, 2, 3)]
+    )
+    Utils.check_answer(
+        grouped.where((col("sumb") == 5) & (rank().over(Window.order_by("a")) == 1)),
+        [],
+    )
 
 
 def test_reuse_window_partition_by(session):

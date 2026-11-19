@@ -73,6 +73,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSnowflakePlan,
     SelectStatement,
     SelectTableFunction,
+    has_window_function_exp,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -2344,8 +2345,19 @@ class DataFrame:
         _ast_stmt: proto.Bind = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
-        """Filters rows based on the specified conditional expression (similar to WHERE
-        in SQL).
+        """Filters rows based on the specified conditional expression.
+
+        A structured :class:`Column` expression containing a window function uses
+        SQL QUALIFY. The entire predicate, including any non-window conditions
+        combined with AND, OR, or NOT, is evaluated after the window functions.
+        To filter rows before computing a window, call :meth:`filter` separately
+        before the window filter. Predicates without window functions retain
+        their existing SQL WHERE behavior (or HAVING in compatibility mode).
+
+        SQL strings and expressions created with
+        :func:`~snowflake.snowpark.functions.sql_expr` are not parsed to detect
+        window functions and retain their existing filtering behavior.
+        Use structured Column expressions to filter on window functions directly.
 
         Examples::
 
@@ -2358,6 +2370,17 @@ class DataFrame:
             >>> df.filter("a > 1").collect()  # use SQL expression
             [Row(A=3, B=4)]
 
+            >>> from snowflake.snowpark import Window
+            >>> from snowflake.snowpark.functions import row_number
+            >>> values = session.create_dataframe([1, 2], schema=["A"])
+            >>> first = row_number().over(Window.order_by("A")) == 1
+            >>> values.filter(first).collect()  # uses QUALIFY
+            [Row(A=1)]
+            >>> values.filter((col("A") > 1) & first).collect()
+            []
+            >>> values.filter(col("A") > 1).where(first).collect()
+            [Row(A=2)]
+
         Args:
             expr: a :class:`Column` expression or SQL text.
             _ast_stmt: when invoked internally, supplies the AST to use for the resulting dataframe.
@@ -2367,6 +2390,7 @@ class DataFrame:
 
         # This code performs additional type checks, run first.
         filter_col_expr = _to_col_if_sql_expr(expr, "filter/where")._expression
+        is_qualify = has_window_function_exp([filter_col_expr])
 
         # AST.
         stmt = None
@@ -2390,6 +2414,7 @@ class DataFrame:
             context._is_snowpark_connect_compatible_mode
             and self._ops_after_agg is not None
             and "limit" not in self._ops_after_agg
+            and not is_qualify
         ):
             new_ops = self._ops_after_agg.copy()
             new_ops.add("filter")
@@ -2410,6 +2435,7 @@ class DataFrame:
                     filter_col_expr,
                     self._plan,
                     is_having=False,
+                    is_qualify=is_qualify,
                 ),
                 _ast_stmt=stmt,
             )

@@ -66,13 +66,17 @@ from snowflake.snowpark.functions import (
     count,
     explode,
     get_path,
+    lag,
+    lead,
     lit,
     make_interval,
     rank,
+    row_number,
     seq1,
     seq2,
     seq4,
     seq8,
+    sum as sum_,
     table_function,
     udtf,
     uniform,
@@ -1180,6 +1184,276 @@ def test_filter_with_sql_str(session):
         == df.filter("a = 'aa'").collect()
         == [Row("aa")]
     )
+
+
+@pytest.mark.parametrize("method", ["filter", "where"])
+@pytest.mark.parametrize("compatible", [False, True])
+def test_qualify_top_per_group(session, monkeypatch, method, compatible):
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
+    df = session.create_dataframe(
+        [("a", 1), ("a", 3), ("b", 2), ("b", 4)], ["group", "value"]
+    )
+    window = Window.partition_by("group").order_by(col("value").desc())
+    result = getattr(df, method)(row_number().over(window) == 1)
+    assert result.schema == df.schema
+    assert result.columns == df.columns
+    Utils.check_answer(result, [Row("a", 3), Row("b", 4)])
+
+
+@pytest.mark.parametrize("method", ["filter", "where"])
+@pytest.mark.parametrize(
+    "predicate,expected",
+    [
+        (lambda window: (col("a") > 1) & (window == 1), []),
+        (lambda window: (col("a") > 1) | (window == 1), [1, 2, 3]),
+        (lambda window: ~((col("a") > 1) | (window == 1)), []),
+        (lambda window: ~((col("a") > 1) & (window == 2)), [1, 3]),
+        (lambda window: when(window == 1, col("a") > 0).otherwise(False), [1]),
+        (lambda window: when(col("a") > 1, window).otherwise(0) == 2, [2]),
+        (lambda window: window.in_(1, 3) & (col("a") < 3), [1]),
+        pytest.param(
+            lambda window: lit(2).in_(window.cast("int"), lit(4)),
+            [2],
+            marks=pytest.mark.xfail(
+                "config.getoption('local_testing_mode', default=False)",
+                reason="Local IN evaluates RHS columns as a set, not row by row",
+                strict=True,
+            ),
+        ),
+    ],
+    ids=[
+        "and",
+        "or",
+        "not_or",
+        "not_and",
+        "case_condition",
+        "case_value",
+        "in",
+        "in_value",
+    ],
+)
+def test_qualify_mixed_predicates(session, method, predicate, expected):
+    df = session.create_dataframe([1, 2, 3], ["a"])
+    window = row_number().over(Window.order_by("a"))
+    Utils.check_answer(
+        getattr(df, method)(predicate(window)), [Row(value) for value in expected]
+    )
+
+
+@pytest.mark.parametrize("method", ["filter", "where"])
+def test_qualify_null_predicates(session, method):
+    df = session.create_dataframe([(1, None), (2, 10), (3, 20)], ["a", "value"])
+    window = Window.order_by("a")
+    Utils.check_answer(
+        getattr(df, method)(col("value").is_null() | (row_number().over(window) == 2)),
+        [Row(1, None), Row(2, 10)],
+    )
+    Utils.check_answer(
+        getattr(df, method)(lead("value").over(window).is_null()), [Row(3, 20)]
+    )
+    Utils.check_answer(
+        getattr(df, method)((col("value") > 0) & (row_number().over(window) == 1)), []
+    )
+
+
+@pytest.mark.parametrize("method", ["filter", "where"])
+@pytest.mark.parametrize("compatible", [False, True])
+def test_qualify_operation_order(session, monkeypatch, method, compatible):
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
+    df = session.create_dataframe([1, 2], ["a"])
+    first = row_number().over(Window.order_by("a")) == 1
+    # The entire mixed predicate sees the original population, not a WHERE prefilter.
+    Utils.check_answer(getattr(df, method)((col("a") > 1) & first), [])
+    Utils.check_answer(getattr(df.filter(col("a") > 1), method)(first), [Row(2)])
+    Utils.check_answer(getattr(df, method)(first).filter(col("a") > 1), [])
+    Utils.check_answer(getattr(df, method)(first).select("a"), [Row(1)])
+
+
+@pytest.mark.parametrize("method", ["filter", "where"])
+def test_qualify_successive_windows(session, method):
+    df = session.create_dataframe([1, 2, 3], ["a"])
+    ranked = getattr(df, method)(row_number().over(Window.order_by("a")) > 1)
+    Utils.check_answer(
+        getattr(ranked, method)(row_number().over(Window.order_by("a")) == 1),
+        [Row(2)],
+    )
+    Utils.check_answer(
+        ranked.select("a", row_number().over(Window.order_by("a")).alias("rn")),
+        [Row(2, 1), Row(3, 2)],
+    )
+
+
+@pytest.mark.parametrize("method", ["filter", "where"])
+def test_qualify_projected_aliases_and_windows(session, method):
+    df = session.create_dataframe([(1, 30), (2, 20), (3, 10)], ["a", "b"])
+    aliased = df.select((lit(4) - col("a")).alias("a"), col("b").alias("value"))
+    Utils.check_answer(
+        getattr(aliased, method)(row_number().over(Window.order_by("a")) == 1),
+        [Row(1, 10)],
+    )
+    projected = df.select("a", row_number().over(Window.order_by("b")).alias("rn"))
+    Utils.check_answer(
+        getattr(projected, method)(row_number().over(Window.order_by("a")) == 1),
+        [Row(1, 3)],
+    )
+    Utils.check_answer(projected.filter(col("rn") == 1), [Row(3, 1)])
+    qualified = getattr(df, method)(row_number().over(Window.order_by("b")) == 1)
+    # B is needed to rank even though it is absent from the final projection.
+    Utils.check_answer(qualified.select("a"), [Row(3)])
+    Utils.check_answer(qualified.drop("b"), [Row(3)])
+    Utils.check_answer(qualified.select(col("a").alias("result")), [Row(3)])
+
+
+@pytest.mark.parametrize("method", ["filter", "where"])
+@pytest.mark.parametrize("compatible", [False, True])
+def test_qualify_aggregation(
+    session, monkeypatch, method, compatible, local_testing_mode
+):
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
+    df = session.create_dataframe([("a", 1), ("a", 3), ("b", 2)], ["group", "value"])
+    grouped = df.group_by("group").agg(sum_("value").alias("total"))
+    first = row_number().over(Window.order_by(col("total").desc())) == 1
+    Utils.check_answer(getattr(grouped, method)(first), [Row("a", 4)])
+    Utils.check_answer(getattr(grouped, method)((col("total") < 4) & first), [])
+    prefiltered = getattr(grouped.filter(col("total") < 4), method)(first)
+    if compatible and local_testing_mode:
+        # The compatibility-mode HAVING path uses a logical Filter, which the
+        # local evaluator explicitly does not support.
+        with pytest.raises(NotImplementedError, match="Mocking SnowflakePlan Filter"):
+            prefiltered.collect()
+    else:
+        Utils.check_answer(prefiltered, [Row("b", 2)])
+    Utils.check_answer(getattr(grouped, method)(first).filter(col("total") < 4), [])
+    qualified = getattr(df, method)(row_number().over(Window.order_by("value")) <= 2)
+    Utils.check_answer(
+        qualified.group_by("group").agg(sum_("value")), [Row("a", 1), Row("b", 2)]
+    )
+
+
+@pytest.mark.parametrize("compatible", [False, True])
+@pytest.mark.parametrize(
+    "limit,offset,expected", [(2, 0, [2]), (2, 1, [3]), (0, 0, []), (0, 1, [])]
+)
+def test_qualify_limit_offset(
+    session, monkeypatch, compatible, limit, offset, expected
+):
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
+    df = session.create_dataframe([1, 2, 3, 4], ["a"]).sort("a")
+    first_desc = row_number().over(Window.order_by(col("a").desc())) == 1
+    Utils.check_answer(
+        df.limit(limit, offset=offset).filter(first_desc),
+        [Row(value) for value in expected],
+    )
+    # A later LIMIT/OFFSET sees the ranked result, not the original input.
+    Utils.check_answer(df.filter(first_desc).limit(1, offset=1), [])
+    Utils.check_answer(df.filter(first_desc).limit(0), [])
+
+
+@pytest.mark.parametrize("compatible", [False, True])
+def test_qualify_dropped_dependency(session, monkeypatch, compatible):
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
+    df = session.create_dataframe([(1, 30), (2, 20)], ["a", "b"]).select("a")
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+        df.filter(row_number().over(Window.order_by("b")) == 1).collect()
+
+
+@pytest.mark.parametrize("compatible", [False, True])
+def test_qualify_regexp_parameter_visibility(session, monkeypatch, compatible):
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
+    df = session.create_dataframe([(1, "i"), (2, "c")], ["a", "b"])
+    first = row_number().over(Window.order_by("a")) == 1
+    predicate = first & lit("a").regexp("A", col("b"))
+    with pytest.raises(SnowparkSQLException, match=r"invalid identifier.*\bB\b"):
+        df.select("a").filter(predicate).collect()
+
+    # Case-insensitive matching requires the surviving parameters operand.
+    Utils.check_answer(df.select("a", "b").filter(predicate), [Row(1, "i")])
+    Utils.check_answer(
+        df.select("a").filter(first & lit("a").regexp("A", "i")), [Row(1)]
+    )
+    Utils.check_answer(df.select("a").filter(first & lit("a").regexp("A")), [])
+
+
+def test_qualify_window_sort_after_filter(session):
+    df = session.create_dataframe([(1, 100), (2, 10), (3, 20)], ["a", "b"])
+    qualified = df.filter(row_number().over(Window.order_by("a")) > 1)
+    # LAG must see only the survivors: A=2 has no predecessor, not B=100.
+    assert qualified.sort(
+        lag("b").over(Window.order_by("a")).asc_nulls_first()
+    ).collect() == [Row(2, 10), Row(3, 20)]
+
+
+def test_qualify_distinct(session):
+    df = session.create_dataframe([1, 1, 2], ["a"])
+    second = row_number().over(Window.order_by("a")) == 2
+    Utils.check_answer(df.distinct().filter(second), [Row(2)])
+    Utils.check_answer(df.filter(second).distinct(), [Row(1)])
+
+
+@pytest.mark.parametrize("operation", ["union", "join"])
+def test_qualify_repeated_subtree(session, local_testing_mode, operation):
+    df = session.create_dataframe([("a", 1), ("a", 3), ("b", 2)], ["g", "value"])
+    qualified = df.filter(
+        row_number().over(Window.partition_by("g").order_by(col("value").desc())) == 1
+    )
+    if operation == "union":
+        result = qualified.union_all(qualified)
+        expected = [Row("a", 3), Row("b", 2)] * 2
+    else:
+        result = qualified.join(copy.copy(qualified), ["g", "value"])
+        expected = [Row("a", 3), Row("b", 2)]
+    Utils.check_answer(result, expected)
+    if not local_testing_mode:
+        sql = result.queries["queries"][-1].upper()
+        assert "QUALIFY" in sql
+        if session._cte_optimization_enabled:
+            assert sql.lstrip().startswith("WITH")
+            assert sql.count("QUALIFY") == 1
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL generation is not supported in local testing",
+)
+@pytest.mark.parametrize("project", [False, True])
+def test_qualify_table_sql_no_extra_nesting(session, table_name_1, project):
+    df = session.table(table_name_1)
+    if project:
+        df = df.select("num")
+    result = df.filter(col("num") > 1).filter(
+        row_number().over(Window.order_by("num")) == 1
+    )
+    Utils.check_answer(result, [Row(2)])
+    if session.sql_simplifier_enabled:
+        projection = '"NUM"' if project else "*"
+        cast = "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
+        expected = (
+            f'SELECT {projection} FROM {table_name_1} WHERE ("NUM" > 1{cast}) '
+            f'QUALIFY (row_number() OVER ( ORDER BY "NUM" ASC NULLS FIRST ) = 1{cast})'
+        )
+        assert Utils.normalize_sql(
+            result.queries["queries"][-1]
+        ) == Utils.normalize_sql(expected)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Raw SQL expressions are not supported in local testing",
+)
+@pytest.mark.parametrize("method", ["filter", "where"])
+def test_qualify_raw_sql_unchanged(session, method):
+    from snowflake.snowpark.functions import sql_expr
+
+    df = session.create_dataframe([1, 2], ["a"])
+    for predicate in [
+        "row_number() over (order by a) = 1",
+        sql_expr("row_number() over (order by a) = 1"),
+    ]:
+        with pytest.raises(
+            SnowparkSQLException,
+            match="outside of SELECT, QUALIFY, and ORDER BY clauses",
+        ):
+            getattr(df, method)(predicate).collect()
 
 
 def test_filter_incorrect_type(session):

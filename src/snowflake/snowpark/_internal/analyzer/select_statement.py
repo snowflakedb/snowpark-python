@@ -65,6 +65,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Star,
     UnresolvedAttribute,
     derive_dependent_columns,
+    expression_children,
 )
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -903,6 +904,7 @@ class SelectStatement(Selectable):
         projection: Optional[List[Expression]] = None,
         from_: Selectable,
         where: Optional[Expression] = None,
+        qualify: Optional[Expression] = None,
         order_by: Optional[List[Expression]] = None,
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
@@ -916,6 +918,7 @@ class SelectStatement(Selectable):
         self.projection: Optional[List[Expression]] = projection
         self.from_: "Selectable" = from_
         self.where: Optional[Expression] = where
+        self.qualify: Optional[Expression] = qualify
         self.order_by: Optional[List[Expression]] = order_by
         self.limit_: Optional[int] = limit_
         self.offset = offset
@@ -971,6 +974,7 @@ class SelectStatement(Selectable):
             projection=self.projection,
             from_=self.from_,
             where=self.where,
+            qualify=self.qualify,
             order_by=self.order_by,
             limit_=self.limit_,
             offset=self.offset,
@@ -1012,6 +1016,7 @@ class SelectStatement(Selectable):
             projection=deepcopy(self.projection, memodict),
             from_=deepcopy(self.from_, memodict),
             where=deepcopy(self.where, memodict),
+            qualify=deepcopy(self.qualify, memodict),
             order_by=deepcopy(self.order_by, memodict),
             limit_=self.limit_,
             offset=self.offset,
@@ -1047,7 +1052,7 @@ class SelectStatement(Selectable):
 
     @cached_property
     def contains_data_generation(self) -> bool:
-        """True when this node's projection, where, or order_by clauses
+        """True when this node's projection, where, qualify, or order_by clauses
         contain non-deterministic data-generation expressions (e.g. zero-arg
         ``uuid_string()``, ``random()``, ``uniform(1,100,random())``).
         limit and offset do not accept data generation expressions in snowflake.
@@ -1057,6 +1062,7 @@ class SelectStatement(Selectable):
             or has_nondeterministic_data_generation_exp(
                 [self.where] if self.where else None
             )
+            or has_nondeterministic_data_generation_exp([self.qualify])
             or has_nondeterministic_data_generation_exp(self.order_by)
         )
 
@@ -1104,6 +1110,7 @@ class SelectStatement(Selectable):
         return any(
             (
                 self.where is not None,
+                self.qualify is not None,
                 self.order_by is not None,
             )
         )
@@ -1111,7 +1118,10 @@ class SelectStatement(Selectable):
     @property
     def has_clause(self) -> bool:
         return (
-            self.has_clause_using_columns or self.limit_ is not None or self.distinct_
+            self.has_clause_using_columns
+            or self.limit_ is not None
+            or self.offset is not None
+            or self.distinct_
         )
 
     @property
@@ -1193,6 +1203,12 @@ class SelectStatement(Selectable):
             if self.where is not None
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
+        qualify_clause = (
+            f"{analyzer_utils.NEW_LINE}{analyzer_utils.QUALIFY}{analyzer_utils.NEW_LINE}"
+            f"{analyzer_utils.TAB}{self.analyzer.analyze(self.qualify, self.df_aliased_col_name_to_real_col_name)}"
+            if self.qualify is not None
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
+        )
         order_by_clause = (
             f"{analyzer_utils.NEW_LINE}{analyzer_utils.ORDER_BY}{analyzer_utils.NEW_LINE}{analyzer_utils.TAB}"
             f"{(analyzer_utils.COMMA + analyzer_utils.NEW_LINE + analyzer_utils.TAB).join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
@@ -1219,6 +1235,7 @@ class SelectStatement(Selectable):
             f"{analyzer_utils.TAB}{distinct_clause}{self.projection_in_str}{analyzer_utils.NEW_LINE}"
             f"{analyzer_utils.FROM}{from_clause}"
             f"{where_clause}"
+            f"{qualify_clause}"
             f"{order_by_clause}"
             f"{limit_clause}"
             f"{offset_clause}"
@@ -1272,6 +1289,13 @@ class SelectStatement(Selectable):
             if self.where
             else complexity
         )
+
+        if self.qualify is not None:
+            complexity = sum_node_complexities(
+                complexity,
+                {PlanNodeCategory.FILTER: 1},
+                self.qualify.cumulative_node_complexity,
+            )
 
         # order by component - add complexity for each sort expression
         complexity = (
@@ -1461,7 +1485,7 @@ class SelectStatement(Selectable):
             # We don't flatten when there are duplicate columns.
             can_be_flattened = False
             disable_next_level_flatten = True
-        elif self.flatten_disabled:
+        elif self.flatten_disabled or self.qualify is not None:
             can_be_flattened = False
         elif (
             self.has_clause_using_columns
@@ -1582,9 +1606,13 @@ class SelectStatement(Selectable):
             new_order_by = None
             new_from = self
             if (
-                context._is_snowpark_connect_compatible_mode
-                and context._snowpark_connect_flatten_select_after_sort
-            ) and self.order_by:
+                (
+                    context._is_snowpark_connect_compatible_mode
+                    and context._snowpark_connect_flatten_select_after_sort
+                )
+                and self.order_by
+                and self.qualify is None
+            ):
                 order_by_dependent_columns = derive_dependent_columns(*self.order_by)
                 if order_by_dependent_columns in (
                     COLUMN_DEPENDENCY_DOLLAR,
@@ -1720,10 +1748,50 @@ class SelectStatement(Selectable):
 
     def filter(self, col: Expression) -> "SelectStatement":
         self._session._retrieve_aggregation_function_list()
+        is_qualify = has_window_function_exp([col])
+        dependent_columns = derive_dependent_columns(col)
+        # Window predicates must see the preceding dataframe, including its
+        # aliases, projected windows, DISTINCT and LIMIT/OFFSET. Only a plain
+        # pass-through projection can share its query block with QUALIFY.
+        qualify_can_flatten = not is_qualify or (
+            not self.distinct_
+            and self.limit_ is None
+            and self.offset is None
+            and self.exclude_cols is None
+            and self.ilike_cols is None
+            and all(
+                isinstance(expr, Attribute)
+                or (isinstance(expr, UnresolvedAttribute) and not expr.is_sql_text)
+                or (
+                    isinstance(expr, UnresolvedAlias)
+                    and (
+                        isinstance(expr.child, (Attribute, Star))
+                        or (
+                            isinstance(expr.child, UnresolvedAttribute)
+                            and not expr.child.is_sql_text
+                        )
+                    )
+                )
+                for expr in self.projection or []
+            )
+            and not has_window_function_exp(self.order_by)
+            # Unlike WHERE flattening, QUALIFY must not expose dropped input
+            # columns. Unknown dependencies cannot establish output visibility.
+            and dependent_columns is not COLUMN_DEPENDENCY_ALL
+            and dependent_columns != COLUMN_DEPENDENCY_DOLLAR
+            and all(
+                column in self.column_states
+                and self.column_states[column].change_state
+                == ColumnChangeState.UNCHANGED_EXP
+                for column in dependent_columns
+            )
+        )
         can_be_flattened = (
             (not self.flatten_disabled)
+            and self.qualify is None
+            and qualify_can_flatten
             and can_clause_dependent_columns_flatten(
-                derive_dependent_columns(col),
+                dependent_columns,
                 self.column_states,
                 "filter",
                 # In Snowpark Connect compatible mode, the NEW-column branch
@@ -1751,7 +1819,10 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new.column_states = self.column_states
-            new.where = And(self.where, col) if self.where is not None else col
+            if is_qualify:
+                new.qualify = col
+            else:
+                new.where = And(self.where, col) if self.where is not None else col
             new._merge_projection_complexity_with_subquery = False
             new.df_ast_ids = (
                 self.df_ast_ids.copy() if self.df_ast_ids is not None else None
@@ -1761,11 +1832,14 @@ class SelectStatement(Selectable):
             )
         else:
             new = SelectStatement(
-                from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
+                from_=self.to_subqueryable(),
+                where=None if is_qualify else col,
+                qualify=col if is_qualify else None,
+                analyzer=self.analyzer,
             )
         if self._session.reduce_describe_query_enabled:
             new.attributes = self.attributes
-        # schema_query omits the WHERE clause, so describe the full query to validate it.
+        # schema_query omits filter clauses, so describe the full query to validate them.
         # Skipped with pre-actions, since the query may depend on temp objects.
         if (
             debug_config.enabled(self._session, "eager_schema_validation")
@@ -1786,6 +1860,10 @@ class SelectStatement(Selectable):
                 derive_dependent_columns(*cols), self.column_states, "sort"
             )
             and not has_data_generator_exp(self.projection)
+            and not (
+                self.qualify is not None
+                and has_data_generator_or_window_function_exp(cols)
+            )
         )
         if can_be_flattened:
             new = copy(self)
@@ -1870,7 +1948,9 @@ class SelectStatement(Selectable):
         # .filter().drop() can be flattened
         # .limit().drop() can be flattened
         # .distinct().drop() can be flattened
-        can_be_flattened = not self.flatten_disabled and not self.projection
+        can_be_flattened = (
+            not self.flatten_disabled and not self.projection and self.qualify is None
+        )
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
@@ -1908,7 +1988,10 @@ class SelectStatement(Selectable):
         # .limit().col_ilike() can be flattened
         # .distinct().col_ilike() can be flattened
         can_be_flattened = (
-            not self.flatten_disabled and not self.projection and not self.ilike_cols
+            not self.flatten_disabled
+            and not self.projection
+            and not self.ilike_cols
+            and self.qualify is None
         )
         if can_be_flattened:
             new = copy(self)
@@ -2451,7 +2534,13 @@ def can_select_projection_complexity_be_merged(
                     return False  # pragma: no cover
 
     # check if the current select have filter, order by, or limit
-    if subquery.where or subquery.order_by or subquery.limit_ or subquery.offset:
+    if (
+        subquery.where
+        or subquery.qualify is not None
+        or subquery.order_by
+        or subquery.limit_ is not None
+        or subquery.offset is not None
+    ):
         return False
 
     # check if the projection expression contain invalid functions
@@ -2661,18 +2750,18 @@ def _check_expressions_for_types(
             if exp.name.lower() in context._aggregation_function_set:
                 return True
 
-        # Recursively check children.
-        # Some expression types (e.g. CaseWhen) store sub-expressions in
-        # _child_expressions rather than children; fall back to that.
-        sub_exps = exp.children
-        if not sub_exps:
-            sub_exps = getattr(exp, "_child_expressions", None)
+        sub_exps = expression_children(exp)
         if _check_expressions_for_types(
             sub_exps, check_data_gen, check_window, check_aggregation
         ):
             return True
 
     return False
+
+
+def has_window_function_exp(expressions: Optional[List[Expression]]) -> bool:
+    """Detect structured windows in this query block, not raw SQL or subqueries."""
+    return _check_expressions_for_types(expressions, check_window=True)
 
 
 def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
@@ -2753,6 +2842,8 @@ def has_nondeterministic_data_generation_exp(
             and exp.name.lower() in NONDETERMINISTIC_DATA_GENERATION
         ):
             return True
-        if exp is not None and has_nondeterministic_data_generation_exp(exp.children):
+        if exp is not None and has_nondeterministic_data_generation_exp(
+            expression_children(exp)
+        ):
             return True
     return False

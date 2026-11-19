@@ -77,6 +77,7 @@ def find_duplicate_subtrees(
             isinstance(node, SelectStatement)
             and (node.projection is None)
             and isinstance(node.from_, SelectableEntity)
+            and node.qualify is None
         ):
             return True
 

@@ -10,6 +10,16 @@ df4 = df1.filter("a > 1 and b < 100")
 
 df5 = df1.filter("a > 1")
 
+from snowflake.snowpark.window import Window
+
+df6 = df1.filter(row_number().over(Window.order_by("NUM")) == 1)
+
+df7 = df1.where(row_number().over(Window.order_by("NUM")) == 1)
+
+df8 = df1.filter((col("NUM") > 1) & (row_number().over(Window.order_by("NUM")) == 1))
+
+df9 = df1.where((col("NUM") > 1) & (row_number().over(Window.order_by("NUM")) == 1))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df1 = session.table("table1")
@@ -21,6 +31,14 @@ df3 = df1.filter(col("a") > 1)
 df4 = df1.filter("a > 1 and b < 100")
 
 df5 = df1.filter("a > 1")
+
+df6 = df1.filter(row_number().over(Window.order_by("NUM")) == 1)
+
+df7 = df1.filter(row_number().over(Window.order_by("NUM")) == 1)
+
+df8 = df1.filter((col("NUM") > 1) & (row_number().over(Window.order_by("NUM")) == 1))
+
+df9 = df1.filter((col("NUM") > 1) & (row_number().over(Window.order_by("NUM")) == 1))
 
 ## EXPECTED ENCODED AST
 
@@ -367,6 +385,602 @@ body {
       value: "df5"
     }
     uid: 5
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_filter {
+        condition {
+          eq {
+            lhs {
+              column_over {
+                col {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          name {
+                            name_flat {
+                              name: "row_number"
+                            }
+                          }
+                        }
+                      }
+                    }
+                    src {
+                      end_column: 37
+                      end_line: 37
+                      file: 2
+                      start_column: 25
+                      start_line: 37
+                    }
+                  }
+                }
+                src {
+                  end_column: 66
+                  end_line: 37
+                  file: 2
+                  start_column: 25
+                  start_line: 37
+                }
+                window_spec {
+                  window_spec_order_by {
+                    cols {
+                      string_val {
+                        src {
+                          end_column: 65
+                          end_line: 37
+                          file: 2
+                          start_column: 43
+                          start_line: 37
+                        }
+                        v: "NUM"
+                      }
+                    }
+                    src {
+                      end_column: 65
+                      end_line: 37
+                      file: 2
+                      start_column: 43
+                      start_line: 37
+                    }
+                    wnd {
+                      window_spec_empty {
+                        src {
+                          end_column: 65
+                          end_line: 37
+                          file: 2
+                          start_column: 43
+                          start_line: 37
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            rhs {
+              int64_val {
+                src {
+                  end_column: 71
+                  end_line: 37
+                  file: 2
+                  start_column: 25
+                  start_line: 37
+                }
+                v: 1
+              }
+            }
+            src {
+              end_column: 71
+              end_line: 37
+              file: 2
+              start_column: 25
+              start_line: 37
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 72
+          end_line: 37
+          file: 2
+          start_column: 14
+          start_line: 37
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df6"
+    }
+    uid: 6
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_filter {
+        condition {
+          eq {
+            lhs {
+              column_over {
+                col {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          name {
+                            name_flat {
+                              name: "row_number"
+                            }
+                          }
+                        }
+                      }
+                    }
+                    src {
+                      end_column: 36
+                      end_line: 39
+                      file: 2
+                      start_column: 24
+                      start_line: 39
+                    }
+                  }
+                }
+                src {
+                  end_column: 65
+                  end_line: 39
+                  file: 2
+                  start_column: 24
+                  start_line: 39
+                }
+                window_spec {
+                  window_spec_order_by {
+                    cols {
+                      string_val {
+                        src {
+                          end_column: 64
+                          end_line: 39
+                          file: 2
+                          start_column: 42
+                          start_line: 39
+                        }
+                        v: "NUM"
+                      }
+                    }
+                    src {
+                      end_column: 64
+                      end_line: 39
+                      file: 2
+                      start_column: 42
+                      start_line: 39
+                    }
+                    wnd {
+                      window_spec_empty {
+                        src {
+                          end_column: 64
+                          end_line: 39
+                          file: 2
+                          start_column: 42
+                          start_line: 39
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            rhs {
+              int64_val {
+                src {
+                  end_column: 70
+                  end_line: 39
+                  file: 2
+                  start_column: 24
+                  start_line: 39
+                }
+                v: 1
+              }
+            }
+            src {
+              end_column: 70
+              end_line: 39
+              file: 2
+              start_column: 24
+              start_line: 39
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 71
+          end_line: 39
+          file: 2
+          start_column: 14
+          start_line: 39
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df7"
+    }
+    uid: 7
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_filter {
+        condition {
+          and {
+            lhs {
+              gt {
+                lhs {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          name {
+                            name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                    }
+                    pos_args {
+                      string_val {
+                        src {
+                          end_column: 36
+                          end_line: 41
+                          file: 2
+                          start_column: 26
+                          start_line: 41
+                        }
+                        v: "NUM"
+                      }
+                    }
+                    src {
+                      end_column: 36
+                      end_line: 41
+                      file: 2
+                      start_column: 26
+                      start_line: 41
+                    }
+                  }
+                }
+                rhs {
+                  int64_val {
+                    src {
+                      end_column: 40
+                      end_line: 41
+                      file: 2
+                      start_column: 26
+                      start_line: 41
+                    }
+                    v: 1
+                  }
+                }
+                src {
+                  end_column: 40
+                  end_line: 41
+                  file: 2
+                  start_column: 26
+                  start_line: 41
+                }
+              }
+            }
+            rhs {
+              eq {
+                lhs {
+                  column_over {
+                    col {
+                      apply_expr {
+                        fn {
+                          builtin_fn {
+                            name {
+                              name {
+                                name_flat {
+                                  name: "row_number"
+                                }
+                              }
+                            }
+                          }
+                        }
+                        src {
+                          end_column: 57
+                          end_line: 41
+                          file: 2
+                          start_column: 45
+                          start_line: 41
+                        }
+                      }
+                    }
+                    src {
+                      end_column: 86
+                      end_line: 41
+                      file: 2
+                      start_column: 45
+                      start_line: 41
+                    }
+                    window_spec {
+                      window_spec_order_by {
+                        cols {
+                          string_val {
+                            src {
+                              end_column: 85
+                              end_line: 41
+                              file: 2
+                              start_column: 63
+                              start_line: 41
+                            }
+                            v: "NUM"
+                          }
+                        }
+                        src {
+                          end_column: 85
+                          end_line: 41
+                          file: 2
+                          start_column: 63
+                          start_line: 41
+                        }
+                        wnd {
+                          window_spec_empty {
+                            src {
+                              end_column: 85
+                              end_line: 41
+                              file: 2
+                              start_column: 63
+                              start_line: 41
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                rhs {
+                  int64_val {
+                    src {
+                      end_column: 91
+                      end_line: 41
+                      file: 2
+                      start_column: 45
+                      start_line: 41
+                    }
+                    v: 1
+                  }
+                }
+                src {
+                  end_column: 91
+                  end_line: 41
+                  file: 2
+                  start_column: 45
+                  start_line: 41
+                }
+              }
+            }
+            src {
+              end_column: 92
+              end_line: 41
+              file: 2
+              start_column: 25
+              start_line: 41
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 93
+          end_line: 41
+          file: 2
+          start_column: 14
+          start_line: 41
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df8"
+    }
+    uid: 8
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_filter {
+        condition {
+          and {
+            lhs {
+              gt {
+                lhs {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          name {
+                            name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                    }
+                    pos_args {
+                      string_val {
+                        src {
+                          end_column: 35
+                          end_line: 43
+                          file: 2
+                          start_column: 25
+                          start_line: 43
+                        }
+                        v: "NUM"
+                      }
+                    }
+                    src {
+                      end_column: 35
+                      end_line: 43
+                      file: 2
+                      start_column: 25
+                      start_line: 43
+                    }
+                  }
+                }
+                rhs {
+                  int64_val {
+                    src {
+                      end_column: 39
+                      end_line: 43
+                      file: 2
+                      start_column: 25
+                      start_line: 43
+                    }
+                    v: 1
+                  }
+                }
+                src {
+                  end_column: 39
+                  end_line: 43
+                  file: 2
+                  start_column: 25
+                  start_line: 43
+                }
+              }
+            }
+            rhs {
+              eq {
+                lhs {
+                  column_over {
+                    col {
+                      apply_expr {
+                        fn {
+                          builtin_fn {
+                            name {
+                              name {
+                                name_flat {
+                                  name: "row_number"
+                                }
+                              }
+                            }
+                          }
+                        }
+                        src {
+                          end_column: 56
+                          end_line: 43
+                          file: 2
+                          start_column: 44
+                          start_line: 43
+                        }
+                      }
+                    }
+                    src {
+                      end_column: 85
+                      end_line: 43
+                      file: 2
+                      start_column: 44
+                      start_line: 43
+                    }
+                    window_spec {
+                      window_spec_order_by {
+                        cols {
+                          string_val {
+                            src {
+                              end_column: 84
+                              end_line: 43
+                              file: 2
+                              start_column: 62
+                              start_line: 43
+                            }
+                            v: "NUM"
+                          }
+                        }
+                        src {
+                          end_column: 84
+                          end_line: 43
+                          file: 2
+                          start_column: 62
+                          start_line: 43
+                        }
+                        wnd {
+                          window_spec_empty {
+                            src {
+                              end_column: 84
+                              end_line: 43
+                              file: 2
+                              start_column: 62
+                              start_line: 43
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                rhs {
+                  int64_val {
+                    src {
+                      end_column: 90
+                      end_line: 43
+                      file: 2
+                      start_column: 44
+                      start_line: 43
+                    }
+                    v: 1
+                  }
+                }
+                src {
+                  end_column: 90
+                  end_line: 43
+                  file: 2
+                  start_column: 44
+                  start_line: 43
+                }
+              }
+            }
+            src {
+              end_column: 91
+              end_line: 43
+              file: 2
+              start_column: 24
+              start_line: 43
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 92
+          end_line: 43
+          file: 2
+          start_column: 14
+          start_line: 43
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df9"
+    }
+    uid: 9
   }
 }
 client_ast_version: 1

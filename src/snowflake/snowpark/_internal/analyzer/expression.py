@@ -146,6 +146,34 @@ class Expression:
         self._cumulative_node_complexity = value
 
 
+def expression_children(expression: Expression) -> List[Expression]:
+    """Return structured operands, without entering subquery plans or metadata.
+
+    Not all expressions populate ``children``: CASE, IN, LIKE, WITHIN GROUP,
+    and others store operands in separate fields or containers.
+    """
+    if isinstance(
+        expression, (ScalarSubquery, Literal, Attribute, UnresolvedAttribute)
+    ):
+        return []
+    children = []
+    seen = set()
+    pending = [
+        value for name, value in vars(expression).items() if not name.startswith("_")
+    ]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, Expression):
+            if id(value) not in seen:
+                seen.add(id(value))
+                children.append(value)
+        elif isinstance(value, (list, tuple)):
+            pending.extend(value)
+        elif isinstance(value, dict):
+            pending.extend(value.values())
+    return children
+
+
 class NamedExpression:
     name: str
     _expr_id: Optional[uuid.UUID] = None
@@ -467,10 +495,12 @@ class RegExp(Expression):
         self.parameters = parameters
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.expr, self.pattern)
+        return derive_dependent_columns(self.expr, self.pattern, self.parameters)
 
     def dependent_column_names_with_duplication(self) -> List[str]:
-        return derive_dependent_columns_with_duplication(self.expr, self.pattern)
+        return derive_dependent_columns_with_duplication(
+            self.expr, self.pattern, self.parameters
+        )
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:

@@ -252,15 +252,22 @@ class Rename(UnaryNode):
 
 class Filter(UnaryNode):
     def __init__(
-        self, condition: Expression, child: LogicalPlan, is_having: bool = False
+        self,
+        condition: Expression,
+        child: LogicalPlan,
+        is_having: bool = False,
+        is_qualify: bool = False,
     ) -> None:
         super().__init__(child)
+        if is_having and is_qualify:
+            raise ValueError("A filter cannot be both HAVING and QUALIFY")
         self.condition = condition
         self.is_having = is_having
+        self.is_qualify = is_qualify
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        # child WHERE condition or HAVING condition
+        # child WHERE, HAVING, or QUALIFY condition
         return sum_node_complexities(
             {PlanNodeCategory.FILTER: 1},
             self.condition.cumulative_node_complexity,

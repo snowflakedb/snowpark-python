@@ -4,6 +4,13 @@
 
 import heapq
 
+import pytest
+
+from snowflake.snowpark import Window
+from snowflake.snowpark._internal.ast.utils import (
+    base64_lines_to_textproto,
+    textproto_to_request,
+)
 from snowflake.snowpark.functions import (
     avg,
     col,
@@ -11,6 +18,7 @@ from snowflake.snowpark.functions import (
     current_date,
     datediff,
     lit,
+    row_number,
     to_timestamp,
 )
 from snowflake.snowpark.session import Session
@@ -20,6 +28,39 @@ from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
 def get_dependencies_from_id(session: Session, ast_id: int) -> set[int]:
     bind_stmt = session._ast_batch._bind_stmt_cache[ast_id]
     return get_dependent_bind_ids(bind_stmt)
+
+
+@pytest.mark.parametrize("method", ["filter", "where"])
+@pytest.mark.parametrize("mixed", [False, True])
+def test_qualify_filter_ast(session, method, mixed):
+    df = session.create_dataframe([1, 2], ["a"])
+    window = row_number().over(Window.order_by("a"))
+    predicate = window == 1
+    if mixed:
+        predicate = (col("a") > 1) & predicate
+    result = getattr(df, method)(predicate)
+    assert get_dependencies_from_id(session, result._ast_id) == {df._ast_id}
+
+    # Decode an actual emitted batch rather than constructing a golden AST.
+    _, encoded = session._ast_batch.flush()
+    request = textproto_to_request(base64_lines_to_textproto(encoded))
+    filters = [
+        stmt.bind
+        for stmt in request.body
+        if stmt.HasField("bind") and stmt.bind.expr.HasField("dataframe_filter")
+    ]
+    assert len(filters) == 1
+    assert filters[0].uid == result._ast_id
+    condition = filters[0].expr.dataframe_filter.condition
+    assert condition == predicate._ast
+    if mixed:
+        assert condition.HasField("and")
+        conjunction = getattr(condition, "and")
+        assert conjunction.lhs.HasField("gt")
+        condition = conjunction.rhs
+    assert condition.HasField("eq")
+    assert condition.eq.lhs.HasField("column_over")
+    assert condition.eq.lhs.column_over == window._ast.column_over
 
 
 def test_transitive_closure(session: Session, tables):

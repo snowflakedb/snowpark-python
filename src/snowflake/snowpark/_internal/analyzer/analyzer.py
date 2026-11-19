@@ -1115,6 +1115,7 @@ class Analyzer:
                 logical_plan.is_having,
                 resolved_children[logical_plan.child],
                 logical_plan,
+                is_qualify=logical_plan.is_qualify,
             )
 
         # Add a sample stop to the plan being built
