@@ -431,6 +431,12 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
             StringType(),
             "rs.getString(1)",
         ),
+        (
+            "jdbc:oracle:thin:@//h/s",
+            ("C", None, "java.sql.Timestamp", 0, 6, True, "VENDOR_TIMESTAMP"),
+            TimestampType(TimestampTimeZone.NTZ),
+            "rs.getString(1)",
+        ),
         # Rows without a type name (older inference output) keep working.
         (
             "jdbc:postgresql://h/d",
