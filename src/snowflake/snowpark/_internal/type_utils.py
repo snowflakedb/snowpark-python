@@ -1247,10 +1247,15 @@ get_data_type_string_object_mappings(DATA_TYPE_STRING_OBJECT_MAPPINGS)
 DATA_TYPE_STRING_OBJECT_MAPPINGS["int"] = IntegerType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["smallint"] = ShortType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["byteint"] = ByteType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["tinyint"] = ByteType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["float4"] = FloatType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["float8"] = DoubleType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["real"] = DoubleType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["bigint"] = LongType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["number"] = DecimalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["numeric"] = DecimalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["decimal"] = DecimalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["dec"] = DecimalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["object"] = MapType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["array"] = ArrayType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ntz"] = functools.partial(
@@ -1270,14 +1275,19 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["intervaldaytosecond"] = DayTimeIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_day_time"] = DayTimeIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["str"] = StringType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["varchar"] = StringType
+# CHAR and CHARACTER without a length are CHAR(1) in Snowflake
+DATA_TYPE_STRING_OBJECT_MAPPINGS["char"] = functools.partial(StringType, 1)
+DATA_TYPE_STRING_OBJECT_MAPPINGS["character"] = functools.partial(StringType, 1)
 
 
 DECIMAL_RE = re.compile(
-    r"(?i)^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
+    r"(?i)^\s*(numeric|number|decimal|dec)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
 )
 # support type string format like "  decimal  (  2  ,  1  )  "
 
-STRING_RE = re.compile(r"(?i)^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$")
+STRING_RE = re.compile(
+    r"(?i)^\s*(varchar|string|text|char|character)\s*\(\s*(\d*)\s*\)\s*$"
+)
 # support type string format like "  string  (  23  )  "
 
 ARRAY_RE = re.compile(r"(?i)^\s*array\s*<")
@@ -1290,6 +1300,13 @@ STRUCT_RE = re.compile(r"(?i)^\s*struct\s*<")
 # support type string format like starting with "struct<..."
 
 _NOT_NULL_PATTERN = re.compile(r"^(?P<base>.*?)\s+not\s+null\s*$", re.IGNORECASE)
+
+# a trailing column comment like "COMMENT 'the id'", where a quote is escaped by
+# doubling it or by a backslash
+_COMMENT_PATTERN = re.compile(
+    r"^(?P<base>.*?)(?:\s+|(?<=[)>]))comment\s*'(?:[^'\\]|\\.|'')*'\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
@@ -1324,6 +1341,12 @@ def extract_bracket_content(type_str: str, keyword: str) -> str:
     i = start_index
     while i < len(type_str):
         c = type_str[i]
+        if c == "'" and _follows_comment_keyword(type_str, i):
+            # copy the string literal of a column comment, which may contain brackets
+            end = _scan_quoted_string_literal(type_str, i)
+            inside_chars.append(type_str[i:end])
+            i = end
+            continue
         if c == "<":
             bracket_depth += 1
             # we don't store the opening bracket in 'inside_chars'
@@ -1354,17 +1377,26 @@ def extract_nullable_keyword(type_str: str) -> Tuple[str, bool]:
     Checks if `type_str` ends with something like 'NOT NULL' (ignoring
     case and allowing arbitrary space between NOT and NULL). If found,
     return the type substring minus that part, along with nullable=False.
-    Otherwise, return (type_str, True).
+    Otherwise, return (type_str, True). A column comment, COMMENT '...', is removed
+    too, before or after NOT NULL.
     """
     trimmed = type_str.strip()
-    match = _NOT_NULL_PATTERN.match(trimmed)
-    if match:
-        # Group 'base' is everything before 'not null'
-        base_type_str = match.group("base").strip()
-        return base_type_str, False
-
-    # By default, the field is nullable
-    return trimmed, True
+    nullable = True
+    has_comment = False
+    while True:
+        comment_match = None if has_comment else _COMMENT_PATTERN.match(trimmed)
+        if comment_match:
+            trimmed = comment_match.group("base").strip()
+            has_comment = True
+            continue
+        match = _NOT_NULL_PATTERN.match(trimmed) if nullable else None
+        if match:
+            # Group 'base' is everything before 'not null'
+            trimmed = match.group("base").strip()
+            nullable = False
+            continue
+        # By default, the field is nullable
+        return trimmed, nullable
 
 
 def find_top_level_colon(field_def: str) -> int:
@@ -1380,10 +1412,16 @@ def find_top_level_colon(field_def: str) -> int:
     """
     bracket_depth = 0
     in_quotes = False
-    for i, ch in enumerate(field_def):
+    i = 0
+    while i < len(field_def):
+        ch = field_def[i]
         if ch == '"':
             in_quotes = not in_quotes
         elif in_quotes:
+            pass
+        elif ch == "'" and _follows_comment_keyword(field_def, i):
+            # skip the string literal of a column comment
+            i = _scan_quoted_string_literal(field_def, i)
             continue
         elif ch in ("<", "("):
             bracket_depth += 1
@@ -1391,6 +1429,7 @@ def find_top_level_colon(field_def: str) -> int:
             bracket_depth -= 1
         elif ch == ":" and bracket_depth == 0:
             return i
+        i += 1
     return -1
 
 
@@ -1409,11 +1448,22 @@ def parse_struct_field_list(fields_str: str) -> Optional[StructType]:
             left = field_def[:colon_index]
             right = field_def[colon_index + 1 :]
         else:
-            # No top-level colon => fallback to whitespace-based split
-            parts = field_def.split(None, 1)
-            if len(parts) != 2:
-                raise ValueError(f"Cannot parse struct field definition: '{field_def}'")
-            left, right = parts[0], parts[1]
+            # No top-level colon => fallback to whitespace-based split, where a name
+            # in double quotes can contain whitespace
+            if field_def.lstrip().startswith('"'):
+                try:
+                    left, right = _split_object_field(field_def)
+                except ValueError:
+                    raise ValueError(
+                        f"Cannot parse struct field definition: '{field_def}'"
+                    )
+            else:
+                parts = field_def.split(None, 1)
+                if len(parts) != 2:
+                    raise ValueError(
+                        f"Cannot parse struct field definition: '{field_def}'"
+                    )
+                left, right = parts[0], parts[1]
 
         field_name = left.strip()
         type_part = right.strip()
@@ -1461,6 +1511,9 @@ def split_top_level_comma_fields(s: str) -> List[str]:
         if c == '"':
             i = _scan_quoted_identifier(s, i)
             continue
+        if c == "'" and _follows_comment_keyword(s, i):
+            i = _scan_quoted_string_literal(s, i)
+            continue
         if c in ("<", "("):
             bracket_depth += 1
         elif c in (">", ")"):
@@ -1484,7 +1537,13 @@ def is_likely_struct(s: str) -> bool:
     """
     bracket_depth = 0
     top_level_space_found = False
-    for ch in s:
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "'" and _follows_comment_keyword(s, i):
+            i = _scan_quoted_string_literal(s, i)
+            continue
+        i += 1
         if ch in ("<", "("):
             bracket_depth += 1
         elif ch in (">", ")"):
@@ -1514,7 +1573,6 @@ _STRUCTURED_TYPE_KEYWORDS = frozenset({"OBJECT", "MAP", "ARRAY"})
 
 _SF_EXTRA_TYPE_MAPPINGS = {
     "text": StringType,
-    "real": DoubleType,
     "fixed": LongType,
 }
 
@@ -1561,6 +1619,34 @@ def _scan_quoted_identifier(s: str, start: int) -> int:
             return i + 1  # index just past the closing quote
         i += 1
     raise ValueError(f"Unterminated quoted identifier in: {s!r}")
+
+
+_COMMENT_KEYWORD_PATTERN = re.compile(r"(?i)(?:^|\s|(?<=[)>]))comment\s*$")
+
+
+def _follows_comment_keyword(s: str, quote_index: int) -> bool:
+    """Whether the quote at ``s[quote_index]`` starts the string literal of a ``COMMENT``, so
+    that other apostrophes, like in ``it's INT``, are not treated as quotes."""
+    return _COMMENT_KEYWORD_PATTERN.search(s, 0, quote_index) is not None
+
+
+def _scan_quoted_string_literal(s: str, start: int) -> int:
+    """Return the index just past a single-quoted string literal (such as a column
+    comment) that begins at ``s[start] == "'"``. A quote is escaped by doubling it or by a
+    backslash. An unterminated literal is not skipped, so that a stray quote is ignored.
+    """
+    i = start + 1
+    while i < len(s):
+        if s[i] == "\\":
+            i += 2
+            continue
+        if s[i] == "'":
+            if i + 1 < len(s) and s[i + 1] == "'":
+                i += 2
+                continue
+            return i + 1
+        i += 1
+    return start + 1
 
 
 def _split_object_field(field_def: str) -> Tuple[str, str]:
@@ -1753,10 +1839,33 @@ def _parse_structured_type_str(type_str: str, max_string_size: int) -> DataType:
     return convert_sf_to_sp_type(base_upper, precision, scale, 0, max_string_size)
 
 
+def _check_comment_literals_are_single_quoted(type_str: str) -> None:
+    """Raises a ValueError for ``COMMENT "..."``. Double quotes are identifiers in type strings."""
+    i = 0
+    while i < len(type_str):
+        c = type_str[i]
+        if c == "'" and _follows_comment_keyword(type_str, i):
+            i = _scan_quoted_string_literal(type_str, i)
+            continue
+        if c == '"':
+            if _follows_comment_keyword(type_str, i):
+                raise ValueError(
+                    "COMMENT literals in schema strings must be single-quoted, "
+                    f"got: {type_str!r}"
+                )
+            try:
+                i = _scan_quoted_identifier(type_str, i)
+            except ValueError:  # reported when the string is parsed
+                return
+            continue
+        i += 1
+
+
 def type_string_to_type_object(type_str: str) -> DataType:
     type_str = type_str.strip()
     if not type_str:
         raise ValueError("Empty type string")
+    _check_comment_literals_are_single_quoted(type_str)
 
     # First check if this might be a top-level multi-field struct
     #    (e.g. "a: int, b: string") even if not written as "struct<...>"

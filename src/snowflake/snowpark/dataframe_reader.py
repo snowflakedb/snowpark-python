@@ -64,6 +64,7 @@ from snowflake.snowpark._internal.xml_schema_inference import (
     canonicalize_type,
 )
 from snowflake.snowpark._internal.utils import (
+    ALREADY_QUOTED,
     SNOWURL_PREFIX,
     STAGE_PREFIX,
     XML_ROW_TAG_STRING,
@@ -107,6 +108,14 @@ from snowflake.snowpark.types import (
 )
 
 logger = getLogger(__name__)
+
+
+def _quote_user_field_name(name: str) -> str:
+    """The identifier of a field name of a user schema. A name that is already double-quoted,
+    like ``StructField('"CaseSens"', ...)``, is used as is, and any other name is quoted
+    without changing its case."""
+    return name if ALREADY_QUOTED.match(name) else quote_name_without_upper_casing(name)
+
 
 _NOT_NULL_RE = re.compile(r"\s+NOT\s+NULL", re.IGNORECASE)
 
@@ -975,15 +984,25 @@ class DataFrameReader:
         return table
 
     @publicapi
-    def schema(self, schema: StructType, _emit_ast: bool = True) -> "DataFrameReader":
+    def schema(
+        self, schema: Union[StructType, str], _emit_ast: bool = True
+    ) -> "DataFrameReader":
         """Define the schema for CSV, JSON, Parquet, or XML files that you want to read.
 
         Args:
-            schema: Schema configuration for the file to be read.
+            schema: Schema configuration for the file to be read. A DDL string such as
+                ``"id INT, name STRING"`` is also accepted. It uses Snowflake data types and
+                identifier rules, like the names passed to ``StructField``: a double-quoted name
+                is case-sensitive, and an unquoted name is case-insensitive, except that JSON,
+                Parquet and XML reads match it exactly as written. ``TIMESTAMP`` follows the
+                ``TIMESTAMP_TYPE_MAPPING`` of the session, and ``COMMENT '...'`` after a
+                column is accepted.
 
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
+        if isinstance(schema, str):
+            schema = DataSourcePartitioner.formatting_custom_schema(schema)
 
         # AST.
         if _emit_ast and self._ast is not None:
@@ -1458,17 +1477,14 @@ class DataFrameReader:
         cols = []
         for field in schema.fields:
             # TODO: SNOW-2923003: remove single quote after server side BCR is done
-            col = df[single_quote(field._name)]
+            col = df[single_quote(unquote_if_quoted(field._name))]
+            alias = _quote_user_field_name(field._name)
             if isinstance(field.datatype, (StructType, ArrayType, MapType)):
                 # Complex types: keep as VARIANT to prevent structured cast errors
-                cols.append(col.alias(quote_name_without_upper_casing(field._name)))
+                cols.append(col.alias(alias))
             else:
                 # Primitive types: cast to the inferred datatype
-                cols.append(
-                    col.cast(field.datatype).alias(
-                        quote_name_without_upper_casing(field._name)
-                    )
-                )
+                cols.append(col.cast(field.datatype).alias(alias))
 
         # In PERMISSIVE mode, append the StringType column for the corrupt record if it
         # exists in the DataFrame emitted by the UDTF on malformed or corrupted records.
@@ -1956,7 +1972,7 @@ class DataFrameReader:
         transformations = []
         new_schema = []
         for field in user_schema.fields:
-            name = quote_name_without_upper_casing(field._name)
+            name = _quote_user_field_name(field._name)
             new_schema.append(
                 Attribute(
                     name,
@@ -1965,7 +1981,7 @@ class DataFrameReader:
                 )
             )
             identifier = f"$1:{name}::{convert_sp_to_sf_type(field.datatype)}"
-            schema_to_cast.append((identifier, field._name))
+            schema_to_cast.append((identifier, unquote_if_quoted(field._name)))
             transformations.append(sql_expr(identifier))
         self._infer_schema_transformations = transformations
         self._infer_schema_target_columns = StructType._from_attributes(
