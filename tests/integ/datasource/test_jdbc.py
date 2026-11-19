@@ -564,3 +564,25 @@ def test_oracle_partition_on_date_column(
         num_partitions=3,
     )
     assert sorted(int(r["ID"]) for r in df.collect()) == [1, 2, 3, 4, 5]
+
+
+@pytest.mark.parametrize("column", ["MixedCase", '"MixedCase"'])
+def test_postgres_quoted_timestamp_partition(session, postgres_udtf_configs, column):
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query="select timestamp '2024-01-01 00:00:00.1' + n * interval '0.2 seconds' as \"MixedCase\" from generate_series(0, 4) n",
+        column=column,
+        lower_bound="2024-01-01 00:00:00.1",
+        upper_bound="2024-01-01 00:00:00.9",
+        num_partitions=2,
+    )
+    rows = df.collect()
+    assert len(rows) == 5
+    assert sorted(row[0].microsecond for row in rows) == [
+        100000,
+        300000,
+        500000,
+        700000,
+        900000,
+    ]

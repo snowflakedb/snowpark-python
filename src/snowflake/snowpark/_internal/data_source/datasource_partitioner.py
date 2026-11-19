@@ -30,6 +30,7 @@ from snowflake.snowpark.types import (
     DateType,
     DataType,
     TimestampType,
+    TimestampTimeZone,
 )
 from typing import TYPE_CHECKING
 
@@ -217,12 +218,14 @@ class DataSourcePartitioner:
         num_partitions: Optional[int] = None,
         allow_timestamp_column: bool = False,
         bound_literal: Optional[Callable[[datetime.datetime], str]] = None,
+        column_sql: Optional[str] = None,
     ):
         """Generate the partition queries.
 
         ``allow_timestamp_column`` also accepts a timestamp partition column, and
         ``bound_literal`` renders a date or timestamp bound as a SQL literal for the
-        source database; by default the bound is a quoted string.
+        source database; by default the bound is a quoted string. ``column_sql``
+        optionally supplies the dialect-quoted source identifier after schema lookup.
         """
         if column is None:
             if (
@@ -272,7 +275,7 @@ class DataSourcePartitioner:
                 DataSourcePartitioner.generate_partition_with_column_name(
                     select_query,
                     column_type,
-                    column,
+                    column_sql if column_sql is not None else column,
                     lower_bound,
                     upper_bound,
                     num_partitions,
@@ -293,10 +296,9 @@ class DataSourcePartitioner:
     ) -> List[str]:
         def to_literal(value: int) -> str:
             external_value = to_external_value(value, column_type)
-            if isinstance(column_type, TimestampType):
-                # The source column has no Snowflake time zone; compare wall-clock time.
-                external_value = external_value.replace(tzinfo=None)
             if bound_literal is not None and not isinstance(column_type, _NumericType):
+                if isinstance(column_type, DateType):
+                    external_value = external_value.replace(tzinfo=None)
                 return bound_literal(external_value)
             return f"'{external_value}'"
 
@@ -319,12 +321,16 @@ class DataSourcePartitioner:
             )
 
         # decide stride length
-        upper_stride = (
-            processed_upper_bound / decimal.Decimal(actual_num_partitions)
-        ).quantize(decimal.Decimal("1e-18"), rounding=decimal.ROUND_HALF_EVEN)
-        lower_stride = (
-            processed_lower_bound / decimal.Decimal(actual_num_partitions)
-        ).quantize(decimal.Decimal("1e-18"), rounding=decimal.ROUND_HALF_EVEN)
+        # Timestamp bounds use microseconds, requiring more than the default
+        # decimal context's 28 digits when retaining 18 fractional stride digits.
+        with decimal.localcontext() as context:
+            context.prec = max(context.prec, 50)
+            upper_stride = (
+                processed_upper_bound / decimal.Decimal(actual_num_partitions)
+            ).quantize(decimal.Decimal("1e-18"), rounding=decimal.ROUND_HALF_EVEN)
+            lower_stride = (
+                processed_lower_bound / decimal.Decimal(actual_num_partitions)
+            ).quantize(decimal.Decimal("1e-18"), rounding=decimal.ROUND_HALF_EVEN)
         precise_stride = upper_stride - lower_stride
         stride = int(precise_stride)
 
@@ -392,6 +398,19 @@ class DataSourcePartitioner:
 def to_internal_value(value: Union[int, str, float], column_type: DataType):
     if isinstance(column_type, _NumericType):
         return int(value)
+    elif isinstance(column_type, TimestampType):
+        dt = parser.parse(value)
+        aware = column_type.tz in (TimestampTimeZone.TZ, TimestampTimeZone.LTZ)
+        if aware != (dt.utcoffset() is not None):
+            raise ValueError(
+                "Timestamp partition bounds must include an offset for TZ/LTZ "
+                "columns and must not include an offset for NTZ columns."
+            )
+        epoch = datetime.datetime(
+            1970, 1, 1, tzinfo=datetime.timezone.utc if aware else None
+        )
+        delta = dt - epoch
+        return (delta.days * 86400 + delta.seconds) * 1000000 + delta.microseconds
     else:
         # TODO: SNOW-1909315: support timezone
         dt = parser.parse(value)
@@ -401,6 +420,12 @@ def to_internal_value(value: Union[int, str, float], column_type: DataType):
 def to_external_value(value: Union[int, str, float], column_type: DataType):
     if isinstance(column_type, _NumericType):
         return value
+    elif isinstance(column_type, TimestampType):
+        aware = column_type.tz in (TimestampTimeZone.TZ, TimestampTimeZone.LTZ)
+        epoch = datetime.datetime(
+            1970, 1, 1, tzinfo=datetime.timezone.utc if aware else None
+        )
+        return epoch + datetime.timedelta(microseconds=value)
     else:
         # TODO: SNOW-1909315: support timezone
         return datetime.datetime.fromtimestamp(value, tz=pytz.UTC)
