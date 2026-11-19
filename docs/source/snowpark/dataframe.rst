@@ -70,6 +70,7 @@ DataFrame
     DataFrame.pivot
     DataFrame.print_schema
     DataFrame.printSchema
+    DataFrame.qualify
     DataFrame.randomSplit
     DataFrame.random_split
     DataFrame.rename

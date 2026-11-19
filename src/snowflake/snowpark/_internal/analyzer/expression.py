@@ -77,6 +77,10 @@ class Expression:
     But the constructor accepts a single child. This might be refactored in the future.
     """
 
+    # Attributes holding operands that are not stored in ``children``; read by
+    # ``expression_children``.
+    _extra_child_attrs: Tuple[str, ...] = ()
+
     def __init__(self, child: Optional["Expression"] = None) -> None:
         """
         Subclasses will override these attributes
@@ -146,6 +150,33 @@ class Expression:
         self._cumulative_node_complexity = value
 
 
+def expression_children(expression: Expression) -> Optional[List[Expression]]:
+    """Return the sub-expressions of ``expression`` for type checks.
+
+    Subquery plans (e.g. ``ScalarSubquery``) are not entered.
+    """
+    children = expression.children
+    if not children:
+        # Some expression types (e.g. CaseWhen) store sub-expressions in
+        # _child_expressions rather than children; fall back to that.
+        children = getattr(expression, "_child_expressions", None)
+    extra_attrs = expression._extra_child_attrs
+    if not extra_attrs:
+        return children
+    result = list(children) if children else []
+    for attr in extra_attrs:
+        value = getattr(expression, attr)
+        if isinstance(value, Expression):
+            result.append(value)
+        elif value:
+            for item in value:
+                if isinstance(item, Expression):
+                    result.append(item)
+                elif isinstance(item, (list, tuple)):
+                    result.extend(e for e in item if isinstance(e, Expression))
+    return result
+
+
 class NamedExpression:
     name: str
     _expr_id: Optional[uuid.UUID] = None
@@ -181,6 +212,8 @@ class ScalarSubquery(Expression):
 
 
 class MultipleExpression(Expression):
+    _extra_child_attrs = ("expressions",)
+
     def __init__(self, expressions: List[Expression]) -> None:
         super().__init__()
         self.expressions = expressions
@@ -199,6 +232,8 @@ class MultipleExpression(Expression):
 
 
 class InExpression(Expression):
+    _extra_child_attrs = ("columns", "values")
+
     def __init__(self, columns: Expression, values: List[Expression]) -> None:
         super().__init__()
         self.columns = columns
@@ -259,6 +294,8 @@ class Attribute(Expression, NamedExpression):
 
 
 class Star(Expression):
+    _extra_child_attrs = ("expressions",)
+
     def __init__(
         self, expressions: List[Attribute], df_alias: Optional[str] = None
     ) -> None:
@@ -429,6 +466,8 @@ class Interval(Expression):
 
 
 class Like(Expression):
+    _extra_child_attrs = ("pattern",)
+
     def __init__(self, expr: Expression, pattern: Expression) -> None:
         super().__init__(expr)
         self.expr = expr
@@ -455,6 +494,8 @@ class Like(Expression):
 
 
 class RegExp(Expression):
+    _extra_child_attrs = ("pattern", "parameters")
+
     def __init__(
         self,
         expr: Expression,
@@ -467,10 +508,12 @@ class RegExp(Expression):
         self.parameters = parameters
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.expr, self.pattern)
+        return derive_dependent_columns(self.expr, self.pattern, self.parameters)
 
     def dependent_column_names_with_duplication(self) -> List[str]:
-        return derive_dependent_columns_with_duplication(self.expr, self.pattern)
+        return derive_dependent_columns_with_duplication(
+            self.expr, self.pattern, self.parameters
+        )
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -680,6 +723,8 @@ class NamedFunctionExpression(Expression):
 
 
 class WithinGroup(Expression):
+    _extra_child_attrs = ("order_by_cols",)
+
     def __init__(self, expr: Expression, order_by_cols: List[Expression]) -> None:
         super().__init__(expr)
         self.expr = expr
@@ -791,6 +836,8 @@ class SnowflakeUDF(Expression):
 
 
 class ListAgg(Expression):
+    _extra_child_attrs = ("col",)
+
     def __init__(self, col: Expression, delimiter: str, is_distinct: bool) -> None:
         super().__init__()
         self.col = col
@@ -815,6 +862,8 @@ class ListAgg(Expression):
 
 
 class ColumnSum(Expression):
+    _extra_child_attrs = ("exprs",)
+
     def __init__(self, exprs: List[Expression]) -> None:
         super().__init__()
         self.exprs = exprs

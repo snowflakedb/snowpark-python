@@ -1278,6 +1278,12 @@ message DataframePivot {
   Expr values = 5;
 }
 
+message DataframeQualify {
+  Expr condition = 1;
+  Expr df = 2;
+  SrcPosition src = 3;
+}
+
 // dataframe.ir:308
 message DataframeRandomSplit {
   Expr df = 1;
@@ -1650,6 +1656,7 @@ message Expr {
     DataframeNaReplace dataframe_na_replace = 97;
     DataframeNaturalJoin dataframe_natural_join = 98;
     DataframePivot dataframe_pivot = 99;
+    DataframeQualify dataframe_qualify = 208;
     DataframeRandomSplit dataframe_random_split = 100;
     DataframeReader dataframe_reader = 101;
     DataframeRef dataframe_ref = 102;
@@ -1966,6 +1973,7 @@ message HasSrcPosition {
     DataframeNaReplace dataframe_na_replace = 100;
     DataframeNaturalJoin dataframe_natural_join = 101;
     DataframePivot dataframe_pivot = 102;
+    DataframeQualify dataframe_qualify = 217;
     DataframeRandomSplit dataframe_random_split = 103;
     DataframeReader dataframe_reader = 104;
     DataframeRef dataframe_ref = 105;

@@ -73,6 +73,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSnowflakePlan,
     SelectStatement,
     SelectTableFunction,
+    has_window_function_exp,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -2344,8 +2345,36 @@ class DataFrame:
         _ast_stmt: proto.Bind = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
-        """Filters rows based on the specified conditional expression (similar to WHERE
-        in SQL).
+        """Filters rows based on the specified conditional expression.
+
+        A structured :class:`Column` expression that contains a window function
+        written directly in the predicate uses SQL QUALIFY. The entire predicate,
+        including any non-window conditions combined with AND, OR, or NOT, is
+        evaluated after the window functions. To filter rows before computing a
+        window, call :meth:`filter` separately before the window filter.
+        Predicates without window functions retain their existing SQL WHERE
+        behavior (or HAVING in compatibility mode after aggregation). A window
+        computed in an earlier step, e.g. ``with_column("rn", ...)`` followed by
+        ``filter(col("rn") == 1)``, is an ordinary column and uses WHERE on a
+        subquery.
+
+        The window must reference the DataFrame's output columns. For example,
+        after :meth:`group_by`, windows over aggregate expressions such as
+        ``sum_("b")`` are not supported; alias the aggregate and reference the
+        alias instead. The window filter is applied in a new subquery after
+        DISTINCT, LIMIT/OFFSET, computed or aliased columns, a :meth:`drop` or
+        :meth:`col_ilike` that becomes ``SELECT * EXCLUDE``/``ILIKE``, or a
+        previous window filter.
+
+        SQL strings and expressions created with
+        :func:`~snowflake.snowpark.functions.sql_expr` are not parsed to detect
+        window functions and retain their existing filtering behavior.
+        Use structured Column expressions to filter on window functions directly.
+
+        In local testing, ``IN`` with columns on the right-hand side of a window
+        predicate is not evaluated row by row, and in compatibility mode a window
+        filter after an aggregation that was already filtered (HAVING) raises
+        ``NotImplementedError``.
 
         Examples::
 
@@ -2358,15 +2387,28 @@ class DataFrame:
             >>> df.filter("a > 1").collect()  # use SQL expression
             [Row(A=3, B=4)]
 
+            >>> from snowflake.snowpark import Window
+            >>> from snowflake.snowpark.functions import row_number
+            >>> values = session.create_dataframe([1, 2], schema=["A"])
+            >>> first = row_number().over(Window.order_by("A")) == 1
+            >>> values.filter(first).collect()  # uses QUALIFY
+            [Row(A=1)]
+            >>> values.filter((col("A") > 1) & first).collect()
+            []
+            >>> values.filter(col("A") > 1).where(first).collect()
+            [Row(A=2)]
+
         Args:
             expr: a :class:`Column` expression or SQL text.
             _ast_stmt: when invoked internally, supplies the AST to use for the resulting dataframe.
 
-        :meth:`where` is an alias of :meth:`filter`.
+        :meth:`where` is an alias of :meth:`filter`. See also :meth:`qualify`,
+        which always places the condition in SQL QUALIFY.
         """
 
         # This code performs additional type checks, run first.
         filter_col_expr = _to_col_if_sql_expr(expr, "filter/where")._expression
+        is_qualify = has_window_function_exp([filter_col_expr])
 
         # AST.
         stmt = None
@@ -2379,6 +2421,78 @@ class DataFrame:
             else:
                 stmt = _ast_stmt
 
+        return self._filter_impl(filter_col_expr, is_qualify, stmt)
+
+    @df_api_usage
+    @publicapi
+    def qualify(
+        self,
+        condition: ColumnOrSqlExpr,
+        _ast_stmt: proto.Bind = None,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
+        """Filters rows based on a condition evaluated after window functions,
+        using SQL QUALIFY.
+
+        Unlike :meth:`filter`, which uses QUALIFY only when a structured
+        :class:`Column` predicate contains a window function, :meth:`qualify`
+        always places the condition in QUALIFY. This makes it possible to use
+        window functions in SQL text or
+        :func:`~snowflake.snowpark.functions.sql_expr`. The condition is
+        evaluated against the result of the preceding operations, in the same
+        order as :meth:`filter`; to filter rows before computing a window,
+        call :meth:`filter` before :meth:`qualify`.
+
+        Snowflake requires a QUALIFY clause to reference a window function; a
+        condition without one fails when the query is executed with an error
+        like ``found QUALIFY clause but no window function``. Local
+        testing does not support SQL text conditions, and may not raise this
+        error for conditions without window functions.
+
+        Examples::
+
+            >>> from snowflake.snowpark import Window
+            >>> from snowflake.snowpark.functions import row_number
+            >>> df = session.create_dataframe(
+            ...     [["a", 1], ["a", 3], ["b", 2], ["b", 5]], schema=["G", "X"]
+            ... )
+            >>> window = Window.partition_by("G").order_by(col("X").desc())
+            >>> df.qualify(row_number().over(window) == 1).sort("G").collect()
+            [Row(G='a', X=3), Row(G='b', X=5)]
+            >>> df.qualify(
+            ...     "row_number() over (partition by g order by x desc) = 1"
+            ... ).sort("G").collect()  # use SQL expression
+            [Row(G='a', X=3), Row(G='b', X=5)]
+
+        Args:
+            condition: a :class:`Column` expression or SQL text.
+            _ast_stmt: when invoked internally, supplies the AST to use for the resulting dataframe.
+        """
+
+        # This code performs additional type checks, run first.
+        qualify_col_expr = _to_col_if_sql_expr(condition, "qualify")._expression
+
+        # AST.
+        stmt = None
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.dataframe_qualify, stmt)
+                self._set_ast_ref(ast.df)
+                build_expr_from_snowpark_column_or_sql_str(ast.condition, condition)
+            else:
+                stmt = _ast_stmt
+
+        return self._filter_impl(qualify_col_expr, True, stmt)
+
+    def _filter_impl(
+        self,
+        filter_col_expr: Expression,
+        is_qualify: bool,
+        stmt: Optional[proto.Bind],
+    ) -> "DataFrame":
+        """Shared implementation of :meth:`filter` and :meth:`qualify`."""
+
         # In snowpark_connect_compatible mode, we need to handle
         # the filtering for dataframe after aggregation without nesting using HAVING.
         # We defer the HAVING expression and rebuild the plan from the
@@ -2386,33 +2500,52 @@ class DataFrame:
         # (HAVING -> ORDER BY -> LIMIT) regardless of the user's call order.
         # If there is a LIMIT earlier in the expression tree, then we must produce a new
         # sub-query from this filter to ensure correctness.
+        base = self
         if (
             context._is_snowpark_connect_compatible_mode
             and self._ops_after_agg is not None
             and "limit" not in self._ops_after_agg
         ):
-            new_ops = self._ops_after_agg.copy()
-            new_ops.add("filter")
-            return self._build_post_agg_df(
-                ops_after_agg=new_ops,
-                pending_havings=self._pending_havings + [filter_col_expr],
-                pending_order_bys=self._pending_order_bys,
-                _ast_stmt=stmt,
-            )
-        else:
-            if self._select_statement:
-                return self._with_plan(
-                    self._select_statement.filter(filter_col_expr),
+            if not is_qualify:
+                new_ops = self._ops_after_agg.copy()
+                new_ops.add("filter")
+                return self._build_post_agg_df(
+                    ops_after_agg=new_ops,
+                    pending_havings=self._pending_havings + [filter_col_expr],
+                    pending_order_bys=self._pending_order_bys,
                     _ast_stmt=stmt,
                 )
-            return self._with_plan(
-                Filter(
-                    filter_col_expr,
-                    self._plan,
-                    is_having=False,
-                ),
-                _ast_stmt=stmt,
+            if self._pending_order_bys:
+                # QUALIFY wraps the deferred aggregate in a subquery, which
+                # would discard its ORDER BY. Build the aggregate without the
+                # pending ORDER BY and sort after QUALIFY instead.
+                base = self._build_post_agg_df(
+                    ops_after_agg=self._ops_after_agg,
+                    pending_havings=self._pending_havings,
+                    pending_order_bys=[],
+                )
+
+        if base._select_statement:
+            filtered_plan = base._select_statement.filter(
+                filter_col_expr, is_qualify=is_qualify
             )
+        else:
+            filtered_plan = Filter(
+                filter_col_expr,
+                base._plan,
+                is_having=False,
+                is_qualify=is_qualify,
+            )
+        if base is self:
+            return self._with_plan(filtered_plan, _ast_stmt=stmt)
+
+        filtered = base._with_plan(filtered_plan)
+        order_bys = self._pending_order_bys
+        if filtered._select_statement:
+            sorted_plan = filtered._select_statement.sort(order_bys)
+        else:
+            sorted_plan = Sort(order_bys, filtered._plan, is_order_by_append=False)
+        return self._with_plan(sorted_plan, _ast_stmt=stmt)
 
     @df_api_usage
     @publicapi

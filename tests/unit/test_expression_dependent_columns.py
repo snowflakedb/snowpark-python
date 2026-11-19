@@ -210,6 +210,34 @@ def test_reg_exp():
     assert b.dependent_column_names_with_duplication() == ["a", "a"]
 
 
+@pytest.mark.parametrize(
+    "parameters, dependencies, duplicated_dependencies",
+    [
+        (None, {"a", "b"}, ["a", "b"]),
+        (Literal("i"), {"a", "b"}, ["a", "b"]),
+        (UnresolvedAttribute("c"), {"a", "b", "c"}, ["a", "b", "c"]),
+        (UnresolvedAttribute("a"), {"a", "b"}, ["a", "b", "a"]),
+        (
+            UnresolvedAttribute("c", is_sql_text=True),
+            COLUMN_DEPENDENCY_ALL,
+            ["a", "b"],
+        ),
+        (
+            UnresolvedAttribute("$1", is_sql_text=True),
+            COLUMN_DEPENDENCY_DOLLAR,
+            ["a", "b", "$"],
+        ),
+    ],
+    ids=["absent", "literal", "column", "duplicate", "unknown", "positional"],
+)
+def test_reg_exp_parameters(parameters, dependencies, duplicated_dependencies):
+    expression = RegExp(UnresolvedAttribute("a"), UnresolvedAttribute("b"), parameters)
+    assert expression.dependent_column_names() == dependencies
+    assert (
+        expression.dependent_column_names_with_duplication() == duplicated_dependencies
+    )
+
+
 def test_scalar_subquery():
     a = ScalarSubquery(None)
     assert a.dependent_column_names() == COLUMN_DEPENDENCY_DOLLAR

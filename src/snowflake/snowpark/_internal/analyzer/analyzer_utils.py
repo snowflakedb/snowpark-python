@@ -84,6 +84,7 @@ OVER = " OVER "
 SELECT = " SELECT "
 FROM = " FROM "
 WHERE = " WHERE "
+QUALIFY = " QUALIFY "
 LIMIT = " LIMIT "
 OFFSET = " OFFSET "
 PIVOT = " PIVOT "
@@ -625,7 +626,11 @@ def project_statement(
 
 
 def filter_statement(
-    condition: str, is_having: bool, child: str, child_uuid: Optional[str] = None
+    condition: str,
+    is_having: bool,
+    child: str,
+    child_uuid: Optional[str] = None,
+    is_qualify: bool = False,
 ) -> str:
     if is_having:
         return child + NEW_LINE + HAVING + condition
@@ -633,7 +638,7 @@ def filter_statement(
         return (
             project_statement([], child, child_uuid=child_uuid)
             + NEW_LINE
-            + WHERE
+            + (QUALIFY if is_qualify else WHERE)
             + condition
         )
 

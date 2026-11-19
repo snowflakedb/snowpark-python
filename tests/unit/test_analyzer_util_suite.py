@@ -700,6 +700,21 @@ def test_table_function_statement_formatting():
     )
 
 
+def test_qualify_statement_formatting():
+    condition = "ROW_NUMBER() OVER (ORDER BY A) = 1"
+    assert filter_statement(condition, False, "my_table", is_qualify=True) == (
+        " SELECT  * \n FROM (\nmy_table\n)\n QUALIFY " + condition
+    )
+    assert (
+        filter_statement(
+            condition, False, "my_table", child_uuid="child", is_qualify=True
+        )
+        == project_statement([], "my_table", child_uuid="child")
+        + "\n QUALIFY "
+        + condition
+    )
+
+
 def test_filter_statement_formatting():
     # Test with is_having=False (WHERE clause)
     assert filter_statement("x > 0 AND y < 10", False, "my_table") == (

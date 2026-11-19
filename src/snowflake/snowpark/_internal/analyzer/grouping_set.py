@@ -41,6 +41,8 @@ class Rollup(GroupingSet):
 
 
 class GroupingSetsExpression(Expression):
+    _extra_child_attrs = ("args",)
+
     def __init__(self, args: List[List[Expression]]) -> None:
         super().__init__()
         self.args = args
