@@ -17,7 +17,13 @@ from snowflake.snowpark.context import (
     _PYPI_SHARED_REPOSITORY,
 )
 from snowflake.snowpark.exceptions import SnowparkClientException
-from snowflake.snowpark.types import BinaryType, StructType, StructField, StringType
+from snowflake.snowpark.types import (
+    BinaryType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+)
 
 
 @pytest.mark.parametrize(
@@ -413,3 +419,60 @@ def test_jdbc_binary_reader_selection(jdbc_type, java_type, expected_type, has_t
     client.__dict__["schema"] = client.to_snow_type()
     assert client.schema.fields[0].datatype == expected_type
     assert ("toHex(byte[] bytes)" in client.create_to_hex_java_code()) == has_to_hex
+
+
+@pytest.mark.parametrize(
+    "custom_schema, expected_types, expected_values",
+    [
+        (
+            "PAYLOAD STRING",
+            [IntegerType(), StringType(), StringType()],
+            [7, "0080FF", "hello"],
+        ),
+        (
+            "LABEL STRING, PAYLOAD BINARY, ID STRING",
+            [StringType(), BinaryType(), StringType()],
+            ["7", bytes.fromhex("0080FF"), "hello"],
+        ),
+    ],
+)
+def test_jdbc_binary_mixed_schema_preserves_source_positions(
+    custom_schema, expected_types, expected_values
+):
+    from snowflake.snowpark import Session
+
+    with Session.builder.config("local_testing", True).create() as local_session:
+        raw = local_session.create_dataframe(
+            [("7", "0080FF", "hello")],
+            schema=StructType(
+                [StructField(name, StringType()) for name in ("ID", "PAYLOAD", "LABEL")]
+            ),
+        )
+        session = Mock()
+        session.sql.return_value.collect.return_value = [
+            ("ID", "INTEGER", "java.lang.Integer", 10, 0, True),
+            ("PAYLOAD", "VARBINARY", "[B", 3, 0, True),
+            ("LABEL", "VARCHAR", "java.lang.String", 10, 0, True),
+        ]
+        client = JDBC(
+            session,
+            "jdbc:mysql://host/db",
+            "T",
+            "EAI",
+            [],
+            False,
+            "cred",
+            custom_schema=custom_schema,
+            _emit_ast=False,
+        )
+        assert client.schema.names == ["ID", "PAYLOAD", "LABEL"]
+        assert [field.datatype for field in client.schema.fields] == expected_types
+        assert client.create_output_row_java_code() == (
+            "row.ID = rs.getString(1);\n"
+            "row.PAYLOAD = toHex(rs.getBytes(2));\n"
+            "row.LABEL = rs.getString(3);\n"
+        )
+        session.sql.side_effect = [Mock(), raw]
+        result = client.read("PARTITIONS")
+        assert result.columns == ["ID", "PAYLOAD", "LABEL"]
+        assert list(result.collect()[0]) == expected_values
