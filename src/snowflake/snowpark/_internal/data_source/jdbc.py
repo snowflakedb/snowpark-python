@@ -462,8 +462,12 @@ class JDBC:
         ;
         """
 
+        # The partition table is created in the current schema, so its column
+        # inherits DEFAULT_DDL_COLLATION. UDTF signature matching rejects a collated
+        # argument for the uncollated `query VARCHAR` parameter ("Invalid argument
+        # types"); casting to VARCHAR drops the collation without changing the text.
         jdbc_udtf = f"""
-            select result.* from {partition_table}, table({jdbc_ingestion_name}({PARTITION_TABLE_COLUMN_NAME})) AS result
+            select result.* from {partition_table}, table({jdbc_ingestion_name}({PARTITION_TABLE_COLUMN_NAME}::VARCHAR)) AS result
             """
 
         self.session.sql(jdbc_udtf_registration, _emit_ast=self._emit_ast).collect()
