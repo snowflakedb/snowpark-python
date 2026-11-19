@@ -820,6 +820,28 @@ def test_get_default_artifact_repository():
         assert mocked_run_query.call_count == 1
 
 
+def test_get_default_artifact_repository_passes_free_threaded_runtime_version():
+    fake_server_connection = mock.create_autospec(ServerConnection)
+    fake_server_connection._thread_safe_session_enabled = True
+    session = Session(fake_server_connection)
+
+    with mock.patch(
+        "snowflake.snowpark.session.get_python_runtime_version", return_value="3.14t"
+    ), mock.patch.object(
+        session,
+        "_run_query",
+        return_value=[["snowflake.snowpark.pypi_shared_repository"]],
+    ) as mocked_run_query, mock.patch.object(
+        session, "get_current_database", return_value="DB1"
+    ), mock.patch.object(
+        session, "get_current_schema", return_value="SCHEMA1"
+    ):
+        session._get_default_artifact_repository()
+        mocked_run_query.assert_called_once_with(
+            "SELECT SYSTEM$GET_DEFAULT_PYTHON_ARTIFACT_REPOSITORY('3.14t', 'schema', 'SCHEMA1')"
+        )
+
+
 def test_infer_is_return_table_uses_internal_describe():
     fake_server_connection = mock.create_autospec(ServerConnection)
     fake_server_connection._thread_safe_session_enabled = True

@@ -1012,8 +1012,8 @@ class UDFRegistration:
             # DO NOT pass **kwargs here, as it can lead to TypeError: multiple values for the same argument
         )
 
-        runtime_version_from_requirement = None
-        if self._session is not None:
+        runtime_version_from_requirement = kwargs.get("_runtime_version")
+        if runtime_version_from_requirement is None and self._session is not None:
             runtime_version_from_requirement = (
                 self._session._runtime_version_from_requirement
             )

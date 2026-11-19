@@ -7,7 +7,6 @@ import inspect
 import io
 import os
 import pickle
-import sys
 import typing
 import zipfile
 from copy import deepcopy
@@ -53,6 +52,7 @@ from snowflake.snowpark._internal.utils import (
     STAGE_PREFIX,
     TempObjectType,
     escape_single_quotes,
+    get_python_runtime_version,
     get_udf_upload_prefix,
     is_single_quoted,
     module_to_requirement,
@@ -638,8 +638,17 @@ def check_execute_as_arg(
         )
 
 
+def get_gil_runtime_version(session: Optional["snowflake.snowpark.Session"]) -> str:
+    """Returns the GIL ``RUNTIME_VERSION`` of the Python version Snowpark registers objects with, e.g. ``3.14`` for a
+    ``3.14t`` client. For internal handlers whose packages, such as lxml, fail to import on a free-threaded runtime."""
+    runtime_version = (
+        session._runtime_version_from_requirement if session is not None else None
+    ) or get_python_runtime_version()
+    return runtime_version.removesuffix("t")
+
+
 def check_python_runtime_version(runtime_version_from_requirement: Optional[str]):
-    system_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    system_version = get_python_runtime_version()
     if (
         runtime_version_from_requirement is not None
         and runtime_version_from_requirement != system_version
@@ -1515,7 +1524,7 @@ def create_python_udf_or_sp(
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
 ) -> None:
-    runtime_version = runtime_version or f"{sys.version_info[0]}.{sys.version_info[1]}"
+    runtime_version = runtime_version or get_python_runtime_version()
     check_resource_constraint(resource_constraint)
 
     if replace and if_not_exists:
@@ -1634,7 +1643,7 @@ CREATE{" OR REPLACE " if replace else ""}
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
 {mutability}
-RUNTIME_VERSION={runtime_version}
+RUNTIME_VERSION='{runtime_version}'
 {imports_in_sql}
 {artifact_repository_in_sql}
 {packages_in_sql}
@@ -1683,11 +1692,7 @@ def generate_anonymous_python_sp_sql(
     secrets: Optional[Dict[str, str]] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
 ) -> str:
-    runtime_version = (
-        f"{sys.version_info[0]}.{sys.version_info[1]}"
-        if not runtime_version
-        else runtime_version
-    )
+    runtime_version = runtime_version or get_python_runtime_version()
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
     else:
@@ -1748,7 +1753,7 @@ $$
 WITH {object_name} AS PROCEDURE ({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
-RUNTIME_VERSION={runtime_version}
+RUNTIME_VERSION='{runtime_version}'
 {imports_in_sql}
 {packages_in_sql}
 {external_access_integrations_in_sql}

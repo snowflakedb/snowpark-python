@@ -1818,8 +1818,9 @@ def _run_infer_xml(schema_rows, *, type_string=None, canonicalize=None):
             )
         if canonicalize is not None:
             stack.enter_context(
-                mock.patch.object(
-                    _dr_mod, "canonicalize_type", return_value=canonicalize
+                mock.patch(
+                    "snowflake.snowpark._internal.xml_schema_inference.canonicalize_type",
+                    return_value=canonicalize,
                 )
             )
         return reader._infer_schema_for_xml("@s/f.xml")

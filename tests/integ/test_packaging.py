@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.packaging_utils import (
     IMPLICIT_ZIP_FILE_NAME,
     get_signature,
 )
+from snowflake.snowpark._internal.utils import get_python_runtime_version
 from snowflake.snowpark.functions import call_udf, col, count_distinct, sproc, udf
 from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import DateType, StringType
@@ -818,7 +819,7 @@ def test_add_requirements_yaml(session, resources_path):
     assert session._runtime_version_from_requirement == "3.10"
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    system_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    system_version = get_python_runtime_version()
 
     if system_version != session._runtime_version_from_requirement:
         with pytest.raises(

@@ -11,6 +11,7 @@
 
 #### Improvements
 
+- UDFs, UDTFs, UDAFs and stored procedures registered from a free-threaded Python build (for example 3.14t) now default to the matching free-threaded `RUNTIME_VERSION` (`3.14t`) instead of the GIL runtime (`3.14`). The default artifact repository is looked up for the free-threaded version as well.
 - `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.
 
 #### Bug Fixes

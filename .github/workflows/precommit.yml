@@ -183,11 +183,15 @@ jobs:
             # exhaust threads/memory at -n logical (MemoryError in pytest_timeout
             # Timer.start, plus stack overflows in connector ThreadPoolExecutors).
             tox-extra-factors: "-lowparallel"
+          # run py 3.14t (free-threaded) tests on aws/ubuntu
+          - python-version: "3.14t"
+            cloud-provider: aws
+            os: ubuntu-latest-64-cores
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Set up uv
@@ -255,7 +259,7 @@ jobs:
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
         shell: bash
       - name: Run data source tests
-        if: ${{ !(matrix.python-version == '3.14') }}
+        if: ${{ !startsWith(matrix.python-version, '3.14') }}
         run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -284,13 +288,13 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.14"]
+        python-version: ["3.14", "3.14t"]
         cloud-provider: [azure]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Set up uv
