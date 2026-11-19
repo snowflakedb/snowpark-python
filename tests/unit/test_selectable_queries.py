@@ -23,7 +23,8 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     initiate_column_states,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
-from snowflake.snowpark._internal.analyzer.unary_plan_node import Filter
+from snowflake.snowpark._internal.analyzer.unary_plan_node import Filter, Project
+from snowflake.snowpark._internal.analyzer.metadata_utils import PlanMetadata
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     COLUMN_DEPENDENCY_ALL,
@@ -424,6 +425,32 @@ def test_qualify_cte_candidates(qualify_base):
     assert nondeterministic.encoded_node_id_with_query not in duplicates
 
 
+@pytest.mark.parametrize(
+    "wrap",
+    [
+        lambda generated: when(col("a") > 0, generated).otherwise("fallback"),
+        lambda generated: lit("value").isin(generated.cast("string")),
+        lambda generated: lit("value").like(generated),
+        lambda generated: lit("value").regexp("value", generated),
+    ],
+    ids=["case", "in_rhs", "like_pattern", "regexp_parameters"],
+)
+def test_qualify_nested_nondeterminism_after_cached_copy(qualify_base, wrap):
+    first = row_number().over(Window.order_by("a")) == 1
+    deterministic = qualify_base.filter(first._expression)
+    assert not deterministic.contains_data_generation
+    original_sql = deterministic.sql_query
+    generated = wrap(uuid_string()).is_not_null()
+    qualified = deterministic.filter((first & generated)._expression)
+    for candidate in (qualified, copy(qualified), deepcopy(qualified)):
+        assert candidate.contains_data_generation
+        repeated = candidate.set_operator(candidate, operator=" UNION ALL ")
+        duplicates, _ = find_duplicate_subtrees(repeated)
+        assert candidate.encoded_node_id_with_query not in duplicates
+    assert deterministic.sql_query == original_sql
+    assert not deterministic.contains_data_generation
+
+
 def test_qualify_compiler_child_replacement(qualify_base):
     qualified = deepcopy(
         qualify_base.filter((row_number().over(Window.order_by("a")) == 1)._expression)
@@ -526,6 +553,104 @@ def test_dataframe_explicit_qualify(qualify_base, simplifier):
         .sql
     )
     assert sql.index("WHERE") < sql.index("QUALIFY")
+
+
+@pytest.mark.parametrize("simplifier", [False, True])
+@pytest.mark.parametrize("sql_projection", [False, True])
+@pytest.mark.parametrize("sql_condition", [False, True])
+def test_explicit_qualify_projection_query_block(
+    qualify_base, simplifier, sql_projection, sql_condition
+):
+    sql_session = qualify_base._session
+    sql_session.sql_simplifier_enabled = simplifier
+    base = DataFrame(
+        sql_session, qualify_base if simplifier else qualify_base.snowflake_plan
+    )
+    window = (
+        sql_expr("row_number() over (order by a)")
+        if sql_projection
+        else row_number().over(Window.order_by("a"))
+    )
+    projected = base.select("a", window.alias("rn"), _emit_ast=False)
+    condition = "rn = 1" if sql_condition else col("rn") == 1
+    result = projected.qualify(condition, _emit_ast=False)
+    sql = Utils.normalize_sql(result._plan.queries[-1].sql)
+    assert sql.startswith(Utils.normalize_sql(projected._plan.queries[-1].sql))
+    assert sql.count("SELECT") == projected._plan.queries[-1].sql.count("SELECT")
+    assert result._select_statement.qualify is not None
+    assert projected._plan.queries[-1].sql.count("QUALIFY") == 0
+    # Ordinary filtering remains a separate WHERE block.
+    ordinary = Utils.normalize_sql(
+        projected.filter(col("rn") == 1, _emit_ast=False)._plan.queries[-1].sql
+    )
+    assert "WHERE" in ordinary and "QUALIFY" not in ordinary
+
+
+@pytest.mark.parametrize("simplifier", [False, True])
+def test_explicit_qualify_shadowed_projection_boundary(qualify_base, simplifier):
+    sql_session = qualify_base._session
+    sql_session.sql_simplifier_enabled = simplifier
+    base = DataFrame(
+        sql_session, qualify_base if simplifier else qualify_base.snowflake_plan
+    )
+    base._plan._metadata = PlanMetadata(
+        attributes=qualify_base.column_states.projection, quoted_identifiers=None
+    )
+    projected = base.select(
+        "a", row_number().over(Window.order_by("a")).alias("b"), _emit_ast=False
+    )
+    for condition in (col("b") == 1, "b = 1"):
+        result = projected.qualify(condition, _emit_ast=False)
+        sql = Utils.normalize_sql(result._plan.queries[-1].sql)
+        assert sql.startswith("SELECT * FROM (")
+        assert Utils.normalize_sql(projected._plan.queries[-1].sql) in sql
+
+
+@pytest.mark.parametrize("logical_child", [False, True])
+def test_explicit_qualify_rebuilt_projection_metadata(qualify_base, logical_child):
+    sql_session = qualify_base._session
+    sql_session.sql_simplifier_enabled = False
+    base = DataFrame(sql_session, qualify_base.snowflake_plan)
+    projected = base.select(
+        "a", row_number().over(Window.order_by("a")).alias("rn"), _emit_ast=False
+    )
+    if logical_child:
+        projected._plan.source_plan = Project(
+            projected._plan.source_plan.project_list, qualify_base.from_
+        )
+    original_sql = projected._plan.queries[-1].sql
+    original_complexity = projected._plan.cumulative_node_complexity
+    projected._plan.df_ast_ids = [10, 20]
+    projected._plan.df_trace_nodes = [mock.Mock()]
+    result = projected.qualify(col("rn") == 1, _emit_ast=False)
+    assert result._plan.df_ast_ids == [10, 20]
+    assert result._plan.df_ast_ids is not projected._plan.df_ast_ids
+    assert result._plan.df_trace_nodes == projected._plan.df_trace_nodes
+    assert result._plan.df_trace_nodes is not projected._plan.df_trace_nodes
+    assert result._select_statement.api_calls[:-1] == projected._plan.api_calls
+    assert projected._plan.queries[-1].sql == original_sql
+    assert projected._plan.cumulative_node_complexity == original_complexity
+
+
+@pytest.mark.parametrize("boundary", ["limit", "distinct", "qualify"])
+def test_explicit_qualify_projection_preserves_boundaries(qualify_base, boundary):
+    projected = qualify_base.select(
+        [
+            col("a")._expression,
+            row_number().over(Window.order_by("a")).alias("rn")._expression,
+        ]
+    )
+    condition = (col("rn") == 1)._expression
+    if boundary == "limit":
+        projected = projected.limit(1)
+    elif boundary == "distinct":
+        projected = projected.distinct()
+    else:
+        projected = projected.filter(
+            condition, is_qualify=True, qualify_on_projection=True
+        )
+    result = projected.filter(condition, is_qualify=True, qualify_on_projection=True)
+    assert result.from_ is projected
 
 
 @pytest.mark.parametrize("simplifier", [False, True])

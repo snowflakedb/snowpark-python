@@ -1530,6 +1530,173 @@ def test_explicit_qualify_without_window(session, condition):
         df.qualify(condition).collect()
 
 
+@pytest.mark.parametrize("sql_condition", [False, True])
+@pytest.mark.parametrize("sql_projection", [False, True])
+def test_explicit_qualify_projected_window(
+    session, sql_condition, sql_projection, local_testing_mode
+):
+    if local_testing_mode and (sql_condition or sql_projection):
+        pytest.skip("SQL expressions are not supported in local testing")
+    from snowflake.snowpark.functions import sql_expr
+
+    df = session.create_dataframe([1, 2, 3], ["x"])
+    window = (
+        sql_expr("row_number() over (order by x)")
+        if sql_projection
+        else row_number().over(Window.order_by("x"))
+    )
+    projected = df.select("x", window.alias("rn"))
+    condition = "rn = 2" if sql_condition else col("rn") == 2
+    Utils.check_answer(projected.qualify(condition), [Row(2, 2)])
+    # The SELECT window satisfies QUALIFY even when not referenced by its predicate.
+    condition = "x = 2" if sql_condition else col("x") == 2
+    Utils.check_answer(projected.qualify(condition), [Row(2, 2)])
+    # New structured windows still see the completed projection as their input.
+    Utils.check_answer(
+        projected.qualify(row_number().over(Window.order_by(col("rn").desc())) == 1),
+        [Row(3, 3)],
+    )
+    if not local_testing_mode:
+        Utils.check_answer(
+            projected.qualify("rn = 2 AND row_number() over (order by x) = 2"),
+            [Row(2, 2)],
+        )
+
+
+@pytest.mark.parametrize("sql_condition", [False, True])
+@pytest.mark.parametrize("sql_projection", [False, True])
+def test_explicit_qualify_shadowed_projection(
+    session, sql_condition, sql_projection, local_testing_mode
+):
+    if local_testing_mode and (sql_condition or sql_projection):
+        pytest.skip("SQL expressions are not supported in local testing")
+    from snowflake.snowpark.functions import sql_expr
+
+    df = session.create_dataframe([(10, 1), (20, 2), (30, 3)], ["rn", "x"])
+    window = (
+        sql_expr("row_number() over (order by x)")
+        if sql_projection
+        else row_number().over(Window.order_by("x"))
+    )
+    projected = df.select("x", window.alias("rn"))
+    condition = "rn = 2" if sql_condition else col("rn") == 2
+    Utils.check_answer(projected.qualify(condition), [Row(2, 2)])
+    # A changed non-window output must also be read after the projection.
+    changed = df.select((lit(4) - col("x")).alias("x"), window.alias("rn"))
+    changed_condition = (
+        "x = 1 AND rn = 3" if sql_condition else (col("x") == 1) & (col("rn") == 3)
+    )
+    Utils.check_answer(changed.qualify(changed_condition), [Row(1, 3)])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL expressions are not supported in local testing",
+)
+def test_explicit_qualify_opaque_projection_scope(session):
+    from snowflake.snowpark.functions import sql_expr
+
+    df = session.create_dataframe([1, 2, 3], ["x"])
+    projected = df.select(sql_expr("4 - x").alias("x"))
+    Utils.check_answer(
+        projected.qualify("row_number() over (order by x) = 1"), [Row(1)]
+    )
+
+
+@pytest.mark.parametrize("sql_condition", [False, True])
+def test_explicit_qualify_mixed_projected_windows(
+    session, sql_condition, local_testing_mode
+):
+    if local_testing_mode and sql_condition:
+        pytest.skip("SQL expressions are not supported in local testing")
+    df = session.create_dataframe([1, 2, 3], ["x"])
+    projected = df.select(
+        "x", row_number().over(Window.order_by(col("x").desc())).alias("rn")
+    )
+    condition = (
+        "rn = 1 AND row_number() over (order by rn) = 1"
+        if sql_condition
+        else (col("rn") == 1) & (row_number().over(Window.order_by("rn")) == 1)
+    )
+    if sql_condition:
+        # Opaque predicates use native SQL alias semantics in the shared block.
+        with pytest.raises(SnowparkSQLException, match="nested inside another window"):
+            projected.qualify(condition).collect()
+    else:
+        Utils.check_answer(projected.qualify(condition), [Row(3, 1)])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL expressions are not supported in local testing",
+)
+def test_explicit_qualify_projection_order_and_bindings(session):
+    df = session.sql("select column1 as x from values (?), (?), (?)", params=[1, 2, 3])
+    projected = df.select("x", row_number().over(Window.order_by("x")).alias("rn"))
+    # Materialize cached SQL/schema before building the filter.
+    original_queries = projected.queries
+    original_schema = projected.schema
+    result = projected.qualify("rn > 1").sort(col("x").desc())
+    assert result.collect() == [Row(3, 3), Row(2, 2)]
+    assert projected.queries == original_queries
+    assert projected.schema == original_schema == result.schema
+    # Opaque predicates follow native SQL input visibility in a shared SELECT.
+    Utils.check_answer(
+        df.select(row_number().over(Window.order_by("x")).alias("rn")).qualify("x = 2"),
+        [Row(2)],
+    )
+
+
+@pytest.mark.parametrize("method", ["filter", "where", "qualify"])
+def test_qualify_mixed_sql_and_structured_scope(session, method, local_testing_mode):
+    if local_testing_mode:
+        pytest.skip("SQL expressions are not supported in local testing")
+    from snowflake.snowpark.functions import sql_expr
+
+    df = session.create_dataframe([1, 2, 3], ["x"])
+    first = row_number().over(Window.order_by("x")) == 1
+    Utils.check_answer(getattr(df, method)(first & sql_expr("x > 1")), [])
+    projected = df.select(
+        "x", row_number().over(Window.order_by(col("x").desc())).alias("rn")
+    )
+    Utils.check_answer(
+        getattr(projected, method)(
+            (row_number().over(Window.order_by("rn")) == 1) & sql_expr("rn = 1")
+        ),
+        [Row(3, 1)],
+    )
+
+
+@pytest.mark.parametrize("method", ["filter", "where", "qualify"])
+def test_qualify_bound_columns_and_repeated_projection(session, method):
+    df = session.create_dataframe([(1, 30), (2, 20), (3, 10)], ["x", "y"])
+    projected = df.select(
+        col("x").alias("key"), row_number().over(Window.order_by("y")).alias("rn")
+    )
+    first = row_number().over(Window.order_by(projected["rn"])) == 1
+    qualified = getattr(projected, method)(first)
+    Utils.check_answer(qualified, [Row(3, 1)])
+    Utils.check_answer(
+        getattr(qualified.select("*"), method)(first).select("key"), [Row(3)]
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL expressions are not supported in local testing",
+)
+def test_explicit_qualify_sql_boundaries(session):
+    df = session.create_dataframe([1, 1, 2, 3], ["x"])
+    second = "row_number() over (order by x) = 2"
+    Utils.check_answer(df.distinct().qualify(second), [Row(2)])
+    Utils.check_answer(df.qualify(second).distinct(), [Row(1)])
+    Utils.check_answer(df.sort("x").limit(2, offset=2).qualify(second), [Row(3)])
+    Utils.check_answer(df.limit(0).qualify(second), [])
+    Utils.check_answer(
+        df.qualify("row_number() over (order by x) > 2").qualify(second), [Row(3)]
+    )
+
+
 def test_explicit_qualify_incorrect_type(session):
     with pytest.raises(TypeError, match="'qualify' expected Column or str"):
         session.create_dataframe([1], ["x"]).qualify(1)

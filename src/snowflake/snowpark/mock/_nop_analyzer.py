@@ -51,10 +51,17 @@ class NopSelectStatement(MockSelectStatement):
         return self._make_nop_select_statement_copy(super().select(cols))
 
     def filter(
-        self, col: Expression, is_qualify: Optional[bool] = None
+        self,
+        col: Expression,
+        is_qualify: Optional[bool] = None,
+        qualify_on_projection: bool = False,
     ) -> "MockSelectStatement":
         return self._make_nop_select_statement_copy(
-            super().filter(col, is_qualify=is_qualify)
+            super().filter(
+                col,
+                is_qualify=is_qualify,
+                qualify_on_projection=qualify_on_projection,
+            )
         )
 
     def sort(self, cols: List[Expression]) -> "MockSelectStatement":

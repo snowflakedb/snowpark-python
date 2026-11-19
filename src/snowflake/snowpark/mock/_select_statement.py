@@ -411,7 +411,10 @@ class MockSelectStatement(MockSelectable):
         return new
 
     def filter(
-        self, col: Expression, is_qualify: Optional[bool] = None
+        self,
+        col: Expression,
+        is_qualify: Optional[bool] = None,
+        qualify_on_projection: bool = False,
     ) -> "MockSelectStatement":
         if is_qualify is None:
             is_qualify = has_window_function_exp([col])

@@ -1744,7 +1744,10 @@ class SelectStatement(Selectable):
         return new
 
     def filter(
-        self, col: Expression, is_qualify: Optional[bool] = None
+        self,
+        col: Expression,
+        is_qualify: Optional[bool] = None,
+        qualify_on_projection: bool = False,
     ) -> "SelectStatement":
         self._session._retrieve_aggregation_function_list()
         if is_qualify is None:
@@ -1754,7 +1757,40 @@ class SelectStatement(Selectable):
             can_be_flattened = (
                 not self.flatten_disabled
                 and self.qualify is None
-                and _can_qualify_flatten(self, dependent_columns)
+                and (
+                    _can_qualify_flatten(self, dependent_columns)
+                    or (
+                        qualify_on_projection
+                        # Explicit QUALIFY may use a window from SELECT rather
+                        # than from its predicate. Do not parse opaque SQL text.
+                        and not has_window_function_exp([col])
+                        # SQL resolves input names before SELECT aliases in QUALIFY.
+                        # Keep shadowed aliases in their own query block.
+                        and not self.column_states.has_changed_columns
+                        and (
+                            dependent_columns is COLUMN_DEPENDENCY_ALL
+                            or (
+                                dependent_columns != COLUMN_DEPENDENCY_DOLLAR
+                                and all(
+                                    column in self.column_states
+                                    and self.column_states[column].change_state
+                                    != ColumnChangeState.DROPPED
+                                    for column in dependent_columns
+                                )
+                            )
+                        )
+                        and not self.distinct_
+                        and self.limit_ is None
+                        and self.offset is None
+                        and self.exclude_cols is None
+                        and self.ilike_cols is None
+                        and (
+                            has_window_function_exp(self.projection)
+                            or derive_dependent_columns(*(self.projection or []))
+                            is COLUMN_DEPENDENCY_ALL
+                        )
+                    )
+                )
             )
         else:
             can_be_flattened = (

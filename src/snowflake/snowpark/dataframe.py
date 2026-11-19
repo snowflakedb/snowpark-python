@@ -2443,9 +2443,20 @@ class DataFrame:
         order as :meth:`filter`; to filter rows before computing a window,
         call :meth:`filter` before :meth:`qualify`.
 
-        Snowflake requires a QUALIFY clause to reference a window function; a
-        condition without one fails when the query is executed with an error
-        like ``found QUALIFY clause but no window function``. Local
+        A condition can reference a window alias from the immediately preceding
+        SELECT, for example ``df.select("x", row_number().over(window).alias("rn"))
+        .qualify("rn = 1")``. A predicate without a structured window shares that
+        SELECT's query block when it contains a window or SQL text, unless
+        DISTINCT, LIMIT/OFFSET, a shadowed input column, or another filter
+        requires a separate block. SQL text is not parsed and uses native SQL
+        name resolution in that block, including visibility of unselected input
+        columns. A SQL-text window over a projected window alias can therefore
+        fail as a nested window; use a structured Column predicate for that case.
+        Snowflake validates SQL-text window functions.
+
+        Snowflake requires a window function in the SELECT list or QUALIFY
+        predicate of the same query block. Without one, execution fails with
+        ``found QUALIFY clause but no window function``. Local
         testing does not support SQL text conditions, and may not raise this
         error for conditions without window functions.
 
@@ -2483,13 +2494,16 @@ class DataFrame:
             else:
                 stmt = _ast_stmt
 
-        return self._filter_impl(qualify_col_expr, True, stmt)
+        return self._filter_impl(
+            qualify_col_expr, True, stmt, qualify_on_projection=True
+        )
 
     def _filter_impl(
         self,
         filter_col_expr: Expression,
         is_qualify: bool,
         stmt: Optional[proto.Bind],
+        qualify_on_projection: bool = False,
     ) -> "DataFrame":
         """Shared implementation of :meth:`filter` and :meth:`qualify`."""
 
@@ -2527,7 +2541,40 @@ class DataFrame:
 
         if base._select_statement:
             filtered_plan = base._select_statement.filter(
-                filter_col_expr, is_qualify=is_qualify
+                filter_col_expr,
+                is_qualify=is_qualify,
+                qualify_on_projection=qualify_on_projection,
+            )
+        elif (
+            qualify_on_projection
+            and not has_window_function_exp([filter_col_expr])
+            and isinstance(base._plan.source_plan, Project)
+            and base._plan.source_plan.ilike_pattern is None
+        ):
+            # Keep SELECT windows in the QUALIFY query block even when the
+            # general SQL simplifier is disabled. SQL text is validated by Snowflake.
+            projection = base._plan.source_plan
+            projected = SelectStatement(
+                from_=SelectSnowflakePlan(
+                    projection.child, analyzer=self._session._analyzer
+                ),
+                analyzer=self._session._analyzer,
+            ).select(projection.project_list)
+            # Rebuilding from the child must retain the SELECT's diagnostics
+            # and API history, not just the child's metadata.
+            projected.api_calls = base._plan.api_calls.copy()
+            projected.df_ast_ids = (
+                base._plan.df_ast_ids.copy()
+                if base._plan.df_ast_ids is not None
+                else None
+            )
+            projected.df_trace_nodes = (
+                base._plan.df_trace_nodes.copy()
+                if base._plan.df_trace_nodes is not None
+                else None
+            )
+            filtered_plan = projected.filter(
+                filter_col_expr, is_qualify=True, qualify_on_projection=True
             )
         else:
             filtered_plan = Filter(
