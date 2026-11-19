@@ -2433,21 +2433,30 @@ class DataFrameReader:
             "external_access_integration", None
         )
         imports = udtf_configs.get("imports", None)
+        # JDBC copies the list before adding the required Snowpark package.
         packages = udtf_configs.get("packages", ["com.snowflake:snowpark:latest"])
         java_version = udtf_configs.get("java_version", 17)
         secret = udtf_configs.get("secret", None)
-
-        telemetry_json_string = defaultdict()
-        telemetry_json_string["function_name"] = DATA_SOURCE_JDBC_SIGNATURE
-        telemetry_json_string["ingestion_mode"] = "udtf_ingestion"
-        telemetry_json_string["dbms_type"] = get_jdbc_dbms(url)
-        telemetry_json_string["imports"] = udtf_configs["imports"]
-        statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE_JDBC: "1"}
 
         if external_access_integration is None or imports is None or secret is None:
             raise ValueError(
                 "external_access_integration, secret and imports must be specified in udtf configs"
             )
+        if (column is not None or num_partitions is not None) and (
+            isinstance(num_partitions, bool)
+            or not isinstance(num_partitions, int)
+            or num_partitions < 1
+        ):
+            raise ValueError(
+                f"num_partitions must be a positive integer, got {num_partitions!r}"
+            )
+
+        telemetry_json_string = defaultdict()
+        telemetry_json_string["function_name"] = DATA_SOURCE_JDBC_SIGNATURE
+        telemetry_json_string["ingestion_mode"] = "udtf_ingestion"
+        telemetry_json_string["dbms_type"] = get_jdbc_dbms(url)
+        telemetry_json_string["imports"] = imports
+        statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE_JDBC: "1"}
 
         start_time = time.perf_counter()
         logger.debug(f"ingestion start at: {start_time}")
