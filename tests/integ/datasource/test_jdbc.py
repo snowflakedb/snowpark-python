@@ -559,3 +559,35 @@ def test_postgres_leaves_only_the_read_udtf(session, postgres_udtf_configs):
     )
     assert [r[0] for r in df.collect()] == [1]
     assert len(temp_functions() - before) == 1
+    # Both objects must outlive setup and remain usable by repeated lazy actions.
+    assert [r[0] for r in df.collect()] == [1]
+
+
+def test_postgres_setup_failure_drops_read_objects(session, postgres_udtf_configs):
+    def objects():
+        return (
+            {
+                row["name"]
+                for row in session.sql(
+                    "show user functions like 'SNOWPARK_TEMP_FUNCTION%'"
+                ).collect()
+            },
+            {
+                row["name"]
+                for row in session.sql(
+                    "show tables like 'SNOWPARK_TEMP_TABLE%'"
+                ).collect()
+            },
+        )
+
+    before = objects()
+    with patch.object(
+        JDBC, "to_result_snowpark_df", side_effect=RuntimeError("setup failure")
+    ):
+        with pytest.raises(RuntimeError, match="setup failure"):
+            session.read.jdbc(
+                url=POSTGRES_URL,
+                udtf_configs=postgres_udtf_configs,
+                query="select 1 as a",
+            )
+    assert objects() == before

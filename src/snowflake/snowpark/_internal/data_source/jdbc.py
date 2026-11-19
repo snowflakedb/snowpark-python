@@ -206,6 +206,7 @@ class JDBC:
         self._temp_function_type = get_temp_type_for_object(
             self.session._use_scoped_temp_objects, True
         )
+        self._read_udtf_name = None
         self._infer_schema_successful = True
         self.secret_detector()
 
@@ -484,12 +485,33 @@ class JDBC:
             select result.* from {partition_table}, table({jdbc_ingestion_name}({PARTITION_TABLE_COLUMN_NAME}::VARCHAR)) AS result
             """
 
-        self.session.sql(jdbc_udtf_registration, _emit_ast=self._emit_ast).collect()
-        return BaseDriver.to_result_snowpark_df_udtf(
-            self.session.sql(jdbc_udtf, _emit_ast=self._emit_ast),
-            self.schema,
-            _emit_ast=self._emit_ast,
-        )
+        try:
+            self.session.sql(jdbc_udtf_registration, _emit_ast=self._emit_ast).collect()
+            self._read_udtf_name = jdbc_ingestion_name
+            return BaseDriver.to_result_snowpark_df_udtf(
+                self.session.sql(jdbc_udtf, _emit_ast=self._emit_ast),
+                self.schema,
+                _emit_ast=self._emit_ast,
+            )
+        except Exception:
+            self.cleanup_read_udtf()
+            raise
+
+    def cleanup_read_udtf(self) -> None:
+        """Best-effort drop of the read UDTF when the read could not be set up.
+
+        Not called once a lazy DataFrame that references the UDTF is in use.
+        """
+        if self._read_udtf_name is not None:
+            try:
+                self.session.sql(
+                    f"DROP FUNCTION IF EXISTS {self._read_udtf_name}(VARCHAR)",
+                    _emit_ast=False,
+                ).collect()
+            except Exception:
+                logger.debug("Failed to drop JDBC read function", exc_info=True)
+            finally:
+                self._read_udtf_name = None
 
     def generate_create_connection(self):
         user_properties_overwrite = ""
