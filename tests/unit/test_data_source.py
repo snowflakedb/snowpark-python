@@ -4,6 +4,9 @@
 
 import pytest
 import re
+import shutil
+import subprocess
+from pathlib import Path
 from unittest.mock import Mock, patch
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
@@ -325,3 +328,117 @@ def test_jdbc_infer_schema_sql_unchanged_without_special_chars(
     assert literal.startswith("'SELECT ") and literal.endswith(" WHERE 1 = 0'")
     assert "\\" not in literal and "''" not in literal
     assert _strip_infer_schema_wrapper(literal[1:-1]) == table_or_query
+
+
+@pytest.fixture(scope="module", params=["read", "infer"])
+def compiled_jdbc_handler(request, tmp_path_factory):
+    """Execute the generated handlers against JDBC proxies, without Snowflake."""
+    if not shutil.which("javac") or not shutil.which("java"):
+        pytest.skip("JDK required to execute generated JDBC handlers")
+    directory = tmp_path_factory.mktemp(f"jdbc_{request.param}")
+    with patch.object(
+        JDBC,
+        "generate_create_connection",
+        return_value="return JdbcHandlerHarness.connect();",
+    ):
+        if request.param == "read":
+            ddl = _render_jdbc_ddls()
+        else:
+            client, _ = _render_jdbc_infer_schema_sql("SELECT 1")
+            ddl = client.session.sql.call_args_list[0].args[0]
+    source = ddl.split("$$")[1]
+    source = re.sub(r"import com\.snowflake\.[^;]+;", "", source)
+    (directory / "DataLoader.java").write_text(source)
+    harness = (
+        Path(__file__).parents[1]
+        / "resources/test_data_source_dir/JdbcHandlerHarness.java"
+    )
+    shutil.copy2(harness, directory)
+    result = subprocess.run(
+        ["javac", str(directory / "DataLoader.java"), str(directory / harness.name)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    return directory, request.param
+
+
+@pytest.mark.parametrize("failure", ["", "close"])
+def test_jdbc_handler_exhaustion_and_close_errors(compiled_jdbc_handler, failure):
+    directory, handler = compiled_jdbc_handler
+    result = subprocess.run(
+        [
+            "java",
+            "-cp",
+            str(directory),
+            "JdbcHandlerHarness",
+            handler,
+            "exhaust",
+            failure,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "scenario", ["repeat", "partial", "end", "interleaved", "interleaved-error"]
+)
+def test_jdbc_handler_lifecycle(compiled_jdbc_handler, scenario):
+    directory, handler = compiled_jdbc_handler
+    if handler == "infer" and scenario in (
+        "repeat",
+        "interleaved",
+        "interleaved-error",
+    ):
+        pytest.skip("Inference receives a single input query")
+    result = subprocess.run(
+        ["java", "-cp", str(directory), "JdbcHandlerHarness", handler, scenario],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "createStatement",
+        "setQueryTimeout",
+        "setFetchSize",
+        "executeQuery",
+        "next",
+        "getString",
+        "getMetaData",
+        "getColumnName",
+        "runtime",
+    ],
+)
+def test_jdbc_handler_error_cleanup(compiled_jdbc_handler, failure):
+    directory, handler = compiled_jdbc_handler
+    if (
+        handler == "read" and failure in ("getMetaData", "getColumnName", "runtime")
+    ) or (
+        handler == "infer"
+        and failure in ("next", "getString", "setQueryTimeout", "setFetchSize")
+    ):
+        pytest.skip("Failure boundary belongs to the other handler")
+    result = subprocess.run(
+        [
+            "java",
+            "-cp",
+            str(directory),
+            "JdbcHandlerHarness",
+            handler,
+            "error",
+            failure,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr

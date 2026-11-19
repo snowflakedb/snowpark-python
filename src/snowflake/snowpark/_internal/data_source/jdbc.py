@@ -245,6 +245,9 @@ class JDBC:
 
             public class DataLoader{{
                 private final Connection conn;
+                private Statement statement;
+                private ResultSet resultSet;
+                private boolean closed;
 
                 private static Connection createConnection() {{
                     try {{
@@ -264,7 +267,9 @@ class JDBC:
                 public Stream<OutputRow> process(String query) {{
                     try {{
                         Statement stmt = this.conn.createStatement();
+                        this.statement = stmt;
                         ResultSet rs = stmt.executeQuery(query);
+                        this.resultSet = rs;
                         ResultSetMetaData meta = rs.getMetaData();
                         int columnCount = meta.getColumnCount();
                         final AtomicInteger counter = new AtomicInteger(1);
@@ -285,17 +290,15 @@ class JDBC:
                                     row.nullable = meta.isNullable(currentColumnIndex) == ResultSetMetaData.columnNullable;
                                     return row;
                                 }} else {{
-                                    rs.close();
-                                    stmt.close();
-                                    this.conn.close();
+                                    closeConnectionQuietly();
                                     return null;
                                 }}
-                            }} catch (SQLException e) {{
+                            }} catch (Exception e) {{
                                 closeConnectionQuietly();
                                 throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
                             }}
                         }}).takeWhile(Objects::nonNull);
-                        return resultStream;
+                        return resultStream.onClose(this::closeConnectionQuietly);
                     }} catch (Exception e) {{
                         closeConnectionQuietly();
                         throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
@@ -303,15 +306,23 @@ class JDBC:
 
                 }}
 
-                // Closing the connection also closes its statements and result sets.
                 private void closeConnectionQuietly() {{
-                    try {{
-                        this.conn.close();
-                    }} catch (Exception ignored) {{
+                    if (closed) {{
+                        return;
+                    }}
+                    closed = true;
+                    for (AutoCloseable resource : new AutoCloseable[] {{resultSet, statement, conn}}) {{
+                        if (resource != null) {{
+                            try {{
+                                resource.close();
+                            }} catch (Exception ignored) {{
+                            }}
+                        }}
                     }}
                 }}
 
                 public Stream<OutputRow> endPartition() {{
+                    closeConnectionQuietly();
                     return Stream.empty();
                 }}
             }}
@@ -411,8 +422,9 @@ class JDBC:
             public class DataLoader{{
             // Snowflake may call process() several times on one handler instance (one call
             // per partition row it routes here), so the connection is shared across calls,
-            // opened on first use and closed only in endPartition(). Each call owns and
-            // closes its own Statement and ResultSet.
+            // opened on first use. Each call owns its Statement and ResultSet. A failed
+            // or explicitly closed stream releases the connection only when no other
+            // stream is using it; endPartition() also cleans up abandoned streams.
             private Connection conn;
             private final List<AutoCloseable> openResources = new ArrayList<>();
 
@@ -439,6 +451,16 @@ class JDBC:
                 try {{
                     resource.close();
                 }} catch (Exception ignored) {{
+                }}
+            }}
+
+            private void closeStream(Statement stmt, ResultSet rs) {{
+                closeQuietly(rs);
+                closeQuietly(stmt);
+                // Do not invalidate another process() stream on this handler.
+                if (openResources.isEmpty()) {{
+                    closeQuietly(this.conn);
+                    this.conn = null;
                 }}
             }}
 
@@ -479,14 +501,14 @@ class JDBC:
                             return null;
                         }}
                     }} catch (Exception e) {{
-                        closeQuietly(rsRef[0]);
-                        closeQuietly(stmtRef[0]);
+                        closeStream(stmtRef[0], rsRef[0]);
                         // Exception rather than SQLException: this block now also covers
                         // connection and statement setup, whose failures are not always
                         // SQLException.
                         throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
                     }}
-                }}).takeWhile(Objects::nonNull);
+                }}).takeWhile(Objects::nonNull)
+                  .onClose(() -> closeStream(stmtRef[0], rsRef[0]));
             }}
 
             public Stream<OutputRow> endPartition() {{

@@ -415,12 +415,15 @@ def test_postgres_invalid_query_reports_ingestion_error(session, postgres_udtf_c
     guards the in-lambda handler catching ``Exception`` rather than only
     ``SQLException``.
     """
+    # A predicate is used only during ingestion, so inference must succeed first.
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query="SELECT 1 AS id",
+        predicates=["missing_ingestion_column = 1"],
+    )
     with pytest.raises(SnowparkSQLException, match="Ingestion error: "):
-        session.read.jdbc(
-            url=POSTGRES_URL,
-            udtf_configs=postgres_udtf_configs,
-            query="select no_such_column from no_such_table",
-        ).collect()
+        df.collect()
 
 
 def test_connect_postgres(session, postgres_udtf_configs):

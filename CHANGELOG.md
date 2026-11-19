@@ -19,7 +19,7 @@
 - Fixed a bug where `DataFrameReader.table` failed when a time travel reader option was set to `None`, e.g. `option("time_travel_mode", None)` together with `option("as-of-timestamp", ...)`. Time travel options set to `None` are now treated as unset.
 - Fixed a bug where `DataFrameReader.documents()` (Private Preview) reads with a schema refused `.jpg`, `.jpeg`, `.png`, `.gif` and `.webp` images with a "file type is not supported" error. Each image is now sent to `AI_COMPLETE` whole, in one call.
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` that contained string literals, backslashes or newlines failed with a SQL compilation error during schema inference.
-- Fixed a bug in `DataFrameReader.jdbc` where a read with many partitions failed with `This connection has been closed`, and where JDBC connections were not closed when ingestion failed.
+- Fixed a bug in `DataFrameReader.jdbc` where a read with many partitions failed with `This connection has been closed`, and where JDBC connections were not closed when ingestion failed or a stream was closed before exhaustion.
 
 ### Snowpark Local Testing Updates
 
