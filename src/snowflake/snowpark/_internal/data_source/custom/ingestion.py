@@ -2,9 +2,18 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import functools
+import logging
+import os
 import pickle
+import re
+import site
+import sys
+import sysconfig
+import threading
 import time
+import types
 from collections import defaultdict
+from contextlib import contextmanager
 from io import BytesIO
 from typing import (
     TYPE_CHECKING,
@@ -13,6 +22,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Sequence,
     Tuple,
     Type,
     Union,
@@ -20,10 +30,14 @@ from typing import (
 
 import cloudpickle
 
+import snowflake.snowpark.datasource as datasource_module
+from snowflake.snowpark._internal.data_source.custom import conversion
+from snowflake.snowpark._internal.data_source.custom import options as options_module
 from snowflake.snowpark._internal.data_source.custom.conversion import (
     FieldMatcher,
     arrow_table_to_parquet_bytesio,
     arrow_to_staged_table,
+    cast_udtf_output_columns,
     check_not_null,
     convert_row,
     is_arrow_data,
@@ -32,6 +46,8 @@ from snowflake.snowpark._internal.data_source.custom.conversion import (
     rows_to_arrow_table,
     staging_schema,
     to_row_tuple,
+    udtf_output_schema,
+    udtf_row_converters,
     validate_schema,
     value_converters,
 )
@@ -39,6 +55,7 @@ from snowflake.snowpark._internal.data_source.custom.options import (
     EngineOptions,
     split_options,
 )
+from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark._internal.data_source.utils import (
     create_data_source_table_and_stage,
     local_ingestion,
@@ -50,15 +67,178 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.datasource import DataSourceLike
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
-from snowflake.snowpark.types import StructType
+from snowflake.snowpark.types import BinaryType, LongType, StructField, StructType
 
 if TYPE_CHECKING:
     import pyarrow
 
     import snowflake.snowpark
 
+logger = logging.getLogger(__name__)
+
 DATA_SOURCE_CUSTOM_SIGNATURE = "DataFrameReader.custom_data_source"
 STATEMENT_PARAMS_DATA_SOURCE_CUSTOM = "SNOWPARK_PYTHON_DATASOURCE_CUSTOM"
+DATA_SOURCE_CUSTOM_SQL_COMMENT = (
+    f"/* Python:snowflake.snowpark.{DATA_SOURCE_CUSTOM_SIGNATURE} */"
+)
+_PARTITION_IDX_COLUMN = "SNOWPARK_DATA_SOURCE_PARTITION_IDX"
+_PARTITION_COLUMN = "SNOWPARK_DATA_SOURCE_PARTITION"
+_SNOWPARK_PACKAGE = "snowflake-snowpark-python"
+
+# Modules pickled by value in server-side ingestion, so that the UDTF does not depend on
+# the Snowpark version available in Snowflake having them. options is included because readers
+# commonly keep DataSource.options, a CaseInsensitiveDict.
+_PICKLE_BY_VALUE_MODULES = (datasource_module, conversion, options_module)
+_pickle_by_value_lock = threading.Lock()
+# bounds of the search for local modules in the state of the reader and partitions
+_MAX_STATE_DEPTH = 20
+_MAX_STATE_VALUES = 100_000
+
+
+def _installed_package_paths() -> List[str]:
+    paths = set()
+    if hasattr(site, "getsitepackages"):  # not available in some virtualenvs
+        paths.update(site.getsitepackages())
+    if hasattr(site, "getusersitepackages"):
+        paths.add(site.getusersitepackages())
+    paths.update(
+        sysconfig.get_paths()[key]
+        for key in ("stdlib", "platstdlib", "purelib", "platlib")
+    )
+    return [os.path.realpath(p) for p in paths if p]
+
+
+def _is_local_module(
+    module: Optional[types.ModuleType], installed_paths: List[str]
+) -> bool:
+    if (
+        module is None
+        or module.__name__ in ("__main__", "builtins")
+        or module.__name__.split(".")[0] == "snowflake"
+    ):
+        return False
+    path = getattr(module, "__file__", None)
+    if path is None:
+        return False
+    path = os.path.realpath(path)
+    return not any(path == p or path.startswith(p + os.sep) for p in installed_paths)
+
+
+def _imported_paths(imports: Optional[Sequence[Any]]) -> List[str]:
+    """The real paths of the local files and directories in the ``snowpark.imports`` option."""
+    paths = []
+    for entry in imports or []:
+        if isinstance(entry, (tuple, list)):  # (path, import_path)
+            entry = entry[0]
+        if isinstance(entry, (str, os.PathLike)) and not str(entry).startswith("@"):
+            paths.append(os.path.realpath(entry))
+    return paths
+
+
+def _local_modules_of(
+    objects: List[Any], imports: Optional[Sequence[Any]] = None
+) -> List[types.ModuleType]:
+    """Returns the local (not installed) modules that define the classes of ``objects``, and the
+    local modules they use. They are pickled by value, so that the UDTF can unpickle the reader
+    and partitions without the user adding these modules to ``snowpark.imports``. The modules
+    that the user uploads with ``snowpark.imports`` are pickled by reference."""
+    # an installed package is not pickled by value, and neither is an uploaded module
+    installed_paths = _installed_package_paths() + _imported_paths(imports)
+    modules = {}
+    seen = set()
+    pending = []
+
+    def add(module: Optional[types.ModuleType]) -> None:
+        if module is None or module.__name__ in seen:
+            return
+        seen.add(module.__name__)
+        if module.__name__ == "__main__":
+            # cloudpickle already pickles __main__ by value, but the local modules it imports
+            # are pickled by value only if they are registered
+            pending.append(module)
+        elif _is_local_module(module, installed_paths):
+            modules[module.__name__] = module
+            pending.append(module)
+
+    visited = set()
+
+    def visit(value: Any, depth: int, is_root: bool = False) -> None:
+        # a local module can also be used only by a value that the reader holds
+        if (
+            depth > _MAX_STATE_DEPTH
+            or id(value) in visited
+            or len(visited) > _MAX_STATE_VALUES
+        ):
+            return
+        visited.add(id(value))
+        if isinstance(value, types.ModuleType):
+            add(value)
+        elif isinstance(value, (types.FunctionType, type)):
+            add(sys.modules.get(value.__module__))
+        elif isinstance(value, (list, tuple, set, frozenset)):
+            for item in list(value):
+                visit(item, depth + 1)
+        elif isinstance(value, dict):
+            for key, item in list(value.items()):
+                visit(key, depth + 1)
+                visit(item, depth + 1)
+        else:
+            module_name = type(value).__module__
+            add(sys.modules.get(module_name))
+            # don't walk into the state of objects from installed packages
+            if not (is_root or module_name in modules or module_name == "__main__"):
+                return
+            state = getattr(value, "__dict__", None)
+            if isinstance(state, dict):
+                visit(state, depth + 1)
+            for cls in type(value).__mro__:
+                for name in getattr(cls, "__slots__", ()):
+                    if isinstance(name, str) and hasattr(value, name):
+                        visit(getattr(value, name), depth + 1)
+
+    for obj in objects:
+        for cls in type(obj).__mro__:
+            add(sys.modules.get(cls.__module__))
+        visit(obj, 0, is_root=True)
+    # the functions and classes of a module are pickled by reference to the modules defining them
+    while pending:
+        for value in list(vars(pending.pop()).values()):
+            if isinstance(value, types.ModuleType):
+                add(value)
+            elif isinstance(value, (types.FunctionType, type)):
+                add(sys.modules.get(value.__module__))
+    return list(modules.values())
+
+
+@contextmanager
+def _pickle_by_value(extra_modules: Sequence[types.ModuleType] = ()):
+    if not all(
+        hasattr(cloudpickle, name)
+        for name in (
+            "list_registry_pickle_by_value",
+            "register_pickle_by_value",
+            "unregister_pickle_by_value",
+        )
+    ):
+        raise ImportError(
+            "Server-side reads of custom data sources require cloudpickle>=2.0, "
+            f"but cloudpickle {cloudpickle.__version__} is installed."
+        )
+    with _pickle_by_value_lock:
+        # don't unregister the modules the user registered themselves
+        registered = cloudpickle.list_registry_pickle_by_value()
+        modules = [
+            m
+            for m in list(_PICKLE_BY_VALUE_MODULES) + list(extra_modules)
+            if m.__name__ not in registered
+        ]
+        for module in modules:
+            cloudpickle.register_pickle_by_value(module)
+        try:
+            yield
+        finally:
+            for module in modules:
+                cloudpickle.unregister_pickle_by_value(module)
 
 
 def _dumps(obj: Any, description: str) -> bytes:
@@ -185,15 +365,31 @@ def read_custom_data_source(
 
     telemetry_json_string = defaultdict()
     telemetry_json_string["function_name"] = DATA_SOURCE_CUSTOM_SIGNATURE
-    telemetry_json_string["ingestion_mode"] = "local_ingestion"
+    telemetry_json_string["ingestion_mode"] = (
+        "udtf_ingestion" if engine_options.use_udtf_ingestion else "local_ingestion"
+    )
     telemetry_json_string["num_partitions"] = len(partitions)
     statement_params = {STATEMENT_PARAMS_DATA_SOURCE_CUSTOM: "1"}
 
     if isinstance(session._conn, MockServerConnection):
+        if engine_options.use_udtf_ingestion:
+            raise NotImplementedError(
+                "Server-side ingestion of custom data sources is not supported in local testing mode."
+            )
         return _mock_ingestion(session, reader, partitions, schema, _emit_ast)
 
     if not partitions:
         df = session.create_dataframe([], schema=schema, _emit_ast=_emit_ast)
+    elif engine_options.use_udtf_ingestion:
+        df = _udtf_ingestion(
+            session,
+            reader,
+            partitions,
+            schema,
+            engine_options,
+            statement_params,
+            _emit_ast=_emit_ast,
+        )
     else:
         df = _local_ingestion(
             session,
@@ -277,6 +473,144 @@ def _local_ingestion(
     )
     df = session.table(snowflake_table_name, _emit_ast=_emit_ast)
     return parse_semi_structured_columns(df, schema, _emit_ast)
+
+
+def _build_udtf_handler(pickled_reader: bytes, schema: StructType) -> type:
+    # The handler only references cloudpickle and the modules in _PICKLE_BY_VALUE_MODULES,
+    # so that it can be unpickled with any Snowpark version in Snowflake.
+    matcher = FieldMatcher(schema)
+    converters = udtf_row_converters(schema)
+
+    class CustomDataSourceIngestion:
+        def __init__(self) -> None:
+            try:
+                self._reader = cloudpickle.loads(pickled_reader)
+            except ModuleNotFoundError as exc:
+                # installed packages are pickled by reference, so they must be available in the UDTF
+                raise ModuleNotFoundError(
+                    f"{exc}. The custom data source reader uses the package '{exc.name}', which is "
+                    "not available in the UDTF. If it is an installed package, add it to the "
+                    "'snowpark.packages' option (with 'snowpark.artifact_repository' for packages "
+                    "from PyPI). If it is a local module, upload it with the 'snowpark.imports' "
+                    "option.",
+                    name=exc.name,
+                ) from exc
+
+        def process(self, partition_idx: int, partition: bytes):
+            try:
+                for row in normalize_items(
+                    self._reader.read(cloudpickle.loads(partition)), matcher
+                ):
+                    check_not_null(row, matcher)
+                    yield convert_row(row, converters)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Failed to read partition {partition_idx} of the custom data source: {exc!r}"
+                ) from exc
+
+    return CustomDataSourceIngestion
+
+
+def _resolve_udtf_packages(packages: Optional[List[str]]) -> List[str]:
+    packages = list(packages or [])
+    names = {
+        re.split(r"[\s<>=!~\[;]", p.strip(), maxsplit=1)[0].lower() for p in packages
+    }
+    required = [_SNOWPARK_PACKAGE]
+    packages.extend(p for p in required if p not in names)
+    return packages
+
+
+def _dumps_reader_and_partitions(
+    reader: Any, partitions: List[Any]
+) -> Tuple[bytes, List[List[Any]]]:
+    return (
+        _dumps(reader, "DataSourceReader"),
+        [
+            [idx, _dumps(partition, "InputPartition")]
+            for idx, partition in enumerate(partitions)
+        ],
+    )
+
+
+def _udtf_ingestion(
+    session: "snowflake.snowpark.Session",
+    reader: Any,
+    partitions: List[Any],
+    schema: StructType,
+    engine_options: EngineOptions,
+    statement_params: Dict[str, str],
+    _emit_ast: bool = False,
+) -> "snowflake.snowpark.DataFrame":
+    local_modules = _local_modules_of(
+        [reader] + list(partitions), engine_options.imports
+    )
+    try:
+        with _pickle_by_value(local_modules):
+            pickled_reader, partition_rows = _dumps_reader_and_partitions(
+                reader, partitions
+            )
+    except TypeError:
+        if not local_modules:
+            raise
+        # a module-level variable of a local module may not be picklable by value, for
+        # example a lock, so pickle the modules by reference, which requires uploading them
+        # with 'snowpark.imports'
+        logger.warning(
+            "Pickling the local modules %s by value failed, so they are pickled by reference. "
+            "Upload them with the 'snowpark.imports' option, so that they are available in the UDTF.",
+            [m.__name__ for m in local_modules],
+        )
+        local_modules = []
+        with _pickle_by_value(local_modules):
+            pickled_reader, partition_rows = _dumps_reader_and_partitions(
+                reader, partitions
+            )
+
+    partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        partition_rows,
+        schema=StructType(
+            [
+                StructField(_PARTITION_IDX_COLUMN, LongType(), False),
+                StructField(_PARTITION_COLUMN, BinaryType(), False),
+            ]
+        ),
+        _emit_ast=False,
+    ).write.save_as_table(
+        partitions_table,
+        table_type="temp",
+        statement_params=statement_params,
+        _emit_ast=False,
+    )
+
+    udtf_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    with _pickle_by_value(local_modules):
+        session.udtf.register(
+            _build_udtf_handler(pickled_reader, schema),
+            output_schema=udtf_output_schema(schema),
+            input_types=[LongType(), BinaryType()],
+            name=udtf_name,
+            is_permanent=False,
+            packages=_resolve_udtf_packages(engine_options.packages),
+            imports=engine_options.imports,
+            artifact_repository=engine_options.artifact_repository,
+            external_access_integrations=[engine_options.external_access_integration],
+            secrets=engine_options.secrets,
+            statement_params=statement_params,
+            _emit_ast=False,
+        )
+
+    columns = ", ".join(field.name for field in schema.fields)
+    query = (
+        f"SELECT {columns} FROM {partitions_table}, "
+        f"TABLE({udtf_name}({_PARTITION_IDX_COLUMN}, {_PARTITION_COLUMN}) "
+        f"OVER (PARTITION BY {_PARTITION_IDX_COLUMN})) {DATA_SOURCE_CUSTOM_SQL_COMMENT}"
+    )
+    df = cast_udtf_output_columns(
+        session.sql(query, _emit_ast=_emit_ast), schema, _emit_ast
+    )
+    return BaseDriver.keep_nullable_attributes(df, schema)
 
 
 def _mock_ingestion(

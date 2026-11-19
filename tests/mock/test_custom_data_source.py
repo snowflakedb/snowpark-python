@@ -71,8 +71,8 @@ def test_read_failure(session):
         session.read.format(RangeDataSource).option("fail", 1).load()
 
 
-def test_server_side_reads_are_not_supported(session):
-    with pytest.raises(NotImplementedError, match="server-side reads"):
+def test_unsupported_in_local_testing(session):
+    with pytest.raises(NotImplementedError, match="local testing"):
         session.read.format(RangeDataSource).option(
             "snowpark.external_access_integration", "EAI"
         ).load()
@@ -138,6 +138,7 @@ def test_mock_read_keeps_ast(ast_session):
 
 def test_semi_structured_projection_keeps_ast(ast_session):
     from snowflake.snowpark._internal.data_source.custom.conversion import (
+        cast_udtf_output_columns,
         parse_semi_structured_columns,
     )
     from snowflake.snowpark.types import TimestampType, VariantType
@@ -152,9 +153,12 @@ def test_semi_structured_projection_keeps_ast(ast_session):
             StructField("TS", TimestampType()),
         ]
     )
-    df = parse_semi_structured_columns(base, schema, True)
-    assert df._ast_id is not None
-    assert df.select("id")._ast_id is not None
+    for df in (
+        parse_semi_structured_columns(base, schema, True),
+        cast_udtf_output_columns(base, schema, True),
+    ):
+        assert df._ast_id is not None
+        assert df.select("id")._ast_id is not None
     # without the AST, it is not emitted
     assert parse_semi_structured_columns(base, schema)._ast_id is None
 
