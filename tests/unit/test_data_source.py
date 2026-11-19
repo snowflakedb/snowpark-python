@@ -743,6 +743,12 @@ def test_jdbc_infer_schema_udtf_is_dropped(inference_fails, use_scoped, temp_typ
             StringType(),
             "rs.getString(1)",
         ),
+        (
+            "jdbc:oracle:thin:@//h/s",
+            ("C", None, "java.sql.Timestamp", 0, 6, True, "VENDOR_TIMESTAMP"),
+            TimestampType(TimestampTimeZone.NTZ),
+            "rs.getString(1)",
+        ),
         # Rows without a type name (older inference output) keep working.
         (
             "jdbc:postgresql://h/d",

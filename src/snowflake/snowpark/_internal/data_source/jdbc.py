@@ -753,17 +753,10 @@ class JDBC:
                 )
             elif snow_type == DecimalType:
                 data_type = self._to_numeric_type(field_name, precision, scale)
-            elif snow_type == TimestampType and jdbc_type in (
-                JDBCType.TIMESTAMP,
-                None,
-                JDBCType.OTHER,
-            ):
+            elif snow_type == TimestampType:
+                # Offset-aware types were handled above. Java Timestamp fallback
+                # is wall-clock time, even when JDBC reports an unknown type code.
                 data_type = snow_type(TimestampTimeZone.NTZ)
-            elif snow_type == TimestampType and jdbc_type in (
-                JDBCType.TIMESTAMP_WITH_TIMEZONE,
-                JDBCType.TIME_WITH_TIMEZONE,
-            ):
-                data_type = snow_type(TimestampTimeZone.TZ)
             else:
                 data_type = snow_type()
 
