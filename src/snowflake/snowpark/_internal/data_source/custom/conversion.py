@@ -219,6 +219,9 @@ def to_row_tuple(item: Any, matcher: FieldMatcher) -> Tuple:
             list(item.keys()), list(item.values()), matcher, False
         )
     elif isinstance(item, (tuple, list)):
+        fields = getattr(item, "__fields__", None)  # pyspark.sql.Row
+        if fields:
+            return _match_named_values(list(fields), list(item), matcher, True)
         values = tuple(item)
     else:
         hint = (
@@ -262,13 +265,22 @@ def _to_json_compatible(value: Any) -> Any:
     if isinstance(value, dict):
         return {k: _to_json_compatible(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
+        fields = getattr(value, "__fields__", None)  # pyspark.sql.Row
+        if fields:
+            return {k: _to_json_compatible(v) for k, v in zip(fields, value)}
         return [_to_json_compatible(v) for v in value]
+    if type(value).__name__ == "VariantVal" and callable(
+        getattr(value, "toJson", None)
+    ):  # pyspark.sql.types.VariantVal
+        return json.loads(value.toJson())
     return value
 
 
 def _json_dumps(value: Any) -> Optional[str]:
     value = _to_json_compatible(value)
-    if value is None:
+    if (
+        value is None
+    ):  # including a VariantVal of JSON null, like in server-side ingestion
         return None
     return json.dumps(value, cls=PythonObjJSONEncoder)
 

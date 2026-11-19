@@ -291,6 +291,17 @@ def test_to_row_tuple():
         to_row_tuple(1, matcher)
 
 
+def test_to_row_tuple_pyspark_row_like():
+    class FakeSparkRow(tuple):
+        def __new__(cls, **kwargs):
+            row = tuple.__new__(cls, kwargs.values())
+            row.__fields__ = list(kwargs.keys())
+            return row
+
+    matcher = FieldMatcher(SCHEMA)
+    assert to_row_tuple(FakeSparkRow(Name="a", ID=1), matcher) == (1, "a")
+
+
 def test_convert_row():
     ts = datetime.datetime(2024, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)
     schema = StructType(
