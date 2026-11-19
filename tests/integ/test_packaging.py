@@ -190,10 +190,6 @@ def test_patch_on_get_available_versions_for_packages(session):
 
 @pytest.mark.skipif(
     IS_FREE_THREADED,
-    reason="requirements pin pandas 2.3.3, which re-enables the GIL on free-threaded runtimes",
-)
-@pytest.mark.skipif(
-    IS_FREE_THREADED,
     reason="pins pandas 2.3.3, which re-enables the GIL on free-threaded runtimes",
 )
 @pytest.mark.udf
@@ -456,6 +452,10 @@ def test_add_packages_artifact_repository(session):
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
+)
+@pytest.mark.skipif(
+    IS_FREE_THREADED,
+    reason="requirements pin pandas 2.3.3, which re-enables the GIL on free-threaded runtimes",
 )
 def test_add_requirements(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
