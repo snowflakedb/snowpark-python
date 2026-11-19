@@ -23,6 +23,8 @@
 - Fixed a bug in `DataFrameReader.jdbc` where credentials passed in the URL as query or `;`-separated parameters (for example `?password=`) or in the Oracle `user/password@` form were not removed and were embedded in the generated UDTF.
 - Fixed a bug in `DataFrameReader.jdbc` where double quotes, backslashes, newlines or `$$` in `url`, `properties` or `session_init_statement` caused a compilation error in the generated Java UDTF.
 - Fixed a bug in `DataFrameReader.jdbc` where `session_init_statement` and `query_timeout` were not applied during schema inference.
+- Fixed a bug in `DataFrameReader.jdbc` where column names containing spaces, quotes, non-ASCII characters or SQL keywords, or names that differ only by case, failed with a compilation error.
+- Fixed a bug in `DataFrameReader.jdbc` where reading more than about 240 columns failed with `Function name (including parameter and return type) too long`.
 
 ### Snowpark Local Testing Updates
 
