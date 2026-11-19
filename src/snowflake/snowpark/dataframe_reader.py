@@ -2336,13 +2336,12 @@ class DataFrameReader:
 
         1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
         These must all be specified together, otherwise error will be raised.
-        2.Set max_workers to a proper positive integer.
-        This defines the maximum number of processes and threads used for parallel execution.
-        3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
-        4.Use predicates to defining WHERE conditions for partitions,
-        predicates will be ignored if column is specified to generate partition.
-        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
-        column name with table in external data source.
+        2.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
+        3.Use predicates to define WHERE conditions for partitions;
+        predicates will be ignored if column is specified to generate partitions.
+        4.Set custom_schema to override inferred column types. Schema inference still runs
+        and must succeed, even when custom_schema supplies every column. Overrides match
+        source column names and preserve source column order and JDBC value readers.
 
         Args:
             url: A connection string used to establish connections to external data source with JDBC driver.
@@ -2382,10 +2381,9 @@ class DataFrameReader:
                 This parameter does not filter out data. It must be provided when `column` is specified.
             num_partitions: number of partitions to create when reading in parallel from multiple processes and threads.
                 It must be provided when `column` is specified.
-            query_timeout: The timeout (in seconds) for each query execution. A default value of `0` means
-                the query will never time out. The timeout behavior can also be configured within
-                the `create_connection` method when establishing the database connection, depending on the capabilities
-                of the DBMS and its driver.
+            query_timeout: JDBC statement timeout in seconds for inference, initialization, and reads.
+                The default of 0 disables the JDBC statement timeout, not driver/network or Snowflake
+                statement and UDTF timeouts. Enforcement depends on the source driver.
             fetch_size: A JDBC fetch-size hint, in rows. Defaults to 10000; use 0 for the
                 driver's default. Must be a non-negative integer. Actual buffering is driver-dependent.
                 For PostgreSQL, a positive value disables autocommit after session initialization
