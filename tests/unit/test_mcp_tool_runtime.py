@@ -1049,3 +1049,17 @@ def test_to_json_value_row_with_repeated_or_no_field_names():
     assert to_json_value(Row(1, 2)) == [1, 2]
     assert to_json_value(Row(A=1, B=2)) == {"A": 1, "B": 2}
     assert to_json_value([repeated, Row(1, 2)]) == [{"ID": 1, "ID_2": 2}, [1, 2]]
+
+
+def test_to_json_value_rejects_unsupported_types():
+    with pytest.raises(TypeError, match="type object, which cannot be converted"):
+        to_json_value(object())
+
+
+def test_to_json_value_unwraps_an_object_with_only_item():
+    class Scalar:
+        def item(self):
+            return decimal.Decimal("2.5")
+
+    assert to_json_value(Scalar()) == 2.5
+    assert to_json_value([Scalar()]) == [2.5]

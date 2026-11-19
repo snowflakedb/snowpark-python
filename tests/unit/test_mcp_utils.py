@@ -1023,3 +1023,41 @@ def test_to_sql_value_rejects_decimal_with_too_many_digits_for_precision():
     assert to_sql_value(param, 123.45) == decimal.Decimal("123.45")
     with pytest.raises(ValueError, match=r"NUMBER\(5, 2\)"):
         to_sql_value(param, 12345.67)
+
+
+# ---------------------------------------------------------------------------
+# Remaining branches
+# ---------------------------------------------------------------------------
+
+
+def test_parse_docstring_ignores_indented_text_before_the_first_parameter():
+    doc = "Desc.\n\nArgs:\n        stray text\n    a: A.\n"
+    assert parse_docstring(doc)[1] == {"a": "A."}
+    doc = "Desc.\n\nParameters\n----------\n        stray text\n    a : int\n"
+    assert parse_docstring(doc)[1] == {"a": ""}
+
+
+def test_type_hint_annotated_without_a_description():
+    schema, _, nullable = type_hint_to_schema(Annotated[int, 5])
+    assert schema == {"type": "integer"}
+    assert not nullable
+
+
+def test_nested_optional_enum_allows_null():
+    schema, _, _ = type_hint_to_schema(List[Optional[Literal["a", "b"]]])
+    assert schema["items"] == {"type": ["string", "null"], "enum": ["a", "b", None]}
+
+
+def test_sql_default_keeps_values_with_no_lossless_conversion():
+    assert _utils.sql_default(StringType(), "a") == "a"
+    assert _utils.sql_default(DoubleType(), "1") == "1"
+    assert _utils.sql_default(DecimalType(10, 2), None) is None
+
+
+def test_sql_default_keeps_a_bool_for_numeric_parameters():
+    assert _utils.sql_default(DoubleType(), True) is True
+    assert _utils.sql_default(DecimalType(10, 2), False) is False
+
+
+def test_parse_signature_unterminated_quoted_name_keeps_the_rest_as_the_name():
+    assert parse_signature('("ABC NUMBER)') == [("ABC NUMBER", "")]

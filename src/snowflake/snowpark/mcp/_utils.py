@@ -341,10 +341,10 @@ def _nested_schema(tp: Any) -> Dict[str, Any]:
 
 
 def _with_null(schema: Dict[str, Any]) -> Dict[str, Any]:
-    if "type" in schema and isinstance(schema["type"], str):
-        schema = {**schema, "type": [schema["type"], "null"]}
-        if "enum" in schema:
-            schema["enum"] = [*schema["enum"], None]
+    # Every schema type_hint_to_schema returns has a single string type.
+    schema = {**schema, "type": [schema["type"], "null"]}
+    if "enum" in schema:
+        schema["enum"] = [*schema["enum"], None]
     return schema
 
 

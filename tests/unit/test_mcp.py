@@ -4007,3 +4007,150 @@ def test_builtin_annotations_are_allowed_for_agents_and_unknown_types():
     assert builtin_spec(agent)["annotations"]["readOnlyHint"] is True
     future = Tool.builtin("NEW_THING_RUN", name="t", description="d", read_only=True)
     assert builtin_spec(future)["annotations"]["readOnlyHint"] is True
+
+
+# ---------------------------------------------------------------------------
+# Remaining coverage
+# ---------------------------------------------------------------------------
+
+
+def test_tool_base_defaults():
+    tool = Tool("t", None, "d", None)
+    assert repr(tool) == "Tool(name='t')"
+    assert tool._is_resolved()
+    assert tool._grants(mock.MagicMock()) == []
+    assert tool._warehouses() == []
+    with pytest.raises(NotImplementedError):
+        tool._spec(mock.MagicMock())
+
+
+def test_from_procedure_signature_that_does_not_match_the_listing():
+    session = financials_session(
+        describe_rows=[Row(property="signature", value="(TICKER VARCHAR)")]
+    )
+    tool = Tool.from_procedure("APP.FIN.GET_FINANCIALS", read_only=True)
+    with pytest.raises(ValueError, match=r"Could not match the signature \(TICKER"):
+        MCPServer("S", [tool]).to_spec(session)
+
+
+def test_from_procedure_lint_container_parameters_and_write_names():
+    row = Row(
+        name="DELETE_ROWS",
+        arguments="DELETE_ROWS(ARRAY, VARCHAR) RETURN VARCHAR",
+        description="Deletes rows.",
+    )
+    describe = [Row(property="signature", value="(IDS ARRAY, NOTE VARCHAR)")]
+    tool = Tool.from_procedure(
+        "APP.FIN.DELETE_ROWS", read_only=True, param_descriptions={"NOTE": "A note."}
+    )
+    issues = MCPServer("S", [tool])._lint(financials_session([row], describe))
+    errors = messages(issues, "error")
+    assert len(errors) == 1 and "Parameter ids takes a JSON array" in errors[0]
+    warnings = messages(issues, "warning")
+    assert any("Parameter ids has no description" in m for m in warnings)
+    assert not any("Parameter note" in m for m in warnings)
+    assert any("marked read_only=True but its name suggests" in m for m in warnings)
+
+
+def test_pickle_runtime_by_value_requires_cloudpickle_2(monkeypatch):
+    cloudpickle = pytest.importorskip("cloudpickle")
+    from snowflake.snowpark.mcp import _tools
+
+    monkeypatch.setattr(_tools, "_RUNTIME_PICKLED_BY_VALUE", False)
+    monkeypatch.delattr(cloudpickle, "register_pickle_by_value")
+    with pytest.raises(RuntimeError, match="cloudpickle 2.0 or later; installed: "):
+        _tools._pickle_runtime_by_value()
+    assert _tools._RUNTIME_PICKLED_BY_VALUE is False
+
+
+def raising(message):
+    def run(statement):
+        raise RuntimeError(message)
+
+    return run
+
+
+def test_deploy_create_failure_lists_the_grants_that_could_not_be_moved():
+    session = overload_grant_session(OVERLOAD_GRANTS, fail_on=['"Reader"'])
+    session.responses.insert(
+        0, ("CREATE OR REPLACE MCP SERVER", raising("cannot create"))
+    )
+    with pytest.raises(RuntimeError) as exc_info:
+        python_server("S").deploy(session)
+    assert str(exc_info.value) == (
+        "cannot create\n"
+        "These grants of the old overloads of tools could not be moved to their "
+        "new objects; grant them again:\n"
+        "GRANT USAGE ON PROCEDURE APP.MCP.S__GET_ACCOUNT(STRING, BIGINT) TO ROLE "
+        '"Reader" WITH GRANT OPTION  -- insufficient privileges'
+    )
+
+
+def test_deploy_fails_when_the_schema_cannot_be_read():
+    session = make_session([("SHOW PROCEDURES IN SCHEMA", raising("no access"))])
+    with pytest.raises(RuntimeError, match="no access"):
+        python_server("S").deploy(session)
+    assert not any(s.startswith("CREATE") for s in session.statements)
+
+
+def test_deploy_skips_unparsable_objects_that_are_not_ours():
+    session = make_session(
+        [
+            (
+                "SHOW PROCEDURES IN SCHEMA",
+                [
+                    Row(name="X", arguments="garbage", description="x"),
+                    Row(name="Y", arguments="garbage", description=tagged("T", "y")),
+                ],
+            )
+        ]
+    )
+    python_server("S").deploy(session)
+    assert any(s.startswith("CREATE OR REPLACE MCP SERVER") for s in session.statements)
+
+
+def test_deploy_fails_on_an_unparsable_object_tagged_by_this_server():
+    session = make_session(
+        [
+            (
+                "SHOW PROCEDURES IN SCHEMA",
+                [Row(name="X", arguments="garbage", description=tagged("S", "x"))],
+            )
+        ]
+    )
+    with pytest.raises(ValueError, match="Cannot parse procedure arguments: garbage"):
+        python_server("S").deploy(session)
+
+
+def old_overload_session(grants):
+    return make_session(
+        [
+            (
+                "SHOW PROCEDURES IN SCHEMA",
+                [show_row("S__GET_ACCOUNT", "VARCHAR", tagged("S", "get_account"))],
+            ),
+            ("SHOW GRANTS ON PROCEDURE", grants),
+        ]
+    )
+
+
+def test_deploy_fails_when_the_grants_of_an_owned_object_cannot_be_read():
+    session = old_overload_session(raising("no grants"))
+    with pytest.raises(RuntimeError, match="no grants"):
+        python_server("S").deploy(session)
+
+
+def test_dry_run_treats_unreadable_grants_of_an_owned_object_as_unowned():
+    session = old_overload_session(raising("no grants"))
+    result = python_server("S").deploy(session, dry_run=True)
+    assert messages(result.issues, "warning") == [
+        "APP.MCP.S__GET_ACCOUNT(VARCHAR) has this server's tag but is owned by "
+        "an unknown role, not APP_ROLE; it was left alone."
+    ]
+
+
+def test_deploy_fails_when_the_server_grants_cannot_be_read():
+    session = make_session([("SHOW MCP SERVERS", raising("no server access"))])
+    with pytest.raises(RuntimeError, match="no server access"):
+        python_server("S").deploy(session)
+    assert not any(s.startswith("CREATE OR REPLACE") for s in session.statements)
