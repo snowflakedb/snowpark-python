@@ -371,9 +371,49 @@ def test_jdbc_query_trailing_semicolon_is_stripped(query):
         secret="cred",
     )
     assert client.table_or_query == "SELECT 1 AS s"
+    client.raw_schema = []
     assert re.match(
         r"SELECT (\w+)\.\* FROM \(SELECT 1 AS s\n\) \1$", client.generate_select_sql()
     )
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("SELECT 1; -- note", "SELECT 1 -- note"),
+        ("SELECT 1; /* note */", "SELECT 1 /* note */"),
+        (
+            "SELECT 1; /* outer /* inner */ outer */ -- end",
+            "SELECT 1 /* outer /* inner */ outer */ -- end",
+        ),
+        ("SELECT 1; \n ; -- end", "SELECT 1 \n  -- end"),
+        (
+            "SELECT '; -- not a comment' AS s; -- end",
+            "SELECT '; -- not a comment' AS s -- end",
+        ),
+        ('SELECT 1 AS "x; -- y"; -- end', 'SELECT 1 AS "x; -- y" -- end'),
+        ("SELECT 1 AS `x; -- y`; -- end", "SELECT 1 AS `x; -- y` -- end"),
+        ("SELECT 1 AS [x; -- y]; -- end", "SELECT 1 AS [x; -- y] -- end"),
+        ("SELECT $tag$; -- value$tag$; -- end", "SELECT $tag$; -- value$tag$ -- end"),
+        (
+            "SELECT q'[it's; -- text]' FROM DUAL; -- end",
+            "SELECT q'[it's; -- text]' FROM DUAL -- end",
+        ),
+        ("SELECT 1; SELECT 2; -- end", "SELECT 1; SELECT 2 -- end"),
+        ("SELECT '/* not comment; */'", "SELECT '/* not comment; */'"),
+    ],
+)
+def test_jdbc_semicolon_before_comments(query, expected):
+    client = JDBC(
+        session=Mock(),
+        url="jdbc:postgresql://host/db",
+        table_or_query=query,
+        external_access_integration="EAI",
+        imports=[],
+        is_query=True,
+        secret="cred",
+    )
+    assert client.table_or_query == expected
 
 
 def test_jdbc_query_trailing_comment_does_not_hide_closing_paren():
@@ -386,5 +426,6 @@ def test_jdbc_query_trailing_comment_does_not_hide_closing_paren():
         is_query=True,
         secret="cred",
     )
+    client.raw_schema = []
     for sql in (client.generate_select_sql(), client.infer_schema_sql()):
         assert "-- note\n) " in sql

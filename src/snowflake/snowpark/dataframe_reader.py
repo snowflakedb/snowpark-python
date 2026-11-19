@@ -2373,6 +2373,10 @@ class DataFrameReader:
                 This parameter cannot be used together with the `query` parameter.
             query: A valid SQL query to be used as the data source in the FROM clause.
                 This parameter cannot be used together with the `table` parameter.
+                Trailing semicolons and comments are accepted. The query must be valid
+                inside a subquery. In SQL Server, an ``ORDER BY`` requires ``TOP``,
+                ``OFFSET`` (for example, ``OFFSET 0 ROWS``), or ``FOR XML``.
+                Source ordering does not guarantee the returned DataFrame's order.
             column: The column name used for partitioning the table. Partitions will be retrieved in parallel.
                 The column must be of a numeric type (e.g., int or float) or a date type.
                 When specifying `column`, `lower_bound`, `upper_bound`, and `num_partitions` must also be provided.
