@@ -627,6 +627,93 @@ def test_dbapi_partitioner_still_rejects_timestamp_column():
         )
 
 
+@pytest.mark.parametrize("failure", ["save", "read", "projection", "telemetry", None])
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+@pytest.mark.parametrize("use_scoped", [False, True])
+def test_jdbc_reader_cleans_up_failed_setup(failure, cleanup_fails, use_scoped):
+    reader = _jdbc_reader()
+    reader._session._use_scoped_temp_objects = use_scoped
+    client = Mock()
+    client.partitions = ["SELECT 1"]
+    operations = {
+        "save": reader._session.create_dataframe.return_value.write.save_as_table,
+        "read": client.read,
+        "projection": client.to_result_snowpark_df,
+        "telemetry": reader._session._conn._telemetry_client.send_data_source_perf_telemetry,
+    }
+    if failure:
+        operations[failure].side_effect = RuntimeError("original failure")
+    if cleanup_fails:
+
+        def sql(text, **kwargs):
+            if text.startswith("DROP"):
+                raise RuntimeError("cleanup failure")
+            return Mock()
+
+        reader._session.sql.side_effect = sql
+    with patch("snowflake.snowpark.dataframe_reader.JDBC", return_value=client):
+        if failure:
+            with pytest.raises(RuntimeError, match="original failure"):
+                reader.jdbc(
+                    url="jdbc:postgresql://h/d",
+                    query="SELECT 1",
+                    udtf_configs={
+                        "external_access_integration": "E",
+                        "secret": "S",
+                        "imports": [],
+                    },
+                )
+            client.cleanup_read_udtf.assert_called_once()
+            assert reader._session.sql.call_args.args[0].startswith(
+                "DROP TABLE IF EXISTS "
+            )
+        else:
+            reader.jdbc(
+                url="jdbc:postgresql://h/d",
+                query="SELECT 1",
+                udtf_configs={
+                    "external_access_integration": "E",
+                    "secret": "S",
+                    "imports": [],
+                },
+            )
+            client.cleanup_read_udtf.assert_not_called()
+            reader._session.sql.assert_called_once()
+        temp_type = "SCOPED TEMPORARY" if use_scoped else "TEMPORARY"
+        assert (
+            reader._session.sql.call_args_list[0]
+            .args[0]
+            .startswith(f"CREATE {temp_type} TABLE ")
+        )
+
+
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+def test_jdbc_read_projection_failure_drops_function(cleanup_fails):
+    session = Mock()
+    executed = []
+
+    def sql(text, **kwargs):
+        executed.append(text)
+        if text.startswith("DROP") and cleanup_fails:
+            raise RuntimeError("cleanup failure")
+        return Mock()
+
+    session.sql.side_effect = sql
+    client = JDBC(
+        session=session,
+        url="jdbc:postgresql://h/d",
+        table_or_query="T",
+        external_access_integration="E",
+        imports=[],
+        is_query=False,
+        secret="S",
+    )
+    client.__dict__["schema"] = StructType([StructField("A", StringType())])
+    with pytest.raises(TypeError):
+        client.read("P")
+    assert executed[-1].startswith("DROP FUNCTION IF EXISTS ")
+
+
 @pytest.mark.parametrize("inference_fails", [False, True])
 @pytest.mark.parametrize(
     "use_scoped, temp_type", [(True, "SCOPED TEMPORARY"), (False, "TEMPORARY")]

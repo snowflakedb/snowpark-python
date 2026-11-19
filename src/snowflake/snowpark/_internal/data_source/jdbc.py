@@ -241,6 +241,7 @@ class JDBC:
         self._temp_function_type = get_temp_type_for_object(
             self.session._use_scoped_temp_objects, True
         )
+        self._read_udtf_name = None
         self._infer_schema_successful = True
         self.secret_detector()
 
@@ -589,15 +590,34 @@ class JDBC:
             select result.* from {partition_table}, table({jdbc_ingestion_name}({PARTITION_TABLE_COLUMN_NAME})) AS result
             """
 
-        self.session.sql(jdbc_udtf_registration, _emit_ast=self._emit_ast).collect()
-        res_df = self.session.sql(jdbc_udtf, _emit_ast=self._emit_ast)
-        return res_df.select(
-            [
-                res_df[self._udtf_column_name(i)].cast(field.datatype).alias(field.name)
-                for i, field in enumerate(self.schema.fields)
-            ],
-            _emit_ast=self._emit_ast,
-        )
+        try:
+            self.session.sql(jdbc_udtf_registration, _emit_ast=self._emit_ast).collect()
+            self._read_udtf_name = jdbc_ingestion_name
+            res_df = self.session.sql(jdbc_udtf, _emit_ast=self._emit_ast)
+            return res_df.select(
+                [
+                    res_df[self._udtf_column_name(i)]
+                    .cast(field.datatype)
+                    .alias(field.name)
+                    for i, field in enumerate(self.schema.fields)
+                ],
+                _emit_ast=self._emit_ast,
+            )
+        except Exception:
+            self.cleanup_read_udtf()
+            raise
+
+    def cleanup_read_udtf(self) -> None:
+        """Best-effort cleanup only when no lazy DataFrame has been returned."""
+        if self._read_udtf_name is not None:
+            try:
+                self.session.sql(
+                    f"DROP FUNCTION IF EXISTS {self._read_udtf_name}(VARCHAR)",
+                    _emit_ast=False,
+                ).collect()
+                self._read_udtf_name = None
+            except Exception:
+                logger.debug("Failed to drop JDBC read function", exc_info=True)
 
     @staticmethod
     def _udtf_column_name(index: int) -> str:

@@ -82,6 +82,7 @@ from snowflake.snowpark._internal.utils import (
     private_preview,
     publicapi,
     random_name_for_temp_object,
+    get_temp_type_for_object,
     warning,
     experimental,
     IcebergChangesConfig,
@@ -2487,26 +2488,46 @@ class DataFrameReader:
         partitions = jdbc_client.partitions
 
         partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
-        self._session.create_dataframe(
-            [[query] for query in partitions], schema=["partition"]
-        ).write.save_as_table(
-            partitions_table,
-            table_type="temp",
-            statement_params=statements_params_for_telemetry,
-        )
+        try:
+            # save_as_table treats names as user-owned and does not scope them.
+            # This generated table must follow the session's scoped-object policy.
+            temp_type = get_temp_type_for_object(
+                self._session._use_scoped_temp_objects, True
+            )
+            self._session.sql(
+                f"CREATE {temp_type} TABLE {partitions_table} (PARTITION VARCHAR)",
+                _emit_ast=False,
+            ).collect()
+            self._session.create_dataframe(
+                [[query] for query in partitions], schema=["partition"]
+            ).write.save_as_table(
+                partitions_table,
+                mode="append",
+                table_type="temp",
+                statement_params=statements_params_for_telemetry,
+            )
 
-        df = jdbc_client.read(partitions_table)
-        res_df = jdbc_client.to_result_snowpark_df(
-            df, jdbc_client.schema, _emit_ast=_emit_ast
-        )
-        end_time = time.perf_counter()
-        telemetry_json_string["end_to_end_duration"] = end_time - start_time
-        telemetry_json_string["schema"] = res_df.schema.simple_string()
-        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
-            telemetry_json_string
-        )
-        set_api_call_source(res_df, DATA_SOURCE_JDBC_SIGNATURE)
-        return res_df
+            df = jdbc_client.read(partitions_table)
+            res_df = jdbc_client.to_result_snowpark_df(
+                df, jdbc_client.schema, _emit_ast=_emit_ast
+            )
+            end_time = time.perf_counter()
+            telemetry_json_string["end_to_end_duration"] = end_time - start_time
+            telemetry_json_string["schema"] = res_df.schema.simple_string()
+            self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+                telemetry_json_string
+            )
+            set_api_call_source(res_df, DATA_SOURCE_JDBC_SIGNATURE)
+            return res_df
+        except Exception:
+            jdbc_client.cleanup_read_udtf()
+            try:
+                self._session.sql(
+                    f"DROP TABLE IF EXISTS {partitions_table}", _emit_ast=False
+                ).collect()
+            except Exception:
+                logger.debug("Failed to drop JDBC partition table", exc_info=True)
+            raise
 
     @publicapi
     def dbapi(
