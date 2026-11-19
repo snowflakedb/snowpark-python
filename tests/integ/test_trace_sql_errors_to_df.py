@@ -196,6 +196,60 @@ def test_sql_error_in_flattened_sort(session, multiline):
     assert _mapped_lines(ex) == [line]
 
 
+def test_reused_filter_predicate_keeps_broader_mapping(session, multiline):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    predicate = sql_expr("UPPER(b, a)") == "x"
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.filter(predicate)
+    first = Utils.get_current_line_number_sys() - 1
+    df = df.filter(predicate)
+    second = Utils.get_current_line_number_sys() - 1
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert {first, second}.issubset(_mapped_lines(ex))
+
+
+def test_lifted_sort_keeps_original_trace_owner(session, multiline, monkeypatch):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.sort(col("a"))
+    sort_line = Utils.get_current_line_number_sys() - 1
+    owner = df._select_statement._order_by_nodes[1][0]
+    selected = df.select((col("a") + 1).alias("a"), "b")
+    statement = selected._select_statement
+    assert statement.order_by is not None
+    assert statement._order_by_nodes[1][0] is owner
+    assert statement._order_by_nodes[1][0] is not selected._trace_node
+
+    from snowflake.snowpark._internal.debug_utils import (
+        get_python_source_from_sql_error,
+    )
+
+    # Use the actual generated SQL: the server error is synthetic, not the lifted sort.
+    plan = selected._plan
+    executed_sql = plan.queries[-1].sql.strip()
+    assert executed_sql.upper().count("SELECT") >= 2
+    outer_order_by = executed_sql.upper().rindex("ORDER BY")
+    offset = executed_sql.index('"A"', outer_order_by)
+    sql_line = executed_sql[:offset].count("\n")
+    position = offset - executed_sql.rfind("\n", 0, offset) - 1
+    message = get_python_source_from_sql_error(
+        plan,
+        f"SQL compilation error: error line {sql_line + 1} at position {position}\ninvalid identifier 'A'",
+        executed_sql,
+    )
+    assert [
+        int(line)
+        for line in re.findall(
+            re.escape(os.path.basename(__file__)) + r": line (\d+)", message
+        )
+    ] == [sort_line]
+
+
 def test_sql_error_of_another_query_reports_all_operations(session, multiline):
     """The schema query run when the join is created has other lines than the sql of the
     plan, so all the operations of the matched plan are reported."""

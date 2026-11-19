@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.df_trace import SrcPosition, TraceNode
 from ast import literal_eval
 
 if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
 UNKNOWN_FILE = "__UNKNOWN_FILE__"
@@ -338,8 +339,232 @@ def _resolve_error_line(
     return None
 
 
+_CLAUSE_TOKEN = re.compile(
+    r"\s+|--[^\n]*(?:\n|$)|/\*.*?\*/|\$\$.*?\$\$|"
+    r"'(?:''|\\.|[^'\\])*'|\"(?:\"\"|[^\"])*\"|"
+    r"[A-Za-z_][A-Za-z_0-9$]*|[0-9]+(?:\.[0-9]+)?|[(),.\[\]+*/%<>=!|&^~?:$-]",
+    re.DOTALL,
+)
+
+
+def _clause_tokens(sql: str) -> List[Tuple[str, int, int, int]]:
+    """Lex cached SQL, keeping quoted text opaque and checking delimiter balance."""
+    tokens = []
+    stack = []
+    offset = 0
+    while offset < len(sql):
+        match = _CLAUSE_TOKEN.match(sql, offset)
+        if match is None:
+            raise ValueError("Unrecognized SQL token")
+        text = match.group()
+        if (sql.startswith("/*", offset) and not text.startswith("/*")) or (
+            sql.startswith("$$", offset) and not text.startswith("$$")
+        ):
+            raise ValueError("Unterminated SQL comment or literal")
+        start, offset = offset, match.end()
+        if text.isspace() or text.startswith("--"):
+            continue
+        if text.startswith("/*"):
+            if "/*" in text[2:]:
+                raise ValueError("Nested SQL comment")
+            continue
+        if text in (")", "]"):
+            if not stack or stack.pop() != {")": "(", "]": "["}[text]:
+                raise ValueError("Unbalanced SQL delimiters")
+        depth = len(stack)
+        if text in ("(", "["):
+            stack.append(text)
+        # Quoted identifiers and literals must never be interpreted as keywords.
+        word = "" if text.startswith(("'", '"', "$$")) else text.upper()
+        tokens.append((word, start, offset, depth))
+    if stack:
+        raise ValueError("Unbalanced SQL delimiters")
+    return tokens
+
+
+def _select_clause_spans(
+    statement: "SelectStatement",
+    sql: Optional[str] = None,
+) -> Optional[Tuple[List[Tuple[int, int, TraceNode]], int, int]]:
+    """Read clause provenance against cached SQL only; never re-analyze a failed query.
+
+    This recognizes SELECT clause boundaries, not arbitrary SQL grammar. Unknown layouts,
+    expanded projections, or inconsistent metadata fall back to the plan's operations.
+    """
+    from snowflake.snowpark._internal.analyzer.binary_expression import And
+    from snowflake.snowpark._internal.analyzer.expression import Star
+    from snowflake.snowpark._internal.analyzer.unary_expression import (
+        Alias,
+        UnresolvedAlias,
+    )
+
+    if sql is None:
+        sql = getattr(statement, "_sql_query", None)
+    if not isinstance(sql, str) or not sql:
+        return None
+    try:
+        tokens = _clause_tokens(sql)
+        if not tokens or tokens[0][0] != "SELECT":
+            return None
+        clauses: List[Tuple[str, int, int]] = [("SELECT", 0, 1)]
+        names = ["SELECT", "FROM", "WHERE", "ORDER", "LIMIT", "OFFSET"]
+        for index, (word, _, _, depth) in enumerate(tokens[1:], 1):
+            if depth:
+                continue
+            if word in names:
+                if names.index(word) <= names.index(clauses[-1][0]):
+                    return None
+                after = index + 1
+                if word == "ORDER":
+                    if tokens[after][0] != "BY":
+                        return None
+                    after += 1
+                clauses.append((word, index, after))
+            elif word in {
+                "WITH",
+                "GROUP",
+                "HAVING",
+                "QUALIFY",
+                "UNION",
+                "INTERSECT",
+                "EXCEPT",
+                "MINUS",
+                "WINDOW",
+                "FETCH",
+                "TOP",
+                "INTO",
+            }:
+                return None
+        if len(clauses) < 2 or clauses[1][0] != "FROM":
+            return None
+        ranges = {}
+        for index, (name, _, start) in enumerate(clauses):
+            end = clauses[index + 1][1] if index + 1 < len(clauses) else len(tokens)
+            if name == "SELECT" and tokens[start][0] == "DISTINCT":
+                start += 1
+            if start >= end:
+                return None
+            ranges[name] = (start, end)
+            if name in ("LIMIT", "OFFSET") and (
+                end != start + 1 or not tokens[start][0].isdigit()
+            ):
+                return None
+        if ("WHERE" in ranges) != (statement.where is not None) or (
+            "ORDER" in ranges
+        ) != bool(statement.order_by):
+            return None
+
+        spans = []
+
+        def add(start, end, slot):
+            if isinstance(slot, TraceNode):
+                spans.append((tokens[start][1], tokens[end - 1][2], slot))
+
+        def list_spans(name, expressions, provenance):
+            if name not in ranges:
+                return
+            start, end = ranges[name]
+            separators = [
+                index
+                for index in range(start, end)
+                if tokens[index][0] == "," and tokens[index][3] == 0
+            ]
+            parts = list(
+                zip([start] + [index + 1 for index in separators], separators + [end])
+            )
+            if any(left >= right for left, right in parts):
+                raise ValueError("Empty SQL list item")
+            if not expressions:
+                # A statement with no explicit projection renders an implicit star.
+                if name != "SELECT" or end != start + 1 or tokens[start][0] != "*":
+                    raise ValueError("SQL list without expressions")
+                return
+            if len(parts) != len(expressions):
+                raise ValueError("Expanded SQL list")
+            for expression in expressions:
+                while isinstance(expression, (Alias, UnresolvedAlias)):
+                    expression = expression.child
+                if isinstance(expression, Star):
+                    raise ValueError("Expanded star")
+            if provenance is None or provenance[0] is not expressions:
+                return
+            if len(provenance[1]) != len(parts):
+                raise ValueError("Inconsistent SQL list provenance")
+            for (left, right), slot in zip(parts, provenance[1]):
+                # Raw SQL stars also have an unknown expansion. A multiply inside an
+                # expression is not a wildcard; COUNT(*) is nested and remains atomic.
+                if any(
+                    tokens[index][0] == "*"
+                    and tokens[index][3] == 0
+                    and (index == left or tokens[index - 1][0] == ".")
+                    for index in range(left, right)
+                ):
+                    raise ValueError("SQL wildcard")
+                add(left, right, slot)
+
+        list_spans("SELECT", statement.projection, statement._projection_nodes)
+        list_spans("ORDER", statement.order_by, statement._order_by_nodes)
+        provenance = statement._where_nodes
+        if (
+            provenance is not None
+            and provenance[0] is statement.where
+            and "WHERE" in ranges
+        ):
+            owners = {}
+            for predicate, slot in provenance[1]:
+                key = id(predicate)
+                # Reusing a predicate in different filters does not identify its owner.
+                owners[key] = slot if key not in owners or owners[key] is slot else None
+
+            def where_spans(expression, start, end):
+                if start >= end:
+                    raise ValueError("Empty predicate")
+                if id(expression) in owners:
+                    add(start, end, owners[id(expression)])
+                    return
+                if not isinstance(expression, And):
+                    raise ValueError("Unknown predicate provenance")
+                depth = tokens[start][3]
+                if (
+                    tokens[start][0] != "("
+                    or tokens[end - 1][0] != ")"
+                    or tokens[end - 1][3] != depth
+                ):
+                    raise ValueError("Unknown conjunction layout")
+                if any(
+                    tokens[index][3] <= depth for index in range(start + 1, end - 1)
+                ):
+                    raise ValueError("Conjunction wrapper ends early")
+                if any(
+                    tokens[index][0] in {"OR", "BETWEEN", "CASE", "SELECT"}
+                    and tokens[index][3] == depth + 1
+                    for index in range(start + 1, end - 1)
+                ):
+                    raise ValueError("Not a generated conjunction")
+                operators = [
+                    index
+                    for index in range(start + 1, end - 1)
+                    if tokens[index][0] == "AND" and tokens[index][3] == depth + 1
+                ]
+                if len(operators) != 1:
+                    raise ValueError("Ambiguous conjunction")
+                operator = operators[0]
+                where_spans(expression.left, start + 1, operator)
+                where_spans(expression.right, operator + 1, end - 1)
+
+            where_spans(statement.where, *ranges["WHERE"])
+        from_start, from_end = ranges["FROM"]
+        return spans, tokens[from_start - 1][2], tokens[from_end - 1][2]
+    except (ValueError, TypeError, IndexError, AttributeError, RecursionError):
+        # Diagnostic parsing must not replace the original compilation error.
+        return None
+
+
 def _get_clause_trace_node(
-    plan: "SnowflakePlan", position: int, executed_line: str
+    plan: "SnowflakePlan",
+    position: int,
+    executed_line: str,
+    line_number: Optional[int] = None,
 ) -> Optional[TraceNode]:
     """
     The trace node of the DataFrame operation that wrote the part of the SQL at the error, when
@@ -355,24 +580,34 @@ def _get_clause_trace_node(
     statement = getattr(plan, "source_plan", None)
     if not isinstance(statement, SelectStatement):
         return None
-    clause_spans = statement._clause_spans()
-    if not clause_spans or not clause_spans[0]:
-        return None
-    spans, from_start, from_end = clause_spans
     if not 0 <= position < len(executed_line):
         return None
-    # The executed line is a line of the statement's sql when the statement is a subquery of
-    # the executed sql, and of the sql of the plan otherwise, which lays out the FROM subquery
-    # differently (its line breaks are kept when the uuid comments are removed). The parts of
-    # the two outside the FROM subquery are the same text. The executed sql is stripped, which
-    # removes the leading spaces of its first line.
-    statement_sql = statement.sql_query
-    suffix = statement_sql[from_end:]
+    # Tracing generates commented_sql, so only the plan SQL may be cached. A nested
+    # statement can also have a cached single-line layout without the line breaks left
+    # by UUID comment removal. Lex each available layout in its own coordinate system.
+    candidates = [
+        getattr(statement, "_commented_sql", None),
+        getattr(statement, "_sql_query", None),
+    ]
+    # A compiled WITH query contains other statements; its coordinates are already
+    # resolved by _resolve_error_line. Read the owning statement's cached layout instead.
+    plan_sql = plan.queries[-1].sql
+    if not plan_sql.lstrip().upper().startswith("WITH "):
+        candidates.append(plan_sql)
+    if plan_sql.lstrip().upper().startswith("WITH "):
+        line_number = None
+    if line_number is not None:
+        # The caller verified this is the executed query: use its exact coordinates,
+        # not text matching, which is ambiguous when inner and outer clauses repeat.
+        candidates = [plan_sql.strip()]
 
     def line_offsets(sql: str) -> List[int]:
         offsets = []
         start = 0
         for index, line in enumerate(sql.split("\n")):
+            if line_number is not None and index != line_number:
+                start += len(line) + 1
+                continue
             if line == executed_line:
                 offsets.append(start + position)
             elif index == 0 and line.lstrip() == executed_line:
@@ -380,31 +615,27 @@ def _get_clause_trace_node(
             start += len(line) + 1
         return offsets
 
-    offsets = set()
-    for offset in line_offsets(statement_sql):
-        if from_start <= offset < from_end:
-            # the line is also in the FROM subquery: the part is not certain
+    owner = None
+    for sql in candidates:
+        if not isinstance(sql, str) or not sql:
+            continue
+        offsets = line_offsets(sql)
+        if not offsets:
+            continue
+        if len(offsets) != 1:
             return None
-        offsets.add(offset)
-    plan_sql = plan.queries[-1].sql
-    if (
-        plan_sql.startswith(statement_sql[:from_start])
-        and plan_sql.endswith(suffix)
-        and len(plan_sql) - len(suffix) >= from_start
-    ):
-        for offset in line_offsets(plan_sql):
-            if offset < from_start:
-                offsets.add(offset)
-            elif offset >= len(plan_sql) - len(suffix):
-                offsets.add(offset - (len(plan_sql) - len(statement_sql)))
-            else:
-                # a line in the FROM subquery: not a part of this statement
-                return None
-    if len(offsets) != 1:
-        return None
-    offset = offsets.pop()
-    nodes = [node for start, end, node in spans if start <= offset < end]
-    return nodes[0] if len(nodes) == 1 else None
+        clause_spans = _select_clause_spans(statement, sql)
+        if not clause_spans:
+            return None
+        spans, from_start, from_end = clause_spans
+        offset = offsets[0]
+        if from_start <= offset < from_end:
+            return None
+        nodes = [node for start, end, node in spans if start <= offset < end]
+        if len(nodes) != 1 or (owner is not None and owner is not nodes[0]):
+            return None
+        owner = nodes[0]
+    return owner
 
 
 def get_python_source_from_sql_error(
@@ -464,14 +695,18 @@ def get_python_source_from_sql_error(
         executed_lines = executed_sql.strip().split("\n")
         if sql_line_number < len(executed_lines):
             clause_node = _get_clause_trace_node(
-                plan, int(match.group(2)), executed_lines[sql_line_number]
+                plan,
+                int(match.group(2)),
+                executed_lines[sql_line_number],
+                sql_line_number
+                if _same_query(executed_sql.strip(), plan.queries[-1].sql)
+                else None,
             )
             if clause_node is not None:
                 location = _format_source_location(clause_node.src)
-                # Only ever narrow the operations reported for the plan.
-                if location and location in _extract_source_locations_from_plan(
-                    plan, own_only=True
-                ):
+                # Lifted clauses can belong to an inherited operation. Its provenance
+                # must still identify an operation present in this plan's trace nodes.
+                if location and location in _extract_source_locations_from_plan(plan):
                     return f"\nSQL compilation error corresponds to Python source at {location}.\n"
     source_locations = _extract_source_locations_from_plan(plan, own_only=own_only)
 
