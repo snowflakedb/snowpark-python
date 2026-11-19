@@ -814,6 +814,63 @@ def test_jdbc_binary_reader_and_projection(jdbc_type, custom_schema):
 
 
 @pytest.mark.parametrize(
+    "custom_schema, expected_types, expected_values",
+    [
+        (
+            "PAYLOAD STRING",
+            [IntegerType(), StringType(), StringType()],
+            [7, "0080FF", "hello"],
+        ),
+        (
+            "LABEL STRING, PAYLOAD BINARY, ID STRING",
+            [StringType(), BinaryType(), StringType()],
+            ["7", bytes.fromhex("0080FF"), "hello"],
+        ),
+    ],
+)
+def test_jdbc_binary_mixed_schema_preserves_source_positions(
+    custom_schema, expected_types, expected_values
+):
+    from snowflake.snowpark import Session
+
+    with Session.builder.config("local_testing", True).create() as local_session:
+        raw = local_session.create_dataframe(
+            [("7", "0080FF", "hello")],
+            schema=StructType(
+                [StructField(name, StringType()) for name in ("C0", "C1", "C2")]
+            ),
+        )
+        session = Mock()
+        session.sql.return_value.collect.return_value = [
+            ("ID", "INTEGER", "java.lang.Integer", 10, 0, True, "INTEGER"),
+            ("PAYLOAD", "VARBINARY", "[B", 3, 0, True, "VARBINARY"),
+            ("LABEL", "VARCHAR", "java.lang.String", 10, 0, True, "VARCHAR"),
+        ]
+        client = JDBC(
+            session,
+            "jdbc:mysql://host/db",
+            "T",
+            "EAI",
+            [],
+            False,
+            "cred",
+            custom_schema=custom_schema,
+            _emit_ast=False,
+        )
+        assert client.schema.names == ["ID", "PAYLOAD", "LABEL"]
+        assert [field.datatype for field in client.schema.fields] == expected_types
+        assert client.create_output_row_java_code() == (
+            "row.C0 = rs.getString(1);\n"
+            "row.C1 = toHex(rs.getBytes(2));\n"
+            "row.C2 = rs.getString(3);\n"
+        )
+        session.sql.side_effect = [Mock(), raw]
+        result = client.read("PARTITIONS")
+        assert result.columns == ["ID", "PAYLOAD", "LABEL"]
+        assert list(result.collect()[0]) == expected_values
+
+
+@pytest.mark.parametrize(
     "jdbc_type, java_type, type_name, expected_type",
     [
         ("BIT", "[B", "BIT", StringType()),
