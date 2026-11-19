@@ -462,10 +462,8 @@ class JDBC:
         ;
         """
 
-        # The partition table is created in the current schema, so its column
-        # inherits DEFAULT_DDL_COLLATION. UDTF signature matching rejects a collated
-        # argument for the uncollated `query VARCHAR` parameter ("Invalid argument
-        # types"); casting to VARCHAR drops the collation without changing the text.
+        # Cast to VARCHAR to drop any collation the partition column inherits,
+        # which would otherwise fail to match the UDTF signature.
         jdbc_udtf = f"""
             select result.* from {partition_table}, table({jdbc_ingestion_name}({PARTITION_TABLE_COLUMN_NAME}::VARCHAR)) AS result
             """
