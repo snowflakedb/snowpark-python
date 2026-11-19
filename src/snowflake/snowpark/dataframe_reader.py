@@ -2430,8 +2430,8 @@ class DataFrameReader:
             "external_access_integration", None
         )
         imports = udtf_configs.get("imports", None)
-        # Copy so the caller's udtf_configs is never mutated.
-        packages = list(udtf_configs.get("packages", ["com.snowflake:snowpark:latest"]))
+        # JDBC copies the list before adding the required Snowpark package.
+        packages = udtf_configs.get("packages", ["com.snowflake:snowpark:latest"])
         java_version = udtf_configs.get("java_version", 17)
         secret = udtf_configs.get("secret", None)
 
@@ -2439,7 +2439,7 @@ class DataFrameReader:
             raise ValueError(
                 "external_access_integration, secret and imports must be specified in udtf configs"
             )
-        if column is not None and (
+        if (column is not None or num_partitions is not None) and (
             isinstance(num_partitions, bool)
             or not isinstance(num_partitions, int)
             or num_partitions < 1

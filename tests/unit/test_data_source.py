@@ -442,15 +442,16 @@ def test_jdbc_missing_udtf_config_raises_value_error(missing):
         _jdbc_reader().jdbc(url="jdbc:x://h/d", udtf_configs=configs, query="q")
 
 
+@pytest.mark.parametrize("column", ["ID", None])
 @pytest.mark.parametrize("num_partitions", [0, -1, 2.5, "3", True])
-def test_jdbc_rejects_invalid_num_partitions(num_partitions):
+def test_jdbc_rejects_invalid_num_partitions(num_partitions, column):
     configs = {"external_access_integration": "E", "secret": "S", "imports": ["@s/j"]}
     with pytest.raises(ValueError, match="num_partitions must be a positive integer"):
         _jdbc_reader().jdbc(
             url="jdbc:x://h/d",
             udtf_configs=configs,
             query="q",
-            column="ID",
+            column=column,
             lower_bound=0,
             upper_bound=10,
             num_partitions=num_partitions,
@@ -501,3 +502,28 @@ def test_jdbc_custom_schema_unknown_column_raises():
     ]
     with pytest.raises(ValueError, match="NOPE"):
         client.schema
+
+
+@pytest.mark.parametrize("packages", [None, [], ["com.snowflake:snowpark:1.15.0"]])
+def test_jdbc_reader_preserves_packages(packages):
+    configs = {
+        "external_access_integration": "E",
+        "secret": "S",
+        "imports": [],
+        "packages": packages,
+    }
+    original = None if packages is None else list(packages)
+
+    # Stop at the JDBC boundary rather than mocking the downstream DataFrame API.
+    class StopAtClient(Exception):
+        pass
+
+    with patch(
+        "snowflake.snowpark.dataframe_reader.JDBC", side_effect=StopAtClient
+    ) as client:
+        with pytest.raises(StopAtClient):
+            _jdbc_reader().jdbc(
+                url="jdbc:postgresql://host/db", udtf_configs=configs, query="SELECT 1"
+            )
+    assert client.call_args.kwargs["packages"] == original
+    assert configs["packages"] == original
