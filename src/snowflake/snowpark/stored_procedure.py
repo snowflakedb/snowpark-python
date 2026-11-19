@@ -29,9 +29,11 @@ from snowflake.snowpark._internal.udf_utils import (
     add_snowpark_package_to_sproc_packages,
     check_execute_as_arg,
     check_python_runtime_version,
+    is_unsupported_runtime_error,
     check_register_args,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
+    disable_free_threaded_runtime,
     generate_anonymous_python_sp_sql,
     generate_call_python_sp_sql,
     get_func_arg_names,
@@ -40,6 +42,7 @@ from snowflake.snowpark._internal.udf_utils import (
     resolve_imports_and_packages,
 )
 from snowflake.snowpark._internal.utils import (
+    get_python_runtime_version,
     TempObjectType,
     check_imports_type,
     publicapi,
@@ -76,6 +79,7 @@ class StoredProcedure:
         _ast: Optional[proto.StoredProcedure] = None,
         _ast_id: Optional[int] = None,
         _ast_stmt: Optional[proto.Bind] = None,
+        _runtime_version_is_default: bool = False,
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -86,6 +90,8 @@ class StoredProcedure:
         self._input_types = input_types
         self._execute_as = execute_as
         self._anonymous_sp_sql = anonymous_sp_sql
+        # Whether the anonymous procedure's RUNTIME_VERSION came from the interpreter rather than the caller.
+        self._runtime_version_is_default = _runtime_version_is_default
         self._is_return_table = isinstance(return_type, StructType)
         self._packages = packages
 
@@ -149,13 +155,34 @@ class StoredProcedure:
             call_sql = generate_call_python_sp_sql(session, self.name, *args)
             query = f"{self._anonymous_sp_sql}{call_sql}"
 
-            res = session._execute_sproc_internal(
-                query=query,
-                is_return_table=self._is_return_table,
-                block=block,
-                statement_params=statement_params,
-                ast_stmt=self._ast_stmt,
-            )
+            def execute(query):
+                return session._execute_sproc_internal(
+                    query=query,
+                    is_return_table=self._is_return_table,
+                    block=block,
+                    statement_params=statement_params,
+                    ast_stmt=self._ast_stmt,
+                )
+
+            try:
+                res = execute(query)
+            except Exception as e:
+                free_threaded_runtime = get_python_runtime_version()
+                if not (
+                    self._runtime_version_is_default
+                    and free_threaded_runtime.endswith("t")
+                    and f"RUNTIME_VERSION='{free_threaded_runtime}'" in query
+                    and is_unsupported_runtime_error(e, free_threaded_runtime)
+                ):
+                    raise
+                gil_runtime = disable_free_threaded_runtime(
+                    session, free_threaded_runtime
+                )
+                self._anonymous_sp_sql = self._anonymous_sp_sql.replace(
+                    f"RUNTIME_VERSION='{free_threaded_runtime}'",
+                    f"RUNTIME_VERSION='{gil_runtime}'",
+                )
+                res = execute(f"{self._anonymous_sp_sql}{call_sql}")
 
             if not block:
                 return res
@@ -1005,6 +1032,7 @@ class StoredProcedureRegistration:
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
                 native_app_params=native_app_params,
+                session=self._session,
             )
         else:
             raised = False
@@ -1066,6 +1094,7 @@ class StoredProcedureRegistration:
             sproc_name,
             execute_as=execute_as,
             anonymous_sp_sql=anonymous_sp_sql,
+            _runtime_version_is_default=runtime_version_from_requirement is None,
             packages=packages,
             _ast=ast,
             _ast_id=ast_id,

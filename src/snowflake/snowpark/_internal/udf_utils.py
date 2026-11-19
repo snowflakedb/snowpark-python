@@ -27,6 +27,7 @@ from typing import (
 
 import cloudpickle
 from packaging.requirements import Requirement
+from snowflake.connector import ProgrammingError
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.options import installed_pandas, pandas
@@ -645,6 +646,38 @@ def get_gil_runtime_version(session: Optional["snowflake.snowpark.Session"]) -> 
         session._runtime_version_from_requirement if session is not None else None
     ) or get_python_runtime_version()
     return runtime_version.removesuffix("t")
+
+
+def get_default_runtime_version(session: Optional["snowflake.snowpark.Session"]) -> str:
+    """Returns the ``RUNTIME_VERSION`` for objects registered without an explicit one: this interpreter's, unless
+    the server has already rejected the free-threaded runtime for this session."""
+    if session is not None and getattr(
+        session, "_free_threaded_runtime_unsupported", False
+    ):
+        return get_python_runtime_version().removesuffix("t")
+    return get_python_runtime_version()
+
+
+def is_unsupported_runtime_error(error: Exception, runtime_version: str) -> bool:
+    """Whether ``error`` is the server refusing ``runtime_version`` as a ``RUNTIME_VERSION`` value."""
+    return f"invalid value '{runtime_version}' for property 'RUNTIME_VERSION'" in str(
+        error
+    )
+
+
+def disable_free_threaded_runtime(
+    session: Optional["snowflake.snowpark.Session"], runtime_version: str
+) -> str:
+    """Records that the server rejected the free-threaded runtime and returns the GIL runtime to use instead."""
+    if session is not None:
+        session._free_threaded_runtime_unsupported = True
+    fallback = runtime_version.removesuffix("t")
+    warning(
+        "free_threaded_runtime_unsupported",
+        f"The server does not support Python runtime {runtime_version}. Registering objects with "
+        f"runtime {fallback} instead, so they run with the GIL.",
+    )
+    return fallback
 
 
 def check_python_runtime_version(runtime_version_from_requirement: Optional[str]):
@@ -1524,7 +1557,8 @@ def create_python_udf_or_sp(
     artifact_repository: Optional[str] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
 ) -> None:
-    runtime_version = runtime_version or get_python_runtime_version()
+    runtime_is_default = not runtime_version
+    runtime_version = runtime_version or get_default_runtime_version(session)
     check_resource_constraint(resource_constraint)
 
     if replace and if_not_exists:
@@ -1653,11 +1687,29 @@ RUNTIME_VERSION='{runtime_version}'
 HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}
 """
-    session._run_query(
-        create_query,
-        is_ddl_on_temp_object=not is_permanent,
-        statement_params=statement_params,
-    )
+    try:
+        session._run_query(
+            create_query,
+            is_ddl_on_temp_object=not is_permanent,
+            statement_params=statement_params,
+        )
+    except ProgrammingError as e:
+        # Only an interpreter-derived runtime falls back: one the caller asked for must fail loudly.
+        if not (
+            runtime_is_default
+            and runtime_version.endswith("t")
+            and is_unsupported_runtime_error(e, runtime_version)
+        ):
+            raise
+        gil_runtime_version = disable_free_threaded_runtime(session, runtime_version)
+        session._run_query(
+            create_query.replace(
+                f"RUNTIME_VERSION='{runtime_version}'",
+                f"RUNTIME_VERSION='{gil_runtime_version}'",
+            ),
+            is_ddl_on_temp_object=not is_permanent,
+            statement_params=statement_params,
+        )
     if comment is not None:
         object_signature_sql = f"{object_name}({','.join(input_sql_types)})"
         comment = escape_single_quotes(comment)
@@ -1691,8 +1743,9 @@ def generate_anonymous_python_sp_sql(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
+    session: Optional["snowflake.snowpark.Session"] = None,
 ) -> str:
-    runtime_version = runtime_version or get_python_runtime_version()
+    runtime_version = runtime_version or get_default_runtime_version(session)
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
     else:
