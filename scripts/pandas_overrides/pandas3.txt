@@ -1,2 +1,1 @@
-# UV_OVERRIDE for the pandas3 tox factor.
 pandas>=3,<4

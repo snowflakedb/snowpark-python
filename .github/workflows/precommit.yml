@@ -347,7 +347,7 @@ jobs:
             .tox/coverage.xml
 
   test-local-testing-pandas3:
-    # Separate job, so the required test-local-testing check keeps its name.
+    # Separate job, so the required check keeps its name.
     name: Test Local Testing Module pandas 3 py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
     runs-on: ${{ matrix.os }}
