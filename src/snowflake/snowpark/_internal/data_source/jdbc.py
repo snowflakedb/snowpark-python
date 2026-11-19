@@ -13,7 +13,10 @@ from typing import Optional, Union, List, TYPE_CHECKING
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.data_source import DataSourcePartitioner
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
-from snowflake.snowpark._internal.data_source.utils import get_jdbc_dbms
+from snowflake.snowpark._internal.data_source.utils import (
+    DATA_SOURCE_JDBC_SQL_COMMENT,
+    get_jdbc_dbms,
+)
 from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     get_temp_type_for_object,
@@ -198,7 +201,7 @@ class JDBC:
         upper_bound: Optional[Union[str, int]] = None,
         num_partitions: Optional[int] = None,
         query_timeout: Optional[int] = 0,
-        fetch_size: Optional[int] = 0,
+        fetch_size: Optional[int] = 10000,
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[List[str]] = None,
@@ -224,6 +227,12 @@ class JDBC:
         self.upper_bound = upper_bound
         self.num_partitions = num_partitions
         self.query_timeout = query_timeout
+        if (
+            isinstance(fetch_size, bool)
+            or not isinstance(fetch_size, int)
+            or fetch_size < 0
+        ):
+            raise ValueError("fetch_size must be a non-negative integer")
         self.fetch_size = fetch_size
         self.custom_schema = custom_schema
         self.predicates = predicates
@@ -259,6 +268,7 @@ class JDBC:
         infer_schema_udtf_name = random_name_for_temp_object(TempObjectType.FUNCTION)
         infer_schema_udtf_registration = f"""
             CREATE OR REPLACE {self._temp_function_type} FUNCTION {infer_schema_udtf_name}(query VARCHAR)
+            {DATA_SOURCE_JDBC_SQL_COMMENT}
             RETURNS TABLE (field_name VARCHAR, jdbc_type VARCHAR, java_type VARCHAR, precision INTEGER, scale INTEGER, nullable BOOLEAN, type_name VARCHAR)
             LANGUAGE JAVA
             RUNTIME_VERSION = '{self.java_version}'
@@ -390,7 +400,7 @@ class JDBC:
             # inference UDTF instead of keeping it until the session ends.
             try:
                 self.session.sql(
-                    f"DROP FUNCTION IF EXISTS {infer_schema_udtf_name}(VARCHAR)",
+                    f"DROP FUNCTION IF EXISTS {infer_schema_udtf_name}(VARCHAR) {DATA_SOURCE_JDBC_SQL_COMMENT}",
                     _emit_ast=False,
                 ).collect()
             except Exception as e:
@@ -474,8 +484,10 @@ class JDBC:
             ]
         )
 
+        streaming = self._dbms == "postgresql" and self.fetch_size > 0
         jdbc_udtf_registration = f"""
             CREATE OR REPLACE {self._temp_function_type} FUNCTION {jdbc_ingestion_name}(query VARCHAR)
+            {DATA_SOURCE_JDBC_SQL_COMMENT}
             RETURNS TABLE ({udtf_table_return_type})
             LANGUAGE JAVA
             RUNTIME_VERSION = '{self.java_version}'
@@ -504,10 +516,9 @@ class JDBC:
             }}
 
             public class DataLoader{{
-            // Snowflake may call process() several times on one handler instance (one call
-            // per partition row it routes here), so the connection is shared across calls,
-            // opened on first use and closed only in endPartition(). Each call owns and
-            // closes its own Statement and ResultSet.
+            // PostgreSQL cursor reads own a connection per stream: completing one
+            // transaction must not invalidate another process() call's cursor.
+            // Other reads retain the shared, lazily opened connection.
             private Connection conn;
             private final List<AutoCloseable> openResources = new ArrayList<>();
 
@@ -537,6 +548,34 @@ class JDBC:
                 }}
             }}
 
+            private class ReadResources implements AutoCloseable {{
+                private Connection connection;
+                private Statement statement;
+                private ResultSet resultSet;
+                private boolean transactionStarted;
+                private boolean closed;
+
+                public void close() {{
+                    if (closed) {{
+                        return;
+                    }}
+                    closed = true;
+                    closeQuietly(resultSet);
+                    closeQuietly(statement);
+                    if ({str(streaming).lower()}) {{
+                        if (transactionStarted) {{
+                            try {{
+                                // End the cursor transaction without committing source writes.
+                                connection.rollback();
+                            }} catch (SQLException ignored) {{
+                            }}
+                        }}
+                        closeQuietly(connection);
+                    }}
+                    openResources.remove(this);
+                }}
+            }}
+
             public static Class<?> getOutputClass() {{
                 return OutputRow.class;
             }}
@@ -549,39 +588,41 @@ class JDBC:
                 // JAVA_UDF_HANDLER_TIMEOUT_SECONDS (600s by default) only bounds the time
                 // until process() returns, so calling executeQuery() here would charge the
                 // source's entire query time against it. Row fetching stays lazy.
-                final Statement[] stmtRef = new Statement[1];
-                final ResultSet[] rsRef = new ResultSet[1];
+                final ReadResources resources = new ReadResources();
+                openResources.add(resources);
                 return Stream.generate(() -> {{
                     try {{
-                        if (rsRef[0] == null) {{
-                            Statement stmt = getConnection().createStatement();
-                            openResources.add(stmt);
-                            stmtRef[0] = stmt;
+                        if (resources.closed) {{
+                            return null;
+                        }}
+                        if (resources.resultSet == null) {{
+                            resources.connection = {"createConnection()" if streaming else "getConnection()"};
+                            Statement stmt = resources.connection.createStatement();
+                            resources.statement = stmt;
                             stmt.setQueryTimeout({str(self.query_timeout)});
                             stmt.setFetchSize({str(self.fetch_size)});
+                            // Preserve initialization's original autocommit semantics.
                             {self.generate_session_init_statement()}
-                            rsRef[0] = stmt.executeQuery(query);
-                            openResources.add(rsRef[0]);
+                            {"resources.connection.setAutoCommit(false); resources.transactionStarted = true;" if streaming else ""}
+                            resources.resultSet = stmt.executeQuery(query);
                         }}
-                        ResultSet rs = rsRef[0];
+                        ResultSet rs = resources.resultSet;
                         if (rs.next()) {{
                             OutputRow row = new OutputRow();
                             {self.create_output_row_java_code()}
                             return row;
                         }} else {{
-                            closeQuietly(rs);
-                            closeQuietly(stmtRef[0]);
+                            resources.close();
                             return null;
                         }}
                     }} catch (Exception e) {{
-                        closeQuietly(rsRef[0]);
-                        closeQuietly(stmtRef[0]);
+                        resources.close();
                         // Exception rather than SQLException: this block now also covers
                         // connection and statement setup, whose failures are not always
                         // SQLException.
                         throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
                     }}
-                }}).takeWhile(Objects::nonNull);
+                }}).takeWhile(Objects::nonNull).onClose(resources::close);
             }}
 
             public Stream<OutputRow> endPartition() {{
@@ -599,6 +640,7 @@ class JDBC:
 
         jdbc_udtf = f"""
             select result.* from {partition_table}, table({jdbc_ingestion_name}({PARTITION_TABLE_COLUMN_NAME})) AS result
+            {DATA_SOURCE_JDBC_SQL_COMMENT}
             """
 
         self.session.sql(jdbc_udtf_registration, _emit_ast=self._emit_ast).collect()

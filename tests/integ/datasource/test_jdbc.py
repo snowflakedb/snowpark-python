@@ -9,6 +9,11 @@ from unittest.mock import patch
 import pytest
 
 from snowflake.snowpark._internal.data_source import JDBC
+from snowflake.snowpark._internal.data_source.utils import (
+    DATA_SOURCE_JDBC_SIGNATURE,
+    DATA_SOURCE_JDBC_SQL_COMMENT,
+    STATEMENT_PARAMS_DATA_SOURCE_JDBC,
+)
 from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     TempObjectType,
@@ -849,3 +854,123 @@ def test_jdbc_time_zone_columns(
     assert [f.datatype for f in df.schema.fields] == expected_types
     # Aware datetimes compare by instant, whatever offset they are returned in.
     assert tuple(df.collect()[0]) == expected_row
+
+
+@pytest.mark.parametrize("fetch_size", [0, 7, 10000])
+def test_postgres_streaming_init_and_partitions(
+    session, postgres_udtf_configs, fetch_size
+):
+    # ON COMMIT DELETE ROWS distinguishes autocommit initialization from incorrectly
+    # running initialization in the new cursor transaction. No persistent source writes.
+    table = "jdbc_parity_init"
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query=f"SELECT i, (SELECT count(*) FROM {table}) AS init_rows FROM generate_series(1, 31) i",
+        fetch_size=fetch_size,
+        session_init_statement=[
+            f"CREATE TEMP TABLE IF NOT EXISTS {table} (id integer) ON COMMIT DELETE ROWS",
+            f"INSERT INTO {table} VALUES (1)",
+        ],
+        predicates=["i <= 10", "i > 10 AND i <= 20", "i > 20"],
+    )
+    assert [tuple(row) for row in df.sort("I").collect()] == [
+        (i, 0) for i in range(1, 32)
+    ]
+    assert df.count() == 31
+
+
+@pytest.mark.parametrize("fetch_size", [0, 7, 10000])
+def test_postgres_streaming_driver_batches(session, postgres_udtf_configs, fetch_size):
+    # Observe pgjdbc's actual retained rows and server cursor, not just setFetchSize.
+    original = JDBC.create_output_row_java_code
+    row_count = max(31, 2 * fetch_size + 3)
+
+    def observe(client):
+        return (
+            original(client)
+            + """
+            org.postgresql.jdbc.PgResultSet pg = (org.postgresql.jdbc.PgResultSet) rs;
+            java.lang.reflect.Field rowsField = pg.getClass().getDeclaredField("rows");
+            java.lang.reflect.Field cursorField = pg.getClass().getDeclaredField("cursor");
+            rowsField.setAccessible(true);
+            cursorField.setAccessible(true);
+            row.C1 = Integer.toString(((java.util.List<?>) rowsField.get(pg)).size());
+            row.C2 = Boolean.toString(cursorField.get(pg) != null);
+        """
+        )
+
+    with patch.object(JDBC, "create_output_row_java_code", observe):
+        df = session.read.jdbc(
+            url=POSTGRES_URL,
+            udtf_configs=postgres_udtf_configs,
+            query=f"SELECT i, 0 AS buffered, false AS has_cursor FROM generate_series(1,{row_count}) i",
+            fetch_size=fetch_size,
+        )
+    rows = df.sort("I").collect()
+    assert [row.I for row in rows] == list(range(1, row_count + 1))
+    if fetch_size:
+        assert all(row.BUFFERED <= fetch_size for row in rows)
+        assert rows[0].HAS_CURSOR
+        complete_rows = row_count // fetch_size * fetch_size
+        remainder = row_count % fetch_size
+        assert [row.BUFFERED for row in rows] == (
+            [fetch_size] * complete_rows + [remainder] * remainder
+        )
+    else:
+        assert all(row.BUFFERED == 31 and not row.HAS_CURSOR for row in rows)
+
+
+def test_jdbc_action_telemetry(session, postgres_udtf_configs):
+    df = session.read.jdbc(
+        url=POSTGRES_URL, udtf_configs=postgres_udtf_configs, query="SELECT 1 AS id"
+    )
+    assert df._plan.api_calls[0]["name"] == DATA_SOURCE_JDBC_SIGNATURE
+    original = session._conn.run_query
+    queries = []
+
+    def check(*args, **kwargs):
+        params = kwargs.get("_statement_params") or {}
+        assert params[STATEMENT_PARAMS_DATA_SOURCE_JDBC] == "1"
+        assert params["QUERY_TAG"] == "jdbc-parity"
+        queries.append(args[0])
+        return original(*args, **kwargs)
+
+    params = {"QUERY_TAG": "jdbc-parity"}
+    table = random_name_for_temp_object(TempObjectType.TABLE)
+    stage = session.get_session_stage()
+    with patch.object(session._conn, "run_query", side_effect=check):
+        assert df.select("ID").collect(statement_params=params)[0][0] == 1
+        assert df.count(statement_params=params) == 1
+        df.write.save_as_table(table, table_type="temp", statement_params=params)
+        df.write.copy_into_location(
+            stage + "/jdbc_parity/",
+            file_format_type="parquet",
+            overwrite=True,
+            statement_params=params,
+        )
+    assert len(queries) >= 4
+    assert all(DATA_SOURCE_JDBC_SQL_COMMENT in query for query in queries)
+
+
+@pytest.mark.parametrize("custom_schema", ["ID STRING", "TZ STRING, ID STRING"])
+def test_jdbc_custom_schema_retains_metadata(
+    session, postgres_udtf_configs, custom_schema
+):
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query="SELECT 1 AS id, TIMESTAMPTZ '2024-01-01 12:00:00+05:30' AS tz",
+        custom_schema=custom_schema,
+    )
+    assert df.columns == ["ID", "TZ"]
+    row = df.collect()[0]
+    assert row.ID == "1"
+    if custom_schema.startswith("TZ"):
+        assert datetime.datetime.fromisoformat(
+            row.TZ.replace("Z", "+00:00")
+        ) == datetime.datetime(2024, 1, 1, 6, 30, tzinfo=datetime.timezone.utc)
+    else:
+        assert row.TZ == datetime.datetime(
+            2024, 1, 1, 6, 30, tzinfo=datetime.timezone.utc
+        )
