@@ -208,10 +208,17 @@ class SnowflakePlan(LogicalPlan):
                                 and "does not exist or not authorized" not in e.msg
                                 and "already exists" not in e.msg
                             ):
-                                if line_less_error_context := get_line_less_error_context(
-                                    top_plan, e, query
-                                ):
-                                    debug_context_arr.append(line_less_error_context)
+                                try:
+                                    if line_less_error_context := get_line_less_error_context(
+                                        top_plan, e, query
+                                    ):
+                                        debug_context_arr.append(
+                                            line_less_error_context
+                                        )
+                                except Exception as trace_error:
+                                    _logger.debug(
+                                        f"Error when getting the line-less SQL error context: {trace_error}"
+                                    )
                             if trace_node is not None and debug_config.enabled(
                                 top_plan.session, "dataframe_trace_on_error"
                             ):
@@ -504,6 +511,9 @@ class SnowflakePlan(LogicalPlan):
         # we will store the ast_id here.
         self.df_ast_ids: Optional[List[int]] = None
         self.df_trace_nodes: Optional[List["TraceNode"]] = None
+        from snowflake.snowpark._internal.df_trace import current_trace_call
+
+        self._df_trace_call_id = current_trace_call(session)
         # the queries of the last compilation, kept only while tracing sql errors is enabled
         self._last_execution_queries: Optional[
             Dict["PlanQueryType", List["Query"]]
@@ -802,6 +812,7 @@ class SnowflakePlan(LogicalPlan):
             )
         plan.df_ast_ids = self.df_ast_ids
         plan.df_trace_nodes = self.df_trace_nodes
+        plan._df_trace_call_id = self._df_trace_call_id
         return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -842,6 +853,7 @@ class SnowflakePlan(LogicalPlan):
             copied_source_plan._is_valid_for_replacement = True
         copied_plan.df_ast_ids = self.df_ast_ids
         copied_plan.df_trace_nodes = self.df_trace_nodes
+        copied_plan._df_trace_call_id = self._df_trace_call_id
 
         return copied_plan
 

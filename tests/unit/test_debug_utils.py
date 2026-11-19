@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import copy
 import os
 import re
 import tempfile
@@ -1034,15 +1035,19 @@ def test_line_less_error_reports_every_failing_branch():
     assert "f.py: line 3" not in context
 
 
-def test_line_less_error_wrapper_without_operation_uses_its_parent():
-    # e.g. the SelectSnowflakePlan that wraps the plan of a join
+@pytest.mark.parametrize("call_id", [None, 122, 123])
+def test_line_less_error_wrapper_without_operation_uses_its_parent(call_id):
+    # An empty trace is internal only with provenance from the owning public call.
     source = _fake_plan(1, sql="source")
     wrapper = _fake_plan(None, [source], sql="wrapper", inherit=False)
     top = _fake_plan(2, [wrapper], sql="top", inherit=False)
+    top.df_trace_nodes[-1].trace_call_id = 123
+    wrapper._df_trace_call_id = call_id
     context, _ = _line_less_context(top, {"wrapper", "top"})
-    assert (
-        context
-        == "\nSQL compilation error corresponds to Python source at f.py: line 2.\n"
+    assert context == (
+        "\nSQL compilation error corresponds to Python source at f.py: line 2.\n"
+        if call_id == 123
+        else ""
     )
 
 
@@ -1237,6 +1242,239 @@ def test_line_less_error_wrapper_checks_failed_query(
     if layout in ("pre_action", "duplicate_pre_action", "compiled_pre_action"):
         assert server.run_query.call_count == 1
         assert server.run_query.call_args.args[0] == queries[0].sql
+
+
+@pytest.mark.parametrize("describe_error_type", ["operational", "value"])
+@pytest.mark.parametrize("trace_sql_errors", [False, True])
+@pytest.mark.parametrize("trace_on_error", [False, True])
+def test_line_less_error_wrapper_preserves_lineage_on_describe_failure(
+    line_less_session, describe_error_type, trace_sql_errors, trace_on_error, caplog
+):
+    from snowflake.connector.errors import OperationalError
+    from snowflake.snowpark._internal.analyzer import snowflake_plan
+    from snowflake.snowpark.exceptions import SnowparkSQLException
+
+    session = line_less_session
+    session._debug.set(
+        trace_sql_errors_to_dataframe=trace_sql_errors,
+        dataframe_trace_on_error=trace_on_error,
+    )
+    child = SnowflakePlan([Query("select 1")], "select 1", session=session)
+    child.df_trace_nodes = [_trace_node(10)]
+    top = SnowflakePlan([Query("select 2")], "select 2", session=session)
+    top.source_plan = types.SimpleNamespace(children=[child])
+    top.df_trace_nodes = child.df_trace_nodes + [_trace_node(20)]
+    original = _line_less_error()
+    original.query = "select 2"
+    original.sfqid = "original-query-id"
+    original.sqlstate = "42000"
+    original_metadata = {
+        name: getattr(original, name)
+        for name in ("query", "msg", "raw_msg", "errno", "sqlstate", "sfqid", "args")
+    }
+    describe_error = (
+        OperationalError(msg="Connection timed out", errno=250003)
+        if describe_error_type == "operational"
+        else ValueError("diagnostic conversion failed")
+    )
+    cursor = session._conn._cursor
+    cursor._describe_internal.side_effect = describe_error
+
+    @SnowflakePlan.Decorator.wrap_exception
+    def fail(plan):
+        raise original
+
+    with (
+        mock.patch.object(
+            snowflake_plan,
+            "get_line_less_error_context",
+            wraps=snowflake_plan.get_line_less_error_context,
+        ) as line_less_context,
+        mock.patch.object(
+            snowflake_plan,
+            "get_df_transform_trace_message",
+            wraps=snowflake_plan.get_df_transform_trace_message,
+        ) as lineage,
+        caplog.at_level("DEBUG", logger=snowflake_plan.__name__),
+        pytest.raises(SnowparkSQLException) as exc,
+    ):
+        fail(top)
+
+    error = exc.value
+    assert error.conn_error is original
+    assert error.error_code == "1304"
+    assert error.query == original_metadata["query"]
+    assert error.message == original_metadata["msg"]
+    assert error.raw_message == original_metadata["raw_msg"]
+    assert error.sql_error_code == original_metadata["errno"]
+    assert error.sfqid == original_metadata["sfqid"]
+    for name, value in original_metadata.items():
+        assert getattr(original, name) == value
+    context = error.debug_context or ""
+    assert (
+        "Trace of the most recent dataframe operations" in context
+    ) == trace_on_error
+    assert "SQL compilation error corresponds to Python" not in context
+    assert str(describe_error) not in str(error)
+    if trace_sql_errors:
+        line_less_context.assert_called_once_with(top, original, original.query)
+        cursor._describe_internal.assert_called_once_with("select 1", params=[])
+        assert "Error when getting the line-less SQL error context" in caplog.text
+    else:
+        line_less_context.assert_not_called()
+        cursor._describe_internal.assert_not_called()
+        assert "Error when getting the line-less SQL error context" not in caplog.text
+    if trace_on_error:
+        lineage.assert_called_once_with(top.df_trace_nodes[-1])
+    else:
+        lineage.assert_not_called()
+
+
+@pytest.mark.parametrize("simplifier", [False, True])
+@pytest.mark.parametrize("tracing", ["late", "gap", "continuous"])
+@pytest.mark.parametrize("operation", ["union", "join"])
+def test_line_less_error_real_plan_trace_ownership(
+    mock_server_connection, simplifier, tracing, operation
+):
+    from snowflake.snowpark import Session
+    from snowflake.snowpark._internal.analyzer import snowflake_plan
+    from snowflake.snowpark.functions import col
+    from snowflake.snowpark.exceptions import SnowparkSQLException
+
+    server = mock_server_connection
+    with Session(server) as session:
+        session.sql_simplifier_enabled = simplifier
+        session._cte_optimization_enabled = False
+        session._ast_enabled = False
+        session.debug.set(
+            trace_sql_errors_to_dataframe=tracing != "late",
+            dataframe_trace_on_error=tracing != "late",
+        )
+        left = session.create_dataframe([[1]], schema=["A"])
+        right = session.create_dataframe([[1, 2]], schema=["A", "B"])
+        if tracing == "gap":
+            session.debug.set(
+                trace_sql_errors_to_dataframe=False, dataframe_trace_on_error=False
+            )
+        bad = left.union_all(right) if operation == "union" else left.join(right, "B")
+        session.debug.set(
+            trace_sql_errors_to_dataframe=True, dataframe_trace_on_error=True
+        )
+        result = bad.filter(col("A") > 0)
+        top = result._plan
+        message = (
+            "invalid number of result columns for set operator input branches"
+            if operation == "union"
+            else "Invalid identifier B"
+        )
+        original = _line_less_error(message)
+        original.sfqid = "original-query-id"
+        original.sqlstate = "42000"
+
+        def fail_query(sql, *args, **kwargs):
+            original.query = sql
+            raise original
+
+        def describe(sql, params=None):
+            if ("UNION ALL" if operation == "union" else "JOIN") in sql:
+                raise _line_less_error(message)
+            return []
+
+        cursor = server._cursor
+        with (
+            mock.patch.object(server, "run_query", side_effect=fail_query) as execute,
+            mock.patch.object(
+                cursor, "_describe_internal", side_effect=describe
+            ) as probes,
+            mock.patch.object(
+                snowflake_plan,
+                "get_line_less_error_context",
+                wraps=snowflake_plan.get_line_less_error_context,
+            ) as diagnostic,
+            pytest.raises(SnowparkSQLException) as exc,
+        ):
+            result.collect()
+        error = exc.value
+        assert error.conn_error is original
+        assert error.query == original.query == top.queries[-1].sql
+        assert error.sfqid == original.sfqid == "original-query-id"
+        assert error.sql_error_code == original.errno
+        assert error.message == original.msg
+        assert error.raw_message == original.raw_msg
+        assert original.sqlstate == "42000"
+        execute.assert_called_once()
+        diagnostic.assert_called_once_with(top, original, original.query)
+        assert top._last_execution_queries is not None
+        assert 0 < probes.call_count <= debug_utils._MAX_LINE_LESS_ERROR_DESCRIBES
+        context = error.debug_context
+        assert "Trace of the most recent dataframe operations" in context
+        assert 'bad.filter(col("A") > 0)' in context
+        if tracing == "continuous":
+            attribution = context.split(
+                "Trace of the most recent dataframe operations"
+            )[0]
+            assert "SQL compilation error corresponds to Python source" in attribution
+            assert _format_source_location(bad._trace_node.src) in attribution
+            if operation != "union" or not simplifier:
+                assert (
+                    _format_source_location(result._trace_node.src) not in attribution
+                )
+        else:
+            assert bad._trace_node is None
+            assert "SQL compilation error corresponds to Python" not in context
+        session.debug.set()
+
+
+@pytest.mark.parametrize("copy_plan", [copy.copy, copy.deepcopy])
+def test_line_less_error_trace_call_provenance_survives_wrapping_and_copying(
+    mock_server_connection, copy_plan
+):
+    from snowflake.snowpark import Session
+    from snowflake.snowpark._internal import df_trace
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        SelectSnowflakePlan,
+    )
+    from snowflake.snowpark._internal.utils import publicapi
+
+    with Session(mock_server_connection) as session:
+        session._ast_enabled = False
+        session.debug.enable_trace_sql_errors_to_dataframe()
+        traced = session.create_dataframe([[1]], schema=["A"])
+        token = traced._trace_node.trace_call_id
+        assert token is not None
+        assert traced._plan._df_trace_call_id == token
+        for plan in (traced._plan, traced._select_statement):
+            assert copy_plan(plan)._df_trace_call_id == plan._df_trace_call_id
+
+        session.debug.disable_trace_sql_errors_to_dataframe()
+        # Another session can keep the public API wrapper active while this one is off.
+        with mock.patch.object(df_trace, "tracing_flags_on", return_value=True):
+            untraced = session.create_dataframe([[2]], schema=["A"])
+        assert untraced._plan._df_trace_call_id is None
+        session.debug.enable_trace_sql_errors_to_dataframe()
+
+        @publicapi
+        def rewrap():
+            assert df_trace.current_trace_call() != token
+            return SelectSnowflakePlan(untraced._plan, analyzer=session._analyzer)
+
+        # Creating a wrapper now must not relabel an older untraced plan as internal.
+        wrapped = rewrap()
+        assert wrapped._df_trace_call_id is None
+        assert copy_plan(wrapped)._df_trace_call_id is None
+        copied_selectable = copy_plan(untraced._select_statement)
+        assert copied_selectable.snowflake_plan._df_trace_call_id is None
+        assert df_trace.current_trace_call() is None
+
+        @publicapi
+        def fail():
+            assert df_trace.current_trace_call() is not None
+            raise ValueError("test failure")
+
+        with pytest.raises(ValueError, match="test failure"):
+            fail()
+        assert df_trace.current_trace_call() is None
+        session.debug.set()
 
 
 @pytest.mark.parametrize("executed_sql", [None, "", "unknown SQL"])
