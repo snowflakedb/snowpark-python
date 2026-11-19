@@ -18,12 +18,17 @@ from snowflake.snowpark._internal.data_source.custom.conversion import (
     normalize_items,
     staging_schema,
     to_row_tuple,
+    udtf_output_schema,
+    udtf_row_converters,
     validate_schema,
-    value_converters,
 )
 from snowflake.snowpark._internal.data_source.custom.ingestion import (
     CustomPartitionReader,
+    _build_udtf_handler,
     _dumps,
+    _local_modules_of,
+    _pickle_by_value,
+    _resolve_udtf_packages,
 )
 from snowflake.snowpark._internal.data_source.custom.options import (
     DEFAULT_BATCH_SIZE,
@@ -108,35 +113,30 @@ def test_split_options():
             "flag": True,
             "num": 5,
             "none": None,
+            "snowpark.External_Access_Integration": "EAI",
+            "snowpark.packages": "requests, pyarrow",
+            "snowpark.imports": '["@stage/a.py"]',
+            "snowpark.secrets": {"cred": "my_secret"},
             "snowpark.max_workers": "4",
             "snowpark.fetch_with_process": "true",
             "snowpark.batch_size": 10,
         }
     )
     assert dict(user) == {"path": "/a", "flag": "true", "num": "5", "none": None}
+    assert engine.external_access_integration == "EAI"
+    assert engine.use_udtf_ingestion
+    assert engine.packages == ["requests", "pyarrow"]
+    assert engine.imports == ["@stage/a.py"]
+    assert engine.secrets == {"cred": "my_secret"}
     assert engine.max_workers == 4
     assert engine.fetch_with_process is True
     assert engine.batch_size == 10
 
 
-@pytest.mark.parametrize(
-    "option",
-    [
-        "snowpark.External_Access_Integration",
-        "snowpark.packages",
-        "snowpark.imports",
-        "snowpark.artifact_repository",
-        "snowpark.secrets",
-    ],
-)
-def test_split_options_server_side_options_are_not_supported(option):
-    with pytest.raises(NotImplementedError, match="server-side reads"):
-        split_options({option: "a"})
-
-
 def test_split_options_defaults():
     user, engine = split_options({})
     assert dict(user) == {}
+    assert not engine.use_udtf_ingestion
     assert engine.max_workers >= 1
     assert engine.fetch_with_process is False
     assert engine.batch_size == DEFAULT_BATCH_SIZE
@@ -150,6 +150,9 @@ def test_split_options_defaults():
         ({"snowpark.max_workers": "abc"}, TypeError, "must be an integer"),
         ({"snowpark.batch_size": True}, TypeError, "must be an integer"),
         ({"snowpark.fetch_with_process": "yes"}, TypeError, "must be a boolean"),
+        ({"snowpark.packages": 1}, TypeError, "list of strings"),
+        ({"snowpark.packages": [1]}, TypeError, "list of strings"),
+        ({"snowpark.secrets": {"a": 1}}, TypeError, "dictionary of strings"),
         ({1: "a"}, TypeError, "Option names must be strings"),
     ],
 )
@@ -236,7 +239,7 @@ def test_validate_schema():
         validate_schema(StructType([StructField("D", DecFloatType())]))
 
 
-def test_staging_schema():
+def test_staging_and_udtf_schema():
     schema = StructType(
         [
             StructField("A", ArrayType(LongType())),
@@ -253,6 +256,15 @@ def test_staging_schema():
         TimestampType(TimestampTimeZone.TZ),
         LongType(),
     ]
+    udtf_schema = udtf_output_schema(schema)
+    assert [f.datatype for f in udtf_schema.fields] == [
+        ArrayType(LongType()),
+        MapType(StringType(), LongType()),
+        VariantType(),
+        StringType(),
+        LongType(),
+    ]
+    assert udtf_schema.fields[3].nullable is False
 
 
 def test_field_matcher():
@@ -280,11 +292,25 @@ def test_to_row_tuple():
 
 
 def test_convert_row():
+    ts = datetime.datetime(2024, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)
+    schema = StructType(
+        [
+            StructField("I", LongType()),
+            StructField("TS", TimestampType()),
+            StructField("N", StringType()),
+        ]
+    )
+    converters = udtf_row_converters(schema)
+    assert convert_row((1, ts, None), converters) == (
+        1,
+        "2024-01-02T03:04:05+00:00",
+        None,
+    )
     assert convert_row((1,), [None]) == (1,)
     schema = StructType(
         [StructField("V", VariantType()), StructField("A", ArrayType())]
     )
-    assert convert_row((Row(a=Row(1, 2)), None), value_converters(schema)) == (
+    assert convert_row((Row(a=Row(1, 2)), None), udtf_row_converters(schema)) == (
         {"a": [1, 2]},
         None,
     )
@@ -302,7 +328,7 @@ def test_convert_row_date_time_decimal():
     )
     row = convert_row(
         ("2024-01-02", "03:04:05", decimal.Decimal("1.235"), 2.5),
-        value_converters(schema),
+        udtf_row_converters(schema),
     )
     assert row == (
         datetime.date(2024, 1, 2),
@@ -312,7 +338,7 @@ def test_convert_row_date_time_decimal():
     )
     assert convert_row(
         (datetime.datetime(2024, 1, 2, 3), None, None, None),
-        value_converters(schema),
+        udtf_row_converters(schema),
     ) == (datetime.date(2024, 1, 2), None, None, None)
 
 
@@ -624,6 +650,131 @@ def test_dumps_unpicklable():
         _dumps(LockReader(), "DataSourceReader")
 
 
+def test_pickle_by_value():
+    with _pickle_by_value():
+        registered = cloudpickle.list_registry_pickle_by_value()
+        assert "snowflake.snowpark.datasource" in registered
+        assert conversion.__name__ in registered
+        assert CaseInsensitiveDict.__module__ in registered
+        data = cloudpickle.dumps(InputPartition(1))
+    assert "snowflake.snowpark.datasource" not in (
+        cloudpickle.list_registry_pickle_by_value()
+    )
+    assert cloudpickle.loads(data).value == 1
+
+
+def test_pickle_by_value_requires_cloudpickle_2(monkeypatch):
+    monkeypatch.delattr(cloudpickle, "register_pickle_by_value")
+    with pytest.raises(ImportError, match=r"require cloudpickle>=2\.0"):
+        with _pickle_by_value():
+            pass
+
+
+def test_udtf_handler_module_not_found_message():
+    schema = StructType([StructField("I", LongType())])
+
+    class Missing:
+        def __reduce__(self):
+            return (__import__, ("not_installed_module_xyz",))
+
+    handler = _build_udtf_handler(pickle.dumps(Missing()), schema)
+    with pytest.raises(ModuleNotFoundError) as exc_info:
+        handler()
+    message = str(exc_info.value)
+    assert "snowpark.packages" in message
+    assert "snowpark.imports" in message
+
+
+def test_resolve_udtf_packages():
+    assert _resolve_udtf_packages(None) == ["snowflake-snowpark-python"]
+    assert _resolve_udtf_packages(["requests"]) == [
+        "requests",
+        "snowflake-snowpark-python",
+    ]
+    assert _resolve_udtf_packages(["snowflake-snowpark-python==1.40.0"]) == [
+        "snowflake-snowpark-python==1.40.0"
+    ]
+    assert _resolve_udtf_packages(["Snowflake-Snowpark-Python>=1.40"]) == [
+        "Snowflake-Snowpark-Python>=1.40"
+    ]
+
+
+def test_local_modules_of():
+    import sys
+    import types
+
+    local_module = types.ModuleType("my_local_source")
+    local_module.__file__ = "/tmp/my_project/my_local_source.py"
+    exec(
+        "from snowflake.snowpark.datasource import DataSourceReader\n"
+        "class LocalReader(DataSourceReader):\n"
+        "    def read(self, partition):\n"
+        "        yield (1,)\n",
+        local_module.__dict__,
+    )
+    with mock.patch.dict(sys.modules, {"my_local_source": local_module}):
+        reader = local_module.LocalReader()
+        assert _local_modules_of([reader, reader, InputPartition(1)]) == [local_module]
+    # Snowpark, the standard library and builtins are pickled by reference
+    assert _local_modules_of([InputPartition(1), decimal.Decimal(1), 1]) == []
+
+
+def test_local_modules_of_collects_imported_local_modules(tmp_path):
+    import sys
+
+    (tmp_path / "cds_helper_leaf.py").write_text("def leaf():\n    return 1\n")
+    (tmp_path / "cds_helper_mid.py").write_text(
+        "from cds_helper_leaf import leaf\n" "def mid():\n    return leaf()\n"
+    )
+    (tmp_path / "cds_helper_cls.py").write_text("class Helper:\n    pass\n")
+    (tmp_path / "cds_source.py").write_text(
+        "import cds_helper_mid\n"
+        "import snowflake.snowpark.datasource\n"
+        "from cds_helper_cls import Helper\n"
+        "from snowflake.snowpark.datasource import DataSourceReader\n"
+        "class SourceReader(DataSourceReader):\n"
+        "    def read(self, partition):\n        yield (1,)\n"
+    )
+    names = ["cds_helper_leaf", "cds_helper_mid", "cds_helper_cls", "cds_source"]
+    sys.path.insert(0, str(tmp_path))
+    try:
+        import cds_source
+
+        modules = _local_modules_of([cds_source.SourceReader()])
+        assert sorted(m.__name__ for m in modules) == sorted(names)
+    finally:
+        sys.path.remove(str(tmp_path))
+        for name in names:
+            sys.modules.pop(name, None)
+
+
+def test_local_modules_of_scans_main_globals(tmp_path):
+    import sys
+    import types
+
+    (tmp_path / "cds_main_helper.py").write_text("def helper():\n    return 1\n")
+    sys.path.insert(0, str(tmp_path))
+    main = types.ModuleType("__main__")
+    try:
+        import cds_main_helper
+
+        exec(
+            "import cds_main_helper\n"
+            "from snowflake.snowpark.datasource import DataSourceReader\n"
+            "class MainReader(DataSourceReader):\n"
+            "    def read(self, partition):\n        yield (cds_main_helper.helper(),)\n",
+            main.__dict__,
+        )
+        main.MainReader.__module__ = "__main__"
+        with mock.patch.dict(sys.modules, {"__main__": main}):
+            modules = _local_modules_of([main.MainReader()])
+        # __main__ itself is pickled by value by cloudpickle
+        assert modules == [cds_main_helper]
+    finally:
+        sys.path.remove(str(tmp_path))
+        sys.modules.pop("cds_main_helper", None)
+
+
 def test_decimal_converter_with_38_digits():
     convert = conversion._decimal_converter(2)
     assert convert(decimal.Decimal("1" * 36 + ".005")) == decimal.Decimal(
@@ -632,7 +783,12 @@ def test_decimal_converter_with_38_digits():
     assert conversion._decimal_converter(10)(
         decimal.Decimal("12345678901234567890123456.1234567890")
     ) == decimal.Decimal("12345678901234567890123456.1234567890")
-    assert conversion._decimal_converter(0)(decimal.Decimal(10**35)) == 10**35
+    schema = StructType([StructField("N", DecimalType(38, 0))])
+    # the UDTF
+    handler = _build_udtf_handler(
+        cloudpickle.dumps(_BatchReader([(10**35,)])), schema
+    )
+    assert list(handler().process(0, cloudpickle.dumps(None))) == [(10**35,)]
 
 
 @requires_pyarrow
@@ -647,6 +803,24 @@ def test_decimal_38_digits_rows_and_arrow():
     )
     table = conversion.arrow_to_staged_table(batch, matcher, 0)
     assert table.column("N").to_pylist() == [decimal.Decimal("1" * 33 + ".12")]
+
+
+def test_udtf_value_parity():
+    schema = StructType(
+        [
+            StructField("I", LongType()),
+            StructField("N", DecimalType(10, 2)),
+        ]
+    )
+    handler = _build_udtf_handler(
+        cloudpickle.dumps(_BatchReader([(2.0, decimal.Decimal("1.005"))])), schema
+    )
+    assert list(handler().process(0, cloudpickle.dumps(None))) == [
+        (2, decimal.Decimal("1.01"))
+    ]
+    bad = _build_udtf_handler(cloudpickle.dumps(_BatchReader([(1.7, None)])), schema)
+    with pytest.raises(RuntimeError, match="not an integer"):
+        list(bad().process(0, cloudpickle.dumps(None)))
 
 
 @pytest.mark.parametrize(
@@ -759,6 +933,32 @@ def test_not_null_columns_reject_nulls():
     conversion.check_not_null((1,), matcher)
 
 
+def test_local_modules_of_skips_imported_modules(tmp_path):
+    import sys
+
+    (tmp_path / "cds_uploaded.py").write_text("class Up:\n    pass\n")
+    (tmp_path / "cds_not_uploaded.py").write_text("class NotUp:\n    pass\n")
+    sys.path.insert(0, str(tmp_path))
+    try:
+        import cds_not_uploaded
+        import cds_uploaded
+
+        objects = [cds_uploaded.Up(), cds_not_uploaded.NotUp()]
+        assert len(_local_modules_of(objects)) == 2
+        for imports in (
+            [str(tmp_path / "cds_uploaded.py")],
+            [(str(tmp_path / "cds_uploaded.py"), None)],
+            ["@stage/x.py", str(tmp_path / "cds_uploaded.py")],
+        ):
+            assert _local_modules_of(objects, imports) == [cds_not_uploaded]
+        # an uploaded directory
+        assert _local_modules_of(objects, [str(tmp_path)]) == []
+    finally:
+        sys.path.remove(str(tmp_path))
+        sys.modules.pop("cds_uploaded", None)
+        sys.modules.pop("cds_not_uploaded", None)
+
+
 def test_dumps_error_mentions_module_level_variables():
     class Unpicklable:
         def __reduce__(self):
@@ -766,6 +966,62 @@ def test_dumps_error_mentions_module_level_variables():
 
     with pytest.raises(TypeError, match="module-level variables"):
         _dumps(Unpicklable(), "DataSourceReader")
+
+
+def test_udtf_ingestion_falls_back_to_pickling_modules_by_reference(tmp_path):
+    import sys
+
+    from snowflake.snowpark._internal.data_source.custom import ingestion
+    from snowflake.snowpark._internal.data_source.custom.options import EngineOptions
+
+    (tmp_path / "cds_lock_mod.py").write_text(
+        "import threading\n"
+        "from snowflake.snowpark.datasource import DataSourceReader\n"
+        "_lock = threading.Lock()\n"
+        "class LockReader(DataSourceReader):\n"
+        "    def read(self, partition):\n"
+        "        with _lock:\n"
+        "            yield (1,)\n"
+    )
+    sys.path.insert(0, str(tmp_path))
+    try:
+        import cds_lock_mod
+
+        reader = cds_lock_mod.LockReader()
+        # the module-level lock can't be pickled by value
+        with pytest.raises(TypeError, match="module-level variables"):
+            with _pickle_by_value(_local_modules_of([reader])):
+                _dumps(reader, "DataSourceReader")
+
+        used_modules = []
+        original = ingestion._pickle_by_value
+
+        def spy(modules=()):
+            used_modules.append(list(modules))
+            return original(modules)
+
+        session = mock.MagicMock()
+        schema = StructType([StructField("I", LongType())])
+        with mock.patch.object(ingestion, "_pickle_by_value", spy), mock.patch.object(
+            ingestion.BaseDriver, "keep_nullable_attributes"
+        ), mock.patch.object(ingestion, "cast_udtf_output_columns"):
+            ingestion._udtf_ingestion(
+                session, reader, [InputPartition(0)], schema, EngineOptions(), {}
+            )
+        assert [m.__name__ for m in used_modules[0]] == ["cds_lock_mod"]
+        # then by reference, for the pickling and for registering the UDTF
+        assert used_modules[1:] == [[], []]
+        session.udtf.register.assert_called_once()
+    finally:
+        sys.path.remove(str(tmp_path))
+        sys.modules.pop("cds_lock_mod", None)
+
+
+def test_udtf_handler_rejects_nulls_in_not_null_columns():
+    schema = StructType([StructField("I", LongType(), nullable=False)])
+    handler = _build_udtf_handler(cloudpickle.dumps(_BatchReader([(None,)])), schema)
+    with pytest.raises(RuntimeError, match="NOT NULL column I"):
+        list(handler().process(0, cloudpickle.dumps(None)))
 
 
 @requires_pyarrow
@@ -846,5 +1102,90 @@ def test_boolean_values_are_converted_like_in_all_modes():
     ]
     with pytest.raises(SnowparkDataframeReaderException, match="column B"):
         conversion.rows_to_arrow_table([("true",)], matcher, 0)
-    with pytest.raises(ValueError, match="not a boolean"):
-        conversion.convert_row(("true",), conversion.value_converters(schema))
+    handler = _build_udtf_handler(cloudpickle.dumps(_BatchReader([("true",)])), schema)
+    with pytest.raises(RuntimeError, match="not a boolean"):
+        list(handler().process(0, cloudpickle.dumps(None)))
+
+
+def test_local_modules_of_follows_instance_state(tmp_path):
+    import sys
+
+    (tmp_path / "cds_state_cfg.py").write_text("class Cfg:\n    pass\n")
+    (tmp_path / "cds_state_slot.py").write_text("class Slot:\n    pass\n")
+    (tmp_path / "cds_state_part.py").write_text(
+        "class Part:\n    def __init__(self, v):\n        self.v = v\n"
+    )
+    (tmp_path / "cds_state_reader.py").write_text(
+        "from snowflake.snowpark.datasource import DataSourceReader\n"
+        "class Reader(DataSourceReader):\n"
+        "    __slots__ = ('slot',)\n"
+        "    def __init__(self, cfgs, slot):\n"
+        "        self.cfgs = cfgs\n"
+        "        self.slot = slot\n"
+        "    def read(self, partition):\n        yield (1,)\n"
+    )
+    names = [
+        "cds_state_cfg",
+        "cds_state_slot",
+        "cds_state_part",
+        "cds_state_reader",
+    ]
+    sys.path.insert(0, str(tmp_path))
+    try:
+        import cds_state_cfg
+        import cds_state_part
+        import cds_state_reader
+        import cds_state_slot
+
+        cyclic = {"cfg": [cds_state_cfg.Cfg()]}
+        cyclic["self"] = cyclic
+        reader = cds_state_reader.Reader(cyclic, cds_state_slot.Slot())
+        partition = InputPartition(cds_state_part.Part(1))
+        modules = _local_modules_of([reader, partition])
+        assert sorted(m.__name__ for m in modules) == sorted(names)
+        # objects of installed packages are not searched
+        assert _local_modules_of([InputPartition({"a": [decimal.Decimal(1)]})]) == []
+    finally:
+        sys.path.remove(str(tmp_path))
+        for name in names:
+            sys.modules.pop(name, None)
+
+
+def test_udtf_ingestion_fallback_logs_a_warning(tmp_path, caplog):
+    import logging
+    import sys
+
+    from snowflake.snowpark._internal.data_source.custom import ingestion
+    from snowflake.snowpark._internal.data_source.custom.options import EngineOptions
+
+    (tmp_path / "cds_warn_mod.py").write_text(
+        "import threading\n"
+        "from snowflake.snowpark.datasource import DataSourceReader\n"
+        "_lock = threading.Lock()\n"
+        "class WarnReader(DataSourceReader):\n"
+        "    def read(self, partition):\n"
+        "        with _lock:\n"
+        "            yield (1,)\n"
+    )
+    sys.path.insert(0, str(tmp_path))
+    try:
+        import cds_warn_mod
+
+        with mock.patch.object(
+            ingestion.BaseDriver, "keep_nullable_attributes"
+        ), mock.patch.object(ingestion, "cast_udtf_output_columns"), caplog.at_level(
+            logging.WARNING, logger=ingestion.logger.name
+        ):
+            ingestion._udtf_ingestion(
+                mock.MagicMock(),
+                cds_warn_mod.WarnReader(),
+                [InputPartition(0)],
+                StructType([StructField("I", LongType())]),
+                EngineOptions(),
+                {},
+            )
+        assert "cds_warn_mod" in caplog.text
+        assert "snowpark.imports" in caplog.text
+    finally:
+        sys.path.remove(str(tmp_path))
+        sys.modules.pop("cds_warn_mod", None)

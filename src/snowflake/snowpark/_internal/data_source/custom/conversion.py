@@ -96,10 +96,28 @@ def staging_schema(schema: StructType) -> StructType:
     )
 
 
+def udtf_output_schema(schema: StructType) -> StructType:
+    """The output schema of the server-side ingestion UDTF. Timestamp columns are returned as
+    ISO strings, because UDTFs can't return time zone aware values for TIMESTAMP_LTZ, and
+    are cast to the target type when the UDTF output is read."""
+    return StructType(
+        [
+            StructField(
+                field.name,
+                StringType()
+                if isinstance(field.datatype, TimestampType)
+                else field.datatype,
+                field.nullable,
+            )
+            for field in schema.fields
+        ]
+    )
+
+
 def value_converters(schema: StructType) -> List[Optional[Callable[[Any], Any]]]:
     """For each schema field, the converter for the Python values of integer, decimal, date and
     time columns, or ``None``. They match the conversions local ingestion applies when it stages
-    the values, and are used by local testing to return the same values."""
+    the values, and are used by the UDTF and local testing to return the same values."""
     return [_value_converter(field.datatype) for field in schema.fields]
 
 
@@ -119,6 +137,18 @@ def _value_converter(datatype: DataType) -> Optional[Callable[[Any], Any]]:
     if is_semi_structured(datatype):
         return _to_json_compatible
     return None
+
+
+def udtf_row_converters(schema: StructType) -> List[Optional[Callable[[Any], Any]]]:
+    """For each schema field, the converter applied to the values returned by the UDTF, or ``None``.
+    They are the converters local ingestion uses, so that both modes return the same values."""
+    converters = []
+    for field in schema.fields:
+        if isinstance(field.datatype, TimestampType):
+            converters.append(_to_timestamp_string)
+        else:
+            converters.append(_value_converter(field.datatype))
+    return converters
 
 
 def check_not_null(row: Tuple, matcher: "FieldMatcher") -> None:
@@ -532,6 +562,29 @@ def normalize_items(items: Iterable[Any], matcher: FieldMatcher) -> Iterator[Tup
             yield from arrow_to_row_tuples(item, matcher)
         else:
             yield to_row_tuple(item, matcher)
+
+
+def cast_udtf_output_columns(
+    df: "snowflake.snowpark.DataFrame", schema: StructType, _emit_ast: bool = False
+) -> "snowflake.snowpark.DataFrame":
+    """Projects the UDTF output to the target schema. Timestamp columns are cast to the target
+    type, and JSON nulls in variant columns, which UDTFs return for ``None``, are converted to
+    SQL NULLs as in local ingestion."""
+    from snowflake.snowpark.functions import col, iff, is_null_value, lit
+
+    if not any(
+        isinstance(f.datatype, (TimestampType, VariantType)) for f in schema.fields
+    ):
+        return df
+    columns = []
+    for field in schema.fields:
+        column = col(field.name)
+        if isinstance(field.datatype, TimestampType):
+            column = column.cast(field.datatype).alias(field.name)
+        elif isinstance(field.datatype, VariantType):
+            column = iff(is_null_value(column), lit(None), column).alias(field.name)
+        columns.append(column)
+    return df.select(columns, _emit_ast=_emit_ast)
 
 
 def parse_semi_structured_columns(
