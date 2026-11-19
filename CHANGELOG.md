@@ -11,7 +11,7 @@
 
 #### Improvements
 
-- `DataFrameReader.schema()` now also accepts a DDL string such as `"id INT, name STRING"`, which is converted to a `StructType` with Snowflake data types and identifier rules: an unquoted name is case-insensitive, and a double-quoted name is case-sensitive.
+- `DataFrameReader.schema()` now also accepts a DDL string such as `"id INT, name STRING"`, which is converted to a `StructType` with Snowflake data types and identifier rules, like the names passed to `StructField`: a double-quoted name is case-sensitive, and an unquoted name is case-insensitive, except that JSON, Parquet and XML reads match it exactly as written.
 - Type strings, such as DDL schema strings and the type names passed to `Column.cast`, now accept the Snowflake type synonyms `TINYINT`, `CHAR` and `CHARACTER` (with an optional length), `DEC`, `REAL`, `FLOAT4` and `FLOAT8`, and `COMMENT '...'` after a column in a schema string.
 - `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.
 

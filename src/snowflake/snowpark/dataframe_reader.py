@@ -992,9 +992,11 @@ class DataFrameReader:
         Args:
             schema: Schema configuration for the file to be read. A DDL string such as
                 ``"id INT, name STRING"`` is also accepted. It uses Snowflake data types and
-                identifier rules: an unquoted name is case-insensitive and a double-quoted name
-                is case-sensitive. ``TIMESTAMP`` follows the ``TIMESTAMP_TYPE_MAPPING`` of the
-                session, and ``COMMENT '...'`` after a column is accepted.
+                identifier rules, like the names passed to ``StructField``: a double-quoted name
+                is case-sensitive, and an unquoted name is case-insensitive, except that JSON,
+                Parquet and XML reads match it exactly as written. ``TIMESTAMP`` follows the
+                ``TIMESTAMP_TYPE_MAPPING`` of the session, and ``COMMENT '...'`` after a
+                column is accepted.
 
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.

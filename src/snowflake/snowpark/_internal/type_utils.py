@@ -1304,7 +1304,8 @@ _NOT_NULL_PATTERN = re.compile(r"^(?P<base>.*?)\s+not\s+null\s*$", re.IGNORECASE
 # a trailing column comment like "COMMENT 'the id'", where a quote is escaped by
 # doubling it or by a backslash
 _COMMENT_PATTERN = re.compile(
-    r"^(?P<base>.*?)\s+comment\s*'(?:[^'\\]|\\.|'')*'\s*$", re.IGNORECASE | re.DOTALL
+    r"^(?P<base>.*?)(?:\s+|(?<=[)>]))comment\s*'(?:[^'\\]|\\.|'')*'\s*$",
+    re.IGNORECASE | re.DOTALL,
 )
 
 
@@ -1376,20 +1377,26 @@ def extract_nullable_keyword(type_str: str) -> Tuple[str, bool]:
     Checks if `type_str` ends with something like 'NOT NULL' (ignoring
     case and allowing arbitrary space between NOT and NULL). If found,
     return the type substring minus that part, along with nullable=False.
-    Otherwise, return (type_str, True).
+    Otherwise, return (type_str, True). A column comment, COMMENT '...', is removed
+    too, before or after NOT NULL.
     """
     trimmed = type_str.strip()
-    comment_match = _COMMENT_PATTERN.match(trimmed)
-    if comment_match:
-        trimmed = comment_match.group("base").strip()
-    match = _NOT_NULL_PATTERN.match(trimmed)
-    if match:
-        # Group 'base' is everything before 'not null'
-        base_type_str = match.group("base").strip()
-        return base_type_str, False
-
-    # By default, the field is nullable
-    return trimmed, True
+    nullable = True
+    has_comment = False
+    while True:
+        comment_match = None if has_comment else _COMMENT_PATTERN.match(trimmed)
+        if comment_match:
+            trimmed = comment_match.group("base").strip()
+            has_comment = True
+            continue
+        match = _NOT_NULL_PATTERN.match(trimmed) if nullable else None
+        if match:
+            # Group 'base' is everything before 'not null'
+            trimmed = match.group("base").strip()
+            nullable = False
+            continue
+        # By default, the field is nullable
+        return trimmed, nullable
 
 
 def find_top_level_colon(field_def: str) -> int:
@@ -1614,7 +1621,7 @@ def _scan_quoted_identifier(s: str, start: int) -> int:
     raise ValueError(f"Unterminated quoted identifier in: {s!r}")
 
 
-_COMMENT_KEYWORD_PATTERN = re.compile(r"(?i)(?:^|\s)comment\s*$")
+_COMMENT_KEYWORD_PATTERN = re.compile(r"(?i)(?:^|\s|(?<=[)>]))comment\s*$")
 
 
 def _follows_comment_keyword(s: str, quote_index: int) -> bool:

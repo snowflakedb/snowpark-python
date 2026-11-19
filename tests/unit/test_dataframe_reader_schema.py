@@ -1,14 +1,28 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import re
 from unittest import mock
 
 import pytest
+
+import snowflake.snowpark.session
+from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    attribute_to_schema_string_deep,
+)
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
+from snowflake.snowpark._internal.ast.batch import AstBatch
+from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark._internal.xml_reader import (
+    schema_string_to_result_dict_and_struct_type,
+)
 
 from snowflake.snowpark._internal.utils import AstFlagSource, set_ast_state
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.types import (
     ArrayType,
+    DecimalType,
     IntegerType,
     MapType,
     StringType,
@@ -193,3 +207,141 @@ def test_unquoted_field_names_are_read_as_before():
 def test_schema_rejects_invalid_ddl_strings(session):
     with pytest.raises(ValueError, match="Invalid schema string"):
         session.read.schema("int")
+
+
+def _mock_session():
+    session = mock.create_autospec(snowflake.snowpark.session.Session)
+    session.sql_simplifier_enabled = True
+    session._cte_optimization_enabled = False
+    session._query_compilation_stage_enabled = False
+    session._join_alias_fix = False
+    session._conn = mock.create_autospec(ServerConnection)
+    session._conn._thread_safe_session_enabled = False
+    session._plan_builder = SnowflakePlanBuilder(session)
+    session._analyzer = Analyzer(session)
+    session._use_scoped_temp_objects = True
+    session._ast_batch = mock.create_autospec(AstBatch)
+    session.get_fully_qualified_name_if_possible = lambda name: name
+    return session
+
+
+def _queries(schema, file_format, **options):
+    reader = DataFrameReader(_mock_session()).schema(schema)
+    for key, value in options.items():
+        reader = reader.option(key, value)
+    df = getattr(reader, file_format)("@st/f")
+    return [
+        re.sub(r"\s+", " ", re.sub(r"SNOWPARK_TEMP_\w+", "TMP", query)).strip()
+        for query in df.queries["queries"]
+    ]
+
+
+UNQUOTED_SCHEMA = StructType(
+    [
+        StructField("id", IntegerType()),
+        StructField("Mixed", StringType(), nullable=False),
+        StructField("UP", DecimalType(10, 2)),
+    ]
+)
+QUOTED_DDL = '"CaseSens" INT, "a""b" STRING, "x.y z" STRING NOT NULL, id INT'
+QUOTED_SCHEMA = StructType(
+    [
+        StructField('"CaseSens"', IntegerType()),
+        StructField('"a""b"', StringType()),
+        StructField('"x.y z"', StringType(), nullable=False),
+        StructField("id", IntegerType()),
+    ]
+)
+
+
+@pytest.mark.parametrize("file_format", ["json", "parquet"])
+def test_unquoted_names_generate_the_same_queries_as_before(file_format):
+    file_format_query = (
+        f"CREATE SCOPED TEMPORARY FILE FORMAT If NOT EXISTS TMP TYPE = "
+        f"{file_format.upper()}"
+    )
+    assert _queries(UNQUOTED_SCHEMA, file_format) == [
+        file_format_query,
+        'SELECT $1:"id"::INT AS "id", $1:"Mixed"::STRING AS "Mixed", '
+        '$1:"UP"::NUMBER(10, 2) AS "UP" FROM @st/f( FILE_FORMAT => \'TMP\')',
+    ]
+    assert _queries(UNQUOTED_SCHEMA, file_format, ON_ERROR="CONTINUE")[:2] == [
+        'CREATE OR REPLACE SCOPED TEMPORARY TABLE TMP("id" INT, "Mixed" STRING '
+        'NOT NULL , "UP" NUMBER(10, 2))',
+        'COPY INTO TMP FROM ( SELECT $1:"id"::INT, $1:"Mixed"::STRING, '
+        f'$1:"UP"::NUMBER(10, 2) FROM @st/f) FILE_FORMAT = ( TYPE = {file_format.upper()}) '
+        "ON_ERROR = 'CONTINUE' FORCE = True",
+    ]
+
+
+@pytest.mark.parametrize("file_format", ["json", "parquet"])
+@pytest.mark.parametrize("schema", [QUOTED_DDL, QUOTED_SCHEMA])
+def test_quoted_names_generate_valid_queries(file_format, schema):
+    queries = _queries(schema, file_format)
+    assert queries[1] == (
+        'SELECT $1:"CaseSens"::INT AS "CaseSens", $1:"a""b"::STRING AS "a""b", '
+        '$1:"x.y z"::STRING AS "x.y z", $1:"id"::INT AS "id" '
+        "FROM @st/f( FILE_FORMAT => 'TMP')"
+    )
+    queries = _queries(schema, file_format, ON_ERROR="CONTINUE")
+    assert queries[0] == (
+        'CREATE OR REPLACE SCOPED TEMPORARY TABLE TMP("CaseSens" INT, '
+        '"a""b" STRING, "x.y z" STRING NOT NULL , "id" INT)'
+    )
+    assert queries[1] == (
+        'COPY INTO TMP FROM ( SELECT $1:"CaseSens"::INT, $1:"a""b"::STRING, '
+        '$1:"x.y z"::STRING, $1:"id"::INT FROM @st/f) FILE_FORMAT = '
+        f"( TYPE = {file_format.upper()}) ON_ERROR = 'CONTINUE' FORCE = True"
+    )
+    assert queries[2].startswith(
+        'SELECT "CaseSens" AS "CaseSens", "a""b" AS "a""b", "x.y z" AS "x.y z", '
+        '"id" AS "id" FROM ('
+    )
+    assert '"""' not in " ".join(queries)
+
+
+def _xml_schema_string(schema):
+    reader = DataFrameReader(mock.MagicMock())
+    return attribute_to_schema_string_deep(
+        reader._get_schema_from_user_input(schema)[0]
+    )
+
+
+def test_unquoted_names_are_sent_to_the_xml_reader_as_before():
+    assert (
+        _xml_schema_string(UNQUOTED_SCHEMA)
+        == 'struct<"id": int, "Mixed": string not null, "UP": decimal(10,2)>'
+    )
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        'a INT, "a""b" STRING, s STRUCT<"In n": INT, j STRING>',
+        StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField('"a""b"', StringType()),
+                StructField(
+                    "s",
+                    StructType(
+                        [
+                            StructField('"In n"', IntegerType()),
+                            StructField("j", StringType()),
+                        ]
+                    ),
+                ),
+            ]
+        ),
+    ],
+)
+def test_quoted_names_are_sent_to_the_xml_reader_exactly(session, schema):
+    if isinstance(schema, str):
+        schema = session.read.schema(schema)._user_schema
+    schema_string = _xml_schema_string(schema)
+    assert schema_string == (
+        'struct<"a": int, "a""b": string, "s": struct<"In n": int, "j": string>>'
+    )
+    template, struct_type = schema_string_to_result_dict_and_struct_type(schema_string)
+    assert template == {"a": None, 'a"b': None, "s": {"In n": None, "j": None}}
+    assert [f._name for f in struct_type.fields] == ['"a"', '"a""b"', '"s"']

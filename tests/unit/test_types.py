@@ -2017,6 +2017,58 @@ def test_type_string_to_type_object_double_quotes_are_otherwise_identifiers():
     assert [f._name for f in schema.fields] == ['"comment"', "a"]
 
 
+@pytest.mark.parametrize(
+    "type_str",
+    [
+        "a INT COMMENT 'x' NOT NULL",
+        "a INT NOT NULL COMMENT 'x'",
+        "a INT not null comment 'it''s not null'",
+        "a INT COMMENT 'not null' NOT NULL",
+    ],
+)
+def test_type_string_to_type_object_comment_and_not_null_in_any_order(type_str):
+    schema = type_string_to_type_object(type_str)
+    assert [(f._name, f.datatype, f.nullable) for f in schema.fields] == [
+        ("a", IntegerType(), False)
+    ]
+
+
+def test_type_string_to_type_object_comment_and_not_null_in_nested_fields():
+    schema = type_string_to_type_object(
+        "s STRUCT<x INT COMMENT 'c' NOT NULL, y: STRING NOT NULL COMMENT 'd', "
+        "z INT COMMENT 'e'> COMMENT 'f'"
+    )
+    nested = schema.fields[0].datatype
+    assert [(f._name, f.datatype, f.nullable) for f in nested.fields] == [
+        ("x", IntegerType(), False),
+        ("y", StringType(), False),
+        ("z", IntegerType(), True),
+    ]
+    assert schema.fields[0].nullable is True
+
+
+def test_type_string_to_type_object_comment_after_a_bracket():
+    schema = type_string_to_type_object(
+        "a DECIMAL(10,2)COMMENT 'x', s STRUCT<x INT>COMMENT 'y', "
+        "arr ARRAY<INT>COMMENT 'z' NOT NULL"
+    )
+    assert [f.datatype for f in schema.fields][0] == DecimalType(10, 2)
+    assert [f.nullable for f in schema.fields] == [True, True, False]
+    assert schema.fields[1].datatype.fields[0].datatype == IntegerType()
+
+
+def test_type_string_to_type_object_names_that_contain_comment():
+    schema = type_string_to_type_object(
+        'mycomment INT, comment_y INT, comment STRING, "x comment" INT'
+    )
+    assert [f._name for f in schema.fields] == [
+        "mycomment",
+        "comment_y",
+        "comment",
+        '"x comment"',
+    ]
+
+
 def test_type_string_to_type_object_column_comments():
     schema = type_string_to_type_object(
         "id tinyint, name char(3) NOT NULL COMMENT 'a, b: it''s \\'x\\'', "
