@@ -21,6 +21,7 @@
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` that contained string literals, backslashes or newlines failed with a SQL compilation error during schema inference.
 - Fixed a bug in `DataFrameReader.jdbc` where a read with many partitions failed with `This connection has been closed`, and where JDBC connections were not closed when ingestion failed.
 - Fixed a bug in `DataFrameReader.jdbc` where credentials passed in the URL as query or `;`-separated parameters (for example `?password=`) or in the Oracle `user/password@` form were not removed and were embedded in the generated UDTF.
+- Fixed a bug in `DataFrameReader.jdbc` where double quotes, backslashes, newlines or `$$` in `url`, `properties` or `session_init_statement` caused a compilation error in the generated Java UDTF.
 
 ### Snowpark Local Testing Updates
 
