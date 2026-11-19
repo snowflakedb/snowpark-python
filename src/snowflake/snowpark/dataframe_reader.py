@@ -1500,6 +1500,13 @@ class DataFrameReader:
         or, with a ``schema`` or a ``prompt``, structured values or an answer are
         extracted from it.
 
+        One call turns a folder of documents into a DataFrame, with one row per document.
+        The reader does the pipeline work you would otherwise write yourself: it splits long
+        PDFs into page ranges that fit the model's input limit and puts the results back
+        together, processes the files in parallel, and records a failed document in its
+        own row instead of failing the whole read. The result is an ordinary DataFrame,
+        so you can join it with other tables or save it with ``save_as_table``.
+
         Options set with :meth:`option` or :meth:`options` (names are case-insensitive,
         any other option is ignored):
 
@@ -1561,25 +1568,59 @@ class DataFrameReader:
             an error in its ``_document_error``. A read with neither also parses
             ``.jpg``, ``.jpeg``, ``.png`` and ``.tiff`` images.
 
+        Note:
+            The documents can be on an internal stage or on an external stage, such as one
+            on an Amazon S3 bucket, Azure container or Google Cloud Storage bucket, so you
+            can read files where they already are. A stage path ending in ``/`` reads
+            every file under that path. Files from other systems, such as SharePoint, have
+            to be copied to a stage first.
+
         Args:
             path: The stage location of a document, or a stage location that has documents.
 
         Example::
 
-            >>> # Parse every document in a stage to text.
-            >>> df = session.read.documents("@mystage/docs/")  # doctest: +SKIP
-            >>> df.select("SOURCE_FILE", "TOTAL_PAGES", "CONTENT").show()  # doctest: +SKIP
-
-            >>> # Extract fields from every document in a stage.
+            >>> # Extract the same fields from every call transcript and save them to a table.
+            >>> # Each field's description is its question to the model. The prompt
+            >>> # gives context that applies to every field.
             >>> schema = {  # doctest: +SKIP
             ...     "type": "object",
             ...     "properties": {
-            ...         "invoice_number": {"type": "string"},
-            ...         "total": {"type": "number"},
+            ...         "call_type": {
+            ...             "type": "string",
+            ...             "enum": ["billing", "service", "outage", "other"],
+            ...             "description": "Why the customer called.",
+            ...         },
+            ...         "sentiment": {
+            ...             "type": "string",
+            ...             "enum": ["positive", "neutral", "negative"],
+            ...             "description": "The customer's sentiment at the end of the call.",
+            ...         },
+            ...         "resolved": {
+            ...             "type": "boolean",
+            ...             "description": "Whether the customer's issue was resolved during the call.",
+            ...         },
             ...     },
             ... }
-            >>> df = session.read.option("schema", schema).documents("@mystage/invoices/")  # doctest: +SKIP
-            >>> df.select("SOURCE_FILE", "INVOICE_NUMBER", "TOTAL", '"_document_error"').show()  # doctest: +SKIP
+            >>> df = (  # doctest: +SKIP
+            ...     session.read.option("schema", schema)
+            ...     .option("prompt", "Each file is a transcript of a call between an energy company's representative and a customer.")
+            ...     .documents("@mystage/transcripts/")
+            ... )
+            >>> df.write.save_as_table("calls_extracted", mode="overwrite")  # doctest: +SKIP
+            >>> session.table("calls_extracted").select(  # doctest: +SKIP
+            ...     "SOURCE_FILE", "CALL_TYPE", "SENTIMENT", "RESOLVED", "INPUT_TOKENS", "OUTPUT_TOKENS", '"_document_error"'
+            ... ).show()
+
+            >>> # Ask a question about each transcript and get the answer as text.
+            >>> df = session.read.option(  # doctest: +SKIP
+            ...     "prompt", "Did the representative offer a payment plan? Answer yes or no, then explain in one sentence."
+            ... ).documents("@mystage/transcripts/")
+            >>> df.select("SOURCE_FILE", "RESPONSE").show()  # doctest: +SKIP
+
+            >>> # Parse every document in a stage to text.
+            >>> df = session.read.documents("@mystage/docs/")  # doctest: +SKIP
+            >>> df.select("SOURCE_FILE", "TOTAL_PAGES", "CONTENT").show()  # doctest: +SKIP
         """
         if isinstance(self._session._conn, MockServerConnection):
             self._session._conn.log_not_supported_error(
