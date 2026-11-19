@@ -9,6 +9,8 @@ their ``jsonValue()`` method is used."""
 import re
 from typing import Any, Dict, Optional
 
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
+
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -177,11 +179,17 @@ def spark_ddl_identifiers_to_snowflake(ddl: str) -> str:
                     break
                 name.append(ddl[j])
                 j += 1
+            if j >= len(ddl):
+                raise ValueError(
+                    f"Unterminated backtick-quoted identifier in the schema: {ddl!r}"
+                )
             name = "".join(name)
             i = j + 1
             if _SIMPLE_IDENTIFIER.match(name):
                 # backticks only escape in Spark, so this is the same as the unquoted name
                 result.append(name)
+                if ddl[i : i + 1] not in ("", ":") and not ddl[i : i + 1].isspace():
+                    result.append(" ")
             else:
                 result.append('"' + name.replace('"', '""') + '"')
                 if not ddl[i:].lstrip().startswith(":"):
@@ -190,3 +198,22 @@ def spark_ddl_identifiers_to_snowflake(ddl: str) -> str:
             result.append(ch)
             i += 1
     return "".join(result)
+
+
+def unquote_field_names(datatype: DataType) -> None:
+    """Replaces the quoted names of the fields of a schema parsed from a DDL string, such as
+    ``'"my col"'``, by the names themselves, in place and in nested types. Readers expect
+    ``StructField._name`` to be the name as it is in the data, like in
+    ``StructField("my col", ...)``, and quote it themselves. ``StructField.name`` still
+    follows the quoted identifier, so a quoted name stays case-sensitive."""
+    if isinstance(datatype, StructType):
+        for field in datatype.fields:
+            field._name = unquote_if_quoted(field._name)
+            unquote_field_names(field.datatype)
+    elif isinstance(datatype, ArrayType):
+        if datatype.element_type is not None:
+            unquote_field_names(datatype.element_type)
+    elif isinstance(datatype, MapType):
+        for nested in (datatype.key_type, datatype.value_type):
+            if nested is not None:
+                unquote_field_names(nested)

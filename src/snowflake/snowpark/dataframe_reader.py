@@ -53,6 +53,7 @@ from snowflake.snowpark._internal.spark_schema import (
     is_pyspark_struct_type,
     pyspark_struct_type_to_snowpark,
     spark_ddl_identifiers_to_snowflake,
+    unquote_field_names,
 )
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
@@ -981,14 +982,18 @@ class DataFrameReader:
 
     @publicapi
     def schema(
-        self, schema: Union[StructType, str], _emit_ast: bool = True
+        self, schema: Union[StructType, str, Any], _emit_ast: bool = True
     ) -> "DataFrameReader":
         """Define the schema for CSV, JSON, Parquet, or XML files that you want to read.
 
         Args:
             schema: Schema configuration for the file to be read. A DDL string such as
                 ``"id INT, name STRING"`` and a ``pyspark.sql.types.StructType`` are also accepted,
-                and are converted to a :class:`~snowflake.snowpark.types.StructType`.
+                and are converted to a :class:`~snowflake.snowpark.types.StructType`. A DDL string
+                uses Snowflake type names, so ``TIMESTAMP`` follows the ``TIMESTAMP_TYPE_MAPPING``
+                of the session, and Spark names such as ``TINYINT`` and backtick-quoted column
+                names are accepted. A PySpark ``StructType`` follows Spark: ``TimestampType`` is
+                ``TIMESTAMP_LTZ`` and ``TimestampNTZType`` is ``TIMESTAMP_NTZ``.
 
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
@@ -997,6 +1002,7 @@ class DataFrameReader:
             schema = DataSourcePartitioner.formatting_custom_schema(
                 spark_ddl_identifiers_to_snowflake(schema)
             )
+            unquote_field_names(schema)
         elif is_pyspark_struct_type(schema):
             schema = pyspark_struct_type_to_snowpark(schema)
 

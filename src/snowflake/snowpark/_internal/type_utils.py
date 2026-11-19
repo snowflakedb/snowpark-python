@@ -1282,7 +1282,9 @@ DECIMAL_RE = re.compile(
 )
 # support type string format like "  decimal  (  2  ,  1  )  "
 
-STRING_RE = re.compile(r"(?i)^\s*(varchar|string|text|char)\s*\(\s*(\d*)\s*\)\s*$")
+STRING_RE = re.compile(
+    r"(?i)^\s*(varchar|string|text|char|character)\s*\(\s*(\d*)\s*\)\s*$"
+)
 # support type string format like "  string  (  23  )  "
 
 ARRAY_RE = re.compile(r"(?i)^\s*array\s*<")
@@ -1299,7 +1301,8 @@ _NOT_NULL_PATTERN = re.compile(r"^(?P<base>.*?)\s+not\s+null\s*$", re.IGNORECASE
 # a trailing Spark DDL column comment like "COMMENT 'the id'", where a quote is escaped by
 # doubling it or by a backslash
 _COMMENT_PATTERN = re.compile(
-    r"^(?P<base>.*?)\s+comment\s+'(?:[^'\\]|\\.|'')*'\s*$", re.IGNORECASE | re.DOTALL
+    r"^(?P<base>.*?)\s+comment\s*(?:'(?:[^'\\]|\\.|'')*'|\"(?:[^\"\\]|\\.|\"\")*\")\s*$",
+    re.IGNORECASE | re.DOTALL,
 )
 
 
@@ -1335,6 +1338,12 @@ def extract_bracket_content(type_str: str, keyword: str) -> str:
     i = start_index
     while i < len(type_str):
         c = type_str[i]
+        if c == "'" and _follows_comment_keyword(type_str, i):
+            # copy the string literal of a column comment, which may contain brackets
+            end = _scan_quoted_string_literal(type_str, i)
+            inside_chars.append(type_str[i:end])
+            i = end
+            continue
         if c == "<":
             bracket_depth += 1
             # we don't store the opening bracket in 'inside_chars'
@@ -1508,7 +1517,13 @@ def is_likely_struct(s: str) -> bool:
     """
     bracket_depth = 0
     top_level_space_found = False
-    for ch in s:
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "'" and _follows_comment_keyword(s, i):
+            i = _scan_quoted_string_literal(s, i)
+            continue
+        i += 1
         if ch in ("<", "("):
             bracket_depth += 1
         elif ch in (">", ")"):

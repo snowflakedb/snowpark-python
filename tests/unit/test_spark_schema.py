@@ -212,3 +212,160 @@ def test_schema_accepts_pyspark_struct_types(session):
     reader = session.read.schema(FakeSparkStructType(SPARK_SCHEMA))
     assert reader._user_schema == spark_json_to_snowpark_schema(SPARK_SCHEMA)
     assert reader._user_schema.fields[0].name == "USERID"
+
+
+def test_spark_ddl_identifiers_to_snowflake_spacing_and_errors():
+    assert translate("`a`INT, `b c`INT") == 'a INT, "b c":INT'
+    assert translate("`a`: INT") == "a: INT"
+    with pytest.raises(ValueError, match="Unterminated backtick-quoted identifier"):
+        translate("`abc INT")
+    with pytest.raises(ValueError, match="Unterminated backtick-quoted identifier"):
+        translate("a INT, `b")
+
+
+DDL = (
+    'id INT, `my col` STRING NOT NULL, `camelCase` STRING, "CaseSens" INT, '
+    "s STRUCT<a: INT, `b c`: STRING>, arr ARRAY<STRUCT<`d e`: INT>>"
+)
+
+
+def _equivalent_struct_type():
+    return StructType(
+        [
+            StructField("id", IntegerType()),
+            StructField("my col", StringType(), nullable=False),
+            StructField("camelCase", StringType()),
+            StructField("CaseSens", IntegerType()),
+            StructField(
+                "s",
+                StructType(
+                    [
+                        StructField("a", IntegerType()),
+                        StructField("b c", StringType()),
+                    ]
+                ),
+            ),
+            StructField(
+                "arr", ArrayType(StructType([StructField("d e", IntegerType())]))
+            ),
+        ]
+    )
+
+
+def _names(schema):
+    result = []
+    for field in schema.fields:
+        result.append(field._name)
+        datatype = field.datatype
+        if isinstance(datatype, ArrayType):
+            datatype = datatype.element_type
+        if isinstance(datatype, StructType):
+            result.append(_names(datatype))
+    return result
+
+
+def test_ddl_schema_has_the_field_names_of_the_equivalent_struct_type(session):
+    schema = session.read.schema(DDL)._user_schema
+    expected = _equivalent_struct_type()
+    assert _names(schema) == _names(expected)
+    assert _names(schema) == [
+        "id",
+        "my col",
+        "camelCase",
+        "CaseSens",
+        "s",
+        ["a", "b c"],
+        "arr",
+        ["d e"],
+    ]
+    assert [f.nullable for f in schema.fields] == [f.nullable for f in expected.fields]
+    assert [f.datatype for f in schema.fields[:3]] == [
+        f.datatype for f in expected.fields[:3]
+    ]
+    # a quoted name stays case-sensitive, and the others are not
+    assert [f.name for f in schema.fields[:4]] == [
+        "ID",
+        '"my col"',
+        "CAMELCASE",
+        '"CaseSens"',
+    ]
+
+
+def test_ddl_schema_is_read_like_the_equivalent_struct_type(session):
+    ddl_reader = session.read.schema(DDL)
+    expected = _equivalent_struct_type()
+    # JSON, Parquet, ...
+    ddl_result = ddl_reader._get_schema_from_user_input(ddl_reader._user_schema)
+    expected_result = ddl_reader._get_schema_from_user_input(expected)
+    assert [(a.name, a.datatype, a.nullable) for a in ddl_result[0]] == [
+        (a.name, a.datatype, a.nullable) for a in expected_result[0]
+    ]
+    assert ddl_result[1] == expected_result[1]
+    assert ddl_result[2] == expected_result[2]
+    assert '$1:"my col"::' in ddl_result[2][1]
+    assert '"""' not in "".join(ddl_result[2])
+
+
+def test_ddl_schema_is_applied_to_xml_like_the_equivalent_struct_type():
+    from unittest import mock
+
+    from snowflake.snowpark.dataframe_reader import DataFrameReader
+
+    def applied_columns(schema):
+        df = mock.MagicMock()
+        df.columns = []
+        reader = DataFrameReader(mock.MagicMock())
+        reader._apply_xml_schema(df, schema)
+        return [call.args for call in df.__getitem__.call_args_list]
+
+    reader = DataFrameReader(mock.MagicMock())
+    schema = reader.schema(DDL)._user_schema
+    assert applied_columns(schema) == applied_columns(_equivalent_struct_type())
+    assert ("'my col'",) in applied_columns(schema)
+
+
+def test_ddl_schema_ast_is_the_same_as_for_the_equivalent_struct_type(session):
+    from snowflake.snowpark._internal.utils import AstFlagSource, set_ast_state
+
+    original = session.ast_enabled
+    set_ast_state(AstFlagSource.TEST, True)
+    session.ast_enabled = True
+    try:
+        ddl_ast = session.read.schema(
+            "id INT, `camelCase` STRING NOT NULL, s STRUCT<a: INT>"
+        )._ast.dataframe_reader.schema
+        struct_ast = session.read.schema(
+            StructType(
+                [
+                    StructField("id", IntegerType()),
+                    StructField("camelCase", StringType(), nullable=False),
+                    StructField("s", StructType([StructField("a", IntegerType())])),
+                ]
+            )
+        )._ast.dataframe_reader.schema
+        assert ddl_ast.ByteSize() > 0
+        assert ddl_ast == struct_ast
+        # a quoted name is a quoted identifier in the AST, which is how it stays case-sensitive
+        quoted_ast = session.read.schema('"CaseSens" INT')._ast.dataframe_reader.schema
+        assert quoted_ast.fields[0].column_identifier.column_name.name == '"CaseSens"'
+    finally:
+        set_ast_state(AstFlagSource.TEST, original)
+        session.ast_enabled = original
+
+
+def test_ddl_schema_is_read_from_csv_like_the_equivalent_struct_type(session):
+    reader = session.read.schema("id INT, `my col` STRING NOT NULL, `camelCase` INT")
+    expected = StructType(
+        [
+            StructField("id", IntegerType()),
+            StructField("my col", StringType(), nullable=False),
+            StructField("camelCase", IntegerType()),
+        ]
+    )
+    result = reader._get_schema_from_csv_user_input(reader._user_schema, True)
+    expected_result = reader._get_schema_from_csv_user_input(expected, True)
+    assert [(a.name, a.datatype, a.nullable) for a in result[0]] == [
+        (a.name, a.datatype, a.nullable) for a in expected_result[0]
+    ]
+    assert result[1] == expected_result[1]
+    assert result[2] == expected_result[2]
