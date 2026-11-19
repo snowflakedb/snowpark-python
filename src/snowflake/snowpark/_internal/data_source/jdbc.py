@@ -167,6 +167,77 @@ def to_java_string_literal(value: object) -> str:
     return '"' + "".join(escaped) + '"'
 
 
+def strip_query_terminator(query: str) -> str:
+    """Remove only terminal SQL semicolons, preserving comments and quoted text.
+
+    Source SQL is not Snowflake SQL: recognize JDBC dialect quoting rather than
+    using the connector's Snowflake statement splitter (which lacks backticks,
+    bracket identifiers, Oracle q-quotes and PostgreSQL tagged dollar strings).
+    """
+    query = query.strip()
+    position = 0
+    semicolons = []
+    while position < len(query):
+        char = query[position]
+        if char.isspace():
+            position += 1
+            continue
+        if query.startswith("--", position):
+            end = re.search(r"[\r\n]", query[position:])
+            position = position + end.start() if end else len(query)
+            continue
+        if query.startswith("/*", position):
+            depth = 1
+            position += 2
+            while position < len(query) and depth:
+                if query.startswith("/*", position):
+                    depth += 1
+                    position += 2
+                elif query.startswith("*/", position):
+                    depth -= 1
+                    position += 2
+                else:
+                    position += 1
+            continue
+        if char == ";":
+            semicolons.append(position)
+            position += 1
+            continue
+        semicolons.clear()
+        dollar = re.match(r"\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$", query[position:])
+        if dollar:
+            delimiter = dollar.group()
+            end = query.find(delimiter, position + len(delimiter))
+            position = end + len(delimiter) if end >= 0 else len(query)
+        elif query[position : position + 2].lower() == "q'" and position + 2 < len(
+            query
+        ):
+            delimiter = query[position + 2]
+            closing = {"[": "]", "(": ")", "{": "}", "<": ">"}.get(delimiter, delimiter)
+            end = query.find(closing + "'", position + 3)
+            position = end + 2 if end >= 0 else len(query)
+        elif char in "'\"`[":
+            closing = "]" if char == "[" else char
+            position += 1
+            while position < len(query):
+                if query[position] == closing:
+                    position += 1
+                    if position < len(query) and query[position] == closing:
+                        position += 1
+                    else:
+                        break
+                elif query[position] == "\\" and char in "'\"`":
+                    position += 2
+                else:
+                    position += 1
+        else:
+            position += 1
+    terminal_positions = set(semicolons)
+    return "".join(
+        char for index, char in enumerate(query) if index not in terminal_positions
+    ).rstrip()
+
+
 class JDBC:
     def __init__(
         self,
@@ -194,7 +265,10 @@ class JDBC:
     ) -> None:
         self.session = session
         self.url = url
-        self.table_or_query = table_or_query
+        # A query is wrapped in a subquery, where a trailing ';' is a syntax error.
+        self.table_or_query = (
+            strip_query_terminator(table_or_query) if is_query else table_or_query
+        )
 
         self.external_access_integration = external_access_integration
         self.imports = imports
@@ -600,7 +674,7 @@ class JDBC:
             f"SNOWPARK_JDBC_INFER_SCHEMA_ALIAS_{generate_random_alphanumeric(5)}"
         )
         return (
-            f"SELECT {infer_schema_alias}.* FROM ({self.table_or_query}) {infer_schema_alias} WHERE 1 = 0"
+            f"SELECT {infer_schema_alias}.* FROM ({self.table_or_query}\n) {infer_schema_alias} WHERE 1 = 0"
             if self.is_query
             else f"SELECT * FROM {self.table_or_query} WHERE 1 = 0"
         )
@@ -698,7 +772,9 @@ class JDBC:
             f"SNOWPARK_JDBC_SELECT_SQL_ALIAS_{generate_random_alphanumeric(5)}"
         )
         if self.is_query:
-            return f"SELECT {select_sql_alias}.* FROM ({self.table_or_query}) {select_sql_alias}"
+            # The closing parenthesis is on its own line so that a trailing "--"
+            # comment in the query does not comment it out.
+            return f"SELECT {select_sql_alias}.* FROM ({self.table_or_query}\n) {select_sql_alias}"
         else:
             # Columns are read by position, so SELECT * avoids quoting source column
             # names in each dialect. Inference uses the same SELECT * column order.

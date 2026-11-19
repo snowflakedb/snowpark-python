@@ -657,3 +657,24 @@ def test_postgres_unbounded_numeric(session, postgres_udtf_configs):
     )
     assert df.schema.fields[0].datatype == DecimalType(38, 18)
     assert df.collect()[0][0] == Decimal("1.5")
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "select 1 as s;",
+        "select 1 as s -- trailing comment",
+        "select 1 as s; \n",
+        "select 1 as s; -- trailing comment",
+        "select 1 as s; /* trailing comment */",
+        "select 1 as s; /* outer /* nested */ comment */ -- end",
+    ],
+)
+def test_postgres_query_trailing_semicolon_and_comment(
+    session, postgres_udtf_configs, query
+):
+    """SNOW-4537775: these used to fail with a syntax error in the wrapping subquery."""
+    df = session.read.jdbc(
+        url=POSTGRES_URL, udtf_configs=postgres_udtf_configs, query=query
+    )
+    assert [r[0] for r in df.collect()] == [1]
