@@ -18,6 +18,7 @@ from threading import Thread
 from unittest import mock
 import re
 import sys
+import sysconfig
 
 import pytest
 import pytz
@@ -92,6 +93,7 @@ IS_MACOS = platform.system() == "Darwin"
 IS_LINUX = platform.system() == "Linux"
 IS_UNIX = IS_LINUX or IS_MACOS
 IS_IN_STORED_PROC = is_in_stored_procedure()
+IS_FREE_THREADED = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
 IS_NOT_ON_GITHUB = os.getenv("GITHUB_ACTIONS") != "true"
 # this env variable is set in regression test
 IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")

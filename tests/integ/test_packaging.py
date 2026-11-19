@@ -23,7 +23,14 @@ from snowflake.snowpark._internal.utils import get_python_runtime_version
 from snowflake.snowpark.functions import call_udf, col, count_distinct, sproc, udf
 from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import DateType, StringType
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils, IS_PY314
+from tests.utils import (
+    IS_FREE_THREADED,
+    IS_IN_STORED_PROC,
+    TempObjectType,
+    TestFiles,
+    Utils,
+    IS_PY314,
+)
 
 pytestmark = pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
@@ -181,6 +188,14 @@ def test_patch_on_get_available_versions_for_packages(session):
     assert "catboost" not in returned
 
 
+@pytest.mark.skipif(
+    IS_FREE_THREADED,
+    reason="requirements pin pandas 2.3.3, which re-enables the GIL on free-threaded runtimes",
+)
+@pytest.mark.skipif(
+    IS_FREE_THREADED,
+    reason="pins pandas 2.3.3, which re-enables the GIL on free-threaded runtimes",
+)
 @pytest.mark.udf
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,

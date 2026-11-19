@@ -67,6 +67,7 @@ from snowflake.snowpark.types import (
 )
 from tests.integ.session_parameters import create_session_for_test
 from tests.utils import (
+    IS_FREE_THREADED,
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
     IS_PY314,
@@ -97,6 +98,10 @@ def setup(session, resources_path, local_testing_mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="Packaging processing is a NOOP in Local Testing",
     run=False,
+)
+@pytest.mark.skipif(
+    IS_FREE_THREADED,
+    reason="fails with a server internal error (incident 5501149) on free-threaded runtimes",
 )
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
