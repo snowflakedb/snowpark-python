@@ -1275,6 +1275,9 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["intervaldaytosecond"] = DayTimeIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_day_time"] = DayTimeIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["str"] = StringType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["varchar"] = StringType
+# CHAR and CHARACTER without a length are CHAR(1) in Snowflake
+DATA_TYPE_STRING_OBJECT_MAPPINGS["char"] = functools.partial(StringType, 1)
+DATA_TYPE_STRING_OBJECT_MAPPINGS["character"] = functools.partial(StringType, 1)
 
 
 DECIMAL_RE = re.compile(
@@ -1298,7 +1301,7 @@ STRUCT_RE = re.compile(r"(?i)^\s*struct\s*<")
 
 _NOT_NULL_PATTERN = re.compile(r"^(?P<base>.*?)\s+not\s+null\s*$", re.IGNORECASE)
 
-# a trailing Spark DDL column comment like "COMMENT 'the id'", where a quote is escaped by
+# a trailing column comment like "COMMENT 'the id'", where a quote is escaped by
 # doubling it or by a backslash
 _COMMENT_PATTERN = re.compile(
     r"^(?P<base>.*?)\s+comment\s*'(?:[^'\\]|\\.|'')*'\s*$", re.IGNORECASE | re.DOTALL
@@ -1621,7 +1624,7 @@ def _follows_comment_keyword(s: str, quote_index: int) -> bool:
 
 
 def _scan_quoted_string_literal(s: str, start: int) -> int:
-    """Return the index just past a single-quoted string literal (such as a Spark DDL column
+    """Return the index just past a single-quoted string literal (such as a column
     comment) that begins at ``s[start] == "'"``. A quote is escaped by doubling it or by a
     backslash. An unterminated literal is not skipped, so that a stray quote is ignored.
     """

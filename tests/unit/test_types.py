@@ -1943,12 +1943,14 @@ def test_type_string_to_type_object_varchar_with_length(upper_case):
         ("float4", FloatType()),
         ("float8", DoubleType()),
         ("char(3)", StringType(3)),
+        ("char", StringType(1)),
+        ("character", StringType(1)),
         ("real", DoubleType()),
         ("dec", DecimalType()),
         ("dec(10, 2)", DecimalType(10, 2)),
     ],
 )
-def test_type_string_to_type_object_spark_ddl_types(upper_case, base_string, expected):
+def test_type_string_to_type_object_type_synonyms(upper_case, base_string, expected):
     type_string = base_string.upper() if upper_case else base_string
     assert type_string_to_type_object(type_string) == expected
 
@@ -2015,7 +2017,7 @@ def test_type_string_to_type_object_double_quotes_are_otherwise_identifiers():
     assert [f._name for f in schema.fields] == ['"comment"', "a"]
 
 
-def test_type_string_to_type_object_spark_ddl_schema():
+def test_type_string_to_type_object_column_comments():
     schema = type_string_to_type_object(
         "id tinyint, name char(3) NOT NULL COMMENT 'a, b: it''s \\'x\\'', "
         "ts timestamp comment 'time', d decimal(10, 2) COMMENT 'has <angle> (brackets)'"

@@ -49,12 +49,6 @@ from snowflake.snowpark._internal.data_source.utils import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField, set_api_call_source
-from snowflake.snowpark._internal.spark_schema import (
-    is_pyspark_struct_type,
-    pyspark_struct_type_to_snowpark,
-    spark_ddl_identifiers_to_snowflake,
-    unquote_field_names,
-)
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sf_to_sp_type,
@@ -70,6 +64,7 @@ from snowflake.snowpark._internal.xml_schema_inference import (
     canonicalize_type,
 )
 from snowflake.snowpark._internal.utils import (
+    ALREADY_QUOTED,
     SNOWURL_PREFIX,
     STAGE_PREFIX,
     XML_ROW_TAG_STRING,
@@ -113,6 +108,14 @@ from snowflake.snowpark.types import (
 )
 
 logger = getLogger(__name__)
+
+
+def _quote_user_field_name(name: str) -> str:
+    """The identifier of a field name of a user schema. A name that is already double-quoted,
+    like ``StructField('"CaseSens"', ...)``, is used as is, and any other name is quoted
+    without changing its case."""
+    return name if ALREADY_QUOTED.match(name) else quote_name_without_upper_casing(name)
+
 
 _NOT_NULL_RE = re.compile(r"\s+NOT\s+NULL", re.IGNORECASE)
 
@@ -982,32 +985,22 @@ class DataFrameReader:
 
     @publicapi
     def schema(
-        self, schema: Union[StructType, str, Any], _emit_ast: bool = True
+        self, schema: Union[StructType, str], _emit_ast: bool = True
     ) -> "DataFrameReader":
         """Define the schema for CSV, JSON, Parquet, or XML files that you want to read.
 
         Args:
             schema: Schema configuration for the file to be read. A DDL string such as
-                ``"id INT, name STRING"`` and a ``pyspark.sql.types.StructType`` are also accepted,
-                and are converted to a :class:`~snowflake.snowpark.types.StructType`. A DDL string
-                uses Snowflake type names, so ``TIMESTAMP`` follows the ``TIMESTAMP_TYPE_MAPPING``
-                of the session, and Spark names such as ``TINYINT`` and backtick-quoted column
-                names are accepted. Double-quoted names follow the rules of the names passed to
-                ``StructField``, so ``"CaseSens"`` is the same as ``CaseSens``, and names that need
-                quoting, such as ones with spaces, keep their exact spelling. A PySpark
-                ``StructType`` follows Spark: ``TimestampType`` is ``TIMESTAMP_LTZ`` and
-                ``TimestampNTZType`` is ``TIMESTAMP_NTZ``.
+                ``"id INT, name STRING"`` is also accepted. It uses Snowflake data types and
+                identifier rules: an unquoted name is case-insensitive and a double-quoted name
+                is case-sensitive. ``TIMESTAMP`` follows the ``TIMESTAMP_TYPE_MAPPING`` of the
+                session, and ``COMMENT '...'`` after a column is accepted.
 
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
         if isinstance(schema, str):
-            schema = DataSourcePartitioner.formatting_custom_schema(
-                spark_ddl_identifiers_to_snowflake(schema)
-            )
-            schema = unquote_field_names(schema)
-        elif is_pyspark_struct_type(schema):
-            schema = pyspark_struct_type_to_snowpark(schema)
+            schema = DataSourcePartitioner.formatting_custom_schema(schema)
 
         # AST.
         if _emit_ast and self._ast is not None:
@@ -1482,17 +1475,14 @@ class DataFrameReader:
         cols = []
         for field in schema.fields:
             # TODO: SNOW-2923003: remove single quote after server side BCR is done
-            col = df[single_quote(field._name)]
+            col = df[single_quote(unquote_if_quoted(field._name))]
+            alias = _quote_user_field_name(field._name)
             if isinstance(field.datatype, (StructType, ArrayType, MapType)):
                 # Complex types: keep as VARIANT to prevent structured cast errors
-                cols.append(col.alias(quote_name_without_upper_casing(field._name)))
+                cols.append(col.alias(alias))
             else:
                 # Primitive types: cast to the inferred datatype
-                cols.append(
-                    col.cast(field.datatype).alias(
-                        quote_name_without_upper_casing(field._name)
-                    )
-                )
+                cols.append(col.cast(field.datatype).alias(alias))
 
         # In PERMISSIVE mode, append the StringType column for the corrupt record if it
         # exists in the DataFrame emitted by the UDTF on malformed or corrupted records.
@@ -1980,7 +1970,7 @@ class DataFrameReader:
         transformations = []
         new_schema = []
         for field in user_schema.fields:
-            name = quote_name_without_upper_casing(field._name)
+            name = _quote_user_field_name(field._name)
             new_schema.append(
                 Attribute(
                     name,
@@ -1989,7 +1979,7 @@ class DataFrameReader:
                 )
             )
             identifier = f"$1:{name}::{convert_sp_to_sf_type(field.datatype)}"
-            schema_to_cast.append((identifier, field._name))
+            schema_to_cast.append((identifier, unquote_if_quoted(field._name)))
             transformations.append(sql_expr(identifier))
         self._infer_schema_transformations = transformations
         self._infer_schema_target_columns = StructType._from_attributes(

@@ -11,12 +11,13 @@
 
 #### Improvements
 
-- `DataFrameReader.schema()` now also accepts a DDL string such as ``"id INT, `my col` STRING"``, which is converted to a `StructType`. Double-quoted names follow the rules of `StructField` names (`"Name"` is the same as `Name`). Backtick-quoted column names are supported: a name that needs quoting becomes a quoted identifier, and other names are the same as without backticks. It also accepts a `pyspark.sql.types.StructType`, which Snowpark converts without importing PySpark.
-- Type strings, such as DDL schema strings and the type names passed to `Column.cast`, now accept the Spark type names `TINYINT`, `CHAR(n)`, `CHARACTER(n)`, `DEC` and `DEC(p, s)`, the Snowflake type names `FLOAT4`, `FLOAT8` and `REAL`, and `COMMENT '...'` after a field in a schema string. Like in Snowflake, `DEC` without a precision is `DEC(38, 0)` (Spark: `(10, 0)`) and `REAL` is `FLOAT`.
+- `DataFrameReader.schema()` now also accepts a DDL string such as `"id INT, name STRING"`, which is converted to a `StructType` with Snowflake data types and identifier rules: an unquoted name is case-insensitive, and a double-quoted name is case-sensitive.
+- Type strings, such as DDL schema strings and the type names passed to `Column.cast`, now accept the Snowflake type synonyms `TINYINT`, `CHAR` and `CHARACTER` (with an optional length), `DEC`, `REAL`, `FLOAT4` and `FLOAT8`, and `COMMENT '...'` after a column in a schema string.
 - `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.
 
 #### Bug Fixes
 
+- Fixed `DataFrameReader.schema()` with a double-quoted field name, such as `StructField('"CaseSens"', ...)`, which read NULLs from JSON, Parquet and XML files because the name was quoted twice.
 - Fixed a bug where `Table.sample` and seeded `DataFrame.stat.sample_by` ignored time travel and Iceberg incremental reads and sampled the current table. For Iceberg incremental reads, `seed` and `SYSTEM`/`BLOCK` sampling are now ignored with a warning.
 - Fixed a bug where `Table.sample` and seeded `DataFrame.stat.sample_by` on a table embedded `seed` into the SQL without validating it. A `seed` that is not an integer between 0 and 2147483647 now raises `ValueError`.
 - Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
