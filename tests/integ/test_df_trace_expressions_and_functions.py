@@ -88,12 +88,7 @@ def test_isin_in_when_otherwise(session, trace_settings):
     df = fail(a.with_column("F", when(col("ID").isin(b), lit(1)).otherwise(lit(0))))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('a.with_column("F", when(col("ID").isin(b), lit(1)).otherwise(lit(0)))'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -114,9 +109,7 @@ def test_isin_in_select(session, trace_settings):
     df = fail(a.select("ID", col("ID").isin(b).alias("IN_B")))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src('a.select("ID", col("ID").isin(b).alias("IN_B"))'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -159,12 +152,7 @@ def test_subquery_reused_in_later_operation(session, trace_settings):
     df = fail(filtered.select("ID", "NAME").sort("ID"))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('filtered.select("ID", "NAME").sort("ID")'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -243,9 +231,7 @@ def test_udf_lambda(session, trace_settings):
     df = fail(base(session).with_column("U", f(col("ID"))))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [BASE, src('base(session).with_column("U", f(col("ID")))'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -266,9 +252,7 @@ def test_udf_decorator(session, trace_settings):
     df = fail(base(session).select(plus_one(col("ID")).alias("U")))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [BASE, src('base(session).select(plus_one(col("ID")).alias("U"))'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -293,9 +277,7 @@ def test_udf_register_named(session, trace_settings):
     df = fail(base(session).filter(f(col("ID")) > 0))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [BASE, src('base(session).filter(f(col("ID")) > 0)'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -323,9 +305,7 @@ def test_udf_vectorized(session, trace_settings):
     df = fail(base(session).with_column("U", f(col("ID"))))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [BASE, src('base(session).with_column("U", f(col("ID")))'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -344,12 +324,7 @@ def test_udf_used_twice(session, trace_settings):
     df = fail(df.filter(f(col("U")) > 0))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('df.filter(f(col("U")) > 0)'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -368,13 +343,7 @@ def test_udf_nested_in_expression(session, trace_settings):
     df = fail(base(session).with_column("U", (f(col("ID")) * 2 + 1).cast("int")))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        BASE,
-        src('base(session).with_column("U", (f(col("ID")) * 2 + 1).cast("int"))'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[

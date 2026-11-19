@@ -121,9 +121,7 @@ def test_count(session, trace_settings):
     df = fail(base(session))
     with pytest.raises(SnowparkSQLException) as ex:
         df.count()
-    mapped = [BASE, FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(ex, trace=[src("df.count()"), FAIL, BASE], mapped=mapped)
 
 
@@ -131,9 +129,7 @@ def test_show(session, trace_settings):
     df = fail(base(session))
     with pytest.raises(SnowparkSQLException) as ex:
         df.show()
-    mapped = [BASE, FAIL, src("df.show()")]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(ex, trace=[src("df.show()"), FAIL, BASE], mapped=mapped)
 
 
@@ -141,9 +137,7 @@ def test_first(session, trace_settings):
     df = fail(base(session))
     with pytest.raises(SnowparkSQLException) as ex:
         df.first()
-    mapped = [BASE, FAIL, src("df.first()")]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(ex, trace=[src("df.first()"), FAIL, BASE], mapped=mapped)
 
 
@@ -151,9 +145,7 @@ def test_to_pandas(session, trace_settings):
     df = fail(base(session))
     with pytest.raises(SnowparkSQLException) as ex:
         df.to_pandas()
-    mapped = [BASE, FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(ex, trace=[FAIL, BASE], mapped=mapped)
 
 
@@ -161,9 +153,7 @@ def test_to_pandas_batches(session, trace_settings):
     df = fail(base(session))
     with pytest.raises(SnowparkSQLException) as ex:
         list(df.to_pandas_batches())
-    mapped = [BASE, FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(ex, trace=[FAIL, BASE], mapped=mapped)
 
 
@@ -171,9 +161,7 @@ def test_to_local_iterator(session, trace_settings):
     df = fail(base(session))
     with pytest.raises(SnowparkSQLException) as ex:
         list(df.to_local_iterator())
-    mapped = [BASE, FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(ex, trace=[FAIL, BASE], mapped=mapped)
 
 
@@ -201,9 +189,7 @@ def test_stat_corr_cov(session, trace_settings):
     df = fail(base(session))
     with pytest.raises(SnowparkSQLException) as ex:
         df.stat.corr("ID", "V")
-    mapped = [BASE, FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex, trace=[src('df.stat.corr("ID", "V")'), FAIL, BASE], mapped=mapped
     )

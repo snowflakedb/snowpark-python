@@ -127,8 +127,9 @@ def test_sql_error_in_case_expression(session, multiline):
 
 
 def test_sql_error_in_flattened_operations(session, multiline):
-    """Operations the SQL simplifier flattens into one SELECT share the SQL lines, so they
-    are all reported; the offending one is among them."""
+    """Operations that the SQL simplifier flattens into one SELECT share the statement; the
+    error is mapped to the one that wrote the part of it with the error (SNOW-2688933).
+    """
     if not session.sql_simplifier_enabled:
         pytest.skip("SQL simplifier must be enabled for this test")
     bad = sql_expr("TO_DATE(a, b, a, b)")
@@ -140,7 +141,59 @@ def test_sql_error_in_flattened_operations(session, multiline):
     df = df.sort(col("a"))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    assert _mapped_lines(ex) == list(range(first, first + 5))
+    assert _mapped_lines(ex) == [first + 3]
+
+
+def test_sql_error_in_flattened_projection(session, multiline):
+    """A column added after a filter that was flattened into the same SELECT (SNOW-2688933)."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.filter(col("a") > 0)
+    df = df.with_column("c", sql_expr("UPPER(b, a)"))
+    line = Utils.get_current_line_number_sys() - 1
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+def test_sql_error_in_flattened_unchanged_column(session, multiline):
+    """A column kept by a later select is mapped to the operation that added it."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.with_column("c", sql_expr("UPPER(b, a)"))
+    line = Utils.get_current_line_number_sys() - 1
+    df = df.select("a", "c")
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+def test_sql_error_in_flattened_filters(session, multiline):
+    """The filter with the error among the filters flattened into one WHERE clause."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.filter(col("a") > 0)
+    df = df.filter(sql_expr("UPPER(b, a)") == "x")
+    line = Utils.get_current_line_number_sys() - 1
+    df = df.filter(col("a") < 9)
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+def test_sql_error_in_flattened_sort(session, multiline):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.filter(col("a") > 0)
+    df = df.sort(sql_expr("UPPER(b, a)"))
+    line = Utils.get_current_line_number_sys() - 1
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
 
 
 def test_sql_error_of_another_query_reports_all_operations(session, multiline):

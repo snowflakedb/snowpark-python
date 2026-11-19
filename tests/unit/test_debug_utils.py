@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.debug_utils import (
     DataFrameTraceNode,
     QueryProfiler,
     _format_source_location,
+    _get_clause_trace_node,
     _get_own_trace_nodes,
     _resolve_error_line,
     get_python_source_from_sql_error,
@@ -884,6 +885,101 @@ def test_get_python_source_from_sql_error_own_operations(executed_sql, expected_
     ] == expected_lines
     if expected_lines:
         get_plan.assert_called_once_with(top_plan, 1)
+
+
+_FLATTENED_SQL = 'SELECT\n    "A",\n    UPPER(b, a) AS "C"\nFROM (\n    SELECT 1\n)\nWHERE\n    ("A" > 0)'
+
+
+def _flattened_plan(nodes, plan_sql=_FLATTENED_SQL):
+    """A plan of a flattened SELECT statement whose projection and WHERE conjunct were written
+    by ``nodes`` (projection "A", projection UPPER, WHERE conjunct)."""
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
+
+    sql = _FLATTENED_SQL
+    spans = []
+    for text, node in zip(['"A"', 'UPPER(b, a) AS "C"', '("A" > 0)'], nodes):
+        start = sql.index(text)
+        spans.append((start, start + len(text), node))
+    from_start = sql.index("FROM") + len("FROM")
+    from_end = sql.index(")\nWHERE") + 1
+    statement = mock.MagicMock(spec=SelectStatement, sql_query=sql)
+    statement._clause_spans.return_value = (spans, from_start, from_end)
+    plan = _plan(list(nodes), sql=plan_sql)
+    plan.source_plan = statement
+    return plan
+
+
+@pytest.mark.parametrize(
+    "line_number, position, expected",
+    [
+        (1, 4, 0),  # the "A" column
+        (2, 10, 1),  # inside UPPER(...)
+        (7, 4, 2),  # the WHERE conjunct
+        (1, 0, None),  # the indentation before "A" is no part
+        (4, 4, None),  # a line of the FROM subquery
+        (2, 100, None),  # a position past the end of the line
+        (9, 0, None),  # a line past the end of the sql
+    ],
+)
+def test_get_clause_trace_node(line_number, position, expected):
+    nodes = [_trace_node(1), _trace_node(2), _trace_node(3)]
+    plan = _flattened_plan(nodes)
+    lines = _FLATTENED_SQL.split("\n")
+    executed_line = lines[line_number] if line_number < len(lines) else ""
+    result = _get_clause_trace_node(plan, position, executed_line)
+    assert result is (nodes[expected] if expected is not None else None)
+
+
+def test_get_clause_trace_node_needs_the_executed_line():
+    nodes = [_trace_node(1), _trace_node(2), _trace_node(3)]
+    plan = _flattened_plan(nodes)
+    assert _get_clause_trace_node(plan, 10, "    UPPER(c) AS X") is None
+
+
+def test_get_clause_trace_node_with_a_differently_laid_out_from_clause():
+    # the sql of the plan has the uuid comments of the FROM subquery removed, which may leave
+    # other line breaks in it; the parts outside it are the same
+    nodes = [_trace_node(1), _trace_node(2), _trace_node(3)]
+    plan_sql = _FLATTENED_SQL.replace(
+        "FROM (\n    SELECT 1\n)", "FROM (\n\n    SELECT 1\n\n)"
+    )
+    plan = _flattened_plan(nodes, plan_sql=plan_sql)
+    assert _get_clause_trace_node(plan, 4, '    ("A" > 0)') is nodes[2]
+    # a statement whose own text is not the plan's
+    plan = _flattened_plan(nodes, plan_sql=_FLATTENED_SQL.replace('"C"', '"D"'))
+    assert _get_clause_trace_node(plan, 10, '    UPPER(b, a) AS "D"') is None
+    # no spans, e.g. the rebuilt sql of the statement was not its sql
+    plan = _flattened_plan(nodes)
+    plan.source_plan._clause_spans.return_value = None
+    assert _get_clause_trace_node(plan, 10, '    UPPER(b, a) AS "C"') is None
+    # not a SELECT statement
+    plan.source_plan = mock.MagicMock()
+    assert _get_clause_trace_node(plan, 10, '    UPPER(b, a) AS "C"') is None
+
+
+def test_get_python_source_from_sql_error_flattened_statement():
+    nodes = [_trace_node(1), _trace_node(2), _trace_node(3)]
+    plan = _flattened_plan(nodes)
+    message = "SQL compilation error: error line 3 at position 10\ntoo many arguments"
+    with mock.patch(
+        "snowflake.snowpark._internal.utils.get_plan_from_line_numbers",
+        return_value=plan,
+    ):
+        assert get_python_source_from_sql_error(plan, message, _FLATTENED_SQL) == (
+            "\nSQL compilation error corresponds to Python source at f.py: line 2.\n"
+        )
+        # the operation is not one of the plan's: all of them are reported
+        plan.df_trace_nodes = [nodes[0], nodes[2]]
+        assert "line 2" not in get_python_source_from_sql_error(
+            plan, message, _FLATTENED_SQL
+        )
+        # the schema query of the plan: no part of the statement is known
+        plan.df_trace_nodes = list(nodes)
+        plan.schema_query = "SELECT 0"
+        assert (
+            get_python_source_from_sql_error(plan, message, "SELECT 0").count("f.py")
+            == 3
+        )
 
 
 def test_resolve_error_line_maps_a_query_before_the_last_through_its_own_intervals():

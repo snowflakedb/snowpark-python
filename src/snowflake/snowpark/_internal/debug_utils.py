@@ -338,6 +338,75 @@ def _resolve_error_line(
     return None
 
 
+def _get_clause_trace_node(
+    plan: "SnowflakePlan", position: int, executed_line: str
+) -> Optional[TraceNode]:
+    """
+    The trace node of the DataFrame operation that wrote the part of the SQL at the error, when
+    the SQL simplifier flattened several operations into the SELECT statement of ``plan``.
+
+    ``executed_line`` is the line of the executed SQL with the error, and ``position`` the
+    position of the error in it. Returns None, so that all of the plan's own operations are
+    reported, unless the line is exactly one line of the statement and the error position is
+    in exactly one part written by a known operation.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
+
+    statement = getattr(plan, "source_plan", None)
+    if not isinstance(statement, SelectStatement):
+        return None
+    clause_spans = statement._clause_spans()
+    if not clause_spans or not clause_spans[0]:
+        return None
+    spans, from_start, from_end = clause_spans
+    if not 0 <= position < len(executed_line):
+        return None
+    # The executed line is a line of the statement's sql when the statement is a subquery of
+    # the executed sql, and of the sql of the plan otherwise, which lays out the FROM subquery
+    # differently (its line breaks are kept when the uuid comments are removed). The parts of
+    # the two outside the FROM subquery are the same text. The executed sql is stripped, which
+    # removes the leading spaces of its first line.
+    statement_sql = statement.sql_query
+    suffix = statement_sql[from_end:]
+
+    def line_offsets(sql: str) -> List[int]:
+        offsets = []
+        start = 0
+        for index, line in enumerate(sql.split("\n")):
+            if line == executed_line:
+                offsets.append(start + position)
+            elif index == 0 and line.lstrip() == executed_line:
+                offsets.append(start + position + len(line) - len(executed_line))
+            start += len(line) + 1
+        return offsets
+
+    offsets = set()
+    for offset in line_offsets(statement_sql):
+        if from_start <= offset < from_end:
+            # the line is also in the FROM subquery: the part is not certain
+            return None
+        offsets.add(offset)
+    plan_sql = plan.queries[-1].sql
+    if (
+        plan_sql.startswith(statement_sql[:from_start])
+        and plan_sql.endswith(suffix)
+        and len(plan_sql) - len(suffix) >= from_start
+    ):
+        for offset in line_offsets(plan_sql):
+            if offset < from_start:
+                offsets.add(offset)
+            elif offset >= len(plan_sql) - len(suffix):
+                offsets.add(offset - (len(plan_sql) - len(statement_sql)))
+            else:
+                # a line in the FROM subquery: not a part of this statement
+                return None
+    if len(offsets) != 1:
+        return None
+    offset = offsets.pop()
+    nodes = [node for start, end, node in spans if start <= offset < end]
+    return nodes[0] if len(nodes) == 1 else None
+
+
 def get_python_source_from_sql_error(
     top_plan: "SnowflakePlan", error_msg: str, executed_sql: Optional[str] = None
 ) -> str:
@@ -389,6 +458,21 @@ def get_python_source_from_sql_error(
         if line_number is None
         else get_plan_from_line_numbers(plan_root, line_number)
     )
+    # An error in a SELECT statement that flattens several operations is mapped to the one
+    # that wrote the part of the statement with the error, found from the executed line.
+    if own_only and executed_sql is not None:
+        executed_lines = executed_sql.strip().split("\n")
+        if sql_line_number < len(executed_lines):
+            clause_node = _get_clause_trace_node(
+                plan, int(match.group(2)), executed_lines[sql_line_number]
+            )
+            if clause_node is not None:
+                location = _format_source_location(clause_node.src)
+                # Only ever narrow the operations reported for the plan.
+                if location and location in _extract_source_locations_from_plan(
+                    plan, own_only=True
+                ):
+                    return f"\nSQL compilation error corresponds to Python source at {location}.\n"
     source_locations = _extract_source_locations_from_plan(plan, own_only=own_only)
 
     if source_locations:
