@@ -1936,6 +1936,47 @@ def test_type_string_to_type_object_varchar_with_length(upper_case):
 
 
 @pytest.mark.parametrize("upper_case", [False, True])
+@pytest.mark.parametrize(
+    "base_string, expected",
+    [
+        ("tinyint", ByteType()),
+        ("float4", FloatType()),
+        ("float8", DoubleType()),
+        ("char(3)", StringType(3)),
+        ("real", DoubleType()),
+        ("dec", DecimalType()),
+        ("dec(10, 2)", DecimalType(10, 2)),
+    ],
+)
+def test_type_string_to_type_object_spark_ddl_types(upper_case, base_string, expected):
+    type_string = base_string.upper() if upper_case else base_string
+    assert type_string_to_type_object(type_string) == expected
+
+
+def test_type_string_to_type_object_apostrophes_are_not_quotes():
+    # only the string literal after COMMENT is a quote
+    schema = type_string_to_type_object("a STRING, it's INT, b's STRING")
+    assert [f.name for f in schema.fields] == ["A", '"it\'s"', '"b\'s"']
+    schema = type_string_to_type_object("a INT COMMENT 'x, y: z', it's INT")
+    assert [f.name for f in schema.fields] == ["A", '"it\'s"']
+
+
+def test_type_string_to_type_object_spark_ddl_schema():
+    schema = type_string_to_type_object(
+        "id tinyint, name char(3) NOT NULL COMMENT 'a, b: it''s \\'x\\'', "
+        "ts timestamp comment 'time', d decimal(10, 2) COMMENT 'has <angle> (brackets)'"
+    )
+    assert schema == StructType(
+        [
+            StructField("ID", ByteType(), nullable=True),
+            StructField("NAME", StringType(3), nullable=False),
+            StructField("TS", TimestampType(), nullable=True),
+            StructField("D", DecimalType(10, 2), nullable=True),
+        ]
+    )
+
+
+@pytest.mark.parametrize("upper_case", [False, True])
 def test_type_string_to_type_object_varchar_no_length(upper_case):
     base_string = "varchar"
     type_string = base_string.upper() if upper_case else base_string

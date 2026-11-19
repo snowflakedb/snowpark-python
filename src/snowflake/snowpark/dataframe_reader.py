@@ -49,6 +49,11 @@ from snowflake.snowpark._internal.data_source.utils import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField, set_api_call_source
+from snowflake.snowpark._internal.spark_schema import (
+    is_pyspark_struct_type,
+    pyspark_struct_type_to_snowpark,
+    spark_ddl_identifiers_to_snowflake,
+)
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sf_to_sp_type,
@@ -975,15 +980,25 @@ class DataFrameReader:
         return table
 
     @publicapi
-    def schema(self, schema: StructType, _emit_ast: bool = True) -> "DataFrameReader":
+    def schema(
+        self, schema: Union[StructType, str], _emit_ast: bool = True
+    ) -> "DataFrameReader":
         """Define the schema for CSV, JSON, Parquet, or XML files that you want to read.
 
         Args:
-            schema: Schema configuration for the file to be read.
+            schema: Schema configuration for the file to be read. A DDL string such as
+                ``"id INT, name STRING"`` and a ``pyspark.sql.types.StructType`` are also accepted,
+                and are converted to a :class:`~snowflake.snowpark.types.StructType`.
 
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
+        if isinstance(schema, str):
+            schema = DataSourcePartitioner.formatting_custom_schema(
+                spark_ddl_identifiers_to_snowflake(schema)
+            )
+        elif is_pyspark_struct_type(schema):
+            schema = pyspark_struct_type_to_snowpark(schema)
 
         # AST.
         if _emit_ast and self._ast is not None:

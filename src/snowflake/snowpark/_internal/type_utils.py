@@ -1247,10 +1247,15 @@ get_data_type_string_object_mappings(DATA_TYPE_STRING_OBJECT_MAPPINGS)
 DATA_TYPE_STRING_OBJECT_MAPPINGS["int"] = IntegerType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["smallint"] = ShortType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["byteint"] = ByteType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["tinyint"] = ByteType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["float4"] = FloatType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["float8"] = DoubleType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["real"] = DoubleType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["bigint"] = LongType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["number"] = DecimalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["numeric"] = DecimalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["decimal"] = DecimalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["dec"] = DecimalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["object"] = MapType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["array"] = ArrayType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ntz"] = functools.partial(
@@ -1273,11 +1278,11 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["varchar"] = StringType
 
 
 DECIMAL_RE = re.compile(
-    r"(?i)^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
+    r"(?i)^\s*(numeric|number|decimal|dec)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
 )
 # support type string format like "  decimal  (  2  ,  1  )  "
 
-STRING_RE = re.compile(r"(?i)^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$")
+STRING_RE = re.compile(r"(?i)^\s*(varchar|string|text|char)\s*\(\s*(\d*)\s*\)\s*$")
 # support type string format like "  string  (  23  )  "
 
 ARRAY_RE = re.compile(r"(?i)^\s*array\s*<")
@@ -1290,6 +1295,12 @@ STRUCT_RE = re.compile(r"(?i)^\s*struct\s*<")
 # support type string format like starting with "struct<..."
 
 _NOT_NULL_PATTERN = re.compile(r"^(?P<base>.*?)\s+not\s+null\s*$", re.IGNORECASE)
+
+# a trailing Spark DDL column comment like "COMMENT 'the id'", where a quote is escaped by
+# doubling it or by a backslash
+_COMMENT_PATTERN = re.compile(
+    r"^(?P<base>.*?)\s+comment\s+'(?:[^'\\]|\\.|'')*'\s*$", re.IGNORECASE | re.DOTALL
+)
 
 
 def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
@@ -1357,6 +1368,9 @@ def extract_nullable_keyword(type_str: str) -> Tuple[str, bool]:
     Otherwise, return (type_str, True).
     """
     trimmed = type_str.strip()
+    comment_match = _COMMENT_PATTERN.match(trimmed)
+    if comment_match:
+        trimmed = comment_match.group("base").strip()
     match = _NOT_NULL_PATTERN.match(trimmed)
     if match:
         # Group 'base' is everything before 'not null'
@@ -1380,10 +1394,16 @@ def find_top_level_colon(field_def: str) -> int:
     """
     bracket_depth = 0
     in_quotes = False
-    for i, ch in enumerate(field_def):
+    i = 0
+    while i < len(field_def):
+        ch = field_def[i]
         if ch == '"':
             in_quotes = not in_quotes
         elif in_quotes:
+            pass
+        elif ch == "'" and _follows_comment_keyword(field_def, i):
+            # skip the string literal of a column comment
+            i = _scan_quoted_string_literal(field_def, i)
             continue
         elif ch in ("<", "("):
             bracket_depth += 1
@@ -1391,6 +1411,7 @@ def find_top_level_colon(field_def: str) -> int:
             bracket_depth -= 1
         elif ch == ":" and bracket_depth == 0:
             return i
+        i += 1
     return -1
 
 
@@ -1460,6 +1481,9 @@ def split_top_level_comma_fields(s: str) -> List[str]:
         c = s[i]
         if c == '"':
             i = _scan_quoted_identifier(s, i)
+            continue
+        if c == "'" and _follows_comment_keyword(s, i):
+            i = _scan_quoted_string_literal(s, i)
             continue
         if c in ("<", "("):
             bracket_depth += 1
@@ -1561,6 +1585,34 @@ def _scan_quoted_identifier(s: str, start: int) -> int:
             return i + 1  # index just past the closing quote
         i += 1
     raise ValueError(f"Unterminated quoted identifier in: {s!r}")
+
+
+_COMMENT_KEYWORD_PATTERN = re.compile(r"(?i)(?:^|\s)comment\s*$")
+
+
+def _follows_comment_keyword(s: str, quote_index: int) -> bool:
+    """Whether the quote at ``s[quote_index]`` starts the string literal of a ``COMMENT``, so
+    that other apostrophes, like in ``it's INT``, are not treated as quotes."""
+    return _COMMENT_KEYWORD_PATTERN.search(s, 0, quote_index) is not None
+
+
+def _scan_quoted_string_literal(s: str, start: int) -> int:
+    """Return the index just past a single-quoted string literal (such as a Spark DDL column
+    comment) that begins at ``s[start] == "'"``. A quote is escaped by doubling it or by a
+    backslash. An unterminated literal is not skipped, so that a stray quote is ignored.
+    """
+    i = start + 1
+    while i < len(s):
+        if s[i] == "\\":
+            i += 2
+            continue
+        if s[i] == "'":
+            if i + 1 < len(s) and s[i + 1] == "'":
+                i += 2
+                continue
+            return i + 1
+        i += 1
+    return start + 1
 
 
 def _split_object_field(field_def: str) -> Tuple[str, str]:
