@@ -1118,10 +1118,7 @@ class SelectStatement(Selectable):
     @property
     def has_clause(self) -> bool:
         return (
-            self.has_clause_using_columns
-            or self.limit_ is not None
-            or self.offset is not None
-            or self.distinct_
+            self.has_clause_using_columns or self.limit_ is not None or self.distinct_
         )
 
     @property
@@ -1746,73 +1743,46 @@ class SelectStatement(Selectable):
 
         return new
 
-    def filter(self, col: Expression) -> "SelectStatement":
+    def filter(
+        self, col: Expression, is_qualify: Optional[bool] = None
+    ) -> "SelectStatement":
         self._session._retrieve_aggregation_function_list()
-        is_qualify = has_window_function_exp([col])
+        if is_qualify is None:
+            is_qualify = has_window_function_exp([col])
         dependent_columns = derive_dependent_columns(col)
-        # Window predicates must see the preceding dataframe, including its
-        # aliases, projected windows, DISTINCT and LIMIT/OFFSET. Only a plain
-        # pass-through projection can share its query block with QUALIFY.
-        qualify_can_flatten = not is_qualify or (
-            not self.distinct_
-            and self.limit_ is None
-            and self.offset is None
-            and self.exclude_cols is None
-            and self.ilike_cols is None
-            and all(
-                isinstance(expr, Attribute)
-                or (isinstance(expr, UnresolvedAttribute) and not expr.is_sql_text)
-                or (
-                    isinstance(expr, UnresolvedAlias)
-                    and (
-                        isinstance(expr.child, (Attribute, Star))
-                        or (
-                            isinstance(expr.child, UnresolvedAttribute)
-                            and not expr.child.is_sql_text
-                        )
+        if is_qualify:
+            can_be_flattened = (
+                not self.flatten_disabled
+                and self.qualify is None
+                and _can_qualify_flatten(self, dependent_columns)
+            )
+        else:
+            can_be_flattened = (
+                (not self.flatten_disabled)
+                and self.qualify is None
+                and can_clause_dependent_columns_flatten(
+                    dependent_columns,
+                    self.column_states,
+                    "filter",
+                    # In Snowpark Connect compatible mode, the NEW-column branch
+                    # below allows flattening through any subquery. Pass
+                    # subquery_has_limit so that branch can still reject
+                    # flattening across LIMIT/OFFSET, since WHERE cannot cross
+                    # LIMIT/OFFSET without changing semantics.
+                    subquery_has_limit_or_offset=(
+                        self.limit_ is not None or self.offset is not None
+                    ),
+                )
+                and not has_data_generator_or_window_function_exp(self.projection)
+                and not (
+                    (
+                        context._is_snowpark_connect_compatible_mode
+                        and context._snowpark_connect_flatten_select_after_sort
                     )
-                )
-                for expr in self.projection or []
+                    and has_aggregation_function_exp(self.projection)
+                )  # sum(col) as new_col, new_col can not be flattened in where clause
+                and not (self.order_by and self.limit_ is not None)
             )
-            and not has_window_function_exp(self.order_by)
-            # Unlike WHERE flattening, QUALIFY must not expose dropped input
-            # columns. Unknown dependencies cannot establish output visibility.
-            and dependent_columns is not COLUMN_DEPENDENCY_ALL
-            and dependent_columns != COLUMN_DEPENDENCY_DOLLAR
-            and all(
-                column in self.column_states
-                and self.column_states[column].change_state
-                == ColumnChangeState.UNCHANGED_EXP
-                for column in dependent_columns
-            )
-        )
-        can_be_flattened = (
-            (not self.flatten_disabled)
-            and self.qualify is None
-            and qualify_can_flatten
-            and can_clause_dependent_columns_flatten(
-                dependent_columns,
-                self.column_states,
-                "filter",
-                # In Snowpark Connect compatible mode, the NEW-column branch
-                # below allows flattening through any subquery. Pass
-                # subquery_has_limit so that branch can still reject
-                # flattening across LIMIT/OFFSET, since WHERE cannot cross
-                # LIMIT/OFFSET without changing semantics.
-                subquery_has_limit_or_offset=(
-                    self.limit_ is not None or self.offset is not None
-                ),
-            )
-            and not has_data_generator_or_window_function_exp(self.projection)
-            and not (
-                (
-                    context._is_snowpark_connect_compatible_mode
-                    and context._snowpark_connect_flatten_select_after_sort
-                )
-                and has_aggregation_function_exp(self.projection)
-            )  # sum(col) as new_col, new_col can not be flattened in where clause
-            and not (self.order_by and self.limit_ is not None)
-        )
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
@@ -2423,6 +2393,47 @@ def can_projection_dependent_columns_be_flattened(
     return True
 
 
+def _can_qualify_flatten(
+    select_statement: "SelectStatement",
+    dependent_columns: Optional[AbstractSet[str]],
+) -> bool:
+    """Whether a window filter can be added as QUALIFY to ``select_statement``.
+
+    Window predicates must see the preceding dataframe, including its aliases,
+    projected windows, DISTINCT and LIMIT/OFFSET, so only a plain pass-through
+    projection can share its query block with QUALIFY. Unlike WHERE flattening,
+    QUALIFY must not expose dropped input columns, and unknown dependencies
+    cannot establish output visibility.
+    """
+    if (
+        select_statement.distinct_
+        or select_statement.limit_ is not None
+        or select_statement.offset is not None
+        or select_statement.exclude_cols is not None
+        or select_statement.ilike_cols is not None
+        or has_window_function_exp(select_statement.order_by)
+        or dependent_columns is COLUMN_DEPENDENCY_ALL
+        or dependent_columns == COLUMN_DEPENDENCY_DOLLAR
+    ):
+        return False
+    for expr in select_statement.projection or []:
+        if isinstance(expr, UnresolvedAlias):
+            expr = expr.child
+            if isinstance(expr, Star):
+                continue
+        if not (
+            isinstance(expr, Attribute)
+            or (isinstance(expr, UnresolvedAttribute) and not expr.is_sql_text)
+        ):
+            return False
+    column_states = select_statement.column_states
+    return all(
+        column in column_states
+        and column_states[column].change_state == ColumnChangeState.UNCHANGED_EXP
+        for column in dependent_columns
+    )
+
+
 def can_clause_dependent_columns_flatten(
     dependent_columns: Optional[AbstractSet[str]],
     subquery_column_states: ColumnStateDict,
@@ -2750,6 +2761,7 @@ def _check_expressions_for_types(
             if exp.name.lower() in context._aggregation_function_set:
                 return True
 
+        # Recursively check children.
         sub_exps = expression_children(exp)
         if _check_expressions_for_types(
             sub_exps, check_data_gen, check_window, check_aggregation

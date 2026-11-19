@@ -110,8 +110,9 @@ def test_window_predicate_detector_scope():
     assert not has_window_function_exp([row_number()._expression])
     assert has_window_function_exp([InExpression(subquery, [window])])
     assert not has_window_function_exp([InExpression(Literal(1), [subquery])])
-    # Shared operands are visited once even when exposed in multiple fields.
-    assert expression_children(Like(window, window)) == [window]
+    pattern = Literal("a")
+    assert expression_children(Like(window, pattern)) == [window, pattern]
+    assert expression_children(subquery) is None
 
 
 def test_filter_qualify_and_having_are_exclusive():

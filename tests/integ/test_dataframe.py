@@ -1315,13 +1315,13 @@ def test_qualify_aggregation(
     first = row_number().over(Window.order_by(col("total").desc())) == 1
     Utils.check_answer(getattr(grouped, method)(first), [Row("a", 4)])
     Utils.check_answer(getattr(grouped, method)((col("total") < 4) & first), [])
-    prefiltered = getattr(grouped.filter(col("total") < 4), method)(first)
     if compatible and local_testing_mode:
         # The compatibility-mode HAVING path uses a logical Filter, which the
         # local evaluator explicitly does not support.
         with pytest.raises(NotImplementedError, match="Mocking SnowflakePlan Filter"):
-            prefiltered.collect()
+            getattr(grouped.filter(col("total") < 4), method)(first).collect()
     else:
+        prefiltered = getattr(grouped.filter(col("total") < 4), method)(first)
         Utils.check_answer(prefiltered, [Row("b", 2)])
     Utils.check_answer(getattr(grouped, method)(first).filter(col("total") < 4), [])
     qualified = getattr(df, method)(row_number().over(Window.order_by("value")) <= 2)
@@ -1411,29 +1411,25 @@ def test_qualify_repeated_subtree(session, local_testing_mode, operation):
             assert sql.count("QUALIFY") == 1
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SQL generation is not supported in local testing",
-)
-@pytest.mark.parametrize("project", [False, True])
-def test_qualify_table_sql_no_extra_nesting(session, table_name_1, project):
-    df = session.table(table_name_1)
-    if project:
-        df = df.select("num")
-    result = df.filter(col("num") > 1).filter(
-        row_number().over(Window.order_by("num")) == 1
+@pytest.mark.parametrize("compatible", [False, True])
+def test_qualify_after_sorted_aggregation(
+    session, monkeypatch, compatible, local_testing_mode
+):
+    if compatible and local_testing_mode:
+        pytest.skip("Deferred compatibility-mode plans are not supported locally")
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
+    df = session.create_dataframe(
+        [("a", 1), ("a", 3), ("b", 2), ("c", 5)], ["group", "value"]
     )
-    Utils.check_answer(result, [Row(2)])
-    if session.sql_simplifier_enabled:
-        projection = '"NUM"' if project else "*"
-        cast = "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
-        expected = (
-            f'SELECT {projection} FROM {table_name_1} WHERE ("NUM" > 1{cast}) '
-            f'QUALIFY (row_number() OVER ( ORDER BY "NUM" ASC NULLS FIRST ) = 1{cast})'
-        )
-        assert Utils.normalize_sql(
-            result.queries["queries"][-1]
-        ) == Utils.normalize_sql(expected)
+    grouped = df.group_by("group").agg(sum_("value").alias("total"))
+    result = grouped.sort(col("total").desc()).filter(
+        row_number().over(Window.order_by("total")) > 1
+    )
+    if compatible:
+        # Compatibility mode re-applies the pending ORDER BY after QUALIFY.
+        assert result.collect() == [Row("c", 5), Row("a", 4)]
+    else:
+        Utils.check_answer(result, [Row("c", 5), Row("a", 4)])
 
 
 @pytest.mark.skipif(
@@ -1454,6 +1450,89 @@ def test_qualify_raw_sql_unchanged(session, method):
             match="outside of SELECT, QUALIFY, and ORDER BY clauses",
         ):
             getattr(df, method)(predicate).collect()
+
+
+@pytest.mark.parametrize("compatible", [False, True])
+def test_explicit_qualify_column(session, monkeypatch, compatible):
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
+    df = session.create_dataframe([("a", 1), ("a", 3), ("b", 2), ("b", 4)], ["g", "x"])
+    first = row_number().over(Window.partition_by("g").order_by(col("x").desc())) == 1
+    result = df.qualify(first)
+    assert result.schema == df.schema
+    Utils.check_answer(result, [Row("a", 3), Row("b", 4)])
+    # Mixed predicates are evaluated after the windows, as with filter.
+    Utils.check_answer(df.qualify((col("x") < 4) & first), [Row("a", 3)])
+    # qualify sees the preceding dataframe.
+    Utils.check_answer(
+        df.filter(col("x") < 4).qualify(first), [Row("a", 3), Row("b", 2)]
+    )
+    Utils.check_answer(df.qualify(first).filter(col("x") < 4), [Row("a", 3)])
+    Utils.check_answer(df.qualify(first).qualify(first), [Row("a", 3), Row("b", 4)])
+
+
+@pytest.mark.parametrize("compatible", [False, True])
+def test_explicit_qualify_aggregation(
+    session, monkeypatch, compatible, local_testing_mode
+):
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
+    df = session.create_dataframe([("a", 1), ("a", 3), ("b", 2)], ["g", "x"])
+    grouped = df.group_by("g").agg(sum_("x").alias("total"))
+    first = row_number().over(Window.order_by(col("total").desc())) == 1
+    Utils.check_answer(grouped.qualify(first), [Row("a", 4)])
+    if not (compatible and local_testing_mode):
+        # Deferred compatibility-mode plans are not supported locally.
+        Utils.check_answer(grouped.sort("g").qualify(first), [Row("a", 4)])
+    if not local_testing_mode:
+        Utils.check_answer(
+            grouped.qualify("row_number() over (order by total desc) = 1"),
+            [Row("a", 4)],
+        )
+        # A pending ORDER BY in compatibility mode is applied after QUALIFY.
+        assert grouped.sort(col("g").desc()).qualify(
+            "row_number() over (order by total) <= 2"
+        ).collect() == [Row("b", 2), Row("a", 4)]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Raw SQL expressions are not supported in local testing",
+)
+@pytest.mark.parametrize("compatible", [False, True])
+def test_explicit_qualify_sql_text(session, monkeypatch, compatible):
+    from snowflake.snowpark.functions import sql_expr
+
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
+    df = session.create_dataframe([("a", 1), ("a", 3), ("b", 2), ("b", 4)], ["g", "x"])
+    top = "row_number() over (partition by g order by x desc) = 1"
+    for condition in (top, sql_expr(top)):
+        Utils.check_answer(df.qualify(condition), [Row("a", 3), Row("b", 4)])
+    Utils.check_answer(df.qualify(f"x < 4 and {top}"), [Row("a", 3)])
+    Utils.check_answer(df.filter("x < 4").qualify(top), [Row("a", 3), Row("b", 2)])
+    Utils.check_answer(df.qualify(top).filter("x < 4"), [Row("a", 3)])
+    Utils.check_answer(
+        df.select("g", (col("x") * 10).alias("x")).qualify(top),
+        [Row("a", 30), Row("b", 40)],
+    )
+    first = row_number().over(Window.order_by("x")) == 1
+    Utils.check_answer(df.qualify(top).qualify(first), [Row("a", 3)])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local testing does not validate that QUALIFY uses a window function",
+)
+@pytest.mark.parametrize("condition", [col("x") > 1, "x > 1"])
+def test_explicit_qualify_without_window(session, condition):
+    df = session.create_dataframe([1, 2], ["x"])
+    with pytest.raises(
+        SnowparkSQLException, match="QUALIFY clause but no window function"
+    ):
+        df.qualify(condition).collect()
+
+
+def test_explicit_qualify_incorrect_type(session):
+    with pytest.raises(TypeError, match="'qualify' expected Column or str"):
+        session.create_dataframe([1], ["x"]).qualify(1)
 
 
 def test_filter_incorrect_type(session):

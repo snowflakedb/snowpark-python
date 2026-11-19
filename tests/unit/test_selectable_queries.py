@@ -19,15 +19,15 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     ColumnStateDict,
     _check_expressions_for_types,
     can_clause_dependent_columns_flatten,
+    has_window_function_exp,
     initiate_column_states,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
+from snowflake.snowpark._internal.analyzer.unary_plan_node import Filter
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     COLUMN_DEPENDENCY_ALL,
     COLUMN_DEPENDENCY_DOLLAR,
-    COLUMN_DEPENDENCY_EMPTY,
-    derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan, Query
@@ -252,6 +252,15 @@ def test_qualify_common_case_and_clause_order(qualify_base):
     assert sql.index("WHERE") < sql.index("QUALIFY") < sql.rindex("ORDER BY")
     assert sql.rindex("ORDER BY") < sql.index("LIMIT") < sql.index("OFFSET")
     assert "QUALIFY" in result.commented_sql
+    for mixed in (
+        (col("a") > 1) | (window == 1),
+        ~((col("a") > 1) & (window == 1)),
+        window.isin([1]),
+        when(window == 1, True).otherwise(False),
+    ):
+        result = qualify_base.filter(mixed._expression)
+        assert result.qualify is mixed._expression
+        assert result.where is None
 
 
 @pytest.mark.parametrize("compatible", [False, True])
@@ -301,29 +310,62 @@ def test_qualify_preserves_boundaries(qualify_base, monkeypatch, compatible, bou
 
 @pytest.mark.parametrize("compatible", [False, True])
 @pytest.mark.parametrize(
-    "projection, dependency, flatten",
+    "projection, predicate, flatten",
     [
-        ([col("a")], col("a"), True),
-        ([col("a")], col("b"), False),
-        ([col("a")], col("missing"), False),
-        ([col("a").alias("renamed")], col("a"), False),
-        ([col("a").alias("renamed")], col("renamed"), False),
-        ([col("a").alias("b")], col("b"), False),
+        ([col("a")], row_number().over(Window.order_by("a")) == 1, True),
+        ([col("a")], row_number().over(Window.order_by("b")) == 1, False),
+        ([col("a")], row_number().over(Window.order_by("missing")) == 1, False),
+        ([col("a").alias("x")], row_number().over(Window.order_by("a")) == 1, False),
+        ([col("a").alias("x")], row_number().over(Window.order_by("x")) == 1, False),
+        ([col("a").alias("b")], row_number().over(Window.order_by("b")) == 1, False),
+        (
+            [col("a")],
+            (row_number().over(Window.order_by("a")) == 1)
+            & lit("a").regexp("A", col("b")),
+            False,
+        ),
+        (
+            [col("a"), col("b")],
+            (row_number().over(Window.order_by("a")) == 1)
+            & lit("a").regexp("A", col("b")),
+            True,
+        ),
+        ([col("a")], row_number().over(Window.order_by(sql_expr("b"))) == 1, False),
+        ([col("a")], row_number().over(Window.order_by(sql_expr("$1"))) == 1, False),
+        ([col("a")], row_number().over(Window.order_by(lit(1))) == 1, True),
+        # WHERE keeps flattening onto dropped and unknown dependencies.
+        ([col("a")], col("b") > 1, True),
+        ([col("a")], sql_expr("b") > 1, True),
     ],
-    ids=["surviving", "dropped", "missing", "alias-source", "alias", "shadowed"],
+    ids=[
+        "surviving",
+        "dropped",
+        "missing",
+        "alias-source",
+        "alias",
+        "shadowed",
+        "regexp-parameter-dropped",
+        "regexp-parameter-surviving",
+        "unknown",
+        "positional",
+        "empty",
+        "where-dropped",
+        "where-unknown",
+    ],
 )
-def test_qualify_dependency_visibility(
-    qualify_base, monkeypatch, compatible, projection, dependency, flatten
+def test_filter_dependency_visibility(
+    qualify_base, monkeypatch, compatible, projection, predicate, flatten
 ):
     monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
     monkeypatch.setattr(
         context, "_snowpark_connect_flatten_select_after_sort", compatible
     )
     base = qualify_base.select([column._expression for column in projection])
-    predicate = (row_number().over(Window.order_by(dependency)) == 1)._expression
+    predicate = predicate._expression
+    is_qualify = has_window_function_exp([predicate])
     result = base.filter(predicate)
-    assert result.qualify is predicate
-    assert result.where is None
+    assert (result.qualify if is_qualify else result.where) is predicate
+    assert (result.where if is_qualify else result.qualify) is None
     if flatten:
         assert result.from_ is base.from_
         assert result.sql_query.count("SELECT") == 1
@@ -333,75 +375,6 @@ def test_qualify_dependency_visibility(
             f"SELECT * FROM ({base.sql_query}) QUALIFY "
             f"{base.analyzer.analyze(predicate, base.df_aliased_col_name_to_real_col_name)}"
         )
-
-
-@pytest.mark.parametrize("compatible", [False, True])
-@pytest.mark.parametrize("keep_parameters", [False, True], ids=["dropped", "surviving"])
-def test_qualify_regexp_parameter_visibility(
-    qualify_base, monkeypatch, compatible, keep_parameters
-):
-    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
-    monkeypatch.setattr(
-        context, "_snowpark_connect_flatten_select_after_sort", compatible
-    )
-    projection = [col("a"), col("b")] if keep_parameters else [col("a")]
-    base = qualify_base.select([column._expression for column in projection])
-    predicate = (
-        (row_number().over(Window.order_by("a")) == 1) & lit("a").regexp("A", col("b"))
-    )._expression
-    result = base.filter(predicate)
-    assert result.qualify is predicate
-    assert result.where is None
-    assert result.from_ is (base.from_ if keep_parameters else base)
-    assert result.sql_query.count("SELECT") == (1 if keep_parameters else 2)
-    if not keep_parameters:
-        assert Utils.normalize_sql(result.sql_query) == Utils.normalize_sql(
-            f"SELECT * FROM ({base.sql_query}) QUALIFY "
-            f"{base.analyzer.analyze(predicate, base.df_aliased_col_name_to_real_col_name)}"
-        )
-
-
-@pytest.mark.parametrize("compatible", [False, True])
-@pytest.mark.parametrize(
-    "ordering, dependencies, flatten",
-    [
-        (sql_expr("b"), COLUMN_DEPENDENCY_ALL, False),
-        (sql_expr("$1"), COLUMN_DEPENDENCY_DOLLAR, False),
-        (lit(1), COLUMN_DEPENDENCY_EMPTY, True),
-    ],
-    ids=["unknown", "positional", "empty"],
-)
-def test_qualify_dependency_sentinels(
-    qualify_base, monkeypatch, compatible, ordering, dependencies, flatten
-):
-    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
-    monkeypatch.setattr(
-        context, "_snowpark_connect_flatten_select_after_sort", compatible
-    )
-    base = qualify_base.select([col("a")._expression])
-    predicate = (row_number().over(Window.order_by(ordering)) == 1)._expression
-    assert derive_dependent_columns(predicate) == dependencies
-    result = base.filter(predicate)
-    assert result.from_ is (base.from_ if flatten else base)
-    assert result.qualify is predicate
-
-
-@pytest.mark.parametrize("compatible", [False, True])
-@pytest.mark.parametrize("dependency", [col("b"), sql_expr("b")])
-def test_where_dependency_visibility_unchanged(
-    qualify_base, monkeypatch, compatible, dependency
-):
-    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", compatible)
-    monkeypatch.setattr(
-        context, "_snowpark_connect_flatten_select_after_sort", compatible
-    )
-    base = qualify_base.select([col("a")._expression])
-    predicate = (dependency > 1)._expression
-    result = base.filter(predicate)
-    assert result.from_ is base.from_
-    assert result.where is predicate
-    assert result.qualify is None
-    assert result.sql_query.count("SELECT") == 1
 
 
 def test_qualify_following_operations(qualify_base):
@@ -499,21 +472,92 @@ def test_dataframe_qualify_dispatch(qualify_base, monkeypatch, simplifier):
             base.filter(ordinary, _emit_ast=False)
             build_having.assert_called_once()
 
+    # A pending ORDER BY of the aggregate is applied after QUALIFY.
+    base._agg_base_plan = qualify_base.snowflake_plan
+    base._agg_base_select_statement = qualify_base if simplifier else None
+    base._pending_havings = []
+    base._pending_order_bys = [col("b").desc()._expression]
+    sql = Utils.normalize_sql(
+        base.filter(row_number().over(Window.order_by("a")) == 1, _emit_ast=False)
+        ._plan.queries[-1]
+        .sql
+    )
+    assert sql.index("QUALIFY") < sql.rindex('ORDER BY "B" DESC')
+    assert sql.count("ORDER BY") == 2  # the window's ORDER BY and the sort
 
-def test_qualify_mixed_predicates_and_plain_filters(qualify_base):
+
+@pytest.mark.parametrize("simplifier", [False, True])
+def test_dataframe_explicit_qualify(qualify_base, simplifier):
+    sql_session = qualify_base._session
+    sql_session.sql_simplifier_enabled = simplifier
+    base = DataFrame(
+        sql_session, qualify_base if simplifier else qualify_base.snowflake_plan
+    )
     window = row_number().over(Window.order_by("a"))
-    for predicate in (
-        (col("a") > 1) | (window == 1),
-        ~((col("a") > 1) & (window == 1)),
-        window.isin([1]),
-        when(window == 1, True).otherwise(False),
+    for condition, nested in (
+        (window == 1, False),
+        (col("a") > 1, False),
+        ("row_number() over (order by a) = 1", True),
     ):
-        result = qualify_base.filter(predicate._expression)
-        assert result.qualify is predicate._expression
-        assert result.where is None
-    raw = qualify_base.filter(col("a")._expression)
-    assert raw.qualify is None
-    assert raw.where is not None
+        result = base.qualify(condition, _emit_ast=False)
+        sql = Utils.normalize_sql(result._plan.queries[-1].sql)
+        assert "QUALIFY" in sql and "WHERE" not in sql
+        if simplifier:
+            assert result._select_statement.qualify is not None
+            assert result._select_statement.where is None
+            # SQL text has unknown dependencies, so it is never flattened.
+            assert (result._select_statement.from_ is not qualify_base.from_) is (
+                nested
+            )
+        else:
+            assert isinstance(result._plan.source_plan, Filter)
+            assert result._plan.source_plan.is_qualify
+    if simplifier:
+        assert "QUALIFY row_number() over (order by a) = 1" in Utils.normalize_sql(
+            base.qualify("row_number() over (order by a) = 1", _emit_ast=False)
+            ._plan.queries[-1]
+            .sql
+        )
+    # qualify sees the preceding dataframe, like filter.
+    sql = Utils.normalize_sql(
+        base.filter(col("a") > 0, _emit_ast=False)
+        .qualify(window == 1, _emit_ast=False)
+        ._plan.queries[-1]
+        .sql
+    )
+    assert sql.index("WHERE") < sql.index("QUALIFY")
+
+
+@pytest.mark.parametrize("simplifier", [False, True])
+def test_dataframe_explicit_qualify_compatible_mode(
+    qualify_base, monkeypatch, simplifier
+):
+    sql_session = qualify_base._session
+    sql_session.sql_simplifier_enabled = simplifier
+    base = DataFrame(
+        sql_session, qualify_base if simplifier else qualify_base.snowflake_plan
+    )
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+    base._ops_after_agg = set()
+    for condition in (col("a") > 1, "row_number() over (order by a) = 1"):
+        with mock.patch.object(base, "_build_post_agg_df") as build_having:
+            result = base.qualify(condition, _emit_ast=False)
+            build_having.assert_not_called()
+        assert "QUALIFY" in result._plan.queries[-1].sql
+        assert "HAVING" not in result._plan.queries[-1].sql
+        assert result._ops_after_agg is None
+
+    # A pending ORDER BY of the aggregate is applied after QUALIFY.
+    base._agg_base_plan = qualify_base.snowflake_plan
+    base._agg_base_select_statement = qualify_base if simplifier else None
+    base._pending_havings = []
+    base._pending_order_bys = [col("b").desc()._expression]
+    sql = Utils.normalize_sql(
+        base.qualify("row_number() over (order by a) = 1", _emit_ast=False)
+        ._plan.queries[-1]
+        .sql
+    )
+    assert sql.index("QUALIFY") < sql.rindex('ORDER BY "B" DESC')
 
 
 def test_local_logical_window_filter_is_explicitly_unsupported(session):
@@ -546,6 +590,21 @@ def test_local_window_filter_boundaries(session, method):
     assert base.filter(window > 1).sort(window.desc()).collect() == [Row(2)]
     assert base.filter((col("a") > 1) | (window == 1)).collect() == [Row(1), Row(2)]
     assert base.filter(~(window == 1)).collect() == [Row(2)]
+
+
+def test_local_explicit_qualify(session):
+    base = session.create_dataframe([[1], [2]], schema=["a"])
+    window = row_number().over(Window.order_by("a"))
+    assert base.qualify(window == 1).collect() == [Row(1)]
+    assert base.qualify((col("a") > 1) & (window == 1)).collect() == []
+    assert base.filter(col("a") > 1).qualify(window == 1).collect() == [Row(2)]
+    assert base.qualify(window == 1).filter(col("a") > 1).collect() == []
+    # Like filter, SQL text is not supported locally.
+    with pytest.raises(NotImplementedError, match="SQL Text Expression"):
+        base.qualify("row_number() over (order by a) = 1").collect()
+    # Snowflake rejects QUALIFY without a window function; local testing does
+    # not validate it and evaluates the condition like a filter.
+    assert base.qualify(col("a") > 1).collect() == [Row(2)]
 
 
 def test_check_expressions_for_types_skips_none_expressions():

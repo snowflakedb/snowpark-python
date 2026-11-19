@@ -61,6 +61,8 @@ class UnspecifiedFrame(WindowFrame):
 
 
 class SpecifiedWindowFrame(WindowFrame):
+    _extra_child_attrs = ("lower", "upper")
+
     def __init__(
         self, frame_type: FrameType, lower: Expression, upper: Expression
     ) -> None:
@@ -90,6 +92,8 @@ class SpecifiedWindowFrame(WindowFrame):
 
 
 class WindowSpecDefinition(Expression):
+    _extra_child_attrs = ("partition_spec", "order_spec", "frame_spec")
+
     def __init__(
         self,
         partition_spec: List[Expression],
@@ -137,6 +141,8 @@ class WindowSpecDefinition(Expression):
 
 
 class WindowExpression(Expression):
+    _extra_child_attrs = ("window_function", "window_spec")
+
     def __init__(
         self, window_function: Expression, window_spec: WindowSpecDefinition
     ) -> None:
@@ -167,6 +173,8 @@ class WindowExpression(Expression):
 
 
 class RankRelatedFunctionExpression(Expression):
+    _extra_child_attrs = ("expr", "default")
+
     sql: str
 
     def __init__(

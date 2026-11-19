@@ -527,6 +527,8 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
                 properties.append("Proj")  # pragma: no cover
             if node.where:
                 properties.append("Filter")  # pragma: no cover
+            if node.qualify is not None:
+                properties.append("Qualify")  # pragma: no cover
             if node.order_by:
                 properties.append("Order")  # pragma: no cover
             if node.limit_:

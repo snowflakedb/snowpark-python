@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List, Union
+from typing import List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.expression import Expression, Star
 from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -50,8 +50,12 @@ class NopSelectStatement(MockSelectStatement):
     def select(self, cols: List[Expression]) -> "MockSelectStatement":
         return self._make_nop_select_statement_copy(super().select(cols))
 
-    def filter(self, col: Expression) -> "MockSelectStatement":
-        return self._make_nop_select_statement_copy(super().filter(col))
+    def filter(
+        self, col: Expression, is_qualify: Optional[bool] = None
+    ) -> "MockSelectStatement":
+        return self._make_nop_select_statement_copy(
+            super().filter(col, is_qualify=is_qualify)
+        )
 
     def sort(self, cols: List[Expression]) -> "MockSelectStatement":
         return self._make_nop_select_statement_copy(super().sort(cols))

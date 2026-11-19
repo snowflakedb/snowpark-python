@@ -133,6 +133,19 @@ def test_window_function_inside_where_and_having_clauses(session):
         ),
         [],
     )
+    # Python binds & tighter than ==, so this is ((b = 2) AND rank()) = 1.
+    # The nonzero rank is truthy, leaving the rows where b = 2.
+    Utils.check_answer(
+        TestData.test_data2(session).where(
+            (col("b") == 2) & rank().over(Window.order_by("b")) == 1
+        ),
+        [Row(1, 2), Row(2, 2), Row(3, 2)],
+    )
+    # Raw SQL is not parsed for windows and still uses WHERE.
+    with pytest.raises(
+        SnowparkSQLException, match="outside of SELECT, QUALIFY, and ORDER BY"
+    ):
+        TestData.test_data2(session).where("rank() over (order by b) = 1").collect()
     Utils.check_answer(
         TestData.test_data2(session)
         .group_by("a")

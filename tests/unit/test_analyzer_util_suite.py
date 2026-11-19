@@ -713,8 +713,6 @@ def test_qualify_statement_formatting():
         + "\n QUALIFY "
         + condition
     )
-    with pytest.raises(ValueError, match="both HAVING and QUALIFY"):
-        filter_statement(condition, True, "my_table", is_qualify=True)
 
 
 def test_filter_statement_formatting():

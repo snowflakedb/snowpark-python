@@ -632,8 +632,6 @@ def filter_statement(
     child_uuid: Optional[str] = None,
     is_qualify: bool = False,
 ) -> str:
-    if is_having and is_qualify:
-        raise ValueError("A filter cannot be both HAVING and QUALIFY")
     if is_having:
         return child + NEW_LINE + HAVING + condition
     else:

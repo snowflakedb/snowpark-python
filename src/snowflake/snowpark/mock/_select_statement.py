@@ -25,8 +25,8 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     can_clause_dependent_columns_flatten,
     can_projection_dependent_columns_be_flattened,
     derive_column_states_from_subquery,
-    initiate_column_states,
     has_window_function_exp,
+    initiate_column_states,
 )
 from snowflake.snowpark.types import DataType, LongType
 
@@ -410,13 +410,18 @@ class MockSelectStatement(MockSelectable):
 
         return new
 
-    def filter(self, col: Expression) -> "MockSelectStatement":
+    def filter(
+        self, col: Expression, is_qualify: Optional[bool] = None
+    ) -> "MockSelectStatement":
+        if is_qualify is None:
+            is_qualify = has_window_function_exp([col])
         # Local execution evaluates the whole predicate (including windows) on
         # the input rows. Keep window filters in separate blocks rather than
         # merging them with filters that change that input population.
         if (
             self.flatten_disabled
-            or has_window_function_exp([col, self.where])
+            or (is_qualify and self.where is not None)
+            or has_window_function_exp([self.where])
             or has_window_function_exp(self.projection)
             or self.limit_ is not None
             or self.offset is not None

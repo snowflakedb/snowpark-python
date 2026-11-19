@@ -6,7 +6,7 @@
 
 #### New Features
 
-- Added automatic SQL `QUALIFY` support to `DataFrame.filter` and `DataFrame.where` for structured `Column` predicates containing window functions. Mixed window/non-window predicates are evaluated together after the windows; raw SQL string behavior is unchanged.
+- Added automatic SQL `QUALIFY` support to `DataFrame.filter` and `DataFrame.where` for structured `Column` predicates that contain a window function. The whole predicate, including non-window conditions combined with it, is evaluated after the windows. SQL strings, `sql_expr`, and filters on columns that were computed by a window in an earlier step keep using `WHERE`. Added `DataFrame.qualify`, which always places a `Column` or SQL string condition in `QUALIFY`.
 - Added support for change-tracking reads with the `CHANGES` clause. `Session.table`, `DataFrameReader.table` and `Table` accept `changes` (`"default"` or `"append_only"`) together with the existing time travel arguments, and `end_statement`, `end_offset`, `end_timestamp` and `end_timestamp_type` to set the end of the changes (`END` clause). `DataFrameReader` options `changes`, `end_statement`, `end_offset`, `end_timestamp` and `end_timestamp_type` are supported as well. Added the column constants `METADATA_ACTION`, `METADATA_ISUPDATE` and `METADATA_ROW_ID` in `snowflake.snowpark.column` for the extra columns of such reads. These reads are not supported in local testing, and `Table.sample` is not supported on them.
 - `DataFrameReader.documents()` (Private Preview) reads with a `schema` or a `prompt` now return the `AI_COMPLETE` token usage of each document in `INPUT_TOKENS` and `OUTPUT_TOKENS` columns. A schema field can no longer be named like one of these columns.
 
@@ -22,11 +22,14 @@
 - Fixed a bug where `DataFrameReader.table` failed when a time travel reader option was set to `None`, e.g. `option("time_travel_mode", None)` together with `option("as-of-timestamp", ...)`. Time travel options set to `None` are now treated as unset.
 - Fixed a bug where `DataFrameReader.documents()` (Private Preview) reads with a schema refused `.jpg`, `.jpeg`, `.png`, `.gif` and `.webp` images with a "file type is not supported" error. Each image is now sent to `AI_COMPLETE` whole, in one call.
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` that contained string literals, backslashes or newlines failed with a SQL compilation error during schema inference.
+- Fixed a bug where non-deterministic expressions such as `uuid_string()` or `random()` nested inside `CASE WHEN`, `IN`, `LIKE` and similar expressions were not detected, so repeated subqueries containing them could be deduplicated into a single CTE.
+- Fixed a bug where the `parameters` argument of `Column.regexp` was not counted as a column dependency, so a filter on it could be flattened into a query block where its column was not available.
 
 ### Snowpark Local Testing Updates
 
 #### Bug Fixes
 
+- Fixed a bug where, in local testing, `DataFrame.filter` called after `limit` (with or without `offset`) or `distinct` was applied before them instead of after.
 - Fixed a bug where `to_binary` in local testing treated an empty-string format as `HEX` and failed with an unclear error for an unknown format, instead of raising an invalid binary format error as Snowflake does.
 
 ## 1.57.0 (2026-11-12)
