@@ -399,6 +399,36 @@ def test_jdbc_user_strings_are_java_escaped():
     assert ddl.count("$$") == 2
 
 
+@pytest.mark.parametrize("column_count", [500, 501])
+def test_jdbc_width_limit(column_count):
+    session = Mock()
+    session.sql.return_value.collect.return_value = [
+        (
+            f"column_name_padded_to_thirty_{index:03d}",
+            "INTEGER",
+            "java.lang.Integer",
+            10,
+            0,
+            True,
+        )
+        for index in range(column_count)
+    ]
+    client = JDBC(
+        session=session,
+        url="jdbc:postgresql://host/db",
+        table_or_query="T",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=False,
+        secret="cred",
+    )
+    if column_count > 500:
+        with pytest.raises(ValueError, match="501.*500.*query"):
+            client.schema
+    else:
+        assert len(client.schema.fields) == column_count
+
+
 def test_jdbc_udtf_uses_positional_column_names():
     """SNOW-4537772: source names never appear as Java identifiers or UDTF columns."""
     session = Mock()

@@ -359,6 +359,11 @@ class JDBC:
             _emit_ast=self._emit_ast,
         ).collect()
 
+        if len(self.raw_schema) > 500:
+            raise ValueError(
+                f"JDBC result has {len(self.raw_schema)} columns; the maximum is 500. "
+                "Use query= to select fewer columns."
+            )
         auto_infer_schema = self.to_snow_type()
 
         if self.custom_schema is None:

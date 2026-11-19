@@ -2320,6 +2320,9 @@ class DataFrameReader:
         Reads data from a database table or query into a DataFrame using a JDBC connection string,
         with support for optional partitioning, parallel processing, and query customization.
 
+        The result may contain at most 500 columns (the Snowflake UDTF limit).
+        For wider tables, use ``query`` to select fewer columns.
+
         There are multiple methods to partition data and accelerate ingestion.
         These methods can be combined to achieve optimal performance:
 
