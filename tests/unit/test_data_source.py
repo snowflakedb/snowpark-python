@@ -236,3 +236,116 @@ def test_jdbc_read_udtf_executes_query_lazily():
     # session-init statements so they inherit it.
     assert "stmt.setQueryTimeout(240);" in ddl
     assert "stmt.setFetchSize(100);" in ddl
+
+
+def _render_jdbc_infer_schema_sql(table_or_query, is_query=True):
+    """Return the SQL that runs the infer-schema UDTF, without a live session."""
+    session = Mock()
+    captured = []
+
+    def fake_sql(sql, **kwargs):
+        captured.append(sql)
+        result = Mock()
+        result.collect.return_value = []
+        return result
+
+    session.sql.side_effect = fake_sql
+    client = JDBC(
+        session=session,
+        url="jdbc:postgresql://host:5432/db",
+        table_or_query=table_or_query,
+        external_access_integration="EAI",
+        imports=[],
+        is_query=is_query,
+        secret="cred",
+    )
+    client.schema
+    # captured[0] registers the UDTF, captured[1] calls it.
+    infer_sql = captured[1]
+    match = re.fullmatch(r"SELECT \* FROM TABLE\((\w+)\((.*)\)\)", infer_sql, re.S)
+    assert match, infer_sql
+    return client, match.group(2)
+
+
+def _strip_infer_schema_wrapper(infer_sql):
+    """Recover the user table/query from JDBC.infer_schema_sql() output."""
+    match = re.fullmatch(
+        r"SELECT (?:(\w+)\.)?\* FROM (?:\((.*)\) \1|(.*)) WHERE 1 = 0", infer_sql, re.S
+    )
+    assert match, infer_sql
+    return match.group(2) if match.group(2) is not None else match.group(3)
+
+
+def _decode_sql_string_literal(literal):
+    """Decode a single-quoted Snowflake string literal the way Snowflake does."""
+    assert literal.startswith("'") and literal.endswith("'"), literal
+    body, out, i = literal[1:-1], [], 0
+    while i < len(body):
+        ch = body[i]
+        if ch == "\\":
+            nxt = body[i + 1]
+            out.append({"n": "\n", "t": "\t", "\\": "\\", "'": "'"}.get(nxt, nxt))
+            i += 2
+        elif ch == "'":
+            assert body[i + 1] == "'", f"unescaped quote in {literal}"
+            out.append("'")
+            i += 2
+        else:
+            out.append(ch)
+            i += 1
+    return "".join(out)
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "SELECT * FROM T WHERE STATUS = 'P'",
+        "SELECT * FROM T WHERE NAME = 'O''Brien'",
+        "SELECT * FROM T WHERE PATH LIKE 'a\\b%'",
+        "SELECT *\nFROM T\nWHERE STATUS = 'P'",
+        "SELECT ''''",
+    ],
+)
+def test_jdbc_infer_schema_sql_escapes_query(query):
+    """SNOW-4522827: the infer-schema UDTF must receive the user query verbatim."""
+    _, literal = _render_jdbc_infer_schema_sql(query)
+    assert _strip_infer_schema_wrapper(_decode_sql_string_literal(literal)) == query
+
+
+@pytest.mark.parametrize(
+    "table_or_query,is_query",
+    [("SELECT A, B FROM T", True), ("MY_SCHEMA.MY_TABLE", False)],
+)
+def test_jdbc_infer_schema_sql_unchanged_without_special_chars(
+    table_or_query, is_query
+):
+    """Queries without quotes, backslashes or newlines generate the same SQL as before."""
+    _, literal = _render_jdbc_infer_schema_sql(table_or_query, is_query)
+    # Same format as before the fix: the inference SQL wrapped in plain quotes.
+    assert literal.startswith("'SELECT ") and literal.endswith(" WHERE 1 = 0'")
+    assert "\\" not in literal and "''" not in literal
+    assert _strip_infer_schema_wrapper(literal[1:-1]) == table_or_query
+
+
+def test_jdbc_read_casts_partition_argument_to_varchar():
+    """The partition table can inherit DEFAULT_DDL_COLLATION; the collated column
+    must be cast to plain VARCHAR to match the read UDTF's `query VARCHAR`."""
+    session = Mock()
+    captured = []
+    session.sql.side_effect = lambda sql, **kwargs: (captured.append(sql), Mock())[1]
+    client = JDBC(
+        session=session,
+        url="jdbc:postgresql://host:5432/db",
+        table_or_query="SELECT 1",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=True,
+        secret="cred",
+    )
+    client.__dict__["schema"] = StructType([StructField("A", StringType())])
+    with pytest.raises(TypeError):
+        client.read("SNOWPARK_TEMP_TABLE_X")
+    select = next(
+        sql for sql in captured if "table(" in sql.lower() and "select result" in sql
+    )
+    assert "(partition::VARCHAR)) AS result" in select

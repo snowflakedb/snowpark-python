@@ -31,10 +31,13 @@ from snowflake.snowpark._internal.document_extract_proc import (
     DocumentExtraction,
     FileState,
     NoModelAvailable,
+    Submitted,
+    ai_complete_sql,
     _brackets_close,
     _cover,
     _to_document_page,
     abort_message,
+    add_usage,
     build_plan_predicate,
     build_predicate,
     call_cap,
@@ -69,6 +72,7 @@ from snowflake.snowpark._internal.document_extract_proc import (
     scores_schema,
     shift_page_fields,
     should_abort,
+    split_details,
     split_evenly,
     stop_waiting,
     unwrap_envelope,
@@ -1714,6 +1718,147 @@ class TestReadAnswer:
 
 
 # ---------------------------------------------------------------------------
+# split_details / add_usage / collect -- every AI_COMPLETE call asks for
+# show_details; its answer text goes on to read_answer and its token usage is
+# summed per file, whatever the answer.
+# ---------------------------------------------------------------------------
+
+_USAGE = {"prompt_tokens": 14241, "completion_tokens": 36, "total_tokens": 14277}
+
+
+def _details(text, usage=_USAGE):
+    return {
+        "choices": [{"messages": text}],
+        "created": 1794854578,
+        "model": "claude-sonnet-5-5",
+        "usage": usage,
+    }
+
+
+class TestSplitDetails:
+    def test_the_call_asks_for_details(self):
+        assert "show_details => TRUE" in ai_complete_sql(True)
+        assert "return_error_details => TRUE" in ai_complete_sql(True)
+
+    def test_with_token_usage_off_the_call_is_the_one_of_before(self):
+        assert ai_complete_sql(False) == (
+            "SELECT AI_COMPLETE(model => ?, predicate => ?, file => TO_FILE(?), "
+            "model_parameters => PARSE_JSON(?), return_error_details => TRUE)"
+        )
+
+    def test_a_string_result_gives_the_answer_text_and_its_usage(self):
+        answer = '{"name": "x"}'
+        raw = json.dumps({"value": _details(answer), "error": None})
+        unwrapped, usage = split_details(raw)
+        assert usage == _USAGE
+        assert read_answer(unwrapped) == read_answer(
+            json.dumps({"value": answer, "error": None})
+        )
+        assert read_answer(unwrapped) == ({"name": "x"}, None, None)
+
+    def test_a_native_arrow_result_is_read_like_a_string_one(self):
+        # SNOW-4418944: the native Arrow form carries the details object as JSON text.
+        answer = '{"invoice_number": "INV-1042", "total": 500.00}'
+        native = {"value": json.dumps(_details(answer)), "error": None}
+        unwrapped, usage = split_details(native)
+        assert usage == _USAGE
+        assert read_answer(unwrapped) == (
+            {"invoice_number": "INV-1042", "total": 500.0},
+            None,
+            None,
+        )
+
+    def test_a_failed_call_is_returned_as_it_is_with_no_usage(self):
+        raw = json.dumps({"value": None, "error": "malformed request"})
+        assert split_details(raw) == (raw, None)
+        native = {"value": None, "error": '"malformed request"'}
+        assert split_details(native) == (native, None)
+
+    def test_a_result_without_details_is_returned_as_it_is(self):
+        raw = json.dumps({"value": '{"name": "x"}', "error": None})
+        assert split_details(raw) == (raw, None)
+        native = {"value": json.dumps('{"name": "x"}'), "error": None}
+        assert split_details(native) == (native, None)
+
+    def test_a_native_arrow_value_that_is_not_json_is_returned_as_it_is(self):
+        native = {"value": "plain text, not JSON", "error": None}
+        assert split_details(native) == (native, None)
+
+    def test_a_truncated_answer_keeps_its_usage_and_salvages_its_status(self):
+        text = '{"%s": {"complete": false, "last_pdf_page_extracted": 3}, "rows": [' % (
+            STATUS_FIELD
+        )
+        unwrapped, usage = split_details(
+            json.dumps({"value": _details(text), "error": None})
+        )
+        assert usage == _USAGE
+        value, error, salvaged = read_answer(unwrapped)
+        assert value is None and error == TRUNCATED_TEXT_ERROR
+        assert salvaged == {"complete": False, "last_pdf_page_extracted": 3}
+
+
+class TestAddUsage:
+    def test_counts_are_summed(self):
+        total = {}
+        add_usage(total, _USAGE)
+        add_usage(
+            total, {"prompt_tokens": 9, "completion_tokens": 1, "total_tokens": 10}
+        )
+        # total_tokens is not summed: it is input plus output.
+        assert total == {"prompt_tokens": 14250, "completion_tokens": 37}
+
+    @pytest.mark.parametrize("usage", [None, "x", [], {}])
+    def test_no_usage_adds_nothing(self, usage):
+        total = {"prompt_tokens": 1}
+        add_usage(total, usage)
+        assert total == {"prompt_tokens": 1}
+
+    def test_a_missing_or_non_integer_count_does_not_hide_the_rest(self):
+        total = {}
+        add_usage(
+            total, {"prompt_tokens": 5, "completion_tokens": "7", "total_tokens": True}
+        )
+        assert total == {"prompt_tokens": 5}
+
+
+class TestCollectSumsUsage:
+    def test_every_call_that_reports_usage_counts_toward_its_file(self):
+        file = _file("a", pages=4)
+        truncated = '{"%s": {"complete": false, "last_pdf_page_extracted": 2}' % (
+            STATUS_FIELD
+        )
+        complete = '{"%s": {"complete": true}, "a": "x"}' % STATUS_FIELD
+        answers = [
+            # Cut off by max_tokens: an error for the range, but billed.
+            json.dumps({"value": _details(truncated), "error": None}),
+            json.dumps({"value": _details(complete), "error": None}),
+            # A failed call reports no usage.
+            json.dumps({"value": None, "error": "boom"}),
+        ]
+        results = [
+            DocumentExtraction.collect(file, Submitted(_Job(raw), "m"))
+            for raw in answers
+        ]
+        assert results[0][1] == TRUNCATED_TEXT_ERROR
+        assert results[1][1] is None
+        assert results[2][1] == "boom"
+        assert file.usage == {"prompt_tokens": 2 * 14241, "completion_tokens": 2 * 36}
+
+    def test_a_call_that_raises_adds_nothing(self):
+        class _Raises:
+            def result(self):
+                raise RuntimeError("lost")
+
+        file = _file("a")
+        assert DocumentExtraction.collect(file, Submitted(_Raises(), "m")) == (
+            None,
+            "lost",
+            None,
+        )
+        assert file.usage == {}
+
+
+# ---------------------------------------------------------------------------
 # is_unknown_model_error / unknown_model_message -- an unknown or unavailable
 # model ends the whole read with one clear error; other failures do not.
 # ---------------------------------------------------------------------------
@@ -2027,7 +2172,7 @@ class _FakeExtraction(DocumentExtraction):
         return file.path
 
     @staticmethod
-    def collect(job):
+    def collect(file, job):
         return None, "malformed request" if job == "splittable" else "boom", None
 
 
@@ -2365,7 +2510,15 @@ class TestPerFileFailures:
         assert not good.failed and good.pages == 3 and good.splittable
 
     @pytest.mark.parametrize(
-        "name", ["s/run.exe", "s/archive.zip", "s/image.png", "s/no_extension"]
+        "name",
+        [
+            "s/run.exe",
+            "s/archive.zip",
+            "s/scan.tiff",
+            "s/photo.heic",
+            "s/image.bmp",
+            "s/no_extension",
+        ],
     )
     def test_an_unsupported_file_type_is_refused_before_it_is_read(
         self, monkeypatch, name
@@ -2379,13 +2532,33 @@ class TestPerFileFailures:
         assert document_outcomes([state], []) == (0, 0, [])
 
     @pytest.mark.parametrize(
-        "name", ["s/a.PDF", "s/notes.txt", "s/data.XLSX", "s/t.docx"]
+        "name",
+        [
+            "s/a.PDF",
+            "s/notes.txt",
+            "s/data.XLSX",
+            "s/t.docx",
+            "s/photo.jpg",
+            "s/PHOTO.JPG",
+            "s/photo.jpeg",
+            "s/image.png",
+            "s/IMAGE.PNG",
+            "s/anim.gif",
+            "s/image.webp",
+        ],
     )
     def test_a_supported_file_type_is_read_whatever_the_case(self, monkeypatch, name):
         extraction = _doc_extraction(_FakeSession())
         monkeypatch.setattr(extraction, "read_bytes", lambda name: b"plain text")
         state = extraction.load_file(f"@{name}", 30, None)
         assert not state.failed
+
+    def test_an_image_is_one_page_sent_whole(self, monkeypatch):
+        extraction = _doc_extraction(_FakeSession())
+        monkeypatch.setattr(extraction, "read_bytes", lambda name: b"\x89PNG\r\n")
+        image = extraction.load_file("@s/scan.png", 30, None)
+        assert not image.failed and image.pages == 1 and not image.splittable
+        assert extraction.stage_part(image, 1, 1) == "@s/scan.png"
 
     def test_a_file_over_the_read_limit_is_not_read_and_is_a_failed_state(
         self, monkeypatch
@@ -2436,7 +2609,14 @@ class TestPerFileFailures:
         good = _pdf_state("@s/b.pdf", pages=2)
         tasks = _doc_extraction(_FakeSession()).plan_large_files([failed, good])
         assert [t[0] for t in tasks] == [good]
-        assert result_row(failed) == ["@s/a.pdf", None, "could not read file: x", None]
+        assert result_row(failed) == [
+            "@s/a.pdf",
+            None,
+            "could not read file: x",
+            None,
+            None,
+            None,
+        ]
 
     def test_a_failed_file_is_not_counted_as_a_document(self):
         failed = FileState("@s/a.pdf", None, 1, 0, 30, errors=["e"], failed=True)
@@ -2475,12 +2655,23 @@ class TestPerFileFailures:
             raise ValueError("cannot merge")
 
         monkeypatch.setattr(proc, "merge_values", boom)
-        file = FileState("@s/a.pdf", None, 1, 1, 30, parts=[(1, {"a": 1})])
+        file = FileState(
+            "@s/a.pdf",
+            None,
+            1,
+            1,
+            30,
+            parts=[(1, {"a": 1})],
+            usage={"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7},
+        )
+        # The calls were made, so their tokens are reported even though the merge failed.
         assert result_row(file) == [
             "@s/a.pdf",
             None,
             "could not merge the extracted parts: cannot merge",
             None,
+            5,
+            2,
         ]
 
     def test_too_many_failed_documents_stop_the_read_but_keep_every_row(self):
@@ -2746,10 +2937,18 @@ class TestReadBytes:
 # ---------------------------------------------------------------------------
 
 
-def _answer(value=None, error=None):
-    return json.dumps(
-        {"value": json.dumps(value) if value is not None else None, "error": error}
-    )
+def _answer(value=None, error=None, prompt_tokens=100, completion_tokens=10):
+    """One AI_COMPLETE(..., show_details => TRUE, return_error_details => TRUE) result:
+    ``value``'s JSON as the answer text beside its usage, or ``error`` and no value."""
+    if value is None:
+        return json.dumps({"value": None, "error": error})
+    usage = {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+    }
+    details = {"choices": [{"messages": json.dumps(value)}], "usage": usage}
+    return json.dumps({"value": details, "error": error})
 
 
 class _RunSession:
@@ -2761,11 +2960,13 @@ class _RunSession:
         self.files, self.answer = files, answer
         self.file = _File()
         self.calls = []
+        self.queries = []
 
     def sql(self, query, params=None):
         if query.startswith("LIST"):
             return _Result(rows=[{"name": f"s/{name}"} for name in self.files])
         self.calls.append(params[2])
+        self.queries.append(query)
         return _Result(raw=self.answer(params[2]))
 
     def create_dataframe(self, rows, schema):
@@ -2786,7 +2987,7 @@ _RUN_SCHEMA = {
 }
 
 
-def _run(monkeypatch, files, answer):
+def _run(monkeypatch, files, answer, show_details=True):
     session = _RunSession(files, answer)
     monkeypatch.setattr(
         DocumentExtraction,
@@ -2802,6 +3003,7 @@ def _run(monkeypatch, files, answer):
         json.dumps(_BUDGETS),
         30,
         "@stage",
+        show_details,
     )
     return session, rows, schema
 
@@ -2827,13 +3029,33 @@ class TestRun:
             "VALUE",
             "ERROR",
             "SCORES",
+            "INPUT_TOKENS",
+            "OUTPUT_TOKENS",
         ]
         by_path = {row[0]: row for row in rows}
         good, bad = by_path["@s/good.pdf"], by_path["@s/bad.pdf"]
         assert json.loads(good[1]) == {"invoice": "INV-1", "rows": [{"n": 1}]}
         assert good[2] is None
         assert json.loads(good[3]) == {"invoice": 0.9, "rows": 0.8}
+        assert good[4:] == [100, 10]
         assert bad[1] is None and "boom" in bad[2] and bad[3] is None
+        # A failed call reports no usage.
+        assert bad[4:] == [None, None]
+
+    def test_with_token_usage_off_calls_skip_show_details(self, monkeypatch):
+        # AI_COMPLETE then answers in the shape it had before show_details: the answer
+        # text as the value, with no usage.
+        def answer(staged):
+            value = {STATUS_FIELD: {"complete": True}, "invoice": "INV-1", "rows": []}
+            return json.dumps({"value": json.dumps(value), "error": None})
+
+        session, rows, _ = _run(
+            monkeypatch, {"a.pdf": _pdf_bytes(1)}, answer, show_details=False
+        )
+        assert session.queries == [ai_complete_sql(False)]
+        [row] = rows
+        assert json.loads(row[1]) == {"invoice": "INV-1", "rows": []}
+        assert row[4:] == [None, None]
 
     def test_a_file_that_does_not_fit_is_split_and_merged(self, monkeypatch):
         def answer(staged):
@@ -2844,17 +3066,23 @@ class TestRun:
                     "remaining_page_ranges": [{"start_pdf_page": 3, "end_pdf_page": 4}],
                 }
                 return _answer(
-                    {STATUS_FIELD: status, "invoice": "INV-2", "rows": [{"n": 1}]}
+                    {STATUS_FIELD: status, "invoice": "INV-2", "rows": [{"n": 1}]},
+                    prompt_tokens=4000,
+                    completion_tokens=900,
                 )
             assert staged == _part_target("@s/long.pdf", 3, 4)
             return _answer(
-                {STATUS_FIELD: {"complete": True}, "invoice": None, "rows": [{"n": 2}]}
+                {STATUS_FIELD: {"complete": True}, "invoice": None, "rows": [{"n": 2}]},
+                prompt_tokens=2500,
+                completion_tokens=300,
             )
 
         session, rows, _ = _run(monkeypatch, {"long.pdf": _pdf_bytes(4)}, answer)
-        [(path, value, error, _)] = rows
+        [(path, value, error, _, *tokens)] = rows
         assert path == "@s/long.pdf" and error is None
         assert json.loads(value) == {"invoice": "INV-2", "rows": [{"n": 1}, {"n": 2}]}
+        # One row for the document, with the tokens of both of its calls summed.
+        assert tokens == [6500, 1200]
         assert session.calls == ["@s/long.pdf", _part_target("@s/long.pdf", 3, 4)]
         # The part for pages 3-4 carries page 2 in front as context.
         [(_, data, _)] = session.file.staged

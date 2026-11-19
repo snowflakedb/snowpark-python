@@ -11,8 +11,15 @@ from snowflake.snowpark._internal.document_reader import (
     merge_extract_error,
 )
 from snowflake.snowpark._internal.document_reader_options import ExtractionSpec
+from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col, try_parse_json
-from snowflake.snowpark.types import BooleanType, DoubleType, StringType, VariantType
+from snowflake.snowpark.types import (
+    BooleanType,
+    DoubleType,
+    LongType,
+    StringType,
+    VariantType,
+)
 from tests.utils import TestFiles, Utils
 
 # Tests that make the reader register server-side Python (the extraction procedure for
@@ -62,6 +69,18 @@ FLAT_NL_SCHEMA = {"invoice_number": "What is the invoice number?"}
 
 def _unquoted(df) -> list:
     return [c.strip('"') for c in df.columns]
+
+
+# Every schema or prompt read returns AI_COMPLETE's token usage for each document.
+TOKEN_COLUMNS = ["INPUT_TOKENS", "OUTPUT_TOKENS"]
+
+
+def _assert_token_counts(row) -> None:
+    """The document's token counts are reported, as integers: the whole document is
+    input, so it is never empty."""
+    input_tokens, output_tokens = (row[name] for name in TOKEN_COLUMNS)
+    assert all(isinstance(n, int) for n in (input_tokens, output_tokens))
+    assert input_tokens > 0 and output_tokens > 0
 
 
 @pytest.fixture(scope="module")
@@ -160,6 +179,41 @@ def test_multiple_files_produce_one_row_each(session, doc_stage):
     assert {row["TOTAL_PAGES"] for row in rows} == {1, DOC_PAGE_COUNT}
 
 
+@pytest.fixture(scope="module")
+def image_stage(session, resources_path):
+    """A stage mixing a PDF with a JPEG and a PNG, read with the default options."""
+    stage_name = Utils.random_stage_name()
+    session.sql(
+        f"CREATE OR REPLACE TEMP STAGE {stage_name} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
+    test_files = TestFiles(resources_path)
+    for path in (
+        test_files.test_invoice_pdf,
+        test_files.test_dog_image,
+        test_files.test_kitchen_image,
+    ):
+        session.file.put(path, f"@{stage_name}", auto_compress=False)
+    yield stage_name
+    Utils.drop_stage(session, stage_name)
+
+
+def test_images_are_parsed_alongside_pdfs(session, image_stage):
+    rows = session.read.documents(f"@{image_stage}").collect()
+
+    assert len(rows) == 3
+    assert all(row["_document_error"] is None for row in rows)
+
+
+@pytest.mark.udf
+def test_images_are_extracted_with_a_schema_alongside_pdfs(session, image_stage):
+    schema = {"main_subject": "What is the main subject of this file?"}
+    rows = session.read.option("schema", schema).documents(f"@{image_stage}").collect()
+
+    assert len(rows) == 3
+    assert all(row["_document_error"] is None for row in rows)
+    assert all(row["MAIN_SUBJECT"] for row in rows)
+
+
 # ---------------------------------------------------------------------------
 # Extract: schema and/or prompt -> AI_COMPLETE on the FILE, unparsed
 # ---------------------------------------------------------------------------
@@ -183,11 +237,13 @@ def test_schema_scalar_types_are_cast_not_stringified(session, invoice_path):
         "TOTAL_AMOUNT_NUMBER",
         "IS_INVOICE",
         "EXTRACTION_SCORES",
+        *TOKEN_COLUMNS,
         "_document_error",
     ]
     assert isinstance(_datatype(df, "INVOICE_NUMBER"), StringType)
     assert isinstance(_datatype(df, "TOTAL_AMOUNT_NUMBER"), DoubleType)
     assert isinstance(_datatype(df, "IS_INVOICE"), BooleanType)
+    assert all(isinstance(_datatype(df, name), LongType) for name in TOKEN_COLUMNS)
 
     row = df.collect()[0]
     assert row["INVOICE_NUMBER"]
@@ -198,6 +254,7 @@ def test_schema_scalar_types_are_cast_not_stringified(session, invoice_path):
     assert isinstance(row["IS_INVOICE"], bool)
     assert row["IS_INVOICE"] is True
     assert row["_document_error"] is None
+    _assert_token_counts(row)
 
 
 @pytest.mark.udf
@@ -237,9 +294,78 @@ def test_prompt_only_read_returns_a_response_column(session, invoice_path):
         "prompt", "Summarize this document in one sentence."
     ).documents(invoice_path)
 
+    assert _unquoted(df) == [
+        "SOURCE_FILE",
+        "RESPONSE",
+        *TOKEN_COLUMNS,
+        "_document_error",
+    ]
+    row = df.collect()[0]
+    assert row["RESPONSE"]
+    assert row["_document_error"] is None
+    _assert_token_counts(row)
+
+
+# PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE -- an internal kill switch for the token
+# columns, read from the session's parameters when the session is created.
+_TOKEN_SWITCH = "PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE"
+
+
+def test_the_token_switch_is_read_from_the_session_parameters(db_parameters):
+    # Set at connection time, it works whether or not the server defines the
+    # parameter.
+    params = {
+        **db_parameters,
+        "session_parameters": {
+            **(db_parameters.get("session_parameters") or {}),
+            _TOKEN_SWITCH: False,
+        },
+    }
+    off = Session.builder.configs(params).create()
+    try:
+        assert off._documents_token_usage is False
+    finally:
+        off.close()
+
+
+@pytest.fixture
+def token_switch_off(session):
+    session._documents_token_usage = False
+    try:
+        yield session
+    finally:
+        session._documents_token_usage = True
+
+
+def test_token_switch_off_returns_a_prompt_read_without_tokens(
+    token_switch_off, invoice_path
+):
+    # The read AI_COMPLETE answered before the token columns existed: no show_details,
+    # the same answer, no token columns.
+    df = token_switch_off.read.option(
+        "prompt", "Summarize this document in one sentence."
+    ).documents(invoice_path)
     assert _unquoted(df) == ["SOURCE_FILE", "RESPONSE", "_document_error"]
     row = df.collect()[0]
     assert row["RESPONSE"]
+    assert row["_document_error"] is None
+
+
+@pytest.mark.udf
+def test_token_switch_off_returns_a_schema_read_without_tokens(
+    token_switch_off, invoice_path
+):
+    df = token_switch_off.read.option("schema", INVOICE_SCHEMA).documents(invoice_path)
+    assert _unquoted(df) == [
+        "SOURCE_FILE",
+        "INVOICE_NUMBER",
+        "TOTAL_AMOUNT",
+        "EXTRACTION_SCORES",
+        "_document_error",
+    ]
+    row = df.collect()[0]
+    assert row["INVOICE_NUMBER"]
+    assert row["TOTAL_AMOUNT"]
     assert row["_document_error"] is None
 
 
@@ -260,12 +386,14 @@ def test_schema_and_prompt_together(session, invoice_path):
         "INVOICE_NUMBER",
         "TOTAL_AMOUNT",
         "EXTRACTION_SCORES",
+        *TOKEN_COLUMNS,
         "_document_error",
     ]
     row = df.collect()[0]
     assert row["INVOICE_NUMBER"]
     assert row["TOTAL_AMOUNT"]
     assert row["_document_error"] is None
+    _assert_token_counts(row)
     # One confidence score between 0 and 1 per top-level schema field.
     scores = json.loads(row["EXTRACTION_SCORES"])
     assert set(scores) <= {"invoice_number", "total_amount"} and scores
@@ -407,12 +535,15 @@ def test_long_pdf_goes_through_the_split_procedure(session, tmp_path):
             "INVOICE_DATE",
             "TOTAL_AMOUNT",
             "EXTRACTION_SCORES",
+            *TOKEN_COLUMNS,
             "_document_error",
         ]
         rows = df.collect()
         assert len(rows) == 1
         row = rows[0]
         assert row["_document_error"] is None
+        # One set of counts for the document, summed over all of its calls.
+        _assert_token_counts(row)
         assert row["INVOICE_NUMBER"] == "INV-4821"
         # Page 1 only.
         assert "Example Supply" in row["BILL_TO"]

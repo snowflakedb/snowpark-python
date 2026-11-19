@@ -32,7 +32,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          # connector main requires >=3.11 (snowflake-connector-python 9756b218d).
+          python-version: '3.11'
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
@@ -57,17 +58,17 @@ jobs:
           python -m pip wheel -v --no-deps -w "$RUNNER_TEMP/connector-wheels" ./connector-src
           ls -lh "$RUNNER_TEMP/connector-wheels"
 
-      - name: Assert the wheel is a cp310 binary wheel
+      - name: Assert the wheel is a cp311 binary wheel
         shell: bash
         run: |
-          ls -1 "$RUNNER_TEMP"/connector-wheels/snowflake_connector_python*cp310*.whl \
-            || { echo "::error::no cp310 wheel: the build fell back to pure python"; exit 1; }
+          ls -1 "$RUNNER_TEMP"/connector-wheels/snowflake_connector_python*cp311*.whl \
+            || { echo "::error::no cp311 wheel: the build fell back to pure python"; exit 1; }
 
       # result_batch imports the extension lazily; grep avoids -q because of -o pipefail.
       - name: Assert the wheel contains the Arrow extension
         shell: bash
         run: |
-          unzip -l "$RUNNER_TEMP"/connector-wheels/snowflake_connector_python*cp310*.whl \
+          unzip -l "$RUNNER_TEMP"/connector-wheels/snowflake_connector_python*cp311*.whl \
             | grep 'nanoarrow_arrow_iterator.*\.so' \
             || { echo "::error::wheel has no nanoarrow_arrow_iterator .so"; exit 1; }
 
