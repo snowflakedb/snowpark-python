@@ -623,7 +623,8 @@ class JDBC:
             scale,
             nullable,
         ) in self.raw_schema:
-            if lowered_names.count(field_name.lower()) > 1:
+            # JDBC metadata contains literal names, not SQL-quoted identifiers.
+            if lowered_names.count(field_name.lower()) > 1 or '"' in field_name:
                 field_name = '"' + field_name.replace('"', '""') + '"'
             try:
                 jdbc_type = JDBCType(jdbc_type)
