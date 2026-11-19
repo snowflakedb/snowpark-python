@@ -8,18 +8,19 @@ import pytest
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import sproc, udf
+from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.utils import TempObjectType, Utils
 
-pytestmark = [
-    pytest.mark.skipif(
-        not sysconfig.get_config_var("Py_GIL_DISABLED"),
-        reason="requires a free-threaded Python client",
-    ),
-    pytest.mark.skipif(
-        "config.getoption('local_testing_mode', default=False)",
-        reason="runtime versions are not available in local testing",
-    ),
-]
+pytestmark = pytest.mark.skipif(
+    not sysconfig.get_config_var("Py_GIL_DISABLED"),
+    reason="requires a free-threaded Python client",
+)
+
+
+@pytest.fixture(autouse=True)
+def _require_server_session(session):
+    if isinstance(session._conn, MockServerConnection):
+        pytest.skip("runtime versions are not available in local testing")
 
 
 def test_udf_from_free_threaded_client_runs_free_threaded(session):
