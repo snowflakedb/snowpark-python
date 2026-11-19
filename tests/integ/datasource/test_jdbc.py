@@ -577,10 +577,10 @@ def test_postgres_column_names_differing_by_case(session, postgres_udtf_configs)
     assert tuple(df.collect()[0]) == (1, 2)
 
 
-def test_postgres_wide_result(session, postgres_udtf_configs):
+@pytest.mark.parametrize("column_count", [250, 500])
+def test_postgres_wide_result(session, postgres_udtf_configs, column_count):
     """SNOW-4537761: 250 columns with 30-character names used to exceed the UDTF
     signature length limit (090248)."""
-    column_count = 250
     cols = ", ".join(
         f"{i} as column_name_padded_to_thirty_{i:03d}" for i in range(column_count)
     )
