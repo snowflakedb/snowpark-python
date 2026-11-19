@@ -3496,11 +3496,20 @@ def test_invoke_converts_the_defaults_of_omitted_arguments():
     assert str(seen[0][0]) == "1.000000000000000000"
 
 
-def test_tool_builtin_is_private_preview():
+def test_only_deploy_is_private_preview():
+    # Users must deploy before a tool can be used, so only deploy warns.
+    assert "private preview" in MCPServer.deploy.__doc__
+    for api in (mcp_tool, Tool.builtin, Tool.from_procedure, Tool.from_function):
+        assert "private preview" not in (api.__doc__ or "")
     with mock.patch("snowflake.snowpark._internal.utils.warning") as warn:
         sql_tool("sql")
-    assert warn.call_args.args[0] == "Tool.builtin"
-    assert "private preview" in warn.call_args.args[1]
+
+        @mcp_tool(read_only=True)
+        def lookup(x: int) -> int:
+            """Look up x."""
+            return x
+
+    warn.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

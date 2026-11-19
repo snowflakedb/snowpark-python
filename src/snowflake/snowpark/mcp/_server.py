@@ -15,7 +15,6 @@ import yaml
 from snowflake.snowpark._internal.utils import private_preview
 from snowflake.snowpark.mcp import _utils
 from snowflake.snowpark.mcp._tools import (
-    _PREVIEW_VERSION,
     ExistingObjectTool,
     PythonTool,
     Tool,
@@ -216,7 +215,7 @@ class MCPServer:
 
     # -- deployment ---------------------------------------------------------
 
-    @private_preview(version=_PREVIEW_VERSION)
+    @private_preview(version="1.58.0")
     def deploy(
         self,
         session,

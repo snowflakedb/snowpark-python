@@ -15,7 +15,6 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.utils import private_preview
 from snowflake.snowpark.mcp import _runtime, _utils
 from snowflake.snowpark.mcp._runtime import (
     DEFAULT_MAX_RESULT_BYTES,
@@ -30,8 +29,6 @@ from snowflake.snowpark.mcp._utils import (
     _sql_type,
 )
 from snowflake.snowpark.types import DecimalType, DoubleType, VariantType
-
-_PREVIEW_VERSION = "1.58.0"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -129,7 +126,6 @@ class Tool:
         return []
 
     @staticmethod
-    @private_preview(version=_PREVIEW_VERSION)
     def from_procedure(
         procedure: Union[str, "snowflake.snowpark.stored_procedure.StoredProcedure"],
         *,
@@ -174,7 +170,6 @@ class Tool:
         return _existing_object_tool("procedure", procedure, locals())
 
     @staticmethod
-    @private_preview(version=_PREVIEW_VERSION)
     def from_function(
         function: Union[str, "snowflake.snowpark.udf.UserDefinedFunction"],
         *,
@@ -194,7 +189,6 @@ class Tool:
         return _existing_object_tool("function", function, locals())
 
     @staticmethod
-    @private_preview(version=_PREVIEW_VERSION)
     def builtin(
         type: str,
         identifier: Optional[str] = None,
@@ -1224,7 +1218,6 @@ def _pickle_runtime_by_value() -> None:
     _RUNTIME_PICKLED_BY_VALUE = True
 
 
-@private_preview(version=_PREVIEW_VERSION)
 def mcp_tool(
     func: Optional[Callable] = None,
     *,

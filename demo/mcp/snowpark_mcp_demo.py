@@ -10,7 +10,7 @@ with every kind of tool the API supports:
 - get_account_orders  a Python stored procedure that returns a DataFrame
 - region_summary      a Python stored procedure using bound SQL parameters and ToolError
 - order_band          a Python UDF (no session)
-- top_accounts        an existing SQL procedure, added with Tool.from_procedure
+- top_accounts        an existing Python stored procedure, added with Tool.from_procedure
 - run_sql             the server's built-in read-only SQL tool, added with Tool.builtin
 
 It checks the server with a dry run of deploy, prints its spec, runs a tool locally with invoke(), deploys a dev
@@ -34,8 +34,9 @@ import os
 from typing import Literal, Optional
 
 from snowflake.snowpark import DataFrame, Session
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import col, sum as sum_
 from snowflake.snowpark.mcp import MCPServer, Tool, ToolError, mcp_tool
+from snowflake.snowpark.types import IntegerType, VariantType
 
 SCHEMA = "SNOWPARK_MCP_DEMO"
 
@@ -103,6 +104,24 @@ def order_band(amount: float) -> str:
 
 
 # ---------------------------------------------------------------------------
+# An existing stored procedure, registered without the MCP API
+# ---------------------------------------------------------------------------
+
+
+def top_accounts(session: Session, n: int = 3) -> list:
+    rows = (
+        session.table("ORDERS")
+        .group_by("ACCOUNT_ID")
+        .agg(sum_("AMOUNT").alias("REVENUE"))
+        .sort(col("REVENUE").desc())
+        .limit(n)
+        .collect()
+    )
+    # Whole dollars: a VARIANT shows a Decimal as a string, and a float as 2.9e+03.
+    return [{"account": r["ACCOUNT_ID"], "revenue": round(r["REVENUE"])} for r in rows]
+
+
+# ---------------------------------------------------------------------------
 # Demo
 # ---------------------------------------------------------------------------
 
@@ -124,22 +143,20 @@ def setup_data(session: Session, database: str) -> None:
             (6, 'INITECH', 'AMER',  75.10, '2026-10-29'::DATE)
         AS T(ORDER_ID, ACCOUNT_ID, REGION, AMOUNT, ORDER_DATE)"""
     ).collect()
-    # An existing SQL procedure, to show Tool.from_procedure.
-    session.sql(
-        """CREATE OR REPLACE PROCEDURE TOP_ACCOUNTS(N NUMBER DEFAULT 3)
-        RETURNS VARIANT LANGUAGE SQL
-        COMMENT = 'Accounts with the most revenue.'
-        AS $$
-        DECLARE result VARIANT;
-        BEGIN
-          SELECT ARRAY_AGG(OBJECT_CONSTRUCT('account', ACCOUNT_ID, 'revenue', REVENUE))
-                 WITHIN GROUP (ORDER BY REVENUE DESC) INTO :result
-          FROM (SELECT ACCOUNT_ID, SUM(AMOUNT) AS REVENUE FROM ORDERS
-                GROUP BY ACCOUNT_ID ORDER BY REVENUE DESC LIMIT :N);
-          RETURN result;
-        END;
-        $$"""
-    ).collect()
+    # A procedure registered the usual way, to show Tool.from_procedure. Its comment
+    # becomes the tool's description.
+    session.sql("CREATE STAGE IF NOT EXISTS DEMO_CODE").collect()
+    session.sproc.register(
+        top_accounts,
+        name=f"{database}.{SCHEMA}.TOP_ACCOUNTS",
+        return_type=VariantType(),
+        input_types=[IntegerType()],
+        is_permanent=True,
+        stage_location=f"@{database}.{SCHEMA}.DEMO_CODE",
+        replace=True,
+        preserve_parameter_names=True,
+        comment="Accounts with the most revenue, in whole US dollars.",
+    )
 
 
 def build_server(database: str) -> MCPServer:

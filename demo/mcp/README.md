@@ -8,7 +8,7 @@
 | `get_account_orders` | `@mcp_tool` on a function that takes a `Session` and returns a DataFrame (a stored procedure) |
 | `region_summary` | `@mcp_tool` with bound SQL parameters, a `Literal` argument and `ToolError` (a stored procedure) |
 | `order_band` | `@mcp_tool` on a function without a `Session` (a UDF) |
-| `top_accounts` | `Tool.from_procedure` on an existing SQL procedure |
+| `top_accounts` | `Tool.from_procedure` on an existing Python stored procedure |
 | `run_sql` | `Tool.builtin("SYSTEM_EXECUTE_SQL", ...)`, the server's own read-only SQL tool |
 
 It creates a small `ORDERS` table in a schema of its own, then checks the server with a dry run of `deploy`, prints
