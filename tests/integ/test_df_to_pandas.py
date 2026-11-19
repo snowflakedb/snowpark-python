@@ -57,6 +57,19 @@ PANDAS_MAJOR_VERSION = int(pd.__version__.split(".")[0])
 STRING_DTYPE = "str" if PANDAS_MAJOR_VERSION >= 3 else "object"
 
 
+def _with_expected_unit(pdf):
+    """Casts timestamp columns to microseconds on pandas 3, whose default resolution differs from earlier versions."""
+    if PANDAS_MAJOR_VERSION < 3:
+        return pdf
+    return pdf.astype(
+        {
+            c: "datetime64[us]"
+            for c in pdf.columns
+            if str(pdf[c].dtype).startswith("datetime64[")
+        }
+    )
+
+
 def test_to_pandas_new_df_from_range(session):
     # Single column
     snowpark_df = session.range(3, 8)
@@ -134,7 +147,10 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         assert str(timestamp_pandas_df.dtypes.iloc[0]) == expected_dtype
     else:
         # TODO: mock the non-nanosecond unit pyarrow+pandas behavior in local test
-        assert str(timestamp_pandas_df.dtypes.iloc[0]) == "datetime64[ns]"
+        # pandas 3 infers microsecond resolution.
+        assert str(timestamp_pandas_df.dtypes.iloc[0]) == (
+            "datetime64[us]" if PANDAS_MAJOR_VERSION >= 3 else "datetime64[ns]"
+        )
 
 
 def test_to_pandas_precision_for_number_38_0(session):
@@ -326,9 +342,15 @@ def test_df_to_pandas_df(session, local_testing_mode):
         }
     )
 
-    # assert_frame_equal also checks dtype
-    assert_frame_equal(df.to_pandas(), to_compare_df)
-    assert_frame_equal(list(df.to_pandas_batches())[0], to_compare_df)
+    # assert_frame_equal also checks dtype. The timestamp unit depends on the pandas version, so compare in
+    # microseconds on pandas 3 (nanoseconds before).
+    assert_frame_equal(
+        _with_expected_unit(df.to_pandas()), _with_expected_unit(to_compare_df)
+    )
+    assert_frame_equal(
+        _with_expected_unit(list(df.to_pandas_batches())[0]),
+        _with_expected_unit(to_compare_df),
+    )
 
     # check snowflake types explicitly
     df = session.create_dataframe(
@@ -410,7 +432,9 @@ def test_df_to_pandas_df(session, local_testing_mode):
             "Q": pd.Series(['{\n  "a": "b"\n}'], dtype=STRING_DTYPE),
         }
     )
-    assert_frame_equal(df.to_pandas(), pandas_df)
+    assert_frame_equal(
+        _with_expected_unit(df.to_pandas()), _with_expected_unit(pandas_df)
+    )
 
 
 @pytest.mark.skipif(
