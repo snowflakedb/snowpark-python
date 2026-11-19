@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.utils import (
     get_sorted_key_for_version,
     ttl_cache,
     remove_comments,
+    _split_uuid_comments,
     get_line_numbers,
     get_plan_from_line_numbers,
     TimeTravelConfig,
@@ -184,6 +185,7 @@ def test_ttl_cache():
 
 
 def test_remove_comments():
+
     # Test with one uuid
     sql_query = """SELECT * FROM table1
 -- uuid-1
@@ -372,7 +374,7 @@ def test_remove_comments_keeps_sql_without_comments(child_sql):
     from snowflake.snowpark._internal.analyzer.analyzer_utils import format_uuid
 
     def generate(uuid_1, uuid_2):
-        # Nested and adjacent comments, as the analyzer generates them
+        # Exercise nested and adjacent envelopes for SQL reconstruction.
         nested = (
             f"SELECT * FROM (\n{format_uuid(uuid_2)}{child_sql}\n{format_uuid(uuid_2)})"
         )
@@ -409,6 +411,99 @@ def test_remove_comments_single_line_sql():
         QueryLineInterval(4, 4, "parent-uuid"),
     ]
     assert [repr(a) for a in result] == [repr(e) for e in expected]
+
+
+@pytest.mark.parametrize(
+    "prefix,suffix",
+    [("", ""), ("", "\n)"), ("(\n", ""), ("(\n", "\n)")],
+    ids=["both_boundaries", "start", "end", "interior"],
+)
+@pytest.mark.parametrize("child_sql", ["SELECT 1", "SELECT 'a\n\nb'", "SELECT 1\n"])
+def test_uuid_comments_at_query_boundaries(prefix, suffix, child_sql):
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import format_uuid
+
+    marker = format_uuid("uuid-1")
+    commented_sql = f"{prefix}{marker}{child_sql}{marker}{suffix}"
+    assert remove_comments(commented_sql, ["uuid-1"]) == prefix + child_sql + suffix
+    start = prefix.count("\n")
+    end = start + child_sql.count("\n") - child_sql.endswith("\n")
+    expected = []
+    if prefix:
+        expected.append(QueryLineInterval(0, start - 1, "parent"))
+    expected.append(QueryLineInterval(start, end, "uuid-1"))
+    last_line = (prefix + child_sql + suffix).count("\n")
+    if end < last_line:
+        expected.append(QueryLineInterval(end + 1, last_line, "parent"))
+    result = get_line_numbers(commented_sql, ["uuid-1"], "parent")
+    assert [repr(interval) for interval in result] == [repr(i) for i in expected]
+
+
+@pytest.mark.parametrize("separator", ["", "\n"])
+def test_adjacent_uuid_comments_preserve_empty_piece_state(separator):
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import format_uuid
+
+    first, second = format_uuid("uuid-1"), format_uuid("uuid-2")
+    commented_sql = f"{first}SELECT 1{separator}{first}{second}SELECT 2{second}"
+    # The empty piece at the next child's opening marker must not reset either
+    # the previous character or the line-counting state.
+    assert _split_uuid_comments(commented_sql, ["uuid-1", "uuid-2"]) == [
+        ("", "uuid-1"),
+        ("SELECT 1" + separator, "uuid-1"),
+        ("" if separator else "\n", "uuid-2"),
+        ("SELECT 2", "uuid-2"),
+        ("", None),
+    ]
+    assert remove_comments(commented_sql, ["uuid-1", "uuid-2"]) == "SELECT 1\nSELECT 2"
+    result = get_line_numbers(commented_sql, ["uuid-1", "uuid-2"], "parent")
+    assert [repr(interval) for interval in result] == [
+        repr(QueryLineInterval(0, 0, "uuid-1")),
+        repr(QueryLineInterval(1, 1, "uuid-2")),
+    ]
+
+
+@pytest.mark.parametrize(
+    "user_sql",
+    [
+        "-- 01234567-89ab-cdef-0123-456789abcdef\n\nSELECT 1",
+        "SELECT '\n-- 01234567-89ab-cdef-0123-456789abcdef\n\n'",
+        "-- uuid-1-extra\n-- uuid-1 \n -- uuid-1\nSELECT '-- uuid-1'",
+        "-- ordinary user comment\n\nSELECT 1\n-- uuid-2",
+    ],
+)
+def test_uuid_comments_preserve_unknown_comments_and_user_text(user_sql):
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import format_uuid
+
+    marker = format_uuid("uuid-1")
+    assert remove_comments(user_sql, ["uuid-1"]) == user_sql
+    commented_sql = marker + user_sql + marker
+    assert remove_comments(commented_sql, ["uuid-1"]) == user_sql
+    result = get_line_numbers(commented_sql, ["uuid-1"], "parent")
+    assert [repr(interval) for interval in result] == [
+        repr(QueryLineInterval(0, user_sql.count("\n"), "uuid-1"))
+    ]
+
+
+@pytest.mark.parametrize(
+    "commented_sql,expected",
+    [
+        ("-- unknown\n-- uuid-1\nSELECT 1", "-- unknown\nSELECT 1"),
+        ("SELECT 1\n-- uuid-1\n-- unknown", "SELECT 1\n-- unknown"),
+        ("-- unknown\n\n-- uuid-1\nSELECT 1", "-- unknown\nSELECT 1"),
+        ("SELECT 1\n-- uuid-1\n\n-- unknown", "SELECT 1\n-- unknown"),
+        ("-- uuid-1\nSELECT 1\n-- uuid-1", "SELECT 1"),
+        ("\n-- uuid-1\n\n-- uuid-1\n", ""),
+    ],
+)
+def test_uuid_comment_envelopes(commented_sql, expected):
+    assert remove_comments(commented_sql, ["uuid-1"]) == expected
+
+
+@pytest.mark.parametrize("child_uuid", ["uuid-1", "child.[1]+(test)"])
+def test_uuid_comments_match_child_ids_literally(child_uuid):
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import format_uuid
+
+    marker = format_uuid(child_uuid)
+    assert remove_comments(marker + "SELECT 1" + marker, [child_uuid]) == "SELECT 1"
 
 
 def test_get_line_numbers_counts_new_lines_in_literals():

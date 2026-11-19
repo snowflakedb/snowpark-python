@@ -2134,21 +2134,27 @@ def _split_uuid_comments(
     pieces = []
     last_end = 0
     prev_char = ""
-    # A comment is on its own line, the new lines around it were added by format_uuid.
-    pattern = re.compile(
-        rf"(?:^|\n)({'|'.join(map(re.escape, comment_placeholders))})(?:\n|$)"
-    )
+    # Scan candidate comment lines once instead of trying every child UUID.
+    # Leave the trailing newline for the next candidate: an unknown comment must
+    # not consume the leading newline of an adjacent known marker.
+    pattern = re.compile(r"(?:^|\n)(-- [^\n]*)(?=\n|$)")
     for match in pattern.finditer(sql_query):
+        child_uuid = comment_placeholders.get(match.group(1))
+        if child_uuid is None or match.start() < last_end:
+            continue
+        # Consume the same newline envelope that format_uuid adds, but only for
+        # known markers. Adjacent generated envelopes have two newlines.
+        end = match.end() + (match.end() < len(sql_query))
         text = sql_query[last_end : match.start()]
         prev_char = text[-1:] or prev_char
-        next_char = sql_query[match.end() : match.end() + 1]
+        next_char = sql_query[end : end + 1]
         # Remove the comment with the new lines that format_uuid added; keep a new
         # line only if the comment separates two parts of the query on one line.
         if prev_char not in ("", "\n") and next_char not in ("", "\n"):
             text += "\n"
             prev_char = "\n"
-        pieces.append((text, comment_placeholders[match.group(1)]))
-        last_end = match.end()
+        pieces.append((text, child_uuid))
+        last_end = end
     pieces.append((sql_query[last_end:], None))
     return pieces
 
