@@ -2367,9 +2367,13 @@ class DataFrameReader:
                 ``OFFSET`` (for example, ``OFFSET 0 ROWS``), or ``FOR XML``.
                 Source ordering does not guarantee the returned DataFrame's order.
             column: The column name used for partitioning the table. Partitions will be retrieved in parallel.
-                The column must be of a numeric type (e.g., int or float) or a date type.
+                The column must be numeric, date, or timestamp. Use a double-quoted
+                exact source name for case-sensitive or special-character identifiers;
+                the name is escaped using the source database's identifier syntax.
                 When specifying `column`, `lower_bound`, `upper_bound`, and `num_partitions` must also be provided.
             lower_bound: lower bound of partition, decide the stride of partition along with `upper_bound`.
+                Timestamp bounds retain microseconds. Include an explicit UTC offset for
+                TZ/LTZ columns; omit offsets for NTZ columns (including Oracle DATE).
                 This parameter does not filter out data. It must be provided when `column` is specified.
             upper_bound: upper bound of partition, decide the stride of partition along with `lower_bound`.
                 This parameter does not filter out data. It must be provided when `column` is specified.

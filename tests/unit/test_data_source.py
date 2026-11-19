@@ -23,6 +23,8 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
+    TimestampType,
 )
 
 
@@ -614,3 +616,132 @@ def test_jdbc_query_trailing_comment_does_not_hide_closing_paren():
     )
     for sql in (client.generate_select_sql(), client.infer_schema_sql()):
         assert "-- note\n) " in sql
+
+
+@pytest.mark.parametrize(
+    "url, lower_literal",
+    [
+        ("jdbc:oracle:thin:@//host:1521/svc", "TIMESTAMP '2024-01-11 00:00:00'"),
+        ("jdbc:postgresql://host/db", "'2024-01-11 00:00:00'"),
+    ],
+)
+def test_jdbc_partitions_on_timestamp_column(url, lower_literal):
+    """SNOW-4537771: TIMESTAMP partition columns (incl. Oracle DATE) were rejected."""
+    client = JDBC(
+        session=Mock(),
+        url=url,
+        table_or_query="T",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=False,
+        secret="cred",
+        column="D",
+        lower_bound="2024-01-01",
+        upper_bound="2024-01-31",
+        num_partitions=3,
+    )
+    client.__dict__["schema"] = StructType(
+        [StructField("D", TimestampType(TimestampTimeZone.NTZ))]
+    )
+    client.raw_schema = []
+    partitions = client.partitions
+    assert len(partitions) == 3
+    assert partitions[1] == (
+        f"SELECT * FROM T WHERE D >= {lower_literal} AND D < "
+        + lower_literal.replace("2024-01-11", "2024-01-21")
+    )
+
+
+@pytest.mark.parametrize(
+    "url, name, column, expected",
+    [
+        ("jdbc:postgresql://h/d", "MixedCase", "MixedCase", '"MixedCase"'),
+        ("jdbc:postgresql://h/d", "a", '"a"', '"a"'),
+        ("jdbc:mysql://h/d", "my col", '"my col"', "`my col`"),
+        ("jdbc:mysql://h/d", "a`b", '"a`b"', "`a``b`"),
+        ("jdbc:sqlserver://h", "a]b", '"a]b"', "[a]]b]"),
+        ("jdbc:oracle:thin:@h", 'a"b', '"a""b"', '"a""b"'),
+    ],
+)
+def test_jdbc_partition_source_identifiers(url, name, column, expected):
+    client = JDBC(
+        session=Mock(),
+        url=url,
+        table_or_query="T",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=False,
+        secret="cred",
+        column=column,
+        lower_bound=0,
+        upper_bound=10,
+        num_partitions=2,
+    )
+    client.raw_schema = [(name, "INTEGER", "java.lang.Integer", 10, 0, True)]
+    client.__dict__["schema"] = client.to_snow_type()
+    assert f"WHERE {expected} < '5' OR {expected} is null" in client.partitions[0]
+
+
+@pytest.mark.parametrize(
+    "timezone", [TimestampTimeZone.NTZ, TimestampTimeZone.TZ, TimestampTimeZone.LTZ]
+)
+def test_jdbc_timestamp_partition_precision_and_offsets(timezone):
+    client = JDBC(
+        session=Mock(),
+        url="jdbc:postgresql://h/d",
+        table_or_query="T",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=False,
+        secret="cred",
+        column="D",
+        lower_bound="2024-01-01 00:00:00.100000",
+        upper_bound="2024-01-01 00:00:00.900000",
+        num_partitions=2,
+    )
+    if timezone != TimestampTimeZone.NTZ:
+        client.lower_bound += "+05:30"
+        client.upper_bound += "+05:30"
+    client.raw_schema = [("D", "TIMESTAMP", "java.sql.Timestamp", 0, 0, True)]
+    client.__dict__["schema"] = StructType([StructField("D", TimestampType(timezone))])
+    partitions = client.partitions
+    assert len(partitions) == 2
+    expected = (
+        "2024-01-01 00:00:00.500000"
+        if timezone == TimestampTimeZone.NTZ
+        else "2023-12-31 18:30:00.500000+00:00"
+    )
+    assert expected in partitions[0]
+
+
+@pytest.mark.parametrize(
+    "timezone, bound",
+    [
+        (TimestampTimeZone.NTZ, "2024-01-01+00:00"),
+        (TimestampTimeZone.TZ, "2024-01-01"),
+        (TimestampTimeZone.LTZ, "2024-01-01"),
+    ],
+)
+def test_timestamp_partition_rejects_ambiguous_offsets(timezone, bound):
+    from snowflake.snowpark._internal.data_source.datasource_partitioner import (
+        to_internal_value,
+    )
+
+    if timezone == TimestampTimeZone.NTZ:
+        bound = "2024-01-01 00:00:00+00:00"
+    with pytest.raises(ValueError, match="offset"):
+        to_internal_value(bound, TimestampType(timezone))
+
+
+def test_dbapi_partitioner_still_rejects_timestamp_column():
+    from snowflake.snowpark._internal.data_source import DataSourcePartitioner
+
+    with pytest.raises(ValueError, match="unsupported type"):
+        DataSourcePartitioner.generate_partitions(
+            "SELECT * FROM T",
+            StructType([StructField("D", TimestampType())]),
+            column="D",
+            lower_bound="2024-01-01",
+            upper_bound="2024-01-31",
+            num_partitions=3,
+        )

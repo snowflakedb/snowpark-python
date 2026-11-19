@@ -678,3 +678,71 @@ def test_postgres_query_trailing_semicolon_and_comment(
         url=POSTGRES_URL, udtf_configs=postgres_udtf_configs, query=query
     )
     assert [r[0] for r in df.collect()] == [1]
+
+
+@pytest.mark.parametrize(
+    "lower_bound, upper_bound",
+    [("2024-01-01", "2024-02-10"), ("2024-01-01 00:00:00", "2024-02-10 12:30:00")],
+)
+def test_oracle_partition_on_date_column(
+    session, udtf_configs, lower_bound, upper_bound
+):
+    """SNOW-4537771: Oracle DATE is read as TIMESTAMP and could not be partitioned."""
+    query = (
+        "SELECT LEVEL AS ID, DATE '2024-01-01' + LEVEL * 7 AS D "
+        "FROM DUAL CONNECT BY LEVEL <= 5"
+    )
+    df = session.read.jdbc(
+        url=URL,
+        udtf_configs=udtf_configs,
+        query=query,
+        column="D",
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        num_partitions=3,
+    )
+    assert sorted(int(r["ID"]) for r in df.collect()) == [1, 2, 3, 4, 5]
+
+
+@pytest.mark.parametrize("source_type", ["date", "timestamp"])
+def test_postgres_temporal_partitions_include_nulls_and_outside_bounds(
+    session, postgres_udtf_configs, source_type
+):
+    query = (
+        f"select id, value::{source_type} as d from (values "
+        "(0, NULL), (1, '2023-12-31'), (2, '2024-01-01'), "
+        "(3, '2024-01-02'), (4, '2024-01-03'), (5, '2024-01-04')) "
+        "as source(id, value)"
+    )
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query=query,
+        column="D",
+        lower_bound="2024-01-01",
+        upper_bound="2024-01-03",
+        num_partitions=2,
+    )
+    assert sorted(row["ID"] for row in df.collect()) == list(range(6))
+
+
+@pytest.mark.parametrize("column", ["MixedCase", '"MixedCase"'])
+def test_postgres_quoted_timestamp_partition(session, postgres_udtf_configs, column):
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query="select timestamp '2024-01-01 00:00:00.1' + n * interval '0.2 seconds' as \"MixedCase\" from generate_series(0, 4) n",
+        column=column,
+        lower_bound="2024-01-01 00:00:00.1",
+        upper_bound="2024-01-01 00:00:00.9",
+        num_partitions=2,
+    )
+    rows = df.collect()
+    assert len(rows) == 5
+    assert sorted(row[0].microsecond for row in rows) == [
+        100000,
+        300000,
+        500000,
+        700000,
+        900000,
+    ]
