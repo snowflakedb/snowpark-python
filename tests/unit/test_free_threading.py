@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import importlib.metadata
 import importlib.util
 import subprocess
 import sys
@@ -27,6 +28,13 @@ def test_import_keeps_gil_disabled(modules):
     # marked free-threading safe is imported, and this process has already imported the test dependencies.
     if any(importlib.util.find_spec(m.split(".")[0]) is None for m in modules):
         pytest.skip(f"{modules} not installed")
+    # Snowpark imports pandas whenever it is installed. The version comes from metadata because importing
+    # pandas here would itself re-enable the GIL.
+    if (
+        importlib.util.find_spec("pandas") is not None
+        and int(importlib.metadata.version("pandas").split(".")[0]) < 3
+    ):
+        pytest.skip("pandas < 3 re-enables the GIL on import")
     result = subprocess.run(
         [
             sys.executable,
