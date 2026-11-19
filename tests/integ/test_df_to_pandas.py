@@ -134,7 +134,7 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         assert str(timestamp_pandas_df.dtypes.iloc[0]) == expected_dtype
     else:
         # TODO: mock the non-nanosecond unit pyarrow+pandas behavior in local test
-        # Local testing builds the frame from Python datetimes, which pandas 3 infers as [us].
+        # pandas 3 infers [us] from Python datetimes.
         expected_dtype = (
             "datetime64[us]" if PANDAS_MAJOR_VERSION >= 3 else "datetime64[ns]"
         )
@@ -324,8 +324,7 @@ def test_df_to_pandas_df(session, local_testing_mode):
                         second=12,
                     )
                 ],
-                # Local testing builds the frame from Python datetimes, which pandas 3
-                # infers as [us]. The live path goes through Arrow and keeps [ns].
+                # [us] on pandas 3 in local testing only; live keeps [ns] via Arrow.
                 dtype=(
                     "datetime64[us]"
                     if local_testing_mode and PANDAS_MAJOR_VERSION >= 3
@@ -413,7 +412,6 @@ def test_df_to_pandas_df(session, local_testing_mode):
             "M": pd.Series(["abc"], dtype=STRING_DTYPE),
             "N": pd.Series(
                 [datetime.datetime(2023, 10, 30, 12, 12, 12)],
-                # Same as " gg" above: [us] only in local testing on pandas 3.
                 dtype=(
                     "datetime64[us]"
                     if local_testing_mode and PANDAS_MAJOR_VERSION >= 3
