@@ -29,7 +29,6 @@ from snowflake.snowpark.types import (
     BooleanType,
     ArrayType,
     StructField,
-    VariantType,
     TimestampType,
     TimestampTimeZone,
     IntegerType,
@@ -143,6 +142,16 @@ JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
 
 PARTITION_TABLE_COLUMN_NAME = "partition"
 
+# How the read UDTF fetches a column. getString() is used by default; time-zone
+# aware values need an explicit Java type because getString() renders them in a
+# driver-specific format (e.g. "-8:00", region names) that Snowflake cannot cast.
+STRING_READER = "string"
+OFFSET_DATETIME_READER = "offset_datetime"
+INSTANT_READER = "instant"
+
+TIMESTAMP_TZ_JAVA_TYPES = {"oracle.sql.TIMESTAMPTZ", "microsoft.sql.DateTimeOffset"}
+TIMESTAMP_LTZ_JAVA_TYPES = {"oracle.sql.TIMESTAMPLTZ"}
+
 
 def to_java_string_literal(value: object) -> str:
     """Return ``value`` as a double-quoted Java string literal.
@@ -238,6 +247,7 @@ class JDBC:
             else "PACKAGES=('com.snowflake:snowpark:latest')"
         )
         self.secret_sql = f"SECRETS = ('cred' = {self.secret})"
+        self._dbms = get_jdbc_dbms(url)
         self._temp_function_type = get_temp_type_for_object(
             self.session._use_scoped_temp_objects, True
         )
@@ -249,7 +259,7 @@ class JDBC:
         infer_schema_udtf_name = random_name_for_temp_object(TempObjectType.FUNCTION)
         infer_schema_udtf_registration = f"""
             CREATE OR REPLACE {self._temp_function_type} FUNCTION {infer_schema_udtf_name}(query VARCHAR)
-            RETURNS TABLE (field_name VARCHAR, jdbc_type VARCHAR, java_type VARCHAR, precision INTEGER, scale INTEGER, nullable BOOLEAN)
+            RETURNS TABLE (field_name VARCHAR, jdbc_type VARCHAR, java_type VARCHAR, precision INTEGER, scale INTEGER, nullable BOOLEAN, type_name VARCHAR)
             LANGUAGE JAVA
             RUNTIME_VERSION = '{self.java_version}'
             EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
@@ -279,6 +289,7 @@ class JDBC:
                 public int precision;
                 public int scale;
                 public boolean nullable;
+                public String type_name;
 
             }}
 
@@ -326,6 +337,7 @@ class JDBC:
                                     row.precision = meta.getPrecision(currentColumnIndex);
                                     row.scale = meta.getScale(currentColumnIndex);
                                     row.nullable = meta.isNullable(currentColumnIndex) == ResultSetMetaData.columnNullable;
+                                    row.type_name = meta.getColumnTypeName(currentColumnIndex);
                                     return row;
                                 }} else {{
                                     rs.close();
@@ -637,12 +649,24 @@ class JDBC:
         )
 
     def create_output_row_java_code(self):
-        return "".join(
-            [
-                f"row.{self._udtf_column_name(i)} = rs.getString({i+1});\n"
-                for i in range(len(self.schema.fields))
-            ]
-        )
+        readers = getattr(self, "_column_readers", None) or []
+        code = []
+        for i in range(len(self.schema.fields)):
+            column = f"row.{self._udtf_column_name(i)}"
+            reader = readers[i] if i < len(readers) else STRING_READER
+            if reader == OFFSET_DATETIME_READER:
+                code.append(
+                    f"{{ java.time.OffsetDateTime v = rs.getObject({i+1}, java.time.OffsetDateTime.class);"
+                    f" {column} = v == null ? null : v.toString(); }}\n"
+                )
+            elif reader == INSTANT_READER:
+                code.append(
+                    f"{{ Timestamp v = rs.getTimestamp({i+1});"
+                    f" {column} = v == null ? null : v.toInstant().toString(); }}\n"
+                )
+            else:
+                code.append(f"{column} = rs.getString({i+1});\n")
+        return "".join(code)
 
     def create_output_row_class(self):
         return "".join(
@@ -685,14 +709,10 @@ class JDBC:
         # Source names that differ only by case would both normalize to the same
         # unquoted Snowflake name, so keep their exact case by quoting them.
         lowered_names = [row[0].lower() for row in self.raw_schema]
-        for (
-            field_name,
-            jdbc_type,
-            java_type,
-            precision,
-            scale,
-            nullable,
-        ) in self.raw_schema:
+        readers = []
+        for row in self.raw_schema:
+            field_name, jdbc_type, java_type, precision, scale, nullable = row[:6]
+            type_name = row[6] if len(row) > 6 else None
             if lowered_names.count(field_name.lower()) > 1:
                 field_name = '"' + field_name.replace('"', '""') + '"'
             try:
@@ -701,27 +721,48 @@ class JDBC:
                 jdbc_type = JDBCType.NOT_SUPPORTED
 
             jdbc_to_snow_type = JDBC_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, None)
-            java_to_snow_type = JAVA_TYPE_TO_SNOWFLAKE_TYPE.get(java_type, VariantType)
+            # Types without a mapping are read as strings, as in DataFrameReader.dbapi.
+            java_to_snow_type = JAVA_TYPE_TO_SNOWFLAKE_TYPE.get(java_type, StringType)
             snow_type = (
                 java_to_snow_type if jdbc_to_snow_type is None else jdbc_to_snow_type
             )
-            if snow_type == DecimalType:
+            type_name = (type_name or "").lower()
+            reader = STRING_READER
+            if (
+                java_type in TIMESTAMP_TZ_JAVA_TYPES
+                or jdbc_type == JDBCType.TIMESTAMP_WITH_TIMEZONE
+                or type_name == "timestamptz"
+            ):
+                data_type = TimestampType(TimestampTimeZone.TZ)
+                reader = OFFSET_DATETIME_READER
+            elif java_type in TIMESTAMP_LTZ_JAVA_TYPES:
+                data_type = TimestampType(TimestampTimeZone.LTZ)
+                reader = INSTANT_READER
+            elif jdbc_type == JDBCType.TIME_WITH_TIMEZONE or type_name == "timetz":
+                # Snowflake TIME has no time zone; keep the offset in a string.
+                data_type = StringType()
+            elif jdbc_type == JDBCType.BIT:
+                # JDBC BIT covers both booleans and bit strings, and MySQL also
+                # reports TINYINT(1) as BIT(1) although it can hold any tiny integer.
+                # Only map the types known to be booleans; keep the rest as strings.
+                data_type = (
+                    BooleanType()
+                    if type_name in ("bool", "boolean")
+                    or (type_name == "bit" and self._dbms == "sqlserver")
+                    else StringType()
+                )
+            elif snow_type == DecimalType:
                 data_type = self._to_numeric_type(field_name, precision, scale)
-            elif snow_type == TimestampType and jdbc_type in (
-                JDBCType.TIMESTAMP,
-                None,
-                JDBCType.OTHER,
-            ):
+            elif snow_type == TimestampType:
+                # Offset-aware types were handled above. Java Timestamp fallback
+                # is wall-clock time, even when JDBC reports an unknown type code.
                 data_type = snow_type(TimestampTimeZone.NTZ)
-            elif snow_type == TimestampType and jdbc_type in (
-                JDBCType.TIMESTAMP_WITH_TIMEZONE,
-                JDBCType.TIME_WITH_TIMEZONE,
-            ):
-                data_type = snow_type(TimestampTimeZone.TZ)
             else:
                 data_type = snow_type()
 
             fields.append(StructField(field_name, data_type, nullable))
+            readers.append(reader)
+        self._column_readers = readers
         return StructType(fields)
 
     def generate_select_sql(self):
