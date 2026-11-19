@@ -24,6 +24,7 @@ Snowpark APIs
    observability
    files
    catalog
+   jobs
    lineage
    context
    exceptions
