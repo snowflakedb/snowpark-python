@@ -2634,4 +2634,9 @@ class BatchInsertQuery(Query):
             rows=self.rows,
         )
         copied_query.query_id_place_holder = self.query_id_place_holder
+        copied_query.is_ddl_on_temp_object = self.is_ddl_on_temp_object
+        copied_query.temp_obj_name_placeholder = self.temp_obj_name_placeholder
+        copied_query.params = self.params
+        copied_query.query_line_intervals = self.query_line_intervals
+        copied_query.cte_segments = self.cte_segments
         return copied_query

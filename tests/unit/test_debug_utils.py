@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import copy
 import os
 import re
 import tempfile
@@ -17,6 +18,12 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     Query,
     QueryLineInterval,
     SnowflakePlan,
+)
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import WithQueryBlock
+from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
+from snowflake.snowpark._internal.compiler.utils import (
+    get_snowflake_plan_queries,
+    resolve_and_update_snowflake_plan,
 )
 from snowflake.snowpark._internal.df_trace import SrcPosition, TraceNode
 from snowflake.snowpark._internal.utils import get_plan_from_pre_query_line_number
@@ -728,6 +735,181 @@ def test_resolve_error_line_skips_unknown_rewritten_sql():
         PlanQueryType.QUERIES: [Query("CREATE TEMP TABLE x AS SELECT 1")]
     }
     assert _resolve_error_line(plan, 0, 0, "CREATE TEMP TABLE x AS SELECT 1") is None
+
+
+@pytest.mark.parametrize("trace_enabled", [False, True])
+def test_reresolved_query_intervals_keep_the_existing_owner(
+    mock_session, monkeypatch, trace_enabled
+):
+    monkeypatch.setattr(
+        "snowflake.snowpark._internal.debug_config.enabled",
+        lambda session, name: trace_enabled,
+    )
+    from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
+
+    node = SnowflakePlan(
+        [Query("SELECT 0")], None, source_plan=Project([], None), session=mock_session
+    )
+    resolved = SnowflakePlan(
+        [Query("SELECT bad\nFROM child")], None, session=mock_session
+    )
+    intervals = [
+        QueryLineInterval(0, 0, resolved.uuid),
+        QueryLineInterval(1, 1, "child"),
+    ]
+    resolved.queries[-1].query_line_intervals = intervals
+    original_query = resolved.queries[-1]
+    generator = mock.Mock()
+    generator.resolve.return_value = resolved
+    resolve_and_update_snowflake_plan(node, generator)
+    assert resolved.queries[-1] is original_query
+    assert original_query.query_line_intervals == intervals
+    assert node.queries[-1].sql == original_query.sql
+    if trace_enabled:
+        assert node.queries[-1] is not original_query
+        assert node.queries[-1].query_line_intervals == [
+            QueryLineInterval(0, 0, node.uuid),
+            QueryLineInterval(1, 1, "child"),
+        ]
+        node.df_trace_nodes = [_trace_node(42)]
+        assert "f.py: line 42" in get_python_source_from_sql_error(
+            node,
+            "SQL compilation error: error line 1 at position 7",
+            node.queries[-1].sql,
+        )
+    else:
+        assert node.queries[-1] is original_query
+
+
+@pytest.mark.parametrize("multiline", [False, True])
+@pytest.mark.parametrize("trace_enabled", [False, True])
+@pytest.mark.parametrize("plan_count", [1, 2])
+def test_generate_queries_does_not_annotate_input_plans(
+    mock_session, monkeypatch, trace_enabled, plan_count, multiline
+):
+    mock_session._generate_multiline_queries = multiline
+    monkeypatch.setattr(
+        "snowflake.snowpark._internal.debug_config.enabled",
+        lambda session, name: trace_enabled,
+    )
+    plans = [
+        SnowflakePlan([Query(f"SELECT {index}")], None, session=mock_session)
+        for index in range(plan_count)
+    ]
+    generator = QueryGenerator(mock_session)
+    monkeypatch.setattr(generator, "resolve", lambda plan: plan)
+    original_queries = [plan.queries for plan in plans]
+    original_last_queries = [plan.queries[-1] for plan in plans]
+    for _ in range(2):
+        queries = generator.generate_queries(plans)[PlanQueryType.QUERIES]
+        for plan, query, original_list, original in zip(
+            plans, queries, original_queries, original_last_queries
+        ):
+            assert plan.queries is original_list
+            assert plan.queries[-1] is original
+            assert original.cte_segments is None
+            assert query == original
+            if trace_enabled and plan_count > 1:
+                assert query is not original
+                if multiline:
+                    assert query.cte_segments == [CteSegment(0, len(query.sql), plan)]
+                else:
+                    assert query.cte_segments is None
+                    assert query.query_line_intervals == []
+                    assert original.query_line_intervals
+            else:
+                assert query.cte_segments is None
+
+
+@pytest.mark.parametrize("multiline", [False, True])
+def test_generate_queries_keeps_existing_segment_owners(
+    mock_session, monkeypatch, multiline
+):
+    mock_session._generate_multiline_queries = multiline
+    monkeypatch.setattr(
+        "snowflake.snowpark._internal.debug_config.enabled", lambda session, name: True
+    )
+    child = SnowflakePlan([Query("SELECT 1")], None, session=mock_session)
+    segments = [CteSegment(0, len(child.queries[-1].sql), child)]
+    plan = SnowflakePlan(
+        [Query("SELECT 1", cte_segments=segments)], None, session=mock_session
+    )
+    other = SnowflakePlan([Query("SELECT 2")], None, session=mock_session)
+    generator = QueryGenerator(mock_session)
+    monkeypatch.setattr(generator, "resolve", lambda plan: plan)
+    query = generator.generate_queries([plan, other])[PlanQueryType.QUERIES][0]
+    assert query.cte_segments is segments
+    assert query.cte_segments[0].plan is child
+
+
+@pytest.mark.parametrize("clone", [copy.copy, copy.deepcopy])
+def test_generated_segments_belong_to_cloned_plan(mock_session, monkeypatch, clone):
+    mock_session._generate_multiline_queries = True
+    monkeypatch.setattr(
+        "snowflake.snowpark._internal.debug_config.enabled", lambda session, name: True
+    )
+    plan = SnowflakePlan([Query("SELECT 1")], None, session=mock_session)
+    other = SnowflakePlan([Query("SELECT 2")], None, session=mock_session)
+    generator = QueryGenerator(mock_session)
+    monkeypatch.setattr(generator, "resolve", lambda plan: plan)
+    original = generator.generate_queries([plan, other])[PlanQueryType.QUERIES][0]
+    copied_plan = clone(plan)
+    copied = generator.generate_queries([copied_plan, other])[PlanQueryType.QUERIES][0]
+    assert original.cte_segments[0].plan is plan
+    assert copied.cte_segments[0].plan is copied_plan
+    assert copied_plan.queries[-1].cte_segments is None
+    assert plan.queries[-1].query_line_intervals == [QueryLineInterval(0, 0, plan.uuid)]
+    assert copied_plan.queries[-1].query_line_intervals == [
+        QueryLineInterval(0, 0, copied_plan.uuid)
+    ]
+
+
+@pytest.mark.parametrize("trace_enabled", [False, True])
+@pytest.mark.parametrize("clone", [copy.copy, copy.deepcopy])
+def test_cte_generation_does_not_mutate_input_plan(
+    mock_session, monkeypatch, trace_enabled, clone
+):
+    monkeypatch.setattr(
+        "snowflake.snowpark._internal.debug_config.enabled",
+        lambda session, name: trace_enabled,
+    )
+    definition = SnowflakePlan(
+        [Query("SELECT ? AS A", params=[1])], None, session=mock_session
+    )
+    block = WithQueryBlock("CTE", definition)
+    pre_query = Query("SELECT 0")
+    body = Query("SELECT * FROM CTE WHERE A > ?", params=[0])
+    plan = SnowflakePlan(
+        [pre_query, body], None, session=mock_session, referenced_ctes={block: 1}
+    )
+    original_queries = plan.queries
+    original_intervals = body.query_line_intervals
+    prefix = cte_statement([definition.queries[-1].sql], ["CTE"])
+    for iteration in range(3):
+        current_plan = plan if iteration < 2 else clone(plan)
+        queries = get_snowflake_plan_queries(
+            current_plan, {"CTE": definition.queries[-1]}, {"CTE": definition}
+        )[PlanQueryType.QUERIES]
+        assert queries is not current_plan.queries
+        assert queries[0] is current_plan.queries[0]
+        compiled = queries[-1]
+        assert compiled is not current_plan.queries[-1]
+        assert compiled.sql == prefix + "SELECT * FROM CTE WHERE A > ?"
+        assert compiled.params == [1, 0]
+        assert current_plan.queries[-1].sql == "SELECT * FROM CTE WHERE A > ?"
+        assert current_plan.queries[-1].params == [0]
+        assert current_plan.queries[-1].cte_segments is None
+        if trace_enabled:
+            assert compiled.cte_segments[0].plan is definition
+            assert compiled.cte_segments[-1].plan is current_plan
+            assert compiled.cte_segments[-1].start == len(prefix)
+            assert compiled.cte_segments[-1].end == len(compiled.sql)
+        else:
+            assert compiled.cte_segments is None
+    assert plan.queries is original_queries
+    assert body.query_line_intervals is original_intervals
+    assert definition.queries[-1].sql == "SELECT ? AS A"
+    assert definition.queries[-1].params == [1]
 
 
 def test_resolve_error_line_maps_through_cte_segments():

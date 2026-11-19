@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     CteSegment,
     PlanQueryType,
     Query,
+    QueryLineInterval,
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -101,6 +102,22 @@ def resolve_and_update_snowflake_plan(
 
     # copy over the newly resolved fields to make it an in-place update
     node.queries = new_snowflake_plan.queries
+    if debug_config.enabled(node.session, "trace_sql_errors_to_dataframe"):
+        # Re-resolution gives the new plan a fresh UUID, but its queries are
+        # installed on the existing node. Rebind only the new plan's own lines;
+        # child UUIDs must still identify the same descendants.
+        node.queries = list(node.queries)
+        node.queries[-1] = copy.copy(node.queries[-1])
+        node.queries[-1].query_line_intervals = [
+            QueryLineInterval(
+                interval.start,
+                interval.end,
+                node.uuid
+                if interval.uuid == new_snowflake_plan.uuid
+                else interval.uuid,
+            )
+            for interval in node.queries[-1].query_line_intervals
+        ]
     node.post_actions = new_snowflake_plan.post_actions
     node.expr_to_alias = new_snowflake_plan.expr_to_alias
     node.is_ddl_on_temp_object = new_snowflake_plan.is_ddl_on_temp_object
@@ -351,6 +368,7 @@ def get_snowflake_plan_queries(
         # make a copy of the original query to avoid any update to the
         # original query object
         plan_queries = copy.copy(plan.queries)
+        plan_queries[-1] = copy.copy(plan_queries[-1])
         post_action_queries = copy.copy(plan.post_actions)
         table_names = []
         definition_queries = []

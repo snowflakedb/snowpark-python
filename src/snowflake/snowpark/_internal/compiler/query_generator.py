@@ -131,9 +131,22 @@ class QueryGenerator(Analyzer):
                 # Large query breakdown split the plan: record the plan that generated
                 # each query, so that a SQL error line can be mapped back with its line
                 # intervals.
-                last_query.cte_segments = [
-                    CteSegment(0, len(last_query.sql), snowflake_plan)
-                ]
+                # The no-CTE path returns plan-owned queries. Keep execution metadata
+                # off the plan so a later compilation or copy gets its own owner.
+                plan_queries[PlanQueryType.QUERIES] = list(
+                    plan_queries[PlanQueryType.QUERIES]
+                )
+                last_query = copy.copy(last_query)
+                plan_queries[PlanQueryType.QUERIES][-1] = last_query
+                if snowflake_plan.session._generate_multiline_queries:
+                    last_query.cte_segments = [
+                        CteSegment(0, len(last_query.sql), snowflake_plan)
+                    ]
+                else:
+                    # An embedded child's single-line SQL can have different line
+                    # breaks from its standalone SQL. Do not traverse these
+                    # intervals or fall back to a pre-query owner in the old tree.
+                    last_query.query_line_intervals = []
             # we deduplicate the queries and post actions generated across the logical
             # plans because it is possible for large query breakdown to partition
             # original plan into multiple plans that may contain the same nodes which
