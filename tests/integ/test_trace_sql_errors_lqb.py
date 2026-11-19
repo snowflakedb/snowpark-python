@@ -145,6 +145,122 @@ def test_error_in_partition(session, multiline, literal_newline):
         assert downstream_line not in lines, context
 
 
+@pytest.mark.parametrize(
+    "build_multiline, compile_multiline",
+    [(False, True), (True, False), (True, True), (False, False)],
+)
+def test_cached_layout_toggle(session, build_multiline, compile_multiline):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    session._large_query_breakdown_enabled = True
+    session._large_query_breakdown_complexity_bounds = (30, 80)
+    (
+        session._enable_multiline_queries
+        if build_multiline
+        else session._disable_multiline_queries
+    )()
+    base = session.sql("SELECT 1 AS A")
+    bad_line = Utils.get_current_line_number_sys() + 1
+    df = base.filter(col("bad") > 0)
+    for index in range(7):
+        df = df.union_all(df.filter(col("A") > index)).sort("A")
+    (
+        session._enable_multiline_queries
+        if compile_multiline
+        else session._disable_multiline_queries
+    )()
+    queries = df._plan.execution_queries[PlanQueryType.QUERIES]
+    assert len(queries) == 6
+    with pytest.raises(SnowparkSQLException) as error:
+        df.collect()
+    assert error.value.query.lstrip().upper().startswith("CREATE")
+    context = str(error.value.debug_context)
+    if build_multiline and compile_multiline:
+        mapping = context.split("corresponds to Python source")[-1]
+        assert bad_line in {int(n) for n in _MAPPED_LINE.findall(mapping)}, context
+    else:
+        assert "corresponds to Python source" not in context
+
+
+@pytest.mark.parametrize("late_error", [False, True])
+@pytest.mark.parametrize(
+    "build_multiline, compile_multiline",
+    [(False, True), (True, False), (True, True), (False, False)],
+)
+def test_union_partition_cached_diagnostics(
+    session, late_error, build_multiline, compile_multiline
+):
+    if not session.sql_simplifier_enabled:
+        pytest.skip(
+            "Union describes its invalid operand before LQB without the simplifier"
+        )
+    session._large_query_breakdown_enabled = True
+    session._large_query_breakdown_complexity_bounds = (30, 80)
+    (
+        session._enable_multiline_queries
+        if build_multiline
+        else session._disable_multiline_queries
+    )()
+    df = session.sql("SELECT 1 AS A")
+    if not late_error:
+        bad_line = Utils.get_current_line_number_sys() + 1
+        df = df.filter(col("BAD") > 0)
+    for index in range(7):
+        if late_error and index == 6:
+            bad_line = Utils.get_current_line_number_sys() + 1
+            df = df.filter(col("BAD") > 0)
+        df = df.union_all(df.filter(col("A") > index)).sort("A")
+    (
+        session._enable_multiline_queries
+        if compile_multiline
+        else session._disable_multiline_queries
+    )()
+    queries = df._plan.execution_queries[PlanQueryType.QUERIES]
+    assert len(queries) > 1
+    if late_error and session.sql_simplifier_enabled:
+        assert len(queries) == 5
+        assert all('"BAD"' not in query.sql for query in queries[:4])
+    with pytest.raises(SnowparkSQLException) as error:
+        df.collect()
+    context = str(error.value.debug_context)
+    if late_error and session.sql_simplifier_enabled:
+        assert not error.value.query.lstrip().upper().startswith("CREATE")
+    elif not late_error:
+        assert error.value.query.lstrip().upper().startswith("CREATE")
+    if build_multiline and compile_multiline and session.sql_simplifier_enabled:
+        mapping = context.split("corresponds to Python source")[-1]
+        assert bad_line in {int(n) for n in _MAPPED_LINE.findall(mapping)}, context
+    else:
+        assert "corresponds to Python source" not in context
+
+
+def test_nonsimplifier_unary_partition(session):
+    if session.sql_simplifier_enabled:
+        pytest.skip("Exercises non-simplifier copy intervals")
+    session._large_query_breakdown_enabled = True
+    session._large_query_breakdown_complexity_bounds = (30, 80)
+    df = session.sql("SELECT 1 AS A")
+    bad_line = Utils.get_current_line_number_sys() + 1
+    df = df.filter(col("BAD") > 0)
+    for index in range(12):
+        df = df.filter(col("A") > index).sort("A")
+    queries = df._plan.execution_queries[PlanQueryType.QUERIES]
+    assert len(queries) == 2
+    # collect() describes the invalid filter before execution in this mode.
+    # Execute the real compiled partition to test its server error coordinates.
+    from snowflake.snowpark._internal.debug_utils import (
+        get_python_source_from_sql_error,
+    )
+
+    with pytest.raises(SnowparkSQLException) as error:
+        session.sql(queries[0].sql).collect()
+    assert error.value.query.lstrip().upper().startswith("CREATE")
+    mapping = get_python_source_from_sql_error(
+        df._plan, str(error.value), error.value.query
+    )
+    assert {int(n) for n in _MAPPED_LINE.findall(mapping)} == {bad_line}
+
+
 def test_sql_is_unchanged_by_the_feature(session):
     session._large_query_breakdown_enabled = True
     on = _two_branches(session)._plan.execution_queries

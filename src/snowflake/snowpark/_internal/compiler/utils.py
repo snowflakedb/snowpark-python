@@ -244,6 +244,10 @@ def update_resolvable_node(
     if not isinstance(node, (SnowflakePlan, Selectable)):
         raise ValueError(f"It is not valid to update node with type {type(node)}.")
 
+    # Retained copy diagnostics describe the old SQL, not a regenerated node.
+    if isinstance(node, Selectable):
+        node._sql_error_plan = None
+
     # reset the cumulative_node_complexity for all nodes
     node.reset_cumulative_node_complexity()
 

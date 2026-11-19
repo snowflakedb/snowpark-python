@@ -19,7 +19,14 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     QueryLineInterval,
     SnowflakePlan,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import WithQueryBlock
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    SaveMode,
+    SnowflakeCreateTable,
+    TableCreationSource,
+    WithQueryBlock,
+)
+from snowflake.snowpark.functions import col
+from snowflake.snowpark.session import Session
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.compiler.utils import (
     get_snowflake_plan_queries,
@@ -781,6 +788,382 @@ def test_reresolved_query_intervals_keep_the_existing_owner(
         assert node.queries[-1] is original_query
 
 
+@pytest.fixture
+def offline_compiler_session(mock_server_connection):
+    # Real Session/analyzer/compiler; only the connector and transaction probe are mocked.
+    mock_server_connection._conn.database = "DB"
+    mock_server_connection._conn.schema = "SCHEMA"
+    mock_server_connection._thread_safe_session_enabled = False
+    session = Session(mock_server_connection)
+    session._query_compilation_stage_enabled = True
+    session._cte_optimization_enabled = False
+    session._large_query_breakdown_enabled = True
+    session._large_query_breakdown_complexity_bounds = (30, 80)
+    session.debug.set(trace_sql_errors_to_dataframe=True)
+    try:
+        with mock.patch(
+            "snowflake.snowpark._internal.compiler.large_query_breakdown.is_active_transaction",
+            return_value=False,
+        ):
+            yield session
+    finally:
+        session._enable_multiline_queries()
+        session.close()
+
+
+@pytest.mark.parametrize(
+    "build_multiline, compile_multiline",
+    [(False, True), (True, False), (True, True), (False, False)],
+)
+@pytest.mark.parametrize("toggle_before_parent", [False, True])
+@pytest.mark.parametrize("literal_newline", [False, True])
+def test_lqb_cached_layout_provenance(
+    offline_compiler_session,
+    build_multiline,
+    compile_multiline,
+    literal_newline,
+    toggle_before_parent,
+):
+    session = offline_compiler_session
+    (
+        session._enable_multiline_queries
+        if build_multiline
+        else session._disable_multiline_queries
+    )()
+
+    def tag(df, line):
+        df._plan.df_trace_nodes = [_trace_node(line)]
+        df._select_statement.df_trace_nodes = df._plan.df_trace_nodes
+        return df
+
+    sql = "select 1 as A, 'first\nlast' as S" if literal_newline else "select 1 as A"
+    df = tag(session.sql(sql).filter(col("bad") > 0), 10)
+    if toggle_before_parent:
+        (
+            session._enable_multiline_queries
+            if compile_multiline
+            else session._disable_multiline_queries
+        )()
+    for index in range(7):
+        df = tag(df.union_all(df.filter(col("A") > index)).sort("A"), 100 + index)
+    (
+        session._enable_multiline_queries
+        if compile_multiline
+        else session._disable_multiline_queries
+    )()
+    queries = df._plan.execution_queries[PlanQueryType.QUERIES]
+    # Actual LQB, not compiler fallback or synthetic partitions.
+    assert len(queries) == 6
+    query = queries[0]
+    assert query.sql.lstrip().startswith("CREATE")
+    sql = query.sql.strip()
+    offset = sql.index("BAD")
+    line = sql.count("\n", 0, offset) + 1
+    position = offset - sql.rfind("\n", 0, offset) - 1
+    message = get_python_source_from_sql_error(
+        df._plan,
+        f"SQL compilation error: error line {line} at position {position}\ninvalid identifier 'BAD'",
+        query.sql,
+    )
+    if build_multiline and compile_multiline:
+        assert re.findall(r"f\.py: line (\d+)", message) == ["10"]
+    else:
+        assert message == ""
+        assert query.cte_segments is None
+        assert query.query_line_intervals == []
+
+
+@pytest.mark.parametrize("simplifier", [False, True])
+@pytest.mark.parametrize("late_error", [False, True])
+@pytest.mark.parametrize(
+    "build_multiline, compile_multiline",
+    [(False, True), (True, False), (True, True), (False, False)],
+)
+def test_lqb_real_compiler_cached_only_diagnostics(
+    offline_compiler_session, simplifier, late_error, build_multiline, compile_multiline
+):
+    from contextlib import ExitStack
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        Selectable,
+        SelectStatement,
+        SetStatement,
+    )
+
+    session = offline_compiler_session
+    session.sql_simplifier_enabled = simplifier
+    (
+        session._enable_multiline_queries
+        if build_multiline
+        else session._disable_multiline_queries
+    )()
+
+    def tag(df, line):
+        df._plan.df_trace_nodes = [_trace_node(line)]
+        if df._select_statement is not None:
+            df._select_statement.df_trace_nodes = df._plan.df_trace_nodes
+        return df
+
+    df = tag(session.sql("SELECT 1 AS A"), 1)
+    if not late_error:
+        df = tag(df.filter(col("BAD") > 0), 10)
+    for index in range(7):
+        if late_error and index == 6:
+            df = tag(df.filter(col("BAD") > 0), 10)
+        df = tag(df.union_all(df.filter(col("A") > index)).sort("A"), 100 + index)
+    (
+        session._enable_multiline_queries
+        if compile_multiline
+        else session._disable_multiline_queries
+    )()
+    queries = df._plan.execution_queries[PlanQueryType.QUERIES]
+    assert len(queries) > 1
+    bad_index, query = next(
+        (index, query) for index, query in enumerate(queries) if '"BAD"' in query.sql
+    )
+    if simplifier and late_error:
+        assert len(queries) == 5 and bad_index == 4
+        assert all('"BAD"' not in query.sql for query in queries[:4])
+    elif not late_error:
+        assert bad_index == 0
+    sql = query.sql.strip()
+    offset = sql.index('"BAD"')
+    error = f"SQL compilation error: error line {sql.count(chr(10), 0, offset) + 1} at position {offset - sql.rfind(chr(10), 0, offset) - 1}"
+    with ExitStack() as stack:
+        for cls, name in (
+            (Selectable, "get_snowflake_plan"),
+            (SelectStatement, "_generate_sql"),
+            (SetStatement, "_generate_sql"),
+            (QueryGenerator, "resolve"),
+        ):
+            stack.enter_context(
+                mock.patch.object(
+                    cls,
+                    name,
+                    side_effect=AssertionError("diagnostics must not regenerate"),
+                )
+            )
+        for cls, name in (
+            (SelectStatement, "schema_query"),
+            (SetStatement, "schema_query"),
+            (SelectStatement, "sql_query"),
+            (SetStatement, "sql_query"),
+            (SnowflakePlan, "attributes"),
+        ):
+            stack.enter_context(
+                mock.patch.object(
+                    cls,
+                    name,
+                    new_callable=mock.PropertyMock,
+                    side_effect=AssertionError("diagnostics must use cached state"),
+                )
+            )
+        message = get_python_source_from_sql_error(df._plan, error, query.sql)
+    if build_multiline and compile_multiline and simplifier:
+        assert re.findall(r"f\.py: line (\d+)", message) == ["10"]
+    else:
+        # Non-simplifier set operations have no child UUID intervals, even in
+        # multiline mode. Never blame the union/sort for an operand's error.
+        assert message == ""
+
+
+def test_retained_diagnostics_are_invalidated_on_update(offline_compiler_session):
+    from snowflake.snowpark._internal.compiler.utils import update_resolvable_node
+
+    session = offline_compiler_session
+    original = session.sql("SELECT 1 AS A").filter(col("A") > 0)._select_statement
+    copied = copy.deepcopy(original)
+    assert copied._sql_error_plan is original._snowflake_plan
+    update_resolvable_node(copied, QueryGenerator(session))
+    assert copied._sql_error_plan is None
+
+
+@pytest.mark.parametrize("missing_cache", [False, True])
+def test_uncached_set_diagnostics_abstain_on_unproven_layout(
+    offline_compiler_session, missing_cache
+):
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        SetOperand,
+        SetStatement,
+    )
+    from snowflake.snowpark._internal.debug_utils import (
+        _get_cached_plan_from_line_number,
+    )
+
+    session = offline_compiler_session
+    session._enable_multiline_queries()
+    left = session.sql("SELECT 1 AS A").filter(col("BAD") > 0)._select_statement
+    right = session.sql("SELECT 2 AS A")._select_statement
+    node = SetStatement(
+        SetOperand(left), SetOperand(right, " UNION ALL "), analyzer=session._analyzer
+    )
+    sql = node.sql_query
+    assert node._snowflake_plan is None
+    line = sql.count("\n", 0, sql.index('"BAD"'))
+    assert _get_cached_plan_from_line_number(node, line) is not None
+    if missing_cache:
+        left._snowflake_plan = None
+        left._sql_query = None
+    else:
+        node._sql_query = "unexpected prefix" + sql
+    with mock.patch.object(
+        SetStatement, "_generate_sql", side_effect=AssertionError("no regeneration")
+    ):
+        assert _get_cached_plan_from_line_number(node, line) is None
+
+
+def test_lqb_nonsimplifier_unary_partition_is_precise(offline_compiler_session):
+    session = offline_compiler_session
+    session.sql_simplifier_enabled = False
+    session._enable_multiline_queries()
+    df = session.sql("SELECT 1 AS A").filter(col("BAD") > 0)
+    df._plan.df_trace_nodes = [_trace_node(10)]
+    for index in range(12):
+        df = df.filter(col("A") > index).sort("A")
+        df._plan.df_trace_nodes = [_trace_node(100 + index)]
+    queries = df._plan.execution_queries[PlanQueryType.QUERIES]
+    assert len(queries) == 2
+    sql = queries[0].sql.strip()
+    offset = sql.index('"BAD"')
+    line = sql.count("\n", 0, offset) + 1
+    position = offset - sql.rfind("\n", 0, offset) - 1
+    message = get_python_source_from_sql_error(
+        df._plan,
+        f"SQL compilation error: error line {line} at position {position}",
+        queries[0].sql,
+    )
+    assert re.findall(r"f\.py: line (\d+)", message) == ["10"]
+
+
+@pytest.mark.parametrize("clone", [copy.copy, copy.deepcopy])
+@pytest.mark.parametrize("cte", [False, True])
+@pytest.mark.parametrize("simplifier", [False, True])
+def test_plan_copy_preserves_child_intervals(
+    offline_compiler_session, clone, cte, simplifier
+):
+    from snowflake.snowpark._internal.debug_utils import (
+        _get_cached_plan_from_line_number,
+    )
+
+    session = offline_compiler_session
+    session.sql_simplifier_enabled = simplifier
+    session._enable_multiline_queries()
+    child = session.sql("SELECT 1 AS A").filter(col("BAD") > 0)
+    child._plan.df_trace_nodes = [_trace_node(10)]
+    if child._select_statement is not None:
+        child._select_statement.df_trace_nodes = child._plan.df_trace_nodes
+    original = child.sort("A")._plan
+    session._cte_optimization_enabled = cte
+    intervals = list(original.queries[-1].query_line_intervals)
+    copied = clone(original)
+    assert original.queries[-1].query_line_intervals == intervals
+    assert copied.queries[-1] is not original.queries[-1]
+    assert copied.queries[-1].sql == original.queries[-1].sql
+    assert copied.queries[-1].params == original.queries[-1].params
+    assert len(copied.queries[-1].query_line_intervals) == len(intervals)
+    sql = copied.queries[-1].sql
+    line = sql.count("\n", 0, sql.index('"BAD"'))
+    owner = _get_cached_plan_from_line_number(copied, line)
+    assert owner is not None
+    assert owner.df_trace_nodes[0].src.start_line == 10
+    assert any(
+        interval.uuid == copied.uuid
+        for interval in copied.queries[-1].query_line_intervals
+    )
+
+
+@pytest.mark.parametrize("clone", [copy.copy, copy.deepcopy])
+@pytest.mark.parametrize("multiline", [False, True])
+def test_query_layout_provenance_survives_copy(
+    offline_compiler_session, clone, multiline
+):
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import BatchInsertQuery
+
+    session = offline_compiler_session
+    (
+        session._enable_multiline_queries
+        if multiline
+        else session._disable_multiline_queries
+    )()
+    queries = [Query("SELECT 1"), BatchInsertQuery("INSERT INTO T VALUES (?)")]
+    (
+        session._disable_multiline_queries
+        if multiline
+        else session._enable_multiline_queries
+    )()
+    for query in queries:
+        copied = clone(query)
+        assert copied._generated_with_multiline is multiline
+        assert query._generated_with_multiline is multiline
+        assert copied.sql == query.sql
+
+
+def test_lqb_provenance_rejects_retained_projection_layout(offline_compiler_session):
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
+    from snowflake.snowpark._internal.compiler.utils import update_resolvable_node
+
+    session = offline_compiler_session
+    session._enable_multiline_queries()
+    child = session.sql("SELECT 1 AS A")._select_statement
+    selectable = SelectStatement(
+        projection=[col("A")._expression, col("A").alias("B")._expression],
+        from_=child,
+        analyzer=session._analyzer,
+    )
+    # Expressions are cached in single-line mode, but both SQL strings and
+    # the SnowflakePlan are first generated after switching back to multiline.
+    session._disable_multiline_queries()
+    assert "\n" not in selectable.projection_in_str
+    session._enable_multiline_queries()
+    for copied in (selectable, copy.copy(selectable), copy.deepcopy(selectable)):
+        plan = copied.get_snowflake_plan(skip_schema_query=True)
+        assert plan.queries[-1]._generated_with_multiline
+        assert not plan.has_multiline_sql_provenance()
+        copied._is_valid_for_replacement = True
+        update_resolvable_node(copied, QueryGenerator(session))
+        assert not copied.get_snowflake_plan(
+            skip_schema_query=True
+        ).has_multiline_sql_provenance()
+
+
+@pytest.mark.parametrize("build_multiline", [False, True])
+@pytest.mark.parametrize("multiline", [False, True])
+@pytest.mark.parametrize("scoped", [False, True])
+def test_lqb_ctas_tracing_preserves_sql_bytes(
+    offline_compiler_session, build_multiline, multiline, scoped
+):
+    session = offline_compiler_session
+    session._use_scoped_temp_objects = scoped
+    queries = []
+    for trace in (False, True):
+        session.debug.set(trace_sql_errors_to_dataframe=trace)
+        (
+            session._enable_multiline_queries
+            if build_multiline
+            else session._disable_multiline_queries
+        )()
+        child = session.sql("SELECT ? AS A", params=[9])._plan
+        (
+            session._enable_multiline_queries
+            if multiline
+            else session._disable_multiline_queries
+        )()
+        plan = SnowflakeCreateTable(
+            ["T"],
+            None,
+            SaveMode.ERROR_IF_EXISTS,
+            child,
+            table_type="temp",
+            creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
+        )
+        generated = QueryGenerator(session).generate_queries([plan])
+        assert len(generated[PlanQueryType.QUERIES]) == 1
+        queries.append(generated[PlanQueryType.QUERIES][0])
+    assert queries[0].sql.encode() == queries[1].sql.encode()
+    assert queries[0].params == queries[1].params == [9]
+    assert queries[0].is_ddl_on_temp_object is queries[1].is_ddl_on_temp_object is True
+    assert ("SCOPED" in queries[0].sql) == scoped
+
+
 @pytest.mark.parametrize("multiline", [False, True])
 @pytest.mark.parametrize("trace_enabled", [False, True])
 @pytest.mark.parametrize("plan_count", [1, 2])
@@ -793,7 +1176,11 @@ def test_generate_queries_does_not_annotate_input_plans(
         lambda session, name: trace_enabled,
     )
     plans = [
-        SnowflakePlan([Query(f"SELECT {index}")], None, session=mock_session)
+        SnowflakePlan(
+            [Query(f"SELECT {index}", generated_with_multiline=multiline)],
+            None,
+            session=mock_session,
+        )
         for index in range(plan_count)
     ]
     generator = QueryGenerator(mock_session)
@@ -812,7 +1199,9 @@ def test_generate_queries_does_not_annotate_input_plans(
             if trace_enabled and plan_count > 1:
                 assert query is not original
                 if multiline:
-                    assert query.cte_segments == [CteSegment(0, len(query.sql), plan)]
+                    assert query.cte_segments == [
+                        CteSegment(0, len(query.sql), plan, cached_only=True)
+                    ]
                 else:
                     assert query.cte_segments is None
                     assert query.query_line_intervals == []

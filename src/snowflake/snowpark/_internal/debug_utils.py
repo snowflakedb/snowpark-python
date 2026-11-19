@@ -5,7 +5,7 @@
 from functools import cached_property
 import os
 import sys
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Union
 import itertools
 import re
 from typing import TYPE_CHECKING
@@ -15,6 +15,7 @@ from ast import literal_eval
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 
 UNKNOWN_FILE = "__UNKNOWN_FILE__"
 SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH = (
@@ -338,6 +339,94 @@ def _resolve_error_line(
     return None
 
 
+def _get_cached_plan_from_line_number(
+    plan: Union["SnowflakePlan", "Selectable"], line_number: int
+) -> Optional["SnowflakePlan"]:
+    """Descend a compiled query without resolving plans or generating SQL.
+
+    An LQB SetStatement can have cached SQL but no SnowflakePlan. Its operands
+    already have cached SQL; validate their exact placement before descending.
+    Missing or inconsistent metadata means no attribution, not a parent guess.
+    """
+    from snowflake.snowpark._internal.analyzer.binary_plan_node import SetOperation
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        Selectable,
+        SetStatement,
+    )
+
+    while True:
+        if isinstance(plan, Selectable):
+            cached = plan._snowflake_plan or getattr(plan, "_sql_error_plan", None)
+            if cached is not None:
+                plan = cached
+            elif isinstance(plan, SetStatement):
+                sql = plan._sql_query
+                if sql is None:
+                    return None
+                cursor = 0
+                selected = None
+                for operand in plan.set_operands:
+                    child = operand.selectable
+                    cached = child._snowflake_plan or getattr(
+                        child, "_sql_error_plan", None
+                    )
+                    child_sql = (
+                        cached.queries[-1].sql
+                        if cached is not None
+                        else getattr(child, "_sql_query", None)
+                    )
+                    prefix = (operand.operator or "") + "(\n"
+                    if child_sql is None or not sql.startswith(prefix, cursor):
+                        return None
+                    cursor += len(prefix)
+                    if not sql.startswith(child_sql, cursor):
+                        return None
+                    start_line = sql.count("\n", 0, cursor)
+                    end_line = start_line + child_sql.count("\n")
+                    if start_line <= line_number <= end_line:
+                        selected = child, line_number - start_line
+                    cursor += len(child_sql)
+                    if not sql.startswith("\n)", cursor):
+                        return None
+                    cursor += 2
+                if cursor != len(sql) or selected is None:
+                    return None
+                plan, line_number = selected
+                continue
+            else:
+                return None
+        interval = next(
+            (
+                interval
+                for interval in plan.queries[-1].query_line_intervals
+                if interval.start <= line_number <= interval.end
+            ),
+            None,
+        )
+        if interval is None:
+            return None
+        source = plan.source_plan
+        if isinstance(source, SetOperation):
+            # These renderers do not emit child UUID intervals. A self-owned
+            # interval cannot identify which operand caused the error.
+            return None
+        if interval.uuid == plan.uuid or (
+            isinstance(source, Selectable) and interval.uuid == source.uuid
+        ):
+            return plan
+        child = next(
+            (
+                child
+                for child in plan.children_plan_nodes
+                if child.uuid == interval.uuid
+            ),
+            None,
+        )
+        if child is None:
+            return None
+        plan, line_number = child, line_number - interval.start
+
+
 def get_python_source_from_sql_error(
     top_plan: "SnowflakePlan", error_msg: str, executed_sql: Optional[str] = None
 ) -> str:
@@ -384,11 +473,23 @@ def get_python_source_from_sql_error(
         get_plan_from_line_numbers,
     )
 
+    cached_only = any(
+        segment.cached_only and segment.plan is plan_root
+        for queries in (top_plan._last_execution_queries or {}).values()
+        for query in queries
+        for segment in (query.cte_segments or [])
+    )
     plan = (
         plan_root
         if line_number is None
-        else get_plan_from_line_numbers(plan_root, line_number)
+        else (
+            _get_cached_plan_from_line_number(plan_root, line_number)
+            if cached_only
+            else get_plan_from_line_numbers(plan_root, line_number)
+        )
     )
+    if plan is None:
+        return ""
     source_locations = _extract_source_locations_from_plan(plan, own_only=own_only)
 
     if source_locations:

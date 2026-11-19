@@ -138,9 +138,11 @@ class QueryGenerator(Analyzer):
                 )
                 last_query = copy.copy(last_query)
                 plan_queries[PlanQueryType.QUERIES][-1] = last_query
-                if snowflake_plan.session._generate_multiline_queries:
+                if snowflake_plan.has_multiline_sql_provenance():
                     last_query.cte_segments = [
-                        CteSegment(0, len(last_query.sql), snowflake_plan)
+                        CteSegment(
+                            0, len(last_query.sql), snowflake_plan, cached_only=True
+                        )
                     ]
                 else:
                     # An embedded child's single-line SQL can have different line
