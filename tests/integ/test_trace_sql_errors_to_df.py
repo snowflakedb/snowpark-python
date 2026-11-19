@@ -289,7 +289,8 @@ def _assert_maps_to(df, line):
 
 def test_line_less_error_join_using(session, simplifier):
     """A join USING a column that its left side does not have reports no error line: the
-    join is reported, not the operations before it that removed or renamed the column."""
+    join is reported, not the operations before it that removed or renamed the column.
+    """
     lookup = session.create_dataframe([(1, "Animal")], schema=["type", "category"])
 
     # an unrelated dataframe dropped its own TYPE column
@@ -324,6 +325,16 @@ def test_line_less_error_ticket_example(session):
         _assert_maps_to(filtered.join(lookup, on="TYPE"), line)
     finally:
         session.sql_simplifier_enabled = original
+
+
+@pytest.mark.parametrize("wrap_join", [False, True], ids=["top", "child"])
+def test_line_less_error_with_bind_parameters(session, simplifier, wrap_join):
+    left = session.sql("select ? as ID", params=[7])
+    right = session.sql("select ? as TYPE", params=[7])
+    join_line = Utils.get_current_line_number_sys() + 1
+    joined = left.join(right, on="TYPE")
+    result = joined.select("ID") if wrap_join else joined
+    _assert_maps_to(result, join_line)
 
 
 def test_line_less_error_in_child(session, simplifier):

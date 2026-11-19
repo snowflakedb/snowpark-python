@@ -409,7 +409,9 @@ _MAX_LINE_LESS_ERROR_DESCRIBES = 32
 
 
 def get_line_less_error_context(
-    top_plan: "SnowflakePlan", error: "snowflake.connector.errors.ProgrammingError"
+    top_plan: "SnowflakePlan",
+    error: "snowflake.connector.errors.ProgrammingError",
+    executed_sql: Optional[str] = None,
 ) -> str:
     """
     Map a SQL compilation error that has no line number to the DataFrame operations that
@@ -425,11 +427,43 @@ def get_line_less_error_context(
     Args:
         top_plan: The top level SnowflakePlan object that contains the SQL compilation error.
         error: The SQL compilation error.
+        executed_sql: The SQL that failed. Only an unambiguous failure of the plan's
+            own single query is supported, not pre-actions or compiler rewrites (CTE
+            optimization or large query breakdown). A schema-query failure requires
+            verifying the plan's own query within the same describe budget.
 
     Returns:
         Error message with the affected Python lines numbers if found, otherwise an empty string.
     """
     from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
+
+    # A matching error message from a child does not prove that the root query failed.
+    # In particular, an execution-time pre-action can fail before that query is sent.
+    if not executed_sql or len(top_plan.queries) != 1:
+        return ""
+    executed = executed_sql.strip()
+    main_query_failed = _same_query(executed, top_plan.queries[0].sql)
+    if not main_query_failed and (
+        top_plan._last_execution_queries is not None
+        or top_plan.schema_query is None
+        or not _same_query(executed, top_plan.schema_query)
+    ):
+        return ""
+    if any(_same_query(executed, query.sql) for query in top_plan.post_actions):
+        return ""
+    compiled = top_plan._last_execution_queries
+    if compiled is not None:
+        main_queries = compiled.get(PlanQueryType.QUERIES, [])
+        if (
+            len(main_queries) != 1
+            or not _same_query(executed, main_queries[0].sql)
+            or any(
+                _same_query(executed, query.sql)
+                for query in compiled.get(PlanQueryType.POST_ACTIONS, [])
+            )
+        ):
+            return ""
 
     def signature(err: "snowflake.connector.errors.ProgrammingError") -> Tuple:
         return err.errno, " ".join(
@@ -439,6 +473,22 @@ def get_line_less_error_context(
     target = signature(error)
     describes = 0
     source_locations: List[str] = []
+
+    if not main_query_failed:
+        query = top_plan.queries[0]
+        if (
+            _PLACEHOLDER.search(query.sql)
+            or describes >= _MAX_LINE_LESS_ERROR_DESCRIBES
+        ):
+            return ""
+        describes += 1
+        try:
+            top_plan.session._get_result_attributes(query.sql, query.params)
+        except snowflake.connector.errors.ProgrammingError as main_error:
+            if signature(main_error) != target:
+                return ""
+        else:
+            return ""
 
     def visit(node, owner_trace_nodes: List[TraceNode]) -> bool:
         nonlocal describes
@@ -464,7 +514,9 @@ def get_line_less_error_context(
                 return False
             describes += 1
             try:
-                top_plan.session._get_result_attributes(queries[0].sql)
+                top_plan.session._get_result_attributes(
+                    queries[0].sql, queries[0].params
+                )
             except snowflake.connector.errors.ProgrammingError as child_error:
                 if signature(child_error) != target:
                     return False

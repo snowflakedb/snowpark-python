@@ -209,7 +209,7 @@ class SnowflakePlan(LogicalPlan):
                                 and "already exists" not in e.msg
                             ):
                                 if line_less_error_context := get_line_less_error_context(
-                                    top_plan, e
+                                    top_plan, e, query
                                 ):
                                     debug_context_arr.append(line_less_error_context)
                             if trace_node is not None and debug_config.enabled(

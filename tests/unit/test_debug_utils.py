@@ -979,14 +979,17 @@ def _fake_plan(line, children=(), sql=None, queries=None, inherit=True):
     return types.SimpleNamespace(
         children_plan_nodes=list(children),
         df_trace_nodes=trace_nodes,
-        queries=queries or [types.SimpleNamespace(sql=sql or f"select {line}")],
+        queries=queries or [Query(sql or f"select {line}")],
+        post_actions=[],
+        _last_execution_queries=None,
+        schema_query=None,
     )
 
 
 def _line_less_context(top, failing_sql, other_error_sql=()):
     describes = []
 
-    def describe(sql):
+    def describe(sql, params):
         describes.append(sql)
         if sql in other_error_sql:
             raise _line_less_error("Object 'T' does not exist or not authorized.", 2003)
@@ -994,7 +997,10 @@ def _line_less_context(top, failing_sql, other_error_sql=()):
             raise _line_less_error()
 
     top.session = types.SimpleNamespace(_get_result_attributes=describe)
-    return get_line_less_error_context(top, _line_less_error()), describes
+    return (
+        get_line_less_error_context(top, _line_less_error(), top.queries[-1].sql),
+        describes,
+    )
 
 
 def test_line_less_error_reports_the_failing_child():
@@ -1079,3 +1085,241 @@ def test_line_less_error_describe_limit(monkeypatch):
     context, describes = _line_less_context(top, {"top"})
     assert context == ""
     assert describes == ["a"]
+
+
+@pytest.fixture
+def line_less_session(mock_server_connection):
+    from snowflake.snowpark import Session
+    from snowflake.snowpark._internal import debug_config
+
+    session = mock.create_autospec(Session)
+    session._conn = mock_server_connection
+    session._join_alias_fix = False
+    session._cte_optimization_enabled = False
+    session._query_compilation_stage_enabled = False
+    session._collect_snowflake_plan_telemetry_at_critical_path = False
+    session._last_canceled_id = 0
+    session._generate_new_action_id.return_value = 1
+    session._get_result_attributes = types.MethodType(
+        Session._get_result_attributes, session
+    )
+    session._debug = debug_config.DebugConfig(session)
+    session._debug.enable_trace_sql_errors_to_dataframe()
+    yield session
+    session._debug.set()
+
+
+@pytest.mark.parametrize("child_fails", [False, True])
+def test_line_less_error_describe_preserves_bindings(line_less_session, child_fails):
+    child = _fake_plan(10, queries=[Query("select ? as ID", params=[7])])
+    top = _fake_plan(20, [child], sql="top")
+    top.session = line_less_session
+    cursor = line_less_session._conn._cursor
+
+    def describe(sql, params=None):
+        assert sql == "select ? as ID"
+        assert params == [7]
+        if child_fails:
+            raise _line_less_error()
+        return []
+
+    cursor._describe_internal.side_effect = describe
+    context = get_line_less_error_context(top, _line_less_error(), "top")
+    assert f"f.py: line {10 if child_fails else 20}" in context
+    cursor._describe_internal.assert_called_once_with("select ? as ID", params=[7])
+
+
+@pytest.mark.parametrize("matching_child_error", [False, True])
+@pytest.mark.parametrize(
+    "layout",
+    [
+        "main",
+        "pre_action",
+        "multiquery_main",
+        "missing",
+        "unknown",
+        "schema",
+        "compiled_pre_action",
+        "compiled_main",
+        "compiled_with",
+        "compiled_unknown",
+        "duplicate_pre_action",
+        "duplicate_post_action",
+        "post_action",
+        "placeholder",
+    ],
+)
+def test_line_less_error_wrapper_checks_failed_query(
+    line_less_session, matching_child_error, layout
+):
+    from snowflake.snowpark.exceptions import SnowparkSQLException
+
+    session = line_less_session
+    server = session._conn
+    source = SnowflakePlan([Query("source SQL")], "source schema", session=session)
+    source.df_trace_nodes = [_trace_node(10)]
+    top = SnowflakePlan([Query("final SQL")], "top schema", session=session)
+    top.source_plan = types.SimpleNamespace(children=[source])
+    top.df_trace_nodes = source.df_trace_nodes + [_trace_node(20)]
+    queries = list(top.queries)
+    post_actions = []
+    executed_sql = "final SQL"
+    if layout in ("pre_action", "multiquery_main", "duplicate_pre_action"):
+        pre_sql = "final SQL" if layout == "duplicate_pre_action" else "pre-action SQL"
+        top.queries.insert(0, Query(pre_sql))
+        queries = list(top.queries)
+        executed_sql = "final SQL" if layout == "multiquery_main" else pre_sql
+    elif layout == "missing":
+        executed_sql = None
+    elif layout == "unknown":
+        executed_sql = "unknown SQL"
+    elif layout == "schema":
+        executed_sql = top.schema_query
+    elif layout in ("compiled_pre_action", "compiled_main"):
+        queries.insert(0, Query("compiled pre-action SQL"))
+        if layout == "compiled_pre_action":
+            executed_sql = queries[0].sql
+    elif layout == "compiled_with":
+        queries = [Query("WITH c AS (source SQL) SELECT * FROM c")]
+        executed_sql = queries[0].sql
+    elif layout == "compiled_unknown":
+        queries = [Query("unrelated compiled SQL")]
+    elif layout in ("post_action", "duplicate_post_action"):
+        post_actions = [
+            Query(
+                "final SQL" if layout == "duplicate_post_action" else "post-action SQL"
+            )
+        ]
+        top.post_actions = post_actions
+        executed_sql = post_actions[0].sql
+    elif layout == "placeholder":
+        top.queries = queries = [Query("select * from temp_name_placeholder_abc")]
+        executed_sql = ' select * from "DB"."SC".SNOWPARK_TEMP_TABLE_123 \n'
+    execution = {
+        PlanQueryType.QUERIES: queries,
+        PlanQueryType.POST_ACTIONS: post_actions,
+    }
+    error = _line_less_error()
+    error.query = executed_sql
+
+    def run_query(sql, *args, **kwargs):
+        if layout == "multiquery_main" and sql == "pre-action SQL":
+            return {"sfqid": "pre-action-id", "data": []}
+        raise error
+
+    server.run_query = mock.Mock(side_effect=run_query)
+    server._cursor._describe_internal.return_value = []
+    if matching_child_error:
+        server._cursor._describe_internal.side_effect = _line_less_error()
+
+    def execution_queries(plan):
+        # Match the compiler cache populated by the actual property.
+        plan._last_execution_queries = execution
+        return execution
+
+    with mock.patch.object(
+        SnowflakePlan, "execution_queries", property(execution_queries)
+    ):
+        with pytest.raises(SnowparkSQLException) as exc:
+            server.get_result_set(top)
+    assert exc.value.query == executed_sql
+    if layout in ("main", "placeholder"):
+        assert (
+            f"f.py: line {10 if matching_child_error else 20}"
+            in exc.value.debug_context
+        )
+        server._cursor._describe_internal.assert_called_once_with(
+            "source SQL", params=[]
+        )
+    else:
+        assert not exc.value.debug_context
+        server._cursor._describe_internal.assert_not_called()
+    if layout in ("pre_action", "duplicate_pre_action", "compiled_pre_action"):
+        assert server.run_query.call_count == 1
+        assert server.run_query.call_args.args[0] == queries[0].sql
+
+
+@pytest.mark.parametrize("executed_sql", [None, "", "unknown SQL"])
+def test_line_less_error_without_execution_cache_requires_provenance(executed_sql):
+    top = _fake_plan(1, sql="top")
+    top.session = mock.Mock()
+    assert get_line_less_error_context(top, _line_less_error(), executed_sql) == ""
+    top.session._get_result_attributes.assert_not_called()
+
+
+@pytest.mark.parametrize("main_result", ["same_error", "different_error", "success"])
+@pytest.mark.parametrize("budget", [0, 1, 2])
+def test_line_less_schema_error_verifies_main_query(
+    line_less_session, monkeypatch, main_result, budget
+):
+    from snowflake.snowpark.exceptions import SnowparkSQLException
+
+    monkeypatch.setattr(debug_utils, "_MAX_LINE_LESS_ERROR_DESCRIBES", budget)
+    child = SnowflakePlan(
+        [Query("child SQL")], "child schema", session=line_less_session
+    )
+    child.df_trace_nodes = [_trace_node(10)]
+    top = SnowflakePlan(
+        [Query("select ? as ID", params=[7])], "schema SQL", session=line_less_session
+    )
+    top.source_plan = types.SimpleNamespace(children=[child])
+    top.df_trace_nodes = child.df_trace_nodes + [_trace_node(20)]
+    error = _line_less_error()
+    error.query = "schema SQL"
+
+    @SnowflakePlan.Decorator.wrap_exception
+    def fail_schema(plan):
+        raise error
+
+    def describe(sql, params):
+        if sql == "select ? as ID":
+            assert params == [7]
+            if main_result == "same_error":
+                raise _line_less_error()
+            if main_result == "different_error":
+                raise _line_less_error("different error")
+        else:
+            assert sql == "child SQL"
+        return []
+
+    cursor = line_less_session._conn._cursor
+    cursor._describe_internal.side_effect = describe
+    with pytest.raises(SnowparkSQLException) as exc:
+        fail_schema(top)
+    if main_result == "same_error" and budget == 2:
+        assert "f.py: line 20" in exc.value.debug_context
+        assert "f.py: line 10" not in exc.value.debug_context
+    else:
+        assert not exc.value.debug_context
+    expected_describes = min(budget, 2 if main_result == "same_error" else 1)
+    assert cursor._describe_internal.call_count == expected_describes
+
+
+@pytest.mark.parametrize("child_count", [32, 33])
+def test_line_less_error_describe_budget_and_listeners(line_less_session, child_count):
+    from snowflake.snowpark.query_history import QueryHistory
+
+    session = line_less_session
+    server = session._conn
+    included = QueryHistory(session, include_describe=True, include_error=True)
+    excluded = QueryHistory(session, include_describe=False, include_error=True)
+    server.add_query_listener(included)
+    server.add_query_listener(excluded)
+    server._cursor._describe_internal.return_value = []
+    top = _fake_plan(100, [_fake_plan(index + 1) for index in range(child_count)])
+    top.session = session
+    context = get_line_less_error_context(top, _line_less_error(), top.queries[0].sql)
+    assert bool(context) == (child_count == 32)
+    assert server._cursor._describe_internal.call_count == 32
+    assert len(included.queries) == 32
+    assert not excluded.queries
+    included.queries.clear()
+    server._cursor._describe_internal.side_effect = _line_less_error()
+    top = _fake_plan(20, [_fake_plan(10)])
+    top.session = session
+    assert "f.py: line 10" in get_line_less_error_context(
+        top, _line_less_error(), top.queries[0].sql
+    )
+    # Failed describes do not notify listeners, even with include_error=True.
+    assert not included.queries
+    assert not excluded.queries
