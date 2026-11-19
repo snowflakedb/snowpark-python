@@ -661,7 +661,14 @@ def test_postgres_unbounded_numeric(session, postgres_udtf_configs):
 
 @pytest.mark.parametrize(
     "query",
-    ["select 1 as s;", "select 1 as s -- trailing comment", "select 1 as s; \n"],
+    [
+        "select 1 as s;",
+        "select 1 as s -- trailing comment",
+        "select 1 as s; \n",
+        "select 1 as s; -- trailing comment",
+        "select 1 as s; /* trailing comment */",
+        "select 1 as s; /* outer /* nested */ comment */ -- end",
+    ],
 )
 def test_postgres_query_trailing_semicolon_and_comment(
     session, postgres_udtf_configs, query
