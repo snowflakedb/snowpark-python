@@ -421,6 +421,7 @@ def test_connect_postgres(session, postgres_udtf_configs):
 def test_postgres_session_init_statement(
     session, postgres_udtf_configs, session_init_statement
 ):
+    # Inference must time out inside jdbc(), before a DataFrame can be returned.
     with pytest.raises(
         SnowparkSQLException,
         match="canceling statement due to user request",
@@ -431,7 +432,7 @@ def test_postgres_session_init_statement(
             query=POSTGRES_SELECT_QUERY,
             query_timeout=1,
             session_init_statement=session_init_statement,
-        ).collect()
+        )
 
 
 def test_telemetry(session, udtf_configs):
