@@ -992,8 +992,11 @@ class DataFrameReader:
                 and are converted to a :class:`~snowflake.snowpark.types.StructType`. A DDL string
                 uses Snowflake type names, so ``TIMESTAMP`` follows the ``TIMESTAMP_TYPE_MAPPING``
                 of the session, and Spark names such as ``TINYINT`` and backtick-quoted column
-                names are accepted. A PySpark ``StructType`` follows Spark: ``TimestampType`` is
-                ``TIMESTAMP_LTZ`` and ``TimestampNTZType`` is ``TIMESTAMP_NTZ``.
+                names are accepted. Double-quoted names follow the rules of the names passed to
+                ``StructField``, so ``"CaseSens"`` is the same as ``CaseSens``, and names that need
+                quoting, such as ones with spaces, keep their exact spelling. A PySpark
+                ``StructType`` follows Spark: ``TimestampType`` is ``TIMESTAMP_LTZ`` and
+                ``TimestampNTZType`` is ``TIMESTAMP_NTZ``.
 
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.

@@ -1975,6 +1975,46 @@ def test_type_string_to_type_object_comment_literals():
     assert type_string_to_type_object("character(4)") == StringType(4)
 
 
+def test_type_string_to_type_object_quoted_names_with_whitespace():
+    schema = type_string_to_type_object(
+        '"my col" STRING, a INT, "x, y" decimal(10, 2) NOT NULL, "q""r"  BOOLEAN'
+    )
+    assert [f._name for f in schema.fields] == [
+        '"my col"',
+        "a",
+        '"x, y"',
+        '"q""r"',
+    ]
+    assert [f.datatype for f in schema.fields] == [
+        StringType(),
+        IntegerType(),
+        DecimalType(10, 2),
+        BooleanType(),
+    ]
+    assert [f.nullable for f in schema.fields] == [True, True, False, True]
+    nested = type_string_to_type_object('s struct<"a b" int>')
+    assert nested.fields[0].datatype.fields[0]._name == '"a b"'
+    with pytest.raises(ValueError, match="Cannot parse struct field definition"):
+        type_string_to_type_object('"a b"')
+
+
+@pytest.mark.parametrize(
+    "type_str",
+    ['a INT COMMENT "x"', 'a INT COMMENT"x", b INT', 's STRUCT<a: INT COMMENT "x">'],
+)
+def test_type_string_to_type_object_double_quoted_comment(type_str):
+    with pytest.raises(ValueError, match="must be single-quoted"):
+        type_string_to_type_object(type_str)
+
+
+def test_type_string_to_type_object_double_quotes_are_otherwise_identifiers():
+    # a name that contains the word comment, and a field called comment
+    schema = type_string_to_type_object('"my comment ""x""" INT, comment STRING')
+    assert [f._name for f in schema.fields] == ['"my comment ""x"""', "comment"]
+    schema = type_string_to_type_object('"comment" INT, a INT COMMENT \'it"s\'')
+    assert [f._name for f in schema.fields] == ['"comment"', "a"]
+
+
 def test_type_string_to_type_object_spark_ddl_schema():
     schema = type_string_to_type_object(
         "id tinyint, name char(3) NOT NULL COMMENT 'a, b: it''s \\'x\\'', "

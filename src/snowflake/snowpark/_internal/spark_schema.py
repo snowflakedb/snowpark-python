@@ -11,6 +11,10 @@ from typing import Any, Dict, Optional
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 
+from snowflake.snowpark._internal.type_utils import (
+    _follows_comment_keyword,
+    _scan_quoted_string_literal,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -154,21 +158,21 @@ def spark_ddl_identifiers_to_snowflake(ddl: str) -> str:
     i = 0
     while i < len(ddl):
         ch = ddl[i]
-        if ch == '"' or (
-            ch == "'" and re.search(r"(?i)(?:^|\s)comment\s*$", "".join(result))
-        ):
-            # copy a quoted string, where a quote is escaped by doubling it (or by a backslash)
+        if ch == "'" and _follows_comment_keyword(ddl, i):
+            # copy the string literal of a column comment
+            end = _scan_quoted_string_literal(ddl, i)
+            result.append(ddl[i:end])
+            i = end
+        elif ch == '"':
+            # copy a quoted identifier, where a quote is escaped by doubling it
             j = i + 1
             while j < len(ddl):
-                if ddl[j] == "\\" and ch == "'":
-                    j += 2
-                elif ddl[j] == ch:
-                    if ddl[j + 1 : j + 2] == ch:
+                if ddl[j] == '"':
+                    if ddl[j + 1 : j + 2] == '"':
                         j += 2
-                    else:
-                        break
-                else:
-                    j += 1
+                        continue
+                    break
+                j += 1
             result.append(ddl[i : j + 1])
             i = j + 1
         elif ch == "`":
@@ -236,12 +240,8 @@ def unquote_field_names(datatype: DataType) -> DataType:
         )
     if isinstance(datatype, MapType):
         return MapType(
-            None
-            if datatype.key_type is None
-            else unquote_field_names(datatype.key_type),
-            None
-            if datatype.value_type is None
-            else unquote_field_names(datatype.value_type),
+            unquote_field_names(datatype.key_type),
+            unquote_field_names(datatype.value_type),
             structured=datatype.structured,
             value_contains_null=datatype.value_contains_null,
         )

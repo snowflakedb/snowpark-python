@@ -1438,11 +1438,22 @@ def parse_struct_field_list(fields_str: str) -> Optional[StructType]:
             left = field_def[:colon_index]
             right = field_def[colon_index + 1 :]
         else:
-            # No top-level colon => fallback to whitespace-based split
-            parts = field_def.split(None, 1)
-            if len(parts) != 2:
-                raise ValueError(f"Cannot parse struct field definition: '{field_def}'")
-            left, right = parts[0], parts[1]
+            # No top-level colon => fallback to whitespace-based split, where a name
+            # in double quotes can contain whitespace
+            if field_def.lstrip().startswith('"'):
+                try:
+                    left, right = _split_object_field(field_def)
+                except ValueError:
+                    raise ValueError(
+                        f"Cannot parse struct field definition: '{field_def}'"
+                    )
+            else:
+                parts = field_def.split(None, 1)
+                if len(parts) != 2:
+                    raise ValueError(
+                        f"Cannot parse struct field definition: '{field_def}'"
+                    )
+                left, right = parts[0], parts[1]
 
         field_name = left.strip()
         type_part = right.strip()
@@ -1552,7 +1563,6 @@ _STRUCTURED_TYPE_KEYWORDS = frozenset({"OBJECT", "MAP", "ARRAY"})
 
 _SF_EXTRA_TYPE_MAPPINGS = {
     "text": StringType,
-    "real": DoubleType,
     "fixed": LongType,
 }
 
@@ -1819,10 +1829,33 @@ def _parse_structured_type_str(type_str: str, max_string_size: int) -> DataType:
     return convert_sf_to_sp_type(base_upper, precision, scale, 0, max_string_size)
 
 
+def _check_comment_literals_are_single_quoted(type_str: str) -> None:
+    """Raises a ValueError for ``COMMENT "..."``. Double quotes are identifiers in type strings."""
+    i = 0
+    while i < len(type_str):
+        c = type_str[i]
+        if c == "'" and _follows_comment_keyword(type_str, i):
+            i = _scan_quoted_string_literal(type_str, i)
+            continue
+        if c == '"':
+            if _follows_comment_keyword(type_str, i):
+                raise ValueError(
+                    "COMMENT literals in schema strings must be single-quoted, "
+                    f"got: {type_str!r}"
+                )
+            try:
+                i = _scan_quoted_identifier(type_str, i)
+            except ValueError:  # reported when the string is parsed
+                return
+            continue
+        i += 1
+
+
 def type_string_to_type_object(type_str: str) -> DataType:
     type_str = type_str.strip()
     if not type_str:
         raise ValueError("Empty type string")
+    _check_comment_literals_are_single_quoted(type_str)
 
     # First check if this might be a top-level multi-field struct
     #    (e.g. "a: int, b: string") even if not written as "struct<...>"

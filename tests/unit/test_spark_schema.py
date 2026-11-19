@@ -438,3 +438,22 @@ def test_spark_json_to_snowpark_type_errors():
     ) as exc_info:
         spark_json_to_snowpark_type("void")
     assert "custom data source" not in str(exc_info.value)
+
+
+def test_double_quoted_names_follow_the_rules_of_struct_field_names(session):
+    schema = session.read.schema(
+        '"CaseSens" INT, "my col" INT, "UPPER" INT'
+    )._user_schema
+    expected = StructType(
+        [
+            StructField("CaseSens", IntegerType()),
+            StructField("my col", IntegerType()),
+            StructField("UPPER", IntegerType()),
+        ]
+    )
+    assert schema == expected
+    assert [f.name for f in schema.fields] == ["CASESENS", '"my col"', "UPPER"]
+    assert (
+        schema
+        == session.read.schema("CaseSens INT, `my col` INT, UPPER INT")._user_schema
+    )
