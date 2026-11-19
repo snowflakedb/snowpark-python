@@ -1965,8 +1965,8 @@ def test_type_string_to_type_object_comment_literals():
     # brackets in the comment of a field of a struct type
     schema = type_string_to_type_object("s STRUCT<a: INT COMMENT 'x>y', b: STRING>")
     assert [f.name for f in schema.fields[0].datatype.fields] == ["A", "B"]
-    # no space before the quote, and double-quoted comments
-    schema = type_string_to_type_object("a INT COMMENT'x', b INT COMMENT \"it's, ok\"")
+    # no space before the quote
+    schema = type_string_to_type_object("a INT COMMENT'x', b INT COMMENT 'it''s, ok'")
     assert [f.name for f in schema.fields] == ["A", "B"]
     assert [f.nullable for f in schema.fields] == [True, True]
     assert type_string_to_type_object("c CHARACTER(4)").fields[

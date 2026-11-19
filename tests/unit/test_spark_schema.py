@@ -264,10 +264,34 @@ def _names(schema):
     return result
 
 
-def test_ddl_schema_has_the_field_names_of_the_equivalent_struct_type(session):
+def _field_state(schema):
+    result = []
+    for field in schema.fields:
+        datatype = field.datatype
+        nested = None
+        if isinstance(datatype, ArrayType):
+            datatype = datatype.element_type
+        if isinstance(datatype, StructType):
+            nested = _field_state(datatype)
+        result.append(
+            (
+                field._name,
+                field.name,
+                field.original_column_identifier,
+                field.column_identifier.quoted_name,
+                field.nullable,
+                nested,
+            )
+        )
+    return result
+
+
+def test_ddl_schema_is_the_equivalent_struct_type(session):
     schema = session.read.schema(DDL)._user_schema
     expected = _equivalent_struct_type()
-    assert _names(schema) == _names(expected)
+    assert schema == expected
+    assert _field_state(schema) == _field_state(expected)
+    assert schema.simple_string() == expected.simple_string()
     assert _names(schema) == [
         "id",
         "my col",
@@ -278,17 +302,33 @@ def test_ddl_schema_has_the_field_names_of_the_equivalent_struct_type(session):
         "arr",
         ["d e"],
     ]
-    assert [f.nullable for f in schema.fields] == [f.nullable for f in expected.fields]
-    assert [f.datatype for f in schema.fields[:3]] == [
-        f.datatype for f in expected.fields[:3]
-    ]
-    # a quoted name stays case-sensitive, and the others are not
+    # a name that is quoted only to be case-sensitive is the same field as the unquoted name
     assert [f.name for f in schema.fields[:4]] == [
         "ID",
         '"my col"',
         "CAMELCASE",
-        '"CaseSens"',
+        "CASESENS",
     ]
+
+
+def test_ddl_schema_keeps_the_attributes_of_nested_types(session):
+    schema = session.read.schema(
+        "m MAP<STRING, STRUCT<`a b`: INT>>, arr ARRAY<STRUCT<`c d`: INT>> NOT NULL"
+    )._user_schema
+    assert schema == StructType(
+        [
+            StructField(
+                "m",
+                MapType(StringType(), StructType([StructField("a b", IntegerType())])),
+            ),
+            StructField(
+                "arr",
+                ArrayType(StructType([StructField("c d", IntegerType())])),
+                nullable=False,
+            ),
+        ]
+    )
+    assert schema.fields[0].datatype.value_type.fields[0]._name == "a b"
 
 
 def test_ddl_schema_is_read_like_the_equivalent_struct_type(session):
@@ -331,23 +371,34 @@ def test_ddl_schema_ast_is_the_same_as_for_the_equivalent_struct_type(session):
     set_ast_state(AstFlagSource.TEST, True)
     session.ast_enabled = True
     try:
-        ddl_ast = session.read.schema(
-            "id INT, `camelCase` STRING NOT NULL, s STRUCT<a: INT>"
-        )._ast.dataframe_reader.schema
-        struct_ast = session.read.schema(
-            StructType(
-                [
-                    StructField("id", IntegerType()),
-                    StructField("camelCase", StringType(), nullable=False),
-                    StructField("s", StructType([StructField("a", IntegerType())])),
-                ]
-            )
-        )._ast.dataframe_reader.schema
+        ddl_reader = session.read.schema(DDL)
+        struct_reader = session.read.schema(_equivalent_struct_type())
+        ddl_ast = ddl_reader._ast.dataframe_reader.schema
+        struct_ast = struct_reader._ast.dataframe_reader.schema
         assert ddl_ast.ByteSize() > 0
         assert ddl_ast == struct_ast
-        # a quoted name is a quoted identifier in the AST, which is how it stays case-sensitive
-        quoted_ast = session.read.schema('"CaseSens" INT')._ast.dataframe_reader.schema
-        assert quoted_ast.fields[0].column_identifier.column_name.name == '"CaseSens"'
+        names = [f.column_identifier.column_name.name for f in ddl_ast.fields]
+        assert names == ["id", "my col", "camelCase", "CaseSens", "s", "arr"]
+
+        # the schema that is rebuilt from the AST is read like the live one
+        replayed = StructType(
+            [
+                StructField(
+                    ast_field.column_identifier.column_name.name,
+                    live.datatype,
+                    ast_field.nullable,
+                )
+                for ast_field, live in zip(
+                    ddl_ast.fields, ddl_reader._user_schema.fields
+                )
+            ]
+        )
+        live_result = ddl_reader._get_schema_from_user_input(ddl_reader._user_schema)
+        replayed_result = ddl_reader._get_schema_from_user_input(replayed)
+        assert live_result[1] == replayed_result[1]
+        assert live_result[2] == replayed_result[2]
+        assert '$1:"my col"::' in live_result[2][1]
+        assert '$1:"CaseSens"::' in live_result[2][3]
     finally:
         set_ast_state(AstFlagSource.TEST, original)
         session.ast_enabled = original
@@ -369,3 +420,21 @@ def test_ddl_schema_is_read_from_csv_like_the_equivalent_struct_type(session):
     ]
     assert result[1] == expected_result[1]
     assert result[2] == expected_result[2]
+
+
+def test_spark_ddl_identifiers_to_snowflake_identifier_checks():
+    # the whole name must be a simple identifier to be unquoted
+    assert translate("`abc\n` INT") == '"abc\n": INT'
+    with pytest.raises(ValueError, match="Empty backtick-quoted identifier"):
+        translate("`` INT")
+
+
+def test_spark_json_to_snowpark_type_errors():
+    with pytest.raises(NotImplementedError, match="negative scale") as exc_info:
+        spark_json_to_snowpark_type("decimal(10,-2)")
+    assert "custom data source" not in str(exc_info.value)
+    with pytest.raises(
+        NotImplementedError, match="not supported by Snowpark.$"
+    ) as exc_info:
+        spark_json_to_snowpark_type("void")
+    assert "custom data source" not in str(exc_info.value)

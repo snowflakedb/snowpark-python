@@ -70,7 +70,7 @@ def is_pyspark_struct_type(obj: Any) -> bool:
 
 def _unsupported(spark_type: Any) -> NotImplementedError:
     return NotImplementedError(
-        f"Spark type {spark_type!r} is not supported by Snowpark custom data sources."
+        f"Spark type {spark_type!r} is not supported by Snowpark."
     )
 
 
@@ -89,6 +89,10 @@ def spark_json_to_snowpark_type(spark_type: Any) -> DataType:
             return DecimalType(10, 0)
         match = _SPARK_DECIMAL.fullmatch(name)
         if match:
+            if int(match.group(2)) < 0:
+                raise NotImplementedError(
+                    f"Spark type {spark_type!r} has a negative scale, which Snowpark doesn't support."
+                )
             return DecimalType(int(match.group(1)), int(match.group(2)))
         match = _SPARK_CHAR.fullmatch(name)
         if match:
@@ -137,7 +141,7 @@ def pyspark_struct_type_to_snowpark(schema: Any) -> StructType:
     return spark_json_to_snowpark_schema(schema.jsonValue())
 
 
-_SIMPLE_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*$")
+_SIMPLE_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*")
 
 
 def spark_ddl_identifiers_to_snowflake(ddl: str) -> str:
@@ -184,8 +188,12 @@ def spark_ddl_identifiers_to_snowflake(ddl: str) -> str:
                     f"Unterminated backtick-quoted identifier in the schema: {ddl!r}"
                 )
             name = "".join(name)
+            if not name:
+                raise ValueError(
+                    f"Empty backtick-quoted identifier in the schema: {ddl!r}"
+                )
             i = j + 1
-            if _SIMPLE_IDENTIFIER.match(name):
+            if _SIMPLE_IDENTIFIER.fullmatch(name):
                 # backticks only escape in Spark, so this is the same as the unquoted name
                 result.append(name)
                 if ddl[i : i + 1] not in ("", ":") and not ddl[i : i + 1].isspace():
@@ -200,20 +208,41 @@ def spark_ddl_identifiers_to_snowflake(ddl: str) -> str:
     return "".join(result)
 
 
-def unquote_field_names(datatype: DataType) -> None:
-    """Replaces the quoted names of the fields of a schema parsed from a DDL string, such as
-    ``'"my col"'``, by the names themselves, in place and in nested types. Readers expect
-    ``StructField._name`` to be the name as it is in the data, like in
-    ``StructField("my col", ...)``, and quote it themselves. ``StructField.name`` still
-    follows the quoted identifier, so a quoted name stays case-sensitive."""
+def unquote_field_names(datatype: DataType) -> DataType:
+    """Rebuilds a schema parsed from a DDL string, such as ``'"my col" STRING'``, with the
+    fields that ``StructField("my col", StringType())`` creates, recursively in nested types.
+    The parser keeps the quotes in the name of a quoted field, but readers and the AST expect
+    the name as it is in the data. A name that is quoted only to be case-sensitive becomes
+    the same field as the unquoted name, like the fields of a PySpark ``StructType``."""
     if isinstance(datatype, StructType):
-        for field in datatype.fields:
-            field._name = unquote_if_quoted(field._name)
-            unquote_field_names(field.datatype)
-    elif isinstance(datatype, ArrayType):
-        if datatype.element_type is not None:
-            unquote_field_names(datatype.element_type)
-    elif isinstance(datatype, MapType):
-        for nested in (datatype.key_type, datatype.value_type):
-            if nested is not None:
-                unquote_field_names(nested)
+        return StructType(
+            [
+                StructField(
+                    unquote_if_quoted(field._name),
+                    unquote_field_names(field.datatype),
+                    field.nullable,
+                )
+                for field in datatype.fields
+            ],
+            structured=datatype.structured,
+        )
+    if isinstance(datatype, ArrayType):
+        return ArrayType(
+            None
+            if datatype.element_type is None
+            else unquote_field_names(datatype.element_type),
+            structured=datatype.structured,
+            contains_null=datatype.contains_null,
+        )
+    if isinstance(datatype, MapType):
+        return MapType(
+            None
+            if datatype.key_type is None
+            else unquote_field_names(datatype.key_type),
+            None
+            if datatype.value_type is None
+            else unquote_field_names(datatype.value_type),
+            structured=datatype.structured,
+            value_contains_null=datatype.value_contains_null,
+        )
+    return datatype

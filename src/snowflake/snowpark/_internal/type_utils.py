@@ -1301,8 +1301,7 @@ _NOT_NULL_PATTERN = re.compile(r"^(?P<base>.*?)\s+not\s+null\s*$", re.IGNORECASE
 # a trailing Spark DDL column comment like "COMMENT 'the id'", where a quote is escaped by
 # doubling it or by a backslash
 _COMMENT_PATTERN = re.compile(
-    r"^(?P<base>.*?)\s+comment\s*(?:'(?:[^'\\]|\\.|'')*'|\"(?:[^\"\\]|\\.|\"\")*\")\s*$",
-    re.IGNORECASE | re.DOTALL,
+    r"^(?P<base>.*?)\s+comment\s*'(?:[^'\\]|\\.|'')*'\s*$", re.IGNORECASE | re.DOTALL
 )
 
 

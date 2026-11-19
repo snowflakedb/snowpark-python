@@ -1002,7 +1002,7 @@ class DataFrameReader:
             schema = DataSourcePartitioner.formatting_custom_schema(
                 spark_ddl_identifiers_to_snowflake(schema)
             )
-            unquote_field_names(schema)
+            schema = unquote_field_names(schema)
         elif is_pyspark_struct_type(schema):
             schema = pyspark_struct_type_to_snowpark(schema)
 

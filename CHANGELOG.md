@@ -12,7 +12,7 @@
 #### Improvements
 
 - `DataFrameReader.schema()` now also accepts a DDL string such as ``"id INT, `my col` STRING"``, which is converted to a `StructType`. Backtick-quoted column names are supported: a name that needs quoting becomes a quoted identifier, and other names are the same as without backticks. It also accepts a `pyspark.sql.types.StructType`, which Snowpark converts without importing PySpark.
-- Type strings, such as DDL schema strings and the type names passed to `Column.cast`, now accept the Spark type names `TINYINT`, `CHAR(n)`, `CHARACTER(n)`, `REAL`, `DEC` and `DEC(p, s)`, the Snowflake type names `FLOAT4` and `FLOAT8`, and `COMMENT '...'` after a field in a schema string.
+- Type strings, such as DDL schema strings and the type names passed to `Column.cast`, now accept the Spark type names `TINYINT`, `CHAR(n)`, `CHARACTER(n)`, `DEC` and `DEC(p, s)`, the Snowflake type names `FLOAT4`, `FLOAT8` and `REAL` (all of which are `FLOAT`), and `COMMENT '...'` after a field in a schema string.
 - `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.
 
 #### Bug Fixes
