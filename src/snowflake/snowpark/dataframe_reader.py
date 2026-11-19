@@ -1405,6 +1405,13 @@ class DataFrameReader:
         """Specify the path of the document(s) to read: the files are parsed to text, or
         a schema or a prompt turns the read into an extraction of structured values.
 
+        One call turns a folder of documents into a DataFrame, with one row per document.
+        The reader does the pipeline work you would otherwise write yourself: it splits long
+        PDFs into page ranges that fit the model's input limit and puts the results back
+        together, processes the files in parallel, and records a failed document in its
+        own row instead of failing the whole read. The result is an ordinary DataFrame,
+        so you can join it with other tables or save it with ``save_as_table``.
+
         The reader chooses the model and how a long document is split across model calls;
         none of that is configurable. Options set with :meth:`option` or :meth:`options`
         (names are case-insensitive, any other option is ignored):
@@ -1487,75 +1494,68 @@ class DataFrameReader:
             ``prompt`` only, every file in the path is sent to the model, and a file it
             cannot read gets an error in its ``_document_error``.
 
+        Note:
+            The documents can be on an internal stage or on an external stage, such as one
+            on an Amazon S3 bucket, Azure container or Google Cloud Storage bucket, so you
+            can read files where they already are. A stage path ending in ``/`` reads
+            every file under that path. Files from other systems, such as SharePoint, have
+            to be copied to a stage first.
+
         Args:
             path: The stage location of a document, or a stage location that has documents.
 
         Example::
 
-            >>> # Upload a folder of invoice PDFs to a stage.
-            >>> _ = session.sql("CREATE STAGE IF NOT EXISTS invoice_stage").collect()  # doctest: +SKIP
+            >>> # Upload a folder of call-center transcripts to a stage.
+            >>> _ = session.sql("CREATE STAGE IF NOT EXISTS call_stage").collect()  # doctest: +SKIP
             >>> _ = session.file.put(  # doctest: +SKIP
-            ...     "invoices/*.pdf", "@invoice_stage/invoices/", auto_compress=False
+            ...     "transcripts/*.txt", "@call_stage/transcripts/", auto_compress=False
             ... )
 
-            >>> # Extract the same fields from every invoice and save them to a table.
-            >>> # Each field's description is its question to the model: say what the
-            >>> # field is, and what it is not when a document has look-alike values.
+            >>> # Extract the same fields from every call and save them to a table.
+            >>> # Each field's description is its question to the model. The prompt
+            >>> # gives context that applies to every field.
             >>> schema = {  # doctest: +SKIP
             ...     "type": "object",
             ...     "properties": {
-            ...         "vendor_name": {
+            ...         "call_type": {
             ...             "type": "string",
-            ...             "description": "The legal name of the company that issued the invoice.",
+            ...             "enum": ["billing", "service", "outage", "other"],
+            ...             "description": "Why the customer called.",
             ...         },
-            ...         "invoice_number": {
+            ...         "sentiment": {
             ...             "type": "string",
-            ...             "description": "The invoice number. Not the purchase order (PO) number.",
+            ...             "enum": ["positive", "neutral", "negative"],
+            ...             "description": "The customer's sentiment at the end of the call.",
             ...         },
-            ...         "invoice_date": {
+            ...         "resolved": {
+            ...             "type": "boolean",
+            ...             "description": "Whether the customer's issue was resolved during the call.",
+            ...         },
+            ...         "summary": {
             ...             "type": "string",
-            ...             "description": "The date the invoice was issued, as YYYY-MM-DD.",
-            ...         },
-            ...         "currency": {
-            ...             "type": "string",
-            ...             "enum": ["USD", "EUR", "GBP"],
-            ...             "description": "The currency of the amounts on the invoice.",
-            ...         },
-            ...         "total_due": {
-            ...             "type": "number",
-            ...             "description": "The final amount due, including tax.",
-            ...         },
-            ...         "line_items": {
-            ...             "type": "array",
-            ...             "description": "Every row of the line-item table, from all pages.",
-            ...             "items": {
-            ...                 "type": "object",
-            ...                 "properties": {
-            ...                     "description": {"type": "string"},
-            ...                     "quantity": {"type": "number"},
-            ...                     "amount": {
-            ...                         "type": "number",
-            ...                         "description": "The line total, not the unit price.",
-            ...                     },
-            ...                 },
-            ...             },
+            ...             "description": "What happened on the call, in one or two sentences.",
             ...         },
             ...     },
             ... }
-            >>> df = session.read.option("schema", schema).documents("@invoice_stage/invoices/")  # doctest: +SKIP
-            >>> df.write.save_as_table("invoices_extracted", mode="overwrite")  # doctest: +SKIP
-            >>> session.table("invoices_extracted").select(  # doctest: +SKIP
-            ...     "SOURCE_FILE", "VENDOR_NAME", "INVOICE_NUMBER", "CURRENCY", "TOTAL_DUE", '"_document_error"'
+            >>> df = (  # doctest: +SKIP
+            ...     session.read.option("schema", schema)
+            ...     .option("prompt", "Each file is a transcript of a call between an energy company's representative and a customer.")
+            ...     .documents("@call_stage/transcripts/")
+            ... )
+            >>> df.write.save_as_table("calls_extracted", mode="overwrite")  # doctest: +SKIP
+            >>> session.table("calls_extracted").select(  # doctest: +SKIP
+            ...     "SOURCE_FILE", "CALL_TYPE", "SENTIMENT", "RESOLVED", '"_document_error"'
             ... ).show()
 
-            >>> # Ask a question about each document and get the answer as text.
+            >>> # Ask a question about each call and get the answer as text.
             >>> df = session.read.option(  # doctest: +SKIP
-            ...     "prompt", "What are the payment terms, and on what date is payment due? Answer in one sentence."
-            ... ).documents("@invoice_stage/invoices/")
+            ...     "prompt", "Did the representative offer a payment plan? Answer yes or no, then explain in one sentence."
+            ... ).documents("@call_stage/transcripts/")
             >>> df.select("SOURCE_FILE", "RESPONSE").show()  # doctest: +SKIP
 
             >>> # Parse every document to text, for example to build a search index.
-            >>> df = session.read.documents("@invoice_stage/invoices/")  # doctest: +SKIP
+            >>> df = session.read.documents("@doc_stage/contracts/")  # doctest: +SKIP
             >>> df.select("SOURCE_FILE", "TOTAL_PAGES", "CONTENT").show()  # doctest: +SKIP
         """
         if isinstance(self._session._conn, MockServerConnection):
