@@ -86,7 +86,11 @@ from snowflake.snowpark._internal.select_projection_complexity_utils import (
     has_invalid_projection_merge_functions,
 )
 from snowflake.snowpark._internal import debug_config
-from snowflake.snowpark._internal.df_trace import note_trace_seed, tracing_flags_on
+from snowflake.snowpark._internal.df_trace import (
+    is_tracing_enabled,
+    note_trace_seed,
+    tracing_flags_on,
+)
 from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
     is_sql_select_statement,
@@ -977,7 +981,7 @@ class SelectStatement(Selectable):
         self._projection_nodes: Optional[Tuple[Any, List[Any]]] = None
         self._where_nodes: Optional[Tuple[Any, List[Tuple[Expression, Any]]]] = None
         self._order_by_nodes: Optional[Tuple[Any, List[Any]]] = None
-        if tracing_flags_on():
+        if tracing_flags_on() and is_tracing_enabled(self._session):
             if projection:
                 self._projection_nodes = (
                     projection,
@@ -1671,7 +1675,7 @@ class SelectStatement(Selectable):
                     )  # add subquery's expression for this column name
 
             new.projection = final_projection
-            if tracing_flags_on():
+            if tracing_flags_on() and is_tracing_enabled(self._session):
                 new._projection_nodes = (
                     final_projection,
                     self._flattened_projection_slots(new, new_column_states),
@@ -1865,7 +1869,7 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             new.column_states = self.column_states
             new.where = And(self.where, col) if self.where is not None else col
-            if tracing_flags_on():
+            if tracing_flags_on() and is_tracing_enabled(self._session):
                 where_parts = (
                     self._where_nodes[1]
                     if self._where_nodes is not None
@@ -1917,7 +1921,7 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new.order_by = cols + (self.order_by or [])
-            if tracing_flags_on():
+            if tracing_flags_on() and is_tracing_enabled(self._session):
                 new._order_by_nodes = (
                     new.order_by,
                     [new._pending_trace_node] * len(cols)

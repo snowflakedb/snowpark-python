@@ -985,6 +985,47 @@ def test_cached_clause_spans_opaque_expressions(expression):
     assert _get_clause_trace_node(plan, line.index("bad"), line) is second
 
 
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "'FROM\nWHERE' AS \"ORDER\"",
+        '$$FROM\nWHERE, ORDER BY ([])$$ AS "x"',
+        '"a""b, FROM" AS "WHERE"',
+        "F([1, (2 + 3)], 'a,b') /* FROM , WHERE */",
+        "(SELECT F(a, b) FROM t WHERE x = 'ORDER BY')",
+    ],
+)
+@pytest.mark.parametrize("exact_coordinates", [False, True])
+def test_cached_clause_mapping_respects_opaque_boundaries(
+    expression, exact_coordinates
+):
+    first, second = _trace_node(1), _trace_node(2)
+    sql = f"SELECT {expression},\n bad FROM t"
+    statement = _cached_statement(sql, [first, second])
+    plan = _plan([first, second], sql=sql)
+    plan.source_plan = statement
+    lines = sql.split("\n")
+    line_number = len(lines) - 1
+    assert (
+        _get_clause_trace_node(
+            plan, 1, lines[-1], line_number if exact_coordinates else None
+        )
+        is second
+    )
+
+
+def test_clause_mapping_exact_coordinates_disambiguate_repeated_sort_key():
+    first, second = _trace_node(1), _trace_node(2)
+    sql = "SELECT\n a\nFROM t\nORDER BY\n a"
+    statement = _cached_statement(sql, [first], [], [second])
+    plan = _plan([first, second], sql=sql)
+    plan.source_plan = statement
+    assert _get_clause_trace_node(plan, 1, " a") is None
+    assert _get_clause_trace_node(plan, 1, " a", 1) is first
+    assert _get_clause_trace_node(plan, 1, " a", 4) is second
+    assert _get_clause_trace_node(plan, 1, " a", 3) is None
+
+
 def test_cached_clause_spans_conjunctions_and_order_keys():
     nodes = [_trace_node(line) for line in range(1, 7)]
     sql = (

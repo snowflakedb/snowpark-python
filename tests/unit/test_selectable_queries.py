@@ -54,6 +54,9 @@ def traced_statement(mock_session, mock_analyzer):
     with mock.patch(
         "snowflake.snowpark._internal.analyzer.select_statement.tracing_flags_on",
         return_value=True,
+    ), mock.patch(
+        "snowflake.snowpark._internal.analyzer.select_statement.is_tracing_enabled",
+        return_value=True,
     ), mock.patch.object(
         mock_analyzer, "analyze", side_effect=lambda expr, *_: expr.name
     ):
@@ -117,6 +120,36 @@ def test_clause_token_copy_preserves_ownership(traced_statement, copy_statement,
     copied.add_df_trace_node(new_node)
     assert copied._order_by_nodes[1][0] is new_node
     assert original._order_by_nodes[1][0] is inherited
+
+
+@pytest.mark.parametrize("other_session_tracing", [False, True])
+def test_clause_metadata_is_disabled_for_untraced_session(
+    mock_session, mock_analyzer, other_session_tracing
+):
+    from snowflake.snowpark._internal import debug_config
+    from snowflake.snowpark._internal.df_trace import is_tracing_enabled
+
+    source = SelectableEntity(
+        SnowflakeTable("BASE_TABLE", session=mock_session), analyzer=mock_analyzer
+    )
+    # An unrelated session may be tracing; this session has no debug features enabled.
+    with mock.patch.object(
+        debug_config, "_tracing_sessions", int(other_session_tracing)
+    ), mock.patch(
+        "snowflake.snowpark._internal.analyzer.select_statement.is_tracing_enabled",
+        wraps=is_tracing_enabled,
+    ) as tracing_enabled:
+        statement = SelectStatement(
+            projection=[Attribute("A", StringType())],
+            from_=source,
+            where=Attribute("PREDICATE", StringType()),
+            order_by=[Attribute("SORT_KEY", StringType())],
+            analyzer=mock_analyzer,
+        )
+    assert statement._projection_nodes is None
+    assert statement._where_nodes is None
+    assert statement._order_by_nodes is None
+    assert tracing_enabled.call_count == int(other_session_tracing)
 
 
 def test_select_statement_sql_query(mock_session, mock_analyzer):
