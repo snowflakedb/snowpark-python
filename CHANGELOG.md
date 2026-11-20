@@ -14,6 +14,8 @@
   - `MCPServer` prints its specification (`to_yaml`), deploys it with its Python tools (`deploy`, which checks the definition first and has a `dry_run` option, with a suffix for dev and prod copies), calls deployed tools over a session (`call_tool`), and grants a role everything the tools need (`grant_usage`).
   - `Tool.builtin` adds the MCP server's built-in tool types (such as Cortex Agent, Cortex Analyst and Cortex Search) to a server.
 
+- ``DataFrameWriter.save_as_table`` defaults ``copy_grants`` to true and emits ``COPY GRANTS`` on ``CREATE OR REPLACE``. Older Snowpark versions omit the clause, so once BCR-2433 is enabled they copy grants on replace; this default matches that behavior. ``copy_grants=False`` emits ``IGNORE GRANTS`` so privileges on the replaced table are dropped.
+
 #### Improvements
 
 - `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.
