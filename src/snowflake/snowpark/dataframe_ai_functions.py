@@ -1414,14 +1414,24 @@ class DataFrameAIFunctions:
             ------------------------------------------------------------
             <BLANKLINE>
 
-            >>> # Extract lists using List: prefix
+            >>> # Extract lists using a JSON Schema array
             >>> df = session.create_dataframe(
             ...     [["Python, Java, and JavaScript are popular programming languages"]],
             ...     schema=["text"]
             ... )
             >>> result_df = df.ai.extract(
             ...     input_column="text",
-            ...     response_format=[["languages", "List: What programming languages are mentioned?"]],
+            ...     response_format={
+            ...         "schema": {
+            ...             "type": "object",
+            ...             "properties": {
+            ...                 "languages": {
+            ...                     "description": "What programming languages are mentioned?",
+            ...                     "type": "array",
+            ...                 }
+            ...             },
+            ...         }
+            ...     },
             ...     output_column="extracted",
             ... )
             >>> result_df.select("EXTRACTED").show()

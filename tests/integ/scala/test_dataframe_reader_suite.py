@@ -2008,8 +2008,10 @@ def test_pattern_with_infer(session, mode, stage_template):
         single_file_df = base_reader(False).csv(f"@{stage_name}/path/good1.csv")
         Utils.check_answer(single_file_df, expected_rows)
 
-        # Test loading a single file while pattern is defined
-        reader = base_reader()
+        # Test loading a single file while pattern is defined. The server may match the
+        # pattern against the whole path or only the part after the location (".gz"), so
+        # use a pattern that matches the file either way.
+        reader = base_reader(False).option("PATTERN", ".*[.]gz")
         single_file_with_pattern_df = reader.csv(f"@{stage_name}/path/good1.csv")
         Utils.check_answer(single_file_with_pattern_df, expected_rows)
 

@@ -78,6 +78,27 @@ def test_format_uuid():
     assert empty_result_with_newline == ""
 
 
+def test_create_table_as_select_statement_child_uuid():
+    from snowflake.snowpark._internal.utils import get_line_numbers, remove_comments
+
+    child_uuid = "123e4567-e89b-12d3-a456-426614174000"
+    child = "SELECT\n    a\nFROM t"
+    marked = create_table_as_select_statement(
+        "table", child, None, child_uuid=child_uuid
+    )
+    unmarked = create_table_as_select_statement("table", child, None)
+    assert remove_comments(marked, [child_uuid]) == remove_comments(unmarked, [])
+    intervals = get_line_numbers(marked, [child_uuid], "parent")
+    lines = remove_comments(marked, [child_uuid]).split("\n")
+    child_lines = [
+        line
+        for interval in intervals
+        if interval.uuid == child_uuid
+        for line in lines[interval.start : interval.end + 1]
+    ]
+    assert child_lines == child.split("\n")
+
+
 def test_generate_scoped_temp_objects():
     temp_file_format_name = "SNOWPARK_TEMP_FILE_FORMAT_E0ZW8Z9WMY"
     assert (

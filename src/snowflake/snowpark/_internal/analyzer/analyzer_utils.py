@@ -1258,6 +1258,7 @@ def create_table_as_select_statement(
     *,
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
+    child_uuid: Optional[str] = None,
 ) -> str:
     column_definition_sql = (
         f"{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
@@ -1289,7 +1290,7 @@ def create_table_as_select_statement(
         f"{ICEBERG if iceberg_options else EMPTY_STRING}{TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
         f"{table_name}{column_definition_sql}{partition_by_clause}{cluster_by_clause}{options_statement}{table_properties_clause}"
-        f"{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql} {AS}{project_statement([], child)}"
+        f"{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql} {AS}{project_statement([], child, child_uuid=child_uuid)}"
     )
 
 

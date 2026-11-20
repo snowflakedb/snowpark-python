@@ -13377,11 +13377,21 @@ def ai_extract(
         ------------------------------------------------------------
         <BLANKLINE>
 
-        >>> # Extract lists using List: prefix
+        >>> # Extract lists using a JSON Schema array
         >>> df = session.range(1).select(
         ...     ai_extract(
         ...         'Python, Java, and JavaScript are popular programming languages',
-        ...         [['languages', 'List: What programming languages are mentioned?']]
+        ...         {
+        ...             "schema": {
+        ...                 "type": "object",
+        ...                 "properties": {
+        ...                     "languages": {
+        ...                         "description": "What programming languages are mentioned?",
+        ...                         "type": "array",
+        ...                     }
+        ...                 },
+        ...             }
+        ...         }
         ...     ).alias("extracted")
         ... )
         >>> df.show()

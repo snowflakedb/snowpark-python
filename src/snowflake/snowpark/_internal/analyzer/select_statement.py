@@ -254,6 +254,13 @@ def _deepcopy_selectable_fields(
     to_selectable._df_trace_call_id = from_selectable._df_trace_call_id
     # Copy UUID and query line intervals
     to_selectable._uuid = from_selectable._uuid
+    to_selectable._multiline_sql_safe = from_selectable._multiline_sql_safe
+    # Diagnostic-only fallback for SQL retained by a parent while execution caches
+    # are cleared on the copy. Never use this plan for compilation.
+    if debug_config.enabled(from_selectable._session, "trace_sql_errors_to_dataframe"):
+        to_selectable._sql_error_plan = from_selectable._snowflake_plan or getattr(
+            from_selectable, "_sql_error_plan", None
+        )
 
 
 class Selectable(LogicalPlan, ABC):
@@ -272,6 +279,9 @@ class Selectable(LogicalPlan, ABC):
         # the Selectable object and use the session to access the appropriate analyzer
         # for current thread.
         self._session = analyzer.session
+        # Sticky provenance: compilation can clear SQL caches while retaining
+        # expressions/projection text from an earlier formatting mode.
+        self._multiline_sql_safe = analyzer_utils.NEW_LINE == "\n"
         # We create this internal object to be used for setting query generator during
         # the optimization stage
         self._analyzer = None
@@ -281,6 +291,7 @@ class Selectable(LogicalPlan, ABC):
         self.protect_dropped_new_columns: bool = False
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
+        self._sql_error_plan: Optional[SnowflakePlan]
         self.expr_to_alias = (
             ExprAliasUpdateDict() if self._session._join_alias_fix else {}
         )
@@ -988,6 +999,7 @@ class SelectStatement(Selectable):
         )
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
+        new._multiline_sql_safe = self._multiline_sql_safe
         new._projection_in_str = None
         new._schema_query = None
         new._column_states = None
@@ -1138,6 +1150,7 @@ class SelectStatement(Selectable):
     @property
     def projection_in_str(self) -> str:
         if not self._projection_in_str:
+            self._multiline_sql_safe &= analyzer_utils.NEW_LINE == "\n"
             if self.projection:
                 assert (
                     self.exclude_cols is None and self.ilike_cols is None
@@ -1189,6 +1202,7 @@ class SelectStatement(Selectable):
     def _generate_sql(self, generate_uuid_comments: bool) -> str:
         """Generate SQL query with UUID comments for child plans if multiline queries are enabled.
         Otherwise, generate SQL query without comments."""
+        self._multiline_sql_safe &= analyzer_utils.NEW_LINE == "\n"
         from_clause = (
             self.from_.sql_in_subquery_with_uuid
             if generate_uuid_comments
@@ -2166,6 +2180,7 @@ class SetStatement(Selectable):
         return self._commented_sql
 
     def _generate_sql(self, generate_uuid_comments: bool) -> str:
+        self._multiline_sql_safe &= analyzer_utils.NEW_LINE == "\n"
         FIRST_UUID = (
             analyzer_utils.format_uuid(self.set_operands[0].selectable.uuid)
             if generate_uuid_comments
