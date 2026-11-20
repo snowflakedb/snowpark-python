@@ -290,6 +290,7 @@ class Selectable(LogicalPlan, ABC):
         self.protect_dropped_new_columns: bool = False
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
+        self._sql_error_plan: Optional[SnowflakePlan]
         self.expr_to_alias = (
             ExprAliasUpdateDict() if self._session._join_alias_fix else {}
         )

@@ -5,7 +5,7 @@
 from functools import cached_property
 import os
 import sys
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, NamedTuple, Optional, Set, Tuple, Union
 import itertools
 import re
 from typing import TYPE_CHECKING
@@ -269,16 +269,23 @@ def _same_query(executed: str, sql: str) -> bool:
     return re.fullmatch(pattern, executed) is not None
 
 
+class _ResolvedErrorLine(NamedTuple):
+    plan: "SnowflakePlan"
+    line_number: Optional[int]
+    cached_only: bool = False
+
+
 def _resolve_error_line(
     top_plan: "SnowflakePlan",
     sql_line_number: int,
     position: int,
     executed_sql: Optional[str],
-) -> Optional[Tuple["SnowflakePlan", Optional[int]]]:
+) -> Optional[_ResolvedErrorLine]:
     """Returns the plan whose line intervals describe the line of the executed sql that has the
     error, and the line number relative to the sql of that plan, or None if the line cannot be
     mapped reliably. The line number is None when the returned plan is the one responsible for
-    the line.
+    the line. The cached-only traversal requirement belongs to the same resolved segment;
+    callers must not infer it by rereading the shared last-execution cache.
 
     The line intervals of ``top_plan`` describe the sql it generated itself. When the executed sql
     is different, because the plan compiler rewrote it (a WITH clause for CTE optimization, or the
@@ -288,14 +295,14 @@ def _resolve_error_line(
     line intervals, and an error of a query whose parts are unknown is not mapped.
     """
     if executed_sql is None:
-        return top_plan, sql_line_number
+        return _ResolvedErrorLine(top_plan, sql_line_number)
     # The sql is stripped before it is sent.
     executed = executed_sql.strip()
     if _same_query(executed, top_plan.queries[-1].sql) or (
         top_plan.schema_query is not None
         and _same_query(executed, top_plan.schema_query)
     ):
-        return top_plan, sql_line_number
+        return _ResolvedErrorLine(top_plan, sql_line_number)
 
     compiled = top_plan._last_execution_queries or {}
     compiled_query = None
@@ -324,7 +331,7 @@ def _resolve_error_line(
         owner = get_plan_from_pre_query_line_number(
             top_plan, compiled_query, sql_line_number
         )
-        return None if owner is None else (owner, None)
+        return None if owner is None else _ResolvedErrorLine(owner, None)
 
     # The lines of the compiled sql: filling in query ids does not change the line breaks.
     lines = compiled_sql.strip().split("\n")
@@ -335,7 +342,7 @@ def _resolve_error_line(
     for segment in segments:
         if segment.start <= offset < segment.end:
             local_line = compiled_sql.count("\n", segment.start, offset)
-            return segment.plan, local_line
+            return _ResolvedErrorLine(segment.plan, local_line, segment.cached_only)
     return None
 
 
@@ -356,7 +363,9 @@ def _get_cached_plan_from_line_number(
 
     while True:
         if isinstance(plan, Selectable):
-            cached = plan._snowflake_plan or getattr(plan, "_sql_error_plan", None)
+            cached: Optional["SnowflakePlan"] = plan._snowflake_plan or getattr(
+                plan, "_sql_error_plan", None
+            )
             if cached is not None:
                 plan = cached
             elif isinstance(plan, SetStatement):
@@ -461,7 +470,7 @@ def get_python_source_from_sql_error(
     )
     if resolved is None:
         return ""
-    plan_root, line_number = resolved
+    plan_root, line_number, cached_only = resolved
     # The line intervals describe the sql of the plan. A line of another query of the plan
     # (its schema query) only identifies the plan, so all of its operations are reported.
     own_only = executed_sql is not None and (
@@ -473,12 +482,6 @@ def get_python_source_from_sql_error(
         get_plan_from_line_numbers,
     )
 
-    cached_only = any(
-        segment.cached_only and segment.plan is plan_root
-        for queries in (top_plan._last_execution_queries or {}).values()
-        for query in queries
-        for segment in (query.cte_segments or [])
-    )
     plan = (
         plan_root
         if line_number is None

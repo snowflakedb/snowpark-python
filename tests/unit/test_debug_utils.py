@@ -7,6 +7,8 @@ import os
 import re
 import tempfile
 import types
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from unittest import mock
 
 import pytest
@@ -38,6 +40,7 @@ from snowflake.snowpark._internal.debug_utils import (
     DataFrameTraceNode,
     QueryProfiler,
     _format_source_location,
+    _get_cached_plan_from_line_number,
     _get_own_trace_nodes,
     _resolve_error_line,
     get_python_source_from_sql_error,
@@ -707,10 +710,14 @@ def _plan_with_query(sql, intervals, uuid="top", schema_query=None):
 def test_resolve_error_line_uses_the_plan_for_its_own_sql():
     plan = _plan_with_query(" SELECT 1\nFROM t", [QueryLineInterval(0, 1, "top")])
     # no executed sql known, the same sql (it is stripped before it is sent), the schema query
-    assert _resolve_error_line(plan, 1, 0, None) == (plan, 1)
-    assert _resolve_error_line(plan, 1, 0, "SELECT 1\nFROM t") == (plan, 1)
+    assert _resolve_error_line(plan, 1, 0, None) == (plan, 1, False)
+    assert _resolve_error_line(plan, 1, 0, "SELECT 1\nFROM t") == (plan, 1, False)
     plan.schema_query = "SELECT 1\nFROM t LIMIT 0"
-    assert _resolve_error_line(plan, 1, 0, "SELECT 1\nFROM t LIMIT 0") == (plan, 1)
+    assert _resolve_error_line(plan, 1, 0, "SELECT 1\nFROM t LIMIT 0") == (
+        plan,
+        1,
+        False,
+    )
 
 
 def test_resolve_error_line_fills_in_placeholders():
@@ -720,7 +727,7 @@ def test_resolve_error_line_fills_in_placeholders():
         [QueryLineInterval(0, 1, "top")],
     )
     executed = "SELECT *\nFROM (SELECT * FROM TABLE(RESULT_SCAN('01c83c55-0a1c-4195-000c-a91555b7ea9f')))"
-    assert _resolve_error_line(plan, 1, 0, executed) == (plan, 1)
+    assert _resolve_error_line(plan, 1, 0, executed) == (plan, 1, False)
     # another query is still not mapped with these intervals
     assert _resolve_error_line(plan, 1, 0, "SELECT *\nFROM other") is None
     # e.g. a reader: the name of its temp file format is filled in when it runs
@@ -731,7 +738,47 @@ def test_resolve_error_line_fills_in_placeholders():
     executed = (
         "SELECT $1\nFROM @s/a.csv( FILE_FORMAT  => 'SNOWPARK_TEMP_FILE_FORMAT_J6N7')"
     )
-    assert _resolve_error_line(plan, 1, 0, executed) == (plan, 1)
+    assert _resolve_error_line(plan, 1, 0, executed) == (plan, 1, False)
+
+
+@pytest.mark.parametrize("cached_only", [False, True])
+@pytest.mark.parametrize("decoy_first", [False, True])
+def test_error_line_routing_uses_only_the_matched_segment(
+    cached_only, decoy_first, monkeypatch
+):
+    owner = _plan_with_query("SELECT bad", [QueryLineInterval(0, 0, "owner")], "owner")
+    owner.df_trace_nodes = [_trace_node(10)]
+    top = _plan_with_query("SELECT original", [])
+    query = Query(
+        "SELECT bad",
+        cte_segments=[CteSegment(0, len("SELECT bad"), owner, cached_only=cached_only)],
+    )
+    decoy = Query(
+        "SELECT unrelated",
+        cte_segments=[
+            CteSegment(0, len("SELECT unrelated"), owner, cached_only=not cached_only)
+        ],
+    )
+    top._last_execution_queries = {
+        PlanQueryType.QUERIES: [decoy, query] if decoy_first else [query, decoy]
+    }
+    assert _resolve_error_line(top, 0, 7, query.sql) == (owner, 0, cached_only)
+    cached = mock.Mock(wraps=_get_cached_plan_from_line_number)
+    legacy = mock.Mock(return_value=owner)
+    monkeypatch.setattr(
+        "snowflake.snowpark._internal.debug_utils._get_cached_plan_from_line_number",
+        cached,
+    )
+    monkeypatch.setattr(
+        "snowflake.snowpark._internal.utils.get_plan_from_line_numbers", legacy
+    )
+    message = get_python_source_from_sql_error(
+        top, "SQL compilation error: error line 1 at position 7", query.sql
+    )
+    assert re.findall(r"f\.py: line (\d+)", message) == ["10"]
+    selected, unselected = (cached, legacy) if cached_only else (legacy, cached)
+    selected.assert_called_once_with(owner, 0)
+    unselected.assert_not_called()
 
 
 def test_resolve_error_line_skips_unknown_rewritten_sql():
@@ -789,11 +836,13 @@ def test_reresolved_query_intervals_keep_the_existing_owner(
 
 
 @pytest.fixture
-def offline_compiler_session(mock_server_connection):
+def offline_compiler_session(mock_server_connection, request):
     # Real Session/analyzer/compiler; only the connector and transaction probe are mocked.
     mock_server_connection._conn.database = "DB"
     mock_server_connection._conn.schema = "SCHEMA"
-    mock_server_connection._thread_safe_session_enabled = False
+    mock_server_connection._thread_safe_session_enabled = getattr(
+        request, "param", False
+    )
     session = Session(mock_server_connection)
     session._query_compilation_stage_enabled = True
     session._cte_optimization_enabled = False
@@ -966,6 +1015,101 @@ def test_lqb_real_compiler_cached_only_diagnostics(
         assert message == ""
 
 
+@pytest.mark.parametrize("offline_compiler_session", [True], indirect=True)
+@pytest.mark.parametrize("simplifier", [False, True])
+@pytest.mark.parametrize("replacement", ["empty", "different_sql", "same_sql"])
+def test_cached_only_routing_survives_execution_cache_replacement(
+    offline_compiler_session, simplifier, replacement, monkeypatch, request
+):
+    session = offline_compiler_session
+    assert session._conn._thread_safe_session_enabled is True
+    session.sql_simplifier_enabled = simplifier
+    session._enable_multiline_queries()
+
+    def tag(df, line):
+        df._plan.df_trace_nodes = [_trace_node(line)]
+        if df._select_statement is not None:
+            df._select_statement.df_trace_nodes = df._plan.df_trace_nodes
+        return df
+
+    df = tag(session.sql("SELECT 1 AS A").filter(col("BAD") > 0), 10)
+    for index in range(7):
+        df = tag(df.union_all(df.filter(col("A") > index)).sort("A"), 100 + index)
+    top = df._plan
+    compiled = top.execution_queries
+    queries = compiled[PlanQueryType.QUERIES]
+    assert len(queries) > 1
+    query = queries[0]
+    assert query.cte_segments and query.cte_segments[0].cached_only
+    sql = query.sql.strip()
+    offset = sql.index('"BAD"')
+    error = f"SQL compilation error: error line {sql.count(chr(10), 0, offset) + 1} at position {offset - sql.rfind(chr(10), 0, offset) - 1}"
+
+    other_sql = query.sql if replacement == "same_sql" else "SELECT unrelated"
+    other = SnowflakePlan([Query(other_sql)], None, session=session)
+    other.df_trace_nodes = [_trace_node(999)]
+    replacement_queries = {
+        PlanQueryType.QUERIES: []
+        if replacement == "empty"
+        else [
+            Query(
+                other_sql,
+                cte_segments=[CteSegment(0, len(other_sql), other, cached_only=False)],
+            )
+        ]
+    }
+    # Guard actual traversal, not just its result: diagnostics must never lazily
+    # resolve compiler nodes, even when precise attribution is unavailable.
+    request.getfixturevalue("cached_plan_no_resolution")
+    legacy = mock.Mock(side_effect=AssertionError("must keep cached-only routing"))
+    monkeypatch.setattr(
+        "snowflake.snowpark._internal.utils.get_plan_from_line_numbers", legacy
+    )
+    cached = mock.Mock(wraps=_get_cached_plan_from_line_number)
+    monkeypatch.setattr(
+        "snowflake.snowpark._internal.debug_utils._get_cached_plan_from_line_number",
+        cached,
+    )
+    barrier = Barrier(2, timeout=10)
+    snapshots = []
+
+    def resolve_then_pause(*args):
+        resolved = _resolve_error_line(*args)
+        snapshots.append(resolved)
+        barrier.wait()
+        barrier.wait()
+        return resolved
+
+    monkeypatch.setattr(
+        "snowflake.snowpark._internal.debug_utils._resolve_error_line",
+        resolve_then_pause,
+    )
+
+    def replace_execution_cache():
+        barrier.wait()
+        top._remember_execution_queries(replacement_queries)
+        barrier.wait()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        diagnostic = executor.submit(get_python_source_from_sql_error, top, error, sql)
+        writer = executor.submit(replace_execution_cache)
+        writer.result(timeout=15)
+        message = diagnostic.result(timeout=15)
+
+    assert top._last_execution_queries is replacement_queries
+    assert snapshots[0] is not None
+    assert snapshots[0].cached_only is True
+    assert snapshots[0].plan is query.cte_segments[0].plan
+    cached.assert_called_once_with(snapshots[0].plan, snapshots[0].line_number)
+    legacy.assert_not_called()
+    if simplifier:
+        assert re.findall(r"f\.py: line (\d+)", message) == ["10"]
+    else:
+        # Missing child ownership on non-simplifier set operations must remain
+        # unattributed, not fall back to a union/sort or the other execution.
+        assert message == ""
+
+
 def test_retained_diagnostics_are_invalidated_on_update(offline_compiler_session):
     from snowflake.snowpark._internal.compiler.utils import update_resolvable_node
 
@@ -1009,6 +1153,219 @@ def test_uncached_set_diagnostics_abstain_on_unproven_layout(
         SetStatement, "_generate_sql", side_effect=AssertionError("no regeneration")
     ):
         assert _get_cached_plan_from_line_number(node, line) is None
+
+
+@pytest.fixture
+def cached_plan_no_resolution(monkeypatch):
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        Selectable,
+        SelectSQL,
+        SelectStatement,
+        SetStatement,
+    )
+
+    guards = []
+    for cls, names in (
+        (Selectable, ("snowflake_plan",)),
+        (SelectSQL, ("sql_query", "schema_query")),
+        (SelectStatement, ("sql_query", "schema_query")),
+        (SetStatement, ("sql_query", "schema_query")),
+        (SnowflakePlan, ("attributes",)),
+    ):
+        for name in names:
+            guard = mock.Mock(
+                side_effect=AssertionError("diagnostics must use cached state")
+            )
+            # A real property only fires on instances. Before Python 3.12,
+            # Mock(spec=cls) reads class attributes, which calls a PropertyMock.
+            monkeypatch.setattr(cls, name, property(lambda _, g=guard: g()))
+            guards.append(guard)
+    for cls, name in (
+        (Selectable, "get_snowflake_plan"),
+        (SelectStatement, "_generate_sql"),
+        (SetStatement, "_generate_sql"),
+        (QueryGenerator, "resolve"),
+    ):
+        guard = mock.Mock(side_effect=AssertionError("no diagnostic resolution"))
+        monkeypatch.setattr(cls, name, guard)
+        guards.append(guard)
+    yield
+    for guard in guards:
+        guard.assert_not_called()
+
+
+@pytest.fixture
+def cached_set_statement(mock_session, cached_plan_no_resolution):
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        SelectSQL,
+        SetOperand,
+        SetStatement,
+    )
+
+    left = SelectSQL("SELECT bad\nFROM left_table", analyzer=mock_session._analyzer)
+    right = SelectSQL("SELECT bad\nFROM right_table", analyzer=mock_session._analyzer)
+    for child, uuid in ((left, "left"), (right, "right")):
+        child._snowflake_plan = _plan_with_query(
+            child._sql_query, [QueryLineInterval(0, 1, uuid)], uuid=uuid
+        )
+        child._sql_error_plan = None
+    node = SetStatement(
+        SetOperand(left),
+        SetOperand(right, " UNION ALL "),
+        analyzer=mock_session._analyzer,
+    )
+    node._sql_error_plan = None
+    # Seed the actual multiline renderer layout without invoking any lazy property.
+    node._sql_query = (
+        "(\nSELECT bad\nFROM left_table\n) UNION ALL (\nSELECT bad\nFROM right_table\n)"
+    )
+    return node, left, right
+
+
+@pytest.mark.parametrize("cache_attribute", ["_snowflake_plan", "_sql_error_plan"])
+@pytest.mark.parametrize("line, operand_index", [(1, 1), (2, 1), (4, 2), (5, 2)])
+def test_cached_set_diagnostics_select_exact_operand(
+    cached_set_statement, cache_attribute, line, operand_index
+):
+    node, left, right = cached_set_statement
+    expected = cached_set_statement[operand_index]._snowflake_plan
+    for child in (left, right):
+        cached = child._snowflake_plan
+        child._snowflake_plan = None
+        setattr(child, cache_attribute, cached)
+        # A resolved/retained plan is authoritative, not the selectable's stale SQL.
+        child._sql_query = "SELECT stale"
+    assert _get_cached_plan_from_line_number(node, line) is expected
+
+
+@pytest.mark.parametrize("line", [-1, 0, 3, 6, 7])
+def test_cached_set_diagnostics_do_not_attribute_wrapper_lines(
+    cached_set_statement, line
+):
+    node, _, _ = cached_set_statement
+    assert _get_cached_plan_from_line_number(node, line) is None
+
+
+@pytest.mark.parametrize(
+    "invalid_cache",
+    [
+        "missing_set_sql",
+        "missing_child_sql",
+        "opening_delimiter",
+        "operator",
+        "child_sql",
+        "closing_delimiter",
+        "trailing_sql",
+    ],
+)
+def test_cached_set_diagnostics_validate_entire_layout(
+    cached_set_statement, invalid_cache
+):
+    node, _, right = cached_set_statement
+    if invalid_cache == "missing_set_sql":
+        node._sql_query = None
+    elif invalid_cache == "missing_child_sql":
+        right._snowflake_plan = None
+        right._sql_query = None
+    else:
+        old, new = {
+            "opening_delimiter": (" UNION ALL (\n", " UNION ALL ( "),
+            "operator": (" UNION ALL ", " INTERSECT "),
+            "child_sql": ("FROM right_table", "FROM stale_table"),
+            "closing_delimiter": ("FROM right_table\n)", "FROM right_table)"),
+            "trailing_sql": ("FROM right_table\n)", "FROM right_table\n) trailing"),
+        }[invalid_cache]
+        node._sql_query = node._sql_query.replace(old, new)
+    # Even a valid first operand cannot be attributed if a later operand disagrees.
+    assert _get_cached_plan_from_line_number(node, 1) is None
+
+
+@pytest.mark.parametrize("line", [1, 4])
+def test_cached_set_diagnostics_reject_uncached_nonset_operand(
+    cached_set_statement, line
+):
+    node, _, right = cached_set_statement
+    right._snowflake_plan = None
+    assert _get_cached_plan_from_line_number(node, line) is (
+        cached_set_statement[1]._snowflake_plan if line == 1 else None
+    )
+
+
+def test_cached_set_diagnostics_descend_nested_cached_sql(
+    cached_set_statement, mock_session
+):
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        SetOperand,
+        SetStatement,
+    )
+
+    inner, left, right = cached_set_statement
+    outer = SetStatement(
+        SetOperand(inner),
+        SetOperand(right, " UNION ALL "),
+        analyzer=mock_session._analyzer,
+    )
+    outer._sql_error_plan = None
+    outer._sql_query = f"(\n{inner._sql_query}\n) UNION ALL (\n{right._sql_query}\n)"
+    assert _get_cached_plan_from_line_number(outer, 2) is left._snowflake_plan
+    assert _get_cached_plan_from_line_number(outer, 5) is right._snowflake_plan
+    assert _get_cached_plan_from_line_number(outer, 9) is right._snowflake_plan
+
+
+@pytest.mark.parametrize("cache_attribute", ["_snowflake_plan", "_sql_error_plan"])
+def test_cached_set_diagnostics_prefer_cached_plan(
+    cached_set_statement, cache_attribute
+):
+    node, left, _ = cached_set_statement
+    expected = left._snowflake_plan
+    setattr(node, cache_attribute, expected)
+    node._sql_query = None
+    if cache_attribute == "_snowflake_plan":
+        node._sql_error_plan = _plan_with_query("SELECT stale", [], uuid="stale")
+    assert _get_cached_plan_from_line_number(node, 0) is expected
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        "no_intervals",
+        "outside_interval",
+        "unknown_uuid",
+        "source_uuid",
+        "child_uuid",
+        "set_operation",
+    ],
+)
+def test_cached_plan_diagnostics_require_known_interval_owner(
+    cached_set_statement, metadata
+):
+    from snowflake.snowpark._internal.analyzer.binary_plan_node import Union
+
+    _, left, right = cached_set_statement
+    child = left._snowflake_plan
+    plan = _plan_with_query(
+        "SELECT parent\nSELECT bad\nFROM left_table",
+        [QueryLineInterval(1, 2, child.uuid)],
+    )
+    plan.children_plan_nodes = [right._snowflake_plan, left]
+    left._uuid = child.uuid
+    expected = None
+    if metadata == "no_intervals":
+        plan.queries[-1].query_line_intervals = []
+    elif metadata == "outside_interval":
+        plan.queries[-1].query_line_intervals = [QueryLineInterval(0, 0, plan.uuid)]
+    elif metadata == "unknown_uuid":
+        plan.queries[-1].query_line_intervals = [QueryLineInterval(1, 2, "missing")]
+    elif metadata == "source_uuid":
+        plan.source_plan = left
+        expected = plan
+    elif metadata == "child_uuid":
+        # The parent's line 2 must become the child's line 1, not line 2.
+        expected = child
+    else:
+        plan.source_plan = Union(child, right._snowflake_plan, is_all=True)
+        plan.queries[-1].query_line_intervals = [QueryLineInterval(1, 2, plan.uuid)]
+    assert _get_cached_plan_from_line_number(plan, 2) is expected
 
 
 def test_lqb_nonsimplifier_unary_partition_is_precise(offline_compiler_session):
@@ -1231,14 +1588,26 @@ def test_generate_queries_keeps_existing_segment_owners(
     assert query.cte_segments[0].plan is child
 
 
+@pytest.mark.parametrize("new_line", [" ", "\n"])
 @pytest.mark.parametrize("clone", [copy.copy, copy.deepcopy])
-def test_generated_segments_belong_to_cloned_plan(mock_session, monkeypatch, clone):
+def test_generated_segments_belong_to_cloned_plan(
+    mock_session, monkeypatch, clone, new_line
+):
     mock_session._generate_multiline_queries = True
+    monkeypatch.setattr(
+        "snowflake.snowpark._internal.analyzer.analyzer_utils.NEW_LINE", new_line
+    )
     monkeypatch.setattr(
         "snowflake.snowpark._internal.debug_config.enabled", lambda session, name: True
     )
-    plan = SnowflakePlan([Query("SELECT 1")], None, session=mock_session)
-    other = SnowflakePlan([Query("SELECT 2")], None, session=mock_session)
+    # These cached queries were generated in multiline mode, regardless of the
+    # current global formatter state left by another session.
+    plan = SnowflakePlan(
+        [Query("SELECT 1", generated_with_multiline=True)], None, session=mock_session
+    )
+    other = SnowflakePlan(
+        [Query("SELECT 2", generated_with_multiline=True)], None, session=mock_session
+    )
     generator = QueryGenerator(mock_session)
     monkeypatch.setattr(generator, "resolve", lambda plan: plan)
     original = generator.generate_queries([plan, other])[PlanQueryType.QUERIES][0]
@@ -1324,19 +1693,33 @@ def test_resolve_error_line_maps_through_cte_segments():
 
     # "FROM t" is the second line of the definition
     line = next(i for i, text in enumerate(lines) if text.startswith("FROM t"))
-    assert _resolve_error_line(top, line, 0, compiled_sql) == (definition_plan, 1)
+    assert _resolve_error_line(top, line, 0, compiled_sql) == (
+        definition_plan,
+        1,
+        False,
+    )
     # "WHERE B > 0" is the fourth line of the body
     line = next(i for i, text in enumerate(lines) if text.startswith("WHERE"))
-    assert _resolve_error_line(top, line, 6, compiled_sql) == (body_plan, 3)
+    assert _resolve_error_line(top, line, 6, compiled_sql) == (body_plan, 3, False)
     # a line with the end of the definition and the start of the body: the position decides
     line = next(i for i, text in enumerate(lines) if text.startswith("FROM t"))
-    assert _resolve_error_line(top, line, 0, compiled_sql) == (definition_plan, 1)
+    assert _resolve_error_line(top, line, 0, compiled_sql) == (
+        definition_plan,
+        1,
+        False,
+    )
     assert _resolve_error_line(top, line, len(lines[line]) - 1, compiled_sql) == (
         body_plan,
         0,
+        False,
     )
-    assert _resolve_error_line(top, 0, start, compiled_sql) == (definition_plan, 0)
-    # a line past the end is not mapped
+    assert _resolve_error_line(top, 0, start, compiled_sql) == (
+        definition_plan,
+        0,
+        False,
+    )
+    # The WITH wrapper before either segment and a line past the end are not mapped.
+    assert _resolve_error_line(top, 0, 0, compiled_sql) is None
     assert _resolve_error_line(top, len(lines) + 3, 0, compiled_sql) is None
 
 
@@ -1360,10 +1743,12 @@ def test_resolve_error_line_single_line_query():
     assert _resolve_error_line(top, 0, compiled_sql.index("FROM t"), compiled_sql) == (
         definition_plan,
         0,
+        False,
     )
     assert _resolve_error_line(top, 0, compiled_sql.index("WHERE"), compiled_sql) == (
         body_plan,
         0,
+        False,
     )
 
 
@@ -1469,7 +1854,7 @@ def test_resolve_error_line_maps_a_query_before_the_last_through_its_own_interva
     last = Query("SELECT *\nFROM x")
     top._last_execution_queries = {PlanQueryType.QUERIES: [pre_action, last]}
     # line 2 only exists in the pre-action
-    assert _resolve_error_line(top, 2, 0, pre_action_sql) == (owner, None)
+    assert _resolve_error_line(top, 2, 0, pre_action_sql) == (owner, None, False)
     # the owner of the line is not part of the plan (e.g. large query breakdown)
     pre_action.query_line_intervals = [QueryLineInterval(0, 2, "not_in_plan")]
     assert _resolve_error_line(top, 2, 0, pre_action_sql) is None
