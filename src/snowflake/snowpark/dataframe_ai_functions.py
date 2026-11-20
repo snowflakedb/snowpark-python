@@ -1414,6 +1414,40 @@ class DataFrameAIFunctions:
             ------------------------------------------------------------
             <BLANKLINE>
 
+            >>> # Extract a list using a JSON Schema array
+            >>> df = session.create_dataframe(
+            ...     [["Python, Java, and JavaScript are popular programming languages"]],
+            ...     schema=["text"]
+            ... )
+            >>> result_df = df.ai.extract(
+            ...     input_column="text",
+            ...     response_format={
+            ...         "schema": {
+            ...             "type": "object",
+            ...             "properties": {
+            ...                 "languages": {"description": "What programming languages are mentioned?", "type": "array"},
+            ...             },
+            ...         }
+            ...     },
+            ...     output_column="extracted",
+            ... )
+            >>> result_df.select("EXTRACTED").show()
+            ----------------------
+            |"EXTRACTED"         |
+            ----------------------
+            |{                   |
+            |  "error": null,    |
+            |  "response": {     |
+            |    "languages": [  |
+            |      "Python",     |
+            |      "Java",       |
+            |      "JavaScript"  |
+            |    ]               |
+            |  }                 |
+            |}                   |
+            ----------------------
+            <BLANKLINE>
+
             >>> # Extract using JSON Schema format (required for combining entities, lists, and
             >>> # tables in a single call; can't be combined with the other response_format shapes)
             >>> df = session.create_dataframe(

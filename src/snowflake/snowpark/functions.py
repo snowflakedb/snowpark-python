@@ -13377,6 +13377,37 @@ def ai_extract(
         ------------------------------------------------------------
         <BLANKLINE>
 
+        >>> # Extract a list using a JSON Schema array
+        >>> df = session.range(1).select(
+        ...     ai_extract(
+        ...         'Python, Java, and JavaScript are popular programming languages',
+        ...         {
+        ...             "schema": {
+        ...                 "type": "object",
+        ...                 "properties": {
+        ...                     "languages": {"description": "What programming languages are mentioned?", "type": "array"},
+        ...                 },
+        ...             }
+        ...         }
+        ...     ).alias("extracted")
+        ... )
+        >>> df.show()
+        ----------------------
+        |"EXTRACTED"         |
+        ----------------------
+        |{                   |
+        |  "error": null,    |
+        |  "response": {     |
+        |    "languages": [  |
+        |      "Python",     |
+        |      "Java",       |
+        |      "JavaScript"  |
+        |    ]               |
+        |  }                 |
+        |}                   |
+        ----------------------
+        <BLANKLINE>
+
         >>> # Extract using JSON Schema format (required for combining entities, lists, and tables
         >>> # in a single call; can't be combined with the other response_format shapes)
         >>> df = session.range(1).select(
