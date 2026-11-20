@@ -24,8 +24,6 @@ def _require_server_session(session):
 
 
 def test_udf_from_free_threaded_client_runs_free_threaded(session):
-    # Registration silently falls back to the GIL runtime when the server rejects 3.14t, so check the runtime
-    # the function actually ran on.
     @udf(name=Utils.random_name_for_temp_object(TempObjectType.FUNCTION))
     def is_free_threaded() -> int:
         import sysconfig

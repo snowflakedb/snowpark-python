@@ -21,10 +21,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import sproc
-from snowflake.snowpark.stored_procedure import (
-    StoredProcedure,
-    StoredProcedureRegistration,
-)
+from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.types import IntegerType
 from snowflake.snowpark.version import VERSION
 
@@ -164,64 +161,3 @@ def test_do_register_sproc_sandbox(session_sandbox, cleanup_registration_patch):
             "application_roles": ["app_viewer"],
         }
         assert callableProperties.raw_imports is None
-
-
-def _anonymous_sproc(runtime_version_is_default):
-    return StoredProcedure(
-        lambda session: 1,
-        IntegerType(),
-        [],
-        "SP",
-        anonymous_sp_sql="WITH SP AS PROCEDURE () RETURNS INT LANGUAGE PYTHON RUNTIME_VERSION='3.14t' "
-        "HANDLER='h' AS $$ $$ ",
-        _runtime_version_is_default=runtime_version_is_default,
-    )
-
-
-def _anonymous_sproc_session(side_effect):
-    session = mock.MagicMock()
-    session._free_threaded_runtime_unsupported = False
-    session._execute_sproc_internal.side_effect = side_effect
-    return session
-
-
-_UNSUPPORTED_RUNTIME = ProgrammingError(
-    "001422 (22023): invalid value '3.14t' for property 'RUNTIME_VERSION'"
-)
-
-
-def test_anonymous_sproc_falls_back_to_gil_runtime_when_free_threaded_unsupported():
-    sproc = _anonymous_sproc(runtime_version_is_default=True)
-    session = _anonymous_sproc_session([_UNSUPPORTED_RUNTIME, 42])
-    with mock.patch(
-        "snowflake.snowpark.stored_procedure.get_python_runtime_version",
-        return_value="3.14t",
-    ):
-        assert sproc(session=session, _emit_ast=False) == 42
-    queries = [
-        c.kwargs["query"] for c in session._execute_sproc_internal.call_args_list
-    ]
-    assert "RUNTIME_VERSION='3.14t'" in queries[0]
-    assert "RUNTIME_VERSION='3.14'" in queries[1]
-    assert "RUNTIME_VERSION='3.14'" in sproc._anonymous_sp_sql
-    assert session._free_threaded_runtime_unsupported is True
-
-
-@pytest.mark.parametrize(
-    "runtime_version_is_default, error",
-    [
-        (False, _UNSUPPORTED_RUNTIME),
-        (True, ProgrammingError("002003: no schema")),
-    ],
-)
-def test_anonymous_sproc_does_not_fall_back(runtime_version_is_default, error):
-    sproc = _anonymous_sproc(runtime_version_is_default)
-    session = _anonymous_sproc_session(error)
-    with mock.patch(
-        "snowflake.snowpark.stored_procedure.get_python_runtime_version",
-        return_value="3.14t",
-    ):
-        with pytest.raises(ProgrammingError):
-            sproc(session=session, _emit_ast=False)
-    session._execute_sproc_internal.assert_called_once()
-    assert session._free_threaded_runtime_unsupported is False

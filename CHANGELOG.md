@@ -16,7 +16,7 @@
 
 #### Improvements
 
-- UDFs, UDTFs, UDAFs and stored procedures registered from a free-threaded Python build (for example 3.14t) now default to the matching free-threaded `RUNTIME_VERSION` (`3.14t`) instead of the GIL runtime (`3.14`). The default artifact repository is looked up for the free-threaded version as well. If the server does not support the free-threaded runtime, Snowpark warns once and registers the object with the GIL runtime (`3.14`) instead, as before.
+- UDFs, UDTFs, UDAFs and stored procedures registered from a free-threaded Python build (for example 3.14t) now default to the matching free-threaded `RUNTIME_VERSION` (`3.14t`) instead of the GIL runtime (`3.14`). The default artifact repository is looked up for the free-threaded version as well.
 - `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.
 - `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) now maps SQL compilation errors that have no line number to the DataFrame operations that caused them, using up to 32 extra describe attempts on failure.
 

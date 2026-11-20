@@ -978,8 +978,6 @@ class Session:
         )
         self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
-        # Set once the server rejects a free-threaded RUNTIME_VERSION, so later registrations skip the retry.
-        self._free_threaded_runtime_unsupported: bool = False
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
         self._udf_profiler = UDFProfiler(session=self)
