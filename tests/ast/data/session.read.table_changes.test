@@ -248,6 +248,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 57
+  minor: 58
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
