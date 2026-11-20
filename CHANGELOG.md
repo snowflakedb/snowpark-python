@@ -82,6 +82,7 @@
 #### Dependency Updates
 
 - The `[pandas]` install extra now declares `pandas` and `pyarrow` directly instead of coupling them through `snowflake-connector-python[pandas]`. The version bounds are unchanged.
+- Added `packaging` as a direct dependency. Snowpark imports it, and `snowflake-connector-python` 5.x no longer provides it transitively.
 
 ### Snowpark Local Testing Updates
 
@@ -133,6 +134,10 @@
 #### Improvements
 
 - Fixed `Index.to_pandas()` returning an integer `Index` whose width (for example `int8` or `int32`) depended on the integer width the server returned, instead of the `int64` that Snowpark pandas uses for all integer types. This also affects `Index.astype` to any integer type.
+
+#### Dependency Updates
+
+- Updated dependency of `snowflake-connector-python>=3.17.0,!=5.0.*,!=5.1.*,<6.0.0`.
 
 ## 1.55.2 (2026-10-13)
 
