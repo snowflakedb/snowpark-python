@@ -377,7 +377,7 @@ def _get_cached_plan_from_line_number(
                     return None
                 cursor = 0
                 selected = None
-                for operand in plan.set_operands:
+                for index, operand in enumerate(plan.set_operands):
                     child = operand.selectable
                     cached = child._snowflake_plan or getattr(
                         child, "_sql_error_plan", None
@@ -387,7 +387,9 @@ def _get_cached_plan_from_line_number(
                         if cached is not None
                         else getattr(child, "_sql_query", None)
                     )
-                    prefix = (operand.operator or "") + "(\n"
+                    # The first operand's operator is not rendered: a nested set
+                    # operation, e.g. union then except, has one on its first operand.
+                    prefix = ((operand.operator or "") if index else "") + "(\n"
                     if child_sql is None or not sql.startswith(prefix, cursor):
                         return None
                     cursor += len(prefix)

@@ -1248,6 +1248,20 @@ def test_cached_set_diagnostics_do_not_attribute_wrapper_lines(
     assert _get_cached_plan_from_line_number(node, line) is None
 
 
+@pytest.mark.parametrize("line, operand_index", [(1, 1), (4, 2)])
+def test_cached_set_diagnostics_ignore_first_operand_operator(
+    cached_set_statement, line, operand_index
+):
+    # union then except nests the union in a set whose first operand keeps
+    # " UNION ", which _generate_sql does not render.
+    node, left, right = cached_set_statement
+    node.set_operands[0].operator = " UNION "
+    assert (
+        _get_cached_plan_from_line_number(node, line)
+        is (left, right)[operand_index - 1]._snowflake_plan
+    )
+
+
 @pytest.mark.parametrize(
     "invalid_cache",
     [
