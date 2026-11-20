@@ -1,0 +1,237 @@
+CALL CENTER TRANSCRIPT
+Call ID: CC-7741
+Date: 2024-03-14
+Duration: 24:18
+Customer ID: CUST-48291
+Representative ID: REP-042
+Category: Billing Dispute
+Status: Resolved
+
+================================================================================
+TRANSCRIPT
+================================================================================
+
+[2024-03-14-14-32-00] REP: Thank you for calling Meridian Utilities, my name is Sandra, how can I help you today?
+
+[2024-03-14-14-32-07] CUSTOMER: Yeah, hi. I need to talk to someone about my bill because I just got it and it is completely wrong. Like, something is seriously off and I am not paying it as it is.
+
+[2024-03-14-14-32-17] REP: I'm sorry to hear that, sir. I'd be happy to look into that for you. Can I start by getting your name and account number or the phone number associated with the account?
+
+[2024-03-14-14-32-25] CUSTOMER: It's Marcus Webb. And uh, my account number — hold on, I've got the bill right here — it's, uh, 4-8-2-9-1. Customer ID CUST-48291.
+
+[2024-03-14-14-32-40] REP: Thank you, Mr. Webb. And for verification purposes, can you confirm the service address on the account?
+
+[2024-03-14-14-32-44] CUSTOMER: It's 2247 Birchwood Lane, Columbus, Ohio 43214.
+
+[2024-03-14-14-32-50] REP: Perfect, thank you. And can I get the last four digits of the Social Security number or the PIN on the account?
+
+[2024-03-14-14-32-55] CUSTOMER: It's 7-7-2-3. The PIN.
+
+[2024-03-14-14-33-00] REP: Great. I've pulled up your account, Mr. Webb. Now what's going on with the bill?
+
+[2024-03-14-14-33-05] CUSTOMER: Okay so every month for the past three years my bill is around $120, maybe $130 in summer. But I just got this month's bill and it says I owe $340. Three hundred and forty dollars. That's almost three times what I normally pay, and nobody called me, nobody emailed me, there was no warning of any kind.
+
+[2024-03-14-14-33-38] REP: I completely understand why that would be alarming, and I want to —
+
+[2024-03-14-14-33-40] CUSTOMER: I literally read the bill three times thinking I was misreading it. $340. For a one-bedroom apartment with standard appliances. That makes no sense.
+
+[2024-03-14-14-33-52] REP: I hear you. Let me pull up the detailed breakdown so we can go through it together. One moment.
+
+[2024-03-14-14-33-59] CUSTOMER: Please.
+
+[2024-03-14-14-34-02] REP: [typing] Alright, I'm looking at your March statement now. So your normal electricity service charge comes to $118.47 — which, like you said, is right in line with your history. But I'm also seeing a one-time charge of $195 listed as a technician visit fee, dated February 28th. And then there's a separate $26.53 service call processing fee associated with that same visit. Together those two add up to the $221.53 that put your bill over the normal amount.
+
+[2024-03-14-14-34-45] CUSTOMER: A tech visit? What tech visit? I never — nobody came to my house. I didn't schedule anything. Nobody knocked on my door. I didn't authorize anything.
+
+[2024-03-14-14-34-56] REP: Okay. Let me look at the notes on that work order and find out what triggered this. [pause]
+
+[2024-03-14-14-35-08] CUSTOMER: Because I'm telling you, if someone was at my property, I was not aware of it. And I'm home a lot — I work from home. So I would have noticed.
+
+[2024-03-14-14-35-18] REP: I understand. Let me get the full picture here. [pause] Okay, so it says in the work order notes that a technician was dispatched to your address on February 28th in response to a reported meter irregularity. The technician accessed the meter on the exterior of the property.
+
+[2024-03-14-14-35-38] CUSTOMER: Okay but here's the thing — I never called about any meter irregularity. Nobody told me a tech was coming. I didn't request anything. So who did?
+
+[2024-03-14-14-35-50] REP: Let me dig into what initiated this work order. [typing] Okay, so this looks like it was actually triggered internally. Our system monitors meter readings on a rolling basis, and if the readings show inconsistency over a two-month window, it can automatically flag the account for a meter verification dispatch.
+
+[2024-03-14-14-36-10] CUSTOMER: So let me make sure I understand. You sent a technician to my house — without calling me, without emailing me — just sent someone to poke around at my meter, and now you're billing me for it. How does that work exactly?
+
+[2024-03-14-14-36-32] REP: I understand completely. When a meter visit is internally initiated — meaning from our system rather than a customer request — the billing policy is actually different. I want to review whether this charge was applied correctly, because from what I'm seeing, it may not have been.
+
+[2024-03-14-14-36-54] CUSTOMER: It better not have been, because I am absolutely not paying almost $200 for something I never asked for and was never told about.
+
+[2024-03-14-14-37-02] REP: Your frustration is completely valid, and I want to get you the right answer. I'm going to put you on a brief hold while I pull up the exact policy language on company-initiated visits so I can verify this properly. Is that okay? It should only be a few minutes.
+
+[2024-03-14-14-37-14] CUSTOMER: Fine. Fine, go ahead.
+
+REP: Thank you. I'll be right back. [hold music begins]
+
+[2024-03-14-14-40-22] REP: Mr. Webb, thank you so much for your patience. I'm back.
+
+[2024-03-14-14-40-27] CUSTOMER: Yeah. Four minutes is a long hold for "a few minutes," just so you know.
+
+[2024-03-14-14-40-33] REP: I apologize, you're right, it took a little longer than I expected. I wanted to make sure I had the exact policy wording so I could give you a definitive answer rather than a guess.
+
+[2024-03-14-14-40-43] CUSTOMER: Okay. So what does it say?
+
+[2024-03-14-14-40-46] REP: So the policy is clear: for company-initiated meter verification visits — meaning visits we dispatch based on our own system flags, not at a customer's request — the customer is only billed if the visit reveals an active fault or evidence of tampering on the customer's side of the meter. If no fault is found, the cost of that visit is borne by the company.
+
+[2024-03-14-14-41-08] CUSTOMER: And did they find a fault?
+
+[2024-03-14-14-41-11] REP: That's what I looked at before I put you on hold. [typing] The technician's report from February 28th states — and I'm reading directly — "meter was verified and found to be functioning within normal parameters. No faults detected. Equipment sealed and left as found."
+
+[2024-03-14-14-41-28] CUSTOMER: So they found nothing wrong.
+
+[2024-03-14-14-41-31] REP: Correct. The meter was fine. No issues on your side whatsoever.
+
+[2024-03-14-14-41-36] CUSTOMER: Then this charge — both charges — should never have been on my bill.
+
+[2024-03-14-14-41-40] REP: That is correct, Mr. Webb. Looking at this plainly, the $195 technician fee and the $26.53 service call fee appear to have been applied in error. Under the policy, since the visit was company-initiated and no fault was found, you should not have been billed for either charge.
+
+[2024-03-14-14-41-56] CUSTOMER: Okay — okay, so you'll remove them?
+
+[2024-03-14-14-42-00] REP: I'm initiating that credit request right now. Given the combined amount of $221.53, it will go through a supervisory review queue before it posts, but I am putting it in right now with my own notes backing it up.
+
+[2024-03-14-14-42-14] CUSTOMER: Wait — before we go further. I actually — can I talk to a supervisor? Not because of anything you're doing wrong, I just — the part that really bothers me is that nobody notified me. Like you said there's a procedure for that, right? Someone should have told me a tech was coming. I want to know why that didn't happen. I feel like that should be explained by someone above the rep level.
+
+[2024-03-14-14-42-38] REP: Absolutely. That's a very reasonable request and honestly I'd be asking the same thing. Let me see if my supervisor Janet is available. Can you hold for just a moment?
+
+[2024-03-14-14-42-48] CUSTOMER: Sure.
+
+REP: [hold music, approximately 90 seconds]
+
+[2024-03-14-14-44-22] SUPERVISOR: Hi, Mr. Webb? This is Janet, I'm the floor supervisor here at Meridian. Sandra briefed me on your situation and I wanted to speak with you personally.
+
+[2024-03-14-14-44-33] CUSTOMER: Hi Janet. Yeah, I appreciate that. So I understand that the charges are being removed, which, great. But what I want to know is — your company sent someone to my property, didn't tell me it was happening, and apparently there's supposed to be a notification procedure. Why didn't that happen?
+
+[2024-03-14-14-44-51] SUPERVISOR: When a company-initiated dispatch is created, it's supposed to automatically trigger customer notification — either a letter at least 48 hours ahead or an automated phone or email. I pulled your account while Sandra was getting you, and I can see that notification was never sent. No record of any outreach on that work order.
+
+[2024-03-14-14-45-18] CUSTOMER: So it just fell through the cracks.
+
+[2024-03-14-14-45-21] SUPERVISOR: It appears so. That's our failure, not yours. The work order was generated but the notification step wasn't completed. I'm flagging it for our QA team to determine if this is a one-time error or a systemic issue affecting other accounts.
+
+[2024-03-14-14-45-42] CUSTOMER: I'm glad you're looking into it. I work from home — I was there all day and had no idea someone was at my meter. That's unsettling.
+
+[2024-03-14-14-45-57] SUPERVISOR: Completely understandable, and I apologize. As acknowledgment of both the erroneous charges and the notification failure, I'd like to apply a $20 goodwill credit in addition to removing the $221.53. I want it to reflect that we recognize this was handled poorly.
+
+[2024-03-14-14-46-22] CUSTOMER: I appreciate that. I'm not trying to get money out of a mistake — I just want my account right and to know it won't happen again.
+
+[2024-03-14-14-46-31] SUPERVISOR: Understood. Sandra will submit the charge removal and I'll get the QA flag in today personally. Anything else while you have me?
+
+[2024-03-14-14-46-45] CUSTOMER: No, that covers it. Thanks, Janet.
+
+[2024-03-14-14-46-48] SUPERVISOR: Thank you for your patience. Have a good evening. I'm handing you back to Sandra now.
+
+[2024-03-14-14-46-55] REP: Hi Mr. Webb, it's Sandra again. I heard the conversation and I'm adding the $20 goodwill credit to the credit request along with the $221.53. So the total credit we're seeking approval for is $241.53.
+
+[2024-03-14-14-47-08] CUSTOMER: Good. Okay. Now — while I've got you, and since my account's open right here — can you do me a favor and look back at the last six months of my billing history? If this kind of mistake happened once, I want to know if there are any other charges on there that shouldn't be.
+
+[2024-03-14-14-47-25] REP: Absolutely. That's a smart thing to do. Let me go month by month. [typing] September through February, which would be your six most recent statements before the current one.
+
+[2024-03-14-14-47-36] CUSTOMER: Right.
+
+[2024-03-14-14-47-38] REP: Okay, starting with September 2023. Your total was $127.14. That's entirely electricity service — base rate, delivery charges, applicable taxes. No one-time fees, no service call charges. Looks clean.
+
+[2024-03-14-14-47-52] CUSTOMER: That's about right for summer, AC was running.
+
+[2024-03-14-14-47-56] REP: October 2023 — $119.08. Again, just standard charges. Nothing unusual. November 2023 — $116.22. Same. Clean bill. December 2023 — $122.55. I'm seeing your base electricity charges plus a small winter rate adjustment, which is standard. No additional fees.
+
+[2024-03-14-14-48-20] CUSTOMER: That tracks.
+
+[2024-03-14-14-48-22] REP: January 2024 — $124.40. Base usage plus a tier adjustment. Nothing outside the normal line items. February 2024 — $121.83. Again, standard. [pause] Okay, I've gone through all six months and I'm not seeing any additional one-time fees, unexplained charges, or service call lines other than the one on your current March statement that we're already disputing.
+
+[2024-03-14-14-48-52] CUSTOMER: Okay. That's a relief. So it looks like this is genuinely a one-time thing, not a pattern.
+
+[2024-03-14-14-48-58] REP: Correct. Everything prior looks exactly like what you'd expect based on your usage profile.
+
+[2024-03-14-14-49-04] CUSTOMER: Alright. Good. Okay, so another question — you mentioned that the meter dispatch happened because your system flagged inconsistent readings. What exactly does that mean? What triggers that?
+
+[2024-03-14-14-49-16] REP: Our system compares each month's reading to a rolling 12-month average. If a reading comes in significantly higher or lower without a seasonal explanation, it flags it. In your case the readings were inconsistent over two months — that can indicate a meter malfunction, a read error, or in rare cases tampering.
+
+[2024-03-14-14-49-45] CUSTOMER: But the meter was fine. They said so in their own report.
+
+[2024-03-14-14-49-49] REP: Exactly. The system flagged a variance, the tech verified it was nothing, and under our policy that means no charge to you. The issue was twofold — the charge was applied in error, and the notification step was skipped.
+
+[2024-03-14-14-50-05] CUSTOMER: So here's what I want to know — going forward, is there a way to make sure that if this happens again, if your system flags my meter for another dispatch, that I actually get told about it first? And that I'm not going to get a surprise charge?
+
+[2024-03-14-14-50-18] REP: Yes. First, I'm adding a note to your account requesting advance notification for any future company-initiated dispatches — that flags it for any rep or dispatcher going forward. Second, the standard procedure already requires notification, so this shouldn't recur. Third, I can activate a billing alert so you get an email any time a non-standard charge appears on your statement — you'd know immediately and have time to call before the due date.
+
+[2024-03-14-14-50-55] CUSTOMER: Yeah, let's set that up. The billing alert. That seems like a good idea anyway.
+
+[2024-03-14-14-51-01] REP: [typing] Done. I've activated an alert that will send to the email on file — mwebb1982@gmail.com — any time a non-standard charge is added to your account. You'll get a notification within 24 hours of the charge posting.
+
+[2024-03-14-14-51-14] CUSTOMER: Perfect. And look — just so I understand the process — what am I supposed to do if a tech shows up to my property in the future? Like do I have to let them in? Can I refuse access?
+
+[2024-03-14-14-51-27] REP: The exterior meter is on utility-owned infrastructure, so technicians are authorized to access it without entering your home. Interior access requires your explicit consent. The February visit was entirely exterior — but you absolutely should have been notified regardless.
+
+[2024-03-14-14-52-05] CUSTOMER: Okay. Still unsettling, but I understand the distinction.
+
+[2024-03-14-14-52-12] REP: Understandable. And if you ever see an unfamiliar vehicle near your meter, you can always call us — we can verify whether a work order is active on your address in real time.
+
+[2024-03-14-14-52-24] CUSTOMER: That's actually useful. I'll keep that in mind. Okay — so back to the credit. How long until that actually shows up? Like when does the $241.53 actually appear on my account?
+
+[2024-03-14-14-52-36] REP: The supervisory review typically completes within 24 to 48 business hours. Since you haven't paid yet, the credit will reduce what you owe on the current bill. The $221.53 correction plus the $20 goodwill puts you at $98.47 — just the base electricity charge minus the goodwill.
+
+[2024-03-14-14-53-00] CUSTOMER: Oh — so the $20 comes off the current bill, not a future credit?
+
+[2024-03-14-14-53-06] REP: That's my intent when I submit — both credits applied to your current balance. I'll include that instruction explicitly. So you'd owe $98.47 on this cycle.
+
+[2024-03-14-14-53-25] CUSTOMER: Alright. I appreciate that. And what's my case number for all of this?
+
+[2024-03-14-14-53-30] REP: Your case number is BDC-2024-00847. I'd write that down or take a photo of this screen if you're looking at the bill.
+
+[2024-03-14-14-53-39] CUSTOMER: BDC-2024-00847. Got it, I'm writing it down.
+
+[2024-03-14-14-53-46] REP: A confirmation email will arrive within the hour with the case number, a summary of the credits requested, and an estimated timeline. When the credit posts, you'll get a second email confirming it. All system emails come from no-reply@meridianutilities.com — worth adding that to your contacts so it doesn't land in spam.
+
+[2024-03-14-14-53-59] CUSTOMER: Good. I want something in writing. [pause] Okay. I've got my case number, I know what I owe, I've got the billing alert, and the supervisor explained the notification failure. That's honestly more than I expected from this call.
+
+[2024-03-14-14-54-50] REP: I'm glad we were able to get to the bottom of it. You had every right to call in and push on this — the charges were incorrect and the situation was handled poorly on our end.
+
+[2024-03-14-14-55-00] CUSTOMER: Yeah. I mean — I'll be honest, I called kind of ready to fight. I figured I'd get told the charges were valid and to go pound sand.
+
+[2024-03-14-14-55-10] REP: [laughs softly] I understand. But no — when something's wrong, we should say it's wrong. I appreciate you sticking through the hold and the whole process.
+
+[2024-03-14-14-55-18] CUSTOMER: Yeah, well. Four-minute hold notwithstanding.
+
+[2024-03-14-14-55-21] REP: Fair point, I'll take that feedback. [laughs] Is there anything else I can help you with today, Mr. Webb?
+
+[2024-03-14-14-55-27] CUSTOMER: No, I think that's it. Thanks Sandra. And thank Janet again for me.
+
+[2024-03-14-14-55-32] REP: I'll pass it along. Thank you for calling Meridian Utilities. Take care.
+
+[2024-03-14-14-55-37] CUSTOMER: Thanks. Bye.
+
+[2024-03-14-14-55-38] REP: Goodbye.
+
+================================================================================
+POST-CALL NOTES (REP-042)
+================================================================================
+Customer disputed $195 tech visit charge + $26.53 service call fee on March 2024
+billing cycle. Internal dispatch on 2/28 for meter verification — meter found normal,
+no fault detected. Company-initiated visit, no customer notification sent prior to
+dispatch (notification failure confirmed by Supervisor Janet, REP-S07).
+
+Per policy, company-initiated visits with no fault found should NOT be billed to
+customer. Both charges applied in error.
+
+Credit request submitted: $221.53 (charge reversal) + $20.00 (goodwill credit per
+Supervisor Janet) = $241.53 total credit pending supervisory approval.
+
+Case number: BDC-2024-00847. Account hold placed on non-payment flag through review
+period. Customer will owe $98.47 on current cycle once credits post.
+
+Additional actions taken:
+- Reviewed 6 months of billing history (Sept 2023 - Feb 2024): no additional
+  erroneous charges found. All prior months consistent with normal usage profile.
+- Added account flag requesting advance notification for any future company-initiated
+  dispatches.
+- Activated billing alert for non-standard charges to mwebb1982@gmail.com.
+- Explained meter access policy to customer (exterior meter authorization vs. interior
+  access requiring consent).
+
+Notification protocol failure flagged for QA review — dispatched work order generated
+but customer notification step not completed. Supervisor to submit QA ticket.
+
+Confirmation email queued for customer. Follow-up email expected upon credit approval.
+Customer demeanor: initially frustrated, escalated professionally to supervisor, ended
+call satisfied. No retention risk.
