@@ -8,6 +8,7 @@ import pytest
 
 from snowflake.snowpark._internal.data_source import JDBC
 from snowflake.snowpark._internal.utils import (
+    generate_random_alphanumeric,
     random_name_for_temp_object,
     TempObjectType,
 )
@@ -519,3 +520,23 @@ def test_query_with_string_literals_sql_server(session, sql_server_udtf_configs)
         query=_with_string_literals(SQL_SERVER_QUERY),
     ).order_by("ID")
     assert df.collect() == sql_sever_expected_data
+
+
+def test_postgres_with_default_ddl_collation(session, postgres_udtf_configs):
+    """The partition table inherits DEFAULT_DDL_COLLATION from the current schema;
+    passing that collated column to the read UDTF used to fail with
+    "Invalid argument types for function ...: (VARCHAR(134217728))"."""
+    original_schema = session.get_fully_qualified_current_schema()
+    schema = f"JDBC_COLLATION_{generate_random_alphanumeric(8)}"
+    session.sql(f"create schema {schema} DEFAULT_DDL_COLLATION = 'en-ci'").collect()
+    try:
+        session.use_schema(schema)
+        df = session.read.jdbc(
+            url=POSTGRES_URL,
+            udtf_configs=postgres_udtf_configs,
+            query="select 1 as a, 2 as b",
+        )
+        assert [tuple(r) for r in df.collect()] == [(1, 2)]
+    finally:
+        session.use_schema(original_schema)
+        session.sql(f"drop schema if exists {schema}").collect()

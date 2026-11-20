@@ -325,3 +325,27 @@ def test_jdbc_infer_schema_sql_unchanged_without_special_chars(
     assert literal.startswith("'SELECT ") and literal.endswith(" WHERE 1 = 0'")
     assert "\\" not in literal and "''" not in literal
     assert _strip_infer_schema_wrapper(literal[1:-1]) == table_or_query
+
+
+def test_jdbc_read_casts_partition_argument_to_varchar():
+    """The partition table can inherit DEFAULT_DDL_COLLATION; the collated column
+    must be cast to plain VARCHAR to match the read UDTF's `query VARCHAR`."""
+    session = Mock()
+    captured = []
+    session.sql.side_effect = lambda sql, **kwargs: (captured.append(sql), Mock())[1]
+    client = JDBC(
+        session=session,
+        url="jdbc:postgresql://host:5432/db",
+        table_or_query="SELECT 1",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=True,
+        secret="cred",
+    )
+    client.__dict__["schema"] = StructType([StructField("A", StringType())])
+    with pytest.raises(TypeError):
+        client.read("SNOWPARK_TEMP_TABLE_X")
+    select = next(
+        sql for sql in captured if "table(" in sql.lower() and "select result" in sql
+    )
+    assert "(partition::VARCHAR)) AS result" in select

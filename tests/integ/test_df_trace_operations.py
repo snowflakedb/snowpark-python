@@ -641,7 +641,13 @@ def test_unpivot(session, trace_settings):
     trace = [src('base(session).unpivot("VAL", "COL", ["ID", "V"])'), BASE]
     if not trace_settings.simplifier:
         trace = [FAIL, src('base(session).unpivot("VAL", "COL", ["ID", "V"])'), BASE]
-    assert_debug_output(ex, trace=trace)
+    # The type conflict of the UNPIVOT list has no error line: the unpivot is found by
+    # compiling the sub-plans.
+    assert_debug_output(
+        ex,
+        trace=trace,
+        mapped=[src('base(session).unpivot("VAL", "COL", ["ID", "V"])')],
+    )
 
 
 def test_window(session, trace_settings):

@@ -1227,6 +1227,7 @@ def publicapi(func: CallableT) -> CallableT:
         state.depth = depth + 1
         if depth == 0:
             state.created, state.seeds = [], []
+            state.trace_call_id = df_trace._next_node_id()
         try:
             result = func(*args, **kwargs)
         except BaseException:
@@ -1235,6 +1236,8 @@ def publicapi(func: CallableT) -> CallableT:
             raise
         finally:
             state.depth = depth
+            if depth == 0:
+                state.trace_call_id = None
         if depth > 0:
             return result
         created, seeds = state.created or [], state.seeds
@@ -2127,18 +2130,52 @@ def ttl_cache(ttl_seconds: float):
     return decorator
 
 
-def remove_comments(sql_query: str, uuids: List[str]) -> str:
-    """Removes comments associated with child uuids in a query"""
+def _split_uuid_comments(
+    sql_query: str, uuids: List[str]
+) -> List[Tuple[str, Optional[str]]]:
+    """Splits a query at the comments associated with uuids. Returns (text, uuid)
+    pairs where text is the query before the comment, with the comment removed,
+    and uuid is the uuid of the comment, or None for the text after the last one."""
     from snowflake.snowpark._internal.analyzer import analyzer_utils
 
     comment_placeholders = {
-        analyzer_utils.format_uuid(uuid, with_new_line=False) for uuid in uuids
+        analyzer_utils.format_uuid(uuid, with_new_line=False): uuid
+        for uuid in uuids
+        if uuid
     }
-    return "\n".join(
-        line
-        for line in sql_query.split("\n")
-        if line not in comment_placeholders and line != ""
-    )
+    if not comment_placeholders:
+        return [(sql_query, None)]
+    pieces = []
+    last_end = 0
+    prev_char = ""
+    # Scan candidate comment lines once instead of trying every child UUID.
+    # Leave the trailing newline for the next candidate: an unknown comment must
+    # not consume the leading newline of an adjacent known marker.
+    pattern = re.compile(r"(?:^|\n)(-- [^\n]*)(?=\n|$)")
+    for match in pattern.finditer(sql_query):
+        child_uuid = comment_placeholders.get(match.group(1))
+        if child_uuid is None or match.start() < last_end:
+            continue
+        # Consume the same newline envelope that format_uuid adds, but only for
+        # known markers. Adjacent generated envelopes have two newlines.
+        end = match.end() + (match.end() < len(sql_query))
+        text = sql_query[last_end : match.start()]
+        prev_char = text[-1:] or prev_char
+        next_char = sql_query[end : end + 1]
+        # Remove the comment with the new lines that format_uuid added; keep a new
+        # line only if the comment separates two parts of the query on one line.
+        if prev_char not in ("", "\n") and next_char not in ("", "\n"):
+            text += "\n"
+            prev_char = "\n"
+        pieces.append((text, child_uuid))
+        last_end = end
+    pieces.append((sql_query[last_end:], None))
+    return pieces
+
+
+def remove_comments(sql_query: str, uuids: List[str]) -> str:
+    """Removes comments associated with child uuids in a query"""
+    return "".join(text for text, _ in _split_uuid_comments(sql_query, uuids))
 
 
 def _validate_iceberg_named_version_ref(
@@ -2621,38 +2658,40 @@ def get_line_numbers(
         - (3, 3, "parent-uuid")
         - (4, 4, "child-uuid-2")
 
-        To do so, we split the commented_sql_query into lines and check for comments associated with child uuids. We find all
+        To do so, we locate the comments associated with child uuids and count lines on the sql with them removed. We find all
         intervals associated with child uuids and associate the remaining lines with the parent uuid.
     """
     from snowflake.snowpark._internal.analyzer.snowflake_plan import QueryLineInterval
-    from snowflake.snowpark._internal.analyzer import analyzer_utils
 
-    sql_lines = commented_sql_query.split("\n")
-    comment_placeholders = {
-        analyzer_utils.format_uuid(uuid, with_new_line=False): uuid
-        for uuid in child_uuids
-    }
-
+    # Line numbers are counted on the sql with the comments removed, the same way
+    # the server counts them (every new line, including those inside literals).
     idx = 0
+    ends_with_new_line = False
     child_intervals = []
     child_start = -1
     found_start = False
     current_child_uuid = None
 
-    for line in sql_lines:
-        if line in comment_placeholders:
-            if found_start and current_child_uuid:
-                child_intervals.append(
-                    QueryLineInterval(child_start, idx - 1, current_child_uuid)
+    for text, child_uuid in _split_uuid_comments(commented_sql_query, child_uuids):
+        idx += text.count("\n")
+        if text:
+            ends_with_new_line = text.endswith("\n")
+        if child_uuid is None:
+            break
+        if found_start and current_child_uuid:
+            child_end = idx - 1 if ends_with_new_line else idx
+            child_intervals.append(
+                QueryLineInterval(
+                    child_start, max(child_start, child_end), current_child_uuid
                 )
-                found_start = False
-                current_child_uuid = None
-            elif not found_start:
-                found_start = True
-                child_start = idx
-                current_child_uuid = comment_placeholders[line]
-        elif line != "":
-            idx += 1
+            )
+            found_start = False
+            current_child_uuid = None
+        elif not found_start:
+            found_start = True
+            child_start = idx
+            current_child_uuid = child_uuid
+    idx += 1
 
     current_pos = 0
     new_intervals = []

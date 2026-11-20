@@ -288,7 +288,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.14", "3.14t"]
+        python-version: ["3.14"]
         cloud-provider: [azure]
     steps:
       - name: Checkout Code
@@ -329,7 +329,7 @@ jobs:
       - name: Install tox
         run: uv pip install tox --system
       - name: Run tests
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-local"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-local-pandas2"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -346,6 +346,77 @@ jobs:
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-local-testing
+          path: |
+            .tox/.coverage
+            .tox/coverage.xml
+
+  test-local-testing-pandas3:
+    # Separate job, so the required check keeps its name.
+    name: Test Local Testing Module pandas 3 py-${{ matrix.os }}-${{ matrix.python-version }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.14", "3.14t"]
+        cloud-provider: [azure]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Decrypt parameters.py
+        shell: bash
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+      - name: Add protoc to Windows path
+        if: runner.os == 'Windows'
+        run: |
+          echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Download wheel(s)
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: dist
+      - name: Show wheels downloaded
+        run: ls -lh dist
+        shell: bash
+      - name: Upgrade setuptools, pip and wheel
+        run: uv pip install -U setuptools pip wheel --system
+      - name: Install tox
+        run: uv pip install tox --system
+      - name: Run tests
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-local-pandas3"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+        shell: bash
+      - name: Combine coverages
+        run: python -m tox -e coverage --skip-missing-interpreters false
+        shell: bash
+        env:
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-local-testing-pandas3
           path: |
             .tox/.coverage
             .tox/coverage.xml
@@ -734,6 +805,7 @@ jobs:
       - pr_gate_precheck
       - test
       - test-local-testing
+      - test-local-testing-pandas3
       - test-snowpark-pandas
       - test-modin-extra-without-pandas-extra
       - test-ast-encoding
@@ -844,6 +916,7 @@ jobs:
       - build
       - test
       - test-local-testing
+      - test-local-testing-pandas3
       - test-ast-encoding
       - doctest-ast-phase0
       - test-ast-phase0

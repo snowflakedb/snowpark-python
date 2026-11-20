@@ -8,11 +8,17 @@
 
 - Added support for change-tracking reads with the `CHANGES` clause. `Session.table`, `DataFrameReader.table` and `Table` accept `changes` (`"default"` or `"append_only"`) together with the existing time travel arguments, and `end_statement`, `end_offset`, `end_timestamp` and `end_timestamp_type` to set the end of the changes (`END` clause). `DataFrameReader` options `changes`, `end_statement`, `end_offset`, `end_timestamp` and `end_timestamp_type` are supported as well. Added the column constants `METADATA_ACTION`, `METADATA_ISUPDATE` and `METADATA_ROW_ID` in `snowflake.snowpark.column` for the extra columns of such reads. These reads are not supported in local testing, and `Table.sample` is not supported on them.
 - `DataFrameReader.documents()` (Private Preview) reads with a `schema` or a `prompt` now return the `AI_COMPLETE` token usage of each document in `INPUT_TOKENS` and `OUTPUT_TOKENS` columns. A schema field can no longer be named like one of these columns.
+- Added the `snowflake.snowpark.mcp` module (private preview) to build tools and servers for the Snowflake-managed MCP server in Python:
+  - `mcp_tool` turns a Python function into a tool, with its argument schema built from the type hints and docstring. A function whose first parameter is a `Session` becomes a stored procedure; any other function becomes a UDF. Results, including DataFrames, are converted to JSON and kept under the MCP server's response limit, and `ToolError` returns an error the model can act on. Deployed tools reject values outside an `enum` and nulls for arguments that don't allow them, since the MCP server does not validate arguments, and return an `INVALID_ARGUMENTS` error. Other errors reach MCP clients as a generic message with an error ID and without the traceback, unless `mask_error_details=False`; the full error is logged with the same ID.
+  - `Tool.from_procedure` and `Tool.from_function` turn existing procedures and UDFs, in any language, into tools.
+  - `MCPServer` prints its specification (`to_yaml`), deploys it with its Python tools (`deploy`, which checks the definition first and has a `dry_run` option, with a suffix for dev and prod copies), calls deployed tools over a session (`call_tool`), and grants a role everything the tools need (`grant_usage`).
+  - `Tool.builtin` adds the MCP server's built-in tool types (such as Cortex Agent, Cortex Analyst and Cortex Search) to a server.
 
 #### Improvements
 
 - UDFs, UDTFs, UDAFs and stored procedures registered from a free-threaded Python build (for example 3.14t) now default to the matching free-threaded `RUNTIME_VERSION` (`3.14t`) instead of the GIL runtime (`3.14`). The default artifact repository is looked up for the free-threaded version as well. If the server does not support the free-threaded runtime, Snowpark warns once and registers the object with the GIL runtime (`3.14`) instead, as before.
 - `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.
+- `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) now maps SQL compilation errors that have no line number to the DataFrame operations that caused them, using up to 32 extra describe attempts on failure.
 
 #### Bug Fixes
 
@@ -20,8 +26,10 @@
 - Fixed a bug where `Table.sample` and seeded `DataFrame.stat.sample_by` on a table embedded `seed` into the SQL without validating it. A `seed` that is not an integer between 0 and 2147483647 now raises `ValueError`.
 - Fixed a bug where `to_binary` and `try_to_binary` raised `TypeError` when the format was a `Column`.
 - Fixed a bug where `DataFrameReader.table` failed when a time travel reader option was set to `None`, e.g. `option("time_travel_mode", None)` together with `option("as-of-timestamp", ...)`. Time travel options set to `None` are now treated as unset.
+- Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) removed empty lines inside string literals of raw SQL, which changed query results.
 - Fixed a bug where `DataFrameReader.documents()` (Private Preview) reads with a schema refused `.jpg`, `.jpeg`, `.png`, `.gif` and `.webp` images with a "file type is not supported" error. Each image is now sent to `AI_COMPLETE` whole, in one call.
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` that contained string literals, backslashes or newlines failed with a SQL compilation error during schema inference.
+- Fixed a bug in `DataFrameReader.jdbc` where reading failed when `DEFAULT_DDL_COLLATION` was set.
 
 ### Snowpark Local Testing Updates
 
