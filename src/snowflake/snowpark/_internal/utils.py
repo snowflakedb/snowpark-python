@@ -1216,6 +1216,7 @@ def publicapi(func: CallableT) -> CallableT:
         state.depth = depth + 1
         if depth == 0:
             state.created, state.seeds = [], []
+            state.trace_call_id = df_trace._next_node_id()
         try:
             result = func(*args, **kwargs)
         except BaseException:
@@ -1224,6 +1225,8 @@ def publicapi(func: CallableT) -> CallableT:
             raise
         finally:
             state.depth = depth
+            if depth == 0:
+                state.trace_call_id = None
         if depth > 0:
             return result
         created, seeds = state.created or [], state.seeds
