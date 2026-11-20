@@ -97,10 +97,12 @@ def test_clause_token_binds_once_and_excludes_unknown_slots(traced_statement):
 @pytest.mark.parametrize("bound", [False, True], ids=["unbound", "bound"])
 def test_clause_token_copy_preserves_ownership(traced_statement, copy_statement, bound):
     original = traced_statement
+    original._df_trace_call_id = 123
     node = TraceNode(SrcPosition("app.py", 4, 0, 4, 10))
     if bound:
         original.add_df_trace_node(node)
     copied = copy_statement(original)
+    assert copied._df_trace_call_id == original._df_trace_call_id
     assert copied._pending_trace_node is not original._pending_trace_node
     copied.add_df_trace_node(TraceNode(SrcPosition("app.py", 8, 0, 8, 10)))
     inherited = node if bound else original._pending_trace_node

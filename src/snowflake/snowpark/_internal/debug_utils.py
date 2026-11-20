@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Set, Tuple
 import itertools
 import re
 from typing import TYPE_CHECKING
+import snowflake.connector
 import snowflake.snowpark
 from snowflake.snowpark._internal.df_trace import SrcPosition, TraceNode
 from ast import literal_eval
@@ -196,7 +197,9 @@ def _format_source_location(src: Optional[SrcPosition]) -> str:
     return lines_info
 
 
-def _get_own_trace_nodes(plan: "SnowflakePlan") -> List[TraceNode]:
+def _get_own_trace_nodes(
+    plan: "SnowflakePlan", strict: bool = False
+) -> List[TraceNode]:
     """
     Return the trace nodes of the DataFrame operations that produced this plan's
     own SQL text, leaving out the ones it inherited from the subqueries it wraps.
@@ -207,7 +210,7 @@ def _get_own_trace_nodes(plan: "SnowflakePlan") -> List[TraceNode]:
     The nodes of a ``SelectSQL`` child are not inherited but copied down from the
     plan (``SnowflakePlan.add_df_trace_node``), so they are kept.
     If nothing is left (e.g. the plan only re-wraps its child), the full list is
-    returned.
+    returned, or an empty list if ``strict`` is set.
     """
     from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
 
@@ -219,7 +222,7 @@ def _get_own_trace_nodes(plan: "SnowflakePlan") -> List[TraceNode]:
         for node in getattr(child, "df_trace_nodes", None) or []:
             inherited_ids.add(id(node))
     own_nodes = [node for node in trace_nodes if id(node) not in inherited_ids]
-    return own_nodes or trace_nodes
+    return own_nodes if strict else own_nodes or trace_nodes
 
 
 def _extract_source_locations_from_plan(
@@ -717,6 +720,151 @@ def get_python_source_from_sql_error(
             locations_str = "\n  - ".join(source_locations)
             return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
     return ""
+
+
+# The number of describe queries a SQL compilation error without a line number may issue to
+# find the operation that caused it.
+_MAX_LINE_LESS_ERROR_DESCRIBES = 32
+
+
+def get_line_less_error_context(
+    top_plan: "SnowflakePlan",
+    error: "snowflake.connector.errors.ProgrammingError",
+    executed_sql: Optional[str] = None,
+) -> str:
+    """
+    Map a SQL compilation error that has no line number to the DataFrame operations that
+    caused it.
+
+    The SQL of the child plans is compiled with describe queries (no data is read), starting
+    from the top plan: a plan whose own SQL fails with the same error while the SQL of all
+    its children compiles is the cause, and the operations that generated its own SQL are
+    reported. Nothing is reported unless every step is verified by the server, e.g. when a
+    child fails with another error, needs queries that run before it, or the number of
+    describe queries reaches ``_MAX_LINE_LESS_ERROR_DESCRIBES``.
+
+    Args:
+        top_plan: The top level SnowflakePlan object that contains the SQL compilation error.
+        error: The SQL compilation error.
+        executed_sql: The SQL that failed. Only an unambiguous failure of the plan's
+            own single query is supported, not pre-actions or compiler rewrites (CTE
+            optimization or large query breakdown). A schema-query failure requires
+            verifying the plan's own query within the same describe budget.
+
+    Returns:
+        Error message with the affected Python lines numbers if found, otherwise an empty string.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
+
+    # A matching error message from a child does not prove that the root query failed.
+    # In particular, an execution-time pre-action can fail before that query is sent.
+    if not executed_sql or len(top_plan.queries) != 1:
+        return ""
+    executed = executed_sql.strip()
+    main_query_failed = _same_query(executed, top_plan.queries[0].sql)
+    if not main_query_failed and (
+        top_plan._last_execution_queries is not None
+        or top_plan.schema_query is None
+        or not _same_query(executed, top_plan.schema_query)
+    ):
+        return ""
+    if any(_same_query(executed, query.sql) for query in top_plan.post_actions):
+        return ""
+    compiled = top_plan._last_execution_queries
+    if compiled is not None:
+        main_queries = compiled.get(PlanQueryType.QUERIES, [])
+        if (
+            len(main_queries) != 1
+            or not _same_query(executed, main_queries[0].sql)
+            or any(
+                _same_query(executed, query.sql)
+                for query in compiled.get(PlanQueryType.POST_ACTIONS, [])
+            )
+        ):
+            return ""
+
+    def signature(err: "snowflake.connector.errors.ProgrammingError") -> Tuple:
+        return err.errno, " ".join(
+            (err.msg or "").split("SQL compilation error:")[-1].split()
+        )
+
+    target = signature(error)
+    describes = 0
+    source_locations: List[str] = []
+
+    if not main_query_failed:
+        query = top_plan.queries[0]
+        if (
+            _PLACEHOLDER.search(query.sql)
+            or describes >= _MAX_LINE_LESS_ERROR_DESCRIBES
+        ):
+            return ""
+        describes += 1
+        try:
+            top_plan.session._get_result_attributes(query.sql, query.params)
+        except snowflake.connector.errors.ProgrammingError as main_error:
+            if signature(main_error) != target:
+                return ""
+        else:
+            return ""
+
+    def visit(node, owner_trace_nodes: List[TraceNode]) -> bool:
+        nonlocal describes
+        plan = node.snowflake_plan if isinstance(node, Selectable) else node
+        if plan.df_trace_nodes:
+            # A plan that only re-wraps its child has no operation of its own: it is not
+            # known which operation generated its SQL.
+            owner_trace_nodes = _get_own_trace_nodes(plan, strict=True)
+            if not owner_trace_nodes:
+                return False
+        elif not (
+            getattr(node, "_df_trace_call_id", None) is not None
+            and any(
+                trace_node.trace_call_id == node._df_trace_call_id
+                for trace_node in owner_trace_nodes
+            )
+        ):
+            # Missing traces can mean tracing was disabled, not an internal operation.
+            # Only inherit from the public call that actually created this node.
+            return False
+        failing_children = []
+        for child in node.children_plan_nodes:
+            child_plan = (
+                child.snowflake_plan if isinstance(child, Selectable) else child
+            )
+            queries = child_plan.queries
+            if (
+                len(queries) != 1
+                or _PLACEHOLDER.search(queries[0].sql)
+                or describes >= _MAX_LINE_LESS_ERROR_DESCRIBES
+            ):
+                return False
+            describes += 1
+            try:
+                top_plan.session._get_result_attributes(
+                    queries[0].sql, queries[0].params
+                )
+            except snowflake.connector.errors.ProgrammingError as child_error:
+                if signature(child_error) != target:
+                    return False
+                failing_children.append(child)
+        if failing_children:
+            return all(visit(child, owner_trace_nodes) for child in failing_children)
+        if not owner_trace_nodes:
+            return False
+        for trace_node in owner_trace_nodes:
+            location = _format_source_location(trace_node.src)
+            if location and location not in source_locations:
+                source_locations.append(location)
+        return True
+
+    if not visit(top_plan, []) or not source_locations:
+        return ""
+    if len(source_locations) == 1:
+        return f"\nSQL compilation error corresponds to Python source at {source_locations[0]}.\n"
+    locations_str = "\n  - ".join(source_locations)
+    return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
 
 
 def get_missing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> str:
