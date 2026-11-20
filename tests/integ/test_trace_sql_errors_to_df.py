@@ -8,7 +8,7 @@ import sys
 
 import pytest
 import snowflake.snowpark.context as context
-from snowflake.snowpark import Session
+from snowflake.snowpark import Row, Session
 
 from snowflake.snowpark._internal.utils import (
     AstFlagSource,
@@ -18,11 +18,13 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     col,
+    length,
     lit,
     sql_expr,
     sum,
     when,
 )
+from snowflake.snowpark.types import IntegerType
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.window import Window
@@ -263,6 +265,196 @@ def test_invalid_identifier_error_message(session):
     assert "SQL compilation error corresponds to Python source" in str(ex.value)
     line_number = Utils.get_current_line_number_sys()
     assert f"line {line_number - 3}" in str(ex.value)
+
+
+@pytest.fixture(params=[True, False], ids=["simplifier", "no_simplifier"])
+def simplifier(request, session):
+    original = session.sql_simplifier_enabled
+    session.sql_simplifier_enabled = request.param
+    yield
+    session.sql_simplifier_enabled = original
+
+
+def _line_less_error(ex) -> str:
+    assert "SQL compilation error:" in str(ex.value)
+    assert "error line" not in str(ex.value)
+    return str(ex.value)
+
+
+def _assert_maps_to(df, line):
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    _line_less_error(ex)
+    assert _mapped_lines(ex) == [line]
+
+
+def test_line_less_error_join_using(session, simplifier):
+    """A join USING a column that its left side does not have reports no error line: the
+    join is reported, not the operations before it that removed or renamed the column.
+    """
+    lookup = session.create_dataframe([(1, "Animal")], schema=["type", "category"])
+
+    # an unrelated dataframe dropped its own TYPE column
+    other = session.create_dataframe([(1, 2)], schema=["ID", "TYPE"]).select("ID")
+    base = session.create_dataframe([(1, 3)], schema=["ID", "KIND"]).join(other, "ID")
+    line = Utils.get_current_line_number_sys() + 1
+    _assert_maps_to(base.join(lookup, on="TYPE"), line)
+
+    # TYPE was aggregated away
+    df = session.create_dataframe([(1, 2)], schema=["ID", "TYPE"])
+    agg = df.group_by("ID").agg(sum("TYPE").alias("S"))
+    line = Utils.get_current_line_number_sys() + 1
+    _assert_maps_to(agg.join(lookup, on="TYPE"), line)
+
+    # the join renamed the TYPE columns of both sides
+    a = session.create_dataframe([(1, 2)], schema=["ID", "TYPE"])
+    b = session.create_dataframe([(1, 3)], schema=["ID", "TYPE"])
+    joined = a.join(b, a["ID"] == b["ID"])
+    line = Utils.get_current_line_number_sys() + 1
+    _assert_maps_to(joined.join(lookup, on="TYPE"), line)
+
+
+def test_line_less_error_ticket_example(session):
+    """The cast removed TYPE. With the SQL simplifier the join USING reports no error line."""
+    session.sql_simplifier_enabled, original = True, session.sql_simplifier_enabled
+    try:
+        df = session.create_dataframe([("cat", "1")], schema=["object", "type"])
+        lookup = session.create_dataframe([(1, "Animal")], schema=["type", "category"])
+        normalized = df.select("OBJECT", df.TYPE.cast(IntegerType()))
+        filtered = normalized.where(col("TYPE") < 3)
+        line = Utils.get_current_line_number_sys() + 1
+        _assert_maps_to(filtered.join(lookup, on="TYPE"), line)
+    finally:
+        session.sql_simplifier_enabled = original
+
+
+@pytest.mark.parametrize("wrap_join", [False, True], ids=["top", "child"])
+def test_line_less_error_with_bind_parameters(session, simplifier, wrap_join):
+    left = session.sql("select ? as ID", params=[7])
+    right = session.sql("select ? as TYPE", params=[7])
+    join_line = Utils.get_current_line_number_sys() + 1
+    joined = left.join(right, on="TYPE")
+    result = joined.select("ID") if wrap_join else joined
+    _assert_maps_to(result, join_line)
+
+
+def test_line_less_error_in_child(session, simplifier):
+    """The failing join is wrapped by later operations: only the join is reported."""
+    lookup = session.create_dataframe([(1, "Animal")], schema=["type", "category"])
+    df = session.create_dataframe([(1, 2)], schema=["ID", "V"])
+    join_line = Utils.get_current_line_number_sys() + 1
+    joined = df.join(lookup, on="TYPE")
+    result = joined.select("ID").filter(col("ID") > 0)
+    with pytest.raises(SnowparkSQLException) as ex:
+        result.collect()
+    _line_less_error(ex)
+    assert _mapped_lines(ex) == [join_line]
+
+
+def test_line_less_error_set_operation(session, simplifier):
+    """A set operation whose branches have different numbers of columns reports no error
+    line: the union is reported. With the SQL simplifier, the select and filter on top of it
+    are part of the same SQL statement and are reported too."""
+    a = session.create_dataframe([(1,)], schema=["A"])
+    b = session.create_dataframe([(1, 2)], schema=["A", "B"]).filter(col("A") > 0)
+    union_line = Utils.get_current_line_number_sys() + 1
+    union = a.union_all(b)
+    result = union.select("A").filter(col("A") > 0)
+    with pytest.raises(SnowparkSQLException) as ex:
+        result.collect()
+    assert "invalid number of result columns" in _line_less_error(ex)
+    expected = (
+        [union_line, union_line + 1] if session.sql_simplifier_enabled else [union_line]
+    )
+    assert _mapped_lines(ex) == expected
+
+
+def test_line_less_error_while_building(session):
+    """The error is raised while the union is built, by the schema query of its first branch:
+    no other line than the failing join is reported."""
+    lookup = session.create_dataframe([(1, "Animal")], schema=["type", "category"])
+    first_line = Utils.get_current_line_number_sys() + 1
+    first = session.create_dataframe([(1, 2)], schema=["ID", "V"]).join(
+        lookup, on="TYPE"
+    )
+    second = session.create_dataframe([(3, 4)], schema=["ID", "V"])
+    with pytest.raises(SnowparkSQLException) as ex:
+        first.union_all(second).collect()
+    _line_less_error(ex)
+    assert set(_mapped_lines(ex)) <= {first_line}
+
+
+def test_line_less_error_not_verified(session):
+    """A child that needs queries that run before it cannot be compiled on its own: nothing
+    is reported, and the lineage trace is still added."""
+    lookup = session.create_dataframe([(1, "Animal")], schema=["type", "category"])
+    # Large enough to be loaded into a temporary table by queries that run before it.
+    large = session.create_dataframe([(i, i) for i in range(1000)], schema=["ID", "V"])
+    joined = large.join(lookup, on="TYPE")
+    context.configure_development_features(enable_dataframe_trace_on_error=True)
+    try:
+        with pytest.raises(SnowparkSQLException) as ex:
+            joined.collect()
+    finally:
+        context.configure_development_features(enable_dataframe_trace_on_error=False)
+    _line_less_error(ex)
+    assert _mapped_lines(ex) == []
+    assert "Trace of the most recent dataframe operations" in str(ex.value)
+
+
+def test_line_less_error_describe_limit(session, monkeypatch):
+    from snowflake.snowpark._internal import debug_utils
+
+    monkeypatch.setattr(debug_utils, "_MAX_LINE_LESS_ERROR_DESCRIBES", 0)
+    lookup = session.create_dataframe([(1, "Animal")], schema=["type", "category"])
+    joined = session.create_dataframe([(1, 2)], schema=["ID", "V"]).join(
+        lookup, on="TYPE"
+    )
+    with pytest.raises(SnowparkSQLException) as ex:
+        joined.collect()
+    _line_less_error(ex)
+    assert ex.value.debug_context in (None, "")
+
+
+def test_line_less_error_feature_off_issues_no_describe(session):
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
+    lookup = session.create_dataframe([(1, "Animal")], schema=["type", "category"])
+    joined = session.create_dataframe([(1, 2)], schema=["ID", "V"]).join(
+        lookup, on="TYPE"
+    )
+    with session.query_history(include_describe=True, include_error=True) as history:
+        with pytest.raises(SnowparkSQLException) as ex:
+            joined.collect()
+    _line_less_error(ex)
+    assert "Additional Debug Information" not in str(ex.value)
+    # only the failing query itself
+    assert len(history.queries) == 1
+
+
+def test_invalid_identifier_in_filter_on_table(session):
+    table_name = Utils.random_table_name()
+    session.create_dataframe([(1, 2)], schema=["a", "b"]).write.save_as_table(
+        table_name, table_type="temp"
+    )
+    try:
+        filter_line = Utils.get_current_line_number_sys() + 1
+        df = session.table(table_name).filter(col("c") > 1)
+        with pytest.raises(SnowparkSQLException) as ex:
+            df.collect()
+        assert "invalid identifier 'C'" in str(ex.value)
+        assert _mapped_lines(ex) == [filter_line]
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+def test_invalid_identifier_select_of_dropped_column(session):
+    df = session.create_dataframe([(1, 2)], schema=["a", "b"])
+    select_line = Utils.get_current_line_number_sys() + 1
+    df = df.drop("b").select("b")
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert "invalid identifier 'B'" in str(ex.value)
+    assert _mapped_lines(ex) == [select_line]
 
 
 def test_missing_table_with_session_table(session):
@@ -809,3 +1001,23 @@ def test_sql_error_tracing_is_per_session(session, db_parameters):
     assert "SQL compilation error corresponds to Python source" not in str(
         ex_off.value.debug_context or ""
     )
+
+
+def test_empty_lines_in_literals_are_kept(session, multiline):
+    """The sql sent with the feature on keeps the empty lines of string literals."""
+
+    def run():
+        df = session.sql("select 'a\n\nb' as s").select(
+            "s", length(col("s")).alias("n")
+        )
+        return df.collect(), df.queries["queries"][-1]
+
+    rows_on, sql_on = run()
+    session.debug.disable_trace_sql_errors_to_dataframe()
+    try:
+        rows_off, sql_off = run()
+    finally:
+        session.debug.enable_trace_sql_errors_to_dataframe()
+    assert rows_on == rows_off == [Row(S="a\n\nb", N=4)]
+    if multiline:
+        assert sql_on == sql_off

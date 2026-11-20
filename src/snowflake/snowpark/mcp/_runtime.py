@@ -1,0 +1,378 @@
+#
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
+
+"""Code that runs inside every procedure or UDF that backs a Snowpark MCP tool.
+
+``make_handler`` wraps the user's tool function; the wrapper is what gets registered.
+It converts the function's result to JSON-safe values, keeps it under the MCP server's
+response limit, and turns a ``ToolError`` into an error result the model can read.
+
+This module is pickled by value together with each tool (see ``_pickle_runtime_by_value`` in ``_tools``), so the
+warehouse never imports it by name: tools keep working where the installed Snowpark is
+older than the client that deployed them. For that reason it imports only the standard
+library, and recognizes Snowpark and pandas objects by their attributes.
+"""
+
+import base64
+import datetime
+import decimal
+import inspect
+import json
+import logging
+import math
+import sys
+import uuid
+from typing import Any, Callable, Dict, Iterable, List, Optional
+
+DEFAULT_MAX_ROWS = 1000
+# Below the 250 KB at which the MCP server truncates GENERIC tool results, so the
+# model is told a result was cut instead of receiving broken JSON.
+DEFAULT_MAX_RESULT_BYTES = 240_000
+# "Generic tool and SQL execution responses are capped at 250 KB", from the MCP server
+# guide https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-mcp
+# (its 50-tool limit excludes the tools Snowflake adds for agent tools; verified).
+PLATFORM_RESULT_LIMIT_BYTES = 250_000
+
+_logger = logging.getLogger("snowflake.snowpark.mcp")
+
+
+class ToolError(Exception):
+    """Raise in a tool to return an error the model can read and act on.
+
+    The tool returns ``{"error": {"type": "ToolError", "message": ..., "hint": ...}}``
+    instead of failing. Use it for expected failures, such as an unknown ID; any other
+    exception makes the tool call fail.
+
+    Args:
+        message: What went wrong, written for the model.
+        hint: Optional suggestion for what to try instead.
+    """
+
+    # The class is pickled by value with each tool, so on the warehouse it is a copy
+    # of this class rather than this class; the runtime recognizes it by this marker.
+    _snowpark_mcp_tool_error = True
+
+    def __init__(self, message: str, hint: Optional[str] = None) -> None:
+        super().__init__(message)
+        self.message = message
+        self.hint = hint
+
+
+def error_result(
+    error_type: str, message: str, hint: Optional[str] = None
+) -> Dict[str, Any]:
+    error = {"type": error_type, "message": message}
+    if hint:
+        error["hint"] = hint
+    return {"error": error}
+
+
+def to_json_value(value: Any) -> Any:
+    """Converts a value returned by a tool to values ``json.dumps`` accepts."""
+    if value is None or isinstance(value, (bool, str)):
+        return value
+    if type(value).__name__ == "NAType":  # pandas.NA
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        # NaN and infinity are not valid JSON.
+        return value if math.isfinite(value) else None
+    if isinstance(value, decimal.Decimal):
+        if not value.is_finite():
+            return None
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
+        # pandas NaT is a datetime that is not equal to itself.
+        return None if value != value else value.isoformat()
+    if isinstance(value, datetime.timedelta):
+        return value.total_seconds()
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return base64.b64encode(bytes(value)).decode("ascii")
+    if _is_row(value):
+        # Unlike asDict(), this keeps repeated field names and allows none.
+        fields = getattr(value, "_fields", None)
+        if not fields:
+            return [to_json_value(v) for v in value]
+        return {
+            str(k): to_json_value(v)
+            for k, v in zip(unique_names([str(f) for f in fields]), value)
+        }
+    if isinstance(value, dict):
+        return {str(k): to_json_value(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [to_json_value(v) for v in value]
+    if callable(getattr(value, "tolist", None)):
+        # numpy arrays, and numpy scalars, whose tolist() is the Python value
+        return to_json_value(value.tolist())
+    if hasattr(value, "item") and callable(value.item):
+        return to_json_value(value.item())
+    raise TypeError(
+        f"A tool returned a value of type {type(value).__name__}, which cannot be "
+        "converted to JSON. Return a dict, list, str, number, bool, None, a Row, or a "
+        "DataFrame."
+    )
+
+
+def _is_row(value: Any) -> bool:
+    return isinstance(value, tuple) and callable(getattr(value, "asDict", None))
+
+
+def _is_snowpark_dataframe(value: Any) -> bool:
+    return all(
+        callable(getattr(value, attr, None)) for attr in ("collect", "limit")
+    ) and hasattr(value, "schema")
+
+
+def _is_pandas_dataframe(value: Any) -> bool:
+    return (
+        callable(getattr(value, "to_dict", None))
+        and callable(getattr(value, "head", None))
+        and hasattr(value, "columns")
+        and hasattr(value, "iloc")
+    )
+
+
+def _json_size(value: Any) -> int:
+    return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode())
+
+
+def table_result(
+    columns: List[str],
+    rows: Iterable[Dict[str, Any]],
+    max_rows: int,
+    max_result_bytes: int,
+) -> Dict[str, Any]:
+    """Builds ``{"columns", "rows", "row_count", "truncated"}`` from at most
+    ``max_rows + 1`` rows, keeping the rows that fit in ``max_result_bytes``."""
+    result = {"columns": columns, "rows": [], "row_count": 0, "truncated": False}
+    # Bytes used by everything except the rows, with "truncated" left false, the
+    # longer spelling, so the final result is never larger than what was measured.
+    size = _json_size({**result, "row_count": max_rows})
+    kept = result["rows"]
+    for row in rows:
+        if len(kept) >= max_rows:
+            result["truncated"] = True
+            break
+        row = to_json_value(row)
+        row_size = _json_size(row) + (1 if kept else 0)  # the separating comma
+        if size + row_size > max_result_bytes:
+            result["truncated"] = True
+            break
+        kept.append(row)
+        size += row_size
+    result["row_count"] = len(kept)
+    return result
+
+
+def unique_names(names: List[str]) -> List[str]:
+    """Appends ``_2``, ``_3``, ... to repeated column names, so rows keyed by column
+    name keep every column."""
+    seen = set()
+    unique = []
+    for name in names:
+        candidate, n = name, 2
+        while candidate in seen:
+            candidate = f"{name}_{n}"
+            n += 1
+        seen.add(candidate)
+        unique.append(candidate)
+    return unique
+
+
+def _unquote(name: str) -> str:
+    """A column name of a schema without its quotes, as ``Row`` reports it."""
+    if len(name) >= 2 and name.startswith('"') and name.endswith('"'):
+        return name[1:-1].replace('""', '"')
+    return name
+
+
+def to_tool_result(value: Any, max_rows: int, max_result_bytes: int) -> Any:
+    """Converts what a tool function returned to the JSON value the tool returns."""
+    if _is_snowpark_dataframe(value):
+        rows = value.limit(max_rows + 1).collect()
+        # A Row's fields, unlike asDict(), keep repeated column names.
+        fields = getattr(rows[0], "_fields", None) if rows else None
+        columns = unique_names(
+            [str(c) for c in fields or map(_unquote, value.schema.names)]
+        )
+        return table_result(
+            columns,
+            (dict(zip(columns, row)) for row in rows),
+            max_rows,
+            max_result_bytes,
+        )
+    if _is_pandas_dataframe(value):
+        frame = value.head(max_rows + 1)
+        names = [str(c) for c in value.columns]
+        columns = unique_names(names)
+        if columns != names:
+            frame = frame.copy()
+            frame.columns = columns
+        return table_result(
+            columns,
+            frame.to_dict(orient="records"),
+            max_rows,
+            max_result_bytes,
+        )
+
+    result = to_json_value(value)
+    size = _json_size(result)
+    if size > max_result_bytes:
+        return error_result(
+            "RESULT_TOO_LARGE",
+            f"The result is {size} bytes, more than the {max_result_bytes} bytes this "
+            "tool can return.",
+            "Ask for fewer rows or fields, or narrow the request.",
+        )
+    return result
+
+
+def check_received_arguments(schema: dict, arguments: dict) -> List[str]:
+    """Returns the problems with the arguments a deployed tool received.
+
+    The MCP server does not validate arguments against the input schema, but converts
+    them to the SQL parameter types before the tool runs, so this check is lenient
+    about types: it only checks ``enum`` and that no argument is null unless its type
+    allows null.
+    """
+    problems = []
+    properties = schema.get("properties") or {}
+    for name, value in arguments.items():
+        types_ = (properties.get(name) or {}).get("type")
+        nullable = types_ is None or (isinstance(types_, list) and "null" in types_)
+        if value is None and not nullable:
+            problems.append(f"{name} must not be null")
+    for name, value in arguments.items():
+        allowed = (properties.get(name) or {}).get("enum")
+        if value is not None and allowed is not None and value not in allowed:
+            shown = [v for v in allowed if v is not None]
+            problems.append(f"{name} must be one of {shown!r}, got {value!r}")
+    return problems
+
+
+def _allowed_values_hint(schema: dict, arguments: dict) -> Optional[str]:
+    properties = schema.get("properties") or {}
+    hints = [
+        f"Allowed values for {name}: "
+        + ", ".join(str(v) for v in allowed if v is not None)
+        + "."
+        for name, value in arguments.items()
+        for allowed in [(properties.get(name) or {}).get("enum")]
+        if value is not None and allowed is not None and value not in allowed
+    ]
+    return " ".join(hints) or None
+
+
+def invalid_arguments_result(schema: dict, received: dict) -> Optional[Dict[str, Any]]:
+    """The ``INVALID_ARGUMENTS`` error result for the arguments a deployed tool
+    received, or None if they are valid."""
+    problems = check_received_arguments(schema, received)
+    if not problems:
+        return None
+    return error_result(
+        "INVALID_ARGUMENTS", "; ".join(problems), _allowed_values_hint(schema, received)
+    )
+
+
+def _return_value(value: Any) -> Any:
+    """Unpickles an MCP tool as its function."""
+    return value
+
+
+def run_tool(
+    func: Callable,
+    args: tuple,
+    kwargs: dict,
+    max_rows: int = DEFAULT_MAX_ROWS,
+    max_result_bytes: int = DEFAULT_MAX_RESULT_BYTES,
+    mask_error_details: bool = False,
+) -> Any:
+    """Calls ``func`` and converts its result. A ``ToolError`` becomes an error
+    result. Any other exception is logged and raised, so the MCP server records the
+    call as failed; with ``mask_error_details``, it is raised as a generic error."""
+    name = getattr(func, "__name__", "tool")
+    try:
+        return to_tool_result(func(*args, **kwargs), max_rows, max_result_bytes)
+    except Exception as exc:
+        if getattr(exc, "_snowpark_mcp_tool_error", False):
+            return error_result(
+                "ToolError",
+                getattr(exc, "message", str(exc)),
+                getattr(exc, "hint", None),
+            )
+        # Logged so the traceback reaches the event table. ``logging`` honors
+        # ``sys.tracebacklimit``, which a masked failure sets to 0 for the process,
+        # so the limit is lifted while logging.
+        error_id = uuid.uuid4().hex[:12]
+        limit = sys.__dict__.pop("tracebacklimit", None)
+        try:
+            _logger.error(
+                "MCP tool %s failed (error ID %s)", name, error_id, exc_info=exc
+            )
+        finally:
+            if limit is not None:
+                sys.tracebacklimit = limit
+        if not mask_error_details:
+            raise
+        # The MCP server sends a failed call's Python error to the client, with the
+        # traceback (file paths and code of the tool, Snowpark and the connector)
+        # unless the traceback limit is 0.
+        sys.tracebacklimit = 0
+        raise RuntimeError(
+            f"Tool {name} failed with an unexpected error (error ID {error_id}). "
+            "Retrying with the same arguments will not help; tell the user that the "
+            "tool failed and give them the error ID."
+        ) from None
+
+
+def make_handler(
+    func: Callable,
+    max_rows: int = DEFAULT_MAX_ROWS,
+    max_result_bytes: int = DEFAULT_MAX_RESULT_BYTES,
+    mask_error_details: bool = False,
+    input_schema: Optional[dict] = None,
+    takes_session: bool = False,
+) -> Callable:
+    """Returns the function to register for a tool.
+
+    With ``input_schema``, the handler checks the arguments it receives (see
+    ``check_received_arguments``) before calling ``func`` and returns an
+    ``INVALID_ARGUMENTS`` error result if they are invalid. ``takes_session`` says that
+    ``func``'s first parameter is the session, which is not part of the schema.
+
+    It has ``func``'s signature, so Snowpark registers the procedure or UDF with the
+    same parameter names and defaults, but no annotations: the registered return type
+    is always VARIANT, whatever ``func`` is annotated to return.
+    """
+
+    func_signature = inspect.signature(func)
+
+    def handler(*args, **kwargs):
+        if input_schema is not None:
+            try:
+                bound = func_signature.bind_partial(*args, **kwargs).arguments
+            except TypeError:
+                bound = {}  # let func raise the error for the wrong arguments
+            received = dict(bound)
+            if takes_session and func_signature.parameters:
+                received.pop(next(iter(func_signature.parameters)), None)
+            invalid = invalid_arguments_result(input_schema, received)
+            if invalid is not None:
+                return invalid
+        return run_tool(
+            func, args, kwargs, max_rows, max_result_bytes, mask_error_details
+        )
+
+    handler.__name__ = func.__name__
+    handler.__qualname__ = func.__qualname__
+    handler.__doc__ = func.__doc__
+    handler.__signature__ = inspect.signature(func).replace(
+        parameters=[
+            p.replace(annotation=inspect.Parameter.empty)
+            for p in inspect.signature(func).parameters.values()
+        ],
+        return_annotation=inspect.Signature.empty,
+    )
+    return handler

@@ -85,7 +85,7 @@ from snowflake.snowpark._internal.select_projection_complexity_utils import (
     has_invalid_projection_merge_functions,
 )
 from snowflake.snowpark._internal import debug_config
-from snowflake.snowpark._internal.df_trace import note_trace_seed
+from snowflake.snowpark._internal.df_trace import current_trace_call, note_trace_seed
 from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
     is_sql_select_statement,
@@ -251,6 +251,7 @@ def _deepcopy_selectable_fields(
         if from_selectable.df_trace_nodes is not None
         else None
     )
+    to_selectable._df_trace_call_id = from_selectable._df_trace_call_id
     # Copy UUID and query line intervals
     to_selectable._uuid = from_selectable._uuid
     to_selectable._multiline_sql_safe = from_selectable._multiline_sql_safe
@@ -304,6 +305,7 @@ class Selectable(LogicalPlan, ABC):
         self._encoded_node_id_with_query: Optional[str] = None
         self.df_ast_ids: Optional[List[int]] = None
         self.df_trace_nodes: Optional[List["TraceNode"]] = None
+        self._df_trace_call_id = current_trace_call(self._session)
         self._uuid = str(uuid.uuid4())
 
     @property
@@ -463,6 +465,7 @@ class Selectable(LogicalPlan, ABC):
                 # Add the last df ast id to the snowflake plan as the most recent
                 # dataframe operation to create this plan.
                 self._snowflake_plan.df_ast_ids = self.df_ast_ids
+            self._snowflake_plan._df_trace_call_id = self._df_trace_call_id
             if self.df_trace_nodes is not None:
                 self._snowflake_plan.df_trace_nodes = self.df_trace_nodes
         return self._snowflake_plan
@@ -844,6 +847,9 @@ class SelectSnowflakePlan(Selectable):
         # Copy the df ast ids from the snowflake plan.
         self.df_ast_ids = self._snowflake_plan.df_ast_ids
         self.df_trace_nodes = None
+        self._df_trace_call_id = getattr(
+            self._snowflake_plan, "_df_trace_call_id", None
+        )
 
     def __deepcopy__(self, memodict={}) -> "SelectSnowflakePlan":  # noqa: B006
         copied = SelectSnowflakePlan(
@@ -1010,6 +1016,7 @@ class SelectStatement(Selectable):
         new.df_trace_nodes = (
             self.df_trace_nodes.copy() if self.df_trace_nodes is not None else None
         )
+        new._df_trace_call_id = self._df_trace_call_id
         if (
             self._session.reduce_describe_query_enabled
             and self._session.cte_optimization_enabled

@@ -71,7 +71,8 @@ class DebugConfig:
 
         Only the features passed explicitly are changed: ``True`` turns a feature on, ``False``
         turns it off and ``None`` keeps its current setting. Calling it without any argument turns
-        every debug feature off.
+        every debug feature off. For the additional describe requests made by
+        ``trace_sql_errors_to_dataframe``, see :meth:`enable_trace_sql_errors_to_dataframe`.
         """
         unknown = sorted(set(features) - set(_FEATURES))
         if unknown:
@@ -104,7 +105,13 @@ class DebugConfig:
     def enable_trace_sql_errors_to_dataframe(self) -> None:
         """Maps the SQL compilation errors of this session to the Python lines of the dataframe
         operations that generated the SQL, and adds the context of missing and existing objects to
-        the errors."""
+        the errors.
+
+        A compilation error without a SQL line number can trigger up to 32 additional
+        describe attempts to locate the failing operation, increasing error-reporting
+        latency. These requests compile SQL without executing it. Successful describes
+        are visible to query listeners and query history with ``include_describe=True``.
+        """
         self._apply({"trace_sql_errors_to_dataframe": True})
 
     def disable_trace_sql_errors_to_dataframe(self) -> None:

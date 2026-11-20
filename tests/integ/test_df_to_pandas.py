@@ -57,6 +57,14 @@ PANDAS_MAJOR_VERSION = int(pd.__version__.split(".")[0])
 STRING_DTYPE = "str" if PANDAS_MAJOR_VERSION >= 3 else "object"
 
 
+def expected_datetime_dtype(local_testing_mode: bool) -> str:
+    # Local testing builds frames from Python datetimes, which pandas 3 infers as [us].
+    # The live path goes through Arrow and keeps [ns].
+    if local_testing_mode and PANDAS_MAJOR_VERSION >= 3:
+        return "datetime64[us]"
+    return "datetime64[ns]"
+
+
 def test_to_pandas_new_df_from_range(session):
     # Single column
     snowpark_df = session.range(3, 8)
@@ -134,7 +142,9 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         assert str(timestamp_pandas_df.dtypes.iloc[0]) == expected_dtype
     else:
         # TODO: mock the non-nanosecond unit pyarrow+pandas behavior in local test
-        assert str(timestamp_pandas_df.dtypes.iloc[0]) == "datetime64[ns]"
+        assert str(timestamp_pandas_df.dtypes.iloc[0]) == expected_datetime_dtype(
+            local_testing_mode
+        )
 
 
 def test_to_pandas_precision_for_number_38_0(session):
@@ -320,8 +330,7 @@ def test_df_to_pandas_df(session, local_testing_mode):
                         second=12,
                     )
                 ],
-                # pandas 3 would infer [µs].
-                dtype="datetime64[ns]",
+                dtype=expected_datetime_dtype(local_testing_mode),
             ),
         }
     )
@@ -403,7 +412,8 @@ def test_df_to_pandas_df(session, local_testing_mode):
             ),  # in reg env, there can be backend optimization resulting in np.int8
             "M": pd.Series(["abc"], dtype=STRING_DTYPE),
             "N": pd.Series(
-                [datetime.datetime(2023, 10, 30, 12, 12, 12)], dtype="datetime64[ns]"
+                [datetime.datetime(2023, 10, 30, 12, 12, 12)],
+                dtype=expected_datetime_dtype(local_testing_mode),
             ),
             "O": pd.Series([datetime.time(12, 12, 12)], dtype=object),
             "P": pd.Series(['{\n  "a": "b"\n}'], dtype=STRING_DTYPE),

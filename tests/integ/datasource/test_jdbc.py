@@ -8,6 +8,7 @@ import pytest
 
 from snowflake.snowpark._internal.data_source import JDBC
 from snowflake.snowpark._internal.utils import (
+    generate_random_alphanumeric,
     random_name_for_temp_object,
     TempObjectType,
 )
@@ -463,3 +464,79 @@ def test_connect_sql_server(session, sql_server_udtf_configs):
         query=SQL_SERVER_QUERY,
     ).order_by("ID")
     assert df.collect() == sql_sever_expected_data
+
+
+def _with_string_literals(query):
+    """Wrap a query in an always-true filter that uses string literals, an escaped
+    quote, a backslash and a newline (SNOW-4522827)."""
+    return (
+        f"SELECT * FROM ({query}) LITERAL_Q\n"
+        "WHERE 'O''Brien' = 'O''Brien' AND 'a\\b' <> 'x'"
+    )
+
+
+def test_query_with_string_literals_oracle(session, udtf_configs):
+    df = session.read.jdbc(
+        url=URL, udtf_configs=udtf_configs, query=_with_string_literals(SELECT_QUERY)
+    ).order_by("ID")
+    assert df.collect() == expected_data
+
+
+def test_query_with_string_literal_filter_oracle(session, udtf_configs):
+    # A literal that actually filters rows, compared with the same filter as a predicate.
+    query = f"SELECT * FROM ({SELECT_QUERY}) Q WHERE VARCHAR2_COL <> 'no such value'"
+    df = session.read.jdbc(url=URL, udtf_configs=udtf_configs, query=query)
+    df_predicate = session.read.jdbc(
+        url=URL,
+        udtf_configs=udtf_configs,
+        table=TABLE_NAME,
+        predicates=["VARCHAR2_COL <> 'no such value'"],
+    )
+    assert df.order_by("ID").collect() == df_predicate.order_by("ID").collect()
+
+
+def test_query_with_string_literals_postgres(session, postgres_udtf_configs):
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query=_with_string_literals(POSTGRES_SELECT_QUERY),
+    ).order_by("BIGSERIAL_COL")
+    assert df.collect() == postgres_expected_data
+
+
+def test_query_with_string_literals_mysql(session, mysql_udtf_configs):
+    df = session.read.jdbc(
+        url=MYSQL_URL,
+        udtf_configs=mysql_udtf_configs,
+        query=_with_string_literals(MYSQL_SELECT_QUERY),
+    ).order_by("ID")
+    assert df.collect() == mysql_expected_data
+
+
+def test_query_with_string_literals_sql_server(session, sql_server_udtf_configs):
+    df = session.read.jdbc(
+        url=SQL_SERVER_URL,
+        udtf_configs=sql_server_udtf_configs,
+        query=_with_string_literals(SQL_SERVER_QUERY),
+    ).order_by("ID")
+    assert df.collect() == sql_sever_expected_data
+
+
+def test_postgres_with_default_ddl_collation(session, postgres_udtf_configs):
+    """The partition table inherits DEFAULT_DDL_COLLATION from the current schema;
+    passing that collated column to the read UDTF used to fail with
+    "Invalid argument types for function ...: (VARCHAR(134217728))"."""
+    original_schema = session.get_fully_qualified_current_schema()
+    schema = f"JDBC_COLLATION_{generate_random_alphanumeric(8)}"
+    session.sql(f"create schema {schema} DEFAULT_DDL_COLLATION = 'en-ci'").collect()
+    try:
+        session.use_schema(schema)
+        df = session.read.jdbc(
+            url=POSTGRES_URL,
+            udtf_configs=postgres_udtf_configs,
+            query="select 1 as a, 2 as b",
+        )
+        assert [tuple(r) for r in df.collect()] == [(1, 2)]
+    finally:
+        session.use_schema(original_schema)
+        session.sql(f"drop schema if exists {schema}").collect()
