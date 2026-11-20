@@ -1414,33 +1414,6 @@ class DataFrameAIFunctions:
             ------------------------------------------------------------
             <BLANKLINE>
 
-            >>> # Extract lists using List: prefix
-            >>> df = session.create_dataframe(
-            ...     [["Python, Java, and JavaScript are popular programming languages"]],
-            ...     schema=["text"]
-            ... )
-            >>> result_df = df.ai.extract(
-            ...     input_column="text",
-            ...     response_format=[["languages", "List: What programming languages are mentioned?"]],
-            ...     output_column="extracted",
-            ... )
-            >>> result_df.select("EXTRACTED").show()
-            ----------------------
-            |"EXTRACTED"         |
-            ----------------------
-            |{                   |
-            |  "error": null,    |
-            |  "response": {     |
-            |    "languages": [  |
-            |      "Python",     |
-            |      "Java",       |
-            |      "JavaScript"  |
-            |    ]               |
-            |  }                 |
-            |}                   |
-            ----------------------
-            <BLANKLINE>
-
             >>> # Extract using JSON Schema format (required for combining entities, lists, and
             >>> # tables in a single call; can't be combined with the other response_format shapes)
             >>> df = session.create_dataframe(

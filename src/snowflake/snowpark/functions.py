@@ -13377,30 +13377,6 @@ def ai_extract(
         ------------------------------------------------------------
         <BLANKLINE>
 
-        >>> # Extract lists using List: prefix
-        >>> df = session.range(1).select(
-        ...     ai_extract(
-        ...         'Python, Java, and JavaScript are popular programming languages',
-        ...         [['languages', 'List: What programming languages are mentioned?']]
-        ...     ).alias("extracted")
-        ... )
-        >>> df.show()
-        ----------------------
-        |"EXTRACTED"         |
-        ----------------------
-        |{                   |
-        |  "error": null,    |
-        |  "response": {     |
-        |    "languages": [  |
-        |      "Python",     |
-        |      "Java",       |
-        |      "JavaScript"  |
-        |    ]               |
-        |  }                 |
-        |}                   |
-        ----------------------
-        <BLANKLINE>
-
         >>> # Extract using JSON Schema format (required for combining entities, lists, and tables
         >>> # in a single call; can't be combined with the other response_format shapes)
         >>> df = session.range(1).select(
