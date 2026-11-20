@@ -8,7 +8,7 @@ import sys
 
 import pytest
 import snowflake.snowpark.context as context
-from snowflake.snowpark import Session
+from snowflake.snowpark import Row, Session
 
 from snowflake.snowpark._internal.utils import (
     AstFlagSource,
@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     col,
+    length,
     lit,
     sql_expr,
     sum,
@@ -809,3 +810,23 @@ def test_sql_error_tracing_is_per_session(session, db_parameters):
     assert "SQL compilation error corresponds to Python source" not in str(
         ex_off.value.debug_context or ""
     )
+
+
+def test_empty_lines_in_literals_are_kept(session, multiline):
+    """The sql sent with the feature on keeps the empty lines of string literals."""
+
+    def run():
+        df = session.sql("select 'a\n\nb' as s").select(
+            "s", length(col("s")).alias("n")
+        )
+        return df.collect(), df.queries["queries"][-1]
+
+    rows_on, sql_on = run()
+    session.debug.disable_trace_sql_errors_to_dataframe()
+    try:
+        rows_off, sql_off = run()
+    finally:
+        session.debug.enable_trace_sql_errors_to_dataframe()
+    assert rows_on == rows_off == [Row(S="a\n\nb", N=4)]
+    if multiline:
+        assert sql_on == sql_off
