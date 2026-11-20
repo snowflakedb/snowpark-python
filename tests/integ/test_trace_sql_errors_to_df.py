@@ -129,8 +129,9 @@ def test_sql_error_in_case_expression(session, multiline):
 
 
 def test_sql_error_in_flattened_operations(session, multiline):
-    """Operations the SQL simplifier flattens into one SELECT share the SQL lines, so they
-    are all reported; the offending one is among them."""
+    """Operations that the SQL simplifier flattens into one SELECT share the statement; the
+    error is mapped to the one that wrote the part of it with the error (SNOW-2688933).
+    """
     if not session.sql_simplifier_enabled:
         pytest.skip("SQL simplifier must be enabled for this test")
     bad = sql_expr("TO_DATE(a, b, a, b)")
@@ -142,7 +143,255 @@ def test_sql_error_in_flattened_operations(session, multiline):
     df = df.sort(col("a"))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    assert _mapped_lines(ex) == list(range(first, first + 5))
+    assert _mapped_lines(ex) == [first + 3]
+
+
+def test_sql_error_in_flattened_projection(session, multiline):
+    """A column added after a filter that was flattened into the same SELECT (SNOW-2688933)."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.filter(col("a") > 0)
+    df = df.with_column("c", sql_expr("UPPER(b, a)"))
+    line = Utils.get_current_line_number_sys() - 1
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+def test_sql_error_in_flattened_unchanged_column(session, multiline):
+    """A column kept by a later select is mapped to the operation that added it."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.with_column("c", sql_expr("UPPER(b, a)"))
+    line = Utils.get_current_line_number_sys() - 1
+    df = df.select("a", "c")
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+def test_sql_error_in_flattened_filters(session, multiline):
+    """The filter with the error among the filters flattened into one WHERE clause."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.filter(col("a") > 0)
+    df = df.filter(sql_expr("UPPER(b, a)") == "x")
+    line = Utils.get_current_line_number_sys() - 1
+    df = df.filter(col("a") < 9)
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+def test_sql_error_in_flattened_sort(session, multiline):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.filter(col("a") > 0)
+    df = df.sort(sql_expr("UPPER(b, a)"))
+    line = Utils.get_current_line_number_sys() - 1
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+def test_clause_metadata_disabled_with_another_traced_session(session, monkeypatch):
+    from snowflake.snowpark._internal import debug_config
+
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    session.debug.disable_trace_sql_errors_to_dataframe()
+    try:
+        with monkeypatch.context() as patch:
+            # Model another tracing session without opening another connection.
+            patch.setattr(debug_config, "_tracing_sessions", 1)
+            df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+            projected = df.select("a", "b")
+            filtered = projected.filter(col("a") > 0)
+            sorted_df = filtered.sort("b")
+            for result in (df, projected, filtered, sorted_df):
+                statement = result._select_statement
+                assert statement._projection_nodes is None
+                assert statement._where_nodes is None
+                assert statement._order_by_nodes is None
+    finally:
+        session.debug.enable_trace_sql_errors_to_dataframe()
+
+
+@pytest.mark.parametrize("text", ["ascii", "\u00e9", "\u4e2d", "\U00010400"])
+def test_flattened_projection_mapping_after_unicode(session, multiline, text):
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.with_column("text", lit(text))
+    df = df.with_column("bad", sql_expr("UPPER(b, a)"))
+    line = Utils.get_current_line_number_sys() - 1
+    df = df.with_column("last", lit(2))
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+@pytest.mark.parametrize("operation", ["copy", "star", "reorder", "filter", "sort"])
+@pytest.mark.parametrize("cache_before", [False, True])
+def test_flattened_projection_owner_survives_later_operations(
+    session, multiline, operation, cache_before
+):
+    from copy import copy
+
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.with_column("c", sql_expr("UPPER(b, a)"))
+    line = Utils.get_current_line_number_sys() - 1
+    if cache_before:
+        _ = df.queries
+    if operation == "copy":
+        df = copy(df)
+    elif operation == "star":
+        df = df.select("*")
+    elif operation == "reorder":
+        df = df.select("c", "a")
+    elif operation == "filter":
+        df = df.filter(col("a") > 0)
+    else:
+        df = df.sort("a")
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+@pytest.mark.parametrize("clause", ["projection", "where", "order_by"])
+@pytest.mark.parametrize("trace_during_copy", [False, True])
+def test_clause_mapping_after_debug_and_layout_toggle(
+    session, multiline, clause, trace_during_copy
+):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    if clause == "projection":
+        df = df.with_column("c", sql_expr("UPPER(b, a)"))
+        line = Utils.get_current_line_number_sys() - 1
+    elif clause == "where":
+        df = df.filter(sql_expr("UPPER(b, a)") == "x")
+        line = Utils.get_current_line_number_sys() - 1
+    else:
+        df = df.sort(sql_expr("UPPER(b, a)"))
+        line = Utils.get_current_line_number_sys() - 1
+    _ = df.queries
+    if not trace_during_copy:
+        session.debug.disable_trace_sql_errors_to_dataframe()
+    try:
+        df = df.limit(5)
+    finally:
+        session.debug.enable_trace_sql_errors_to_dataframe()
+    if multiline:
+        session._disable_multiline_queries()
+    else:
+        session._enable_multiline_queries()
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    # A plan built while tracing is off has no line intervals. Enabling tracing
+    # later must preserve the SQL exception, without inventing a location.
+    assert _mapped_lines(ex) == ([line] if trace_during_copy else [])
+
+
+@pytest.mark.parametrize("operation", ["alias", "star", "bound_star", "quoted_alias"])
+def test_filter_owner_survives_projection_changes(session, multiline, operation):
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.filter(sql_expr("UPPER(b, a)") == "x")
+    line = Utils.get_current_line_number_sys() - 1
+    if operation == "alias":
+        df = df.alias("T").select(col("T", "a"))
+    elif operation == "star":
+        df = df.select("*")
+    elif operation == "bound_star":
+        df = df.select(df["*"])
+    else:
+        df = df.select(col("a").alias('"WHERE, FROM"'), "b")
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
+@pytest.mark.parametrize(
+    "parser_error", [ValueError, TypeError, RecursionError, RuntimeError]
+)
+def test_clause_parser_failure_preserves_sql_exception(
+    session, multiline, monkeypatch, parser_error
+):
+    from snowflake.snowpark._internal import debug_utils
+
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.with_column("bad", sql_expr("UPPER(b, a)"))
+    parsed_sql = []
+
+    def broken_parser(sql):
+        parsed_sql.append(sql)
+        raise parser_error("diagnostic parser failed")
+
+    monkeypatch.setattr(debug_utils, "_clause_tokens", broken_parser)
+    with pytest.raises(SnowparkSQLException, match="too many arguments") as ex:
+        df.collect()
+    assert parsed_sql
+    assert ex.value.sql_error_code == 939
+
+
+def test_reused_filter_predicate_keeps_broader_mapping(session, multiline):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    predicate = sql_expr("UPPER(b, a)") == "x"
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.filter(predicate)
+    first = Utils.get_current_line_number_sys() - 1
+    df = df.filter(predicate)
+    second = Utils.get_current_line_number_sys() - 1
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert {first, second}.issubset(_mapped_lines(ex))
+
+
+def test_lifted_sort_keeps_original_trace_owner(session, multiline, monkeypatch):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(context, "_snowpark_connect_flatten_select_after_sort", True)
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.sort(col("a"))
+    sort_line = Utils.get_current_line_number_sys() - 1
+    owner = df._select_statement._order_by_nodes[1][0]
+    selected = df.select((col("a") + 1).alias("a"), "b")
+    statement = selected._select_statement
+    assert statement.order_by is not None
+    assert statement._order_by_nodes[1][0] is owner
+    assert statement._order_by_nodes[1][0] is not selected._trace_node
+
+    from snowflake.snowpark._internal.debug_utils import (
+        get_python_source_from_sql_error,
+    )
+
+    # Use the actual generated SQL: the server error is synthetic, not the lifted sort.
+    plan = selected._plan
+    executed_sql = plan.queries[-1].sql.strip()
+    assert executed_sql.upper().count("SELECT") >= 2
+    outer_order_by = executed_sql.upper().rindex("ORDER BY")
+    offset = executed_sql.index('"A"', outer_order_by)
+    sql_line = executed_sql[:offset].count("\n")
+    position = offset - executed_sql.rfind("\n", 0, offset) - 1
+    message = get_python_source_from_sql_error(
+        plan,
+        f"SQL compilation error: error line {sql_line + 1} at position {position}\ninvalid identifier 'A'",
+        executed_sql,
+    )
+    assert [
+        int(line)
+        for line in re.findall(
+            re.escape(os.path.basename(__file__)) + r": line (\d+)", message
+        )
+    ] == [sort_line]
 
 
 def test_sql_error_of_another_query_reports_all_operations(session, multiline):

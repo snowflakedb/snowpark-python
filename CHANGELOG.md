@@ -17,6 +17,7 @@
 #### Improvements
 
 - `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.
+- `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) now maps a SQL compilation error to the single DataFrame operation that caused it when the SQL simplifier merges several operations into one query.
 - `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) now maps SQL compilation errors that have no line number to the DataFrame operations that caused them, using up to 32 extra describe attempts on failure.
 
 #### Bug Fixes
