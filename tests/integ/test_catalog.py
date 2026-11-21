@@ -29,9 +29,12 @@ def get_temp_name(type: str) -> str:
 
 def create_temp_db(session) -> str:
     original_db = session.get_current_database()
+    original_schema = session.get_current_schema()
     temp_db = get_temp_name("DB")
     session._run_query(f"create or replace database {temp_db}")
     session.use_database(original_db)
+    # USE DATABASE moves the session to PUBLIC. Unlike the test schema, it has no default artifact repository.
+    session.use_schema(original_schema)
     return temp_db
 
 

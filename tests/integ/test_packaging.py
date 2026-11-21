@@ -19,10 +19,18 @@ from snowflake.snowpark._internal.packaging_utils import (
     IMPLICIT_ZIP_FILE_NAME,
     get_signature,
 )
+from snowflake.snowpark._internal.utils import get_python_runtime_version
 from snowflake.snowpark.functions import call_udf, col, count_distinct, sproc, udf
 from snowflake.snowpark.context import _ANACONDA_SHARED_REPOSITORY
 from snowflake.snowpark.types import DateType, StringType
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils, IS_PY314
+from tests.utils import (
+    IS_FREE_THREADED,
+    IS_IN_STORED_PROC,
+    TempObjectType,
+    TestFiles,
+    Utils,
+    IS_PY314,
+)
 
 pytestmark = pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
@@ -180,6 +188,10 @@ def test_patch_on_get_available_versions_for_packages(session):
     assert "catboost" not in returned
 
 
+@pytest.mark.skipif(
+    IS_FREE_THREADED,
+    reason="pins pandas 2.3.3, which re-enables the GIL on free-threaded runtimes",
+)
 @pytest.mark.udf
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
@@ -440,6 +452,10 @@ def test_add_packages_artifact_repository(session):
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
+)
+@pytest.mark.skipif(
+    IS_FREE_THREADED,
+    reason="requirements pin pandas 2.3.3, which re-enables the GIL on free-threaded runtimes",
 )
 def test_add_requirements(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
@@ -818,7 +834,7 @@ def test_add_requirements_yaml(session, resources_path):
     assert session._runtime_version_from_requirement == "3.10"
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    system_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    system_version = get_python_runtime_version()
 
     if system_version != session._runtime_version_from_requirement:
         with pytest.raises(

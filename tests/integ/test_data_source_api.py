@@ -79,7 +79,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_create_connection_unicode_data,
     sql_server_create_connection_double_quoted_data,
 )
-from tests.utils import Utils, IS_WINDOWS, RUNNING_ON_JENKINS
+from tests.utils import Utils, IS_FREE_THREADED, IS_WINDOWS, RUNNING_ON_JENKINS
 
 try:
     import pandas  # noqa: F401
@@ -1014,6 +1014,10 @@ def test_empty_table(session, fetch_with_process):
     assert df.collect() == []
 
 
+@pytest.mark.skipif(
+    IS_FREE_THREADED,
+    reason="pyodbc is not free-threading safe and re-enables the GIL on free-threaded runtimes",
+)
 @pytest.mark.udf
 def test_sql_server_udtf_ingestion(session):
     raw_schema = [
