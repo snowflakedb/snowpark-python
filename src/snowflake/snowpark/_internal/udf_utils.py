@@ -640,9 +640,11 @@ def check_execute_as_arg(
 
 def check_python_runtime_version(runtime_version_from_requirement: Optional[str]):
     system_version = get_python_runtime_version()
-    if (
-        runtime_version_from_requirement is not None
-        and runtime_version_from_requirement != system_version
+    # A free-threaded build and its GIL counterpart share a bytecode format, so a function pickled on
+    # either loads on the other; only the major.minor version has to match.
+    if runtime_version_from_requirement is not None and (
+        runtime_version_from_requirement.removesuffix("t")
+        != system_version.removesuffix("t")
     ):
         raise ValueError(
             f"Cloudpickle can only be used to send objects between the exact same version of Python. "

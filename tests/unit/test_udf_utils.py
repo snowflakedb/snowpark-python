@@ -632,8 +632,10 @@ def test_get_python_runtime_version(gil_disabled, suffix):
 def test_check_python_runtime_version_free_threaded(free_threaded_runtime_version):
     check_python_runtime_version(None)
     check_python_runtime_version(free_threaded_runtime_version)
+    # The GIL build of the same version is accepted, so a requirements pin can opt out of free threading.
+    check_python_runtime_version(free_threaded_runtime_version[:-1])
     with pytest.raises(ValueError, match="Cloudpickle can only be used"):
-        check_python_runtime_version(free_threaded_runtime_version[:-1])
+        check_python_runtime_version(f"{sys.version_info[0]}.{sys.version_info[1] + 1}")
 
 
 def _create_udf_query(mock_session, mock_server_connection, **kwargs):
