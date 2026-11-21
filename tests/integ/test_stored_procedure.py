@@ -2655,7 +2655,7 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="test only works on github action")
 @pytest.mark.skipif(
     IS_FREE_THREADED,
-    reason="fails with a server internal error (incident 5501149) on free-threaded runtimes",
+    reason="oracledb publishes no free-threaded (cp314t) wheels",
 )
 def test_data_source_udtf_ingestion(db_parameters):
     from tests.integ.datasource.test_oracledb import (

@@ -109,10 +109,7 @@ from snowflake.snowpark._internal.type_utils import (
     merge_type,
     type_string_to_type_object,
 )
-from snowflake.snowpark._internal.udf_utils import (
-    generate_call_python_sp_sql,
-    get_gil_runtime_version,
-)
+from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark._internal.utils import (
     STAGE_PREFIX,
     SUPPORTED_TABLE_TYPES,
@@ -5484,7 +5481,6 @@ class Session:
                     replace=True,
                     _emit_ast=False,
                     _suppress_local_package_warnings=True,
-                    _runtime_version=get_gil_runtime_version(self),
                 )
 
                 self._xpath_udf_cache[cache_key] = xpath_udf

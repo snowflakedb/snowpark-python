@@ -22,7 +22,6 @@ from snowflake.snowpark._internal.udf_utils import (
     create_python_udf_or_sp,
     generate_anonymous_python_sp_sql,
     generate_python_code,
-    get_gil_runtime_version,
     get_error_message_abbr,
     get_func_arg_names,
     pickle_function,
@@ -692,13 +691,3 @@ def test_generate_anonymous_python_sp_sql_free_threaded_runtime_version(
         raw_imports=None,
     )
     assert f"RUNTIME_VERSION='{free_threaded_runtime_version}'" in sql
-
-
-def test_get_gil_runtime_version(mock_session, free_threaded_runtime_version):
-    assert get_gil_runtime_version(None) == free_threaded_runtime_version[:-1]
-    mock_session._runtime_version_from_requirement = None
-    assert get_gil_runtime_version(mock_session) == free_threaded_runtime_version[:-1]
-    mock_session._runtime_version_from_requirement = "3.13t"
-    assert get_gil_runtime_version(mock_session) == "3.13"
-    mock_session._runtime_version_from_requirement = "3.12"
-    assert get_gil_runtime_version(mock_session) == "3.12"

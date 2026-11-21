@@ -57,10 +57,7 @@ from snowflake.snowpark._internal.type_utils import (
     type_string_to_type_object,
     _parse_structured_type_str,
 )
-from snowflake.snowpark._internal.udf_utils import (
-    get_gil_runtime_version,
-    get_types_from_type_hints,
-)
+from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark._internal.utils import (
     SNOWURL_PREFIX,
     STAGE_PREFIX,
@@ -2019,7 +2016,6 @@ class DataFrameReader:
             if_not_exists=True,
             skip_upload_on_content_match=True,
             _suppress_local_package_warnings=True,
-            _runtime_version=get_gil_runtime_version(self._session),
         )
 
     def _infer_schema_for_xml(

@@ -638,15 +638,6 @@ def check_execute_as_arg(
         )
 
 
-def get_gil_runtime_version(session: Optional["snowflake.snowpark.Session"]) -> str:
-    """Returns the GIL ``RUNTIME_VERSION`` of the Python version Snowpark registers objects with, e.g. ``3.14`` for a
-    ``3.14t`` client. For internal handlers whose packages, such as lxml, fail to import on a free-threaded runtime."""
-    runtime_version = (
-        session._runtime_version_from_requirement if session is not None else None
-    ) or get_python_runtime_version()
-    return runtime_version.removesuffix("t")
-
-
 def check_python_runtime_version(runtime_version_from_requirement: Optional[str]):
     system_version = get_python_runtime_version()
     if (
