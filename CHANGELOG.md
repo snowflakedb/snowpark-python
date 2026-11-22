@@ -13,6 +13,7 @@
   - `Tool.from_procedure` and `Tool.from_function` turn existing procedures and UDFs, in any language, into tools.
   - `MCPServer` prints its specification (`to_yaml`), deploys it with its Python tools (`deploy`, which checks the definition first and has a `dry_run` option, with a suffix for dev and prod copies), calls deployed tools over a session (`call_tool`), and grants a role everything the tools need (`grant_usage`).
   - `Tool.builtin` adds the MCP server's built-in tool types (such as Cortex Agent, Cortex Analyst and Cortex Search) to a server.
+- `DataFrameReader.documents()` (Private Preview) reads with a `schema` accept the option `model="auto"`, which chooses the model for the read. A sample of the documents (10, or a fifth of them if that is fewer) is extracted with several models and each is scored per field against a reference model; the rest are read with the cheapest model that agrees on every field. The sample is extracted, and billed, when `documents()` is called, and the choice is logged. Any other `model` value now raises an error instead of being ignored.
 
 #### Improvements
 
