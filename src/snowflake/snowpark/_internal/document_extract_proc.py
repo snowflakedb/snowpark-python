@@ -1887,15 +1887,17 @@ class DocumentExtraction:
 # 2. Extract the sample with every model of ``tiers`` (cheapest first), one at a time.
 # 3. ``score_model``: each model's per-field agreement with the ``reference`` model, the
 #    mean over the sample of ``field_agreement`` (an F1 over the field's values).
-# 4. ``select_model``: the cheapest model whose every field agrees at least
-#    ``threshold``. The reference is the last tier and agrees with itself.
-# 5. ``revised_descriptions``: when the chosen model does not agree everywhere, one
-#    reference call per disagreeing field, shown the text around both models' values in
-#    up to ``optimizer_documents`` documents, writes a new description for the field.
-#    The sample is extracted again with them, and they are kept only if the mean
-#    agreement rises while every field still meets the threshold.
+# 4. ``revised_descriptions``: for every model but the reference that does not agree
+#    everywhere, one reference call per disagreeing field, shown the text around both
+#    models' values in up to ``optimizer_documents`` documents, writes a new description
+#    for the field; the model extracts the sample again with them and is scored again.
+# 5. ``select_configuration``: of every (model, schema) configuration -- each model with
+#    the user's schema, and with its revised one -- the cheapest model with a
+#    configuration whose mean agreement is at least ``relative_threshold`` of the
+#    ``baseline`` model's with the user's schema (the best of that model's qualifying
+#    configurations). The reference is the last tier and agrees with itself.
 # 6. The rest of the files are read with the chosen model and schema; the sample keeps
-#    the rows step 2 (or 5) produced.
+#    the rows its configuration produced.
 #
 # A model of ``image_models`` reads images but not documents (``ImageExtraction``): it is
 # sent a single-page PDF as a PNG of its page and an image file as it is, and is scored
@@ -2049,15 +2051,6 @@ class ModelScore:
             return 0.0
         return sum(self.field_scores.values()) / len(self.field_scores)
 
-    def qualifies(self, threshold: float) -> bool:
-        """Whether every field agrees at least ``threshold`` on a scored sample."""
-        return (
-            self.error is None
-            and self.documents > 0
-            and bool(self.field_scores)
-            and self.worst >= threshold
-        )
-
 
 def _token_sum(rows: List[List[Any]], index: int) -> Optional[int]:
     counts = [row[index] for row in rows if row[index] is not None]
@@ -2104,9 +2097,52 @@ def score_model(
     )
 
 
-def select_model(scores: List[ModelScore], threshold: float) -> Optional[ModelScore]:
-    """The first (cheapest) of ``scores``, in tier order, that qualifies."""
-    return next((score for score in scores if score.qualifies(threshold)), None)
+@dataclass
+class Configuration:
+    """One model with one schema, as extracted and scored on the sample."""
+
+    model: str
+    score: ModelScore
+    files: List[Any]
+    response_format: Dict[str, Any]
+    revised: bool = False
+
+
+def selection_bar(
+    configurations: List[Configuration], baseline: str, relative_threshold: float
+) -> float:
+    """The mean agreement a configuration needs: ``relative_threshold`` of the
+    ``baseline`` model's with the user's schema, or of the reference's (1.0) when the
+    baseline has no scored configuration."""
+    base = next(
+        (
+            c.score.mean
+            for c in configurations
+            if c.model == baseline and not c.revised and c.score.documents > 0
+        ),
+        1.0,
+    )
+    return relative_threshold * base
+
+
+def select_configuration(
+    configurations: List[Configuration], tiers: List[str], bar: float
+) -> Optional[Configuration]:
+    """The configuration of the first (cheapest) model in ``tiers`` with one whose mean
+    agreement is at least ``bar``: the higher-scoring of that model's, the user's
+    schema on a tie."""
+    for model in tiers:
+        qualifying = [
+            c
+            for c in configurations
+            if c.model == model
+            and c.score.error is None
+            and c.score.documents > 0
+            and c.score.mean >= bar
+        ]
+        if qualifying:
+            return max(qualifying, key=lambda c: (c.score.mean, not c.revised))
+    return None
 
 
 def sample_size(documents: int, config: Dict[str, Any]) -> int:
@@ -2328,37 +2364,36 @@ def selection_summary(
     sample: int,
     documents: int,
     config: Dict[str, Any],
-    scores: List[ModelScore],
-    model: str,
-    revised: Optional[ModelScore],
-    accepted: bool,
-    documents_model: Optional[str] = None,
+    configurations: List[Configuration],
+    errors: Dict[str, str],
+    chosen: Configuration,
+    bar: float,
+    documents_choice: Optional[Configuration] = None,
 ) -> str:
-    """What model selection found and chose, for the log. ``documents_model`` reads the
-    documents an image-only choice cannot take."""
+    """What model selection found and chose, for the log. ``documents_choice`` reads
+    the documents an image-only choice cannot take."""
     lines = [
         f"documents() model selection on {sample} of {documents} documents (reference "
-        f"{config['reference']}, threshold {config['threshold']} on every field):"
+        f"{config['reference']}; bar {bar:.3f} = {config['relative_threshold']} of "
+        f"{config['baseline']}'s mean agreement):"
     ]
-    for score in scores:
-        mark = "  <- selected" if score.model == model else ""
-        if score.error is not None:
-            lines.append(f"  {score.model}: not scored: {score.error}{mark}")
-            continue
-        fields = ", ".join(f"{k}={v:.2f}" for k, v in score.field_scores.items())
-        lines.append(
-            f"  {score.model}: worst field {score.worst:.2f}, mean {score.mean:.2f}, "
-            f"{score.failed} of {score.documents} failed, tokens in/out "
-            f"{score.input_tokens}/{score.output_tokens} [{fields}]{mark}"
+    for model, error in errors.items():
+        lines.append(f"  {model}: not scored: {error}")
+    for c in configurations:
+        mark = "  <- selected" if c is chosen else ""
+        if c is documents_choice:
+            mark = "  <- documents the selected model cannot take"
+        schema = "revised schema" if c.revised else "user schema"
+        low = ", ".join(
+            f"{k}={v:.2f}" for k, v in c.score.field_scores.items() if v < 1.0
         )
-    if revised is not None:
-        outcome = "kept" if accepted else "dropped"
         lines.append(
-            f"  revised field descriptions: mean {revised.mean:.2f}, worst field "
-            f"{revised.worst:.2f}: {outcome}"
+            f"  {c.model} ({schema}): mean {c.score.mean:.3f}, worst field "
+            f"{c.score.worst:.2f}, {c.score.failed} of {c.score.documents} failed, "
+            f"tokens in/out {c.score.input_tokens}/{c.score.output_tokens}"
+            + (f" [{low}]" if low else "")
+            + mark
         )
-    if documents_model is not None:
-        lines.append(f"  documents {model} cannot take: {documents_model}")
     return "\n".join(lines)
 
 
@@ -2434,7 +2469,8 @@ class ModelSelection:
         self.show_details = show_details
         self.fields = list(response_format["schema"].get("properties") or {})
         self.reference = config["reference"]
-        self.threshold = float(config["threshold"])
+        self.baseline = config["baseline"]
+        self.relative_threshold = float(config["relative_threshold"])
         self.image_models = set(config.get("image_models") or [])
 
     def extract(
@@ -2554,14 +2590,17 @@ class ModelSelection:
             )
             return self.extract(self.models, listed)
         reference_rows = self.rows(reference)
-        scores = [
-            ModelScore(model=model, error=_error_text(result))
-            if isinstance(result, Exception)
-            else score_model(model, self.rows(result), reference_rows, self.fields)
-            for model, result in results.items()
-        ]
-        chosen = select_model(scores, self.threshold)
-        if chosen is None:
+        errors: Dict[str, str] = {}
+        configurations: List[Configuration] = []
+        for model, result in results.items():
+            if isinstance(result, Exception):
+                errors[model] = _error_text(result)
+                continue
+            score = score_model(model, self.rows(result), reference_rows, self.fields)
+            configurations.append(
+                Configuration(model, score, result, self.response_format)
+            )
+        if not any(c.score.documents for c in configurations):
             _logger.warning(
                 "documents() model selection skipped: the reference model %s answered "
                 "none of the %d sample documents",
@@ -2569,38 +2608,20 @@ class ModelSelection:
                 len(sample),
             )
             return self.extract(self.models, listed)
-
-        sample_files_done = results[chosen.model]
-        response_format = self.response_format
-        revised_score, accepted = None, False
-        if chosen.model != self.reference and chosen.mean < 1.0:
-            descriptions = self.revised_descriptions(
-                self.rows(sample_files_done), reference_rows, chosen
-            )
-            if descriptions:
-                candidate = with_descriptions(self.response_format, descriptions)
-                try:
-                    rerun = self.extract([chosen.model], sample, candidate)
-                except Exception as exc:
-                    _logger.warning(
-                        "revised field descriptions not tried: %s", _error_text(exc)
-                    )
-                else:
-                    revised_score = score_model(
-                        chosen.model, self.rows(rerun), reference_rows, self.fields
-                    )
-                    if (
-                        revised_score.qualifies(self.threshold)
-                        and revised_score.mean > chosen.mean
-                    ):
-                        accepted = True
-                        response_format = candidate
-                        sample_files_done = rerun
-        # The model for the documents an image-only choice cannot take.
-        documents_model = (
-            select_model(
-                [score for score in scores if score.model not in self.image_models],
-                self.threshold,
+        configurations += self.revised_configurations(
+            configurations, sample, reference_rows
+        )
+        bar = selection_bar(configurations, self.baseline, self.relative_threshold)
+        tiers = self.config["tiers"]
+        chosen = select_configuration(configurations, tiers, bar)
+        if chosen is None:  # the reference always qualifies unless it scored nothing
+            return self.extract(self.models, listed)
+        # The configuration for the documents an image-only choice cannot take.
+        documents_choice = (
+            select_configuration(
+                configurations,
+                [m for m in tiers if m not in self.image_models],
+                bar,
             )
             if chosen.model in self.image_models
             else None
@@ -2610,24 +2631,24 @@ class ModelSelection:
                 len(sample),
                 len(listed),
                 self.config,
-                scores,
-                chosen.model,
-                revised_score,
-                accepted,
-                documents_model.model if documents_model else None,
+                configurations,
+                errors,
+                chosen,
+                bar,
+                documents_choice,
             )
         )
         rest_done = (
-            self.extract(read_models(chosen.model, self.models), rest, response_format)
+            self.extract(
+                read_models(chosen.model, self.models), rest, chosen.response_format
+            )
             if rest
             else []
         )
-        done = sample_files_done + rest_done
-        if documents_model is not None:
+        done = list(chosen.files) + rest_done
+        if documents_choice is not None:
             sizes = dict(listed)
-            documents_sample = {
-                file.path: file for file in results[documents_model.model]
-            }
+            documents_sample = {file.path: file for file in documents_choice.files}
             redo = []
             for index, file in enumerate(done):
                 if file.errors != [NOT_SENT_TO_IMAGE_MODEL_ERROR]:
@@ -2638,10 +2659,47 @@ class ModelSelection:
                     redo.append((file.path, sizes.get(file.path)))
             if redo:
                 done += self.extract(
-                    read_models(documents_model.model, self.models), redo
+                    read_models(documents_choice.model, self.models),
+                    redo,
+                    documents_choice.response_format,
                 )
         by_path = {file.path: file for file in done}
         return [by_path[name] for name, _ in listed if name in by_path]
+
+    def revised_configurations(
+        self,
+        configurations: List[Configuration],
+        sample: List[Tuple[str, Optional[int]]],
+        reference_rows: Dict[str, List[Any]],
+    ) -> List[Configuration]:
+        """For every model but the reference that was scored and does not agree on
+        every field: the sample extracted again with the field descriptions
+        ``revised_descriptions`` writes for it, and scored. A model whose descriptions
+        could not be written, or whose rerun failed, gets none."""
+        revised = []
+        for c in configurations:
+            if c.model == self.reference or not c.score.documents:
+                continue
+            if c.score.mean >= 1.0:
+                continue
+            descriptions = self.revised_descriptions(
+                self.rows(c.files), reference_rows, c.score
+            )
+            if not descriptions:
+                continue
+            candidate = with_descriptions(self.response_format, descriptions)
+            try:
+                rerun = self.extract([c.model], sample, candidate)
+            except Exception as exc:
+                _logger.warning(
+                    "revised field descriptions for %s not tried: %s",
+                    c.model,
+                    _error_text(exc),
+                )
+                continue
+            score = score_model(c.model, self.rows(rerun), reference_rows, self.fields)
+            revised.append(Configuration(c.model, score, rerun, candidate, True))
+        return revised
 
 
 def run(

@@ -11,6 +11,7 @@ import pytest
 import snowflake.snowpark._internal.document_extract_proc as proc
 from snowflake.snowpark._internal.document_extract_proc import (
     NOT_SENT_TO_IMAGE_MODEL_ERROR,
+    Configuration,
     DocumentExtraction,
     FieldExample,
     FileState,
@@ -29,7 +30,8 @@ from snowflake.snowpark._internal.document_extract_proc import (
     sample_files,
     sample_size,
     score_model,
-    select_model,
+    select_configuration,
+    selection_bar,
     selection_summary,
     unquoted,
     value_texts,
@@ -200,21 +202,62 @@ class TestScoreModel:
 
     def test_the_reference_agrees_with_itself(self):
         reference = _rows({"@s/a.pdf": {"invoice": "A", "total": 1, "rows": []}})
-        assert score_model("ref", reference, reference, _FIELDS).qualifies(1.0)
+        score = score_model("ref", reference, reference, _FIELDS)
+        assert score.mean == score.worst == 1.0
 
 
-class TestSelectModel:
-    def test_picks_the_cheapest_model_whose_every_field_meets_the_threshold(self):
-        scores = [
-            ModelScore("xs", {"a": 1.0, "b": 0.5}, documents=3),  # one field below
-            ModelScore("s", {}, error="unknown model"),
-            ModelScore("m", {"a": 0.95, "b": 0.9}, documents=3),
-            ModelScore("l", {"a": 1.0, "b": 1.0}, documents=3),
+def _config(model, mean, revised=False, documents=3, error=None):
+    return Configuration(
+        model,
+        ModelScore(model, {"a": mean}, documents=documents, error=error),
+        [],
+        _FORMAT,
+        revised,
+    )
+
+
+class TestSelectionBar:
+    def test_is_the_share_of_the_baseline_with_the_user_schema(self):
+        configurations = [
+            _config("sonnet", 0.8),
+            _config("sonnet", 1.0, revised=True),  # not the baseline
         ]
-        assert select_model(scores, 0.9).model == "m"
+        assert selection_bar(configurations, "sonnet", 0.95) == pytest.approx(0.76)
 
-    def test_none_when_nothing_was_scored(self):
-        assert select_model([ModelScore("ref", {}, documents=0)], 0.9) is None
+    def test_without_a_scored_baseline_is_the_share_of_the_reference(self):
+        configurations = [_config("sonnet", 0.0, documents=0)]
+        assert selection_bar(configurations, "sonnet", 0.95) == 0.95
+
+
+class TestSelectConfiguration:
+    def test_picks_the_cheapest_model_with_a_configuration_over_the_bar(self):
+        configurations = [
+            _config("xs", 0.7),
+            _config("xs", 0.8, revised=True),
+            _config("s", 0.85),
+            _config("s", 0.93, revised=True),
+            _config("l", 1.0),
+        ]
+        chosen = select_configuration(configurations, ["xs", "s", "l"], 0.9)
+        assert (chosen.model, chosen.revised) == ("s", True)
+
+    def test_of_a_model_takes_its_best_configuration_the_user_schema_on_a_tie(self):
+        configurations = [_config("s", 0.95), _config("s", 0.95, revised=True)]
+        chosen = select_configuration(configurations, ["s"], 0.9)
+        assert not chosen.revised
+        configurations.append(_config("s", 0.99, revised=True))
+        assert select_configuration(configurations, ["s"], 0.9).score.mean == 0.99
+
+    def test_skips_unscored_models(self):
+        configurations = [
+            _config("xs", 1.0, documents=0),
+            _config("s", 1.0, error="unknown"),
+            _config("l", 0.95),
+        ]
+        assert select_configuration(configurations, ["xs", "s", "l"], 0.9).model == "l"
+
+    def test_none_when_nothing_reaches_the_bar(self):
+        assert select_configuration([_config("s", 0.5)], ["s"], 0.9) is None
 
 
 # ---------------------------------------------------------------------------
@@ -454,7 +497,8 @@ _CLOSE = {  # the sample's @s/9.pdf has the wrong total: total scores 0.5
 
 class _FakeSelection(ModelSelection):
     """ModelSelection whose extraction answers from ``answers[model]`` (or raises it),
-    and ``revised`` for calls with a revised schema; every call is recorded."""
+    and ``revised[model]`` (default: its usual answers) for calls with a revised
+    schema; every call is recorded."""
 
     multi_page = frozenset()
 
@@ -470,14 +514,14 @@ class _FakeSelection(ModelSelection):
             "@stage",
             True,
         )
-        self.answers, self.revised = answers, revised
+        self.answers, self.revised = answers, revised or {}
         self.calls = []
 
     def extract(self, models, listed, response_format=None):
         self.calls.append((models, [name for name, _ in listed], response_format))
         answers = self.answers.get(models[0], _TRUTH)
         if response_format is not None and response_format != _FORMAT:
-            answers = self.revised
+            answers = self.revised.get(models[0], answers)
         if isinstance(answers, Exception):
             raise answers
         return [
@@ -510,9 +554,23 @@ class TestChooseAndExtract:
         assert len(selection.calls) == 5
         assert [file.path for file in files] == [name for name, _ in _LISTED]
 
-    def test_falls_back_to_the_reference_when_no_cheaper_model_qualifies(self):
+    def test_a_model_as_good_as_the_baseline_qualifies_without_being_perfect(self):
+        # Every model but the reference is off on one total (mean 0.83): within 95% of
+        # sonnet, so the cheapest that is scored, gemini, is chosen.
         answers = {model: _CLOSE for model in _TIERS}
+        answers["gemma-4-31b"] = RuntimeError("No model is available")
         answers[_REFERENCE] = _TRUTH
+        selection = _FakeSelection(answers)
+        selection.choose_and_extract(_LISTED)
+        assert selection.calls[-1][0] == read_models(
+            "gemini-3.8-flash", _EXTRACTION_MODELS
+        )
+
+    def test_falls_back_to_the_reference_without_a_baseline(self):
+        # sonnet fails: the bar is 0.95 of the reference, which gemini (0.83) misses.
+        answers = _answers(
+            {"gemini-3.8-flash": _CLOSE, "claude-sonnet-5-5": RuntimeError("down")}
+        )
         selection = _FakeSelection(answers)
         selection.choose_and_extract(_LISTED)
         assert selection.calls[-1][0] == ["claude-opus-5", "claude-sonnet-5-5"]
@@ -531,13 +589,16 @@ class TestChooseAndExtract:
         assert [call[0] for call in selection.calls] == [_EXTRACTION_MODELS]
 
     def _optimized(
-        self, monkeypatch, revised, answer="The amount due, not a subtotal."
+        self,
+        monkeypatch,
+        revised,
+        answer="The amount due, not a subtotal.",
+        answers=None,
     ):
-        # gemini's total disagrees on one sample document (0.5); sonnet agrees everywhere,
-        # so a threshold of 0.5 is needed for gemini to be chosen.
-        config = {**_MODEL_SELECTION, "threshold": 0.5}
+        # By default gemini's total disagrees on one sample document (mean 0.83) while
+        # sonnet agrees everywhere, so gemini needs its revised schema to reach the bar.
         selection = _FakeSelection(
-            _answers({"gemini-3.8-flash": _CLOSE}), revised=revised, config=config
+            answers or _answers({"gemini-3.8-flash": _CLOSE}), revised=revised
         )
         selection.session.sql.return_value.collect_nowait.return_value.result.return_value = [
             [answer]
@@ -553,9 +614,9 @@ class TestChooseAndExtract:
     def test_asks_the_reference_for_each_disagreeing_field_with_document_text(
         self, monkeypatch
     ):
-        selection, _ = self._optimized(monkeypatch, revised=_TRUTH)
+        selection, _ = self._optimized(monkeypatch, {"gemini-3.8-flash": _TRUTH})
         sql = selection.session.sql
-        assert sql.call_count == 1  # only total disagreed
+        assert sql.call_count == 1  # only gemini's total disagreed
         query, kwargs = sql.call_args[0][0], sql.call_args[1]
         assert query == "SELECT AI_COMPLETE(?, ?)"
         model, request = kwargs["params"]
@@ -564,27 +625,45 @@ class TestChooseAndExtract:
         assert "Reference's value: 1\n" in request and "Model's value: 9\n" in request
         assert "Amount due: 1.00" in request and "Subtotal: 9.00" in request
 
-    def test_keeps_descriptions_that_raise_agreement(self, monkeypatch):
-        selection, files = self._optimized(monkeypatch, revised=_TRUTH)
+    def test_a_revised_schema_can_make_a_cheaper_model_qualify(self, monkeypatch):
+        selection, files = self._optimized(monkeypatch, {"gemini-3.8-flash": _TRUTH})
         rerun_models, rerun_sample, rerun_format = selection.calls[4]
         assert rerun_models == ["gemini-3.8-flash"]
         assert rerun_sample == ["@s/0.pdf", "@s/9.pdf"]
         revised = rerun_format["schema"]["properties"]["total"]["description"]
         assert revised == "The amount due, not a subtotal."
-        # The rest is read with the revised schema, and the sample keeps the rerun.
-        assert selection.calls[5][2] == rerun_format
+        # The rest is read with gemini and its revised schema; the sample keeps the rerun.
+        rest_models, _, rest_format = selection.calls[5]
+        assert rest_models[0] == "gemini-3.8-flash" and rest_format == rerun_format
         by_path = {file.path: file for file in files}
         assert by_path["@s/9.pdf"].parts[0][1]["total"] == 1
 
-    def test_drops_descriptions_that_do_not(self, monkeypatch):
-        selection, files = self._optimized(monkeypatch, revised=_CLOSE)
-        assert selection.calls[5][2] == _FORMAT
-        by_path = {file.path: file for file in files}
-        assert by_path["@s/9.pdf"].parts[0][1]["total"] == 9
+    def test_a_revised_schema_that_does_not_reach_the_bar_is_not_used(
+        self, monkeypatch
+    ):
+        selection, files = self._optimized(monkeypatch, {"gemini-3.8-flash": _CLOSE})
+        rest_models, _, rest_format = selection.calls[5]
+        assert rest_models[0] == "claude-sonnet-5-5" and rest_format == _FORMAT
 
     def test_no_rerun_when_the_optimizer_answers_nothing(self, monkeypatch):
-        selection, _ = self._optimized(monkeypatch, revised=_TRUTH, answer="")
+        selection, _ = self._optimized(
+            monkeypatch, {"gemini-3.8-flash": _TRUTH}, answer=""
+        )
         assert len(selection.calls) == 5  # 4 tiers and the rest, no rerun
+        assert selection.calls[4][0][0] == "claude-sonnet-5-5"
+
+    def test_every_model_but_the_reference_is_optimized(self, monkeypatch):
+        answers = {model: _CLOSE for model in _TIERS}
+        answers[_REFERENCE] = _TRUTH
+        selection, _ = self._optimized(
+            monkeypatch, {"gemma-4-31b": _TRUTH}, answers=answers
+        )
+        reruns = [call[0] for call in selection.calls[4:7]]
+        assert reruns == [["gemma-4-31b"], ["gemini-3.8-flash"], ["claude-sonnet-5-5"]]
+        assert selection.session.sql.call_count == 3
+        # gemma qualifies with both schemas (bar 0.95 * 0.83); its revised one is better.
+        rest_models, _, rest_format = selection.calls[7]
+        assert rest_models[0] == "gemma-4-31b" and rest_format != _FORMAT
 
 
 class TestImageModelChoice:
@@ -603,7 +682,7 @@ class TestImageModelChoice:
         redo_models, redo, redo_format = selection.calls[5]
         assert redo_models == read_models("gemini-3.8-flash", _EXTRACTION_MODELS)
         assert redo == ["@s/3.pdf", "@s/5.pdf"]
-        assert redo_format is None  # the user's schema
+        assert redo_format == _FORMAT  # gemini's configuration: the user's schema
         assert len(selection.calls) == 6
         # Every file has an answer; none is left with the not-sent error.
         assert all(not file.failed for file in files.values())
@@ -618,15 +697,21 @@ class TestImageModelChoice:
 
 
 class TestSummary:
-    def test_lists_every_model_and_marks_the_chosen_one(self):
-        scores = [
-            ModelScore("a", error="unknown model"),
-            ModelScore("b", {"x": 1.0}, documents=2, input_tokens=5, output_tokens=1),
-        ]
-        text = selection_summary(2, 10, _MODEL_SELECTION, scores, "b", None, False)
-        assert "on 2 of 10 documents" in text
+    def test_lists_every_configuration_and_marks_the_chosen_one(self):
+        chosen = _config("b", 1.0)
+        text = selection_summary(
+            2,
+            10,
+            _MODEL_SELECTION,
+            [_config("b", 0.5), chosen],
+            {"a": "unknown model"},
+            chosen,
+            0.9,
+        )
+        assert "on 2 of 10 documents" in text and "bar 0.900" in text
         assert "a: not scored: unknown model" in text
-        assert "b: worst field 1.00" in text and text.endswith("<- selected")
+        assert "b (user schema): mean 0.500" in text and "[a=0.50]" in text
+        assert text.endswith("<- selected")
 
 
 class TestRunWithSelection:

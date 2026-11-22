@@ -110,19 +110,21 @@ _CALL_BUDGETS = {
 _MAX_CALLS_PER_FILE = 30
 
 # Model selection for schema reads, run by the extraction procedure (see
-# ``choose_and_extract`` in document_extract_proc.py) unless the session's
+# ``ModelSelection`` in document_extract_proc.py) unless the session's
 # PYTHON_SNOWPARK_DOCUMENTS_MODEL_SELECTION switch is off. It extracts a sample of the
 # documents (max_sample_documents, or max_sample_fraction of them if that is fewer) with
 # every model of "tiers", from the cheapest to the most expensive, scores each per field
-# against "reference" (the last tier), and reads the rest with the cheapest model whose
-# every field agrees at least "threshold". Below 1 / max_sample_fraction documents there
-# is no sample and the read uses _EXTRACTION_MODELS. "max_output_tokens" caps the calls
-# of a model whose output ceiling is below _MAX_OUTPUT_TOKENS (AI_COMPLETE rejects a
-# larger max_tokens). "image_models" read images but not documents: they are only sent
-# single-page PDFs (as a PNG of the page) and images, and when one is chosen every other
-# document goes to the cheapest qualifying model that reads documents.
-# "optimizer_documents" is how many disagreeing documents each per-field prompt
-# optimization call is shown.
+# against "reference" (the last tier), extracts the sample again with field
+# descriptions revised for each model but the reference, and reads the rest with the
+# cheapest model with a configuration (model and schema) whose mean agreement is at
+# least "relative_threshold" of the "baseline" model's with the user's schema. Below
+# 1 / max_sample_fraction documents there is no sample and the read uses
+# _EXTRACTION_MODELS. "max_output_tokens" caps the calls of a model whose output ceiling
+# is below _MAX_OUTPUT_TOKENS (AI_COMPLETE rejects a larger max_tokens). "image_models"
+# read images but not documents: they are only sent single-page PDFs (as a PNG of the
+# page) and images, and when one is chosen every other document goes to the cheapest
+# qualifying model that reads documents. "optimizer_documents" is how many disagreeing
+# documents each per-field prompt optimization call is shown.
 _MODEL_SELECTION_REFERENCE = "claude-opus-5"
 _MODEL_SELECTION = {
     "reference": _MODEL_SELECTION_REFERENCE,
@@ -136,7 +138,8 @@ _MODEL_SELECTION = {
     "image_models": ["gemma-4-31b"],
     "max_sample_documents": 10,
     "max_sample_fraction": 0.2,
-    "threshold": 0.9,
+    "baseline": _PREFERRED_EXTRACTION_MODEL,
+    "relative_threshold": 0.95,
     "optimizer_documents": 5,
 }
 
