@@ -1896,6 +1896,12 @@ class DocumentExtraction:
 #    agreement rises while every field still meets the threshold.
 # 6. The rest of the files are read with the chosen model and schema; the sample keeps
 #    the rows step 2 (or 5) produced.
+#
+# A model of ``image_models`` reads images but not documents (``ImageExtraction``): it is
+# sent a single-page PDF as a PNG of its page and an image file as it is, and is scored
+# only on those. When it is chosen, every other file (and every sample file it could not
+# take) is read by the cheapest qualifying model that reads documents, with the user's
+# schema.
 
 _NUMBER_TEXT = re.compile(r"^[-+]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$")
 
@@ -1988,6 +1994,34 @@ def row_answer(row: Optional[List[Any]]) -> Optional[Dict[str, Any]]:
     return value if isinstance(value, dict) else None
 
 
+# The error of a file an image-only model is not sent (see ``ImageExtraction``).
+NOT_SENT_TO_IMAGE_MODEL_ERROR = (
+    "not sent to an image-only model: it takes only single-page PDFs and images"
+)
+IMAGE_FILE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp"})
+# Resolution a single-page PDF is rendered at for an image-only model.
+IMAGE_RENDER_DPI = 150
+
+
+def not_sent(row: Optional[List[Any]]) -> bool:
+    """Whether ``row`` is a file an image-only model was not sent."""
+    return row is not None and row[2] == NOT_SENT_TO_IMAGE_MODEL_ERROR
+
+
+def render_page_png(content: bytes, dpi: int = IMAGE_RENDER_DPI) -> bytes:
+    """The first page of the PDF ``content`` as PNG bytes, at ``dpi``."""
+    import pypdfium2
+
+    pdf = pypdfium2.PdfDocument(content)
+    try:
+        image = pdf[0].render(scale=dpi / 72).to_pil()
+    finally:
+        pdf.close()
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
 @dataclass
 class ModelScore:
     """How one model's answers on the sample agree with the reference's."""
@@ -2038,13 +2072,15 @@ def score_model(
 ) -> ModelScore:
     """``model``'s per-field agreement with the reference. ``rows`` and
     ``reference_rows`` are ``result_row``s keyed by path. A document the reference has
-    no answer for is not scored; one ``model`` has no answer for scores 0 on every
-    field."""
+    no answer for, or that an image-only model was not sent (``not_sent``), is not
+    scored; one ``model`` has no answer for scores 0 on every field."""
     totals = {name: 0.0 for name in fields}
     documents = failed = 0
     for path, reference_row in reference_rows.items():
         expected = row_answer(reference_row)
         if expected is None:
+            continue
+        if not_sent(rows.get(path)):
             continue
         documents += 1
         found = row_answer(rows.get(path))
@@ -2296,8 +2332,10 @@ def selection_summary(
     model: str,
     revised: Optional[ModelScore],
     accepted: bool,
+    documents_model: Optional[str] = None,
 ) -> str:
-    """What model selection found and chose, for the log."""
+    """What model selection found and chose, for the log. ``documents_model`` reads the
+    documents an image-only choice cannot take."""
     lines = [
         f"documents() model selection on {sample} of {documents} documents (reference "
         f"{config['reference']}, threshold {config['threshold']} on every field):"
@@ -2319,11 +2357,54 @@ def selection_summary(
             f"  revised field descriptions: mean {revised.mean:.2f}, worst field "
             f"{revised.worst:.2f}: {outcome}"
         )
+    if documents_model is not None:
+        lines.append(f"  documents {model} cannot take: {documents_model}")
     return "\n".join(lines)
 
 
 def _error_text(exc: BaseException) -> str:
     return " ".join(str(exc).split())[:300]
+
+
+class ImageExtraction(DocumentExtraction):
+    """Extraction for a model that reads images but not documents. A single-page PDF is
+    sent as a PNG of its page (``render_page_png``), an image file as it is; every other
+    file (a PDF of more pages, a large one, any other type) is not read and fails with
+    ``NOT_SENT_TO_IMAGE_MODEL_ERROR``, for model selection to read with another
+    model."""
+
+    def load_file(
+        self, name: str, max_calls_per_file: int, listed_size: Optional[int] = None
+    ) -> FileState:
+        file = super().load_file(name, max_calls_per_file, listed_size)
+        if file.failed:
+            return file
+        extension = os.path.splitext(name)[1].lower()
+        if extension in IMAGE_FILE_EXTENSIONS or (
+            extension == ".pdf"
+            and file.splittable
+            and file.pages == 1
+            and not is_large_file(file.pages, file.size)
+        ):
+            return file
+        return FileState.failed_with(
+            name, file.size, max_calls_per_file, NOT_SENT_TO_IMAGE_MODEL_ERROR
+        )
+
+    def stage_part(self, file: FileState, start: int, end: int) -> Optional[str]:
+        """An image file as it is; the page of a single-page PDF staged as a PNG."""
+        if not file.splittable:
+            self.sent_bytes[(id(file), start, end)] = file.size
+            return file.path
+        png = render_page_png(self.read_bytes(file.path))
+        self.sent_bytes[(id(file), start, end)] = len(png)
+        stem = os.path.splitext(os.path.basename(file.path))[0]
+        digest = hashlib.md5(file.path.encode()).hexdigest()[:12]
+        target = f"{self.work_stage}/document_pages/{digest}/{stem}_p1.png"
+        self.session.file.put_stream(
+            io.BytesIO(png), target, auto_compress=False, overwrite=True
+        )
+        return target
 
 
 class ModelSelection:
@@ -2354,6 +2435,7 @@ class ModelSelection:
         self.fields = list(response_format["schema"].get("properties") or {})
         self.reference = config["reference"]
         self.threshold = float(config["threshold"])
+        self.image_models = set(config.get("image_models") or [])
 
     def extract(
         self,
@@ -2362,10 +2444,15 @@ class ModelSelection:
         response_format: Optional[Dict[str, Any]] = None,
     ) -> List[FileState]:
         """``listed`` extracted with ``models``, with the budgets capped at the first
-        model's output ceiling (the read's own models have higher ones)."""
+        model's output ceiling (the read's own models have higher ones). An image-only
+        model is given only itself (``ImageExtraction``)."""
         cap = (self.config.get("max_output_tokens") or {}).get(models[0])
         budgets = cap_budgets(self.budgets, int(cap)) if cap else self.budgets
-        extraction = DocumentExtraction(
+        if models[0] in self.image_models:
+            kind, models = ImageExtraction, models[:1]
+        else:
+            kind = DocumentExtraction
+        extraction = kind(
             self.session,
             response_format or self.response_format,
             self.predicate,
@@ -2404,7 +2491,7 @@ class ModelSelection:
             examples = []
             for path, reference_row in sorted(reference_rows.items()):
                 expected = row_answer(reference_row)
-                if expected is None:
+                if expected is None or not_sent(rows.get(path)):
                     continue
                 found = row_answer(rows.get(path)) or {}
                 if field_agreement(found.get(name), expected.get(name)) >= 1.0:
@@ -2509,6 +2596,15 @@ class ModelSelection:
                         accepted = True
                         response_format = candidate
                         sample_files_done = rerun
+        # The model for the documents an image-only choice cannot take.
+        documents_model = (
+            select_model(
+                [score for score in scores if score.model not in self.image_models],
+                self.threshold,
+            )
+            if chosen.model in self.image_models
+            else None
+        )
         _logger.info(
             selection_summary(
                 len(sample),
@@ -2518,6 +2614,7 @@ class ModelSelection:
                 chosen.model,
                 revised_score,
                 accepted,
+                documents_model.model if documents_model else None,
             )
         )
         rest_done = (
@@ -2525,7 +2622,25 @@ class ModelSelection:
             if rest
             else []
         )
-        by_path = {file.path: file for file in sample_files_done + rest_done}
+        done = sample_files_done + rest_done
+        if documents_model is not None:
+            sizes = dict(listed)
+            documents_sample = {
+                file.path: file for file in results[documents_model.model]
+            }
+            redo = []
+            for index, file in enumerate(done):
+                if file.errors != [NOT_SENT_TO_IMAGE_MODEL_ERROR]:
+                    continue
+                if file.path in documents_sample:
+                    done[index] = documents_sample[file.path]
+                else:
+                    redo.append((file.path, sizes.get(file.path)))
+            if redo:
+                done += self.extract(
+                    read_models(documents_model.model, self.models), redo
+                )
+        by_path = {file.path: file for file in done}
         return [by_path[name] for name, _ in listed if name in by_path]
 
 

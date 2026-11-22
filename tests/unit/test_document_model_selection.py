@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import io
 import json
 from unittest import mock
 
@@ -9,9 +10,11 @@ import pytest
 
 import snowflake.snowpark._internal.document_extract_proc as proc
 from snowflake.snowpark._internal.document_extract_proc import (
+    NOT_SENT_TO_IMAGE_MODEL_ERROR,
     DocumentExtraction,
     FieldExample,
     FileState,
+    ImageExtraction,
     ModelScore,
     ModelSelection,
     cap_budgets,
@@ -68,6 +71,21 @@ def _state(path, value, size=1):
         state.parts.append((1, value))
         state.usage = {"prompt_tokens": 100, "completion_tokens": 10}
     return state
+
+
+def _not_sent(path, size=1):
+    return FileState.failed_with(path, size, 30, NOT_SENT_TO_IMAGE_MODEL_ERROR)
+
+
+def _pdf(pages):
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    for _ in range(pages):
+        writer.add_blank_page(width=100, height=100)
+    buffer = io.BytesIO()
+    writer.write(buffer)
+    return buffer.getvalue()
 
 
 def _rows(values):
@@ -166,6 +184,19 @@ class TestScoreModel:
         score = score_model("m", _rows({"@s/a.pdf": None}), reference, _FIELDS)
         assert score.failed == 1
         assert score.field_scores == {"invoice": 0.0, "total": 0.0, "rows": 0.0}
+
+    def test_documents_an_image_model_was_not_sent_are_not_scored(self):
+        reference = _rows(
+            {
+                "@s/a.pdf": {"invoice": "A", "total": 1, "rows": []},
+                "@s/long.pdf": {"invoice": "L", "total": 2, "rows": []},
+            }
+        )
+        rows = _rows({"@s/a.pdf": {"invoice": "A", "total": 1, "rows": []}})
+        rows["@s/long.pdf"] = proc.result_row(_not_sent("@s/long.pdf"), _FIELDS)
+        score = score_model("gemma", rows, reference, _FIELDS)
+        assert score.documents == 1 and score.failed == 0
+        assert score.worst == 1.0
 
     def test_the_reference_agrees_with_itself(self):
         reference = _rows({"@s/a.pdf": {"invoice": "A", "total": 1, "rows": []}})
@@ -335,6 +366,81 @@ class TestFieldOptimizerPrompt:
 
 
 # ---------------------------------------------------------------------------
+# ImageExtraction
+# ---------------------------------------------------------------------------
+
+
+class TestImageExtraction:
+    def _load(self, monkeypatch, name, content):
+        monkeypatch.setattr(
+            DocumentExtraction, "read_bytes", staticmethod(lambda path: content)
+        )
+        session = mock.MagicMock()
+        extraction = ImageExtraction(
+            session, _FORMAT, "Extract.", ["gemma-4-31b"], _CALL_BUDGETS, "@w", True
+        )
+        return session, extraction, extraction.load_file(name, 30, len(content))
+
+    def test_a_single_page_pdf_is_read(self, monkeypatch):
+        _, _, file = self._load(monkeypatch, "@s/one.pdf", _pdf(1))
+        assert not file.failed and file.pages == 1
+
+    @pytest.mark.parametrize(
+        "name, content", [("@s/two.pdf", _pdf(2)), ("@s/a.txt", b"hello")]
+    )
+    def test_other_files_are_not_sent(self, monkeypatch, name, content):
+        _, _, file = self._load(monkeypatch, name, content)
+        assert file.failed and file.errors == [NOT_SENT_TO_IMAGE_MODEL_ERROR]
+
+    def test_an_image_file_is_sent_as_it_is(self, monkeypatch):
+        _, extraction, file = self._load(monkeypatch, "@s/scan.png", b"\x89PNG")
+        assert not file.failed
+        assert extraction.stage_part(file, 1, 1) == "@s/scan.png"
+
+    def test_the_page_of_a_pdf_is_staged_as_a_png(self, monkeypatch):
+        session, extraction, file = self._load(monkeypatch, "@s/one.pdf", _pdf(1))
+        monkeypatch.setattr(proc, "render_page_png", lambda content: b"png-bytes")
+        staged = extraction.stage_part(file, 1, 1)
+        assert staged.startswith("@w/document_pages/") and staged.endswith(
+            "/one_p1.png"
+        )
+        stream, target = session.file.put_stream.call_args[0]
+        assert stream.getvalue() == b"png-bytes" and target == staged
+
+    def test_render_page_png_draws_the_first_page(self):
+        pytest.importorskip("pypdfium2")
+        assert proc.render_page_png(_pdf(1), dpi=72)[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_model_selection_uses_it_for_image_models_only(self, monkeypatch):
+        kinds = []
+
+        def fake_extract_in_batches(self, listed, max_calls_per_file):
+            kinds.append((type(self).__name__, self.models))
+            return []
+
+        monkeypatch.setattr(
+            DocumentExtraction, "extract_in_batches", fake_extract_in_batches
+        )
+        selection = ModelSelection(
+            mock.MagicMock(),
+            _MODEL_SELECTION,
+            _FORMAT,
+            "Extract.",
+            list(_EXTRACTION_MODELS),
+            _CALL_BUDGETS,
+            30,
+            "@w",
+            True,
+        )
+        selection.extract(["gemma-4-31b", "claude-sonnet-5-5"], [])
+        selection.extract(["gemini-3.8-flash", "claude-sonnet-5-5"], [])
+        assert kinds == [
+            ("ImageExtraction", ["gemma-4-31b"]),
+            ("DocumentExtraction", ["gemini-3.8-flash", "claude-sonnet-5-5"]),
+        ]
+
+
+# ---------------------------------------------------------------------------
 # ModelSelection
 # ---------------------------------------------------------------------------
 
@@ -349,6 +455,8 @@ _CLOSE = {  # the sample's @s/9.pdf has the wrong total: total scores 0.5
 class _FakeSelection(ModelSelection):
     """ModelSelection whose extraction answers from ``answers[model]`` (or raises it),
     and ``revised`` for calls with a revised schema; every call is recorded."""
+
+    multi_page = frozenset()
 
     def __init__(self, answers, revised=None, config=None) -> None:
         super().__init__(
@@ -372,7 +480,12 @@ class _FakeSelection(ModelSelection):
             answers = self.revised
         if isinstance(answers, Exception):
             raise answers
-        return [_state(name, answers.get(name), size) for name, size in listed]
+        return [
+            _not_sent(name, size)
+            if models[0] in self.image_models and name in self.multi_page
+            else _state(name, answers.get(name), size)
+            for name, size in listed
+        ]
 
 
 def _answers(overrides=None):
@@ -472,6 +585,36 @@ class TestChooseAndExtract:
     def test_no_rerun_when_the_optimizer_answers_nothing(self, monkeypatch):
         selection, _ = self._optimized(monkeypatch, revised=_TRUTH, answer="")
         assert len(selection.calls) == 5  # 4 tiers and the rest, no rerun
+
+
+class TestImageModelChoice:
+    def _run(self, multi_page):
+        answers = {model: _TRUTH for model in _TIERS}  # gemma agrees everywhere
+        selection = _FakeSelection(answers)
+        selection.multi_page = frozenset(multi_page)
+        files = selection.choose_and_extract(_LISTED)
+        return selection, {file.path: file for file in files}
+
+    def test_documents_gemma_cannot_take_go_to_the_cheapest_document_model(self):
+        # @s/9.pdf is in the sample, @s/3.pdf and @s/5.pdf are in the rest.
+        selection, files = self._run({"@s/9.pdf", "@s/3.pdf", "@s/5.pdf"})
+        rest_models, rest, _ = selection.calls[4]
+        assert rest_models == ["gemma-4-31b", "claude-sonnet-5-5", "claude-opus-5"]
+        redo_models, redo, redo_format = selection.calls[5]
+        assert redo_models == read_models("gemini-3.8-flash", _EXTRACTION_MODELS)
+        assert redo == ["@s/3.pdf", "@s/5.pdf"]
+        assert redo_format is None  # the user's schema
+        assert len(selection.calls) == 6
+        # Every file has an answer; none is left with the not-sent error.
+        assert all(not file.failed for file in files.values())
+        assert set(files) == {name for name, _ in _LISTED}
+
+    def test_gemma_is_scored_only_on_the_documents_it_takes(self):
+        # Both sample documents are multi-page: gemma scores nothing and is passed over.
+        selection, _ = self._run({"@s/0.pdf", "@s/9.pdf"})
+        assert selection.calls[4][0] == read_models(
+            "gemini-3.8-flash", _EXTRACTION_MODELS
+        )
 
 
 class TestSummary:

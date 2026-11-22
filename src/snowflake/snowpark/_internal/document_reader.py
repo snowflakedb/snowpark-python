@@ -117,8 +117,12 @@ _MAX_CALLS_PER_FILE = 30
 # against "reference" (the last tier), and reads the rest with the cheapest model whose
 # every field agrees at least "threshold". Below 1 / max_sample_fraction documents there
 # is no sample and the read uses _EXTRACTION_MODELS. "max_output_tokens" caps the calls
-# of a model whose output ceiling is below _MAX_OUTPUT_TOKENS; "optimizer_documents" is
-# how many disagreeing documents each per-field prompt optimization call is shown.
+# of a model whose output ceiling is below _MAX_OUTPUT_TOKENS (AI_COMPLETE rejects a
+# larger max_tokens). "image_models" read images but not documents: they are only sent
+# single-page PDFs (as a PNG of the page) and images, and when one is chosen every other
+# document goes to the cheapest qualifying model that reads documents.
+# "optimizer_documents" is how many disagreeing documents each per-field prompt
+# optimization call is shown.
 _MODEL_SELECTION_REFERENCE = "claude-opus-5"
 _MODEL_SELECTION = {
     "reference": _MODEL_SELECTION_REFERENCE,
@@ -128,7 +132,8 @@ _MODEL_SELECTION = {
         _PREFERRED_EXTRACTION_MODEL,
         _MODEL_SELECTION_REFERENCE,
     ],
-    "max_output_tokens": {"gemini-3.8-flash": 65536},
+    "max_output_tokens": {"gemma-4-31b": 65536, "gemini-3.8-flash": 65536},
+    "image_models": ["gemma-4-31b"],
     "max_sample_documents": 10,
     "max_sample_fraction": 0.2,
     "threshold": 0.9,
@@ -858,7 +863,8 @@ def register_extract_proc(session: "Session") -> str:
             BooleanType(),  # show_details: ask AI_COMPLETE for each call's token usage
         ],
         name=name,
-        packages=["snowflake-snowpark-python", "pypdf"],
+        # pypdfium2 and pillow render a page for image-only models (model selection).
+        packages=["snowflake-snowpark-python", "pypdf", "pypdfium2", "pillow"],
         if_not_exists=True,
         # Caller's rights: the proc reads the caller's stages and writes page parts to
         # the caller's session stage.
