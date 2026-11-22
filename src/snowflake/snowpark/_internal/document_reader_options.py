@@ -178,6 +178,10 @@ class DocumentReaderOptions:
     # asking AI_COMPLETE for its usage, with no TOKEN_COLUMNS, as reads did before they
     # were added.
     token_usage: bool = True
+    # The MODEL option set to "auto": a schema read first extracts a sample of the
+    # documents with several models and reads the rest with the cheapest one that agrees
+    # with the reference model (document_model_selection.py).
+    auto_model: bool = False
 
     @property
     def parse_enabled(self) -> bool:
@@ -246,7 +250,7 @@ class DocumentReaderOptions:
     def from_reader_options(
         cls, cur_options: Dict[str, Any], token_usage: Any = True
     ) -> "DocumentReaderOptions":
-        """The user options are SCHEMA and PROMPT; any other key is ignored, because
+        """The user options are SCHEMA, PROMPT and MODEL; any other key is ignored, because
         everything else is chosen by the reader. ``token_usage`` is the session's
         PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE value, an internal switch, not a user
         option (see ``_token_usage_on``)."""
@@ -256,6 +260,7 @@ class DocumentReaderOptions:
             ),
             prompt=cls._validated_prompt(cur_options),
             token_usage=cls._token_usage_on(token_usage),
+            auto_model=cls._validated_model(cur_options),
         )
         # With a schema or prompt the document goes to AI_COMPLETE as a FILE: parsing
         # flattens layout (table columns, printed section numbers) that the page image keeps.
@@ -281,6 +286,24 @@ class DocumentReaderOptions:
                 "schema", value, "a dict or a list"
             )
         return value
+
+    @staticmethod
+    def _validated_model(cur_options: Dict[str, Any]) -> bool:
+        """Whether the MODEL option asks for model selection. "auto" (in any case) is
+        the only value, and only a schema read can use it, because selection scores the
+        schema's fields."""
+        if "MODEL" not in cur_options:
+            return False
+        value = cur_options["MODEL"]
+        if str(value).strip().lower() != "auto":
+            raise SnowparkClientExceptionMessages.DF_DOCUMENTS_INVALID_OPTION_VALUE(
+                "model", value, ("auto",)
+            )
+        if not cur_options.get("SCHEMA"):
+            raise SnowparkClientExceptionMessages.DF_DOCUMENTS_INVALID_OPTION_TYPE(
+                "model", value, "'auto' together with a 'schema'"
+            )
+        return True
 
     @staticmethod
     def _validated_prompt(cur_options: Dict[str, Any]) -> Optional[str]:

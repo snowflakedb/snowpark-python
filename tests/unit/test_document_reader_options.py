@@ -128,7 +128,6 @@ class TestUserOptions:
             "MODE",
             "COLUMNNAMEOFCORRUPTRECORD",
             "EXTRACTION_ENGINE",
-            "MODEL",
             "BOGUS_OPTION",
         ],
     )

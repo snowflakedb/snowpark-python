@@ -1869,6 +1869,7 @@ class DocumentExtraction:
 def run(
     session: Session,
     path: str,
+    files: str,
     response_format: str,
     predicate: str,
     models: str,
@@ -1882,6 +1883,11 @@ def run(
 
     Args:
         path: stage path of a file or folder, e.g. ``@stage/invoices/``.
+        files: the files to extract instead of every file under ``path``, as a JSON list
+            of ``[stage reference, listed size or null]`` pairs (as ``list_files``
+            returns them), or JSON ``null`` to list ``path``. Model selection
+            (document_model_selection.py) extracts a sample of the path this way, then
+            the rest.
         response_format: the user's schema as ``{"schema": <JSON Schema>}``, JSON.
         predicate: the extraction prompt (the user's, or the default).
         models: the AI_COMPLETE model names the read may use, in order of preference,
@@ -1923,8 +1929,13 @@ def run(
         work_stage,
         show_details,
     )
-    # 1. List the files under the path, with their sizes.
-    listed = extraction.list_files(path)
+    # 1. List the files under the path, with their sizes, unless the caller chose them.
+    chosen = json.loads(files)
+    listed = (
+        extraction.list_files(path)
+        if chosen is None
+        else [(str(name), size) for name, size in chosen]
+    )
     # 2. For each batch of files: read them, plan the first page ranges (planned for
     # large files, whole for the rest), and extract until no range is left; each file
     # collects its parts and errors. Only one batch's bytes are held at a time.

@@ -586,6 +586,22 @@ class TestExtractWithSplitProcedureUsageComment:
         assert query.startswith("CALL MY_PROC(")
         assert query.endswith(usage_comment(options))
 
+    def test_the_call_lists_the_whole_path(self):
+        # run()'s files argument, after the path: JSON null lists the path.
+        session = mock.MagicMock()
+        session.get_session_stage.return_value = "@~/session_stage"
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+        )
+        with mock.patch(
+            "snowflake.snowpark._internal.document_reader.register_extract_proc",
+            return_value="MY_PROC",
+        ):
+            extract_with_split_procedure(session, "@stage/invoices/", options)
+        params = session.sql.call_args[1]["params"]
+        assert params[:2] == ["@stage/invoices/", "null"]
+
     @pytest.mark.parametrize("token_usage", [True, False])
     def test_the_call_passes_whether_to_ask_for_token_usage(self, token_usage):
         # The last CALL argument is run()'s show_details.
