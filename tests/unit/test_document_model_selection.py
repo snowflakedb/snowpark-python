@@ -7,36 +7,44 @@ from unittest import mock
 
 import pytest
 
-from snowflake.snowpark._internal import document_model_selection as selection
-from snowflake.snowpark._internal.document_model_selection import (
+import snowflake.snowpark._internal.document_extract_proc as proc
+from snowflake.snowpark._internal.document_extract_proc import (
+    DocumentExtraction,
+    FieldExample,
+    FileState,
     ModelScore,
-    _CALL_BUDGETS,
-    _MODEL_TIERS,
-    _REFERENCE_MODEL,
-    budgets_for,
-    calibrate,
-    extract_with_selected_model,
+    ModelSelection,
+    cap_budgets,
     field_agreement,
+    field_optimizer_prompt,
+    find_excerpts,
     leaves,
     normalize_scalar,
-    optimizer_prompt,
+    pages_text,
     read_models,
+    result_row,
     sample_files,
     sample_size,
     score_model,
     select_model,
-    _unquoted,
+    selection_summary,
+    unquoted,
+    value_texts,
+    with_descriptions,
+)
+from snowflake.snowpark._internal.document_reader import (
+    _CALL_BUDGETS,
+    _EXTRACTION_MODELS,
+    _MODEL_SELECTION,
 )
 from snowflake.snowpark._internal.document_reader_options import (
     DocumentReaderOptions,
-    ExtractionSpec,
 )
-from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 
 _SCHEMA = {
     "type": "object",
     "properties": {
-        "invoice": {"type": "string"},
+        "invoice": {"type": "string", "description": "The invoice number."},
         "total": {"type": "number"},
         "rows": {
             "type": "array",
@@ -44,31 +52,28 @@ _SCHEMA = {
         },
     },
 }
+_FORMAT = {"type": "json", "schema": _SCHEMA}
 _FIELDS = ["invoice", "total", "rows"]
+_REFERENCE = _MODEL_SELECTION["reference"]
+_TIERS = _MODEL_SELECTION["tiers"]
+_DEFAULT_PROMPT = "Extract."
 
 
-def _row(path, value, input_tokens=100, output_tokens=10):
-    return {
-        "STAGE_PATH": path,
-        "VALUE": None if value is None else json.dumps(value),
-        "ERROR": None if value is not None else "failed",
-        "SCORES": None,
-        "INPUT_TOKENS": input_tokens,
-        "OUTPUT_TOKENS": output_tokens,
-    }
+def _state(path, value, size=1):
+    """A finished FileState answering ``value``, or failed when it is None."""
+    state = FileState(path, None, 1, size, 30)
+    if value is None:
+        state.errors.append("failed")
+    else:
+        state.parts.append((1, value))
+        state.usage = {"prompt_tokens": 100, "completion_tokens": 10}
+    return state
 
 
 def _rows(values):
-    return {path: _row(path, value) for path, value in values.items()}
-
-
-def _options(**kwargs):
-    return DocumentReaderOptions(
-        parse_mode="none",
-        extraction=ExtractionSpec.from_response_format(_SCHEMA),
-        auto_model=True,
-        **kwargs,
-    )
+    return {
+        path: result_row(_state(path, value), _FIELDS) for path, value in values.items()
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -189,72 +194,120 @@ class TestSelectModel:
 class TestSampleSize:
     @pytest.mark.parametrize(
         "documents, expected",
-        [(0, 0), (1, 1), (4, 1), (10, 2), (49, 9), (50, 10), (1000, 10)],
+        [(0, 0), (1, 0), (4, 0), (5, 1), (10, 2), (49, 9), (50, 10), (1000, 10)],
     )
     def test_ten_documents_or_a_fifth_whichever_is_fewer(self, documents, expected):
-        assert sample_size(documents) == expected
+        assert sample_size(documents, _MODEL_SELECTION) == expected
 
 
 class TestSampleFiles:
     def test_the_sample_spreads_over_the_documents_sorted_by_size(self):
         listed = [(f"@s/{i}.pdf", size) for i, size in enumerate([50, 10, 40, 20, 30])]
         listed += [(f"@s/x{i}.pdf", 100 + i) for i in range(5)]
-        sample, rest = sample_files(listed)
+        sample, rest = sample_files(listed, _MODEL_SELECTION)
         # 10 documents -> 2, the smallest and the largest.
         assert sample == [("@s/1.pdf", 10), ("@s/x4.pdf", 104)]
         assert set(sample) | set(rest) == set(listed)
         assert not set(sample) & set(rest)
 
     def test_unreadable_files_are_never_sampled(self):
-        listed = [("@s/a.exe", 1), ("@s/b.pdf", 2), ("@s/big.pdf", 10**12)]
-        sample, rest = sample_files(listed)
-        assert sample == [("@s/b.pdf", 2)]
-        assert rest == [("@s/a.exe", 1), ("@s/big.pdf", 10**12)]
+        listed = [(f"@s/{i}.pdf", i) for i in range(5)]
+        listed += [("@s/a.exe", 1), ("@s/big.pdf", 10**12)]
+        sample, rest = sample_files(listed, _MODEL_SELECTION)
+        assert sample == [("@s/2.pdf", 2)]
+        assert ("@s/a.exe", 1) in rest and ("@s/big.pdf", 10**12) in rest
 
-    def test_nothing_readable_means_no_sample(self):
-        assert sample_files([("@s/a.exe", 1)]) == ([], [("@s/a.exe", 1)])
+    def test_too_few_documents_means_no_sample(self):
+        listed = [(f"@s/{i}.pdf", i) for i in range(4)]
+        assert sample_files(listed, _MODEL_SELECTION) == ([], listed)
 
 
 class TestBudgets:
-    def test_a_model_without_a_lower_ceiling_gets_the_budgets_as_they_are(self):
-        assert budgets_for("claude-sonnet-5-5") is _CALL_BUDGETS
-
     def test_a_capped_model_gets_its_ceiling_and_lower_targets(self):
-        budgets = budgets_for("gemini-3.8-flash")
+        budgets = cap_budgets(_CALL_BUDGETS, 65536)
         assert budgets["range"]["max_tokens"] == 65536
         assert budgets["range"]["target"] == int(65536 * 0.6)
         assert budgets["merge_target"] == min(_CALL_BUDGETS["merge_target"], 39321)
 
-    def test_the_final_read_falls_back_to_the_usual_models(self):
-        assert read_models("gemini-3.8-flash") == [
+    def test_the_rest_falls_back_to_the_read_models(self):
+        assert read_models("gemini-3.8-flash", _EXTRACTION_MODELS) == [
             "gemini-3.8-flash",
             "claude-sonnet-5-5",
             "claude-opus-5",
         ]
-        assert read_models("claude-opus-5") == ["claude-opus-5", "claude-sonnet-5-5"]
+        assert read_models("claude-opus-5", _EXTRACTION_MODELS) == [
+            "claude-opus-5",
+            "claude-sonnet-5-5",
+        ]
 
 
 # ---------------------------------------------------------------------------
-# Prompt optimization
+# Per-field prompt optimization
 # ---------------------------------------------------------------------------
 
 
-class TestOptimizerPrompt:
-    def test_lists_only_the_disagreeing_fields(self):
-        reference = _rows({"@s/a.pdf": {"invoice": "A", "total": 1, "rows": []}})
-        rows = _rows({"@s/a.pdf": {"invoice": "A", "total": 2, "rows": []}})
-        request = optimizer_prompt("Extract.", _SCHEMA, rows, reference, _FIELDS)
-        assert "Current instructions:\nExtract." in request
-        assert "field 'total', document 1: model answered 2; reference answered 1" in (
-            request
-        )
-        assert "field 'invoice'" not in request
+class TestExcerpts:
+    def test_pages_text_of_a_text_file_is_its_content(self):
+        assert pages_text("@s/a.txt", b"hello") == ["hello"]
 
-    def test_none_when_everything_agrees(self):
-        reference = _rows({"@s/a.pdf": {"invoice": "A", "total": 1, "rows": []}})
-        assert optimizer_prompt("Extract.", _SCHEMA, reference, reference, _FIELDS) is (
-            None
+    def test_pages_text_of_other_types_is_empty(self):
+        assert pages_text("@s/a.png", b"\x89PNG") == []
+
+    def test_an_unreadable_pdf_has_no_text(self):
+        assert pages_text("@s/a.pdf", b"not a pdf") == []
+
+    def test_value_texts_cover_printed_number_formats(self):
+        assert value_texts(1234.5) == ["1,234.50", "1234.50", "1234.5"]
+        assert value_texts(1500) == ["1,500.00", "1500.00", "1,500", "1500"]
+        assert value_texts("ab") == []
+        assert value_texts(True) == []
+
+    def test_finds_the_text_around_a_value_on_its_page(self):
+        pages = ["nothing here", "Amount due:   $1,234.50\nThank you"]
+        assert find_excerpts(pages, 1234.5) == [(2, "Amount due: $1,234.50 Thank you")]
+
+    def test_matches_text_without_regard_to_case_or_whitespace(self):
+        pages = ["Customer:  ACME\n  Corp, Ohio"]
+        assert find_excerpts(pages, "acme corp") == [(1, "Customer: ACME Corp, Ohio")]
+
+    def test_keeps_at_most_two_excerpts_per_value(self):
+        pages = ["row aaa row bbb row ccc"]
+        assert (
+            len(find_excerpts(pages, [{"n": "aaa"}, {"n": "bbb"}, {"n": "ccc"}])) == 2
         )
+
+    def test_nothing_when_the_value_is_not_printed(self):
+        assert find_excerpts(["abc"], "xyz") == []
+
+    def test_cuts_the_text_to_the_excerpt_width(self, monkeypatch):
+        monkeypatch.setattr(proc, "EXCERPT_CHARS", 3)
+        assert find_excerpts(["0123456789 INV-77 abcdefgh"], "INV-77") == [
+            (1, "89 INV-77 ab")
+        ]
+
+
+class TestFieldOptimizerPrompt:
+    def test_shows_each_document_with_both_values_and_their_text(self):
+        request = field_optimizer_prompt(
+            "total",
+            {"type": "number"},
+            "Extract.",
+            [
+                FieldExample(1234.5, 99, [(2, "Amount due: 1,234.50")], []),
+                FieldExample(10, 1, [], [(1, "page 1 of 3")]),
+            ],
+        )
+        assert "Field: total" in request
+        assert 'Current JSON Schema of the field: {"type": "number"}' in request
+        assert "Extraction instructions: Extract." in request
+        assert (
+            "Document 1:\n"
+            '  Text around the reference\'s value: page 2: "Amount due: 1,234.50"\n'
+            "  Reference's value: 1234.5\n"
+            "  Model's value: 99\n"
+            "  Text around the model's value: (not found in the document's text)"
+        ) in request
+        assert "Document 2:" in request
 
     @pytest.mark.parametrize(
         "text, expected",
@@ -266,173 +319,208 @@ class TestOptimizerPrompt:
         ],
     )
     def test_unquotes_the_answer(self, text, expected):
-        assert _unquoted(text) == expected
+        assert unquoted(text) == expected
+
+    def test_with_descriptions_replaces_only_the_given_fields(self):
+        revised = with_descriptions(_FORMAT, {"total": "The amount due.", "nope": "x"})
+        assert revised["schema"]["properties"]["total"]["description"] == (
+            "The amount due."
+        )
+        assert revised["schema"]["properties"]["invoice"]["description"] == (
+            "The invoice number."
+        )
+        assert "nope" not in revised["schema"]["properties"]
+        # The original is left as it was.
+        assert "description" not in _SCHEMA["properties"]["total"]
 
 
 # ---------------------------------------------------------------------------
-# Orchestration
+# ModelSelection
 # ---------------------------------------------------------------------------
 
-_SAMPLE = [("@s/a.pdf", 1), ("@s/b.pdf", 2)]
-_TRUTH = {
-    "@s/a.pdf": {"invoice": "A", "total": 1, "rows": [{"n": 1}]},
-    "@s/b.pdf": {"invoice": "B", "total": 2, "rows": [{"n": 2}]},
-}
-_CLOSE = {  # agrees on every field but one document's total: total 0.5
-    "@s/a.pdf": {"invoice": "A", "total": 1, "rows": [{"n": 1}]},
-    "@s/b.pdf": {"invoice": "B", "total": 9, "rows": [{"n": 2}]},
+_LISTED = [(f"@s/{i}.pdf", i) for i in range(10)]  # sample: @s/0.pdf and @s/9.pdf
+_TRUTH = {name: {"invoice": name, "total": 1, "rows": []} for name, _ in _LISTED}
+_CLOSE = {  # the sample's @s/9.pdf has the wrong total: total scores 0.5
+    **_TRUTH,
+    "@s/9.pdf": {"invoice": "@s/9.pdf", "total": 9, "rows": []},
 }
 
 
-def _patched_extract_sample(per_model, rerun=None):
-    """extract_sample answering ``per_model[model]`` (rows, or an exception), and
-    ``rerun`` for a call with instructions other than the default."""
+class _FakeSelection(ModelSelection):
+    """ModelSelection whose extraction answers from ``answers[model]`` (or raises it),
+    and ``revised`` for calls with a revised schema; every call is recorded."""
 
-    def fake(session, path, sample, options, models, predicate):
-        if predicate != "Extract the requested fields from this document.":
-            return {models[0]: _rows(rerun)}
-        return {
-            model: (
-                per_model[model]
-                if isinstance(per_model[model], Exception)
-                else _rows(per_model[model])
-            )
-            for model in models
-        }
+    def __init__(self, answers, revised=None, config=None) -> None:
+        super().__init__(
+            mock.MagicMock(),
+            config or _MODEL_SELECTION,
+            _FORMAT,
+            _DEFAULT_PROMPT,
+            list(_EXTRACTION_MODELS),
+            _CALL_BUDGETS,
+            30,
+            "@stage",
+            True,
+        )
+        self.answers, self.revised = answers, revised
+        self.calls = []
 
-    return mock.patch.object(selection, "extract_sample", side_effect=fake)
+    def extract(self, models, listed, response_format=None):
+        self.calls.append((models, [name for name, _ in listed], response_format))
+        answers = self.answers.get(models[0], _TRUTH)
+        if response_format is not None and response_format != _FORMAT:
+            answers = self.revised
+        if isinstance(answers, Exception):
+            raise answers
+        return [_state(name, answers.get(name), size) for name, size in listed]
 
 
-class TestCalibrate:
-    def test_chooses_the_cheapest_model_that_agrees_everywhere(self):
-        per_model = {
-            "gemma-4-31b": RuntimeError("No model is available"),
-            "gemini-3.8-flash": _CLOSE,
-            "claude-sonnet-5-5": _TRUTH,
-            _REFERENCE_MODEL: _TRUTH,
-        }
-        with _patched_extract_sample(per_model):
-            chosen, rows = calibrate(mock.Mock(), "@s", _SAMPLE, 10, _options())
-        assert chosen.model == "claude-sonnet-5-5"
-        assert [s.model for s in chosen.scores] == _MODEL_TIERS
-        assert chosen.scores[0].error == "No model is available"
-        assert chosen.revised is None
-        assert set(rows) == {"@s/a.pdf", "@s/b.pdf"}
+def _answers(overrides=None):
+    answers = {model: _TRUTH for model in _TIERS}
+    answers["gemma-4-31b"] = RuntimeError("No model is available")
+    answers.update(overrides or {})
+    return answers
+
+
+class TestChooseAndExtract:
+    def test_reads_the_rest_with_the_cheapest_model_that_agrees(self):
+        selection = _FakeSelection(_answers())
+        files = selection.choose_and_extract(_LISTED)
+        tiers = [call[0] for call in selection.calls[:4]]
+        assert tiers == [[model] for model in _TIERS]
+        assert all(call[1] == ["@s/0.pdf", "@s/9.pdf"] for call in selection.calls[:4])
+        # gemini agrees everywhere: the rest is read with it, then the read's models.
+        models, rest, response_format = selection.calls[4]
+        assert models == ["gemini-3.8-flash", "claude-sonnet-5-5", "claude-opus-5"]
+        assert rest == [f"@s/{i}.pdf" for i in range(1, 9)]
+        assert response_format == _FORMAT
+        assert len(selection.calls) == 5
+        assert [file.path for file in files] == [name for name, _ in _LISTED]
 
     def test_falls_back_to_the_reference_when_no_cheaper_model_qualifies(self):
-        per_model = {model: _CLOSE for model in _MODEL_TIERS}
-        per_model[_REFERENCE_MODEL] = _TRUTH
-        with _patched_extract_sample(per_model):
-            chosen, _ = calibrate(mock.Mock(), "@s", _SAMPLE, 10, _options())
-        assert chosen.model == _REFERENCE_MODEL
+        answers = {model: _CLOSE for model in _TIERS}
+        answers[_REFERENCE] = _TRUTH
+        selection = _FakeSelection(answers)
+        selection.choose_and_extract(_LISTED)
+        assert selection.calls[-1][0] == ["claude-opus-5", "claude-sonnet-5-5"]
 
-    def test_none_when_the_reference_fails(self):
-        per_model = {model: _TRUTH for model in _MODEL_TIERS}
-        per_model[_REFERENCE_MODEL] = RuntimeError("boom")
-        with _patched_extract_sample(per_model):
-            assert calibrate(mock.Mock(), "@s", _SAMPLE, 10, _options()) == (None, {})
+    def test_reads_everything_as_usual_when_the_reference_fails(self):
+        selection = _FakeSelection(_answers({_REFERENCE: RuntimeError("boom")}))
+        files = selection.choose_and_extract(_LISTED)
+        models, listed, _ = selection.calls[-1]
+        assert models == _EXTRACTION_MODELS
+        assert listed == [name for name, _ in _LISTED]
+        assert len(files) == len(_LISTED)
 
-    def _imperfect(self, monkeypatch, rerun, revised="Be precise."):
-        # gemini qualifies at the threshold but is not perfect: rows of 1 document of
-        # 10 disagree on total.
-        sample = [(f"@s/{i}.pdf", i) for i in range(10)]
-        truth = {name: {"invoice": name, "total": 1, "rows": []} for name, _ in sample}
-        close = dict(truth)
-        close["@s/0.pdf"] = {"invoice": "@s/0.pdf", "total": 2, "rows": []}
-        per_model = {model: truth for model in _MODEL_TIERS}
-        per_model["gemma-4-31b"] = RuntimeError("unknown")
-        per_model["gemini-3.8-flash"] = close
-        monkeypatch.setattr(selection, "revised_predicate", lambda s, r: revised)
-        with _patched_extract_sample(per_model, rerun=rerun(truth, close)):
-            return calibrate(mock.Mock(), "@s", sample, 50, _options())
+    def test_reads_everything_as_usual_without_a_sample(self):
+        selection = _FakeSelection(_answers())
+        selection.choose_and_extract(_LISTED[:4])
+        assert [call[0] for call in selection.calls] == [_EXTRACTION_MODELS]
 
-    def test_keeps_revised_instructions_that_raise_agreement(self, monkeypatch):
-        chosen, rows = self._imperfect(monkeypatch, lambda truth, close: truth)
-        assert chosen.model == "gemini-3.8-flash"
-        assert chosen.prompt_accepted
-        assert chosen.predicate == "Be precise."
-        assert chosen.revised.mean == 1.0
-        assert json.loads(rows["@s/0.pdf"]["VALUE"])["total"] == 1
+    def _optimized(
+        self, monkeypatch, revised, answer="The amount due, not a subtotal."
+    ):
+        # gemini's total disagrees on one sample document (0.5); sonnet agrees everywhere,
+        # so a threshold of 0.5 is needed for gemini to be chosen.
+        config = {**_MODEL_SELECTION, "threshold": 0.5}
+        selection = _FakeSelection(
+            _answers({"gemini-3.8-flash": _CLOSE}), revised=revised, config=config
+        )
+        selection.session.sql.return_value.collect_nowait.return_value.result.return_value = [
+            [answer]
+        ]
+        monkeypatch.setattr(
+            ModelSelection,
+            "document_pages",
+            lambda self, path: [f"Invoice {path} Amount due: 1.00 Subtotal: 9.00"],
+        )
+        files = selection.choose_and_extract(_LISTED)
+        return selection, files
 
-    def test_drops_revised_instructions_that_do_not(self, monkeypatch):
-        chosen, rows = self._imperfect(monkeypatch, lambda truth, close: close)
-        assert not chosen.prompt_accepted
-        assert chosen.predicate == "Extract the requested fields from this document."
-        assert json.loads(rows["@s/0.pdf"]["VALUE"])["total"] == 2
+    def test_asks_the_reference_for_each_disagreeing_field_with_document_text(
+        self, monkeypatch
+    ):
+        selection, _ = self._optimized(monkeypatch, revised=_TRUTH)
+        sql = selection.session.sql
+        assert sql.call_count == 1  # only total disagreed
+        query, kwargs = sql.call_args[0][0], sql.call_args[1]
+        assert query == "SELECT AI_COMPLETE(?, ?)"
+        model, request = kwargs["params"]
+        assert model == _REFERENCE
+        assert "Field: total" in request
+        assert "Reference's value: 1\n" in request and "Model's value: 9\n" in request
+        assert "Amount due: 1.00" in request and "Subtotal: 9.00" in request
+
+    def test_keeps_descriptions_that_raise_agreement(self, monkeypatch):
+        selection, files = self._optimized(monkeypatch, revised=_TRUTH)
+        rerun_models, rerun_sample, rerun_format = selection.calls[4]
+        assert rerun_models == ["gemini-3.8-flash"]
+        assert rerun_sample == ["@s/0.pdf", "@s/9.pdf"]
+        revised = rerun_format["schema"]["properties"]["total"]["description"]
+        assert revised == "The amount due, not a subtotal."
+        # The rest is read with the revised schema, and the sample keeps the rerun.
+        assert selection.calls[5][2] == rerun_format
+        by_path = {file.path: file for file in files}
+        assert by_path["@s/9.pdf"].parts[0][1]["total"] == 1
+
+    def test_drops_descriptions_that_do_not(self, monkeypatch):
+        selection, files = self._optimized(monkeypatch, revised=_CLOSE)
+        assert selection.calls[5][2] == _FORMAT
+        by_path = {file.path: file for file in files}
+        assert by_path["@s/9.pdf"].parts[0][1]["total"] == 9
 
     def test_no_rerun_when_the_optimizer_answers_nothing(self, monkeypatch):
-        chosen, _ = self._imperfect(monkeypatch, lambda t, c: t, revised=None)
-        assert chosen.revised is None and not chosen.prompt_accepted
+        selection, _ = self._optimized(monkeypatch, revised=_TRUTH, answer="")
+        assert len(selection.calls) == 5  # 4 tiers and the rest, no rerun
 
 
-class TestExtractWithSelectedModel:
-    def _run(self, listed, chosen):
+class TestSummary:
+    def test_lists_every_model_and_marks_the_chosen_one(self):
+        scores = [
+            ModelScore("a", error="unknown model"),
+            ModelScore("b", {"x": 1.0}, documents=2, input_tokens=5, output_tokens=1),
+        ]
+        text = selection_summary(2, 10, _MODEL_SELECTION, scores, "b", None, False)
+        assert "on 2 of 10 documents" in text
+        assert "a: not scored: unknown model" in text
+        assert "b: worst field 1.00" in text and text.endswith("<- selected")
+
+
+class TestRunWithSelection:
+    def test_run_hands_the_listed_files_to_model_selection(self, monkeypatch):
+        listed = [("@s/a.pdf", 1)]
+        monkeypatch.setattr(DocumentExtraction, "list_files", lambda self, path: listed)
+        seen = {}
+
+        def choose(self, files):
+            seen["files"], seen["config"] = files, self.config
+            return [_state("@s/a.pdf", {"invoice": "A", "total": 1, "rows": []})]
+
+        monkeypatch.setattr(ModelSelection, "choose_and_extract", choose)
         session = mock.MagicMock()
-        call = mock.MagicMock()
-        with mock.patch.object(
-            selection, "list_stage_files", return_value=listed
-        ), mock.patch.object(
-            selection, "calibrate", return_value=chosen
-        ), mock.patch.object(
-            selection, "call_extract_proc", return_value=call
-        ) as call_proc:
-            result = extract_with_selected_model(session, "@s", _options())
-        return session, call, call_proc, result
-
-    def test_reads_the_rest_with_the_chosen_model_beside_the_sample_rows(self):
-        listed = [(f"@s/{i}.pdf", i) for i in range(5)]
-        chosen = selection.ModelSelection(
-            sample=["@s/2.pdf"],
-            documents=5,
-            scores=[],
-            model="gemini-3.8-flash",
-            predicate="Be precise.",
+        session.create_dataframe.side_effect = lambda rows, schema: rows
+        rows = proc.run(
+            session,
+            "@s",
+            json.dumps(_MODEL_SELECTION),
+            json.dumps(_FORMAT),
+            _DEFAULT_PROMPT,
+            json.dumps(_EXTRACTION_MODELS),
+            json.dumps(_CALL_BUDGETS),
+            30,
+            "@stage",
+            True,
         )
-        rows = _rows({"@s/2.pdf": {"invoice": "A", "total": 1, "rows": []}})
-        session, call, call_proc, result = self._run(listed, (chosen, rows))
-        args = call_proc.call_args[0]
-        assert args[2] == [f for f in listed if f[0] != "@s/2.pdf"]
-        assert args[4] == read_models("gemini-3.8-flash")
-        assert args[5] == "Be precise."
-        assert args[6] == budgets_for("gemini-3.8-flash")
-        sampled_rows = session.create_dataframe.call_args[0][0]
-        assert [r[0] for r in sampled_rows] == ["@s/2.pdf"]
-        call.union_all.assert_called_once_with(session.create_dataframe.return_value)
-        assert result is call.union_all.return_value
-
-    def test_reads_as_usual_when_calibration_gives_no_choice(self):
-        _, _, call_proc, result = self._run([("@s/0.pdf", 1)], (None, {}))
-        args = call_proc.call_args[0]
-        assert args[2] is None
-        assert args[4] == ["claude-sonnet-5-5", "claude-opus-5"]
-        assert result is call_proc.return_value
+        assert seen == {"files": listed, "config": _MODEL_SELECTION}
+        assert rows[0][0] == "@s/a.pdf"
 
 
-# ---------------------------------------------------------------------------
-# The MODEL option
-# ---------------------------------------------------------------------------
-
-
-class TestModelOption:
-    def test_auto_turns_on_selection_for_a_schema_read(self):
+class TestSwitch:
+    @pytest.mark.parametrize(
+        "value, expected", [(True, True), (False, False), ("FALSE", False), ("x", True)]
+    )
+    def test_the_session_switch_turns_selection_off(self, value, expected):
         options = DocumentReaderOptions.from_reader_options(
-            {"SCHEMA": _SCHEMA, "MODEL": "AUTO"}
+            {"SCHEMA": _SCHEMA}, model_selection=value
         )
-        assert options.auto_model
-
-    def test_off_by_default(self):
-        assert not DocumentReaderOptions.from_reader_options(
-            {"SCHEMA": _SCHEMA}
-        ).auto_model
-
-    def test_any_other_value_is_refused(self):
-        with pytest.raises(SnowparkDataframeReaderException, match="Valid values are"):
-            DocumentReaderOptions.from_reader_options(
-                {"SCHEMA": _SCHEMA, "MODEL": "claude-opus-5"}
-            )
-
-    def test_auto_needs_a_schema(self):
-        with pytest.raises(SnowparkDataframeReaderException, match="'schema'"):
-            DocumentReaderOptions.from_reader_options(
-                {"PROMPT": "Summarize.", "MODEL": "auto"}
-            )
+        assert options.model_selection is expected

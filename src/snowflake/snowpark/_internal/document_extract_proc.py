@@ -21,6 +21,10 @@ the steps of ``DocumentExtraction`` just above it, in order:
 4. back in ``run``: merge each file's parts, in page order, into one row, with the
    token usage of every call made for the file summed (``FileState.usage``).
 
+With a ``selection`` config (``_MODEL_SELECTION`` in document_reader.py), ``run`` first
+chooses the model on a sample of the documents: see ``ModelSelection`` and the "Model
+selection" section above it.
+
 Calls go to the first of the candidate models. A call AI_COMPLETE reports as an
 unknown or unavailable model is not a document failure: ``model_missing`` moves the read
 to the next model, the call is sent again, and the read stops only when no model is left.
@@ -36,9 +40,11 @@ internals. Every function except ``run`` and ``DocumentExtraction`` is pure and
 unit-tested directly.
 """
 
+import copy
 import hashlib
 import io
 import json
+import logging
 import math
 import os
 import re
@@ -48,6 +54,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from snowflake.snowpark import DataFrame, Session
+
+_logger = logging.getLogger(__name__)
 
 STATUS_FIELD = "extraction_status"
 SCORES_FIELD = "extraction_scores"
@@ -1866,10 +1874,665 @@ class DocumentExtraction:
         return [(file, a, b, next_budget) for a, b in remaining]
 
 
+# ---------------------------------------------------------------------------
+# Model selection
+# ---------------------------------------------------------------------------
+#
+# With a ``selection`` config, ``run`` hands the listed files to
+# ``ModelSelection.choose_and_extract``:
+#
+# 1. ``sample_files``: at most ``max_sample_documents`` of the files, or
+#    ``max_sample_fraction`` of them if that is fewer, spread over the files sorted by
+#    size. Too few files for one sample document means no selection.
+# 2. Extract the sample with every model of ``tiers`` (cheapest first), one at a time.
+# 3. ``score_model``: each model's per-field agreement with the ``reference`` model, the
+#    mean over the sample of ``field_agreement`` (an F1 over the field's values).
+# 4. ``select_model``: the cheapest model whose every field agrees at least
+#    ``threshold``. The reference is the last tier and agrees with itself.
+# 5. ``revised_descriptions``: when the chosen model does not agree everywhere, one
+#    reference call per disagreeing field, shown the text around both models' values in
+#    up to ``optimizer_documents`` documents, writes a new description for the field.
+#    The sample is extracted again with them, and they are kept only if the mean
+#    agreement rises while every field still meets the threshold.
+# 6. The rest of the files are read with the chosen model and schema; the sample keeps
+#    the rows step 2 (or 5) produced.
+
+_NUMBER_TEXT = re.compile(r"^[-+]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$")
+
+# Characters of document text kept on each side of a value shown to the optimizer, and
+# the values of one field looked up per document (an array field has many).
+EXCERPT_CHARS = 300
+MAX_EXCERPTS_PER_VALUE = 2
+# Characters of a value shown to the optimizer.
+MAX_SHOWN_VALUE_CHARS = 1000
+
+# File types whose text the optimizer is shown as it is (PDFs have their text read).
+TEXT_FILE_EXTENSIONS = frozenset({".txt", ".md", ".csv", ".xhtml"})
+
+_FIELD_OPTIMIZER_INSTRUCTION = (
+    "You improve the description of one field of the JSON Schema that a document "
+    "extraction model fills. On the sample documents below, the model's value for the "
+    "field disagreed with the value a stronger reference model extracted. For each "
+    "document you are given the text around the reference's value, the reference's "
+    "value, the model's value, and the text around where the model's value appears (when "
+    "they were found in the document's text). Write a new description for the field that "
+    "would make the model extract what the reference extracted: general rules about "
+    "where to find the value, how to tell it apart from similar values, and how to "
+    "format it. Never copy values from these documents. Keep everything the current "
+    "description asks for. Answer with ONLY the new description as plain text, at most "
+    "120 words."
+)
+
+
+def normalize_scalar(value: Any) -> Any:
+    """``value`` as compared between models: text with its whitespace collapsed and its
+    case folded, a number (or text that is only a number, with optional thousands
+    separators) as a float rounded to 6 places, a boolean as "true" or "false" (so it
+    never equals 1.0). Empty text is None, the same as a missing value."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return round(float(value), 6)
+    text = " ".join(str(value).split()).casefold()
+    if not text:
+        return None
+    if _NUMBER_TEXT.match(text):
+        return round(float(text.replace(",", "")), 6)
+    return text
+
+
+def scalars(value: Any, path: str = "") -> List[Tuple[str, Any]]:
+    """Every scalar inside ``value`` as ``(path, value)``. The path names the object keys
+    on the way to it but not the array positions."""
+    if value is None:
+        return []
+    if isinstance(value, dict):
+        return [leaf for key in value for leaf in scalars(value[key], f"{path}.{key}")]
+    if isinstance(value, list):
+        return [leaf for item in value for leaf in scalars(item, path + "[]")]
+    return [(path, value)]
+
+
+def leaves(value: Any) -> List[Tuple[str, Any]]:
+    """``scalars`` normalized (``normalize_scalar``), without the empty ones, so the order
+    of an array's items does not matter and a missing value, an empty array or object,
+    and empty text have no leaves."""
+    normalized = [(path, normalize_scalar(leaf)) for path, leaf in scalars(value)]
+    return [(path, leaf) for path, leaf in normalized if leaf is not None]
+
+
+def field_agreement(value: Any, reference: Any) -> float:
+    """The F1 between the leaves of one field's ``value`` and of the reference model's
+    value for it, as multisets: 1.0 when they match (including both empty), 0.0 when
+    they share nothing. A scalar field scores 1.0 or 0.0. The leaves of an array of
+    objects are matched without regard to which item they came from."""
+    found, expected = Counter(leaves(value)), Counter(leaves(reference))
+    if not found and not expected:
+        return 1.0
+    overlap = sum((found & expected).values())
+    if not overlap:
+        return 0.0
+    precision = overlap / sum(found.values())
+    recall = overlap / sum(expected.values())
+    return 2 * precision * recall / (precision + recall)
+
+
+def row_answer(row: Optional[List[Any]]) -> Optional[Dict[str, Any]]:
+    """The merged answer of one ``result_row``, or None when it has none."""
+    if row is None or row[1] is None:
+        return None
+    try:
+        value = json.loads(row[1])
+    except (TypeError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+@dataclass
+class ModelScore:
+    """How one model's answers on the sample agree with the reference's."""
+
+    model: str
+    # Per top-level schema field, the mean field_agreement over the documents scored.
+    field_scores: Dict[str, float] = field(default_factory=dict)
+    # Sample documents the reference answered; only those are scored.
+    documents: int = 0
+    # Of those, documents this model returned no answer for (each field scores 0).
+    failed: int = 0
+    # AI_COMPLETE's token usage over the whole sample, None when no call reported it.
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    # Why the model could not be scored, such as AI_COMPLETE not knowing it.
+    error: Optional[str] = None
+
+    @property
+    def worst(self) -> float:
+        return min(self.field_scores.values(), default=0.0)
+
+    @property
+    def mean(self) -> float:
+        if not self.field_scores:
+            return 0.0
+        return sum(self.field_scores.values()) / len(self.field_scores)
+
+    def qualifies(self, threshold: float) -> bool:
+        """Whether every field agrees at least ``threshold`` on a scored sample."""
+        return (
+            self.error is None
+            and self.documents > 0
+            and bool(self.field_scores)
+            and self.worst >= threshold
+        )
+
+
+def _token_sum(rows: List[List[Any]], index: int) -> Optional[int]:
+    counts = [row[index] for row in rows if row[index] is not None]
+    return sum(int(count) for count in counts) if counts else None
+
+
+def score_model(
+    model: str,
+    rows: Dict[str, List[Any]],
+    reference_rows: Dict[str, List[Any]],
+    fields: List[str],
+) -> ModelScore:
+    """``model``'s per-field agreement with the reference. ``rows`` and
+    ``reference_rows`` are ``result_row``s keyed by path. A document the reference has
+    no answer for is not scored; one ``model`` has no answer for scores 0 on every
+    field."""
+    totals = {name: 0.0 for name in fields}
+    documents = failed = 0
+    for path, reference_row in reference_rows.items():
+        expected = row_answer(reference_row)
+        if expected is None:
+            continue
+        documents += 1
+        found = row_answer(rows.get(path))
+        if found is None:
+            failed += 1
+            continue
+        for name in fields:
+            totals[name] += field_agreement(found.get(name), expected.get(name))
+    listed = list(rows.values())
+    return ModelScore(
+        model=model,
+        field_scores=(
+            {name: total / documents for name, total in totals.items()}
+            if documents
+            else {}
+        ),
+        documents=documents,
+        failed=failed,
+        input_tokens=_token_sum(listed, 4),
+        output_tokens=_token_sum(listed, 5),
+    )
+
+
+def select_model(scores: List[ModelScore], threshold: float) -> Optional[ModelScore]:
+    """The first (cheapest) of ``scores``, in tier order, that qualifies."""
+    return next((score for score in scores if score.qualifies(threshold)), None)
+
+
+def sample_size(documents: int, config: Dict[str, Any]) -> int:
+    """How many of ``documents`` to choose the model on: ``max_sample_documents`` or
+    ``max_sample_fraction`` of them, whichever is fewer (0 for too few documents)."""
+    return min(
+        int(config["max_sample_documents"]),
+        int(documents * float(config["max_sample_fraction"])),
+    )
+
+
+def is_sampleable(name: str, size: Optional[int]) -> bool:
+    """Whether the file would be read at all: a supported type, not over the read
+    limit."""
+    return os.path.splitext(name)[1].lower() in SUPPORTED_FILE_EXTENSIONS and (
+        size is None or size <= MAX_FILE_READ_BYTES
+    )
+
+
+def sample_files(
+    listed: List[Tuple[str, Optional[int]]], config: Dict[str, Any]
+) -> Tuple[List[Tuple[str, Optional[int]]], List[Tuple[str, Optional[int]]]]:
+    """``listed`` split into the sample and the rest. The sample is ``sample_size`` of
+    the files that would be read, evenly spaced over them sorted by size, so it covers
+    short and long documents alike; files that would not be read are always in the
+    rest, where they get their usual error."""
+    candidates = sorted(
+        (file for file in listed if is_sampleable(*file)),
+        key=lambda file: (file[1] or 0, file[0]),
+    )
+    count = sample_size(len(candidates), config)
+    if count <= 0:
+        return [], list(listed)
+    if count == 1:
+        picked = {candidates[len(candidates) // 2]}
+    else:
+        step = (len(candidates) - 1) / (count - 1)
+        picked = {candidates[round(i * step)] for i in range(count)}
+    sample = [file for file in candidates if file in picked]
+    rest = [file for file in listed if file not in picked]
+    return sample, rest
+
+
+# A model's output ceiling can sit below the budgets' ``max_tokens`` (AI_COMPLETE rejects
+# a larger value outright, for every call): its calls are capped at the ceiling, and the
+# targets, which the model is asked to stay under, are cut to this share of it.
+CAP_TARGET_FRACTION = 0.6
+
+
+def cap_budgets(budgets: Dict[str, Any], cap: int) -> Dict[str, Any]:
+    """``budgets`` with every ``max_tokens`` limited to ``cap`` and every target (and
+    ``merge_target``) limited to ``CAP_TARGET_FRACTION`` of it."""
+    target = int(cap * CAP_TARGET_FRACTION)
+    return {
+        key: (
+            {
+                k: (min(v, cap) if k == "max_tokens" else min(v, target))
+                for k, v in value.items()
+            }
+            if isinstance(value, dict)
+            else min(value, target)
+        )
+        for key, value in budgets.items()
+    }
+
+
+def read_models(model: str, models: List[str]) -> List[str]:
+    """The models the rest of the files may use: the chosen one, then the read's own
+    should AI_COMPLETE stop knowing it."""
+    return [model] + [m for m in models if m != model]
+
+
+def pages_text(name: str, content: bytes) -> List[str]:
+    """The text of each page of a file, for the optimizer: a PDF's text layer (empty
+    for a scanned page), a text file whole, nothing for any other type."""
+    extension = os.path.splitext(name)[1].lower()
+    if extension in TEXT_FILE_EXTENSIONS:
+        return [content.decode("utf-8", errors="replace")]
+    if extension != ".pdf":
+        return []
+    from pypdf import PdfReader
+
+    try:
+        reader = PdfReader(io.BytesIO(content))
+    except Exception:
+        return []
+    texts = []
+    for page in reader.pages:
+        try:
+            texts.append(page.extract_text() or "")
+        except Exception:
+            texts.append("")
+    return texts
+
+
+def value_texts(value: Any) -> List[str]:
+    """How a scalar value can be printed in a document, longest first: text as it is,
+    a number with and without thousands separators and two decimals. Values shorter than
+    3 characters would match almost anywhere and give none."""
+    if isinstance(value, bool) or value is None:
+        return []
+    if isinstance(value, (int, float)):
+        number = float(value)
+        texts = {f"{number:,.2f}", f"{number:.2f}", str(value)}
+        if number.is_integer():
+            texts |= {f"{int(number):,}", str(int(number))}
+    else:
+        texts = {" ".join(str(value).split())}
+    return sorted((t for t in texts if len(t) >= 3), key=len, reverse=True)
+
+
+def find_excerpts(pages: List[str], value: Any) -> List[Tuple[int, str]]:
+    """Up to ``MAX_EXCERPTS_PER_VALUE`` ``(1-based page, text)`` excerpts of ``pages``
+    around the first place each scalar of ``value`` is printed, matched without regard
+    to case or whitespace; ``EXCERPT_CHARS`` of text are kept on each side."""
+    excerpts: List[Tuple[int, str]] = []
+    for _, scalar in scalars(value):
+        if len(excerpts) >= MAX_EXCERPTS_PER_VALUE:
+            break
+        for text in value_texts(scalar):
+            pattern = re.compile(
+                r"\s+".join(re.escape(token) for token in text.split()), re.IGNORECASE
+            )
+            found = next(
+                (
+                    (number, page, match)
+                    for number, page in enumerate(pages, 1)
+                    for match in [pattern.search(page)]
+                    if match
+                ),
+                None,
+            )
+            if found is not None:
+                number, page, match = found
+                start = max(match.start() - EXCERPT_CHARS, 0)
+                excerpt = " ".join(page[start : match.end() + EXCERPT_CHARS].split())
+                excerpts.append((number, excerpt))
+                break
+    return excerpts
+
+
+def _shown(value: Any) -> str:
+    text = json.dumps(value, default=str)
+    if len(text) > MAX_SHOWN_VALUE_CHARS:
+        text = text[:MAX_SHOWN_VALUE_CHARS] + "...(cut)"
+    return text
+
+
+def _shown_excerpts(excerpts: List[Tuple[int, str]]) -> str:
+    if not excerpts:
+        return "(not found in the document's text)"
+    return " | ".join(f'page {page}: "{text}"' for page, text in excerpts)
+
+
+@dataclass
+class FieldExample:
+    """One document where the chosen model's value for a field disagreed."""
+
+    reference: Any
+    model: Any
+    reference_text: List[Tuple[int, str]]
+    model_text: List[Tuple[int, str]]
+
+
+def field_optimizer_prompt(
+    name: str,
+    field_schema: Any,
+    predicate: str,
+    examples: List[FieldExample],
+) -> str:
+    """The request asking the reference model for a new description of field ``name``
+    from the documents where the chosen model's value for it disagreed."""
+    shown = []
+    for number, example in enumerate(examples, 1):
+        shown.append(
+            f"Document {number}:\n"
+            f"  Text around the reference's value: "
+            f"{_shown_excerpts(example.reference_text)}\n"
+            f"  Reference's value: {_shown(example.reference)}\n"
+            f"  Model's value: {_shown(example.model)}\n"
+            f"  Text around the model's value: {_shown_excerpts(example.model_text)}"
+        )
+    return (
+        f"{_FIELD_OPTIMIZER_INSTRUCTION}\n\nField: {name}\n"
+        f"Current JSON Schema of the field: {json.dumps(field_schema)}\n"
+        f"Extraction instructions: {predicate}\n\n" + "\n\n".join(shown)
+    )
+
+
+def unquoted(text: Any) -> Optional[str]:
+    """AI_COMPLETE's text answer, without the JSON string quotes it can come in."""
+    if not isinstance(text, str):
+        return None
+    body = text.strip()
+    if body.startswith('"') and body.endswith('"'):
+        try:
+            decoded = json.loads(body)
+        except ValueError:
+            decoded = None
+        if isinstance(decoded, str):
+            body = decoded.strip()
+    return body or None
+
+
+def with_descriptions(
+    response_format: Dict[str, Any], descriptions: Dict[str, str]
+) -> Dict[str, Any]:
+    """A copy of ``response_format`` with the top-level fields in ``descriptions`` given
+    those descriptions."""
+    revised = copy.deepcopy(response_format)
+    properties = revised["schema"].get("properties") or {}
+    for name, description in descriptions.items():
+        if isinstance(properties.get(name), dict):
+            properties[name]["description"] = description
+    return revised
+
+
+def selection_summary(
+    sample: int,
+    documents: int,
+    config: Dict[str, Any],
+    scores: List[ModelScore],
+    model: str,
+    revised: Optional[ModelScore],
+    accepted: bool,
+) -> str:
+    """What model selection found and chose, for the log."""
+    lines = [
+        f"documents() model selection on {sample} of {documents} documents (reference "
+        f"{config['reference']}, threshold {config['threshold']} on every field):"
+    ]
+    for score in scores:
+        mark = "  <- selected" if score.model == model else ""
+        if score.error is not None:
+            lines.append(f"  {score.model}: not scored: {score.error}{mark}")
+            continue
+        fields = ", ".join(f"{k}={v:.2f}" for k, v in score.field_scores.items())
+        lines.append(
+            f"  {score.model}: worst field {score.worst:.2f}, mean {score.mean:.2f}, "
+            f"{score.failed} of {score.documents} failed, tokens in/out "
+            f"{score.input_tokens}/{score.output_tokens} [{fields}]{mark}"
+        )
+    if revised is not None:
+        outcome = "kept" if accepted else "dropped"
+        lines.append(
+            f"  revised field descriptions: mean {revised.mean:.2f}, worst field "
+            f"{revised.worst:.2f}: {outcome}"
+        )
+    return "\n".join(lines)
+
+
+def _error_text(exc: BaseException) -> str:
+    return " ".join(str(exc).split())[:300]
+
+
+class ModelSelection:
+    """Chooses the model for a read on a sample of its files, then reads the rest with
+    it (see the "Model selection" section above)."""
+
+    def __init__(
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        response_format: Dict[str, Any],
+        predicate: str,
+        models: List[str],
+        budgets: Dict[str, Any],
+        max_calls_per_file: int,
+        work_stage: str,
+        show_details: bool,
+    ) -> None:
+        self.session = session
+        self.config = config
+        self.response_format = response_format
+        self.predicate = predicate
+        self.models = models
+        self.budgets = budgets
+        self.max_calls_per_file = max_calls_per_file
+        self.work_stage = work_stage
+        self.show_details = show_details
+        self.fields = list(response_format["schema"].get("properties") or {})
+        self.reference = config["reference"]
+        self.threshold = float(config["threshold"])
+
+    def extract(
+        self,
+        models: List[str],
+        listed: List[Tuple[str, Optional[int]]],
+        response_format: Optional[Dict[str, Any]] = None,
+    ) -> List[FileState]:
+        """``listed`` extracted with ``models``, with the budgets capped at the first
+        model's output ceiling (the read's own models have higher ones)."""
+        cap = (self.config.get("max_output_tokens") or {}).get(models[0])
+        budgets = cap_budgets(self.budgets, int(cap)) if cap else self.budgets
+        extraction = DocumentExtraction(
+            self.session,
+            response_format or self.response_format,
+            self.predicate,
+            models,
+            budgets,
+            self.work_stage,
+            self.show_details,
+        )
+        return extraction.extract_in_batches(listed, self.max_calls_per_file)
+
+    def rows(self, files: List[FileState]) -> Dict[str, List[Any]]:
+        return {file.path: result_row(file, self.fields) for file in files}
+
+    def document_pages(self, path: str) -> List[str]:
+        """``pages_text`` of a staged file, or nothing when it cannot be read."""
+        try:
+            return pages_text(path, DocumentExtraction.read_bytes(path))
+        except Exception:
+            return []
+
+    def revised_descriptions(
+        self,
+        rows: Dict[str, List[Any]],
+        reference_rows: Dict[str, List[Any]],
+        score: ModelScore,
+    ) -> Dict[str, str]:
+        """A new description for each field the chosen model (``rows``) does not fully
+        agree on, from one reference call per field, all in flight at once. A field whose
+        call fails or answers nothing keeps its description."""
+        properties = self.response_format["schema"].get("properties") or {}
+        texts: Dict[str, List[str]] = {}
+        jobs = {}
+        for name in self.fields:
+            if score.field_scores.get(name, 0.0) >= 1.0:
+                continue
+            examples = []
+            for path, reference_row in sorted(reference_rows.items()):
+                expected = row_answer(reference_row)
+                if expected is None:
+                    continue
+                found = row_answer(rows.get(path)) or {}
+                if field_agreement(found.get(name), expected.get(name)) >= 1.0:
+                    continue
+                if path not in texts:
+                    texts[path] = self.document_pages(path)
+                examples.append(
+                    FieldExample(
+                        reference=expected.get(name),
+                        model=found.get(name),
+                        reference_text=find_excerpts(texts[path], expected.get(name)),
+                        model_text=find_excerpts(texts[path], found.get(name)),
+                    )
+                )
+                if len(examples) >= int(self.config["optimizer_documents"]):
+                    break
+            if not examples:
+                continue
+            request = field_optimizer_prompt(
+                name, properties.get(name), self.predicate, examples
+            )
+            try:
+                jobs[name] = self.session.sql(
+                    "SELECT AI_COMPLETE(?, ?)", params=[self.reference, request]
+                ).collect_nowait()
+            except Exception as exc:
+                _logger.warning("field %r not optimized: %s", name, _error_text(exc))
+        revised = {}
+        for name, job in jobs.items():
+            try:
+                text = unquoted(job.result()[0][0])
+            except Exception as exc:
+                _logger.warning("field %r not optimized: %s", name, _error_text(exc))
+                continue
+            if text:
+                revised[name] = text
+        return revised
+
+    def choose_and_extract(
+        self, listed: List[Tuple[str, Optional[int]]]
+    ) -> List[FileState]:
+        """Every listed file's ``FileState``, in listing order. When there is no sample,
+        or the reference could not be scored against, every file is read with the
+        read's own models."""
+        sample, rest = sample_files(listed, self.config)
+        if not sample:
+            return self.extract(self.models, listed)
+        results: Dict[str, Any] = {}
+        for model in self.config["tiers"]:
+            try:
+                results[model] = self.extract([model], sample)
+            except Exception as exc:
+                results[model] = exc
+        reference = results.get(self.reference)
+        if not isinstance(reference, list):
+            _logger.warning(
+                "documents() model selection skipped: the reference model %s failed: %s",
+                self.reference,
+                _error_text(reference) if reference is not None else "not a tier",
+            )
+            return self.extract(self.models, listed)
+        reference_rows = self.rows(reference)
+        scores = [
+            ModelScore(model=model, error=_error_text(result))
+            if isinstance(result, Exception)
+            else score_model(model, self.rows(result), reference_rows, self.fields)
+            for model, result in results.items()
+        ]
+        chosen = select_model(scores, self.threshold)
+        if chosen is None:
+            _logger.warning(
+                "documents() model selection skipped: the reference model %s answered "
+                "none of the %d sample documents",
+                self.reference,
+                len(sample),
+            )
+            return self.extract(self.models, listed)
+
+        sample_files_done = results[chosen.model]
+        response_format = self.response_format
+        revised_score, accepted = None, False
+        if chosen.model != self.reference and chosen.mean < 1.0:
+            descriptions = self.revised_descriptions(
+                self.rows(sample_files_done), reference_rows, chosen
+            )
+            if descriptions:
+                candidate = with_descriptions(self.response_format, descriptions)
+                try:
+                    rerun = self.extract([chosen.model], sample, candidate)
+                except Exception as exc:
+                    _logger.warning(
+                        "revised field descriptions not tried: %s", _error_text(exc)
+                    )
+                else:
+                    revised_score = score_model(
+                        chosen.model, self.rows(rerun), reference_rows, self.fields
+                    )
+                    if (
+                        revised_score.qualifies(self.threshold)
+                        and revised_score.mean > chosen.mean
+                    ):
+                        accepted = True
+                        response_format = candidate
+                        sample_files_done = rerun
+        _logger.info(
+            selection_summary(
+                len(sample),
+                len(listed),
+                self.config,
+                scores,
+                chosen.model,
+                revised_score,
+                accepted,
+            )
+        )
+        rest_done = (
+            self.extract(read_models(chosen.model, self.models), rest, response_format)
+            if rest
+            else []
+        )
+        by_path = {file.path: file for file in sample_files_done + rest_done}
+        return [by_path[name] for name, _ in listed if name in by_path]
+
+
 def run(
     session: Session,
     path: str,
-    files: str,
+    selection: str,
     response_format: str,
     predicate: str,
     models: str,
@@ -1883,11 +2546,9 @@ def run(
 
     Args:
         path: stage path of a file or folder, e.g. ``@stage/invoices/``.
-        files: the files to extract instead of every file under ``path``, as a JSON list
-            of ``[stage reference, listed size or null]`` pairs (as ``list_files``
-            returns them), or JSON ``null`` to list ``path``. Model selection
-            (document_model_selection.py) extracts a sample of the path this way, then
-            the rest.
+        selection: the model selection config (``_MODEL_SELECTION`` in
+            document_reader.py) as JSON, or JSON ``null`` to read every file with
+            ``models``; see ``ModelSelection``.
         response_format: the user's schema as ``{"schema": <JSON Schema>}``, JSON.
         predicate: the extraction prompt (the user's, or the default).
         models: the AI_COMPLETE model names the read may use, in order of preference,
@@ -1929,17 +2590,27 @@ def run(
         work_stage,
         show_details,
     )
-    # 1. List the files under the path, with their sizes, unless the caller chose them.
-    chosen = json.loads(files)
-    listed = (
-        extraction.list_files(path)
-        if chosen is None
-        else [(str(name), size) for name, size in chosen]
-    )
+    # 1. List the files under the path, with their sizes.
+    listed = extraction.list_files(path)
     # 2. For each batch of files: read them, plan the first page ranges (planned for
     # large files, whole for the rest), and extract until no range is left; each file
-    # collects its parts and errors. Only one batch's bytes are held at a time.
-    files = extraction.extract_in_batches(listed, max_calls_per_file)
+    # collects its parts and errors. Only one batch's bytes are held at a time. With
+    # model selection, a sample is extracted with every candidate model first.
+    config = json.loads(selection)
+    if config:
+        files = ModelSelection(
+            session,
+            config,
+            json.loads(response_format),
+            predicate,
+            json.loads(models),
+            json.loads(call_budgets),
+            max_calls_per_file,
+            work_stage,
+            show_details,
+        ).choose_and_extract(listed)
+    else:
+        files = extraction.extract_in_batches(listed, max_calls_per_file)
     # 3. One row per file (see result_row), including files that failed.
     fields = list(extraction.schema.get("properties") or {})
     rows = [result_row(file, fields) for file in files]

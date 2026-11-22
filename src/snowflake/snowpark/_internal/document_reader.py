@@ -109,6 +109,32 @@ _CALL_BUDGETS = {
 # observes, up to its hard maximum.
 _MAX_CALLS_PER_FILE = 30
 
+# Model selection for schema reads, run by the extraction procedure (see
+# ``choose_and_extract`` in document_extract_proc.py) unless the session's
+# PYTHON_SNOWPARK_DOCUMENTS_MODEL_SELECTION switch is off. It extracts a sample of the
+# documents (max_sample_documents, or max_sample_fraction of them if that is fewer) with
+# every model of "tiers", from the cheapest to the most expensive, scores each per field
+# against "reference" (the last tier), and reads the rest with the cheapest model whose
+# every field agrees at least "threshold". Below 1 / max_sample_fraction documents there
+# is no sample and the read uses _EXTRACTION_MODELS. "max_output_tokens" caps the calls
+# of a model whose output ceiling is below _MAX_OUTPUT_TOKENS; "optimizer_documents" is
+# how many disagreeing documents each per-field prompt optimization call is shown.
+_MODEL_SELECTION_REFERENCE = "claude-opus-5"
+_MODEL_SELECTION = {
+    "reference": _MODEL_SELECTION_REFERENCE,
+    "tiers": [
+        "gemma-4-31b",
+        "gemini-3.8-flash",
+        _PREFERRED_EXTRACTION_MODEL,
+        _MODEL_SELECTION_REFERENCE,
+    ],
+    "max_output_tokens": {"gemini-3.8-flash": 65536},
+    "max_sample_documents": 10,
+    "max_sample_fraction": 0.2,
+    "threshold": 0.9,
+    "optimizer_documents": 5,
+}
+
 
 _EXTRACT_PROC_FILE_PATH = os.path.join(
     os.path.dirname(__file__), "document_extract_proc.py"
@@ -648,76 +674,26 @@ def extract_with_split_procedure(
     """Schema extraction straight from the FILE, splitting the PDF across several
     AI_COMPLETE calls when one response cannot hold the whole answer. The loop needs each
     call's answer before planning the next, so it runs in a stored procedure; the CALL
-    still stays lazy because Snowpark defers it to RESULT_SCAN at collect time. With
-    model="auto" a sample of the documents is extracted first, eagerly, to choose the
-    model (see document_model_selection.py)."""
-    if options.auto_model:
-        from snowflake.snowpark._internal.document_model_selection import (
-            extract_with_selected_model,
-        )
-
-        df = extract_with_selected_model(session, path, options)
-    else:
-        df = call_extract_proc(
-            session,
-            path,
-            None,
-            options,
-            _EXTRACTION_MODELS,
-            options.prompt or _DEFAULT_EXTRACTION_PROMPT,
-            _CALL_BUDGETS,
-        )
-    return project_proc_rows(df, options)
-
-
-def call_extract_proc(
-    session: "Session",
-    path: str,
-    files: Optional[List[Tuple[str, Optional[int]]]],
-    options: DocumentReaderOptions,
-    models: List[str],
-    predicate: str,
-    budgets: Dict[str, Any],
-) -> "DataFrame":
-    """The extraction procedure's CALL for every file under ``path``, or for ``files``
-    (``(stage reference, listed size)`` pairs) when given, as the procedure returns its
-    rows (see ``proc_rows_schema``)."""
+    still stays lazy because Snowpark defers it to RESULT_SCAN at collect time. Model
+    selection (``_MODEL_SELECTION``) runs inside the same CALL."""
     proc_name = register_extract_proc(session)
     # In the order of run()'s parameters (document_extract_proc.py) and of
     # register_extract_proc()'s input_types.
     args = [
         path,
-        json.dumps(None if files is None else [list(file) for file in files]),
+        json.dumps(_MODEL_SELECTION if options.model_selection else None),
         json.dumps(options.extraction.ai_complete_format),
-        predicate,
-        json.dumps(models),
-        json.dumps(budgets),
+        options.prompt or _DEFAULT_EXTRACTION_PROMPT,
+        json.dumps(_EXTRACTION_MODELS),
+        json.dumps(_CALL_BUDGETS),
         _MAX_CALLS_PER_FILE,
         session.get_session_stage(),
         options.tokens_enabled,
     ]
-    return session.sql(
+    df = session.sql(
         f"CALL {proc_name}({', '.join(['?'] * len(args))}) {usage_comment(options)}",
         params=args,
-    )
-
-
-def proc_rows_schema() -> StructType:
-    """The columns the extraction procedure returns (run() in document_extract_proc.py)."""
-    return StructType(
-        [
-            StructField("STAGE_PATH", StringType()),
-            StructField("VALUE", StringType()),
-            StructField("ERROR", StringType()),
-            StructField("SCORES", StringType()),
-            *[StructField(name, LongType()) for name in TOKEN_COLUMNS],
-        ]
-    )
-
-
-def project_proc_rows(df: "DataFrame", options: DocumentReaderOptions) -> "DataFrame":
-    """The read's columns from the extraction procedure's rows."""
-    df = df.select(
+    ).select(
         to_file(col("STAGE_PATH")).alias(SOURCE_FILE_COLUMN),
         try_parse_json(col("VALUE")).alias(_EXTRACTED_COLUMN),
         col("ERROR").alias(_EXTRACT_ERROR_COLUMN),
@@ -859,12 +835,20 @@ def register_extract_proc(session: "Session") -> str:
     session.sproc.register_from_file(
         python_file_path,
         _EXTRACT_PROC_HANDLER,
-        return_type=proc_rows_schema(),
+        return_type=StructType(
+            [
+                StructField("STAGE_PATH", StringType()),
+                StructField("VALUE", StringType()),
+                StructField("ERROR", StringType()),
+                StructField("SCORES", StringType()),
+                *[StructField(name, LongType()) for name in TOKEN_COLUMNS],
+            ]
+        ),
         # In the order of run()'s parameters after the session, and of the args
-        # call_extract_proc() passes to the CALL.
+        # extract_with_split_procedure() passes to the CALL.
         input_types=[
             StringType(),  # path
-            StringType(),  # files: the files to extract instead of listing path, as JSON
+            StringType(),  # selection: _MODEL_SELECTION as JSON, or null to skip it
             StringType(),  # response_format: the JSON schema, as JSON
             StringType(),  # predicate: the prompt
             StringType(),  # models: candidates in order of preference, as JSON

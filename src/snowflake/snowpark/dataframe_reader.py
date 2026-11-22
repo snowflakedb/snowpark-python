@@ -1510,12 +1510,6 @@ class DataFrameReader:
             - ``prompt``: instructions for the extraction. With a ``schema`` it guides
               how the fields are extracted. Without one, the answer to the prompt is
               returned as text.
-            - ``model``: ``"auto"`` (with a ``schema`` only) chooses the model for the
-              read. A sample of the documents (10, or a fifth of them if that is fewer)
-              is extracted with several models, each scored per field against a
-              reference model, and the rest are read with the cheapest model that
-              agrees on every field. The sample is extracted, and billed, when
-              ``documents()`` is called; the choice is logged.
 
         The returned DataFrame has one row per document, with these columns:
 
@@ -1596,6 +1590,7 @@ class DataFrameReader:
         options = document_reader.DocumentReaderOptions.from_reader_options(
             self._cur_options,
             token_usage=getattr(self._session, "_documents_token_usage", True),
+            model_selection=getattr(self._session, "_documents_model_selection", True),
         )
         df = document_reader.read_documents(self._session, path, options)
 

@@ -103,6 +103,21 @@ def test_documents_takes_the_token_switch_from_the_session(switch):
     assert read_options.tokens_enabled is switch
 
 
+@pytest.mark.parametrize("switch", [True, False])
+def test_documents_takes_the_model_selection_switch_from_the_session(switch):
+    # PYTHON_SNOWPARK_DOCUMENTS_MODEL_SELECTION, read once per session; not a reader
+    # option.
+    session = _create_fake_session()
+    session._documents_model_selection = switch
+    reader = DataFrameReader(session).option("schema", ["invoice_no"])
+    with mock.patch(
+        "snowflake.snowpark._internal.document_reader.read_documents"
+    ) as read_documents:
+        reader.documents("@stage/doc.pdf")
+    _, _, read_options = read_documents.call_args.args
+    assert read_options.model_selection is switch
+
+
 @pytest.mark.parametrize(
     "options",
     [{"schema": "invoice_no"}, {"schema": 42}, {"prompt": ""}, {"prompt": "   "}],
@@ -147,7 +162,7 @@ def test_documents_reads_through_the_reader_module():
         module.DocumentReaderOptions.from_reader_options.return_value = fake_options
         df = reader.documents("@stage/doc.pdf")
     module.DocumentReaderOptions.from_reader_options.assert_called_once_with(
-        {"PROMPT": "p"}, token_usage=True
+        {"PROMPT": "p"}, token_usage=True, model_selection=True
     )
     module.read_documents.assert_called_once_with(
         reader._session, "@stage/doc.pdf", fake_options

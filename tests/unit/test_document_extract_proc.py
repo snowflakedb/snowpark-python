@@ -2987,7 +2987,7 @@ _RUN_SCHEMA = {
 }
 
 
-def _run(monkeypatch, files, answer, show_details=True, chosen="null"):
+def _run(monkeypatch, files, answer, show_details=True, selection="null"):
     session = _RunSession(files, answer)
     monkeypatch.setattr(
         DocumentExtraction,
@@ -2997,7 +2997,7 @@ def _run(monkeypatch, files, answer, show_details=True, chosen="null"):
     rows, schema = proc.run(
         session,
         "@s",
-        chosen,
+        selection,
         json.dumps(_RUN_SCHEMA),
         "Extract.",
         json.dumps(["m1"]),
@@ -3042,23 +3042,6 @@ class TestRun:
         assert bad[1] is None and "boom" in bad[2] and bad[3] is None
         # A failed call reports no usage.
         assert bad[4:] == [None, None]
-
-    def test_given_files_are_extracted_without_listing_the_path(self, monkeypatch):
-        def answer(staged):
-            return _answer(
-                {STATUS_FIELD: {"complete": True}, "invoice": "I", "rows": []}
-            )
-
-        def no_listing(self, path):
-            raise AssertionError("the path was listed")
-
-        monkeypatch.setattr(DocumentExtraction, "list_files", no_listing)
-        files = {"a.pdf": _pdf_bytes(1), "b.pdf": _pdf_bytes(1)}
-        session, rows, _ = _run(
-            monkeypatch, files, answer, chosen=json.dumps([["@s/b.pdf", 10]])
-        )
-        assert [row[0] for row in rows] == ["@s/b.pdf"]
-        assert session.calls == ["@s/b.pdf"]
 
     def test_with_token_usage_off_calls_skip_show_details(self, monkeypatch):
         # AI_COMPLETE then answers in the shape it had before show_details: the answer
