@@ -21,8 +21,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
-from snowflake.snowpark._internal import debug_config
-
 SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
 # The path of the package as Python imported it, which is what the code objects of its frames
 # report: it differs from the resolved path when the package is installed under a symlink (e.g.
@@ -144,18 +142,23 @@ def capture_user_src_position(
 
 
 def is_tracing_enabled(session=None) -> bool:
-    """Whether a debug feature that needs the DataFrame trace is on for ``session``.
+    """Whether a debug feature that needs the DataFrame trace is on.
 
     The trace is not supported for local testing sessions.
     """
+    from snowflake.snowpark import context
+
     if not (
-        debug_config.enabled(session, "dataframe_trace_on_error")
-        or debug_config.enabled(session, "trace_sql_errors_to_dataframe")
+        context._enable_dataframe_trace_on_error
+        or context._enable_trace_sql_errors_to_dataframe
     ):
         return False
-    from snowflake.snowpark.mock._connection import MockServerConnection
+    if session is not None:
+        from snowflake.snowpark.mock._connection import MockServerConnection
 
-    return not isinstance(getattr(session, "_conn", None), MockServerConnection)
+        if isinstance(getattr(session, "_conn", None), MockServerConnection):
+            return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -325,10 +328,20 @@ def current_trace_call(session=None) -> Optional[int]:
 _MAX_EXPRESSION_NODES = 10000
 
 
+_context_module = None
+
+
 def tracing_flags_on() -> bool:
-    """Fast check for the public API wrapper, which has no session: whether any session has a
-    debug feature on that records the DataFrame trace."""
-    return debug_config._tracing_sessions > 0
+    """Fast check of the tracing flags for the public API wrapper."""
+    global _context_module
+    if _context_module is None:
+        from snowflake.snowpark import context
+
+        _context_module = context
+    return (
+        _context_module._enable_dataframe_trace_on_error
+        or _context_module._enable_trace_sql_errors_to_dataframe
+    )
 
 
 # The attribute names of each expression class, read once per class by the public API wrapper:

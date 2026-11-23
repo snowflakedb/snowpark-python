@@ -15,14 +15,15 @@
 
 #### Improvements
 
-- `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) now maps SQL compilation errors that have no line number to the DataFrame operations that caused them, using up to 32 extra describe attempts on failure.
+- `trace_sql_errors_to_dataframe` of `snowflake.snowpark.context.configure_development_features` (Experimental) now maps SQL compilation errors that have no line number to the DataFrame operations that caused them, using up to 32 extra describe attempts on failure.
+- Removed `Session.debug` (Experimental, added in 1.57.0). The debug features are configured for every session with `snowflake.snowpark.context.configure_development_features` (Experimental).
 
 #### Bug Fixes
 
 - Fixed a bug where `Table.sample` and seeded `DataFrame.stat.sample_by` ignored time travel and Iceberg incremental reads and sampled the current table. For Iceberg incremental reads, `seed` and `SYSTEM`/`BLOCK` sampling are now ignored with a warning.
 - Fixed a bug where `Table.sample` and seeded `DataFrame.stat.sample_by` on a table embedded `seed` into the SQL without validating it. A `seed` that is not an integer between 0 and 2147483647 now raises `ValueError`.
 - Fixed a bug where `DataFrameReader.table` failed when a time travel reader option was set to `None`, e.g. `option("time_travel_mode", None)` together with `option("as-of-timestamp", ...)`. Time travel options set to `None` are now treated as unset.
-- Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) removed empty lines inside string literals of raw SQL, which changed query results.
+- Fixed a bug where `trace_sql_errors_to_dataframe` of `snowflake.snowpark.context.configure_development_features` (Experimental) removed empty lines inside string literals of raw SQL, which changed query results.
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` that contained string literals, backslashes or newlines failed with a SQL compilation error during schema inference.
 - Fixed a bug in `DataFrameReader.jdbc` where reading failed when `DEFAULT_DDL_COLLATION` was set.
 

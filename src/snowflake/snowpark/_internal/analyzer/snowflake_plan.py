@@ -144,7 +144,6 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 import snowflake.snowpark.context as context
-from snowflake.snowpark._internal import debug_config
 
 from collections.abc import Iterable
 
@@ -189,8 +188,8 @@ class SnowflakePlan(LogicalPlan):
                     debug_context_arr = []
                     try:
                         if top_plan is not None:
-                            trace_sql_errors = debug_config.enabled(
-                                top_plan.session, "trace_sql_errors_to_dataframe"
+                            trace_sql_errors = (
+                                context._enable_trace_sql_errors_to_dataframe
                             )
                             if (
                                 "SQL compilation error:" in e.msg
@@ -219,8 +218,9 @@ class SnowflakePlan(LogicalPlan):
                                     _logger.debug(
                                         f"Error when getting the line-less SQL error context: {trace_error}"
                                     )
-                            if trace_node is not None and debug_config.enabled(
-                                top_plan.session, "dataframe_trace_on_error"
+                            if (
+                                trace_node is not None
+                                and context._enable_dataframe_trace_on_error
                             ):
                                 if df_transform_trace := get_df_transform_trace_message(
                                     trace_node
@@ -554,7 +554,7 @@ class SnowflakePlan(LogicalPlan):
         """When tracing sql errors is enabled, keeps the most recently compiled queries so that
         an error of a compiled query can be mapped back to the plan that generated it.
         """
-        if debug_config.enabled(self.session, "trace_sql_errors_to_dataframe"):
+        if context._enable_trace_sql_errors_to_dataframe:
             self._last_execution_queries = queries
         return queries
 
@@ -759,7 +759,7 @@ class SnowflakePlan(LogicalPlan):
         and then remove the comments to get the final SQL query. When tracing sql errors is not enabled,
         this function will do nothing.
         """
-        if not debug_config.enabled(self.session, "trace_sql_errors_to_dataframe"):
+        if not context._enable_trace_sql_errors_to_dataframe:
             # No action is needed if feature is not enabled
             return
         from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -1158,9 +1158,7 @@ class SnowflakePlanBuilder:
                 is_distinct=is_distinct,
                 child_uuid=(
                     child.uuid
-                    if debug_config.enabled(
-                        self.session, "trace_sql_errors_to_dataframe"
-                    )
+                    if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
                 ilike_pattern=ilike_pattern,
@@ -1183,9 +1181,7 @@ class SnowflakePlanBuilder:
                 x,
                 child_uuid=(
                     child.uuid
-                    if debug_config.enabled(
-                        self.session, "trace_sql_errors_to_dataframe"
-                    )
+                    if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
             ),
@@ -1207,9 +1203,7 @@ class SnowflakePlanBuilder:
                 x,
                 child_uuid=(
                     child.uuid
-                    if debug_config.enabled(
-                        self.session, "trace_sql_errors_to_dataframe"
-                    )
+                    if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
             ),
@@ -1232,9 +1226,7 @@ class SnowflakePlanBuilder:
                 row_count=row_count,
                 child_uuid=(
                     child.uuid
-                    if debug_config.enabled(
-                        self.session, "trace_sql_errors_to_dataframe"
-                    )
+                    if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
             ),
@@ -1270,9 +1262,7 @@ class SnowflakePlanBuilder:
                 x,
                 child_uuid=(
                     child.uuid
-                    if debug_config.enabled(
-                        self.session, "trace_sql_errors_to_dataframe"
-                    )
+                    if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
             ),
@@ -1314,17 +1304,11 @@ class SnowflakePlanBuilder:
                 match_condition,
                 use_constant_subquery_alias,
                 left_uuid=(
-                    left.uuid
-                    if debug_config.enabled(
-                        self.session, "trace_sql_errors_to_dataframe"
-                    )
-                    else None
+                    left.uuid if context._enable_trace_sql_errors_to_dataframe else None
                 ),
                 right_uuid=(
                     right.uuid
-                    if debug_config.enabled(
-                        self.session, "trace_sql_errors_to_dataframe"
-                    )
+                    if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
                 directed=directed,
@@ -1612,9 +1596,7 @@ class SnowflakePlanBuilder:
                 on_top_of_oder_by,
                 child_uuid=(
                     child.uuid
-                    if debug_config.enabled(
-                        self.session, "trace_sql_errors_to_dataframe"
-                    )
+                    if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
             ),
@@ -1642,9 +1624,7 @@ class SnowflakePlanBuilder:
                 should_alias_column_with_agg,
                 child_uuid=(
                     child.uuid
-                    if debug_config.enabled(
-                        self.session, "trace_sql_errors_to_dataframe"
-                    )
+                    if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
             ),
@@ -1670,9 +1650,7 @@ class SnowflakePlanBuilder:
                 x,
                 child_uuid=(
                     child.uuid
-                    if debug_config.enabled(
-                        self.session, "trace_sql_errors_to_dataframe"
-                    )
+                    if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
             ),
@@ -2426,9 +2404,7 @@ class SnowflakePlanBuilder:
                 x,
                 child_uuid=(
                     child.uuid
-                    if debug_config.enabled(
-                        self.session, "trace_sql_errors_to_dataframe"
-                    )
+                    if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
             ),
@@ -2464,9 +2440,7 @@ class SnowflakePlanBuilder:
                 use_constant_subquery_alias,
                 child_uuid=(
                     child.uuid
-                    if debug_config.enabled(
-                        self.session, "trace_sql_errors_to_dataframe"
-                    )
+                    if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
             ),

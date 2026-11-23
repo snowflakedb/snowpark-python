@@ -8,7 +8,7 @@ import sys
 
 import pytest
 import snowflake.snowpark.context as context
-from snowflake.snowpark import Row, Session
+from snowflake.snowpark import Row
 
 from snowflake.snowpark._internal.utils import (
     AstFlagSource,
@@ -28,7 +28,7 @@ from snowflake.snowpark.types import IntegerType
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.window import Window
-from tests.utils import IS_IN_STORED_PROC, Utils
+from tests.utils import Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -977,32 +977,6 @@ def test_pre_action_owner_carries_session_sql_trace_node(session):
     assert any(node is df._trace_node for node in owner.df_trace_nodes)
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_sql_error_tracing_is_per_session(session, db_parameters):
-    def build(s):
-        df = s.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-        return df.select(col("a").alias("x")).select(col("x") + col("b"))
-
-    with Session.builder.configs(db_parameters).create() as other:
-        other.sql_simplifier_enabled = session.sql_simplifier_enabled
-        other.debug.disable_trace_sql_errors_to_dataframe()
-        assert session.debug.trace_sql_errors_to_dataframe is True
-        on, off = build(session), build(other)
-        # the session with the feature off sends the same SQL and records no line intervals
-        assert off.queries == on.queries
-        assert not any(q.query_line_intervals for q in off._plan.queries)
-        with pytest.raises(SnowparkSQLException) as ex_on:
-            on.collect()
-        with pytest.raises(SnowparkSQLException) as ex_off:
-            off.collect()
-    assert "SQL compilation error corresponds to Python source" in str(
-        ex_on.value.debug_context
-    )
-    assert "SQL compilation error corresponds to Python source" not in str(
-        ex_off.value.debug_context or ""
-    )
-
-
 def test_empty_lines_in_literals_are_kept(session, multiline):
     """The sql sent with the feature on keeps the empty lines of string literals."""
 
@@ -1013,11 +987,13 @@ def test_empty_lines_in_literals_are_kept(session, multiline):
         return df.collect(), df.queries["queries"][-1]
 
     rows_on, sql_on = run()
-    session.debug.disable_trace_sql_errors_to_dataframe()
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
     try:
         rows_off, sql_off = run()
     finally:
-        session.debug.enable_trace_sql_errors_to_dataframe()
+        context.configure_development_features(
+            enable_trace_sql_errors_to_dataframe=True
+        )
     assert rows_on == rows_off == [Row(S="a\n\nb", N=4)]
     if multiline:
         assert sql_on == sql_off
