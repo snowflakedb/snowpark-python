@@ -199,7 +199,10 @@ def configure_development_features(
     enable_trace_sql_errors_to_dataframe: Optional[bool] = None,
 ) -> None:
     """
-    Configure development features for the session.
+    Configure development features for every session.
+
+    The settings are global: one call changes every session in the process, including the
+    sessions created later.
 
     Only the features passed explicitly are changed; features that are not passed keep their
     current setting. Calling this function without any argument disables every development
