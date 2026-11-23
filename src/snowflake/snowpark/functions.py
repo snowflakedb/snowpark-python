@@ -13377,7 +13377,7 @@ def ai_extract(
         ------------------------------------------------------------
         <BLANKLINE>
 
-        >>> # Extract lists using a JSON Schema array
+        >>> # Extract a list using a JSON Schema array
         >>> df = session.range(1).select(
         ...     ai_extract(
         ...         'Python, Java, and JavaScript are popular programming languages',
@@ -13385,10 +13385,7 @@ def ai_extract(
         ...             "schema": {
         ...                 "type": "object",
         ...                 "properties": {
-        ...                     "languages": {
-        ...                         "description": "What programming languages are mentioned?",
-        ...                         "type": "array",
-        ...                     }
+        ...                     "languages": {"description": "What programming languages are mentioned?", "type": "array"},
         ...                 },
         ...             }
         ...         }

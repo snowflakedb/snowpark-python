@@ -1414,7 +1414,7 @@ class DataFrameAIFunctions:
             ------------------------------------------------------------
             <BLANKLINE>
 
-            >>> # Extract lists using a JSON Schema array
+            >>> # Extract a list using a JSON Schema array
             >>> df = session.create_dataframe(
             ...     [["Python, Java, and JavaScript are popular programming languages"]],
             ...     schema=["text"]
@@ -1425,10 +1425,7 @@ class DataFrameAIFunctions:
             ...         "schema": {
             ...             "type": "object",
             ...             "properties": {
-            ...                 "languages": {
-            ...                     "description": "What programming languages are mentioned?",
-            ...                     "type": "array",
-            ...                 }
+            ...                 "languages": {"description": "What programming languages are mentioned?", "type": "array"},
             ...             },
             ...         }
             ...     },
