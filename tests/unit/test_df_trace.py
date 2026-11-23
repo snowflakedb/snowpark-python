@@ -495,3 +495,42 @@ def test_registration_node_only_when_tracing_is_on():
         context.configure_development_features()
     assert node.kind == "udf"
     assert node.src.filename == __file__
+
+
+def test_tracing_flags_on_follows_the_tracing_flags():
+    from snowflake.snowpark._internal.df_trace import tracing_flags_on
+
+    context.configure_development_features()
+    try:
+        assert tracing_flags_on() is False
+        context.configure_development_features(enable_dataframe_trace_on_error=True)
+        assert tracing_flags_on() is True
+        context.configure_development_features(
+            enable_dataframe_trace_on_error=False,
+            enable_trace_sql_errors_to_dataframe=True,
+        )
+        assert tracing_flags_on() is True
+        context.configure_development_features(enable_eager_schema_validation=True)
+        context.configure_development_features(
+            enable_trace_sql_errors_to_dataframe=False
+        )
+        assert tracing_flags_on() is False
+    finally:
+        context.configure_development_features()
+
+
+def test_local_testing_sessions_are_not_tracing():
+    from unittest import mock
+
+    from snowflake.snowpark._internal.df_trace import is_tracing_enabled
+    from snowflake.snowpark.mock._connection import MockServerConnection
+
+    local = mock.Mock(_conn=mock.create_autospec(MockServerConnection))
+    remote = mock.Mock(_conn=mock.Mock())
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
+    try:
+        assert is_tracing_enabled(local) is False
+        assert is_tracing_enabled(remote) is True
+    finally:
+        context.configure_development_features()
+    assert is_tracing_enabled(remote) is False
