@@ -233,6 +233,20 @@ def test_flattened_projection_mapping_after_unicode(session, multiline, text):
     assert _mapped_lines(ex) == [line]
 
 
+def test_flattened_filters_mapping_after_double_slash_comment(session, multiline):
+    """Snowflake treats ``//`` as a line comment: its text must not split the clauses."""
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
+    df = session.create_dataframe([(1, "a")], schema=["a", "b"])
+    df = df.filter(sql_expr("a > 0 // , FROM t WHERE it's\n"))
+    df = df.filter(sql_expr("UPPER(b, a)") == "x")
+    line = Utils.get_current_line_number_sys() - 1
+    df = df.filter(col("a") < 9)
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.collect()
+    assert _mapped_lines(ex) == [line]
+
+
 @pytest.mark.parametrize("operation", ["copy", "star", "reorder", "filter", "sort"])
 @pytest.mark.parametrize("cache_before", [False, True])
 def test_flattened_projection_owner_survives_later_operations(

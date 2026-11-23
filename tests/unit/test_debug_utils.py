@@ -969,6 +969,8 @@ def test_get_clause_trace_node(line_number, position, expected):
         "[1, [2, 3], F(4, 5)]",
         "(SELECT x FROM t WHERE x IN (1, 2))",
         "F(a /* , FROM WHERE */ , b) -- , ORDER BY\n",
+        "F(a // , FROM WHERE it's\n, b) // , ORDER BY\n",
+        "a / b",
         "COUNT(*)",
         "a * b",
     ],

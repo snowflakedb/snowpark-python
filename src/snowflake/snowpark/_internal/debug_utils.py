@@ -343,7 +343,7 @@ def _resolve_error_line(
 
 
 _CLAUSE_TOKEN = re.compile(
-    r"\s+|--[^\n]*(?:\n|$)|/\*.*?\*/|\$\$.*?\$\$|"
+    r"\s+|(?:--|//)[^\n]*(?:\n|$)|/\*.*?\*/|\$\$.*?\$\$|"
     r"'(?:''|\\.|[^'\\])*'|\"(?:\"\"|[^\"])*\"|"
     r"[A-Za-z_][A-Za-z_0-9$]*|[0-9]+(?:\.[0-9]+)?|[(),.\[\]+*/%<>=!|&^~?:$-]",
     re.DOTALL,
@@ -365,7 +365,7 @@ def _clause_tokens(sql: str) -> List[Tuple[str, int, int, int]]:
         ):
             raise ValueError("Unterminated SQL comment or literal")
         start, offset = offset, match.end()
-        if text.isspace() or text.startswith("--"):
+        if text.isspace() or text.startswith(("--", "//")):
             continue
         if text.startswith("/*"):
             if "/*" in text[2:]:
