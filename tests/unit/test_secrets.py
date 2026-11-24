@@ -64,6 +64,15 @@ def test_secrets_mock_server_paths():
         assert get_external_secret_json("e1") == '{"name": "e1"}'
 
 
+def test_get_external_secret_json_is_in_private_preview():
+    assert "in private preview since 1.58.0" in get_external_secret_json.__doc__
+    fake_module = _build_fake_snowflake_module()
+    with patch.dict("sys.modules", {"_snowflake": fake_module}):
+        with patch("snowflake.snowpark._internal.utils.warning") as warn:
+            get_external_secret_json("e1")
+    assert "in private preview since 1.58.0" in warn.call_args[0][1]
+
+
 @pytest.fixture
 def scls_spcs_mock_env(tmp_path):
     secret_base = tmp_path / ".test_scls_spcs_creds"

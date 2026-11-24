@@ -6,6 +6,8 @@ import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from snowflake.snowpark._internal.utils import private_preview
+
 # Reference for Python API for Secret Access:
 # https://docs.snowflake.com/en/developer-guide/external-network-access/secret-api-reference#python-api-for-secret-access
 
@@ -313,6 +315,7 @@ def get_wif_token(secret_name: str, audience: str) -> str:
     return _get_secrets_instance().get_wif_token(secret_name, audience)
 
 
+@private_preview(version="1.58.0")
 def get_external_secret_json(secret_name: str) -> str:
     """Get the value of an external secret from Snowflake.
 
@@ -323,7 +326,7 @@ def get_external_secret_json(secret_name: str) -> str:
     Note:
         Requires a Snowflake environment with an external secret configured and an
         external access integration that allows the UDF or stored procedure to use
-        that secret. This API is in Private Preview.
+        that secret.
 
     Args:
         secret_name: The secret reference name bound to the external secret.
