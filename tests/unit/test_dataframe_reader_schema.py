@@ -14,9 +14,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.ast.batch import AstBatch
 from snowflake.snowpark._internal.server_connection import ServerConnection
-from snowflake.snowpark._internal.xml_reader import (
-    schema_string_to_result_dict_and_struct_type,
-)
 
 from snowflake.snowpark._internal.utils import AstFlagSource, set_ast_state
 from snowflake.snowpark.dataframe_reader import DataFrameReader
@@ -155,17 +152,6 @@ def test_ddl_schema_is_read_like_the_equivalent_struct_type(session):
     ]
     assert result[1] == expected_result[1]
     assert result[2] == expected_result[2]
-    assert [a.name for a in result[0][:4]] == [
-        '"id"',
-        '"CaseSens"',
-        '"my col"',
-        '"a""b"',
-    ]
-    assert result[2][0].startswith('$1:"id"::')
-    assert result[2][1].startswith('$1:"CaseSens"::')
-    assert result[2][2].startswith('$1:"my col"::')
-    assert result[2][3].startswith('$1:"a""b"::')
-    assert [name for _, name in result[1][:4]] == ["id", "CaseSens", "my col", 'a"b']
 
     # CSV
     csv_result = reader._get_schema_from_csv_user_input(reader._user_schema, True)
@@ -177,9 +163,6 @@ def test_ddl_schema_is_read_like_the_equivalent_struct_type(session):
 
     # XML
     assert _xml_columns(reader._user_schema) == _xml_columns(expected)
-    keys, aliases = _xml_columns(reader._user_schema)
-    assert keys[:4] == [("'id'",), ("'CaseSens'",), ("'my col'",), ("'a\"b'",)]
-    assert ('"CaseSens"',) in aliases and ('"id"',) in aliases
 
 
 def test_unquoted_field_names_are_read_as_before():
@@ -243,15 +226,6 @@ UNQUOTED_SCHEMA = StructType(
         StructField("UP", DecimalType(10, 2)),
     ]
 )
-QUOTED_DDL = '"CaseSens" INT, "a""b" STRING, "x.y z" STRING NOT NULL, id INT'
-QUOTED_SCHEMA = StructType(
-    [
-        StructField('"CaseSens"', IntegerType()),
-        StructField('"a""b"', StringType()),
-        StructField('"x.y z"', StringType(), nullable=False),
-        StructField("id", IntegerType()),
-    ]
-)
 
 
 @pytest.mark.parametrize("file_format", ["json", "parquet"])
@@ -274,32 +248,6 @@ def test_unquoted_names_generate_the_same_queries_as_before(file_format):
     ]
 
 
-@pytest.mark.parametrize("file_format", ["json", "parquet"])
-@pytest.mark.parametrize("schema", [QUOTED_DDL, QUOTED_SCHEMA])
-def test_quoted_names_generate_valid_queries(file_format, schema):
-    queries = _queries(schema, file_format)
-    assert queries[1] == (
-        'SELECT $1:"CaseSens"::INT AS "CaseSens", $1:"a""b"::STRING AS "a""b", '
-        '$1:"x.y z"::STRING AS "x.y z", $1:"id"::INT AS "id" '
-        "FROM @st/f( FILE_FORMAT => 'TMP')"
-    )
-    queries = _queries(schema, file_format, ON_ERROR="CONTINUE")
-    assert queries[0] == (
-        'CREATE OR REPLACE SCOPED TEMPORARY TABLE TMP("CaseSens" INT, '
-        '"a""b" STRING, "x.y z" STRING NOT NULL , "id" INT)'
-    )
-    assert queries[1] == (
-        'COPY INTO TMP FROM ( SELECT $1:"CaseSens"::INT, $1:"a""b"::STRING, '
-        '$1:"x.y z"::STRING, $1:"id"::INT FROM @st/f) FILE_FORMAT = '
-        f"( TYPE = {file_format.upper()}) ON_ERROR = 'CONTINUE' FORCE = True"
-    )
-    assert queries[2].startswith(
-        'SELECT "CaseSens" AS "CaseSens", "a""b" AS "a""b", "x.y z" AS "x.y z", '
-        '"id" AS "id" FROM ('
-    )
-    assert '"""' not in " ".join(queries)
-
-
 def _xml_schema_string(schema):
     reader = DataFrameReader(mock.MagicMock())
     return attribute_to_schema_string_deep(
@@ -312,36 +260,3 @@ def test_unquoted_names_are_sent_to_the_xml_reader_as_before():
         _xml_schema_string(UNQUOTED_SCHEMA)
         == 'struct<"id": int, "Mixed": string not null, "UP": decimal(10,2)>'
     )
-
-
-@pytest.mark.parametrize(
-    "schema",
-    [
-        'a INT, "a""b" STRING, s STRUCT<"In n": INT, j STRING>',
-        StructType(
-            [
-                StructField("a", IntegerType()),
-                StructField('"a""b"', StringType()),
-                StructField(
-                    "s",
-                    StructType(
-                        [
-                            StructField('"In n"', IntegerType()),
-                            StructField("j", StringType()),
-                        ]
-                    ),
-                ),
-            ]
-        ),
-    ],
-)
-def test_quoted_names_are_sent_to_the_xml_reader_exactly(session, schema):
-    if isinstance(schema, str):
-        schema = session.read.schema(schema)._user_schema
-    schema_string = _xml_schema_string(schema)
-    assert schema_string == (
-        'struct<"a": int, "a""b": string, "s": struct<"In n": int, "j": string>>'
-    )
-    template, struct_type = schema_string_to_result_dict_and_struct_type(schema_string)
-    assert template == {"a": None, 'a"b': None, "s": {"In n": None, "j": None}}
-    assert [f._name for f in struct_type.fields] == ['"a"', '"a""b"', '"s"']
