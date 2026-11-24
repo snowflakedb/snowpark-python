@@ -9,11 +9,13 @@ from typing import Dict, List, Optional, Set, Tuple
 import itertools
 import re
 from typing import TYPE_CHECKING
+import snowflake.connector
 import snowflake.snowpark
 from snowflake.snowpark._internal.df_trace import SrcPosition, TraceNode
 from ast import literal_eval
 
 if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
 UNKNOWN_FILE = "__UNKNOWN_FILE__"
@@ -195,7 +197,9 @@ def _format_source_location(src: Optional[SrcPosition]) -> str:
     return lines_info
 
 
-def _get_own_trace_nodes(plan: "SnowflakePlan") -> List[TraceNode]:
+def _get_own_trace_nodes(
+    plan: "SnowflakePlan", strict: bool = False
+) -> List[TraceNode]:
     """
     Return the trace nodes of the DataFrame operations that produced this plan's
     own SQL text, leaving out the ones it inherited from the subqueries it wraps.
@@ -206,7 +210,7 @@ def _get_own_trace_nodes(plan: "SnowflakePlan") -> List[TraceNode]:
     The nodes of a ``SelectSQL`` child are not inherited but copied down from the
     plan (``SnowflakePlan.add_df_trace_node``), so they are kept.
     If nothing is left (e.g. the plan only re-wraps its child), the full list is
-    returned.
+    returned, or an empty list if ``strict`` is set.
     """
     from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
 
@@ -218,7 +222,7 @@ def _get_own_trace_nodes(plan: "SnowflakePlan") -> List[TraceNode]:
         for node in getattr(child, "df_trace_nodes", None) or []:
             inherited_ids.add(id(node))
     own_nodes = [node for node in trace_nodes if id(node) not in inherited_ids]
-    return own_nodes or trace_nodes
+    return own_nodes if strict else own_nodes or trace_nodes
 
 
 def _extract_source_locations_from_plan(
@@ -338,6 +342,305 @@ def _resolve_error_line(
     return None
 
 
+_CLAUSE_TOKEN = re.compile(
+    r"\s+|(?:--|//)[^\n]*(?:\n|$)|/\*.*?\*/|\$\$.*?\$\$|"
+    r"'(?:''|\\.|[^'\\])*'|\"(?:\"\"|[^\"])*\"|"
+    r"[A-Za-z_][A-Za-z_0-9$]*|[0-9]+(?:\.[0-9]+)?|[(),.\[\]+*/%<>=!|&^~?:$-]",
+    re.DOTALL,
+)
+
+
+def _clause_tokens(sql: str) -> List[Tuple[str, int, int, int]]:
+    """Lex cached SQL, keeping quoted text opaque and checking delimiter balance."""
+    tokens = []
+    stack = []
+    offset = 0
+    while offset < len(sql):
+        match = _CLAUSE_TOKEN.match(sql, offset)
+        if match is None:
+            raise ValueError("Unrecognized SQL token")
+        text = match.group()
+        if (sql.startswith("/*", offset) and not text.startswith("/*")) or (
+            sql.startswith("$$", offset) and not text.startswith("$$")
+        ):
+            raise ValueError("Unterminated SQL comment or literal")
+        start, offset = offset, match.end()
+        if text.isspace() or text.startswith(("--", "//")):
+            continue
+        if text.startswith("/*"):
+            if "/*" in text[2:]:
+                raise ValueError("Nested SQL comment")
+            continue
+        if text in (")", "]"):
+            if not stack or stack.pop() != {")": "(", "]": "["}[text]:
+                raise ValueError("Unbalanced SQL delimiters")
+        depth = len(stack)
+        if text in ("(", "["):
+            stack.append(text)
+        # Quoted identifiers and literals must never be interpreted as keywords.
+        word = "" if text.startswith(("'", '"', "$$")) else text.upper()
+        tokens.append((word, start, offset, depth))
+    if stack:
+        raise ValueError("Unbalanced SQL delimiters")
+    return tokens
+
+
+def _select_clause_spans(
+    statement: "SelectStatement",
+    sql: Optional[str] = None,
+) -> Optional[Tuple[List[Tuple[int, int, TraceNode]], int, int]]:
+    """Read clause provenance against cached SQL only; never re-analyze a failed query.
+
+    This recognizes SELECT clause boundaries, not arbitrary SQL grammar. Unknown layouts,
+    expanded projections, or inconsistent metadata fall back to the plan's operations.
+    """
+    from snowflake.snowpark._internal.analyzer.binary_expression import And
+    from snowflake.snowpark._internal.analyzer.expression import Star
+    from snowflake.snowpark._internal.analyzer.unary_expression import (
+        Alias,
+        UnresolvedAlias,
+    )
+
+    if sql is None:
+        sql = getattr(statement, "_sql_query", None)
+    if not isinstance(sql, str) or not sql:
+        return None
+    try:
+        tokens = _clause_tokens(sql)
+        if not tokens or tokens[0][0] != "SELECT":
+            return None
+        clauses: List[Tuple[str, int, int]] = [("SELECT", 0, 1)]
+        names = ["SELECT", "FROM", "WHERE", "ORDER", "LIMIT", "OFFSET"]
+        for index, (word, _, _, depth) in enumerate(tokens[1:], 1):
+            if depth:
+                continue
+            if word in names:
+                if names.index(word) <= names.index(clauses[-1][0]):
+                    return None
+                after = index + 1
+                if word == "ORDER":
+                    if tokens[after][0] != "BY":
+                        return None
+                    after += 1
+                clauses.append((word, index, after))
+            elif word in {
+                "WITH",
+                "GROUP",
+                "HAVING",
+                "QUALIFY",
+                "UNION",
+                "INTERSECT",
+                "EXCEPT",
+                "MINUS",
+                "WINDOW",
+                "FETCH",
+                "TOP",
+                "INTO",
+            }:
+                return None
+        if len(clauses) < 2 or clauses[1][0] != "FROM":
+            return None
+        ranges = {}
+        for index, (name, _, start) in enumerate(clauses):
+            end = clauses[index + 1][1] if index + 1 < len(clauses) else len(tokens)
+            if name == "SELECT" and tokens[start][0] == "DISTINCT":
+                start += 1
+            if start >= end:
+                return None
+            ranges[name] = (start, end)
+            if name in ("LIMIT", "OFFSET") and (
+                end != start + 1 or not tokens[start][0].isdigit()
+            ):
+                return None
+        if ("WHERE" in ranges) != (statement.where is not None) or (
+            "ORDER" in ranges
+        ) != bool(statement.order_by):
+            return None
+
+        spans = []
+
+        def add(start, end, slot):
+            if isinstance(slot, TraceNode):
+                spans.append((tokens[start][1], tokens[end - 1][2], slot))
+
+        def list_spans(name, expressions, provenance):
+            if name not in ranges:
+                return
+            start, end = ranges[name]
+            separators = [
+                index
+                for index in range(start, end)
+                if tokens[index][0] == "," and tokens[index][3] == 0
+            ]
+            parts = list(
+                zip([start] + [index + 1 for index in separators], separators + [end])
+            )
+            if any(left >= right for left, right in parts):
+                raise ValueError("Empty SQL list item")
+            if not expressions:
+                # A statement with no explicit projection renders an implicit star.
+                if name != "SELECT" or end != start + 1 or tokens[start][0] != "*":
+                    raise ValueError("SQL list without expressions")
+                return
+            if len(parts) != len(expressions):
+                raise ValueError("Expanded SQL list")
+            for expression in expressions:
+                while isinstance(expression, (Alias, UnresolvedAlias)):
+                    expression = expression.child
+                if isinstance(expression, Star):
+                    raise ValueError("Expanded star")
+            if provenance is None or provenance[0] is not expressions:
+                return
+            if len(provenance[1]) != len(parts):
+                raise ValueError("Inconsistent SQL list provenance")
+            for (left, right), slot in zip(parts, provenance[1]):
+                # Raw SQL stars also have an unknown expansion. A multiply inside an
+                # expression is not a wildcard; COUNT(*) is nested and remains atomic.
+                if any(
+                    tokens[index][0] == "*"
+                    and tokens[index][3] == 0
+                    and (index == left or tokens[index - 1][0] == ".")
+                    for index in range(left, right)
+                ):
+                    raise ValueError("SQL wildcard")
+                add(left, right, slot)
+
+        list_spans("SELECT", statement.projection, statement._projection_nodes)
+        list_spans("ORDER", statement.order_by, statement._order_by_nodes)
+        provenance = statement._where_nodes
+        if (
+            provenance is not None
+            and provenance[0] is statement.where
+            and "WHERE" in ranges
+        ):
+            owners = {}
+            for predicate, slot in provenance[1]:
+                key = id(predicate)
+                # Reusing a predicate in different filters does not identify its owner.
+                owners[key] = slot if key not in owners or owners[key] is slot else None
+
+            def where_spans(expression, start, end):
+                if start >= end:
+                    raise ValueError("Empty predicate")
+                if id(expression) in owners:
+                    add(start, end, owners[id(expression)])
+                    return
+                if not isinstance(expression, And):
+                    raise ValueError("Unknown predicate provenance")
+                depth = tokens[start][3]
+                if (
+                    tokens[start][0] != "("
+                    or tokens[end - 1][0] != ")"
+                    or tokens[end - 1][3] != depth
+                ):
+                    raise ValueError("Unknown conjunction layout")
+                if any(
+                    tokens[index][3] <= depth for index in range(start + 1, end - 1)
+                ):
+                    raise ValueError("Conjunction wrapper ends early")
+                if any(
+                    tokens[index][0] in {"OR", "BETWEEN", "CASE", "SELECT"}
+                    and tokens[index][3] == depth + 1
+                    for index in range(start + 1, end - 1)
+                ):
+                    raise ValueError("Not a generated conjunction")
+                operators = [
+                    index
+                    for index in range(start + 1, end - 1)
+                    if tokens[index][0] == "AND" and tokens[index][3] == depth + 1
+                ]
+                if len(operators) != 1:
+                    raise ValueError("Ambiguous conjunction")
+                operator = operators[0]
+                where_spans(expression.left, start + 1, operator)
+                where_spans(expression.right, operator + 1, end - 1)
+
+            where_spans(statement.where, *ranges["WHERE"])
+        from_start, from_end = ranges["FROM"]
+        return spans, tokens[from_start - 1][2], tokens[from_end - 1][2]
+    except (ValueError, TypeError, IndexError, AttributeError, RecursionError):
+        # Diagnostic parsing must not replace the original compilation error.
+        return None
+
+
+def _get_clause_trace_node(
+    plan: "SnowflakePlan",
+    position: int,
+    executed_line: str,
+    line_number: Optional[int] = None,
+) -> Optional[TraceNode]:
+    """
+    The trace node of the DataFrame operation that wrote the part of the SQL at the error, when
+    the SQL simplifier flattened several operations into the SELECT statement of ``plan``.
+
+    ``executed_line`` is the line of the executed SQL with the error, and ``position`` the
+    position of the error in it. Returns None, so that all of the plan's own operations are
+    reported, unless the line is exactly one line of the statement and the error position is
+    in exactly one part written by a known operation.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
+
+    statement = getattr(plan, "source_plan", None)
+    if not isinstance(statement, SelectStatement):
+        return None
+    if not 0 <= position < len(executed_line):
+        return None
+    # Tracing generates commented_sql, so only the plan SQL may be cached. A nested
+    # statement can also have a cached single-line layout without the line breaks left
+    # by UUID comment removal. Lex each available layout in its own coordinate system.
+    candidates = [
+        getattr(statement, "_commented_sql", None),
+        getattr(statement, "_sql_query", None),
+    ]
+    # A compiled WITH query contains other statements; its coordinates are already
+    # resolved by _resolve_error_line. Read the owning statement's cached layout instead.
+    plan_sql = plan.queries[-1].sql
+    if not plan_sql.lstrip().upper().startswith("WITH "):
+        candidates.append(plan_sql)
+    if plan_sql.lstrip().upper().startswith("WITH "):
+        line_number = None
+    if line_number is not None:
+        # The caller verified this is the executed query: use its exact coordinates,
+        # not text matching, which is ambiguous when inner and outer clauses repeat.
+        candidates = [plan_sql.strip()]
+
+    def line_offsets(sql: str) -> List[int]:
+        offsets = []
+        start = 0
+        for index, line in enumerate(sql.split("\n")):
+            if line_number is not None and index != line_number:
+                start += len(line) + 1
+                continue
+            if line == executed_line:
+                offsets.append(start + position)
+            elif index == 0 and line.lstrip() == executed_line:
+                offsets.append(start + position + len(line) - len(executed_line))
+            start += len(line) + 1
+        return offsets
+
+    owner = None
+    for sql in candidates:
+        if not isinstance(sql, str) or not sql:
+            continue
+        offsets = line_offsets(sql)
+        if not offsets:
+            continue
+        if len(offsets) != 1:
+            return None
+        clause_spans = _select_clause_spans(statement, sql)
+        if not clause_spans:
+            return None
+        spans, from_start, from_end = clause_spans
+        offset = offsets[0]
+        if from_start <= offset < from_end:
+            return None
+        nodes = [node for start, end, node in spans if start <= offset < end]
+        if len(nodes) != 1 or (owner is not None and owner is not nodes[0]):
+            return None
+        owner = nodes[0]
+    return owner
+
+
 def get_python_source_from_sql_error(
     top_plan: "SnowflakePlan", error_msg: str, executed_sql: Optional[str] = None
 ) -> str:
@@ -389,6 +692,25 @@ def get_python_source_from_sql_error(
         if line_number is None
         else get_plan_from_line_numbers(plan_root, line_number)
     )
+    # An error in a SELECT statement that flattens several operations is mapped to the one
+    # that wrote the part of the statement with the error, found from the executed line.
+    if own_only and executed_sql is not None:
+        executed_lines = executed_sql.strip().split("\n")
+        if sql_line_number < len(executed_lines):
+            clause_node = _get_clause_trace_node(
+                plan,
+                int(match.group(2)),
+                executed_lines[sql_line_number],
+                sql_line_number
+                if _same_query(executed_sql.strip(), plan.queries[-1].sql)
+                else None,
+            )
+            if clause_node is not None:
+                location = _format_source_location(clause_node.src)
+                # Lifted clauses can belong to an inherited operation. Its provenance
+                # must still identify an operation present in this plan's trace nodes.
+                if location and location in _extract_source_locations_from_plan(plan):
+                    return f"\nSQL compilation error corresponds to Python source at {location}.\n"
     source_locations = _extract_source_locations_from_plan(plan, own_only=own_only)
 
     if source_locations:
@@ -398,6 +720,151 @@ def get_python_source_from_sql_error(
             locations_str = "\n  - ".join(source_locations)
             return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
     return ""
+
+
+# The number of describe queries a SQL compilation error without a line number may issue to
+# find the operation that caused it.
+_MAX_LINE_LESS_ERROR_DESCRIBES = 32
+
+
+def get_line_less_error_context(
+    top_plan: "SnowflakePlan",
+    error: "snowflake.connector.errors.ProgrammingError",
+    executed_sql: Optional[str] = None,
+) -> str:
+    """
+    Map a SQL compilation error that has no line number to the DataFrame operations that
+    caused it.
+
+    The SQL of the child plans is compiled with describe queries (no data is read), starting
+    from the top plan: a plan whose own SQL fails with the same error while the SQL of all
+    its children compiles is the cause, and the operations that generated its own SQL are
+    reported. Nothing is reported unless every step is verified by the server, e.g. when a
+    child fails with another error, needs queries that run before it, or the number of
+    describe queries reaches ``_MAX_LINE_LESS_ERROR_DESCRIBES``.
+
+    Args:
+        top_plan: The top level SnowflakePlan object that contains the SQL compilation error.
+        error: The SQL compilation error.
+        executed_sql: The SQL that failed. Only an unambiguous failure of the plan's
+            own single query is supported, not pre-actions or compiler rewrites (CTE
+            optimization or large query breakdown). A schema-query failure requires
+            verifying the plan's own query within the same describe budget.
+
+    Returns:
+        Error message with the affected Python lines numbers if found, otherwise an empty string.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
+
+    # A matching error message from a child does not prove that the root query failed.
+    # In particular, an execution-time pre-action can fail before that query is sent.
+    if not executed_sql or len(top_plan.queries) != 1:
+        return ""
+    executed = executed_sql.strip()
+    main_query_failed = _same_query(executed, top_plan.queries[0].sql)
+    if not main_query_failed and (
+        top_plan._last_execution_queries is not None
+        or top_plan.schema_query is None
+        or not _same_query(executed, top_plan.schema_query)
+    ):
+        return ""
+    if any(_same_query(executed, query.sql) for query in top_plan.post_actions):
+        return ""
+    compiled = top_plan._last_execution_queries
+    if compiled is not None:
+        main_queries = compiled.get(PlanQueryType.QUERIES, [])
+        if (
+            len(main_queries) != 1
+            or not _same_query(executed, main_queries[0].sql)
+            or any(
+                _same_query(executed, query.sql)
+                for query in compiled.get(PlanQueryType.POST_ACTIONS, [])
+            )
+        ):
+            return ""
+
+    def signature(err: "snowflake.connector.errors.ProgrammingError") -> Tuple:
+        return err.errno, " ".join(
+            (err.msg or "").split("SQL compilation error:")[-1].split()
+        )
+
+    target = signature(error)
+    describes = 0
+    source_locations: List[str] = []
+
+    if not main_query_failed:
+        query = top_plan.queries[0]
+        if (
+            _PLACEHOLDER.search(query.sql)
+            or describes >= _MAX_LINE_LESS_ERROR_DESCRIBES
+        ):
+            return ""
+        describes += 1
+        try:
+            top_plan.session._get_result_attributes(query.sql, query.params)
+        except snowflake.connector.errors.ProgrammingError as main_error:
+            if signature(main_error) != target:
+                return ""
+        else:
+            return ""
+
+    def visit(node, owner_trace_nodes: List[TraceNode]) -> bool:
+        nonlocal describes
+        plan = node.snowflake_plan if isinstance(node, Selectable) else node
+        if plan.df_trace_nodes:
+            # A plan that only re-wraps its child has no operation of its own: it is not
+            # known which operation generated its SQL.
+            owner_trace_nodes = _get_own_trace_nodes(plan, strict=True)
+            if not owner_trace_nodes:
+                return False
+        elif not (
+            getattr(node, "_df_trace_call_id", None) is not None
+            and any(
+                trace_node.trace_call_id == node._df_trace_call_id
+                for trace_node in owner_trace_nodes
+            )
+        ):
+            # Missing traces can mean tracing was disabled, not an internal operation.
+            # Only inherit from the public call that actually created this node.
+            return False
+        failing_children = []
+        for child in node.children_plan_nodes:
+            child_plan = (
+                child.snowflake_plan if isinstance(child, Selectable) else child
+            )
+            queries = child_plan.queries
+            if (
+                len(queries) != 1
+                or _PLACEHOLDER.search(queries[0].sql)
+                or describes >= _MAX_LINE_LESS_ERROR_DESCRIBES
+            ):
+                return False
+            describes += 1
+            try:
+                top_plan.session._get_result_attributes(
+                    queries[0].sql, queries[0].params
+                )
+            except snowflake.connector.errors.ProgrammingError as child_error:
+                if signature(child_error) != target:
+                    return False
+                failing_children.append(child)
+        if failing_children:
+            return all(visit(child, owner_trace_nodes) for child in failing_children)
+        if not owner_trace_nodes:
+            return False
+        for trace_node in owner_trace_nodes:
+            location = _format_source_location(trace_node.src)
+            if location and location not in source_locations:
+                source_locations.append(location)
+        return True
+
+    if not visit(top_plan, []) or not source_locations:
+        return ""
+    if len(source_locations) == 1:
+        return f"\nSQL compilation error corresponds to Python source at {source_locations[0]}.\n"
+    locations_str = "\n  - ".join(source_locations)
+    return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
 
 
 def get_missing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> str:

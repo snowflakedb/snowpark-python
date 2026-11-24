@@ -42,17 +42,9 @@ public class JdbcHandlerHarness {
             }
             if (closed || (parent != null && parent.closed)) throw new SQLException("closed resource");
             if (name.equals(failure)) throw new SQLException("expected failure: " + name);
-            if (name.equals("getColumnName") && "runtime".equals(failure)) {
-                throw new IllegalStateException("expected runtime failure");
-            }
             if (name.equals("createStatement")) return resource(Statement.class, "statement", this);
             if (name.equals("executeQuery")) return resource(ResultSet.class, "result", this);
-            if (name.equals("getMetaData")) return resource(ResultSetMetaData.class, "metadata", this);
             if (name.equals("next")) return rows++ < 2;
-            if (name.equals("getColumnCount")) return 2;
-            if (name.equals("getColumnName")) return "A";
-            if (name.equals("getColumnClassName")) return "java.lang.String";
-            if (name.equals("getColumnType")) return Types.VARCHAR;
             if (name.equals("getString")) return "value";
             if (method.getReturnType() == boolean.class) return false;
             if (method.getReturnType() == int.class) return 0;
@@ -71,15 +63,15 @@ public class JdbcHandlerHarness {
 
     static void assertClosed() {
         for (Resource resource : resources) {
-            if (!resource.kind.equals("metadata") && !resource.closed) {
+            if (!resource.closed) {
                 throw new AssertionError("leaked " + resource.kind);
             }
         }
     }
 
     public static void main(String[] args) {
-        String scenario = args[1];
-        failure = args.length > 2 ? args[2] : "";
+        String scenario = args[0];
+        failure = args.length > 1 ? args[1] : "";
         DataLoader loader = new DataLoader();
         if (scenario.equals("error")) {
             try {

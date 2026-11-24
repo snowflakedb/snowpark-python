@@ -23,7 +23,12 @@ from snowflake.snowpark._internal.telemetry import (
     adjust_api_subcalls,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
-from snowflake.snowpark._internal.utils import column_to_bool, publicapi, warning
+from snowflake.snowpark._internal.utils import (
+    column_to_bool,
+    publicapi,
+    validate_sample_seed,
+    warning,
+)
 from snowflake.snowpark.functions import (
     _to_col_if_str,
     approx_percentile_accumulate,
@@ -486,6 +491,7 @@ class DataFrameStatFunctions:
             or self._dataframe._iceberg_changes_config is not None
         )
         if seed is not None and is_table and not unseedable_table:
+            seed = validate_sample_seed(seed)
 
             def equal_condition_str(k: LiteralType) -> str:
                 return self._dataframe._session._analyzer.binary_operator_extractor(

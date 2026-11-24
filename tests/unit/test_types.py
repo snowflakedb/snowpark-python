@@ -1936,6 +1936,155 @@ def test_type_string_to_type_object_varchar_with_length(upper_case):
 
 
 @pytest.mark.parametrize("upper_case", [False, True])
+@pytest.mark.parametrize(
+    "base_string, expected",
+    [
+        ("tinyint", ByteType()),
+        ("float4", FloatType()),
+        ("float8", DoubleType()),
+        ("char(3)", StringType(3)),
+        ("char", StringType(1)),
+        ("character", StringType(1)),
+        ("real", DoubleType()),
+        ("dec", DecimalType()),
+        ("dec(10, 2)", DecimalType(10, 2)),
+    ],
+)
+def test_type_string_to_type_object_type_synonyms(upper_case, base_string, expected):
+    type_string = base_string.upper() if upper_case else base_string
+    assert type_string_to_type_object(type_string) == expected
+
+
+def test_type_string_to_type_object_apostrophes_are_not_quotes():
+    # only the string literal after COMMENT is a quote
+    schema = type_string_to_type_object("a STRING, it's INT, b's STRING")
+    assert [f.name for f in schema.fields] == ["A", '"it\'s"', '"b\'s"']
+    schema = type_string_to_type_object("a INT COMMENT 'x, y: z', it's INT")
+    assert [f.name for f in schema.fields] == ["A", '"it\'s"']
+
+
+def test_type_string_to_type_object_comment_literals():
+    # brackets in the comment of a field of a struct type
+    schema = type_string_to_type_object("s STRUCT<a: INT COMMENT 'x>y', b: STRING>")
+    assert [f.name for f in schema.fields[0].datatype.fields] == ["A", "B"]
+    # no space before the quote
+    schema = type_string_to_type_object("a INT COMMENT'x', b INT COMMENT 'it''s, ok'")
+    assert [f.name for f in schema.fields] == ["A", "B"]
+    assert [f.nullable for f in schema.fields] == [True, True]
+    assert type_string_to_type_object("c CHARACTER(4)").fields[
+        0
+    ].datatype == StringType(4)
+    assert type_string_to_type_object("character(4)") == StringType(4)
+
+
+def test_type_string_to_type_object_quoted_names_with_whitespace():
+    schema = type_string_to_type_object(
+        '"my col" STRING, a INT, "x, y" decimal(10, 2) NOT NULL, "q""r"  BOOLEAN'
+    )
+    assert [f._name for f in schema.fields] == [
+        '"my col"',
+        "a",
+        '"x, y"',
+        '"q""r"',
+    ]
+    assert [f.datatype for f in schema.fields] == [
+        StringType(),
+        IntegerType(),
+        DecimalType(10, 2),
+        BooleanType(),
+    ]
+    assert [f.nullable for f in schema.fields] == [True, True, False, True]
+    nested = type_string_to_type_object('s struct<"a b" int>')
+    assert nested.fields[0].datatype.fields[0]._name == '"a b"'
+    with pytest.raises(ValueError, match="Cannot parse struct field definition"):
+        type_string_to_type_object('"a b"')
+
+
+@pytest.mark.parametrize(
+    "type_str",
+    ['a INT COMMENT "x"', 'a INT COMMENT"x", b INT', 's STRUCT<a: INT COMMENT "x">'],
+)
+def test_type_string_to_type_object_double_quoted_comment(type_str):
+    with pytest.raises(ValueError, match="must be single-quoted"):
+        type_string_to_type_object(type_str)
+
+
+def test_type_string_to_type_object_double_quotes_are_otherwise_identifiers():
+    # a name that contains the word comment, and a field called comment
+    schema = type_string_to_type_object('"my comment ""x""" INT, comment STRING')
+    assert [f._name for f in schema.fields] == ['"my comment ""x"""', "comment"]
+    schema = type_string_to_type_object('"comment" INT, a INT COMMENT \'it"s\'')
+    assert [f._name for f in schema.fields] == ['"comment"', "a"]
+
+
+@pytest.mark.parametrize(
+    "type_str",
+    [
+        "a INT COMMENT 'x' NOT NULL",
+        "a INT NOT NULL COMMENT 'x'",
+        "a INT not null comment 'it''s not null'",
+        "a INT COMMENT 'not null' NOT NULL",
+    ],
+)
+def test_type_string_to_type_object_comment_and_not_null_in_any_order(type_str):
+    schema = type_string_to_type_object(type_str)
+    assert [(f._name, f.datatype, f.nullable) for f in schema.fields] == [
+        ("a", IntegerType(), False)
+    ]
+
+
+def test_type_string_to_type_object_comment_and_not_null_in_nested_fields():
+    schema = type_string_to_type_object(
+        "s STRUCT<x INT COMMENT 'c' NOT NULL, y: STRING NOT NULL COMMENT 'd', "
+        "z INT COMMENT 'e'> COMMENT 'f'"
+    )
+    nested = schema.fields[0].datatype
+    assert [(f._name, f.datatype, f.nullable) for f in nested.fields] == [
+        ("x", IntegerType(), False),
+        ("y", StringType(), False),
+        ("z", IntegerType(), True),
+    ]
+    assert schema.fields[0].nullable is True
+
+
+def test_type_string_to_type_object_comment_after_a_bracket():
+    schema = type_string_to_type_object(
+        "a DECIMAL(10,2)COMMENT 'x', s STRUCT<x INT>COMMENT 'y', "
+        "arr ARRAY<INT>COMMENT 'z' NOT NULL"
+    )
+    assert [f.datatype for f in schema.fields][0] == DecimalType(10, 2)
+    assert [f.nullable for f in schema.fields] == [True, True, False]
+    assert schema.fields[1].datatype.fields[0].datatype == IntegerType()
+
+
+def test_type_string_to_type_object_names_that_contain_comment():
+    schema = type_string_to_type_object(
+        'mycomment INT, comment_y INT, comment STRING, "x comment" INT'
+    )
+    assert [f._name for f in schema.fields] == [
+        "mycomment",
+        "comment_y",
+        "comment",
+        '"x comment"',
+    ]
+
+
+def test_type_string_to_type_object_column_comments():
+    schema = type_string_to_type_object(
+        "id tinyint, name char(3) NOT NULL COMMENT 'a, b: it''s \\'x\\'', "
+        "ts timestamp comment 'time', d decimal(10, 2) COMMENT 'has <angle> (brackets)'"
+    )
+    assert schema == StructType(
+        [
+            StructField("ID", ByteType(), nullable=True),
+            StructField("NAME", StringType(3), nullable=False),
+            StructField("TS", TimestampType(), nullable=True),
+            StructField("D", DecimalType(10, 2), nullable=True),
+        ]
+    )
+
+
+@pytest.mark.parametrize("upper_case", [False, True])
 def test_type_string_to_type_object_varchar_no_length(upper_case):
     base_string = "varchar"
     type_string = base_string.upper() if upper_case else base_string
@@ -2671,3 +2820,14 @@ def test_find_top_level_colon():
     assert find_top_level_colon('"px:name": string') == 9
     assert find_top_level_colon('"a:b:c": string') == 7
     assert find_top_level_colon("plain_field") == -1
+
+
+def test_unterminated_comment_literal_is_rejected():
+    # the literal is not skipped, so the rest of the string is not a valid type
+    with pytest.raises(ValueError):
+        type_string_to_type_object("a INT COMMENT 'abc")
+
+
+def test_unterminated_quoted_identifier_is_rejected():
+    with pytest.raises(ValueError, match="Unterminated quoted identifier"):
+        type_string_to_type_object('"abc INT')

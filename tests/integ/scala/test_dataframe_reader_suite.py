@@ -2010,7 +2010,7 @@ def test_pattern_with_infer(session, mode, stage_template):
 
         # Test loading a single file while pattern is defined
         reader = base_reader()
-        single_file_with_pattern_df = reader.csv(f"@{stage_name}/path/good1.csv")
+        single_file_with_pattern_df = reader.csv(f"@{stage_name}/path/good1.csv.gz")
         Utils.check_answer(single_file_with_pattern_df, expected_rows)
 
         # Test loading a directory while including pattern and FILES

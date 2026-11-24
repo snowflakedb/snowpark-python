@@ -20,6 +20,8 @@ from snowflake.snowpark._internal.document_reader_options import (
     PAGE_INDEX_COLUMN,
     RESPONSE_COLUMN,
     SOURCE_FILE_COLUMN,
+    TOKEN_COLUMNS,
+    TOKEN_USAGE_FIELDS,
     TOTAL_PAGES_COLUMN,
     _EXTRACT_ERROR_COLUMN,
     _PARSE_ERROR_COLUMN,
@@ -57,7 +59,9 @@ from snowflake.snowpark.functions import (
     when,
 )
 from snowflake.snowpark.types import (
+    BooleanType,
     IntegerType,
+    LongType,
     StringType,
     StructField,
     StructType,
@@ -167,6 +171,8 @@ def output_columns(options: DocumentReaderOptions) -> List[str]:
             names.append(EXTRACTION_SCORES_COLUMN)
     elif options.complete_enabled:
         names.append(RESPONSE_COLUMN)
+    if options.tokens_enabled:
+        names.extend(TOKEN_COLUMNS)
     if options.has_corrupt_record_column:
         names.append(quote_name_without_upper_casing(options.corrupt_record_column))
     return names
@@ -547,10 +553,13 @@ def build_ai_complete_call(
     # single-string variant. Parse didn't run: input_col is SOURCE_FILE, passed to
     # AI_COMPLETE's file variant instead -- whose prompt argument must then be a plain
     # string, not a Column, so there is no CONTENT to fold in. With no schema there is
-    # no response_format and AI_COMPLETE answers the prompt as free text.
+    # no response_format and AI_COMPLETE answers the prompt as free text. show_details
+    # adds the call's token usage beside the answer (see extract_with_ai_complete);
+    # with the session's token switch off it is not sent at all.
     response_format = (
         options.extraction.ai_complete_format if options.extract_enabled else None
     )
+    show_details = True if options.tokens_enabled else None
     if options.parse_enabled:
         prompt_text = (
             input_col
@@ -562,6 +571,7 @@ def build_ai_complete_call(
             prompt_text,
             model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},
             response_format=response_format,
+            show_details=show_details,
             return_error_details=True,
         )
     return ai_complete(
@@ -570,8 +580,24 @@ def build_ai_complete_call(
         file=input_col,
         model_parameters={"max_tokens": _MAX_OUTPUT_TOKENS},
         response_format=response_format,
+        show_details=show_details,
         return_error_details=True,
     )
+
+
+def details_answer(value: Column, structured: bool) -> Column:
+    """The answer inside an ``AI_COMPLETE(..., show_details => TRUE)`` value: the
+    ``structured_output`` object when a response_format was sent, else the text of the
+    one ``choices`` entry."""
+    if structured:
+        return value["structured_output"][0]["raw_message"]
+    return value["choices"][0]["messages"]
+
+
+def usage_columns(usage: Column) -> List[Column]:
+    """``TOKEN_COLUMNS``' values from a ``show_details`` ``usage`` object, NULL when
+    the call failed and reported none."""
+    return [usage[TOKEN_USAGE_FIELDS[name]].cast(LongType()) for name in TOKEN_COLUMNS]
 
 
 def extract_with_ai_complete(
@@ -581,10 +607,14 @@ def extract_with_ai_complete(
     # Unlike AI_PARSE_DOCUMENT/AI_EXTRACT, AI_COMPLETE(..., return_error_details=True)
     # returns a native OBJECT rather than a JSON string -- CAST(... AS VARCHAR), which
     # as_variant() always applies, fails to compile for it. Bracket access works
-    # directly on the raw result, so it skips as_variant() here.
+    # directly on the raw result, so it skips as_variant() here. With show_details the
+    # answer is inside `value`, beside its token `usage`.
     df = df.with_column(_EXTRACTED_COLUMN, call)
     extracted = col(_EXTRACTED_COLUMN)
     value = extracted["value"]
+    if options.tokens_enabled:
+        df = df.with_columns(TOKEN_COLUMNS, usage_columns(value["usage"]))
+        value = details_answer(value, structured=options.extract_enabled)
     extraction = options.extraction
     if extraction is None:
         return df.with_columns(
@@ -630,6 +660,7 @@ def extract_with_split_procedure(
         json.dumps(_CALL_BUDGETS),
         _MAX_CALLS_PER_FILE,
         session.get_session_stage(),
+        options.tokens_enabled,
     ]
     df = session.sql(
         f"CALL {proc_name}({', '.join(['?'] * len(args))}) {usage_comment(options)}",
@@ -639,6 +670,7 @@ def extract_with_split_procedure(
         try_parse_json(col("VALUE")).alias(_EXTRACTED_COLUMN),
         col("ERROR").alias(_EXTRACT_ERROR_COLUMN),
         try_parse_json(col("SCORES")).alias(EXTRACTION_SCORES_COLUMN),
+        *([col(name) for name in TOKEN_COLUMNS] if options.tokens_enabled else []),
     )
     return project_extracted_fields(
         df, col(_EXTRACTED_COLUMN), col(_EXTRACT_ERROR_COLUMN), options.extraction
@@ -781,6 +813,7 @@ def register_extract_proc(session: "Session") -> str:
                 StructField("VALUE", StringType()),
                 StructField("ERROR", StringType()),
                 StructField("SCORES", StringType()),
+                *[StructField(name, LongType()) for name in TOKEN_COLUMNS],
             ]
         ),
         # In the order of run()'s parameters after the session, and of the args
@@ -793,6 +826,7 @@ def register_extract_proc(session: "Session") -> str:
             StringType(),  # call_budgets: as JSON
             IntegerType(),  # max_calls_per_file
             StringType(),  # work_stage: where page ranges are staged
+            BooleanType(),  # show_details: ask AI_COMPLETE for each call's token usage
         ],
         name=name,
         packages=["snowflake-snowpark-python", "pypdf"],

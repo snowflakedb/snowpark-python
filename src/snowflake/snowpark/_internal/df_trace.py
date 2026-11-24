@@ -70,6 +70,7 @@ class TraceNode:
     parents: List["TraceNode"] = field(default_factory=list)
     kind: str = "dataframe"
     node_id: int = field(default_factory=_next_node_id)
+    trace_call_id: Optional[int] = field(default_factory=lambda: current_trace_call())
 
     def __deepcopy__(self, memo) -> "TraceNode":
         # Trace nodes are shared, not duplicated, when plans are deep-copied.
@@ -309,6 +310,17 @@ def registration_trace_node(kind: str) -> Optional[TraceNode]:
 # ----------------------------------------------------------------------------- public api calls
 # State of the public API calls of the current thread, used while tracing is enabled.
 _call_state = threading.local()
+
+
+def current_trace_call(session=None) -> Optional[int]:
+    """Identity of the traced public call creating a plan, not of a later wrapper."""
+    trace_call_id = getattr(_call_state, "trace_call_id", None)
+    if trace_call_id is None or (
+        session is not None and not is_tracing_enabled(session)
+    ):
+        return None
+    return trace_call_id
+
 
 _MAX_EXPRESSION_NODES = 10000
 

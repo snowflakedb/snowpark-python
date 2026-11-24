@@ -13377,11 +13377,18 @@ def ai_extract(
         ------------------------------------------------------------
         <BLANKLINE>
 
-        >>> # Extract lists using List: prefix
+        >>> # Extract a list using a JSON Schema array
         >>> df = session.range(1).select(
         ...     ai_extract(
         ...         'Python, Java, and JavaScript are popular programming languages',
-        ...         [['languages', 'List: What programming languages are mentioned?']]
+        ...         {
+        ...             "schema": {
+        ...                 "type": "object",
+        ...                 "properties": {
+        ...                     "languages": {"description": "What programming languages are mentioned?", "type": "array"},
+        ...                 },
+        ...             }
+        ...         }
         ...     ).alias("extracted")
         ... )
         >>> df.show()
@@ -14269,7 +14276,8 @@ def ai_complete(
         model: A string specifying the model to be used. Different input types have different supported models.
             See details in `AI_COMPLETE <https://docs.snowflake.com/en/sql-reference/functions/ai_complete>`_.
         prompt: A string prompt, or a Column object from :func:`prompt()`.
-        file: The FILE type column representing an image. When provided, prompt should be a string.
+        file: The FILE type column representing an image or a document, such as a PDF. When provided,
+            prompt should be a string.
         model_parameters: Optional object containing model hyperparameters:
 
             - temperature: A value from 0 to 1 controlling randomness (default: ``0``)
@@ -14283,11 +14291,13 @@ def ai_complete(
             of returning NULL on failure.
 
     Returns:
-        ``response_format`` and ``show_details`` are only supported for single string.
+        ``response_format`` and ``show_details`` are supported with a string prompt, and with a string prompt
+        and a ``file``.
         When ``show_details`` is ``FALSE`` and ``response_format`` is not specified: Returns a string containing the response.
         When ``show_details`` is ``FALSE`` and ``response_format`` is specified: Returns an object following the provided format.
         When ``show_details`` is ``TRUE``: Returns a JSON object with detailed inference information including
-        choices, created timestamp, model name, and token usage statistics.
+        choices (or ``structured_output`` when ``response_format`` is specified), created timestamp, model name,
+        and token usage statistics.
         See details in `AI_COMPLETE Returns <https://docs.snowflake.com/en/sql-reference/functions/ai_complete-single-string#returns>`_.
 
     Examples::

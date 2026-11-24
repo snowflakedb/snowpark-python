@@ -245,15 +245,12 @@ class JDBC:
 
             public class DataLoader{{
                 private final Connection conn;
-                private Statement statement;
-                private ResultSet resultSet;
-                private boolean closed;
 
                 private static Connection createConnection() {{
                     try {{
                         {self.generate_create_connection()}
                     }} catch (Exception e) {{
-                        throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage(), e);
+                        throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage());
                     }}
                 }}
                 public static Class<?> getOutputClass() {{
@@ -267,9 +264,7 @@ class JDBC:
                 public Stream<OutputRow> process(String query) {{
                     try {{
                         Statement stmt = this.conn.createStatement();
-                        this.statement = stmt;
                         ResultSet rs = stmt.executeQuery(query);
-                        this.resultSet = rs;
                         ResultSetMetaData meta = rs.getMetaData();
                         int columnCount = meta.getColumnCount();
                         final AtomicInteger counter = new AtomicInteger(1);
@@ -290,39 +285,23 @@ class JDBC:
                                     row.nullable = meta.isNullable(currentColumnIndex) == ResultSetMetaData.columnNullable;
                                     return row;
                                 }} else {{
-                                    closeConnectionQuietly();
+                                    rs.close();
+                                    stmt.close();
+                                    this.conn.close();
                                     return null;
                                 }}
-                            }} catch (Exception e) {{
-                                closeConnectionQuietly();
+                            }} catch (SQLException e) {{
                                 throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
                             }}
                         }}).takeWhile(Objects::nonNull);
-                        return resultStream.onClose(this::closeConnectionQuietly);
+                        return resultStream;
                     }} catch (Exception e) {{
-                        closeConnectionQuietly();
                         throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
                     }}
 
                 }}
 
-                private void closeConnectionQuietly() {{
-                    if (closed) {{
-                        return;
-                    }}
-                    closed = true;
-                    for (AutoCloseable resource : new AutoCloseable[] {{resultSet, statement, conn}}) {{
-                        if (resource != null) {{
-                            try {{
-                                resource.close();
-                            }} catch (Exception ignored) {{
-                            }}
-                        }}
-                    }}
-                }}
-
                 public Stream<OutputRow> endPartition() {{
-                    closeConnectionQuietly();
                     return Stream.empty();
                 }}
             }}
@@ -524,8 +503,10 @@ class JDBC:
         ;
         """
 
+        # Cast to VARCHAR to drop any collation the partition column inherits,
+        # which would otherwise fail to match the UDTF signature.
         jdbc_udtf = f"""
-            select result.* from {partition_table}, table({jdbc_ingestion_name}({PARTITION_TABLE_COLUMN_NAME})) AS result
+            select result.* from {partition_table}, table({jdbc_ingestion_name}({PARTITION_TABLE_COLUMN_NAME}::VARCHAR)) AS result
             """
 
         self.session.sql(jdbc_udtf_registration, _emit_ast=self._emit_ast).collect()

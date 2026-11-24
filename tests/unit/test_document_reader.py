@@ -7,6 +7,7 @@ from unittest import mock
 import pytest
 
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
+import snowflake.snowpark._internal.document_extract_proc as proc
 from snowflake.snowpark._internal.document_reader import (
     _CALL_BUDGETS,
     _EXTRACTION_MODELS,
@@ -15,19 +16,23 @@ from snowflake.snowpark._internal.document_reader import (
     access,
     build_ai_complete_call,
     cast_extracted_field,
+    details_answer,
     extract_with_split_procedure,
     merge_extract_error,
     output_columns,
     prompt_model,
     quote_stage_path,
+    usage_columns,
     usage_comment,
 )
 from snowflake.snowpark._internal.document_reader_options import (
+    TOKEN_COLUMNS,
+    TOKEN_USAGE_FIELDS,
     DocumentReaderOptions,
     ExtractionSpec,
 )
 from snowflake.snowpark.functions import col, lit
-from snowflake.snowpark.types import BooleanType, DoubleType, StringType
+from snowflake.snowpark.types import BooleanType, DoubleType, LongType, StringType
 from snowflake.snowpark.version import VERSION
 
 # _CALL_BUDGETS -- the fixed output-token budgets the split procedure runs
@@ -221,6 +226,7 @@ class TestBuildAiCompleteCall:
         assert kwargs["file"] is input_col
         assert kwargs["model_parameters"] == {"max_tokens": 128000}
         assert kwargs["response_format"] is None
+        assert kwargs["show_details"] is True
         assert kwargs["return_error_details"] is True
 
     def test_schema_present_still_sends_the_fixed_model_and_parameters(self):
@@ -238,6 +244,67 @@ class TestBuildAiCompleteCall:
         assert args[0] == "claude-sonnet-5-5"
         assert kwargs["model_parameters"] == {"max_tokens": 128000}
         assert kwargs["response_format"] == options.extraction.ai_complete_format
+        assert kwargs["show_details"] is True
+
+    @pytest.mark.parametrize("parse_mode", ["none", "layout"])
+    def test_token_usage_off_sends_no_show_details(self, parse_mode):
+        # Off means the call AI_COMPLETE got before the token columns existed.
+        options = DocumentReaderOptions(
+            parse_mode=parse_mode, prompt="Summarize this.", token_usage=False
+        )
+        with mock.patch(
+            "snowflake.snowpark._internal.document_reader.ai_complete"
+        ) as mock_ai_complete:
+            build_ai_complete_call(col("SOURCE_FILE"), options)
+
+        _, kwargs = mock_ai_complete.call_args
+        assert kwargs["show_details"] is None
+        assert kwargs["return_error_details"] is True
+
+
+# ---------------------------------------------------------------------------
+# details_answer / usage_columns -- where the answer and the token counts sit in an
+# AI_COMPLETE(..., show_details => TRUE) value.
+# ---------------------------------------------------------------------------
+
+
+def _path(column):
+    """The subfield path of ``column``: col("V")["a"][0]["b"] -> ["a", 0, "b"]."""
+    path, expr = [], column._expression
+    while hasattr(expr, "field"):
+        path.insert(0, expr.field)
+        expr = expr.expr
+    return path
+
+
+class TestDetailsAnswer:
+    def test_a_text_answer_is_the_first_choice(self):
+        assert _path(details_answer(col("V"), structured=False)) == [
+            "choices",
+            0,
+            "messages",
+        ]
+
+    def test_a_structured_answer_is_the_first_structured_output(self):
+        # With a response_format, show_details puts the object in structured_output.
+        assert _path(details_answer(col("V"), structured=True)) == [
+            "structured_output",
+            0,
+            "raw_message",
+        ]
+
+    def test_the_token_columns_read_the_usage_fields(self):
+        # INPUT_TOKENS / OUTPUT_TOKENS from AI_COMPLETE's prompt_tokens / completion_tokens.
+        columns = usage_columns(col("V")["usage"])
+        assert [type(c._expression).__name__ for c in columns] == ["Cast"] * 2
+        assert [c._expression.to for c in columns] == [LongType()] * 2
+        fields = [c._expression.child.field for c in columns]
+        assert fields == ["prompt_tokens", "completion_tokens"]
+
+    def test_the_procedure_returns_the_same_columns_in_the_same_order(self):
+        # The procedure is a standalone file, so it keeps its own copy of the names.
+        assert list(proc.USAGE_COLUMNS) == TOKEN_COLUMNS
+        assert list(proc.USAGE_FIELDS) == [TOKEN_USAGE_FIELDS[c] for c in TOKEN_COLUMNS]
 
 
 # ---------------------------------------------------------------------------
@@ -248,13 +315,62 @@ class TestBuildAiCompleteCall:
 
 
 class TestOutputColumnsForPromptOnly:
-    def test_prompt_only_outputs_source_file_response_and_corrupt_record(self):
+    def test_prompt_only_outputs_source_file_response_tokens_and_corrupt_record(self):
         options = DocumentReaderOptions(parse_mode="none", prompt="Summarize this.")
         assert output_columns(options) == [
             "SOURCE_FILE",
             "RESPONSE",
+            "INPUT_TOKENS",
+            "OUTPUT_TOKENS",
             '"_document_error"',
         ]
+
+
+# ---------------------------------------------------------------------------
+# output_columns -- every AI_COMPLETE read returns its token usage after its answer
+# columns; a parse-only read (billed per page) and an AI_EXTRACT read (which reports
+# no usage) have none.
+# ---------------------------------------------------------------------------
+
+
+class TestOutputColumnsTokens:
+    _TOKENS = ["INPUT_TOKENS", "OUTPUT_TOKENS"]
+
+    def test_a_schema_read_has_the_tokens_after_its_scores(self):
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+        )
+        assert output_columns(options) == [
+            "SOURCE_FILE",
+            "NAME",
+            "EXTRACTION_SCORES",
+            *self._TOKENS,
+            '"_document_error"',
+        ]
+
+    def test_a_parse_only_read_has_no_tokens(self):
+        columns = output_columns(DocumentReaderOptions())
+        assert not set(self._TOKENS) & set(columns)
+
+    def test_an_ai_extract_read_has_no_tokens(self):
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+            extraction_engine="ai_extract",
+        )
+        assert not set(self._TOKENS) & set(output_columns(options))
+
+    def test_token_usage_off_gives_the_columns_of_before(self):
+        schema = ExtractionSpec.from_response_format({"name": "What is it?"})
+        assert output_columns(
+            DocumentReaderOptions(
+                parse_mode="none", extraction=schema, token_usage=False
+            )
+        ) == ["SOURCE_FILE", "NAME", "EXTRACTION_SCORES", '"_document_error"']
+        assert output_columns(
+            DocumentReaderOptions(parse_mode="none", prompt="Sum.", token_usage=False)
+        ) == ["SOURCE_FILE", "RESPONSE", '"_document_error"']
 
 
 # ---------------------------------------------------------------------------
@@ -469,3 +585,20 @@ class TestExtractWithSplitProcedureUsageComment:
         query = session.sql.call_args[0][0]
         assert query.startswith("CALL MY_PROC(")
         assert query.endswith(usage_comment(options))
+
+    @pytest.mark.parametrize("token_usage", [True, False])
+    def test_the_call_passes_whether_to_ask_for_token_usage(self, token_usage):
+        # The last CALL argument is run()'s show_details.
+        session = mock.MagicMock()
+        session.get_session_stage.return_value = "@~/session_stage"
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+            token_usage=token_usage,
+        )
+        with mock.patch(
+            "snowflake.snowpark._internal.document_reader.register_extract_proc",
+            return_value="MY_PROC",
+        ):
+            extract_with_split_procedure(session, "@stage/invoices/", options)
+        assert session.sql.call_args[1]["params"][-1] is token_usage
