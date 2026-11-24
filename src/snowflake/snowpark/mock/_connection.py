@@ -65,6 +65,9 @@ class MockedSnowflakeConnection(SnowflakeConnection):
     def __init__(self, *args, **kwargs) -> None:
         # pass "application" is a trick to bypass the logic in the constructor to check input params to
         # avoid rewrite the whole logic -- "application" is not used in any place.
+        # Connector 5 warns when this logout option is omitted and then treats it as True.
+        if IS_V5_DRIVER:
+            kwargs.setdefault("enable_server_session_keep_alive_auto_detection", False)
         super().__init__(*args, **kwargs, application="localtesting")
         self._password = None
 
@@ -87,7 +90,14 @@ class MockedSnowflakeConnection(SnowflakeConnection):
         self._rest = None
 
     def is_closed(self) -> bool:
-        """Checks whether the connection has been closed."""
+        """Checks whether the connection has been closed.
+
+        Connector 5 exposes ``rest`` as a property that always builds a
+        ``SnowflakeRestful`` wrapper, so a closed mock cannot be detected that
+        way. ``close`` clears ``_rest``.
+        """
+        if IS_V5_DRIVER:
+            return getattr(self, "_rest", None) is None
         return self.rest is None
 
     @property
