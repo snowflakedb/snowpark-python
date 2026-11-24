@@ -2820,3 +2820,14 @@ def test_find_top_level_colon():
     assert find_top_level_colon('"px:name": string') == 9
     assert find_top_level_colon('"a:b:c": string') == 7
     assert find_top_level_colon("plain_field") == -1
+
+
+def test_unterminated_comment_literal_is_rejected():
+    # the literal is not skipped, so the rest of the string is not a valid type
+    with pytest.raises(ValueError):
+        type_string_to_type_object("a INT COMMENT 'abc")
+
+
+def test_unterminated_quoted_identifier_is_rejected():
+    with pytest.raises(ValueError, match="Unterminated quoted identifier"):
+        type_string_to_type_object('"abc INT')
