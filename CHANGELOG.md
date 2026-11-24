@@ -16,6 +16,10 @@
 #### Improvements
 
 - UDFs, UDTFs, UDAFs and stored procedures registered from a free-threaded Python build (for example 3.14t) now default to the matching free-threaded `RUNTIME_VERSION` (`3.14t`) instead of the GIL runtime (`3.14`). The default artifact repository is looked up for the free-threaded version as well. Requirements that pin `python=3.14` (or `python=3.14t`) still select that runtime from either build.
+  - The account must support the `3.14t` runtime; otherwise registration fails with the server's error, like any other unsupported runtime.
+  - Packages must come from an artifact repository such as PyPI. Anaconda packages, including an Anaconda default artifact repository set on the account, database or schema, are not supported on `3.14t`.
+  - Packages that are not free-threading safe, such as pandas 2.x, lxml and pyodbc, fail to load, and packages without free-threaded (`cp314t`) wheels, such as oracledb, fail to install. As a result, `DataFrameReader.xml` with the `rowTag` option, the `xpath` functions, and `DataFrameReader.dbapi` UDTF ingestion for SQL Server and Oracle are not supported from a free-threaded client.
+  - `DataFrame.to_polars` does not work on a free-threaded client, because polars has no free-threaded build.
 - `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.
 - `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) now maps a SQL compilation error to the single DataFrame operation that caused it when the SQL simplifier merges several operations into one query.
 - `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) now maps SQL compilation errors that have no line number to the DataFrame operations that caused them, using up to 32 extra describe attempts on failure.
