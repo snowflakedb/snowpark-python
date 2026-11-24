@@ -33,6 +33,7 @@
 
 #### New Features
 
+- Added `get_external_secret_json` to `snowflake.snowpark.secrets` (Private Preview) to read external secrets, which point to a secret in AWS, Azure, or GCP, on the Snowflake server. It returns unparsed JSON text with the provider's secret value under `value`, and is not available in SPCS file-based secret environments.
 - `DataFrameReader.documents()` (Private Preview) reads with a `schema` or a `prompt` now return the `AI_COMPLETE` token usage of each document in `INPUT_TOKENS` and `OUTPUT_TOKENS` columns. A schema field can no longer be named like one of these columns.
 
 #### Improvements

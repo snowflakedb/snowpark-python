@@ -13,6 +13,7 @@ from snowflake.snowpark.secrets import (
     get_username_password,
     get_cloud_provider_token,
     get_wif_token,
+    get_external_secret_json,
     UsernamePassword,
     CloudProviderToken,
     _SCLS_SPCS_SECRET_ENV_NAME,
@@ -33,6 +34,7 @@ def _build_fake_snowflake_module() -> object:
         get_username_password=lambda secret_name: fake_username_password,
         get_cloud_provider_token=lambda secret_name: fake_cloud_token,
         get_wif_token=lambda secret_name, audience: f"wif:{secret_name}:{audience}",
+        get_external_secret_json=lambda secret_name: f'{{"name": "{secret_name}"}}',
     )
 
 
@@ -58,6 +60,8 @@ def test_secrets_mock_server_paths():
             get_wif_token("w1", "https://example.com/aud")
             == "wif:w1:https://example.com/aud"
         )
+
+        assert get_external_secret_json("e1") == '{"name": "e1"}'
 
 
 @pytest.fixture
@@ -145,6 +149,9 @@ def test_secrets_mock_scls_spcs_error_cases(scls_spcs_mock_env):
         with pytest.raises(NotImplementedError):
             get_wif_token("any_secret", "https://audience")
 
+        with pytest.raises(NotImplementedError):
+            get_external_secret_json("any_secret")
+
         with pytest.raises(ValueError, match="Unknown secret type"):
             get_secret_type("unknown_secret")
 
@@ -171,6 +178,8 @@ def test_secrets_import_error_paths():
             get_cloud_provider_token("c1")
         with pytest.raises(NotImplementedError):
             get_wif_token("w1", "https://audience")
+        with pytest.raises(NotImplementedError):
+            get_external_secret_json("e1")
     finally:
         if original_env is not None:
             os.environ[_SCLS_SPCS_SECRET_ENV_NAME] = original_env

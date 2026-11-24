@@ -21,6 +21,7 @@ __all__ = [
     "get_username_password",
     "get_cloud_provider_token",
     "get_wif_token",
+    "get_external_secret_json",
     "UsernamePassword",
     "CloudProviderToken",
 ]
@@ -66,6 +67,10 @@ class _SnowflakeSecrets(ABC):
     def get_wif_token(self, secret_name: str, audience: str) -> str:
         pass  # pragma: no cover
 
+    @abstractmethod
+    def get_external_secret_json(self, secret_name: str) -> str:
+        pass  # pragma: no cover
+
 
 class _SnowflakeSecretsServer(_SnowflakeSecrets):
     """Secret instance for Snowflake server environment (using _snowflake module)."""
@@ -96,6 +101,9 @@ class _SnowflakeSecretsServer(_SnowflakeSecrets):
 
     def get_wif_token(self, secret_name: str, audience: str) -> str:
         return self._snowflake.get_wif_token(secret_name, audience)
+
+    def get_external_secret_json(self, secret_name: str) -> str:
+        return self._snowflake.get_external_secret_json(secret_name)
 
 
 class _SnowflakeSecretsSPCS(_SnowflakeSecrets):
@@ -184,6 +192,11 @@ class _SnowflakeSecretsSPCS(_SnowflakeSecrets):
     def get_wif_token(self, secret_name: str, audience: str) -> str:
         raise NotImplementedError(
             "WIF token secrets are not supported in SPCS container environments."
+        )
+
+    def get_external_secret_json(self, secret_name: str) -> str:
+        raise NotImplementedError(
+            "External secrets are not supported in SPCS container environments."
         )
 
 
@@ -298,3 +311,34 @@ def get_wif_token(secret_name: str, audience: str) -> str:
             applicable in supported environments).
     """
     return _get_secrets_instance().get_wif_token(secret_name, audience)
+
+
+def get_external_secret_json(secret_name: str) -> str:
+    """Get the value of an external secret from Snowflake.
+
+    An external secret (secret type ``EXTERNAL_SECRET``) points to a secret stored
+    in AWS, Azure, or GCP. Snowflake reads the value from the cloud provider when
+    the statement runs.
+
+    Note:
+        Requires a Snowflake environment with an external secret configured and an
+        external access integration that allows the UDF or stored procedure to use
+        that secret. This API is in Private Preview.
+
+    Args:
+        secret_name: The secret reference name bound to the external secret.
+
+    Returns:
+        The external secret as unparsed JSON text. It is a JSON object whose
+        ``value`` key holds the secret value read from the cloud provider, which
+        can itself be JSON or plain text, e.g.
+        ``json.loads(get_external_secret_json("cred"))["value"]``.
+
+    Raises:
+        NotImplementedError: If running outside the Snowflake server environment
+            (including SPCS file-based secret environments, which do not support
+            external secrets).
+        ValueError: If the secret does not exist, is not authorized, or is not an
+            external secret.
+    """
+    return _get_secrets_instance().get_external_secret_json(secret_name)
