@@ -10,7 +10,7 @@ import subprocess
 from unittest.mock import Mock, patch
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
-from snowflake.snowpark._internal.data_source.jdbc import JDBC
+from snowflake.snowpark._internal.data_source.jdbc import JDBC, to_java_string_literal
 from snowflake.snowpark._internal.data_source.utils import (
     DBMS_TYPE,
     resolve_udtf_packages,
