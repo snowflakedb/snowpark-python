@@ -88,18 +88,17 @@ def test_error_in_final_query(session, large_query_breakdown_enabled, multiline)
         else session._disable_multiline_queries
     )()
     session._large_query_breakdown_enabled = large_query_breakdown_enabled
-    u, union_line = _two_branches(session)
+    u, _ = _two_branches(session)
     bad_line = Utils.get_current_line_number_sys() + 1
     bad = u.with_column("C", call_function("abs", col("A"), col("A")))
     num_queries = len(bad._plan.execution_queries[PlanQueryType.QUERIES])
     assert (num_queries > 1) == large_query_breakdown_enabled
     lines = _mapped_lines(bad)
     # The final query is compiled in one mode, so its children are rendered
-    # verbatim at the lines of their intervals, in single-line mode too.
-    # With the simplifier, with_column is a projection of the set statement in
-    # the same SELECT, so the union_all trace is reported as well.
-    expected = {bad_line, union_line} if session.sql_simplifier_enabled else {bad_line}
-    assert lines == expected
+    # verbatim at the lines of their intervals, in single-line mode too. With the
+    # simplifier, with_column shares the SELECT of the union, and the error is
+    # narrowed to the projection it wrote.
+    assert lines == {bad_line}
 
 
 @pytest.mark.parametrize("multiline", [False, True])
@@ -236,13 +235,11 @@ def test_union_partition_cached_diagnostics(
     elif not late_error:
         assert error.value.query.lstrip().upper().startswith("CREATE")
     if compile_multiline and (build_multiline or late_error):
-        # A late filter is compiled into the last query in multiline mode.
+        # A late filter is compiled into the last query in multiline mode. The
+        # error is narrowed to the filter that wrote the failing predicate.
         mapping = context.split("corresponds to Python source")[-1]
         lines = {int(n) for n in _MAPPED_LINE.findall(mapping)}
-        # The simplifier merges a filter on the bad filter into its SELECT, and the
-        # SELECT has the source of the filter. No union/sort is reported.
-        assert bad_line in lines, context
-        assert max(lines) == bad_line + late_error, context
+        assert lines == {bad_line}, context
     else:
         assert "corresponds to Python source" not in context
 
@@ -321,16 +318,13 @@ def _cte_breakdown(session, bad):
         lines["bad"] = Utils.get_current_line_number_sys() + 1
         x3 = x3.filter(col("no_such_col") > 0)
     df3 = x3.filter(col("b") > 0).union_all(x3)
-    lines["loop"] = Utils.get_current_line_number_sys() + 2
     for i in range(7):
         df2 = df2.with_column("a", col("a") + i + col("a"))
         df3 = df3.with_column("b", col("b") + i + col("b"))
-    lines["select1"] = Utils.get_current_line_number_sys() + 1
     df2 = df2.select("b", "a")
     if bad == "final":
         lines["bad"] = Utils.get_current_line_number_sys() + 1
         df2 = df2.filter(col("no_such_col") > 0)
-    lines["select2"] = Utils.get_current_line_number_sys() + 1
     df2 = df2.select("b", "a")
     df3 = df3.group_by("b").agg(sum_distinct(col("a")).alias("a"))
     df = df2.union_all(df3).filter(col("a") > 2).with_column("a", col("a") + 1)
@@ -438,13 +432,8 @@ def test_cte_final_query_error_reads_cached_sql(
     assert all(segment.cached_only for segment in queries[-1].cte_segments)
     mapped = _mapped_lines(df)
     if multiline:
-        # The bad filter and the operations of df2 it is merged with.
-        assert mapped == {
-            lines["loop"],
-            lines["select1"],
-            lines["bad"],
-            lines["select2"],
-        }
+        # Narrowed to the bad filter, out of the df2 operations merged with it.
+        assert mapped == {lines["bad"]}
     else:
         assert mapped is None
     assert no_resolution_during_diagnosis == []
