@@ -21,8 +21,9 @@ echo "${uv_options[*]}"
 
 # Default to empty, to ensure snowflake_path variable is defined.
 snowflake_path=${snowflake_path:-""}
-# Python and ABI tags, e.g. cp314-cp314 or cp314-cp314t, so a free-threaded build never picks a GIL wheel.
-python_version=$(python -c 'import sys; v = "cp%d%d" % sys.version_info[:2]; print(v + "-" + v + getattr(sys, "abiflags", ""))')
+# Python and ABI tags with the following separator, e.g. cp314-cp314- or cp314-cp314t-, so each build only
+# matches its own wheel.
+python_version=$(python -c 'import sys; v = "cp%d%d" % sys.version_info[:2]; print(v + "-" + v + getattr(sys, "abiflags", "") + "-")')
 
 if [[ -z "${snowflake_path}" ]]; then
   echo "Using Python Connector from PyPI"
