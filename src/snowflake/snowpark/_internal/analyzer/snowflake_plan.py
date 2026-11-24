@@ -575,36 +575,6 @@ class SnowflakePlan(LogicalPlan):
         else:
             return []
 
-    def has_multiline_sql_provenance(self) -> bool:
-        """Whether this tree has exclusively multiline SQL generation provenance.
-
-        Do not resolve selectables here: rebuilding SQL under the current formatting
-        setting cannot establish the layout of previously cached SQL/expressions.
-        """
-        from snowflake.snowpark._internal.analyzer.select_statement import Selectable
-
-        pending: List[LogicalPlan] = [self]
-        visited = set()
-        while pending:
-            node = pending.pop()
-            if id(node) in visited:
-                continue
-            visited.add(id(node))
-            if isinstance(node, SnowflakePlan):
-                if not node.queries[-1]._generated_with_multiline:
-                    return False
-                if node.source_plan is not None:
-                    pending.append(node.source_plan)
-            elif isinstance(node, Selectable):
-                if not node._multiline_sql_safe:
-                    return False
-                if node._snowflake_plan is not None:
-                    pending.append(node._snowflake_plan)
-                pending.extend(node.children_plan_nodes)
-            else:
-                pending.extend(node.children)
-        return True
-
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
         pre_queries = self.queries[:-1]
         new_schema_query = self.schema_query
@@ -1514,8 +1484,8 @@ class SnowflakePlanBuilder:
                     # Large query breakdown splits a plan into partitions: mark the
                     # child, so that a SQL error in a partition maps to its operations.
                     # The child plan is a copy, so it is marked with the uuid of the
-                    # node the line intervals are looked up in. Only mark proven
-                    # multiline layouts: single-line markers add newline bytes.
+                    # node the line intervals are looked up in. Only mark in
+                    # multiline mode: single-line markers add newline bytes.
                     child_uuid=(
                         source_plan.children[0].uuid
                         if creation_source == TableCreationSource.LARGE_QUERY_BREAKDOWN
@@ -1524,7 +1494,6 @@ class SnowflakePlanBuilder:
                         and debug_config.enabled(
                             self.session, "trace_sql_errors_to_dataframe"
                         )
-                        and child.has_multiline_sql_provenance()
                         else None
                     ),
                 ),
@@ -2626,8 +2595,10 @@ class CteSegment:
     """A part of a query compiled with CTE optimization: the definition of a CTE or the main
     query after the ``WITH`` clause. ``start`` and ``end`` are character offsets in the compiled
     sql; ``plan`` is the plan that generated the part, and its last query has the line intervals
-    of the part. ``cached_only`` marks LQB plans whose schemaless compiler nodes must not
-    be re-resolved during diagnostics."""
+    of the part. ``cached_only`` is set for the queries of a plan split by
+    large query breakdown, whose schemaless compiler nodes must not be resolved during
+    diagnostics: only their cached SQL is read. It is not set for a WITH query of an
+    unsplit plan."""
 
     start: int
     end: int
@@ -2646,15 +2617,7 @@ class Query:
         params: Optional[Sequence[Any]] = None,
         query_line_intervals: Optional[List[QueryLineInterval]] = None,
         cte_segments: Optional[List[CteSegment]] = None,
-        generated_with_multiline: Optional[bool] = None,
     ) -> None:
-        # Snapshot the generator's actual format, not the mutable session flag.
-        # Copies retain this value even when the global formatting setting changes.
-        self._generated_with_multiline = (
-            analyzer_utils.NEW_LINE == "\n"
-            if generated_with_multiline is None
-            else generated_with_multiline
-        )
         self.sql = sql
         self.query_id_place_holder = (
             query_id_place_holder
@@ -2697,7 +2660,6 @@ class Query:
             params=self.params,
             query_line_intervals=self.query_line_intervals,
             cte_segments=self.cte_segments,
-            generated_with_multiline=self._generated_with_multiline,
         )
 
     def __eq__(self, other: "Query") -> bool:
@@ -2730,5 +2692,4 @@ class BatchInsertQuery(Query):
         copied_query.params = self.params
         copied_query.query_line_intervals = self.query_line_intervals
         copied_query.cte_segments = self.cte_segments
-        copied_query._generated_with_multiline = self._generated_with_multiline
         return copied_query

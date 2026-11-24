@@ -868,7 +868,7 @@ def offline_compiler_session(mock_server_connection, request):
 )
 @pytest.mark.parametrize("toggle_before_parent", [False, True])
 @pytest.mark.parametrize("literal_newline", [False, True])
-def test_lqb_cached_layout_provenance(
+def test_lqb_cached_layout_mapping(
     offline_compiler_session,
     build_multiline,
     compile_multiline,
@@ -916,12 +916,13 @@ def test_lqb_cached_layout_provenance(
         f"SQL compilation error: error line {line} at position {position}\ninvalid identifier 'BAD'",
         query.sql,
     )
+    assert query.cte_segments is not None
     if build_multiline and compile_multiline:
         assert re.findall(r"f\.py: line (\d+)", message) == ["10"]
     else:
+        # Single-line SQL of the filter is cached in the union/sort SQL with other
+        # line breaks than its intervals. Never blame the union/sort for it.
         assert message == ""
-        assert query.cte_segments is None
-        assert query.query_line_intervals == []
 
 
 @pytest.mark.parametrize("simplifier", [False, True])
@@ -1009,11 +1010,13 @@ def test_lqb_real_compiler_cached_only_diagnostics(
                 )
             )
         message = get_python_source_from_sql_error(df._plan, error, query.sql)
-    if build_multiline and compile_multiline and simplifier:
+    if simplifier and compile_multiline and (build_multiline or late_error):
+        # A late filter is compiled into the last query in multiline mode.
         assert re.findall(r"f\.py: line (\d+)", message) == ["10"]
     else:
         # Non-simplifier set operations have no child UUID intervals, even in
-        # multiline mode. Never blame the union/sort for an operand's error.
+        # multiline mode, and single-line SQL of a child is not at the lines of
+        # its interval. Never blame the union/sort for an operand's error.
         assert message == ""
 
 
@@ -1349,6 +1352,9 @@ def test_cached_set_diagnostics_prefer_cached_plan(
         "unknown_uuid",
         "source_uuid",
         "child_uuid",
+        "child_sql_differs",
+        "child_sql_shifted",
+        "uncached_child",
         "set_operation",
     ],
 )
@@ -1366,6 +1372,7 @@ def test_cached_plan_diagnostics_require_known_interval_owner(
     plan.children_plan_nodes = [right._snowflake_plan, left]
     left._uuid = child.uuid
     expected = None
+    line_number = 2
     if metadata == "no_intervals":
         plan.queries[-1].query_line_intervals = []
     elif metadata == "outside_interval":
@@ -1378,10 +1385,23 @@ def test_cached_plan_diagnostics_require_known_interval_owner(
     elif metadata == "child_uuid":
         # The parent's line 2 must become the child's line 1, not line 2.
         expected = child
+    elif metadata == "child_sql_differs":
+        # The line is in the child's interval, but the parent's lines 1-2 are
+        # not the cached SQL of the child: no attribution.
+        plan.queries[-1].sql = "SELECT parent\nSELECT bad\nFROM other_table"
+    elif metadata == "child_sql_shifted":
+        # The child SQL is verbatim at lines 1-2, but its interval says 0-1.
+        plan.queries[-1].query_line_intervals = [QueryLineInterval(0, 1, child.uuid)]
+        line_number = 1
+    elif metadata == "uncached_child":
+        # Descending into a child without cached SQL would need SQL generation:
+        # no attribution.
+        left._snowflake_plan = None
+        left._sql_query = None
     else:
         plan.source_plan = Union(child, right._snowflake_plan, is_all=True)
         plan.queries[-1].query_line_intervals = [QueryLineInterval(1, 2, plan.uuid)]
-    assert _get_cached_plan_from_line_number(plan, 2) is expected
+    assert _get_cached_plan_from_line_number(plan, line_number) is expected
 
 
 def test_lqb_nonsimplifier_unary_partition_is_precise(offline_compiler_session):
@@ -1445,34 +1465,24 @@ def test_plan_copy_preserves_child_intervals(
 
 
 @pytest.mark.parametrize("clone", [copy.copy, copy.deepcopy])
-@pytest.mark.parametrize("multiline", [False, True])
-def test_query_layout_provenance_survives_copy(
-    offline_compiler_session, clone, multiline
-):
+def test_query_copy_preserves_line_intervals(clone):
     from snowflake.snowpark._internal.analyzer.snowflake_plan import BatchInsertQuery
 
-    session = offline_compiler_session
-    (
-        session._enable_multiline_queries
-        if multiline
-        else session._disable_multiline_queries
-    )()
-    queries = [Query("SELECT 1"), BatchInsertQuery("INSERT INTO T VALUES (?)")]
-    (
-        session._disable_multiline_queries
-        if multiline
-        else session._enable_multiline_queries
-    )()
+    intervals = [QueryLineInterval(0, 0, "owner")]
+    queries = [
+        Query("SELECT 1", query_line_intervals=intervals),
+        BatchInsertQuery("INSERT INTO T VALUES (?)"),
+    ]
+    queries[1].query_line_intervals = intervals
     for query in queries:
         copied = clone(query)
-        assert copied._generated_with_multiline is multiline
-        assert query._generated_with_multiline is multiline
+        assert type(copied) is type(query)
         assert copied.sql == query.sql
+        assert copied.query_line_intervals == intervals
 
 
-def test_lqb_provenance_rejects_retained_projection_layout(offline_compiler_session):
+def test_lqb_retained_projection_layout_maps_to_its_owner(offline_compiler_session):
     from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
-    from snowflake.snowpark._internal.compiler.utils import update_resolvable_node
 
     session = offline_compiler_session
     session._enable_multiline_queries()
@@ -1489,13 +1499,14 @@ def test_lqb_provenance_rejects_retained_projection_layout(offline_compiler_sess
     session._enable_multiline_queries()
     for copied in (selectable, copy.copy(selectable), copy.deepcopy(selectable)):
         plan = copied.get_snowflake_plan(skip_schema_query=True)
-        assert plan.queries[-1]._generated_with_multiline
-        assert not plan.has_multiline_sql_provenance()
-        copied._is_valid_for_replacement = True
-        update_resolvable_node(copied, QueryGenerator(session))
-        assert not copied.get_snowflake_plan(
-            skip_schema_query=True
-        ).has_multiline_sql_provenance()
+        lines = plan.queries[-1].sql.split("\n")
+        # The intervals of the select are counted on its own SQL, so the lines
+        # of the retained projection belong to the select.
+        projection_line = next(i for i, line in enumerate(lines) if '"B"' in line)
+        assert _get_cached_plan_from_line_number(plan, projection_line) is plan
+        # The child is rendered verbatim, but has no cached plan to descend into.
+        child_line = lines.index("SELECT 1 AS A")
+        assert _get_cached_plan_from_line_number(plan, child_line) is None
 
 
 @pytest.mark.parametrize("build_multiline", [False, True])
@@ -1550,7 +1561,7 @@ def test_generate_queries_does_not_annotate_input_plans(
     )
     plans = [
         SnowflakePlan(
-            [Query(f"SELECT {index}", generated_with_multiline=multiline)],
+            [Query(f"SELECT {index}")],
             None,
             session=mock_session,
         )
@@ -1571,14 +1582,10 @@ def test_generate_queries_does_not_annotate_input_plans(
             assert query == original
             if trace_enabled and plan_count > 1:
                 assert query is not original
-                if multiline:
-                    assert query.cte_segments == [
-                        CteSegment(0, len(query.sql), plan, cached_only=True)
-                    ]
-                else:
-                    assert query.cte_segments is None
-                    assert query.query_line_intervals == []
-                    assert original.query_line_intervals
+                assert query.cte_segments == [
+                    CteSegment(0, len(query.sql), plan, cached_only=True)
+                ]
+                assert query.query_line_intervals == original.query_line_intervals
             else:
                 assert query.cte_segments is None
 
@@ -1600,8 +1607,14 @@ def test_generate_queries_keeps_existing_segment_owners(
     generator = QueryGenerator(mock_session)
     monkeypatch.setattr(generator, "resolve", lambda plan: plan)
     query = generator.generate_queries([plan, other])[PlanQueryType.QUERIES][0]
-    assert query.cte_segments is segments
-    assert query.cte_segments[0].plan is child
+    # The owners and ranges are kept; the segments of the split plan are only read
+    # from cached SQL. The plan-owned query and segments are not changed.
+    assert query is not plan.queries[-1]
+    assert [(s.start, s.end, s.plan, s.cached_only) for s in query.cte_segments] == [
+        (0, len(child.queries[-1].sql), child, True)
+    ]
+    assert plan.queries[-1].cte_segments is segments
+    assert not segments[0].cached_only
 
 
 @pytest.mark.parametrize("new_line", [" ", "\n"])
@@ -1616,14 +1629,10 @@ def test_generated_segments_belong_to_cloned_plan(
     monkeypatch.setattr(
         "snowflake.snowpark._internal.debug_config.enabled", lambda session, name: True
     )
-    # These cached queries were generated in multiline mode, regardless of the
-    # current global formatter state left by another session.
-    plan = SnowflakePlan(
-        [Query("SELECT 1", generated_with_multiline=True)], None, session=mock_session
-    )
-    other = SnowflakePlan(
-        [Query("SELECT 2", generated_with_multiline=True)], None, session=mock_session
-    )
+    # Segments are attached regardless of the global formatter state: the
+    # diagnosis checks the layout of the cached SQL.
+    plan = SnowflakePlan([Query("SELECT 1")], None, session=mock_session)
+    other = SnowflakePlan([Query("SELECT 2")], None, session=mock_session)
     generator = QueryGenerator(mock_session)
     monkeypatch.setattr(generator, "resolve", lambda plan: plan)
     original = generator.generate_queries([plan, other])[PlanQueryType.QUERIES][0]
@@ -2530,3 +2539,45 @@ def test_line_less_error_describe_budget_and_listeners(line_less_session, child_
     # Failed describes do not notify listeners, even with include_error=True.
     assert not included.queries
     assert not excluded.queries
+
+
+@pytest.mark.parametrize("kind", ["with_query", "plain", "cte_partition"])
+def test_annotate_breakdown_query_copies_plan_owned_queries(kind):
+    plan = mock.MagicMock()
+    plan.referenced_ctes = [mock.MagicMock()] if kind == "cte_partition" else []
+    interval = QueryLineInterval(0, 0, "uuid")
+    last = Query("CREATE TABLE T AS SELECT 1")
+    last.query_line_intervals = [interval]
+    segments = None
+    if kind == "with_query":
+        segments = [CteSegment(0, 3, plan), CteSegment(3, 6, plan)]
+        last.cte_segments = segments
+    first = Query("SELECT 0")
+    owned = [first, last]
+    plan_queries = {PlanQueryType.QUERIES: owned}
+    QueryGenerator._annotate_breakdown_query(plan, plan_queries)
+    queries = plan_queries[PlanQueryType.QUERIES]
+    assert queries is not owned and queries[0] is first and queries[1] is not last
+    # The plan-owned objects are not changed.
+    assert owned == [first, last] and last.query_line_intervals == [interval]
+    assert last.cte_segments is segments
+    if segments is not None:
+        assert not any(segment.cached_only for segment in segments)
+    annotated = queries[1]
+    assert annotated.sql == last.sql
+    if kind == "with_query":
+        assert [
+            (s.start, s.end, s.plan, s.cached_only) for s in annotated.cte_segments
+        ] == [
+            (0, 3, plan, True),
+            (3, 6, plan, True),
+        ]
+        assert annotated.query_line_intervals == [interval]
+    elif kind == "plain":
+        assert [
+            (s.start, s.end, s.plan, s.cached_only) for s in annotated.cte_segments
+        ] == [(0, len(last.sql), plan, True)]
+        assert annotated.query_line_intervals == [interval]
+    else:
+        assert annotated.cte_segments is None
+        assert annotated.query_line_intervals == []
