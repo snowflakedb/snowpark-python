@@ -108,6 +108,7 @@ from snowflake.snowpark.types import (
 
 logger = getLogger(__name__)
 
+
 _NOT_NULL_RE = re.compile(r"\s+NOT\s+NULL", re.IGNORECASE)
 
 
@@ -975,15 +976,37 @@ class DataFrameReader:
         return table
 
     @publicapi
-    def schema(self, schema: StructType, _emit_ast: bool = True) -> "DataFrameReader":
+    def schema(
+        self, schema: Union[StructType, str], _emit_ast: bool = True
+    ) -> "DataFrameReader":
         """Define the schema for CSV, JSON, Parquet, or XML files that you want to read.
 
         Args:
-            schema: Schema configuration for the file to be read.
+            schema: Schema configuration for the file to be read. A DDL string such as
+                ``"id INT, name STRING"`` is also accepted. It uses Snowflake data types and
+                identifier rules, like the names passed to ``StructField``: a double-quoted name
+                is case-sensitive, and an unquoted name is case-insensitive, except that JSON,
+                Parquet and XML reads match it exactly as written. ``TIMESTAMP`` follows the
+                ``TIMESTAMP_TYPE_MAPPING`` of the session, and ``COMMENT '...'`` after a
+                column is accepted.
+
+                The type names in a DDL string map to Snowpark types as follows:
+
+                - ``INT``, ``INTEGER``: :class:`~snowflake.snowpark.types.IntegerType`
+                - ``SMALLINT``: :class:`~snowflake.snowpark.types.ShortType`
+                - ``TINYINT``, ``BYTEINT``: :class:`~snowflake.snowpark.types.ByteType`
+                - ``BIGINT``: :class:`~snowflake.snowpark.types.LongType`
+                - ``NUMBER``, ``NUMERIC``, ``DECIMAL``, ``DEC``: :class:`~snowflake.snowpark.types.DecimalType`, ``(38, 0)`` by default
+                - ``FLOAT``, ``FLOAT4``: :class:`~snowflake.snowpark.types.FloatType`. Snowflake defines these as 64-bit floating-point numbers, the same as ``DOUBLE``.
+                - ``FLOAT8``, ``DOUBLE``, ``REAL``: :class:`~snowflake.snowpark.types.DoubleType`
+                - ``CHAR``, ``CHARACTER``: :class:`~snowflake.snowpark.types.StringType` of length 1, unless a length is given
+                - ``VARCHAR``, ``STRING``: :class:`~snowflake.snowpark.types.StringType`
 
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
+        if isinstance(schema, str):
+            schema = DataSourcePartitioner.formatting_custom_schema(schema)
 
         # AST.
         if _emit_ast and self._ast is not None:
