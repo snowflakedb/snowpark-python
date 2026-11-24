@@ -19,6 +19,7 @@ from typing import (
     Optional,
     Sequence,
     Set,
+    Tuple,
     Union,
     Literal,
 )
@@ -85,7 +86,12 @@ from snowflake.snowpark._internal.select_projection_complexity_utils import (
     has_invalid_projection_merge_functions,
 )
 from snowflake.snowpark._internal import debug_config
-from snowflake.snowpark._internal.df_trace import current_trace_call, note_trace_seed
+from snowflake.snowpark._internal.df_trace import (
+    current_trace_call,
+    is_tracing_enabled,
+    note_trace_seed,
+    tracing_flags_on,
+)
 from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
     is_sql_select_statement,
@@ -971,6 +977,30 @@ class SelectStatement(Selectable):
         self.df_trace_nodes = (
             from_.df_trace_nodes.copy() if from_.df_trace_nodes is not None else None
         )
+        # The trace nodes of the DataFrame operations that wrote each projection expression,
+        # WHERE conjunct and ORDER BY key, used to map a SQL compilation error to the one
+        # operation that caused it when the SQL simplifier flattened several operations into
+        # this statement. Each is a pair of the clause it describes (to detect a clause that
+        # was replaced later) and its slots.
+        # Each statement gets its own token: a copy must not claim unresolved inherited slots.
+        # add_df_trace_node replaces only this token, once the operation's trace node exists.
+        self._pending_trace_node = object()
+        self._projection_nodes: Optional[Tuple[Any, List[Any]]] = None
+        self._where_nodes: Optional[Tuple[Any, List[Tuple[Expression, Any]]]] = None
+        self._order_by_nodes: Optional[Tuple[Any, List[Any]]] = None
+        if tracing_flags_on() and is_tracing_enabled(self._session):
+            if projection:
+                self._projection_nodes = (
+                    projection,
+                    [self._pending_trace_node] * len(projection),
+                )
+            if where is not None:
+                self._where_nodes = (where, [(where, self._pending_trace_node)])
+            if order_by:
+                self._order_by_nodes = (
+                    order_by,
+                    [self._pending_trace_node] * len(order_by),
+                )
 
     def __copy__(self):
         new = SelectStatement(
@@ -1004,6 +1034,10 @@ class SelectStatement(Selectable):
         new.df_trace_nodes = (
             self.df_trace_nodes.copy() if self.df_trace_nodes is not None else None
         )
+        # The copy has the same clauses, written by the same operations.
+        new._projection_nodes = self._projection_nodes
+        new._where_nodes = self._where_nodes
+        new._order_by_nodes = self._order_by_nodes
         new._df_trace_call_id = self._df_trace_call_id
         if (
             self._session.reduce_describe_query_enabled
@@ -1048,6 +1082,31 @@ class SelectStatement(Selectable):
         copied._projection_complexities = (
             deepcopy(self._projection_complexities)
             if not self._projection_complexities
+            else None
+        )
+        # The copied clauses were written by the same operations (deepcopy keeps their order).
+        copied._projection_nodes = (
+            (copied.projection, list(self._projection_nodes[1]))
+            if self._projection_nodes is not None
+            and self._projection_nodes[0] is self.projection
+            else None
+        )
+        copied._order_by_nodes = (
+            (copied.order_by, list(self._order_by_nodes[1]))
+            if self._order_by_nodes is not None
+            and self._order_by_nodes[0] is self.order_by
+            else None
+        )
+        copied._where_nodes = (
+            (
+                copied.where,
+                [
+                    (memodict[id(part)], slot)
+                    for part, slot in self._where_nodes[1]
+                    if id(part) in memodict
+                ],
+            )
+            if self._where_nodes is not None and self._where_nodes[0] is self.where
             else None
         )
         return copied
@@ -1230,6 +1289,57 @@ class SelectStatement(Selectable):
             f"{limit_clause}"
             f"{offset_clause}"
         )
+
+    def add_df_trace_node(self, node: "TraceNode") -> None:
+        super().add_df_trace_node(node)
+
+        def fill(slot):
+            return node if slot is self._pending_trace_node else slot
+
+        if self._projection_nodes is not None:
+            clause, slots = self._projection_nodes
+            self._projection_nodes = (clause, [fill(slot) for slot in slots])
+        if self._where_nodes is not None:
+            clause, parts = self._where_nodes
+            self._where_nodes = (clause, [(part, fill(slot)) for part, slot in parts])
+        if self._order_by_nodes is not None:
+            clause, slots = self._order_by_nodes
+            self._order_by_nodes = (clause, [fill(slot) for slot in slots])
+
+    @staticmethod
+    def _clause_slots(
+        clause_nodes: Optional[Tuple[Any, List[Any]]], clause: Optional[List[Any]]
+    ) -> List[Any]:
+        """The slots of ``clause``, or unknown (None) slots when they do not describe it."""
+        if not clause:
+            return []
+        if clause_nodes is not None and clause_nodes[0] is clause:
+            return list(clause_nodes[1])
+        return [None] * len(clause)
+
+    def _flattened_projection_slots(
+        self, new: "SelectStatement", new_column_states: "ColumnStateDict"
+    ) -> List[Any]:
+        """The slots of the projection of ``new``, flattened from this statement by ``select``: the
+        new and changed columns are written by the operation creating ``new``, and the unchanged
+        ones keep the slot of the expression they are copied from."""
+        own_slots = {}
+        if self.projection:
+            for expr, slot in zip(
+                self.projection,
+                self._clause_slots(self._projection_nodes, self.projection),
+            ):
+                own_slots[id(expr)] = slot
+        slots = []
+        for col, state in new_column_states.items():
+            if state.change_state in (
+                ColumnChangeState.CHANGED_EXP,
+                ColumnChangeState.NEW,
+            ):
+                slots.append(new._pending_trace_node)
+            elif state.change_state == ColumnChangeState.UNCHANGED_EXP:
+                slots.append(own_slots.get(id(self.column_states[col].expression)))
+        return slots
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
@@ -1573,6 +1683,11 @@ class SelectStatement(Selectable):
                     )  # add subquery's expression for this column name
 
             new.projection = final_projection
+            if tracing_flags_on() and is_tracing_enabled(self._session):
+                new._projection_nodes = (
+                    final_projection,
+                    self._flattened_projection_slots(new, new_column_states),
+                )
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
@@ -1643,6 +1758,9 @@ class SelectStatement(Selectable):
                 order_by=new_order_by,
                 analyzer=self.analyzer,
             )
+            if new_order_by is not None:
+                # These sort keys came from the input, not from this select operation.
+                new._order_by_nodes = self._order_by_nodes
             new._merge_projection_complexity_with_subquery = (
                 can_select_projection_complexity_be_merged(
                     cols,
@@ -1759,6 +1877,17 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             new.column_states = self.column_states
             new.where = And(self.where, col) if self.where is not None else col
+            if tracing_flags_on() and is_tracing_enabled(self._session):
+                where_parts = (
+                    self._where_nodes[1]
+                    if self._where_nodes is not None
+                    and self._where_nodes[0] is self.where
+                    else ([(self.where, None)] if self.where is not None else [])
+                )
+                new._where_nodes = (
+                    new.where,
+                    where_parts + [(col, new._pending_trace_node)],
+                )
             new._merge_projection_complexity_with_subquery = False
             new.df_ast_ids = (
                 self.df_ast_ids.copy() if self.df_ast_ids is not None else None
@@ -1800,6 +1929,12 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new.order_by = cols + (self.order_by or [])
+            if tracing_flags_on() and is_tracing_enabled(self._session):
+                new._order_by_nodes = (
+                    new.order_by,
+                    [new._pending_trace_node] * len(cols)
+                    + self._clause_slots(self._order_by_nodes, self.order_by),
+                )
             new.column_states = self.column_states
             new._merge_projection_complexity_with_subquery = False
             new.df_ast_ids = (

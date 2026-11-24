@@ -62,9 +62,7 @@ def test_sql_select(session, trace_settings):
     df = fail(session.sql("select 1 as id"))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src('session.sql("select 1 as id")'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex, trace=[FAIL, src('session.sql("select 1 as id")')], mapped=mapped
     )
@@ -74,9 +72,7 @@ def test_sql_with_params(session, trace_settings):
     df = fail(session.sql("select ? as id", params=[1]))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src('session.sql("select ? as id", params=[1])'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[FAIL, src('session.sql("select ? as id", params=[1])')],
@@ -88,9 +84,7 @@ def test_sql_non_select(session, trace_settings):
     df = fail(session.sql("show parameters like 'TIMEZONE'"))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src("session.sql(\"show parameters like 'TIMEZONE'\")"), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[FAIL, src("session.sql(\"show parameters like 'TIMEZONE'\")")],
@@ -102,9 +96,7 @@ def test_create_dataframe(session, trace_settings):
     df = fail(base(session))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [BASE, FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(ex, trace=[FAIL, BASE], mapped=mapped)
 
 
@@ -116,9 +108,7 @@ def test_create_dataframe_large(session, trace_settings):
     )
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src("session.create_dataframe..."), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex, trace=[FAIL, src("session.create_dataframe...")], mapped=mapped
     )
@@ -128,9 +118,7 @@ def test_create_dataframe_dicts_and_createDataFrame(session, trace_settings):
     df = fail(session.createDataFrame([{"ID": 1, "NAME": "a"}]))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src('session.createDataFrame([{"ID": 1, "NAME": "a"}])'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[FAIL, src('session.createDataFrame([{"ID": 1, "NAME": "a"}])')],
