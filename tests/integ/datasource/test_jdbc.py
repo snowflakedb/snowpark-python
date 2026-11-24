@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import re
+from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
@@ -13,7 +14,13 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.types import StructType, StructField, FloatType, DoubleType
+from snowflake.snowpark.types import (
+    DecimalType,
+    DoubleType,
+    FloatType,
+    StructField,
+    StructType,
+)
 from tests.resources.test_data_source_dir.test_jdbc_data import (
     URL,
     EXTERNAL_ACCESS_INTEGRATION,

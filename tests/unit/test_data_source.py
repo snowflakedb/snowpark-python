@@ -17,7 +17,13 @@ from snowflake.snowpark.context import (
     _PYPI_SHARED_REPOSITORY,
 )
 from snowflake.snowpark.exceptions import SnowparkClientException
-from snowflake.snowpark.types import StructType, StructField, StringType
+from snowflake.snowpark.types import (
+    DecimalType,
+    DoubleType,
+    StringType,
+    StructField,
+    StructType,
+)
 
 
 @pytest.mark.parametrize(
