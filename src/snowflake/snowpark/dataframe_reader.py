@@ -1119,8 +1119,9 @@ class DataFrameReader:
                 Snowpark data source type is also supported, currently support dbapi and jdbc.
                 It can also be the name of a custom data source registered with
                 :attr:`Session.data_source <snowflake.snowpark.Session.data_source>`, or a
-                subclass of :class:`~snowflake.snowpark.datasource.DataSource`. See
-                :mod:`snowflake.snowpark.datasource` for details.
+                subclass of :class:`~snowflake.snowpark.datasource.DataSource` or
+                ``pyspark.sql.datasource.DataSource``. See :mod:`snowflake.snowpark.datasource`
+                for details.
 
         Returns:
             a :class:`DataFrameReader` instance that is set up to load data from the specified file format in a Snowflake stage.
