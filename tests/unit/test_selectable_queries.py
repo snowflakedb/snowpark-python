@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from copy import copy, deepcopy
 from unittest import mock
 import pytest
 
@@ -28,6 +29,8 @@ from snowflake.snowpark._internal.analyzer.expression import (
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan, Query
 from snowflake.snowpark.types import StringType
+from snowflake.snowpark._internal.df_trace import SrcPosition, TraceNode
+from snowflake.snowpark._internal.debug_utils import _select_clause_spans
 from tests.utils import Utils
 import snowflake.snowpark.context as context
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
@@ -41,6 +44,114 @@ def setup(request, session):
     yield
     context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
     set_ast_state(AstFlagSource.TEST, original)
+
+
+@pytest.fixture
+def traced_statement(mock_session, mock_analyzer):
+    source = SelectableEntity(
+        SnowflakeTable("BASE_TABLE", session=mock_session), analyzer=mock_analyzer
+    )
+    with mock.patch(
+        "snowflake.snowpark._internal.analyzer.select_statement.tracing_flags_on",
+        return_value=True,
+    ), mock.patch(
+        "snowflake.snowpark._internal.analyzer.select_statement.is_tracing_enabled",
+        return_value=True,
+    ), mock.patch.object(
+        mock_analyzer, "analyze", side_effect=lambda expr, *_: expr.name
+    ):
+        yield SelectStatement(
+            projection=[Attribute("A", StringType())],
+            from_=source,
+            where=Attribute("PREDICATE", StringType()),
+            order_by=[Attribute("SORT_KEY", StringType())],
+            analyzer=mock_analyzer,
+            schema_query="SELECT A FROM BASE_TABLE",
+        )
+
+
+def test_clause_token_binds_once_and_excludes_unknown_slots(traced_statement):
+    statement = traced_statement
+    token = statement._pending_trace_node
+    assert statement._projection_nodes[1] == [token]
+    assert statement._where_nodes[1][0][1] is token
+    assert statement._order_by_nodes[1] == [token]
+    original_sql = statement.sql_query
+    assert _select_clause_spans(statement)[0] == []
+    first = TraceNode(SrcPosition("app.py", 4, 0, 4, 10))
+    statement.add_df_trace_node(first)
+    statement.add_df_trace_node(TraceNode(SrcPosition("app.py", 8, 0, 8, 10)))
+    spans = _select_clause_spans(statement)[0]
+    assert len(spans) == 3
+    assert all(node is first for _, _, node in spans)
+    assert statement.sql_query == original_sql
+
+    # None means unknown, not an unbound slot owned by this statement.
+    statement._projection_nodes = (statement.projection, [None])
+    statement.add_df_trace_node(first)
+    assert statement._projection_nodes[1] == [None]
+    assert len(_select_clause_spans(statement)[0]) == 2
+
+
+@pytest.mark.parametrize("copy_statement", [copy, deepcopy], ids=["copy", "deepcopy"])
+@pytest.mark.parametrize("bound", [False, True], ids=["unbound", "bound"])
+def test_clause_token_copy_preserves_ownership(traced_statement, copy_statement, bound):
+    original = traced_statement
+    original._df_trace_call_id = 123
+    node = TraceNode(SrcPosition("app.py", 4, 0, 4, 10))
+    if bound:
+        original.add_df_trace_node(node)
+    copied = copy_statement(original)
+    assert copied._df_trace_call_id == original._df_trace_call_id
+    assert copied._pending_trace_node is not original._pending_trace_node
+    copied.add_df_trace_node(TraceNode(SrcPosition("app.py", 8, 0, 8, 10)))
+    inherited = node if bound else original._pending_trace_node
+    assert copied._projection_nodes[1][0] is inherited
+    assert copied._where_nodes[1][0][1] is inherited
+    assert copied._order_by_nodes[1][0] is inherited
+    assert original._projection_nodes[1][0] is inherited
+    assert copied.sql_query == original.sql_query
+    spans = _select_clause_spans(copied)[0]
+    assert len(spans) == (3 if bound else 0)
+    assert all(owner is node for _, _, owner in spans)
+    assert copied.sql_query == original.sql_query
+
+    # A clause introduced on the copy binds to the copy, not to the original.
+    copied._order_by_nodes = (copied.order_by, [copied._pending_trace_node])
+    new_node = TraceNode(SrcPosition("app.py", 9, 0, 9, 10))
+    copied.add_df_trace_node(new_node)
+    assert copied._order_by_nodes[1][0] is new_node
+    assert original._order_by_nodes[1][0] is inherited
+
+
+@pytest.mark.parametrize("other_session_tracing", [False, True])
+def test_clause_metadata_is_disabled_for_untraced_session(
+    mock_session, mock_analyzer, other_session_tracing
+):
+    from snowflake.snowpark._internal import debug_config
+    from snowflake.snowpark._internal.df_trace import is_tracing_enabled
+
+    source = SelectableEntity(
+        SnowflakeTable("BASE_TABLE", session=mock_session), analyzer=mock_analyzer
+    )
+    # An unrelated session may be tracing; this session has no debug features enabled.
+    with mock.patch.object(
+        debug_config, "_tracing_sessions", int(other_session_tracing)
+    ), mock.patch(
+        "snowflake.snowpark._internal.analyzer.select_statement.is_tracing_enabled",
+        wraps=is_tracing_enabled,
+    ) as tracing_enabled:
+        statement = SelectStatement(
+            projection=[Attribute("A", StringType())],
+            from_=source,
+            where=Attribute("PREDICATE", StringType()),
+            order_by=[Attribute("SORT_KEY", StringType())],
+            analyzer=mock_analyzer,
+        )
+    assert statement._projection_nodes is None
+    assert statement._where_nodes is None
+    assert statement._order_by_nodes is None
+    assert tracing_enabled.call_count == int(other_session_tracing)
 
 
 def test_select_statement_sql_query(mock_session, mock_analyzer):

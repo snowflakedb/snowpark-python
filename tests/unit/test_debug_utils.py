@@ -42,8 +42,10 @@ from snowflake.snowpark._internal.debug_utils import (
     QueryProfiler,
     _format_source_location,
     _get_cached_plan_from_line_number,
+    _get_clause_trace_node,
     _get_own_trace_nodes,
     _resolve_error_line,
+    _select_clause_spans,
     get_line_less_error_context,
     get_python_source_from_sql_error,
 )
@@ -1865,6 +1867,571 @@ def test_get_python_source_from_sql_error_own_operations(executed_sql, expected_
     ] == expected_lines
     if expected_lines:
         get_plan.assert_called_once_with(top_plan, 1)
+
+
+_FLATTENED_SQL = 'SELECT\n    "A",\n    UPPER(b, a) AS "C"\nFROM (\n    SELECT 1\n)\nWHERE\n    ("A" > 0)'
+
+
+def _cached_statement(sql, projection_slots=(), where_slots=(), order_slots=()):
+    from snowflake.snowpark._internal.analyzer.binary_expression import And
+    from snowflake.snowpark._internal.analyzer.expression import UnresolvedAttribute
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
+
+    class CachedStatement(SelectStatement):
+        def __getattribute__(self, name):
+            if name in {
+                "sql_query",
+                "analyzer",
+                "_generate_sql",
+                "projection_in_str",
+                "commented_sql",
+                "from_",
+            }:
+                raise AssertionError(f"Diagnostics must not access {name}")
+            return super().__getattribute__(name)
+
+    # A real SelectStatement with only the diagnostic contract populated. No session or
+    # analyzer is needed to inspect already-cached SQL.
+    statement = object.__new__(CachedStatement)
+    statement._sql_query = sql
+    statement.projection = [UnresolvedAttribute("p") for _ in projection_slots]
+    statement.order_by = [UnresolvedAttribute("o") for _ in order_slots]
+    predicates = [UnresolvedAttribute("w") for _ in where_slots]
+    statement.where = predicates[0] if predicates else None
+    for predicate in predicates[1:]:
+        statement.where = And(statement.where, predicate)
+    statement._projection_nodes = (statement.projection, list(projection_slots))
+    statement._order_by_nodes = (statement.order_by, list(order_slots))
+    statement._where_nodes = (statement.where, list(zip(predicates, where_slots)))
+    return statement
+
+
+def _flattened_plan(nodes, plan_sql=_FLATTENED_SQL):
+    """A plan of a flattened SELECT statement whose projection and WHERE conjunct were written
+    by ``nodes`` (projection "A", projection UPPER, WHERE conjunct)."""
+    statement = _cached_statement(_FLATTENED_SQL, nodes[:2], [nodes[2]])
+    plan = _plan(list(nodes), sql=plan_sql)
+    plan.source_plan = statement
+    return plan
+
+
+@pytest.mark.parametrize(
+    "line_number, position, expected",
+    [
+        (1, 4, 0),  # the "A" column
+        (2, 10, 1),  # inside UPPER(...)
+        (7, 4, 2),  # the WHERE conjunct
+        (1, 0, None),  # the indentation before "A" is no part
+        (4, 4, None),  # a line of the FROM subquery
+        (2, 100, None),  # a position past the end of the line
+        (9, 0, None),  # a line past the end of the sql
+    ],
+)
+def test_get_clause_trace_node(line_number, position, expected):
+    nodes = [_trace_node(1), _trace_node(2), _trace_node(3)]
+    plan = _flattened_plan(nodes)
+    lines = _FLATTENED_SQL.split("\n")
+    executed_line = lines[line_number] if line_number < len(lines) else ""
+    result = _get_clause_trace_node(plan, position, executed_line)
+    assert result is (nodes[expected] if expected is not None else None)
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        '"FROM, WHERE" AS "ORDER BY"',
+        'COALESCE(\'a,b FROM\', F(1, 2)) AS "a"",b"',
+        "'it''s, WHERE ORDER BY'",
+        r"'it\'s, FROM'",
+        "$$a,b ' WHERE ( ORDER BY$$",
+        "[1, [2, 3], F(4, 5)]",
+        "(SELECT x FROM t WHERE x IN (1, 2))",
+        "F(a /* , FROM WHERE */ , b) -- , ORDER BY\n",
+        "F(a // , FROM WHERE it's\n, b) // , ORDER BY\n",
+        "a / b",
+        "COUNT(*)",
+        "a * b",
+    ],
+)
+def test_cached_clause_spans_opaque_expressions(expression):
+    first, second = _trace_node(1), _trace_node(2)
+    sql = f"SELECT {expression}, bad FROM t"
+    statement = _cached_statement(sql, [first, second])
+    before = dict(statement.__dict__)
+    spans, _, _ = _select_clause_spans(statement)
+    assert spans[-1] == (sql.index("bad"), sql.index("bad") + 3, second)
+    assert spans[0][2] is first
+    assert statement.__dict__ == before
+    plan = _plan([first, second], sql=sql)
+    plan.source_plan = statement
+    line = sql.splitlines()[-1]
+    assert _get_clause_trace_node(plan, line.index("bad"), line) is second
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "'FROM\nWHERE' AS \"ORDER\"",
+        '$$FROM\nWHERE, ORDER BY ([])$$ AS "x"',
+        '"a""b, FROM" AS "WHERE"',
+        "F([1, (2 + 3)], 'a,b') /* FROM , WHERE */",
+        "(SELECT F(a, b) FROM t WHERE x = 'ORDER BY')",
+    ],
+)
+@pytest.mark.parametrize("exact_coordinates", [False, True])
+def test_cached_clause_mapping_respects_opaque_boundaries(
+    expression, exact_coordinates
+):
+    first, second = _trace_node(1), _trace_node(2)
+    sql = f"SELECT {expression},\n bad FROM t"
+    statement = _cached_statement(sql, [first, second])
+    plan = _plan([first, second], sql=sql)
+    plan.source_plan = statement
+    lines = sql.split("\n")
+    line_number = len(lines) - 1
+    assert (
+        _get_clause_trace_node(
+            plan, 1, lines[-1], line_number if exact_coordinates else None
+        )
+        is second
+    )
+
+
+def test_clause_mapping_exact_coordinates_disambiguate_repeated_sort_key():
+    first, second = _trace_node(1), _trace_node(2)
+    sql = "SELECT\n a\nFROM t\nORDER BY\n a"
+    statement = _cached_statement(sql, [first], [], [second])
+    plan = _plan([first, second], sql=sql)
+    plan.source_plan = statement
+    assert _get_clause_trace_node(plan, 1, " a") is None
+    assert _get_clause_trace_node(plan, 1, " a", 1) is first
+    assert _get_clause_trace_node(plan, 1, " a", 4) is second
+    assert _get_clause_trace_node(plan, 1, " a", 3) is None
+
+
+def test_cached_clause_spans_conjunctions_and_order_keys():
+    nodes = [_trace_node(line) for line in range(1, 7)]
+    sql = (
+        "SELECT DISTINCT F(a, b) FROM t WHERE "
+        "(((a = 'AND') AND (b IN (1, 2))) AND (c > 0)) "
+        "ORDER BY F(a, b) DESC NULLS LAST, [c, d] ASC LIMIT 3 OFFSET 1"
+    )
+    statement = _cached_statement(sql, nodes[:1], nodes[1:4], nodes[4:])
+    spans, from_start, from_end = _select_clause_spans(statement)
+    assert sql[from_start:from_end] == " t"
+    expected = [
+        "F(a, b)",
+        "F(a, b) DESC NULLS LAST",
+        "[c, d] ASC",
+        "(a = 'AND')",
+        "(b IN (1, 2))",
+        "(c > 0)",
+    ]
+    assert [sql[start:end] for start, end, _ in spans] == expected
+    plan = _plan(nodes, sql=sql)
+    plan.source_plan = statement
+    for text, owner in zip(expected, [nodes[index] for index in [0, 4, 5, 1, 2, 3]]):
+        assert _get_clause_trace_node(plan, sql.index(text), sql) is owner
+    for text in ["SELECT", "WHERE", "ORDER BY", "LIMIT", "OFFSET"]:
+        assert _get_clause_trace_node(plan, sql.index(text), sql) is None
+
+
+def test_cached_clause_spans_recorded_and_is_atomic():
+    from snowflake.snowpark._internal.analyzer.binary_expression import And
+    from snowflake.snowpark._internal.analyzer.expression import UnresolvedAttribute
+
+    first, second = _trace_node(1), _trace_node(2)
+    sql = "SELECT * FROM t WHERE ((a AND b) AND (c > 0))"
+    statement = _cached_statement(sql, [], [first, second])
+    atom = And(UnresolvedAttribute("a"), UnresolvedAttribute("b"))
+    statement.where.left = atom
+    statement._where_nodes[1][0] = (atom, first)
+    spans, _, _ = _select_clause_spans(statement)
+    assert [(sql[start:end], owner) for start, end, owner in spans] == [
+        ("(a AND b)", first),
+        ("(c > 0)", second),
+    ]
+
+
+@pytest.mark.parametrize("conflict", [True, False])
+def test_cached_clause_spans_reused_predicate(conflict):
+    from snowflake.snowpark._internal.analyzer.binary_expression import And
+
+    first, second = _trace_node(1), _trace_node(2)
+    statement = _cached_statement("SELECT * FROM t WHERE (a AND a)", [], [first])
+    predicate = statement.where
+    statement.where = And(predicate, predicate)
+    statement._where_nodes = (
+        statement.where,
+        [
+            (predicate, first),
+            (predicate, second if conflict else first),
+            (predicate, first),
+        ],
+    )
+    spans, _, _ = _select_clause_spans(statement)
+    assert [owner for _, _, owner in spans] == ([] if conflict else [first, first])
+
+
+@pytest.mark.parametrize("slot", [None, object(), "not a trace node"])
+def test_cached_clause_spans_unknown_slots(slot):
+    statement = _cached_statement(
+        "SELECT a FROM t WHERE a ORDER BY a", [slot], [slot], [slot]
+    )
+    assert _select_clause_spans(statement)[0] == []
+
+
+@pytest.mark.parametrize("clause", ["projection", "where", "order_by"])
+def test_cached_clause_spans_replaced_clause(clause):
+    from snowflake.snowpark._internal.analyzer.expression import UnresolvedAttribute
+
+    nodes = [_trace_node(line) for line in range(1, 4)]
+    statement = _cached_statement(
+        "SELECT a FROM t WHERE a ORDER BY a", nodes[:1], nodes[1:2], nodes[2:]
+    )
+    replacement = UnresolvedAttribute("a")
+    setattr(statement, clause, replacement if clause == "where" else [replacement])
+    spans, _, _ = _select_clause_spans(statement)
+    replaced_owner = nodes[["projection", "where", "order_by"].index(clause)]
+    assert len(spans) == 2
+    assert all(owner is not replaced_owner for _, _, owner in spans)
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        None,
+        "",
+        "SELECT a",
+        "SELECT a FROM",
+        "SELECT FROM t",
+        "SELECT a, FROM t",
+        "SELECT a, b FROM t",
+        "SELECT * FROM t",
+        "SELECT t.* FROM t",
+        "SELECT a FROM t WHERE a",
+        "SELECT a FROM t ORDER BY a",
+        "SELECT (a] FROM t",
+        "SELECT (a FROM t",
+        "SELECT a) FROM t",
+        "SELECT 'unclosed FROM t",
+        'SELECT "unclosed FROM t',
+        "SELECT $$unclosed FROM t",
+        "SELECT a /* unclosed FROM t",
+        "SELECT a /* nested /* comment */ FROM t",
+        "SELECT {a: 1} FROM t",
+        "SELECT a FROM t; SELECT b FROM t",
+        "SELECT a FROM t GROUP BY a",
+        "SELECT a FROM t QUALIFY a = 1",
+        "SELECT a FROM t UNION SELECT a FROM u",
+        "SELECT TOP 1 a FROM t",
+        "SELECT a FROM t LIMIT",
+        "SELECT a FROM t LIMIT 1 unexpected",
+        "SELECT a FROM t ORDER a",
+        "SELECT a FROM t OFFSET 1 LIMIT 2",
+        "WITH c AS (SELECT a FROM t) SELECT a FROM c",
+    ],
+)
+def test_cached_clause_spans_rejects_unknown_or_malformed_sql(sql):
+    statement = _cached_statement(sql, [_trace_node(1)])
+    assert _select_clause_spans(statement) is None
+
+
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_cached_clause_spans_rejects_expanded_star(wrapped):
+    from snowflake.snowpark._internal.analyzer.expression import Star
+    from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
+
+    statement = _cached_statement("SELECT a FROM t", [_trace_node(1)])
+    star = Star([])
+    statement.projection[0] = UnresolvedAlias(star) if wrapped else star
+    assert _select_clause_spans(statement) is None
+
+
+@pytest.mark.parametrize(
+    "where_sql",
+    [
+        "a AND b",
+        "(a OR b)",
+        "(a AND b AND c)",
+        "(a) AND (b)",
+        "(AND b)",
+        "(a BETWEEN b AND c)",
+        "(a OR b AND c)",
+    ],
+)
+def test_cached_clause_spans_rejects_unknown_and_layout(where_sql):
+    statement = _cached_statement(
+        f"SELECT * FROM t WHERE {where_sql}", [], [_trace_node(1), _trace_node(2)]
+    )
+    assert _select_clause_spans(statement) is None
+
+
+def test_cached_clause_spans_missing_cache_or_unknown_predicate():
+    node = _trace_node(1)
+    statement = _cached_statement("SELECT * FROM t WHERE a", [], [node])
+    del statement._sql_query
+    assert _select_clause_spans(statement) is None
+    statement._sql_query = "SELECT * FROM t WHERE a"
+    statement._where_nodes = (statement.where, [])
+    assert _select_clause_spans(statement) is None
+    statement._sql_query = "SELECT a FROM t WHERE a"
+    assert _select_clause_spans(statement) is None
+
+
+def test_cached_clause_spans_rejects_order_count_and_slot_count_mismatch():
+    statement = _cached_statement(
+        "SELECT a FROM t ORDER BY a, b", [_trace_node(1)], [], [_trace_node(2)]
+    )
+    assert _select_clause_spans(statement) is None
+    statement._sql_query = "SELECT a FROM t ORDER BY a"
+    statement._projection_nodes[1].append(_trace_node(3))
+    assert _select_clause_spans(statement) is None
+
+
+@pytest.mark.parametrize("inside_from", [False, True])
+def test_get_clause_trace_node_ambiguous_lines(inside_from):
+    first, second = _trace_node(1), _trace_node(2)
+    sql = "SELECT\n a\nFROM t\nORDER BY\n a"
+    if inside_from:
+        sql = "SELECT\n a\nFROM (SELECT\n a\nFROM t)\nORDER BY b"
+    statement = _cached_statement(sql, [first], [], [second])
+    plan = _plan([first, second], sql=sql)
+    plan.source_plan = statement
+    assert _get_clause_trace_node(plan, 1, " a") is None
+
+
+def test_get_clause_trace_node_cte_style_from_and_leading_whitespace():
+    first, second = _trace_node(1), _trace_node(2)
+    sql = " SELECT a FROM (SELECT a FROM t) WHERE b"
+    statement = _cached_statement(sql, [first], [second])
+    plan_sql = " SELECT a FROM CTE_1 WHERE b"
+    plan = _plan([first, second], sql=plan_sql)
+    plan.source_plan = statement
+    executed = plan_sql.lstrip()
+    assert _get_clause_trace_node(plan, executed.index("a"), executed) is first
+    assert _get_clause_trace_node(plan, executed.index("b"), executed) is second
+    assert _get_clause_trace_node(plan, executed.index("CTE_1"), executed) is None
+    # A WITH prefix does not share this statement's coordinate system.
+    compiled = "WITH CTE_1 AS (SELECT a FROM t) " + executed
+    assert _get_clause_trace_node(plan, compiled.index("WHERE") + 6, compiled) is None
+
+
+def test_get_clause_trace_node_needs_the_executed_line():
+    nodes = [_trace_node(1), _trace_node(2), _trace_node(3)]
+    plan = _flattened_plan(nodes)
+    assert _get_clause_trace_node(plan, 10, "    UPPER(c) AS X") is None
+
+
+def test_get_clause_trace_node_with_a_differently_laid_out_from_clause():
+    # the sql of the plan has the uuid comments of the FROM subquery removed, which may leave
+    # other line breaks in it; the parts outside it are the same
+    nodes = [_trace_node(1), _trace_node(2), _trace_node(3)]
+    plan_sql = _FLATTENED_SQL.replace(
+        "FROM (\n    SELECT 1\n)", "FROM (\n\n    SELECT 1\n\n)"
+    )
+    plan = _flattened_plan(nodes, plan_sql=plan_sql)
+    assert _get_clause_trace_node(plan, 4, '    ("A" > 0)') is nodes[2]
+    # Parse the plan's cached layout directly, without requiring matching prefixes/suffixes.
+    plan = _flattened_plan(nodes, plan_sql=_FLATTENED_SQL.replace('"C"', '"D"'))
+    assert _get_clause_trace_node(plan, 10, '    UPPER(b, a) AS "D"') is nodes[1]
+    # Missing statement SQL must not trigger SQL generation or hide cached plan SQL.
+    plan = _flattened_plan(nodes)
+    plan.source_plan._sql_query = None
+    assert _get_clause_trace_node(plan, 10, '    UPPER(b, a) AS "C"') is nodes[1]
+    # not a SELECT statement
+    plan.source_plan = mock.MagicMock()
+    assert _get_clause_trace_node(plan, 10, '    UPPER(b, a) AS "C"') is None
+
+
+@pytest.mark.parametrize("multiline", [False, True])
+@pytest.mark.parametrize("missing_cache", ["none", "absent"])
+def test_get_clause_trace_node_uses_plan_without_statement_cache(
+    multiline, missing_cache
+):
+    nodes = [_trace_node(line) for line in range(1, 4)]
+    separator = "\n" if multiline else " "
+    sql = separator.join(
+        [" SELECT bad_projection", "FROM t", "WHERE bad_filter", "ORDER BY bad_sort"]
+    )
+    statement = _cached_statement(None, nodes[:1], nodes[1:2], nodes[2:])
+    if missing_cache == "absent":
+        del statement._sql_query
+    before = dict(statement.__dict__)
+    plan = _plan(nodes, sql=sql)
+    plan.source_plan = statement
+    spans, _, _ = _select_clause_spans(statement, sql)
+    assert len(spans) == 3
+    for text, node in zip(["bad_projection", "bad_filter", "bad_sort"], nodes):
+        line = next(line for line in sql.lstrip().split("\n") if text in line)
+        assert _get_clause_trace_node(plan, line.index(text), line) is node
+    assert statement.__dict__ == before
+
+
+@pytest.mark.parametrize("clause", ["projection", "where", "order_by"])
+def test_get_clause_trace_node_uses_commented_cache_with_compiled_with(clause):
+    nodes = [_trace_node(line) for line in range(1, 4)]
+    uuid_comment = "-- 12345678-1234-1234-1234-123456789abc"
+    body = (
+        "SELECT\n bad_projection\nFROM CTE_1\nWHERE\n bad_filter\nORDER BY\n bad_sort"
+    )
+    compiled = "WITH CTE_1 AS (SELECT a, b FROM t)\n" + body
+    statement = _cached_statement(None, nodes[:1], nodes[1:2], nodes[2:])
+    statement._commented_sql = body.replace(
+        "CTE_1", f"(\n{uuid_comment}\nSELECT a, b FROM t\n{uuid_comment}\n)"
+    )
+    before = dict(statement.__dict__)
+    plan = _plan_with_query(
+        compiled, [QueryLineInterval(0, compiled.count("\n"), "top")]
+    )
+    plan.source_plan = statement
+    plan.df_trace_nodes = nodes
+    index = ["projection", "where", "order_by"].index(clause)
+    text = ["bad_projection", "bad_filter", "bad_sort"][index]
+    line_number = compiled.split("\n").index(" " + text)
+    executed_line = compiled.split("\n")[line_number]
+    assert _get_clause_trace_node(plan, 1, executed_line) is nodes[index]
+    error = f"SQL compilation error: error line {line_number + 1} at position 1\ninvalid identifier"
+    assert get_python_source_from_sql_error(plan, error, compiled) == (
+        f"\nSQL compilation error corresponds to Python source at f.py: line {index + 1}.\n"
+    )
+    assert statement._sql_query is None
+    assert statement.__dict__ == before
+
+
+@pytest.mark.parametrize("layout", ["duplicate", "from", "conflict", "unknown"])
+def test_commented_cache_ambiguous_layout_keeps_broader_mapping(layout):
+    first, second = _trace_node(1), _trace_node(2)
+    sql = "SELECT\n bad\nFROM t\nORDER BY good"
+    uuid_comment = "-- 12345678-1234-1234-1234-123456789abc"
+    layouts = {
+        "duplicate": "SELECT\n bad\nFROM t\nORDER BY\n bad",
+        "from": "SELECT good\nFROM (SELECT\n bad\nFROM t)\nORDER BY good",
+        "conflict": "SELECT good\nFROM t\nORDER BY\n bad",
+        "unknown": "SELECT good\nFROM t\nORDER BY\n bad",
+    }
+    statement = _cached_statement(None, [first], [], [second])
+    statement._commented_sql = layouts[layout].replace(
+        "FROM t", f"FROM t {uuid_comment}"
+    )
+    if layout == "duplicate":
+        # Duplicate matching lines are ambiguous even when their owners agree.
+        statement._order_by_nodes = (statement.order_by, [first])
+    elif layout == "unknown":
+        statement._order_by_nodes = (statement.order_by, [None])
+    before = dict(statement.__dict__)
+    plan = _plan_with_query(sql, [QueryLineInterval(0, 4, "top")])
+    plan.source_plan = statement
+    plan.df_trace_nodes = [first, second]
+    assert _get_clause_trace_node(plan, 1, " bad") is None
+    message = get_python_source_from_sql_error(
+        plan,
+        "SQL compilation error: error line 2 at position 1\ninvalid identifier",
+        sql,
+    )
+    # Exact executed-query coordinates disambiguate the plan layout; unrelated
+    # cache layouts are only consulted when those coordinates are unavailable.
+    assert re.findall(r"f\.py: line (\d+)", message) == ["1"]
+    assert statement.__dict__ == before
+
+
+def test_get_python_source_from_sql_error_reports_inherited_lifted_sort():
+    source, sort, select = (_trace_node(line) for line in range(1, 4))
+    sql = 'SELECT\n ("A" + 1) AS "A"\nFROM (\n SELECT "A" FROM t\n)\nORDER BY\n "A" ASC NULLS FIRST'
+    child = _plan([source, sort], sql='SELECT "A" FROM t')
+    plan = _plan_with_query(sql, [QueryLineInterval(0, 6, "top")])
+    plan.children_plan_nodes = [child]
+    plan.df_trace_nodes = [source, sort, select]
+    plan.source_plan = _cached_statement(sql, [select], [], [sort])
+    assert _get_own_trace_nodes(plan) == [select]
+    assert _get_clause_trace_node(plan, 1, sql.split("\n")[-1]) is sort
+    message = get_python_source_from_sql_error(
+        plan,
+        "SQL compilation error: error line 7 at position 1\ninvalid identifier",
+        sql,
+    )
+    assert message == (
+        "\nSQL compilation error corresponds to Python source at f.py: line 2.\n"
+    )
+
+
+def test_get_clause_trace_node_uses_nested_singleline_statement_cache():
+    first, second = _trace_node(1), _trace_node(2)
+    statement_sql = " SELECT bad FROM (SELECT 1) WHERE predicate"
+    plan_sql = statement_sql.replace("(SELECT 1)", "(\nSELECT 1\n)")
+    statement = _cached_statement(statement_sql, [first], [second])
+    plan = _plan([first, second], sql=plan_sql)
+    plan.source_plan = statement
+    for text, owner in [("bad", first), ("predicate", second)]:
+        assert (
+            _get_clause_trace_node(plan, statement_sql.index(text), statement_sql)
+            is owner
+        )
+    statement._sql_query = None
+    assert (
+        _get_clause_trace_node(plan, statement_sql.index("bad"), statement_sql) is None
+    )
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    "other_layout", ["agree", "conflict", "from", "duplicate", "unknown", "malformed"]
+)
+def test_get_clause_trace_node_requires_unambiguous_agreeing_layouts(
+    reverse, other_layout
+):
+    first, second = _trace_node(1), _trace_node(2)
+    sql = "SELECT\n bad\nFROM t\nORDER BY good"
+    alternatives = {
+        "agree": "SELECT\n bad\nFROM (SELECT 1)\nORDER BY good",
+        "conflict": "SELECT good\nFROM t\nORDER BY\n bad",
+        "from": "SELECT good\nFROM (SELECT\n bad\nFROM t)\nORDER BY good",
+        "duplicate": "SELECT\n bad\nFROM t\nORDER BY\n bad",
+        "unknown": "SELECT good\nFROM t\nORDER BY good -- comment\n bad",
+        "malformed": "SELECT\n bad\nFROM t\nORDER good",
+    }
+    plan_sql, statement_sql = sql, alternatives[other_layout]
+    if reverse:
+        plan_sql, statement_sql = statement_sql, plan_sql
+    statement = _cached_statement(statement_sql, [first], [], [second])
+    if other_layout == "duplicate":
+        # Repeated matching lines are ambiguous even if both have the same owner.
+        statement._order_by_nodes = (statement.order_by, [first])
+    if other_layout == "unknown":
+        statement._order_by_nodes = (statement.order_by, [None])
+    plan = _plan([first, second], sql=plan_sql)
+    plan.source_plan = statement
+    assert _get_clause_trace_node(plan, 1, " bad") is (
+        first if other_layout == "agree" else None
+    )
+
+
+@pytest.mark.parametrize("statement_cached", [False, True])
+def test_get_python_source_from_sql_error_flattened_statement(statement_cached):
+    nodes = [_trace_node(1), _trace_node(2), _trace_node(3)]
+    plan = _flattened_plan(nodes)
+    if not statement_cached:
+        plan.source_plan._sql_query = None
+    message = "SQL compilation error: error line 3 at position 10\ntoo many arguments"
+    with mock.patch(
+        "snowflake.snowpark._internal.utils.get_plan_from_line_numbers",
+        return_value=plan,
+    ):
+        assert get_python_source_from_sql_error(plan, message, _FLATTENED_SQL) == (
+            "\nSQL compilation error corresponds to Python source at f.py: line 2.\n"
+        )
+        # the operation is not one of the plan's: all of them are reported
+        plan.df_trace_nodes = [nodes[0], nodes[2]]
+        assert "line 2" not in get_python_source_from_sql_error(
+            plan, message, _FLATTENED_SQL
+        )
+        # the schema query of the plan: no part of the statement is known
+        plan.df_trace_nodes = list(nodes)
+        plan.schema_query = "SELECT 0"
+        assert (
+            get_python_source_from_sql_error(plan, message, "SELECT 0").count("f.py")
+            == 3
+        )
 
 
 def test_resolve_error_line_maps_a_query_before_the_last_through_its_own_intervals():

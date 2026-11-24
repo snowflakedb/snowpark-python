@@ -39,9 +39,7 @@ def test_select(session, trace_settings):
     df = fail(base(session).select("ID", col("V") + 1))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [BASE, src('base(session).select("ID", col("V") + 1)'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[FAIL, src('base(session).select("ID", col("V") + 1)'), BASE],
@@ -72,12 +70,7 @@ def test_with_column(session, trace_settings):
     )
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('base(session).with_column("X", col("ID") + 1).withColumn...'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -94,13 +87,7 @@ def test_with_columns(session, trace_settings):
     df = fail(base(session).with_columns(["X", "Y"], [col("ID") + 1, col("V") * 2]))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        BASE,
-        src('base(session).with_columns(["X", "Y"], [col("ID") + 1, col("V") * 2])'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -120,12 +107,7 @@ def test_with_column_renamed(session, trace_settings):
     )
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('base(session).with_column_renamed("ID", "I2").withColumnRenamed...'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -142,12 +124,7 @@ def test_rename_to_df(session, trace_settings):
     df = fail(base(session).to_df(["A", "B", "C"]).toDF("X", "Y", "Z"))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('base(session).to_df(["A", "B", "C"]).toDF("X", "Y", "Z")'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -164,9 +141,7 @@ def test_rename(session, trace_settings):
     df = fail(base(session).rename("V", "W"))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [BASE, src('base(session).rename("V", "W")'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex, trace=[FAIL, src('base(session).rename("V", "W")'), BASE], mapped=mapped
     )
@@ -176,9 +151,7 @@ def test_drop(session, trace_settings):
     df = fail(base(session).drop("V"))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [BASE, src('base(session).drop("V")'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex, trace=[FAIL, src('base(session).drop("V")'), BASE], mapped=mapped
     )
@@ -188,9 +161,7 @@ def test_alias(session, trace_settings):
     df = fail(base(session).alias("T").select("T.ID"))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [BASE, src('base(session).alias("T").select("T.ID")')]
-    if not trace_settings.simplifier:
-        mapped = [src('base(session).alias("T").select("T.ID")')]
+    mapped = [src('base(session).alias("T").select("T.ID")')]
     assert_debug_output(
         ex,
         trace=[
@@ -236,13 +207,7 @@ def test_sort(session, trace_settings):
     df = fail(base(session).sort("ID").orderBy("V").order_by(col("NAME")))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        BASE,
-        src('base(session).sort("ID").orderBy("V").order_by(col("NAME"))'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -260,9 +225,7 @@ def test_limit(session, trace_settings):
     df = fail(base(session).limit(2, offset=1))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [BASE, src("base(session).limit(2, offset=1)"), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex, trace=[FAIL, src("base(session).limit(2, offset=1)"), BASE], mapped=mapped
     )
@@ -272,9 +235,7 @@ def test_table_sample(session, trace_settings, df_trace_table):
     df = fail(session.table(df_trace_table).sample(0.5))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src("session.table(df_trace_table).sample(0.5)"), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -300,12 +261,7 @@ def test_drop_duplicates(session, trace_settings):
     df = fail(base(session).drop_duplicates("ID").dropDuplicates("NAME"))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('base(session).drop_duplicates("ID").dropDuplicates("NAME")'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -350,9 +306,7 @@ def test_dropna_fillna_replace(session, trace_settings):
     df = fail(base(session).dropna().fillna(0).replace(1, 5))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src("base(session).dropna().fillna(0).replace(1, 5)"), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -409,9 +363,7 @@ def test_describe(session, trace_settings):
     df = fail(base(session).describe())
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src("base(session).describe()"), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex, trace=[FAIL, src("base(session).describe()"), BASE], mapped=mapped
     )
@@ -421,12 +373,7 @@ def test_cache_result(session, trace_settings):
     df = fail(base(session).filter(col("ID") > 0).cache_result().select("ID"))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('base(session).filter(col("ID") > 0).cache_result().select("ID")'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -463,12 +410,7 @@ def test_groupBy_functions(session, trace_settings):
     df = fail(d)
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src('g.count().union_all(g.sum("V").select("NAME", "SUM(V)")).select...'),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -655,9 +597,7 @@ def test_window(session, trace_settings):
     df = fail(base(session).with_column("RN", sum_("V").over(w)))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [BASE, src('base(session).with_column("RN", sum_("V").over(w))'), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[FAIL, src('base(session).with_column("RN", sum_("V").over(w))'), BASE],
@@ -840,9 +780,7 @@ def test_union_family(session, trace_settings):
     df = fail(a.union(b).union_all(b).unionAll(b))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src("a.union(b).union_all(b).unionAll(b)"), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -862,12 +800,7 @@ def test_union_by_name_family(session, trace_settings):
     df = fail(d)
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [
-        src("a.union_by_name(b).unionByName(b).union_all_by_name(b).unionAllByName(b)"),
-        FAIL,
-    ]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -889,9 +822,7 @@ def test_intersect_except(session, trace_settings):
     df = fail(a.intersect(b).except_(b).minus(b).subtract(b))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src("a.intersect(b).except_(b).minus(b).subtract(b)"), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
@@ -911,9 +842,7 @@ def test_random_split_first(session, trace_settings):
     df = fail(parts[0])
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src("base(session).random_split([0.5, 0.5])"), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[FAIL, src("base(session).random_split([0.5, 0.5])"), BASE],
@@ -926,9 +855,7 @@ def test_to_df_then_union_with_self(session, trace_settings):
     df = fail(a.union_all(a))
     with pytest.raises(SnowparkSQLException) as ex:
         df.collect()
-    mapped = [src("a.union_all(a)"), FAIL]
-    if not trace_settings.simplifier:
-        mapped = [FAIL]
+    mapped = [FAIL]
     assert_debug_output(
         ex,
         trace=[
