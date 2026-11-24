@@ -405,6 +405,10 @@ class JDBC:
         # Oracle does not implicitly convert an ISO string to DATE or TIMESTAMP
         # under the default NLS formats, so use an ANSI timestamp literal there.
         if get_jdbc_dbms(self.url) == "oracle":
+            # Oracle TIMESTAMP WITH TIME ZONE literals need a space before the
+            # offset ('... 00:00:00 +05:30'); isoformat() omits it (ORA-01830).
+            if value.utcoffset() is not None:
+                literal = f"{literal[:-6]} {literal[-6:]}"
             return f"TIMESTAMP '{literal}'"
         return f"'{literal}'"
 

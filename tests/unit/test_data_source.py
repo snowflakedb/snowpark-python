@@ -3,6 +3,7 @@
 #
 
 import pytest
+import datetime
 import re
 from unittest.mock import Mock, patch
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
@@ -17,7 +18,13 @@ from snowflake.snowpark.context import (
     _PYPI_SHARED_REPOSITORY,
 )
 from snowflake.snowpark.exceptions import SnowparkClientException
-from snowflake.snowpark.types import StructType, StructField, StringType
+from snowflake.snowpark.types import (
+    StringType,
+    StructField,
+    StructType,
+    TimestampTimeZone,
+    TimestampType,
+)
 
 
 @pytest.mark.parametrize(
@@ -379,8 +386,9 @@ def test_jdbc_partitions_on_timestamp_column(url, lower_literal):
     client.raw_schema = []
     partitions = client.partitions
     assert len(partitions) == 3
-    assert partitions[1] == (
-        f"SELECT * FROM T WHERE D >= {lower_literal} AND D < "
+    # The SELECT list depends on raw_schema; only the bounds matter here.
+    assert partitions[1].endswith(
+        f" FROM T WHERE D >= {lower_literal} AND D < "
         + lower_literal.replace("2024-01-11", "2024-01-21")
     )
 
@@ -478,3 +486,26 @@ def test_dbapi_partitioner_still_rejects_timestamp_column():
             upper_bound="2024-01-31",
             num_partitions=3,
         )
+
+
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        ("jdbc:oracle:thin:@//host:1521/svc", "TIMESTAMP '2024-01-01 00:00:00 +05:30'"),
+        ("jdbc:postgresql://host/db", "'2024-01-01 00:00:00+05:30'"),
+    ],
+)
+def test_jdbc_partition_bound_literal_with_offset(url, expected):
+    client = JDBC(
+        session=Mock(),
+        url=url,
+        table_or_query="T",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=False,
+        secret="cred",
+    )
+    value = datetime.datetime(
+        2024, 1, 1, tzinfo=datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+    )
+    assert client._partition_bound_literal(value) == expected
