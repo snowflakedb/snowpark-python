@@ -1,0 +1,68 @@
+name: JDBC integration tests
+
+# Run daily on the default branch or dispatch on a reviewed branch, never on PR events.
+# Uses the same AWS account and DBAPI sources as precommit/daily_precommit.
+# Prerequisites: PARAMETER_PASSWORD; existing all-type source tables; USAGE on
+# the four SNOWPARK_DBAPI_*_TEST_INTEGRATION EAIs and ADMIN.PUBLIC; READ on the
+# four ADMIN.PUBLIC.SNOWPARK_DBAPI_*_TEST_CRED secrets. The shared integration
+# fixtures also require warehouse usage, CREATE SCHEMA, CREATE INTEGRATION and
+# CREATE ARTIFACT REPOSITORY privileges. No persistent source data is created.
+on:
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jdbc-integration-aws
+  cancel-in-progress: false
+
+jobs:
+  jdbc:
+    if: github.repository == 'snowflakedb/snowpark-python'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      cloud_provider: aws
+    steps:
+      - name: Checkout trusted branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+      - name: Install test and protobuf build tools
+        run: python -m pip install tox==4.14.1 protoc-wheel-0==21.1 mypy-protobuf==5.1.0 protobuf==6.33.6
+      - name: Decrypt existing AWS and datasource parameters
+        shell: bash
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$PARAMETER_PASSWORD"
+          gpg --quiet --batch --yes --decrypt --passphrase="$PARAMETER_PASSWORD" \
+            --output tests/rsa_key_aws.p8 .github/workflows/parameters/rsa_keys/rsa_key_aws.p8.gpg
+          gpg --quiet --batch --yes --decrypt --passphrase="$PARAMETER_PASSWORD" \
+            --output tests/parameters.py .github/workflows/parameters/parameters_aws.py.gpg
+          gpg --quiet --batch --yes --decrypt --passphrase="$PARAMETER_PASSWORD" \
+            .github/workflows/parameters/parameters_dbapi.py.gpg >> tests/parameters.py
+      - name: Run all four JDBC vendors (no DBAPI drivers or local JVM)
+        run: python -m tox -e jdbc --skip-missing-interpreters false
+      - name: Upload JDBC test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: jdbc-test-results
+          path: .tox/junit.jdbc.xml
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove decrypted credentials
+        if: always()
+        shell: bash
+        run: rm -f tests/parameters.py tests/rsa_key_aws.p8
