@@ -35,7 +35,7 @@
 - Fixed a bug in `DataFrameReader.jdbc` where reading failed when `DEFAULT_DDL_COLLATION` was set.
 - Fixed a bug in `DataFrameReader.jdbc` where a read with many partitions failed with `This connection has been closed`.
 - Fixed a bug in `DataFrameReader.jdbc` where JDBC connections were not closed when ingestion failed or a stream was closed before exhaustion.
-- Fixed a bug in `DataFrameReader.jdbc` where credentials passed in the URL as query or `;`-separated parameters (for example `?password=`) or in the Oracle `user/password@` form were not removed and were embedded in the generated UDTF.
+- Updated `DataFrameReader.jdbc` to remove recognized credential options from URL/properties before registration and reject unsupported or ambiguous connection syntax. Supported forms include simple PostgreSQL/MySQL network URLs, SQL Server braced properties, and unquoted Oracle thin URLs and credential-free descriptors. Credentials must come from the Snowflake secret; arbitrary query and session-initialization SQL is not sanitized. Generated Java literals now preserve special characters, and JDBC failures report static stage messages without driver messages or exception causes.
 
 ## 1.58.0 (2026-11-19)
 

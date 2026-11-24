@@ -487,3 +487,575 @@ def test_jdbc_secret_detector_strips_url_credentials(url, expected):
         secret="cred",
     )
     assert client.url == expected
+
+
+@pytest.mark.parametrize(
+    "descriptor",
+    [
+        '(DESCRIPTION=(ADDRESS=(PROTOCOL=TCPS)(HOST=host)(PORT=1521))(SECURITY=(SSL_SERVER_CERT_DN="CN=host,OU=engineering (test),O=company")))',
+        '(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME="service@host?name")))',
+    ],
+)
+def test_jdbc_security_preserves_quoted_descriptor_leaf(descriptor):
+    url = "jdbc:oracle:thin:@" + descriptor
+    assert _jdbc_security_client(url).url == url
+
+
+@pytest.mark.parametrize(
+    "descriptor",
+    [
+        '(DESCRIPTION=(PASSWORD="SYNTHETIC_CREDENTIAL"))',
+        '(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME="SYNTHETIC_CREDENTIAL)))',
+        '(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME="svc"SYNTHETIC_CREDENTIAL)))',
+        "(DESCRIPTION=(HOST=host))SYNTHETIC_CREDENTIAL",
+        "(DESCRIPTION=(HOST=host)",
+    ],
+)
+def test_jdbc_security_rejects_ambiguous_descriptor(descriptor):
+    session = Mock()
+    with pytest.raises(ValueError) as error:
+        _jdbc_security_client("jdbc:oracle:thin:@" + descriptor, session=session)
+    assert "SYNTHETIC_CREDENTIAL" not in str(error.value)
+    session.sql.assert_not_called()
+
+
+def _jdbc_security_client(url="jdbc:postgresql://host/db", **kwargs):
+    return JDBC(
+        session=kwargs.pop("session", Mock()),
+        url=url,
+        table_or_query="SELECT 1",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=True,
+        secret="DB.SCHEMA.CREDENTIAL",
+        **kwargs,
+    )
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        (
+            "jdbc:postgresql://host/db?password=LEFT;RIGHT&sslmode=require",
+            "jdbc:postgresql://host/db?sslmode=require",
+        ),
+        (
+            "jdbc:mysql://host/db?password=LEFT;RIGHT&useSSL=true",
+            "jdbc:mysql://host/db?useSSL=true",
+        ),
+        (
+            "jdbc:mysql://host/db?%75ser=LEFT&%70assword=RIGHT&useSSL=true",
+            "jdbc:mysql://host/db?useSSL=true",
+        ),
+        (
+            "jdbc:sqlserver://host; password = {LEFT}};RIGHT&TAIL};encrypt=true",
+            "jdbc:sqlserver://host;encrypt=true",
+        ),
+        (
+            "jdbc:sqlserver://host;password=LEFT&RIGHT;encrypt=true",
+            "jdbc:sqlserver://host;encrypt=true",
+        ),
+        (
+            "jdbc:sqlserver://host;password=LEFT;password=RIGHT;encrypt=true",
+            "jdbc:sqlserver://host;encrypt=true",
+        ),
+        (
+            "jdbc:oracle:thin:u/LEFT@host:1521:SID?password=RIGHT&connectTimeout=10",
+            "jdbc:oracle:thin:@host:1521:SID?connectTimeout=10",
+        ),
+    ],
+)
+def test_jdbc_security_complete_credentials(url, expected):
+    client = _jdbc_security_client(url)
+    assert client.url == expected
+    client.secret_detector()
+    assert client.url == expected
+
+
+_JDBC_CREDENTIAL_ALIASES = [
+    "user",
+    "username",
+    "password",
+    "pwd",
+    "token",
+    "accesskey",
+    "secret",
+    "apikey",
+    "sslpassword",
+    "password1",
+    "password2",
+    "password3",
+    "certKeyStorePass",
+    "clientCertificateKeyStorePassword",
+    "trustCertificateKeyStorePassword",
+    "accessToken",
+    "trustStorePassword",
+    "keyStoreSecret",
+    "clientKeyPassword",
+    "keyVaultProviderClientKey",
+    "AADSecurePrincipalSecret",
+    "oracle.jdbc.password",
+    "oracle.jdbc.user",
+    "oracle.jdbc.accessToken",
+    "newPassword",
+    "oracle.jdbc.newPassword",
+    "clientSecret",
+    "oracle.jdbc.clientSecret",
+    "clientCertificatePassword",
+    "oracle.jdbc.clientCertificatePassword",
+    "oracle.net.wallet_password",
+    "websocketPassword",
+    "oracle.net.websocketPassword",
+    "javax.net.ssl.keyStorePassword",
+    "javax.net.ssl.trustStorePassword",
+    "oracle.net.ldap.ssl.keyStorePassword",
+    "oracle.net.ldap.ssl.trustStorePassword",
+    "oracle.net.ldap.ssl.walletPassword",
+    "oracle.net.ldap.security.credentials",
+    "oracle.jdbc.ons.walletpassword",
+]
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "%70assword",
+        "%75ser",
+        " password ",
+        "%20password%20",
+        "+password+",
+        "\tPaSsWoRd\t",
+    ],
+)
+@pytest.mark.parametrize(
+    "base,separator",
+    [
+        ("jdbc:postgresql://host/db", "?"),
+        ("jdbc:mysql://host/db", "?"),
+        ("jdbc:sqlserver://host", ";"),
+        ("jdbc:oracle:thin:@//host/svc", "?"),
+    ],
+)
+def test_jdbc_security_encoded_and_whitespace_url_names(key, base, separator):
+    assert (
+        _jdbc_security_client(base + separator + key + "=SYNTHETIC_CREDENTIAL").url
+        == base
+    )
+
+
+@pytest.mark.parametrize("key", _JDBC_CREDENTIAL_ALIASES)
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        str,
+        str.upper,
+        lambda key: " \t" + key + " \t",
+        lambda key: "%" + format(ord(key[0]), "02x") + key[1:],
+    ],
+)
+def test_jdbc_security_alias_properties(key, spelling):
+    properties = {
+        spelling(key): "SYNTHETIC_CREDENTIAL",
+        "applicationName": "password-manager",
+        "connectTimeout": 10,
+    }
+    original = properties.copy()
+    client = _jdbc_security_client(properties=properties)
+    assert properties == original
+    assert client.properties == {
+        "applicationName": "password-manager",
+        "connectTimeout": 10,
+    }
+    assert "SYNTHETIC_CREDENTIAL" not in client.generate_create_connection()
+
+
+@pytest.mark.parametrize("key", _JDBC_CREDENTIAL_ALIASES)
+@pytest.mark.parametrize(
+    "base,separator",
+    [
+        ("jdbc:postgresql://host/db", "?"),
+        ("jdbc:mysql://host/db", "?"),
+        ("jdbc:sqlserver://host", ";"),
+        ("jdbc:oracle:thin:@//host/svc", "?"),
+    ],
+)
+def test_jdbc_security_alias_urls(key, base, separator):
+    assert (
+        _jdbc_security_client(base + separator + key + "=SYNTHETIC_CREDENTIAL").url
+        == base
+    )
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "jdbc:unknown://host/db?credential=SYNTHETIC_CREDENTIAL",
+        "jdbc:mysql://host/db?password=SYNTHETIC_CREDENTIAL%ZZ",
+        "jdbc:postgresql://host/db?password=SYNTHETIC_CREDENTIAL%",
+        "jdbc:mysql://host/db?%2570assword=SYNTHETIC_CREDENTIAL",
+        "jdbc:mysql://host/db?password:SYNTHETIC_CREDENTIAL",
+        "jdbc:postgresql://host/db;password=SYNTHETIC_CREDENTIAL",
+        "jdbc:sqlserver://host;password={SYNTHETIC_CREDENTIAL",
+        "jdbc:sqlserver://host;password={LEFT}SYNTHETIC_CREDENTIAL",
+        "jdbc:sqlserver://host;password=LEFT;SYNTHETIC_CREDENTIAL",
+        'jdbc:oracle:thin:@//host/svc?password="SYNTHETIC_CREDENTIAL',
+        "jdbc:oracle:thin:u/LEFT@SYNTHETIC_CREDENTIAL@//host/svc",
+        "jdbc:oracle:thin:@(DESCRIPTION=(PASSWORD=SYNTHETIC_CREDENTIAL))",
+        None,
+        123,
+        b"jdbc:mysql://host/db?password=SYNTHETIC_CREDENTIAL",
+    ],
+)
+def test_jdbc_security_rejects_before_sql(url):
+    session = Mock()
+    with pytest.raises(ValueError) as error:
+        _jdbc_security_client(url, session=session).schema
+    assert "SYNTHETIC_CREDENTIAL" not in str(error.value)
+    assert error.value.__cause__ is None
+    assert error.value.__context__ is None
+    session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "properties",
+    [
+        [],
+        "SYNTHETIC_CREDENTIAL",
+        {1: "SYNTHETIC_CREDENTIAL"},
+        {None: "SYNTHETIC_CREDENTIAL"},
+        {b"password": "SYNTHETIC_CREDENTIAL"},
+        {"%ZZ": "SYNTHETIC_CREDENTIAL"},
+    ],
+)
+def test_jdbc_security_invalid_properties(properties):
+    session = Mock()
+    with pytest.raises(ValueError) as error:
+        _jdbc_security_client(properties=properties, session=session)
+    assert "SYNTHETIC_CREDENTIAL" not in str(error.value)
+    session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "jdbc:mysql://(host=h,user=LEFT,password=RIGHT)/db",
+        "jdbc:mysql://address=(host=h)(user=LEFT)(password=RIGHT)/db",
+        "jdbc:mysql://(host=h,%75ser=LEFT,%70assword=RIGHT)/db",
+        "jdbc:mysql://h1,LEFT:RIGHT@h2/db",
+        "jdbc:mysql://LEFT:RIGHT@[h1,h2]/db",
+        'jdbc:oracle:thin:u/"LEFT@RIGHT"@//host/svc',
+        'jdbc:oracle:thin:@//host/svc?password="LEFT&RIGHT"',
+    ],
+)
+def test_jdbc_security_complex_strip_or_reject(url):
+    session = Mock()
+    try:
+        client = _jdbc_security_client(url, session=session)
+    except ValueError as error:
+        assert "LEFT" not in str(error) and "RIGHT" not in str(error)
+        session.sql.assert_not_called()
+    else:
+        assert "LEFT" not in client.url and "RIGHT" not in client.url
+        client.secret_detector()
+        assert "LEFT" not in client.url and "RIGHT" not in client.url
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "jdbc:mysql://h1:3306,h2:3306/db?useSSL=true",
+        "jdbc:postgresql://[2001:db8::1]:5432/db?ApplicationName=password-manager",
+        "jdbc:mysql://host/db?applicationName=a%26b%3Bc&useSSL=true",
+        "jdbc:sqlserver://host\\INSTANCE;applicationName={password-manager;safe}}value};encrypt=true",
+        "jdbc:sqlserver://host;applicationName=foo&password=benign;encrypt=true",
+        "jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=host)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=svc)))",
+    ],
+)
+def test_jdbc_security_preserves_nonsecret_url(url):
+    assert _jdbc_security_client(url).url == url
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        'quote"',
+        r"path\q\t\u0022",
+        "line\nnext\r\t",
+        "dollar$$",
+        "unicode_é",
+        "control\x00\x1f",
+    ],
+)
+def test_jdbc_security_java_literals(value):
+    client = _jdbc_security_client(
+        "jdbc:postgresql://host/db?ApplicationName=" + value,
+        properties={"applicationName": value},
+        session_init_statement=[value],
+    )
+    source = (
+        client.generate_create_connection() + client.generate_session_init_statement()
+    )
+    # The same escaped literal must be used for properties and arbitrary init SQL.
+    literal = source.split('properties.put("applicationName", ', 1)[1].split(");", 1)[0]
+    assert "stmt.execute(" + literal + ");" in source
+    assert "$$" not in source
+    assert "\n" not in literal and "\r" not in literal
+    # Octal escapes are valid Java and avoid the SQL dollar delimiter.
+    import json
+
+    decoded = json.loads(
+        re.sub(
+            r"\\([0-3][0-7]{2})",
+            lambda match: json.dumps(chr(int(match[1], 8)))[1:-1],
+            literal,
+        )
+    )
+    assert decoded == value
+
+
+def test_jdbc_security_generated_error_boundaries():
+    client, _ = _render_jdbc_infer_schema_sql("SELECT 1")
+    inference = client.session.sql.call_args_list[0].args[0]
+    ingestion = _render_jdbc_ddls()
+    for ddl in (inference, ingestion):
+        assert "e.getMessage()" not in ddl
+        assert not re.search(r"new RuntimeException\([^;]*, e\)", ddl)
+        assert "Failed to create JDBC connection" in ddl
+        assert "Ingestion error:" in ddl
+    lazy_inference = inference.split("Stream.generate", 1)[1]
+    assert "catch (Exception e)" in lazy_inference
+
+
+def test_jdbc_security_provider_and_sql_boundary():
+    client = _jdbc_security_client(
+        properties={
+            "user": "INPUT_USER",
+            "password": "INPUT_PASSWORD",
+            "sslpassword": "INPUT_TLS",
+            "authentication": "SqlPassword",
+        },
+        session_init_statement=["SET password = 'EXPLICIT_SQL_LITERAL'"],
+    )
+    assert client.secret_sql == "SECRETS = ('cred' = DB.SCHEMA.CREDENTIAL)"
+    source = client.generate_create_connection()
+    assert 'properties.put("user", up.getUsername())' in source
+    assert 'properties.put("password", up.getPassword())' in source
+    assert 'properties.put("authentication", "SqlPassword")' in source
+    assert "INPUT_" not in source
+    assert "EXPLICIT_SQL_LITERAL" in client.generate_session_init_statement()
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "jdbc:postgresql://host/db?password=INPUT_LEFT;INPUT_RIGHT&sslmode=require",
+        "jdbc:mysql://host/db?%70assword=INPUT_PASSWORD&useSSL=true",
+        "jdbc:sqlserver://host;password={INPUT_LEFT}};INPUT_RIGHT};encrypt=true",
+        "jdbc:oracle:thin:INPUT_USER/INPUT_PASSWORD@//host/svc",
+    ],
+)
+def test_jdbc_security_both_registration_sinks(url):
+    session = Mock()
+    session.sql.return_value.collect.return_value = [
+        ("A", "VARCHAR", "java.lang.String", 0, 0, True)
+    ]
+    client = _jdbc_security_client(
+        url,
+        session=session,
+        properties={"sslpassword": "INPUT_TLS", "applicationName": 'benign"\\q\n$$'},
+    )
+    client.schema
+    with patch.object(BaseDriver, "to_result_snowpark_df_udtf", return_value=None):
+        client.read("PARTITIONS")
+    calls = session.sql.call_args_list
+    assert len(calls) == 4
+    for index in (0, 2):
+        ddl = calls[index].args[0]
+        assert "INPUT_" not in ddl
+        assert ddl.count("$$") == 2
+        assert "SECRETS = ('cred' = DB.SCHEMA.CREDENTIAL)" in ddl
+        assert 'properties.put("user", up.getUsername())' in ddl
+        assert 'properties.put("password", up.getPassword())' in ddl
+        assert r"benign\"\\q\n\044\044" in ddl
+
+
+def _assert_jdbc_correction_registration(
+    url, properties, expected_url, expected_properties
+):
+    session = Mock()
+    session.sql.return_value.collect.return_value = [
+        ("A", "VARCHAR", "java.lang.String", 0, 0, True)
+    ]
+    original = properties.copy()
+    client = _jdbc_security_client(url, session=session, properties=properties)
+    assert properties == original
+    assert (client.url, client.properties) == (expected_url, expected_properties)
+    client.secret_detector()
+    assert (client.url, client.properties) == (expected_url, expected_properties)
+    client.schema
+    with patch.object(BaseDriver, "to_result_snowpark_df_udtf", return_value=None):
+        client.read("PARTITIONS")
+    assert session.sql.call_count == 4
+    for index in (0, 2):
+        ddl = session.sql.call_args_list[index].args[0]
+        assert "CORRECTION_SECRET" not in ddl
+        assert ddl.count("$$") == 2
+        assert 'String url = "' + expected_url.replace("$", r"\044") + '";' in ddl
+        for key, value in expected_properties.items():
+            assert (
+                'properties.put("' + key.replace("$", r"\044") + '", "' + value + '");'
+            ) in ddl
+        assert 'properties.put("user", up.getUsername())' in ddl
+        assert 'properties.put("password", up.getPassword())' in ddl
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "oracle.jdbc.clientSecret",
+        "oracle.jdbc.clientCertificatePassword",
+        "oracle.jdbc.accesstoken",
+        "oracle.jdbc.newPassword",
+    ],
+)
+@pytest.mark.parametrize(
+    "spelling",
+    [str, str.upper, lambda key: " " + key + " ", lambda key: "%6f" + key[1:]],
+)
+@pytest.mark.parametrize("channel", ["url", "properties"])
+def test_jdbc_correction_oracle_prefixed_aliases(key, spelling, channel):
+    base = "jdbc:oracle:thin:@//host/svc"
+    key = spelling(key)
+    url = base + ("?" + key + "=CORRECTION_SECRET" if channel == "url" else "")
+    properties = {key: "CORRECTION_SECRET"} if channel == "properties" else {}
+    _assert_jdbc_correction_registration(url, properties, base, {})
+
+
+@pytest.mark.parametrize("channel", ["url", "properties"])
+def test_jdbc_correction_sqlserver_optional_authority(channel):
+    base = "jdbc:sqlserver://"
+    properties = {"password": "CORRECTION_SECRET"}
+    if channel == "url":
+        expected = base + ";serverName=host;databaseName=db"
+        url = expected + ";password=CORRECTION_SECRET"
+        retained = {}
+    else:
+        url = expected = base
+        retained = {"serverName": "host", "databaseName": "db"}
+        properties.update(retained)
+    _assert_jdbc_correction_registration(url, properties, expected, retained)
+
+
+@pytest.mark.parametrize(
+    "base,separator,key",
+    [
+        ("jdbc:sqlserver://host", ";", "applicationName"),
+        ("jdbc:oracle:thin:@//host/svc", "?", "v$session.program"),
+    ],
+)
+@pytest.mark.parametrize("value", ["100%complete", "%", "%ZZ", "%26%3B%24"])
+@pytest.mark.parametrize("channel", ["url", "properties"])
+def test_jdbc_correction_literal_percent_values(base, separator, key, value, channel):
+    # SQL Server and Oracle values are literal, not URL-percent-decoded. This
+    # deliberately replaces blanket malformed-percent rejection for these drivers.
+    properties = {"password": "CORRECTION_SECRET" + value}
+    retained = {}
+    if channel == "url":
+        expected = base + separator + key + "=" + value
+        delimiter = ";" if separator == ";" else "&"
+        url = expected + delimiter + "password=CORRECTION_SECRET" + value
+    else:
+        url = expected = base
+        retained = {key: value}
+        properties.update(retained)
+    _assert_jdbc_correction_registration(url, properties, expected, retained)
+
+
+@pytest.mark.parametrize("key", ["v$session.program", "oracle.jdbc.v$session.program"])
+@pytest.mark.parametrize("channel", ["url", "properties"])
+def test_jdbc_correction_oracle_dollar_names(key, channel):
+    base = "jdbc:oracle:thin:@//host/svc"
+    retained = {key: "review"} if channel == "properties" else {}
+    url = base + ("?" + key + "=review" if channel == "url" else "")
+    _assert_jdbc_correction_registration(
+        url, {**retained, "password": "CORRECTION_SECRET"}, url, retained
+    )
+
+
+@pytest.mark.parametrize(
+    "query", ["ssl", "ssl&password=CORRECTION_SECRET", "password=CORRECTION_SECRET&ssl"]
+)
+def test_jdbc_correction_postgres_ssl_flag(query):
+    base = "jdbc:postgresql://host/db"
+    _assert_jdbc_correction_registration(base + "?" + query, {}, base + "?ssl", {})
+
+
+@pytest.mark.parametrize(
+    "base",
+    [
+        "jdbc:postgresql://host/db",
+        "jdbc:mysql://host/db",
+        "jdbc:oracle:thin:@//host/svc",
+    ],
+)
+@pytest.mark.parametrize(
+    "query",
+    [
+        "CORRECTION_SECRET",
+        "password",
+        "ssl&CORRECTION_SECRET",
+        "password=LEFT&CORRECTION_SECRET",
+        "ssl;CORRECTION_SECRET",
+        "%73sl",
+    ],
+)
+def test_jdbc_correction_rejects_bare_tails(base, query):
+    session = Mock()
+    with pytest.raises(ValueError) as error:
+        _jdbc_security_client(base + "?" + query, session=session)
+    assert "CORRECTION_SECRET" not in str(error.value)
+    session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize("base", ["jdbc:mysql://host/db", "jdbc:postgresql://host/db"])
+@pytest.mark.parametrize(
+    "query",
+    ["password=CORRECTION_SECRET%ZZ", "applicationName=%", "%ZZ=CORRECTION_SECRET"],
+)
+def test_jdbc_correction_preserves_percent_rejection(base, query):
+    session = Mock()
+    with pytest.raises(ValueError):
+        _jdbc_security_client(base + "?" + query, session=session)
+    session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize("key", _JDBC_CREDENTIAL_ALIASES)
+def test_jdbc_correction_postgres_bare_secret_names_reject(key):
+    session = Mock()
+    with pytest.raises(ValueError):
+        _jdbc_security_client("jdbc:postgresql://host/db?ssl&" + key, session=session)
+    session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["oracle.jdbc.clientSecretLabel", "oracle.jdbc.clientCertificatePasswordHint"],
+)
+@pytest.mark.parametrize("channel", ["url", "properties"])
+def test_jdbc_correction_alias_matching_is_exact(key, channel):
+    base = "jdbc:oracle:thin:@//host/svc"
+    retained = {key: "password-manager"} if channel == "properties" else {}
+    url = base + ("?" + key + "=password-manager" if channel == "url" else "")
+    _assert_jdbc_correction_registration(
+        url, {**retained, "password": "CORRECTION_SECRET"}, url, retained
+    )
+
+
+@pytest.mark.parametrize(
+    "base", ["jdbc:mysql://host/db", "jdbc:oracle:thin:@//host/svc"]
+)
+def test_jdbc_correction_ssl_flag_is_postgres_only(base):
+    session = Mock()
+    with pytest.raises(ValueError):
+        _jdbc_security_client(base + "?ssl", session=session)
+    session.sql.assert_not_called()
