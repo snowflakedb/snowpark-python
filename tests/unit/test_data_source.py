@@ -232,6 +232,10 @@ def test_jdbc_read_udtf_executes_query_lazily():
     assert "final Statement[] stmtRef" in ddl
     assert "final ResultSet[] rsRef" in ddl
 
+    # A failed setup or an abandoned stream must release the statement.
+    assert "closeQuietly(rsRef[0], stmtRef[0]);" in ddl
+    assert ".onClose(() -> closeQuietly(rsRef[0], stmtRef[0]))" in ddl
+
     # The parameters must still be applied, and the timeout must precede the
     # session-init statements so they inherit it.
     assert "stmt.setQueryTimeout(240);" in ddl

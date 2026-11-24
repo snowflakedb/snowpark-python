@@ -446,12 +446,26 @@ class JDBC:
                             return null;
                         }}
                     }} catch (Exception e) {{
+                        closeQuietly(rsRef[0], stmtRef[0]);
                         // Exception rather than SQLException: this block now also covers
                         // connection and statement setup, whose failures are not always
                         // SQLException.
                         throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
                     }}
-                }}).takeWhile(Objects::nonNull);
+                }}).takeWhile(Objects::nonNull).onClose(() -> closeQuietly(rsRef[0], stmtRef[0]));
+            }}
+
+            // A failed or abandoned read must not leave its statement open; closing an
+            // already closed JDBC resource is a no-op.
+            private static void closeQuietly(AutoCloseable... resources) {{
+                for (AutoCloseable resource : resources) {{
+                    if (resource != null) {{
+                        try {{
+                            resource.close();
+                        }} catch (Exception ignored) {{
+                        }}
+                    }}
+                }}
             }}
 
             public Stream<OutputRow> endPartition() {{
