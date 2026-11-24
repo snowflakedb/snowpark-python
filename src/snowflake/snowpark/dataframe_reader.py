@@ -2450,6 +2450,10 @@ class DataFrameReader:
             raise ValueError(
                 "external_access_integration, secret and imports must be specified in udtf configs"
             )
+        if column is not None and num_partitions is None:
+            raise ValueError(
+                "column, lower_bound, upper_bound and num_partitions must be specified together"
+            )
         if (column is not None or num_partitions is not None) and (
             isinstance(num_partitions, bool)
             or not isinstance(num_partitions, int)

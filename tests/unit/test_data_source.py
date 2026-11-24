@@ -370,6 +370,19 @@ def test_jdbc_missing_udtf_config_raises_value_error(missing):
         _jdbc_reader().jdbc(url="jdbc:x://h/d", udtf_configs=configs, query="q")
 
 
+def test_jdbc_requires_num_partitions_with_column():
+    configs = {"external_access_integration": "E", "secret": "S", "imports": ["@s/j"]}
+    with pytest.raises(ValueError, match="must be specified together"):
+        _jdbc_reader().jdbc(
+            url="jdbc:x://h/d",
+            udtf_configs=configs,
+            query="q",
+            column="ID",
+            lower_bound=0,
+            upper_bound=10,
+        )
+
+
 @pytest.mark.parametrize("column", ["ID", None])
 @pytest.mark.parametrize("num_partitions", [0, -1, 2.5, "3", True])
 def test_jdbc_rejects_invalid_num_partitions(num_partitions, column):
