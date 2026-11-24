@@ -156,7 +156,7 @@ def to_java_string_literal(value: object) -> str:
             escaped.append("\\r")
         elif ch == "\t":
             escaped.append("\\t")
-        elif ch == "$" or ord(ch) < 0x20:
+        elif ch == "$" or ord(ch) < 0x20 or ord(ch) == 0x7F:
             escaped.append(f"\\u{ord(ch):04x}")
         else:
             escaped.append(ch)

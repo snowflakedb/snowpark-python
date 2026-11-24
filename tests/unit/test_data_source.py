@@ -362,6 +362,7 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
         ("a\\b", '"a\\\\b"'),
         ("l1\nl2\r\tx", '"l1\\nl2\\r\\tx"'),
         ("a$$b", '"a\\u0024\\u0024b"'),
+        ("a\x7fb", '"a\\u007fb"'),
         ("\\u0022", '"\\\\u0022"'),
         ("日本", '"日本"'),
     ],
