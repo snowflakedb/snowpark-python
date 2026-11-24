@@ -990,6 +990,18 @@ class DataFrameReader:
                 ``TIMESTAMP_TYPE_MAPPING`` of the session, and ``COMMENT '...'`` after a
                 column is accepted.
 
+                The type names in a DDL string map to Snowpark types as follows:
+
+                - ``INT``, ``INTEGER``: :class:`~snowflake.snowpark.types.IntegerType`
+                - ``SMALLINT``: :class:`~snowflake.snowpark.types.ShortType`
+                - ``TINYINT``, ``BYTEINT``: :class:`~snowflake.snowpark.types.ByteType`
+                - ``BIGINT``: :class:`~snowflake.snowpark.types.LongType`
+                - ``NUMBER``, ``NUMERIC``, ``DECIMAL``, ``DEC``: :class:`~snowflake.snowpark.types.DecimalType`, ``(38, 0)`` by default
+                - ``FLOAT``, ``FLOAT4``: :class:`~snowflake.snowpark.types.FloatType`. Snowflake defines these as 64-bit floating-point numbers, the same as ``DOUBLE``.
+                - ``FLOAT8``, ``DOUBLE``, ``REAL``: :class:`~snowflake.snowpark.types.DoubleType`
+                - ``CHAR``, ``CHARACTER``: :class:`~snowflake.snowpark.types.StringType` of length 1, unless a length is given
+                - ``VARCHAR``, ``STRING``: :class:`~snowflake.snowpark.types.StringType`
+
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
