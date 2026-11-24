@@ -14,15 +14,27 @@ with :attr:`Session.data_source <snowflake.snowpark.Session.data_source>`, and l
 Snowpark plans the read on the client by calling :meth:`DataSource.schema`,
 :meth:`DataSource.reader` and :meth:`DataSourceReader.partitions`, then calls
 :meth:`DataSourceReader.read` once per partition in parallel and loads the results
-into a temporary table. ``read()`` runs in threads (or processes) on the client. Data is
-staged as Parquet files and copied into a temporary table when
-:meth:`~snowflake.snowpark.DataFrameReader.load` is called.
+into a temporary table. ``read()`` runs in one of two places:
+
+- **Local ingestion** (default): ``read()`` runs in threads (or processes) on the client. Data is
+  staged as Parquet files and copied into a temporary table when
+  :meth:`~snowflake.snowpark.DataFrameReader.load` is called.
+- **Server-side ingestion**: when the ``snowpark.external_access_integration`` option is set,
+  ``read()`` runs inside Snowflake in a temporary UDTF, one UDTF partition per input partition.
+  Data is read lazily when an action is called on the returned DataFrame.
 
 Options whose names start with ``snowpark.`` configure ingestion and are not passed to the data source:
 
-- ``snowpark.max_workers``: Number of threads or processes used to read partitions. Defaults to the number of CPUs.
-- ``snowpark.fetch_with_process``: Whether to use processes instead of threads. Defaults to ``False``.
-- ``snowpark.batch_size``: Maximum number of rows staged per Parquet file. Defaults to 100000.
+- ``snowpark.external_access_integration``: Name of the external access integration that allows
+  the UDTF to reach the external system. Setting it enables server-side ingestion.
+- ``snowpark.packages``: List of packages required by ``read()`` in server-side ingestion.
+- ``snowpark.imports``: List of stage files or local files and modules to import in server-side ingestion.
+- ``snowpark.artifact_repository``: Artifact repository to resolve ``snowpark.packages`` from.
+- ``snowpark.secrets``: Dictionary mapping secret aliases to secret names, used in server-side ingestion.
+  Read them in ``read()`` with ``_snowflake.get_generic_secret_string(alias)``.
+- ``snowpark.max_workers``: Number of threads or processes used in local ingestion. Defaults to the number of CPUs.
+- ``snowpark.fetch_with_process``: Whether to use processes instead of threads in local ingestion. Defaults to ``False``.
+- ``snowpark.batch_size``: Maximum number of rows staged per Parquet file in local ingestion. Defaults to 100000.
 
 Example::
 
@@ -175,7 +187,7 @@ class DataSourceReader(ABC):
     """A base class for data source readers.
 
     :meth:`partitions` is called once on the client. :meth:`read` is called once per
-    partition, so the reader must be picklable.
+    partition, on the client or in a Snowflake UDTF, so the reader must be picklable.
     Open connections or clients inside :meth:`read` rather than in ``__init__``.
     """
 
