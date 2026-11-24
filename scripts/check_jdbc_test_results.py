@@ -31,7 +31,7 @@ def check_results(path):
         raise ValueError("Missing JDBC vendor smoke test results")
     if any(
         case.find(tag) is not None
-        for case in cases
+        for case in jdbc_cases
         for tag in ("skipped", "failure", "error")
     ):
         raise ValueError("JDBC run contains skipped, failed or errored tests")
