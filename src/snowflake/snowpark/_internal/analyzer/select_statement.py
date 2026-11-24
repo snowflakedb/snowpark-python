@@ -84,7 +84,6 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.select_projection_complexity_utils import (
     has_invalid_projection_merge_functions,
 )
-from snowflake.snowpark._internal import debug_config
 from snowflake.snowpark._internal.df_trace import current_trace_call, note_trace_seed
 from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
@@ -425,7 +424,7 @@ class Selectable(LogicalPlan, ABC):
 
             query = Query(
                 self.commented_sql
-                if debug_config.enabled(self._session, "trace_sql_errors_to_dataframe")
+                if context._enable_trace_sql_errors_to_dataframe
                 else self.sql_query,
                 params=self.query_params,
             )
@@ -1774,10 +1773,7 @@ class SelectStatement(Selectable):
             new.attributes = self.attributes
         # schema_query omits the WHERE clause, so describe the full query to validate it.
         # Skipped with pre-actions, since the query may depend on temp objects.
-        if (
-            debug_config.enabled(self._session, "eager_schema_validation")
-            and not new.pre_actions
-        ):
+        if context._debug_eager_schema_validation and not new.pre_actions:
             new.snowflake_plan._describe_full_query()
 
         return new
@@ -1818,10 +1814,7 @@ class SelectStatement(Selectable):
             new.attributes = self.attributes
         # schema_query omits the ORDER BY clause, so describe the full query to validate it.
         # Skipped with pre-actions, since the query may depend on temp objects.
-        if (
-            debug_config.enabled(self._session, "eager_schema_validation")
-            and not new.pre_actions
-        ):
+        if context._debug_eager_schema_validation and not new.pre_actions:
             new.snowflake_plan._describe_full_query()
 
         return new

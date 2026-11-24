@@ -1115,17 +1115,19 @@ def test_transaction(session):
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_session_enable_development_features(db_parameters):
+    from snowflake.snowpark import context
+
     with Session.builder.configs(db_parameters).create() as new_session:
         ast_enabled = new_session.ast_enabled
 
     # The tracing features do not depend on the AST and do not change its setting.
-    with Session.builder.configs(db_parameters).create() as new_session:
-        new_session.debug.enable_trace_sql_errors_to_dataframe()
-        assert new_session.ast_enabled is ast_enabled
+    with patch.object(context, "_enable_trace_sql_errors_to_dataframe", True):
+        with Session.builder.configs(db_parameters).create() as new_session:
+            assert new_session.ast_enabled is ast_enabled
 
-    with Session.builder.configs(db_parameters).create() as new_session:
-        new_session.debug.enable_dataframe_trace_on_error()
-        assert new_session.ast_enabled is ast_enabled
+    with patch.object(context, "_enable_dataframe_trace_on_error", True):
+        with Session.builder.configs(db_parameters).create() as new_session:
+            assert new_session.ast_enabled is ast_enabled
 
 
 def test_get_active_sessions_empty():

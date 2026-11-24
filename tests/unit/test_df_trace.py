@@ -6,16 +6,13 @@ import ast
 import copy
 import inspect
 import threading
-from unittest import mock
-from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.snowpark import Session, context
-from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark import context
 from snowflake.snowpark._internal.ast.utils import with_src_position
 from snowflake.snowpark._internal.utils import publicapi
 from snowflake.snowpark._internal.df_trace import (
@@ -257,11 +254,7 @@ def test_configure_development_features_does_not_use_the_ast():
     source = inspect.getsource(context.configure_development_features)
     assert (
         "ast"
-        not in source.replace("last", "")
-        .replace("fast", "")
-        .replace("least", "")
-        .lower()
-        .split('"""')[-1]
+        not in source.replace("last", "").replace("fast", "").lower().split('"""')[-1]
     )
 
 
@@ -285,28 +278,11 @@ def _plan_with(node):
 
 
 # ------------------------------------------------------------------ public call wrapper
-@contextmanager
-def _tracing_session():
-    """A session with the lineage trace on, so the public API wrapper records the trace."""
-    conn = mock.create_autospec(ServerConnection)
-    conn._conn = mock.Mock()
-    conn._conn._session_parameters = None
-    conn._thread_safe_session_enabled = True
-    conn._get_client_side_session_parameter = (
-        lambda x, y: ServerConnection._get_client_side_session_parameter(conn, x, y)
-    )
-    session = Session(conn)
-    session._debug.enable_dataframe_trace_on_error()
-    try:
-        yield session
-    finally:
-        session.close()
-
-
 @pytest.fixture()
 def tracing_flags():
-    with _tracing_session():
-        yield
+    context.configure_development_features(enable_dataframe_trace_on_error=True)
+    yield
+    context.configure_development_features()
 
 
 class _Container:
@@ -494,11 +470,15 @@ def test_publicapi_records_only_when_tracing_is_on():
 
     node = TraceNode(None)
     column = Column(ScalarSubquery(_plan_with(node)))
+    context.configure_development_features()
     off = _dataframe()
     _returning(off)(column)
-    with _tracing_session():
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
+    try:
         on = _dataframe()
         _returning(on)(column)
+    finally:
+        context.configure_development_features()
     assert off._trace_node.parents == []
     assert on._trace_node.parents == [node]
 
@@ -506,22 +486,51 @@ def test_publicapi_records_only_when_tracing_is_on():
 def test_registration_node_only_when_tracing_is_on():
     from snowflake.snowpark._internal.df_trace import registration_trace_node
 
+    context.configure_development_features()
     assert registration_trace_node("udf") is None
-    with _tracing_session():
+    context.configure_development_features(enable_dataframe_trace_on_error=True)
+    try:
         node = registration_trace_node("udf")
+    finally:
+        context.configure_development_features()
     assert node.kind == "udf"
     assert node.src.filename == __file__
 
 
-def test_tracing_flags_on_counts_the_tracing_sessions():
+def test_tracing_flags_on_follows_the_tracing_flags():
     from snowflake.snowpark._internal.df_trace import tracing_flags_on
 
-    assert tracing_flags_on() is False
-    with _tracing_session() as session:
-        assert tracing_flags_on() is True
-        session._debug.disable_dataframe_trace_on_error()
+    context.configure_development_features()
+    try:
         assert tracing_flags_on() is False
-        session._debug.enable_trace_sql_errors_to_dataframe()
+        context.configure_development_features(enable_dataframe_trace_on_error=True)
         assert tracing_flags_on() is True
-    # a closed session is released
-    assert tracing_flags_on() is False
+        context.configure_development_features(
+            enable_dataframe_trace_on_error=False,
+            enable_trace_sql_errors_to_dataframe=True,
+        )
+        assert tracing_flags_on() is True
+        context.configure_development_features(enable_eager_schema_validation=True)
+        context.configure_development_features(
+            enable_trace_sql_errors_to_dataframe=False
+        )
+        assert tracing_flags_on() is False
+    finally:
+        context.configure_development_features()
+
+
+def test_local_testing_sessions_are_not_tracing():
+    from unittest import mock
+
+    from snowflake.snowpark._internal.df_trace import is_tracing_enabled
+    from snowflake.snowpark.mock._connection import MockServerConnection
+
+    local = mock.Mock(_conn=mock.create_autospec(MockServerConnection))
+    remote = mock.Mock(_conn=mock.Mock())
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
+    try:
+        assert is_tracing_enabled(local) is False
+        assert is_tracing_enabled(remote) is True
+    finally:
+        context.configure_development_features()
+    assert is_tracing_enabled(remote) is False

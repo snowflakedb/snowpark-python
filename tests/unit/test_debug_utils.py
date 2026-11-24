@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal import debug_utils
+from snowflake.snowpark.context import configure_development_features
 from snowflake.snowpark._internal.df_trace import SrcPosition, TraceNode
 from snowflake.snowpark._internal.utils import get_plan_from_pre_query_line_number
 from snowflake.snowpark._internal.debug_utils import (
@@ -1092,10 +1093,15 @@ def test_line_less_error_describe_limit(monkeypatch):
     assert describes == ["a"]
 
 
+@pytest.fixture(autouse=True)
+def reset_development_features():
+    yield
+    configure_development_features()
+
+
 @pytest.fixture
 def line_less_session(mock_server_connection):
     from snowflake.snowpark import Session
-    from snowflake.snowpark._internal import debug_config
 
     session = mock.create_autospec(Session)
     session._conn = mock_server_connection
@@ -1108,10 +1114,9 @@ def line_less_session(mock_server_connection):
     session._get_result_attributes = types.MethodType(
         Session._get_result_attributes, session
     )
-    session._debug = debug_config.DebugConfig(session)
-    session._debug.enable_trace_sql_errors_to_dataframe()
+    configure_development_features(enable_trace_sql_errors_to_dataframe=True)
     yield session
-    session._debug.set()
+    configure_development_features()
 
 
 @pytest.mark.parametrize("child_fails", [False, True])
@@ -1255,9 +1260,9 @@ def test_line_less_error_wrapper_preserves_lineage_on_describe_failure(
     from snowflake.snowpark.exceptions import SnowparkSQLException
 
     session = line_less_session
-    session._debug.set(
-        trace_sql_errors_to_dataframe=trace_sql_errors,
-        dataframe_trace_on_error=trace_on_error,
+    configure_development_features(
+        enable_trace_sql_errors_to_dataframe=trace_sql_errors,
+        enable_dataframe_trace_on_error=trace_on_error,
     )
     child = SnowflakePlan([Query("select 1")], "select 1", session=session)
     child.df_trace_nodes = [_trace_node(10)]
@@ -1346,19 +1351,21 @@ def test_line_less_error_real_plan_trace_ownership(
         session.sql_simplifier_enabled = simplifier
         session._cte_optimization_enabled = False
         session._ast_enabled = False
-        session.debug.set(
-            trace_sql_errors_to_dataframe=tracing != "late",
-            dataframe_trace_on_error=tracing != "late",
+        configure_development_features(
+            enable_trace_sql_errors_to_dataframe=tracing != "late",
+            enable_dataframe_trace_on_error=tracing != "late",
         )
         left = session.create_dataframe([[1]], schema=["A"])
         right = session.create_dataframe([[1, 2]], schema=["A", "B"])
         if tracing == "gap":
-            session.debug.set(
-                trace_sql_errors_to_dataframe=False, dataframe_trace_on_error=False
+            configure_development_features(
+                enable_trace_sql_errors_to_dataframe=False,
+                enable_dataframe_trace_on_error=False,
             )
         bad = left.union_all(right) if operation == "union" else left.join(right, "B")
-        session.debug.set(
-            trace_sql_errors_to_dataframe=True, dataframe_trace_on_error=True
+        configure_development_features(
+            enable_trace_sql_errors_to_dataframe=True,
+            enable_dataframe_trace_on_error=True,
         )
         result = bad.filter(col("A") > 0)
         top = result._plan
@@ -1422,7 +1429,7 @@ def test_line_less_error_real_plan_trace_ownership(
         else:
             assert bad._trace_node is None
             assert "SQL compilation error corresponds to Python" not in context
-        session.debug.set()
+        configure_development_features()
 
 
 @pytest.mark.parametrize("copy_plan", [copy.copy, copy.deepcopy])
@@ -1438,7 +1445,7 @@ def test_line_less_error_trace_call_provenance_survives_wrapping_and_copying(
 
     with Session(mock_server_connection) as session:
         session._ast_enabled = False
-        session.debug.enable_trace_sql_errors_to_dataframe()
+        configure_development_features(enable_trace_sql_errors_to_dataframe=True)
         traced = session.create_dataframe([[1]], schema=["A"])
         token = traced._trace_node.trace_call_id
         assert token is not None
@@ -1446,12 +1453,12 @@ def test_line_less_error_trace_call_provenance_survives_wrapping_and_copying(
         for plan in (traced._plan, traced._select_statement):
             assert copy_plan(plan)._df_trace_call_id == plan._df_trace_call_id
 
-        session.debug.disable_trace_sql_errors_to_dataframe()
-        # Another session can keep the public API wrapper active while this one is off.
+        configure_development_features(enable_trace_sql_errors_to_dataframe=False)
+        # The public API wrapper can be active while the session does not trace.
         with mock.patch.object(df_trace, "tracing_flags_on", return_value=True):
             untraced = session.create_dataframe([[2]], schema=["A"])
         assert untraced._plan._df_trace_call_id is None
-        session.debug.enable_trace_sql_errors_to_dataframe()
+        configure_development_features(enable_trace_sql_errors_to_dataframe=True)
 
         @publicapi
         def rewrap():
@@ -1474,7 +1481,7 @@ def test_line_less_error_trace_call_provenance_survives_wrapping_and_copying(
         with pytest.raises(ValueError, match="test failure"):
             fail()
         assert df_trace.current_trace_call() is None
-        session.debug.set()
+        configure_development_features()
 
 
 @pytest.mark.parametrize("executed_sql", [None, "", "unknown SQL"])
