@@ -13,7 +13,7 @@ from snowflake.snowpark.session import (
 )
 from snowflake.snowpark.version import VERSION
 from snowflake.connector import SnowflakeConnection
-from tests.parameters import CONNECTION_PARAMETERS
+from tests.connection_params import CONNECTION_PARAMETERS
 
 
 @pytest.fixture(autouse=True, scope="module")

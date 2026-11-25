@@ -19,14 +19,7 @@ from tests.ast.ast_test_utils import (
     setup_full_ast_validation_mode,
 )
 from tests.integ.session_parameters import set_up_test_session_parameters
-
-try:
-    from tests.parameters import CONNECTION_PARAMETERS
-except ModuleNotFoundError:
-    # no tests/parameters.py: use a named connection from connections.toml
-    CONNECTION_PARAMETERS = {
-        "connection_name": os.getenv("SNOWFLAKE_TEST_CONNECTION", "default")
-    }
+from tests.connection_params import CONNECTION_PARAMETERS
 from tests.utils import (
     TEST_SCHEMA,
     TestFiles,
