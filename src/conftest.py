@@ -33,10 +33,8 @@ if os.path.exists(params_file):
         exec(f.read(), exec_globals)
     conn_params = exec_globals["CONNECTION_PARAMETERS"]
 else:
-    # fall back to a named connection in connections.toml
-    from tests.connection_params import load_connections_toml_parameters  # noqa: E402
-
-    conn_params = load_connections_toml_parameters()
+    # no tests/parameters.py: use a named connection from connections.toml
+    conn_params = {"connection_name": os.getenv("SNOWFLAKE_TEST_CONNECTION", "default")}
 
 
 def pytest_addoption(parser):

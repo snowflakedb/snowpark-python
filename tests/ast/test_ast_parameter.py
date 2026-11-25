@@ -6,7 +6,7 @@ import pytest
 
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.session import Session
-from tests.connection_params import CONNECTION_PARAMETERS
+from tests.parameters import CONNECTION_PARAMETERS
 
 
 @pytest.mark.parametrize("use_local_testing", [False, True])
