@@ -33,7 +33,9 @@ if os.path.exists(params_file):
         exec(f.read(), exec_globals)
     conn_params = exec_globals["CONNECTION_PARAMETERS"]
 else:
-    # fall back to a named connection in connections.toml
+    # fall back to a named connection in connections.toml; the repo root is not
+    # on sys.path when pytest loads this conftest
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from tests.connection_params import load_connections_toml_parameters  # noqa: E402
 
     conn_params = load_connections_toml_parameters()
