@@ -4,6 +4,12 @@
 
 import pytest
 
+from tests.utils import IS_FREE_THREADED
+
+if IS_FREE_THREADED:
+    # Importing lxml re-enables the GIL for the rest of the test process.
+    pytest.skip("lxml is not free-threading safe", allow_module_level=True)
+
 # Import the handlers to test
 from snowflake.snowpark._internal.xpath_handlers import (
     _xpath_evaluate_internal,

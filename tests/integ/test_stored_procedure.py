@@ -67,6 +67,7 @@ from snowflake.snowpark.types import (
 )
 from tests.integ.session_parameters import create_session_for_test
 from tests.utils import (
+    IS_FREE_THREADED,
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
     IS_PY314,
@@ -2652,6 +2653,10 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
     run=False,
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="test only works on github action")
+@pytest.mark.skipif(
+    IS_FREE_THREADED,
+    reason="oracledb publishes no free-threaded (cp314t) wheels",
+)
 def test_data_source_udtf_ingestion(db_parameters):
     from tests.integ.datasource.test_oracledb import (
         ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,

@@ -19,8 +19,11 @@ from tests.utils import TestData, Utils, installed_pandas
 try:
     import polars as pl
 
+    # polars-runtime-32 has no free-threaded build: on 3.14t `import polars` succeeds with a
+    # "Polars binary is missing!" warning and any use raises NameError.
+    pl.Series([0])
     _polars_available = True
-except ImportError:
+except (ImportError, NameError):
     pl = None  # type: ignore[assignment]
     _polars_available = False
 

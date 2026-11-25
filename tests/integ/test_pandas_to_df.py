@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.exceptions import SnowparkPandasException
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.types import (
     BooleanType,
     DoubleType,
@@ -41,6 +42,14 @@ from snowflake.snowpark.types import (
     TimestampType,
 )
 from tests.utils import IS_IN_STORED_PROC, Utils
+
+
+def one_day_timedelta(session):
+    """A timedelta column is stored as the integer in its dtype's unit, and pandas 3 infers microseconds where
+    earlier versions infer nanoseconds. Local testing always produces nanoseconds."""
+    pandas_3 = int(pd.__version__.split(".")[0]) >= 3
+    mock_session = isinstance(session._conn, MockServerConnection)
+    return 86400 * (10**6 if pandas_3 and not mock_session else 10**9)
 
 
 def assert_sorted_frame_equal(actual, expected, **kwargs):
@@ -698,8 +707,8 @@ StructField('TIMEDELTA', LongType(), nullable=True)\
         Row(timestamp=datetime(2023, 10, 24, 13, 46, 12, 123)),
     ]
     assert sp_df.select("TIMEDELTA").collect() == [
-        Row(86400000000000),
-        Row(86400000000000),
+        Row(one_day_timedelta(session)),
+        Row(one_day_timedelta(session)),
     ]
 
     pandas_df = pd.DataFrame(
@@ -778,7 +787,7 @@ def test_create_from_pandas_datetime_types(session):
     )
     sp_df = session.create_dataframe(data=pandas_df)
     assert sp_df.select("A").collect() == [Row(datetime(2023, 10, 25, 13, 46, 12, 123))]
-    assert sp_df.select("B").collect() == [Row(86400000000000)]
+    assert sp_df.select("B").collect() == [Row(one_day_timedelta(session))]
 
     pandas_df = pd.DataFrame(
         {

@@ -2,6 +2,14 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import pytest
+
+from tests.utils import IS_FREE_THREADED
+
+if IS_FREE_THREADED:
+    # Importing lxml re-enables the GIL for the rest of the test process.
+    pytest.skip("lxml is not free-threading safe", allow_module_level=True)
+
 import io
 import re
 import tempfile
@@ -9,7 +17,6 @@ import os
 import lxml.etree as ET
 import html.entities
 from unittest.mock import patch
-import pytest
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     attribute_to_schema_string_deep,

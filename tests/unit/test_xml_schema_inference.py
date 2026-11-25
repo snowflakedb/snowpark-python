@@ -2,13 +2,20 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import pytest
+
+from tests.utils import IS_FREE_THREADED
+
+if IS_FREE_THREADED:
+    # Importing lxml re-enables the GIL for the rest of the test process.
+    pytest.skip("lxml is not free-threading safe", allow_module_level=True)
+
 import io
 from contextlib import ExitStack
 from unittest import mock
 from unittest.mock import patch
 
 import lxml.etree as ET
-import pytest
 
 from snowflake.snowpark._internal.xml_schema_inference import (
     _normalize_text,
@@ -1818,8 +1825,9 @@ def _run_infer_xml(schema_rows, *, type_string=None, canonicalize=None):
             )
         if canonicalize is not None:
             stack.enter_context(
-                mock.patch.object(
-                    _dr_mod, "canonicalize_type", return_value=canonicalize
+                mock.patch(
+                    "snowflake.snowpark._internal.xml_schema_inference.canonicalize_type",
+                    return_value=canonicalize,
                 )
             )
         return reader._infer_schema_for_xml("@s/f.xml")

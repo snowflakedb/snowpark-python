@@ -5,6 +5,8 @@
 import logging
 import os
 import pickle
+import sys
+import sysconfig
 import threading
 from unittest import mock
 
@@ -15,6 +17,7 @@ from snowflake.snowpark import Session
 from snowflake.snowpark._internal.udf_utils import (
     RegistrationType,
     add_snowpark_package_to_sproc_packages,
+    check_python_runtime_version,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
     generate_anonymous_python_sp_sql,
@@ -25,7 +28,10 @@ from snowflake.snowpark._internal.udf_utils import (
     resolve_imports_and_packages,
     resolve_packages_in_client_side_sandbox,
 )
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    get_python_runtime_version,
+)
 from snowflake.snowpark.context import (
     _ANACONDA_SHARED_REPOSITORY,
     _DEFAULT_ARTIFACT_REPOSITORY,
@@ -589,3 +595,101 @@ def test_sandbox_ar_pandas_udf_unparseable_spec_still_injects_pandas():
     )
     assert "pandas" in names
     assert names.count("pandas") == 1
+
+
+def _patch_gil_disabled(value):
+    get_config_var = sysconfig.get_config_var
+    return mock.patch(
+        "snowflake.snowpark._internal.utils.sysconfig.get_config_var",
+        side_effect=lambda name: value
+        if name == "Py_GIL_DISABLED"
+        else get_config_var(name),
+    )
+
+
+@pytest.fixture
+def free_threaded_runtime_version():
+    """Makes the running interpreter look like a free-threaded build; yields its expected RUNTIME_VERSION."""
+    get_python_runtime_version.cache_clear()
+    with _patch_gil_disabled(1):
+        yield f"{sys.version_info[0]}.{sys.version_info[1]}t"
+    get_python_runtime_version.cache_clear()
+
+
+@pytest.mark.parametrize("gil_disabled, suffix", [(None, ""), (0, ""), (1, "t")])
+def test_get_python_runtime_version(gil_disabled, suffix):
+    get_python_runtime_version.cache_clear()
+    try:
+        with _patch_gil_disabled(gil_disabled):
+            assert (
+                get_python_runtime_version()
+                == f"{sys.version_info[0]}.{sys.version_info[1]}{suffix}"
+            )
+    finally:
+        get_python_runtime_version.cache_clear()
+
+
+def test_check_python_runtime_version_free_threaded(free_threaded_runtime_version):
+    check_python_runtime_version(None)
+    check_python_runtime_version(free_threaded_runtime_version)
+    # The GIL build of the same version is accepted, so a requirements pin can opt out of free threading.
+    check_python_runtime_version(free_threaded_runtime_version[:-1])
+    with pytest.raises(ValueError, match="Cloudpickle can only be used"):
+        check_python_runtime_version(f"{sys.version_info[0]}.{sys.version_info[1] + 1}")
+
+
+def _create_udf_query(mock_session, mock_server_connection, **kwargs):
+    mock_session._conn = mock_server_connection
+    mock_session._runtime_version_from_requirement = None
+    with mock.patch.object(mock_session, "_run_query") as mock_run_query:
+        create_python_udf_or_sp(
+            session=mock_session,
+            func=lambda: None,
+            return_type=StringType(),
+            input_args=[],
+            opt_arg_defaults=[],
+            handler="",
+            object_type=TempObjectType.FUNCTION,
+            object_name="",
+            all_imports="",
+            all_packages="",
+            raw_imports=None,
+            registration_type=RegistrationType.UDF,
+            is_permanent=True,
+            replace=False,
+            if_not_exists=False,
+            **kwargs,
+        )
+    return mock_run_query.call_args[0][0]
+
+
+def test_create_python_udf_or_sp_free_threaded_runtime_version(
+    mock_session, mock_server_connection, free_threaded_runtime_version
+):
+    query = _create_udf_query(mock_session, mock_server_connection)
+    assert f"RUNTIME_VERSION='{free_threaded_runtime_version}'" in query
+
+
+def test_create_python_udf_or_sp_explicit_runtime_version_is_quoted(
+    mock_session, mock_server_connection
+):
+    query = _create_udf_query(
+        mock_session, mock_server_connection, runtime_version="3.10"
+    )
+    assert "RUNTIME_VERSION='3.10'" in query
+
+
+def test_generate_anonymous_python_sp_sql_free_threaded_runtime_version(
+    free_threaded_runtime_version,
+):
+    sql = generate_anonymous_python_sp_sql(
+        func=lambda: None,
+        return_type=StringType(),
+        input_args=[],
+        handler="",
+        object_name="",
+        all_imports="",
+        all_packages="",
+        raw_imports=None,
+    )
+    assert f"RUNTIME_VERSION='{free_threaded_runtime_version}'" in sql
