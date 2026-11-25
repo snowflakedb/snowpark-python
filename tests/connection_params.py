@@ -8,7 +8,7 @@ exist, fall back to a named connection in ``connections.toml`` (the file used by
 snowflake-connector-python and the Snowflake CLI):
 
 * location: ``$SNOWFLAKE_HOME/connections.toml``, defaulting to ``~/.snowflake/connections.toml``
-* connection: ``$SNOWFLAKE_TEST_CONNECTION``, defaulting to ``default``
+* connection: ``$SNOWPARK_TEST_CONNECTION`` (required)
 """
 
 import importlib
@@ -44,12 +44,17 @@ def load_connections_toml_parameters() -> Dict[str, Any]:
         )
     with open(path, "rb") as f:
         content = _toml.load(f)
-    name = os.getenv("SNOWFLAKE_TEST_CONNECTION", "default")
+    name = os.getenv("SNOWPARK_TEST_CONNECTION")
+    if not name:
+        raise KeyError(
+            "tests/parameters.py does not exist and SNOWPARK_TEST_CONNECTION is not set. "
+            "Set SNOWPARK_TEST_CONNECTION to a connection name in connections.toml."
+        )
     params = content.get(name)
     if not isinstance(params, dict):
         raise KeyError(
             f"Connection '{name}' not found in {path}. "
-            "Set SNOWFLAKE_TEST_CONNECTION to the connection to use for tests."
+            "Check SNOWPARK_TEST_CONNECTION."
         )
     return dict(params)
 

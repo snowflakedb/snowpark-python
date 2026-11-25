@@ -18,7 +18,7 @@ CONNECTION_PARAMETERS = {
 ```
 If `tests/parameters.py` does not exist, the integration tests fall back to a named connection in
 `connections.toml` (`$SNOWFLAKE_HOME/connections.toml`, default `~/.snowflake/connections.toml`).
-Select the connection with the `SNOWFLAKE_TEST_CONNECTION` environment variable (default: `default`).
+Select the connection with the `SNOWPARK_TEST_CONNECTION` environment variable (required).
 `tests/parameters.py` always takes precedence when present.
 
 Snowpark also offers the convenience of implicit session creation from a configuration file.
