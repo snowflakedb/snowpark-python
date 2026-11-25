@@ -315,7 +315,7 @@ def get_wif_token(secret_name: str, audience: str) -> str:
     return _get_secrets_instance().get_wif_token(secret_name, audience)
 
 
-@private_preview(version="1.58.0")
+@private_preview(version="1.59.0")
 def get_external_secret_json(secret_name: str) -> str:
     """Get the value of an external secret from Snowflake.
 

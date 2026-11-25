@@ -65,12 +65,12 @@ def test_secrets_mock_server_paths():
 
 
 def test_get_external_secret_json_is_in_private_preview():
-    assert "in private preview since 1.58.0" in get_external_secret_json.__doc__
+    assert "in private preview since 1.59.0" in get_external_secret_json.__doc__
     fake_module = _build_fake_snowflake_module()
     with patch.dict("sys.modules", {"_snowflake": fake_module}):
         with patch("snowflake.snowpark._internal.utils.warning") as warn:
             get_external_secret_json("e1")
-    assert "in private preview since 1.58.0" in warn.call_args[0][1]
+    assert "in private preview since 1.59.0" in warn.call_args[0][1]
 
 
 @pytest.fixture

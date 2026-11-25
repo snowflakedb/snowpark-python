@@ -12,6 +12,7 @@
   - `Tool.from_procedure` and `Tool.from_function` turn existing procedures and UDFs, in any language, into tools.
   - `MCPServer` prints its specification (`to_yaml`), deploys it with its Python tools (`deploy`, which checks the definition first and has a `dry_run` option, with a suffix for dev and prod copies), calls deployed tools over a session (`call_tool`), and grants a role everything the tools need (`grant_usage`).
   - `Tool.builtin` adds the MCP server's built-in tool types (such as Cortex Agent, Cortex Analyst and Cortex Search) to a server.
+- Added `get_external_secret_json` to `snowflake.snowpark.secrets` (Private Preview) to read external secrets, which point to a secret in AWS, Azure, or GCP, on the Snowflake server. It returns unparsed JSON text with the provider's secret value under `value`, and is not available in SPCS file-based secret environments.
 
 #### Improvements
 
@@ -33,7 +34,6 @@
 
 #### New Features
 
-- Added `get_external_secret_json` to `snowflake.snowpark.secrets` (Private Preview) to read external secrets, which point to a secret in AWS, Azure, or GCP, on the Snowflake server. It returns unparsed JSON text with the provider's secret value under `value`, and is not available in SPCS file-based secret environments.
 - `DataFrameReader.documents()` (Private Preview) reads with a `schema` or a `prompt` now return the `AI_COMPLETE` token usage of each document in `INPUT_TOKENS` and `OUTPUT_TOKENS` columns. A schema field can no longer be named like one of these columns.
 
 #### Improvements
