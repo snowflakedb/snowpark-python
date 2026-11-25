@@ -16,10 +16,9 @@ CONNECTION_PARAMETERS = {
     'warehouse': '<warehouse>',
 }
 ```
-If `tests/parameters.py` does not exist, the integration tests fall back to a named connection in
-`connections.toml` (`$SNOWFLAKE_HOME/connections.toml`, default `~/.snowflake/connections.toml`).
-Select the connection with the `SNOWPARK_TEST_CONNECTION` environment variable (required).
-`tests/parameters.py` always takes precedence when present.
+If `tests/parameters.py` does not exist, the tests use the connection named by the
+`SNOWPARK_TEST_CONNECTION` environment variable in `~/.snowflake/connections.toml`, or the
+`[SNOWPARK_TEST_CONNECTION]` section if the variable is not set.
 
 Snowpark also offers the convenience of implicit session creation from a configuration file.
 This feature is particularly useful to Snowpark pandas users, because you can write your Snowpark pandas code almost as you would normally write pandas code.
