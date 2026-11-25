@@ -352,8 +352,10 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
 
 
 def test_local_ingestion_raises_when_upload_fails_while_fetch_threads_wait():
+    import queue
     import threading
     import time
+    import types
 
     import pandas as pd
 
@@ -373,6 +375,17 @@ def test_local_ingestion_raises_when_upload_fails_while_fetch_threads_wait():
         time.sleep(1)
         raise RuntimeError("upload failed")
 
+    created_queues = []
+
+    class RecordingQueue(queue.Queue):
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            created_queues.append(self)
+
+    recording_queue_module = types.SimpleNamespace(
+        Queue=RecordingQueue, Empty=queue.Empty, Full=queue.Full
+    )
+
     partitioner = Mock()
     partitioner.reader.side_effect = Reader
     errors = []
@@ -385,12 +398,21 @@ def test_local_ingestion_raises_when_upload_fails_while_fetch_threads_wait():
         except SnowparkDataframeReaderException as e:
             errors.append(e)
 
-    with patch.object(utils, "process_parquet_queue_with_threads", failing_upload):
+    with patch.object(
+        utils, "process_parquet_queue_with_threads", failing_upload
+    ), patch.object(utils, "queue", recording_queue_module):
         thread = threading.Thread(target=ingest, daemon=True)
         thread.start()
         thread.join(timeout=30)
+        hung = thread.is_alive()
+        # If the hang regresses, drain the queues so the blocked fetch threads finish; interpreter shutdown
+        # would otherwise wait on them forever.
+        deadline = time.monotonic() + 30
+        while thread.is_alive() and time.monotonic() < deadline:
+            for q in created_queues:
+                while not q.empty():
+                    q.get_nowait()
+            thread.join(timeout=0.1)
 
-    assert (
-        not thread.is_alive()
-    ), "local_ingestion did not return after the upload failed"
+    assert not hung, "local_ingestion did not return after the upload failed"
     assert len(errors) == 1 and "upload failed" in str(errors[0])

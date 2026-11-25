@@ -278,13 +278,14 @@ def _task_fetch_data_from_source(
     Put BytesIO objects into the multiprocessing queue.
     """
 
-    def convert_to_parquet_bytesio(fetched_data, fetch_idx):
+    def convert_to_parquet_bytesio(fetched_data, fetch_idx) -> bool:
+        """Returns False if the stop event was set before the chunk could be queued."""
         df = worker.data_source_data_to_pandas_df(fetched_data)
         if df.empty:
             logger.debug(
                 f"The DataFrame is empty, no parquet BytesIO is generated for partition {partition_idx} fetch {fetch_idx}."
             )
-            return
+            return True
 
         # Create BytesIO object and write parquet data to it
         parquet_buffer = BytesIO()
@@ -298,13 +299,15 @@ def _task_fetch_data_from_source(
         if not _put_unless_stopped(
             parquet_queue, (parquet_id, parquet_buffer), stop_event
         ):
-            return
+            return False
         logger.debug(f"Added parquet BytesIO to queue: {parquet_id}")
+        return True
 
     for i, result in enumerate(worker.read(partition)):
         if stop_event and stop_event.is_set():
             return
-        convert_to_parquet_bytesio(result, i)
+        if not convert_to_parquet_bytesio(result, i):
+            return
 
     _put_unless_stopped(
         parquet_queue,
