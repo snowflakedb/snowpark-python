@@ -17,7 +17,7 @@ from snowflake.snowpark._internal.pdf_reader import (
     extract_text_pages,
     selected_page_indexes,
 )
-from tests.utils import TestFiles
+from tests.utils import IS_FREE_THREADED, TestFiles
 
 RESOURCES_PATH = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "../resources")
@@ -25,6 +25,12 @@ RESOURCES_PATH = os.path.normpath(
 TEST_FILES = TestFiles(RESOURCES_PATH)
 
 DOC_PAGE_COUNT = 3
+
+# python-docx imports lxml, which re-enables the GIL for the rest of the test process.
+skip_docx_on_free_threaded = pytest.mark.skipif(
+    IS_FREE_THREADED,
+    reason="python-docx depends on lxml, which is not free-threading safe",
+)
 
 
 def _page_filter(*ranges):
@@ -106,6 +112,7 @@ def _build_docx_bytes(sections):
     return buf
 
 
+@skip_docx_on_free_threaded
 def test_extract_docx_pages_splits_on_headings():
     buf = _build_docx_bytes(
         [("Section One", "First body text"), ("Section Two", "Second body text")]
@@ -119,6 +126,7 @@ def test_extract_docx_pages_splits_on_headings():
     assert "Second body text" in pages[1][1]
 
 
+@skip_docx_on_free_threaded
 def test_extract_docx_pages_no_headings_is_a_single_page():
     import docx
 
@@ -133,6 +141,7 @@ def test_extract_docx_pages_no_headings_is_a_single_page():
     assert "Just one plain paragraph" in pages[0][1]
 
 
+@skip_docx_on_free_threaded
 def test_extract_docx_pages_skips_blank_paragraphs():
     import docx
 
@@ -151,6 +160,7 @@ def test_extract_docx_pages_skips_blank_paragraphs():
     assert "More text after the blank line" in pages[0][1]
 
 
+@skip_docx_on_free_threaded
 def test_extract_docx_pages_all_blank_is_zero_pages():
     import docx
 
@@ -166,6 +176,7 @@ def test_extract_docx_pages_all_blank_is_zero_pages():
     assert pages == []
 
 
+@skip_docx_on_free_threaded
 def test_extract_docx_pages_honors_page_filter():
     buf = _build_docx_bytes(
         [
@@ -264,6 +275,7 @@ def test_process_page_boundary_honors_page_filter():
     assert [r[0] for r in rows] == [0, 1]
 
 
+@skip_docx_on_free_threaded
 def test_process_docx_document_boundary():
     with _mock_snowflake_file_open(
         lambda: _build_docx_bytes([("Section One", "First"), ("Section Two", "Second")])
@@ -280,6 +292,7 @@ def test_process_docx_document_boundary():
     assert "First" in content and "Second" in content
 
 
+@skip_docx_on_free_threaded
 def test_process_docx_page_boundary():
     with _mock_snowflake_file_open(
         lambda: _build_docx_bytes([("Section One", "First"), ("Section Two", "Second")])
