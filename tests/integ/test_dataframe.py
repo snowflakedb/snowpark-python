@@ -7040,8 +7040,14 @@ def test_dataframe_result_cache_changing_schema(session):
         ["a", "b"]
     )
     old_cached_df = df.cache_result()
+    original_schema = session.get_current_schema()
     session.use_schema("public")  # schema change
-    old_cached_df.show()
+    try:
+        old_cached_df.show()
+    finally:
+        # Later tests on this worker would otherwise register objects in PUBLIC, which uses the account's
+        # default artifact repository rather than the test schema's.
+        session.use_schema(original_schema)
 
 
 @pytest.mark.skipif(
