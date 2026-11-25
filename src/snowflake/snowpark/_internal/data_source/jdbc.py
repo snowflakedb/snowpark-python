@@ -399,13 +399,47 @@ class JDBC:
             }}
 
             public class DataLoader{{
-            private final Connection conn;
+            // Snowflake may call process() several times on one handler instance (one call
+            // per partition row it routes here), so the connection is shared across calls,
+            // opened on first use. Each call owns its Statement and ResultSet. A failed
+            // or explicitly closed stream releases the connection only when no other
+            // stream is using it; endPartition() also cleans up abandoned streams.
+            private Connection conn;
+            private final List<AutoCloseable> openResources = new ArrayList<>();
 
             private static Connection createConnection() {{
                 try {{
                     {self.generate_create_connection()}
                 }} catch (Exception e) {{
-                    throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage());
+                    throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage(), e);
+                }}
+            }}
+
+            private Connection getConnection() throws SQLException {{
+                if (this.conn == null || this.conn.isClosed()) {{
+                    this.conn = createConnection();
+                }}
+                return this.conn;
+            }}
+
+            private void closeQuietly(AutoCloseable resource) {{
+                if (resource == null) {{
+                    return;
+                }}
+                openResources.remove(resource);
+                try {{
+                    resource.close();
+                }} catch (Exception ignored) {{
+                }}
+            }}
+
+            private void closeStream(Statement stmt, ResultSet rs) {{
+                closeQuietly(rs);
+                closeQuietly(stmt);
+                // Do not invalidate another process() stream on this handler.
+                if (openResources.isEmpty()) {{
+                    closeQuietly(this.conn);
+                    this.conn = null;
                 }}
             }}
 
@@ -414,7 +448,6 @@ class JDBC:
             }}
 
             public DataLoader() {{
-                this.conn = createConnection();
             }}
 
             public Stream<OutputRow> process(String query) {{
@@ -427,12 +460,14 @@ class JDBC:
                 return Stream.generate(() -> {{
                     try {{
                         if (rsRef[0] == null) {{
-                            Statement stmt = this.conn.createStatement();
+                            Statement stmt = getConnection().createStatement();
+                            openResources.add(stmt);
+                            stmtRef[0] = stmt;
                             stmt.setQueryTimeout({str(self.query_timeout)});
                             stmt.setFetchSize({str(self.fetch_size)});
                             {self.generate_session_init_statement()}
-                            stmtRef[0] = stmt;
                             rsRef[0] = stmt.executeQuery(query);
+                            openResources.add(rsRef[0]);
                         }}
                         ResultSet rs = rsRef[0];
                         if (rs.next()) {{
@@ -440,21 +475,27 @@ class JDBC:
                             {self.create_output_row_java_code()}
                             return row;
                         }} else {{
-                            rs.close();
-                            stmtRef[0].close();
-                            this.conn.close();
+                            closeQuietly(rs);
+                            closeQuietly(stmtRef[0]);
                             return null;
                         }}
                     }} catch (Exception e) {{
+                        closeStream(stmtRef[0], rsRef[0]);
                         // Exception rather than SQLException: this block now also covers
                         // connection and statement setup, whose failures are not always
                         // SQLException.
                         throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
                     }}
-                }}).takeWhile(Objects::nonNull);
+                }}).takeWhile(Objects::nonNull)
+                  .onClose(() -> closeStream(stmtRef[0], rsRef[0]));
             }}
 
             public Stream<OutputRow> endPartition() {{
+                for (AutoCloseable resource : new ArrayList<>(openResources)) {{
+                    closeQuietly(resource);
+                }}
+                closeQuietly(this.conn);
+                this.conn = null;
                 return Stream.empty();
             }}
         }}

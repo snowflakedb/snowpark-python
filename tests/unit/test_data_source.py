@@ -4,6 +4,9 @@
 
 import pytest
 import re
+import shutil
+import subprocess
+from pathlib import Path
 from unittest.mock import Mock, patch
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
@@ -225,7 +228,7 @@ def test_jdbc_read_udtf_executes_query_lazily():
     # inside the lazily evaluated supplier. Match the full call sites rather than
     # bare identifiers, which also appear in the surrounding comments.
     assert ddl.index("stmt.executeQuery(query)") > ddl.index("Stream.generate")
-    assert ddl.index("this.conn.createStatement()") > ddl.index("Stream.generate")
+    assert ddl.index("getConnection().createStatement()") > ddl.index("Stream.generate")
     assert ddl.index("stmt.setQueryTimeout(") > ddl.index("Stream.generate")
 
     # Lambda capture requires effectively-final holders.
@@ -325,6 +328,98 @@ def test_jdbc_infer_schema_sql_unchanged_without_special_chars(
     assert literal.startswith("'SELECT ") and literal.endswith(" WHERE 1 = 0'")
     assert "\\" not in literal and "''" not in literal
     assert _strip_infer_schema_wrapper(literal[1:-1]) == table_or_query
+
+
+@pytest.fixture(scope="module")
+def compiled_jdbc_handler(tmp_path_factory):
+    """Execute the generated ingestion handler against JDBC proxies, without Snowflake."""
+    if not shutil.which("javac") or not shutil.which("java"):
+        pytest.skip("JDK required to execute generated JDBC handlers")
+    directory = tmp_path_factory.mktemp("jdbc_read")
+    with patch.object(
+        JDBC,
+        "generate_create_connection",
+        return_value="return JdbcHandlerHarness.connect();",
+    ):
+        ddl = _render_jdbc_ddls()
+    source = ddl.split("$$")[1]
+    source = re.sub(r"import com\.snowflake\.[^;]+;", "", source)
+    (directory / "DataLoader.java").write_text(source)
+    harness = (
+        Path(__file__).parents[1]
+        / "resources/test_data_source_dir/JdbcHandlerHarness.java"
+    )
+    shutil.copy2(harness, directory)
+    result = subprocess.run(
+        ["javac", str(directory / "DataLoader.java"), str(directory / harness.name)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    return directory
+
+
+@pytest.mark.parametrize("failure", ["", "close"])
+def test_jdbc_handler_exhaustion_and_close_errors(compiled_jdbc_handler, failure):
+    directory = compiled_jdbc_handler
+    result = subprocess.run(
+        [
+            "java",
+            "-cp",
+            str(directory),
+            "JdbcHandlerHarness",
+            "exhaust",
+            failure,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "scenario", ["repeat", "partial", "end", "interleaved", "interleaved-error"]
+)
+def test_jdbc_handler_lifecycle(compiled_jdbc_handler, scenario):
+    directory = compiled_jdbc_handler
+    result = subprocess.run(
+        ["java", "-cp", str(directory), "JdbcHandlerHarness", scenario],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "createStatement",
+        "setQueryTimeout",
+        "setFetchSize",
+        "executeQuery",
+        "next",
+        "getString",
+    ],
+)
+def test_jdbc_handler_error_cleanup(compiled_jdbc_handler, failure):
+    directory = compiled_jdbc_handler
+    result = subprocess.run(
+        [
+            "java",
+            "-cp",
+            str(directory),
+            "JdbcHandlerHarness",
+            "error",
+            failure,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_jdbc_read_casts_partition_argument_to_varchar():
