@@ -19,7 +19,7 @@ from tests.ast.ast_test_utils import (
     setup_full_ast_validation_mode,
 )
 from tests.integ.session_parameters import set_up_test_session_parameters
-from tests.parameters import CONNECTION_PARAMETERS
+from tests.connection_params import CONNECTION_PARAMETERS
 from tests.utils import (
     TEST_SCHEMA,
     TestFiles,

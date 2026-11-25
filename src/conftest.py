@@ -26,11 +26,17 @@ from integ.session_parameters import set_up_test_session_parameters  # noqa: E40
 
 # get the absolute path of rsa private key files
 params_file = os.path.abspath("tests/parameters.py")
-with open("tests/parameters.py", encoding="utf-8") as f:
-    # inject rsa private key file path so that the connection parameters can access rsa private key file correctly
-    exec_globals = {"__file__": params_file}
-    exec(f.read(), exec_globals)
-conn_params = exec_globals["CONNECTION_PARAMETERS"]
+if os.path.exists(params_file):
+    with open(params_file, encoding="utf-8") as f:
+        # inject rsa private key file path so that the connection parameters can access rsa private key file correctly
+        exec_globals = {"__file__": params_file}
+        exec(f.read(), exec_globals)
+    conn_params = exec_globals["CONNECTION_PARAMETERS"]
+else:
+    # fall back to a named connection in connections.toml
+    from tests.connection_params import load_connections_toml_parameters  # noqa: E402
+
+    conn_params = load_connections_toml_parameters()
 
 
 def pytest_addoption(parser):
