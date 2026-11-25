@@ -41,7 +41,7 @@ public class JdbcHandlerHarness {
                 return null;
             }
             if (closed || (parent != null && parent.closed)) throw new SQLException("closed resource");
-            if (name.equals(failure)) throw new SQLException("expected failure: " + name);
+            if (name.equals(failure)) throw new SQLException("SYNTHETIC_CREDENTIAL expected failure: " + name);
             if (name.equals("createStatement")) return resource(Statement.class, "statement", this);
             if (name.equals("executeQuery")) return resource(ResultSet.class, "result", this);
             if (name.equals("next")) return rows++ < 2;
@@ -69,6 +69,13 @@ public class JdbcHandlerHarness {
         }
     }
 
+    static void assertSafeError(RuntimeException error) {
+        if (!"Ingestion error: JDBC read failed".equals(error.getMessage())
+                || error.getCause() != null || error.getSuppressed().length != 0) {
+            throw new AssertionError("unsafe source error", error);
+        }
+    }
+
     public static void main(String[] args) {
         String scenario = args[0];
         failure = args.length > 1 ? args[1] : "";
@@ -78,9 +85,7 @@ public class JdbcHandlerHarness {
                 loader.process("query").count();
                 throw new AssertionError("expected source failure");
             } catch (RuntimeException expected) {
-                if (!expected.getMessage().contains("Ingestion error:") || expected.getCause() == null) {
-                    throw new AssertionError("lost source error", expected);
-                }
+                assertSafeError(expected);
                 // endPartition is not guaranteed after a handler error.
                 assertClosed();
             }
@@ -108,6 +113,7 @@ public class JdbcHandlerHarness {
                     firstRows.next();
                     throw new AssertionError("expected first-stream failure");
                 } catch (RuntimeException expected) {
+                    assertSafeError(expected);
                     failure = "";
                 }
             }

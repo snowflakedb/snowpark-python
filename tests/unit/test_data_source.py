@@ -330,6 +330,49 @@ def test_jdbc_infer_schema_sql_unchanged_without_special_chars(
     assert _strip_infer_schema_wrapper(literal[1:-1]) == table_or_query
 
 
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        ("jdbc:postgresql://u:pw@host:5432/db", "jdbc:postgresql://host:5432/db"),
+        (
+            "jdbc:postgresql://host:5432/db?user=u&password=pw",
+            "jdbc:postgresql://host:5432/db",
+        ),
+        (
+            "jdbc:postgresql://host:5432/db?sslmode=require&password=pw&ssl=true",
+            "jdbc:postgresql://host:5432/db?sslmode=require&ssl=true",
+        ),
+        (
+            "jdbc:mysql://host:3306/db?PASSWORD=pw&useSSL=true",
+            "jdbc:mysql://host:3306/db?useSSL=true",
+        ),
+        (
+            "jdbc:sqlserver://host:1433;databaseName=d;user=u;password=pw;encrypt=true",
+            "jdbc:sqlserver://host:1433;databaseName=d;encrypt=true",
+        ),
+        ("jdbc:oracle:thin:u/pw@//host:1521/svc", "jdbc:oracle:thin:@//host:1521/svc"),
+        ("jdbc:oracle:thin:@//host:1521/svc", "jdbc:oracle:thin:@//host:1521/svc"),
+        (
+            "jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS=(HOST=h)(PORT=1521)))",
+            "jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS=(HOST=h)(PORT=1521)))",
+        ),
+    ],
+)
+def test_jdbc_secret_detector_strips_url_credentials(url, expected):
+    """SNOW-4537765: the URL is embedded in the UDTF DDL, so credentials in any
+    common JDBC URL form must be removed while other parameters are kept."""
+    client = JDBC(
+        session=Mock(),
+        url=url,
+        table_or_query="SELECT 1",
+        external_access_integration="EAI",
+        imports=[],
+        is_query=True,
+        secret="cred",
+    )
+    assert client.url == expected
+
+
 @pytest.fixture(scope="module")
 def compiled_jdbc_handler(tmp_path_factory):
     """Execute the generated ingestion handler against JDBC proxies, without Snowflake."""
@@ -444,49 +487,6 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
         sql for sql in captured if "table(" in sql.lower() and "select result" in sql
     )
     assert "(partition::VARCHAR)) AS result" in select
-
-
-@pytest.mark.parametrize(
-    "url, expected",
-    [
-        ("jdbc:postgresql://u:pw@host:5432/db", "jdbc:postgresql://host:5432/db"),
-        (
-            "jdbc:postgresql://host:5432/db?user=u&password=pw",
-            "jdbc:postgresql://host:5432/db",
-        ),
-        (
-            "jdbc:postgresql://host:5432/db?sslmode=require&password=pw&ssl=true",
-            "jdbc:postgresql://host:5432/db?sslmode=require&ssl=true",
-        ),
-        (
-            "jdbc:mysql://host:3306/db?PASSWORD=pw&useSSL=true",
-            "jdbc:mysql://host:3306/db?useSSL=true",
-        ),
-        (
-            "jdbc:sqlserver://host:1433;databaseName=d;user=u;password=pw;encrypt=true",
-            "jdbc:sqlserver://host:1433;databaseName=d;encrypt=true",
-        ),
-        ("jdbc:oracle:thin:u/pw@//host:1521/svc", "jdbc:oracle:thin:@//host:1521/svc"),
-        ("jdbc:oracle:thin:@//host:1521/svc", "jdbc:oracle:thin:@//host:1521/svc"),
-        (
-            "jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS=(HOST=h)(PORT=1521)))",
-            "jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS=(HOST=h)(PORT=1521)))",
-        ),
-    ],
-)
-def test_jdbc_secret_detector_strips_url_credentials(url, expected):
-    """SNOW-4537765: the URL is embedded in the UDTF DDL, so credentials in any
-    common JDBC URL form must be removed while other parameters are kept."""
-    client = JDBC(
-        session=Mock(),
-        url=url,
-        table_or_query="SELECT 1",
-        external_access_integration="EAI",
-        imports=[],
-        is_query=True,
-        secret="cred",
-    )
-    assert client.url == expected
 
 
 @pytest.mark.parametrize(
