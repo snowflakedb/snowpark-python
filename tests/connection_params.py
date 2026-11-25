@@ -8,8 +8,7 @@ exist, fall back to a named connection in ``connections.toml`` (the file used by
 snowflake-connector-python and the Snowflake CLI):
 
 * location: ``$SNOWFLAKE_HOME/connections.toml``, defaulting to ``~/.snowflake/connections.toml``
-* connection: ``$SNOWFLAKE_TEST_CONNECTION``, else ``$SNOWFLAKE_DEFAULT_CONNECTION_NAME``, else
-  ``default_connection_name`` from ``connections.toml``, else ``default``
+* connection: ``$SNOWFLAKE_TEST_CONNECTION``, defaulting to ``default``
 """
 
 import importlib
@@ -45,12 +44,7 @@ def load_connections_toml_parameters() -> Dict[str, Any]:
         )
     with open(path, "rb") as f:
         content = _toml.load(f)
-    name = (
-        os.getenv("SNOWFLAKE_TEST_CONNECTION")
-        or os.getenv("SNOWFLAKE_DEFAULT_CONNECTION_NAME")
-        or content.get("default_connection_name")
-        or "default"
-    )
+    name = os.getenv("SNOWFLAKE_TEST_CONNECTION", "default")
     params = content.get(name)
     if not isinstance(params, dict):
         raise KeyError(
