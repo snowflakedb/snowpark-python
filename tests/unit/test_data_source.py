@@ -1059,3 +1059,70 @@ def test_jdbc_correction_ssl_flag_is_postgres_only(base):
     with pytest.raises(ValueError):
         _jdbc_security_client(base + "?ssl", session=session)
     session.sql.assert_not_called()
+
+
+def test_local_ingestion_raises_when_upload_fails_while_fetch_threads_wait():
+    import queue
+    import threading
+    import time
+    import types
+
+    import pandas as pd
+
+    from snowflake.snowpark._internal.data_source import utils
+    from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+
+    class Reader:
+        def read(self, partition):
+            # More chunks than the parquet queue holds, so the fetch threads block on it.
+            for _ in range(50):
+                yield [(1,)]
+
+        def data_source_data_to_pandas_df(self, data):
+            return pd.DataFrame(data, columns=["A"])
+
+    def failing_upload(**kwargs):
+        time.sleep(1)
+        raise RuntimeError("upload failed")
+
+    created_queues = []
+
+    class RecordingQueue(queue.Queue):
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            created_queues.append(self)
+
+    recording_queue_module = types.SimpleNamespace(
+        Queue=RecordingQueue, Empty=queue.Empty, Full=queue.Full
+    )
+
+    partitioner = Mock()
+    partitioner.reader.side_effect = Reader
+    errors = []
+
+    def ingest():
+        try:
+            utils.local_ingestion(
+                Mock(), partitioner, ["q0", "q1"], 2, "stage", "table", {}, {}
+            )
+        except SnowparkDataframeReaderException as e:
+            errors.append(e)
+
+    with patch.object(
+        utils, "process_parquet_queue_with_threads", failing_upload
+    ), patch.object(utils, "queue", recording_queue_module):
+        thread = threading.Thread(target=ingest, daemon=True)
+        thread.start()
+        thread.join(timeout=30)
+        hung = thread.is_alive()
+        # If the hang regresses, drain the queues so the blocked fetch threads finish; interpreter shutdown
+        # would otherwise wait on them forever.
+        deadline = time.monotonic() + 30
+        while thread.is_alive() and time.monotonic() < deadline:
+            for q in created_queues:
+                while not q.empty():
+                    q.get_nowait()
+            thread.join(timeout=0.1)
+
+    assert not hung, "local_ingestion did not return after the upload failed"
+    assert len(errors) == 1 and "upload failed" in str(errors[0])

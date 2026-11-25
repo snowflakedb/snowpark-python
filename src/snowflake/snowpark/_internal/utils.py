@@ -1373,7 +1373,17 @@ def func_decorator(
             f"{extra_warning_text}"
         )
         doc_string_text = f"This function or method is {decorator_type} since {version}. {extra_doc_string} \n\n"
-        func.__doc__ = f"{func.__doc__ or ''}\n\n{' '*8}{doc_string_text}\n"
+        doc = func.__doc__ or ""
+        # Indented like the docstring body, or Sphinx renders the note as part of its last section.
+        indent = min(
+            (
+                len(line) - len(line.lstrip())
+                for line in doc.splitlines()[1:]
+                if line.strip()
+            ),
+            default=0,
+        )
+        func.__doc__ = f"{doc}\n\n{' ' * indent}{doc_string_text}\n"
 
         @functools.wraps(func)
         def func_call_wrapper(*args, **kwargs):

@@ -12,6 +12,7 @@
   - `Tool.from_procedure` and `Tool.from_function` turn existing procedures and UDFs, in any language, into tools.
   - `MCPServer` prints its specification (`to_yaml`), deploys it with its Python tools (`deploy`, which checks the definition first and has a `dry_run` option, with a suffix for dev and prod copies), calls deployed tools over a session (`call_tool`), and grants a role everything the tools need (`grant_usage`).
   - `Tool.builtin` adds the MCP server's built-in tool types (such as Cortex Agent, Cortex Analyst and Cortex Search) to a server.
+- Added `get_external_secret_json` to `snowflake.snowpark.secrets` (Private Preview) to read an external secret from AWS, Azure, or GCP. It returns JSON text with the secret value under the `value` key.
 
 #### Improvements
 
@@ -27,6 +28,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug where `DataFrameReader.dbapi` with `fetch_with_process=False` could hang instead of raising when uploading the fetched data failed while fetch threads were still running.
 - Fixed a bug where `Table.sample` and seeded `DataFrame.stat.sample_by` ignored time travel and Iceberg incremental reads and sampled the current table. For Iceberg incremental reads, `seed` and `SYSTEM`/`BLOCK` sampling are now ignored with a warning.
 - Fixed a bug where `Table.sample` and seeded `DataFrame.stat.sample_by` on a table embedded `seed` into the SQL without validating it. A `seed` that is not an integer between 0 and 2147483647 now raises `ValueError`.
 - Fixed a bug where `DataFrameReader.table` failed when a time travel reader option was set to `None`, e.g. `option("time_travel_mode", None)` together with `option("as-of-timestamp", ...)`. Time travel options set to `None` are now treated as unset.
