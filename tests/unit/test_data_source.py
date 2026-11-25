@@ -349,3 +349,48 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
         sql for sql in captured if "table(" in sql.lower() and "select result" in sql
     )
     assert "(partition::VARCHAR)) AS result" in select
+
+
+def test_local_ingestion_raises_when_upload_fails_while_fetch_threads_wait():
+    import threading
+    import time
+
+    import pandas as pd
+
+    from snowflake.snowpark._internal.data_source import utils
+    from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+
+    class Reader:
+        def read(self, partition):
+            # More chunks than the parquet queue holds, so the fetch threads block on it.
+            for _ in range(50):
+                yield [(1,)]
+
+        def data_source_data_to_pandas_df(self, data):
+            return pd.DataFrame(data, columns=["A"])
+
+    def failing_upload(**kwargs):
+        time.sleep(1)
+        raise RuntimeError("upload failed")
+
+    partitioner = Mock()
+    partitioner.reader.side_effect = Reader
+    errors = []
+
+    def ingest():
+        try:
+            utils.local_ingestion(
+                Mock(), partitioner, ["q0", "q1"], 2, "stage", "table", {}, {}
+            )
+        except SnowparkDataframeReaderException as e:
+            errors.append(e)
+
+    with patch.object(utils, "process_parquet_queue_with_threads", failing_upload):
+        thread = threading.Thread(target=ingest, daemon=True)
+        thread.start()
+        thread.join(timeout=30)
+
+    assert (
+        not thread.is_alive()
+    ), "local_ingestion did not return after the upload failed"
+    assert len(errors) == 1 and "upload failed" in str(errors[0])

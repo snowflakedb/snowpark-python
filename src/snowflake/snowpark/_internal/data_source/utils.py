@@ -247,6 +247,25 @@ DBMS_MAPPING = {
 }
 
 
+def _put_unless_stopped(
+    parquet_queue: Union[mp.Queue, queue.Queue],
+    item: Any,
+    stop_event: Optional[threading.Event],
+) -> bool:
+    """Puts ``item`` into ``parquet_queue``, giving up once ``stop_event`` is set. Returns whether it was queued.
+
+    Nothing drains the queue after the stop event is set, so a plain blocking put would hang this thread and
+    the executor shutdown that joins it.
+    """
+    while True:
+        try:
+            parquet_queue.put(item, timeout=1.0)
+            return True
+        except queue.Full:
+            if stop_event is not None and stop_event.is_set():
+                return False
+
+
 def _task_fetch_data_from_source(
     worker: DataSourceReader,
     partition: str,
@@ -276,7 +295,10 @@ def _task_fetch_data_from_source(
         parquet_id = f"data_partition{partition_idx}_fetch{fetch_idx}.parquet"
 
         # Put the BytesIO object and its identifier into the queue
-        parquet_queue.put((parquet_id, parquet_buffer))
+        if not _put_unless_stopped(
+            parquet_queue, (parquet_id, parquet_buffer), stop_event
+        ):
+            return
         logger.debug(f"Added parquet BytesIO to queue: {parquet_id}")
 
     for i, result in enumerate(worker.read(partition)):
@@ -284,7 +306,11 @@ def _task_fetch_data_from_source(
             return
         convert_to_parquet_bytesio(result, i)
 
-    parquet_queue.put((f"{PARTITION_TASK_COMPLETE_SIGNAL_PREFIX}{partition_idx}", None))
+    _put_unless_stopped(
+        parquet_queue,
+        (f"{PARTITION_TASK_COMPLETE_SIGNAL_PREFIX}{partition_idx}", None),
+        stop_event,
+    )
 
 
 def _task_fetch_data_from_source_with_retry(
