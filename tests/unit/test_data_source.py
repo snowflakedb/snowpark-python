@@ -494,6 +494,10 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
     [
         '(DESCRIPTION=(ADDRESS=(PROTOCOL=TCPS)(HOST=host)(PORT=1521))(SECURITY=(SSL_SERVER_CERT_DN="CN=host,OU=engineering (test),O=company")))',
         '(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME="service@host?name")))',
+        pytest.param(
+            '(DESCRIPTION= (ADDRESS=(HOST=host)) \t(CONNECT_DATA=(SERVICE_NAME="svc" \t))) \t',
+            id="coverage-gate-descriptor-whitespace",
+        ),
     ],
 )
 def test_jdbc_security_preserves_quoted_descriptor_leaf(descriptor):
@@ -509,13 +513,35 @@ def test_jdbc_security_preserves_quoted_descriptor_leaf(descriptor):
         '(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME="svc"SYNTHETIC_CREDENTIAL)))',
         "(DESCRIPTION=(HOST=host))SYNTHETIC_CREDENTIAL",
         "(DESCRIPTION=(HOST=host)",
+        pytest.param(
+            r'(DESCRIPTION=(SERVICE_NAME="SYNTHETIC_CREDENTIAL\path"))',
+            id="coverage-gate-quoted-backslash",
+        ),
+        pytest.param(
+            "(DESCRIPTION=(HOST=SYNTHETIC_CREDENTIAL",
+            id="coverage-gate-unclosed-leaf",
+        ),
+        pytest.param(
+            "(DESCRIPTION=(HOST=host@SYNTHETIC_CREDENTIAL))",
+            id="coverage-gate-ambiguous-unquoted-leaf",
+        ),
+        pytest.param(
+            "(DESCRIPTION=(HOST=host)SYNTHETIC_CREDENTIAL)",
+            id="coverage-gate-junk-between-nodes",
+        ),
     ],
 )
 def test_jdbc_security_rejects_ambiguous_descriptor(descriptor):
     session = Mock()
     with pytest.raises(ValueError) as error:
         _jdbc_security_client("jdbc:oracle:thin:@" + descriptor, session=session)
+    assert str(error.value) == (
+        "Unsupported or malformed JDBC URL; use a supported connection URL "
+        "and the secret for credentials"
+    )
     assert "SYNTHETIC_CREDENTIAL" not in str(error.value)
+    assert error.value.__cause__ is None
+    assert error.value.__context__ is None
     session.sql.assert_not_called()
 
 
@@ -562,6 +588,21 @@ def _jdbc_security_client(url="jdbc:postgresql://host/db", **kwargs):
         (
             "jdbc:oracle:thin:u/LEFT@host:1521:SID?password=RIGHT&connectTimeout=10",
             "jdbc:oracle:thin:@host:1521:SID?connectTimeout=10",
+        ),
+        pytest.param(
+            "jdbc:postgresql://host/db?&password=LEFT&&sslmode=require&",
+            "jdbc:postgresql://host/db?sslmode=require",
+            id="coverage-gate-empty-query-options",
+        ),
+        pytest.param(
+            "jdbc:sqlserver://host;;password={LEFT}};RIGHT} \t;;applicationName={safe;value} \t;encrypt=true;",
+            "jdbc:sqlserver://host;applicationName={safe;value} \t;encrypt=true",
+            id="coverage-gate-empty-properties-and-braced-whitespace",
+        ),
+        pytest.param(
+            "jdbc:oracle:thin:u/LEFT@(DESCRIPTION=(ADDRESS=(HOST=host))(CONNECT_DATA=(SERVICE_NAME=svc)))",
+            "jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS=(HOST=host))(CONNECT_DATA=(SERVICE_NAME=svc)))",
+            id="coverage-gate-credentials-before-descriptor",
         ),
     ],
 )
@@ -710,6 +751,61 @@ def test_jdbc_security_rejects_before_sql(url):
     session = Mock()
     with pytest.raises(ValueError) as error:
         _jdbc_security_client(url, session=session).schema
+    assert "SYNTHETIC_CREDENTIAL" not in str(error.value)
+    assert error.value.__cause__ is None
+    assert error.value.__context__ is None
+    session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        pytest.param(
+            "jdbc:postgresql://@host/db?password=SYNTHETIC_CREDENTIAL",
+            id="coverage-gate-empty-userinfo",
+        ),
+        pytest.param(
+            "jdbc:mysql://[SYNTHETIC_CREDENTIAL]@host/db",
+            id="coverage-gate-bracketed-userinfo",
+        ),
+        pytest.param(
+            "jdbc:postgresql://host:invalid/db?password=SYNTHETIC_CREDENTIAL",
+            id="coverage-gate-invalid-network-authority",
+        ),
+        pytest.param(
+            "jdbc:sqlserver://host/SYNTHETIC_CREDENTIAL;encrypt=true",
+            id="coverage-gate-invalid-sqlserver-authority",
+        ),
+        pytest.param(
+            "jdbc:sqlserver://host;password=SYNTHETIC_CREDENTIAL{tail}",
+            id="coverage-gate-unquoted-opening-brace",
+        ),
+        pytest.param(
+            "jdbc:sqlserver://host;password=SYNTHETIC_CREDENTIAL}",
+            id="coverage-gate-unquoted-closing-brace",
+        ),
+        pytest.param(
+            "jdbc:oracle:thin:SYNTHETIC_CREDENTIAL@//host/svc",
+            id="coverage-gate-oracle-missing-password-separator",
+        ),
+        pytest.param(
+            "jdbc:oracle:thin:u/SYNTHETIC_CREDENTIAL@//host/svc/extra",
+            id="coverage-gate-invalid-oracle-target",
+        ),
+        pytest.param(
+            "jdbc:oracle:thin:u/SYNTHETIC_CREDENTIAL@(DESCRIPTION=(HOST=host))trailing",
+            id="coverage-gate-authenticated-descriptor-trailing-junk",
+        ),
+    ],
+)
+def test_jdbc_security_rejects_malformed_url_with_static_error(url):
+    session = Mock()
+    with pytest.raises(ValueError) as error:
+        _jdbc_security_client(url, session=session).schema
+    assert str(error.value) == (
+        "Unsupported or malformed JDBC URL; use a supported connection URL "
+        "and the secret for credentials"
+    )
     assert "SYNTHETIC_CREDENTIAL" not in str(error.value)
     assert error.value.__cause__ is None
     assert error.value.__context__ is None
