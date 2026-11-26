@@ -21,6 +21,7 @@ import random
 import re
 import string
 import sys
+import sysconfig
 import time
 import threading
 import traceback
@@ -357,6 +358,16 @@ def get_version() -> str:
 @lru_cache
 def get_python_version() -> str:
     return platform.python_version()
+
+
+@lru_cache
+def get_python_runtime_version() -> str:
+    """Returns the Snowflake ``RUNTIME_VERSION`` matching this interpreter, e.g. ``3.13``, or ``3.14t`` for a
+    free-threaded build."""
+    # Keyed on the build rather than sys._is_gil_enabled(), which flips to True once any extension that is
+    # not marked free-threading safe is imported.
+    free_threaded_suffix = "t" if sysconfig.get_config_var("Py_GIL_DISABLED") else ""
+    return f"{sys.version_info[0]}.{sys.version_info[1]}{free_threaded_suffix}"
 
 
 @lru_cache
@@ -1362,7 +1373,17 @@ def func_decorator(
             f"{extra_warning_text}"
         )
         doc_string_text = f"This function or method is {decorator_type} since {version}. {extra_doc_string} \n\n"
-        func.__doc__ = f"{func.__doc__ or ''}\n\n{' '*8}{doc_string_text}\n"
+        doc = func.__doc__ or ""
+        # Indented like the docstring body, or Sphinx renders the note as part of its last section.
+        indent = min(
+            (
+                len(line) - len(line.lstrip())
+                for line in doc.splitlines()[1:]
+                if line.strip()
+            ),
+            default=0,
+        )
+        func.__doc__ = f"{doc}\n\n{' ' * indent}{doc_string_text}\n"
 
         @functools.wraps(func)
         def func_call_wrapper(*args, **kwargs):

@@ -3,7 +3,6 @@
 #
 
 from collections import defaultdict
-import sys
 from unittest import mock
 
 import pytest
@@ -18,6 +17,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     set_ast_state,
     AstFlagSource,
+    get_python_runtime_version,
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import sproc
@@ -144,10 +144,7 @@ def test_do_register_sproc_sandbox(session_sandbox, cleanup_registration_patch):
         assert len(callableProperties.input_args) == 0
         assert len(callableProperties.input_sql_types) == 0
         assert callableProperties.return_sql == "RETURNS INT"
-        assert (
-            callableProperties.runtime_version
-            == f"{sys.version_info[0]}.{sys.version_info[1]}"
-        )
+        assert callableProperties.runtime_version == get_python_runtime_version()
         assert callableProperties.all_imports == ""
         # TODO: for python 3.14, it will use PyPI so we should also check for cloudpickle
         assert (

@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import inspect
 import logging
 import os
 import zipfile
@@ -370,6 +371,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_sas.sas7bdat",
                 "resources/test_sas.xpt",
                 "resources/test_data_source_dir/",
+                "resources/test_data_source_dir/JdbcHandlerHarness.java",
                 "resources/test_data_source_dir/mssql-jdbc-13.2.1.jre11.jar",
                 "resources/test_data_source_dir/mysql-connector-j-9.5.0.jar",
                 "resources/test_data_source_dir/ojdbc17-23.9.0.25.07.jar",
@@ -603,6 +605,25 @@ def test_func_decorator(caplog, decorator):
     assert decorator.__name__ in caplog.text
     assert caplog.text.count("1.0.0") == 1
     assert caplog.text.count("extra_warning_text") == 1
+
+
+@pytest.mark.parametrize(
+    "docstring",
+    [
+        "Summary.",
+        # A module-level function.
+        "Summary.\n\n    Returns:\n        The result.\n    ",
+        # A method.
+        "Summary.\n\n        Returns:\n            The result.\n        ",
+    ],
+)
+def test_func_decorator_doc_note_is_its_own_paragraph(docstring):
+    def f():
+        pass
+
+    f.__doc__ = docstring
+    doc = inspect.cleandoc(private_preview(version="0.1")(f).__doc__)
+    assert "\nThis function or method is in private preview since 0.1." in doc
 
 
 def test_is_sql_select_statement():

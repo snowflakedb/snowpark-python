@@ -10,6 +10,7 @@ from snowflake.snowpark.secrets import (
     get_cloud_provider_token,
     get_oauth_access_token,
     get_wif_token,
+    get_external_secret_json,
 )
 from snowflake.snowpark.types import BooleanType, StringType
 from tests.utils import IS_NOT_ON_GITHUB, RUNNING_ON_JENKINS, IS_IN_STORED_PROC, Utils
@@ -232,3 +233,5 @@ def test_secrets_import_error():
         get_oauth_access_token("o1")
     with pytest.raises(NotImplementedError):
         get_wif_token("w1", "https://audience")
+    with pytest.raises(NotImplementedError):
+        get_external_secret_json("e1")

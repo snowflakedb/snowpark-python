@@ -27,10 +27,14 @@ from snowflake.snowpark.types import (
     ArrayType,
 )
 import snowflake.snowpark.context as context
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_FREE_THREADED, TestFiles, Utils
 
 
 pytestmark = [
+    pytest.mark.skipif(
+        IS_FREE_THREADED,
+        reason="lxml, used by the server-side XML reader UDTF, is not free-threading safe",
+    ),
     pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
         reason="xml not supported in local testing mode",

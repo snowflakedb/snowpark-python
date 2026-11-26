@@ -128,6 +128,7 @@ from snowflake.snowpark._internal.utils import (
     experimental_parameter,
     get_connector_version,
     get_os_name,
+    get_python_runtime_version,
     get_python_version,
     get_stage_file_prefix_length,
     get_temp_type_for_object,
@@ -2691,7 +2692,7 @@ class Session:
                 return self._default_artifact_repository_cache[1]
 
             try:
-                python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+                python_version = get_python_runtime_version()
                 entity_selector_args = (
                     f"'schema', '{schema}'"
                     if schema

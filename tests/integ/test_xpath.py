@@ -26,8 +26,13 @@ from snowflake.snowpark.types import (
     DoubleType,
     LongType,
 )
+from tests.utils import IS_FREE_THREADED
 
 pytestmark = [
+    pytest.mark.skipif(
+        IS_FREE_THREADED,
+        reason="lxml, used by the server-side XPath UDF, is not free-threading safe",
+    ),
     pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
         reason="list command not supported in local testing mode",

@@ -4,6 +4,9 @@
 
 import pytest
 import re
+import shutil
+import subprocess
+from pathlib import Path
 from unittest.mock import Mock, patch
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
@@ -225,7 +228,7 @@ def test_jdbc_read_udtf_executes_query_lazily():
     # inside the lazily evaluated supplier. Match the full call sites rather than
     # bare identifiers, which also appear in the surrounding comments.
     assert ddl.index("stmt.executeQuery(query)") > ddl.index("Stream.generate")
-    assert ddl.index("this.conn.createStatement()") > ddl.index("Stream.generate")
+    assert ddl.index("getConnection().createStatement()") > ddl.index("Stream.generate")
     assert ddl.index("stmt.setQueryTimeout(") > ddl.index("Stream.generate")
 
     # Lambda capture requires effectively-final holders.
@@ -327,6 +330,98 @@ def test_jdbc_infer_schema_sql_unchanged_without_special_chars(
     assert _strip_infer_schema_wrapper(literal[1:-1]) == table_or_query
 
 
+@pytest.fixture(scope="module")
+def compiled_jdbc_handler(tmp_path_factory):
+    """Execute the generated ingestion handler against JDBC proxies, without Snowflake."""
+    if not shutil.which("javac") or not shutil.which("java"):
+        pytest.skip("JDK required to execute generated JDBC handlers")
+    directory = tmp_path_factory.mktemp("jdbc_read")
+    with patch.object(
+        JDBC,
+        "generate_create_connection",
+        return_value="return JdbcHandlerHarness.connect();",
+    ):
+        ddl = _render_jdbc_ddls()
+    source = ddl.split("$$")[1]
+    source = re.sub(r"import com\.snowflake\.[^;]+;", "", source)
+    (directory / "DataLoader.java").write_text(source)
+    harness = (
+        Path(__file__).parents[1]
+        / "resources/test_data_source_dir/JdbcHandlerHarness.java"
+    )
+    shutil.copy2(harness, directory)
+    result = subprocess.run(
+        ["javac", str(directory / "DataLoader.java"), str(directory / harness.name)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    return directory
+
+
+@pytest.mark.parametrize("failure", ["", "close"])
+def test_jdbc_handler_exhaustion_and_close_errors(compiled_jdbc_handler, failure):
+    directory = compiled_jdbc_handler
+    result = subprocess.run(
+        [
+            "java",
+            "-cp",
+            str(directory),
+            "JdbcHandlerHarness",
+            "exhaust",
+            failure,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "scenario", ["repeat", "partial", "end", "interleaved", "interleaved-error"]
+)
+def test_jdbc_handler_lifecycle(compiled_jdbc_handler, scenario):
+    directory = compiled_jdbc_handler
+    result = subprocess.run(
+        ["java", "-cp", str(directory), "JdbcHandlerHarness", scenario],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "createStatement",
+        "setQueryTimeout",
+        "setFetchSize",
+        "executeQuery",
+        "next",
+        "getString",
+    ],
+)
+def test_jdbc_handler_error_cleanup(compiled_jdbc_handler, failure):
+    directory = compiled_jdbc_handler
+    result = subprocess.run(
+        [
+            "java",
+            "-cp",
+            str(directory),
+            "JdbcHandlerHarness",
+            "error",
+            failure,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_jdbc_read_casts_partition_argument_to_varchar():
     """The partition table can inherit DEFAULT_DDL_COLLATION; the collated column
     must be cast to plain VARCHAR to match the read UDTF's `query VARCHAR`."""
@@ -349,3 +444,70 @@ def test_jdbc_read_casts_partition_argument_to_varchar():
         sql for sql in captured if "table(" in sql.lower() and "select result" in sql
     )
     assert "(partition::VARCHAR)) AS result" in select
+
+
+def test_local_ingestion_raises_when_upload_fails_while_fetch_threads_wait():
+    import queue
+    import threading
+    import time
+    import types
+
+    import pandas as pd
+
+    from snowflake.snowpark._internal.data_source import utils
+    from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+
+    class Reader:
+        def read(self, partition):
+            # More chunks than the parquet queue holds, so the fetch threads block on it.
+            for _ in range(50):
+                yield [(1,)]
+
+        def data_source_data_to_pandas_df(self, data):
+            return pd.DataFrame(data, columns=["A"])
+
+    def failing_upload(**kwargs):
+        time.sleep(1)
+        raise RuntimeError("upload failed")
+
+    created_queues = []
+
+    class RecordingQueue(queue.Queue):
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            created_queues.append(self)
+
+    recording_queue_module = types.SimpleNamespace(
+        Queue=RecordingQueue, Empty=queue.Empty, Full=queue.Full
+    )
+
+    partitioner = Mock()
+    partitioner.reader.side_effect = Reader
+    errors = []
+
+    def ingest():
+        try:
+            utils.local_ingestion(
+                Mock(), partitioner, ["q0", "q1"], 2, "stage", "table", {}, {}
+            )
+        except SnowparkDataframeReaderException as e:
+            errors.append(e)
+
+    with patch.object(
+        utils, "process_parquet_queue_with_threads", failing_upload
+    ), patch.object(utils, "queue", recording_queue_module):
+        thread = threading.Thread(target=ingest, daemon=True)
+        thread.start()
+        thread.join(timeout=30)
+        hung = thread.is_alive()
+        # If the hang regresses, drain the queues so the blocked fetch threads finish; interpreter shutdown
+        # would otherwise wait on them forever.
+        deadline = time.monotonic() + 30
+        while thread.is_alive() and time.monotonic() < deadline:
+            for q in created_queues:
+                while not q.empty():
+                    q.get_nowait()
+            thread.join(timeout=0.1)
+
+    assert not hung, "local_ingestion did not return after the upload failed"
+    assert len(errors) == 1 and "upload failed" in str(errors[0])

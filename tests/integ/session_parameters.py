@@ -4,6 +4,7 @@
 
 from contextlib import contextmanager
 import sys
+import sysconfig
 from typing import Any, Dict, Iterator
 
 from snowflake.snowpark import Session
@@ -22,6 +23,8 @@ def set_up_test_session_parameters(session: Session, local_testing_mode: bool) -
     session.sql("alter session set ENABLE_ROW_ACCESS_POLICY=true").collect()
     if sys.version_info.major == 3 and sys.version_info.minor == 14:
         session.sql("alter session set ENABLE_PYTHON_3_14=true").collect()
+    if sysconfig.get_config_var("Py_GIL_DISABLED"):
+        session.sql("alter session set ENABLE_PYTHON_3_14T=true").collect()
 
 
 @contextmanager

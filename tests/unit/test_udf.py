@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     set_ast_state,
     AstFlagSource,
+    get_python_runtime_version,
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udf
@@ -89,10 +90,7 @@ def test_do_register_udf_sandbox(session_sandbox, cleanup_registration_patch):
     assert len(extension_function_properties.input_args) == 0
     assert len(extension_function_properties.input_sql_types) == 0
     assert extension_function_properties.return_sql == "RETURNS INT"
-    assert (
-        extension_function_properties.runtime_version
-        == f"{sys.version_info[0]}.{sys.version_info[1]}"
-    )
+    assert extension_function_properties.runtime_version == get_python_runtime_version()
     assert extension_function_properties.all_imports == ""
     # for >= 3.14, we use pypi by default, which auto adds cloudpickle
     assert extension_function_properties.all_packages == (

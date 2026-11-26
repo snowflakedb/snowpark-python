@@ -12,14 +12,23 @@
   - `Tool.from_procedure` and `Tool.from_function` turn existing procedures and UDFs, in any language, into tools.
   - `MCPServer` prints its specification (`to_yaml`), deploys it with its Python tools (`deploy`, which checks the definition first and has a `dry_run` option, with a suffix for dev and prod copies), calls deployed tools over a session (`call_tool`), and grants a role everything the tools need (`grant_usage`).
   - `Tool.builtin` adds the MCP server's built-in tool types (such as Cortex Agent, Cortex Analyst and Cortex Search) to a server.
+- Added `get_external_secret_json` to `snowflake.snowpark.secrets` (Private Preview) to read an external secret from AWS, Azure, or GCP. It returns JSON text with the secret value under the `value` key.
 
 #### Improvements
 
+- UDFs, UDTFs, UDAFs and stored procedures registered from a free-threaded Python build (for example 3.14t) now default to the matching free-threaded `RUNTIME_VERSION` (`3.14t`) instead of the GIL runtime (`3.14`). The default artifact repository is looked up for the free-threaded version as well. Requirements that pin `python=3.14` (or `python=3.14t`) still select that runtime from either build.
+  - The account must support the `3.14t` runtime; otherwise registration fails with the server's error, like any other unsupported runtime.
+  - Packages must come from an artifact repository such as PyPI. Anaconda packages, including an Anaconda default artifact repository set on the account, database or schema, are not supported on `3.14t`.
+  - Packages that are not free-threading safe, such as pandas 2.x, lxml and pyodbc, fail to load, and packages without free-threaded (`cp314t`) wheels, such as oracledb, fail to install. As a result, `DataFrameReader.xml` with the `rowTag` option, the `xpath` functions, and `DataFrameReader.dbapi` UDTF ingestion for SQL Server and Oracle are not supported from a free-threaded client.
+  - `DataFrame.to_polars` does not work on a free-threaded client, because polars has no free-threaded build.
+  - On a free-threaded client, the `pandas` extra installs pandas 2.x, which re-enables the GIL when imported; install pandas 3 instead. The `opentelemetry` extra fails to install because grpcio has no free-threaded build; install `opentelemetry-api`, `opentelemetry-sdk`, `opentelemetry-exporter-otlp-proto-http` and `requests` instead.
+- `to_timestamp`, `to_char`/`to_varchar`, `to_binary` and `try_to_binary` now accept the format as a `Column` or a literal `str`. `to_binary` and `try_to_binary` now pass an empty-string format to Snowflake instead of silently ignoring it.
 - `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) now maps a SQL compilation error to the single DataFrame operation that caused it when the SQL simplifier merges several operations into one query.
 - `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) now maps SQL compilation errors that have no line number to the DataFrame operations that caused them, using up to 32 extra describe attempts on failure.
 
 #### Bug Fixes
 
+- Fixed a bug where `DataFrameReader.dbapi` with `fetch_with_process=False` could hang instead of raising when uploading the fetched data failed while fetch threads were still running.
 - Fixed a bug where `Table.sample` and seeded `DataFrame.stat.sample_by` ignored time travel and Iceberg incremental reads and sampled the current table. For Iceberg incremental reads, `seed` and `SYSTEM`/`BLOCK` sampling are now ignored with a warning.
 - Fixed a bug where `Table.sample` and seeded `DataFrame.stat.sample_by` on a table embedded `seed` into the SQL without validating it. A `seed` that is not an integer between 0 and 2147483647 now raises `ValueError`.
 - Fixed a bug where `DataFrameReader.table` failed when a time travel reader option was set to `None`, e.g. `option("time_travel_mode", None)` together with `option("as-of-timestamp", ...)`. Time travel options set to `None` are now treated as unset.
@@ -27,6 +36,8 @@
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` that contained string literals, backslashes or newlines failed with a SQL compilation error during schema inference.
 - Fixed a bug in `DataFrameReader.jdbc` where reading failed when `DEFAULT_DDL_COLLATION` was set.
 - Fixed a bug where `DataFrame.join` dropped an escaped double quote at the start or end of a quoted column name that it re-aliased, for example `"""a"""` became `"""a"`.
+- Fixed a bug in `DataFrameReader.jdbc` where a read with many partitions failed with `This connection has been closed`.
+- Fixed a bug in `DataFrameReader.jdbc` where JDBC connections were not closed when ingestion failed or a stream was closed before exhaustion.
 
 ## 1.58.0 (2026-11-19)
 
