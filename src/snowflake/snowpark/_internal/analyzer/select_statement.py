@@ -260,6 +260,12 @@ def _deepcopy_selectable_fields(
     to_selectable._df_trace_call_id = from_selectable._df_trace_call_id
     # Copy UUID and query line intervals
     to_selectable._uuid = from_selectable._uuid
+    # Diagnostic-only fallback for SQL retained by a parent while execution caches
+    # are cleared on the copy. Never use this plan for compilation.
+    if debug_config.enabled(from_selectable._session, "trace_sql_errors_to_dataframe"):
+        to_selectable._sql_error_plan = from_selectable._snowflake_plan or getattr(
+            from_selectable, "_sql_error_plan", None
+        )
 
 
 class Selectable(LogicalPlan, ABC):
@@ -287,6 +293,7 @@ class Selectable(LogicalPlan, ABC):
         self.protect_dropped_new_columns: bool = False
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
+        self._sql_error_plan: Optional[SnowflakePlan]
         self.expr_to_alias = (
             ExprAliasUpdateDict() if self._session._join_alias_fix else {}
         )

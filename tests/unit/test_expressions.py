@@ -3,13 +3,21 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import copy
 import datetime
 import decimal
 
 import pytest
 
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Literal
-from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    BatchInsertQuery,
+    CteSegment,
+    Query,
+    QueryLineInterval,
+    SnowflakePlan,
+)
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     IsNaN,
@@ -23,6 +31,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     PersistedView,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkPlanException
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import DataType, DecFloatType, PandasSeriesType
@@ -84,6 +93,27 @@ def test_unary_expression_str():
 def test_attribute():
     attr = Attribute("a", DataType())
     assert attr.with_name("b").name == '"B"'
+
+
+def test_batch_insert_query_copy_preserves_metadata(mock_session):
+    query = BatchInsertQuery("INSERT INTO temp_name VALUES (?)", [Row(1)])
+    query.query_id_place_holder = "query_id"
+    query.is_ddl_on_temp_object = True
+    query.temp_obj_name_placeholder = ("temp_name", TempObjectType.TABLE)
+    query.params = [1]
+    query.query_line_intervals = [QueryLineInterval(0, 0, "owner")]
+    owner = SnowflakePlan([Query("SELECT 1")], None, session=mock_session)
+    query.cte_segments = [CteSegment(0, len(query.sql), owner)]
+
+    copied = copy.copy(query)
+    assert type(copied) is BatchInsertQuery
+    assert copied is not query
+    assert copied == query
+    assert copied.rows is query.rows
+    assert copied.params is query.params
+    assert copied.query_line_intervals is query.query_line_intervals
+    assert copied.cte_segments is query.cte_segments
+    assert copied.cte_segments[0].plan is owner
 
 
 def test_query():

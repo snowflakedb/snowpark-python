@@ -145,6 +145,7 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 import snowflake.snowpark.context as context
 from snowflake.snowpark._internal import debug_config
+from snowflake.snowpark._internal.analyzer import analyzer_utils
 
 from collections.abc import Iterable
 
@@ -783,6 +784,26 @@ class SnowflakePlan(LogicalPlan):
         last_query.sql = final_sql
         last_query.query_line_intervals = query_line_intervals
 
+    def _copy_query_line_intervals(self, copied: "SnowflakePlan") -> None:
+        if debug_config.enabled(self.session, "trace_sql_errors_to_dataframe"):
+            # The SQL has already had its UUID comments removed. The constructor
+            # cannot recover its child intervals; rebind the retained owners instead.
+            owners = {self.uuid: copied.uuid}
+            owners.update(
+                (child.uuid, copied_child.uuid)
+                for child, copied_child in zip(
+                    self.children_plan_nodes, copied.children_plan_nodes
+                )
+            )
+            copied.queries[-1].query_line_intervals = [
+                QueryLineInterval(
+                    interval.start,
+                    interval.end,
+                    owners.get(interval.uuid, interval.uuid),
+                )
+                for interval in self.queries[-1].query_line_intervals
+            ]
+
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
             plan = SnowflakePlan(
@@ -799,7 +820,11 @@ class SnowflakePlan(LogicalPlan):
             )
         else:
             plan = SnowflakePlan(
-                self.queries.copy() if self.queries else [],
+                # The new plan sets the line intervals of its last query: copy the
+                # queries, so that the line intervals of this plan are kept.
+                [copy.copy(q) for q in (self.queries or [])]
+                if debug_config.enabled(self.session, "trace_sql_errors_to_dataframe")
+                else (self.queries.copy() if self.queries else []),
                 self.schema_query,
                 self.post_actions.copy() if self.post_actions else None,
                 copy.copy(self.expr_to_alias) if self.expr_to_alias else None,
@@ -810,6 +835,7 @@ class SnowflakePlan(LogicalPlan):
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
             )
+        self._copy_query_line_intervals(plan)
         plan.df_ast_ids = self.df_ast_ids
         plan.df_trace_nodes = self.df_trace_nodes
         plan._df_trace_call_id = self._df_trace_call_id
@@ -848,6 +874,7 @@ class SnowflakePlan(LogicalPlan):
             session=self.session,
             referenced_ctes=self.referenced_ctes,
         )
+        self._copy_query_line_intervals(copied_plan)
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
@@ -1454,6 +1481,21 @@ class SnowflakePlanBuilder:
                     iceberg_config=iceberg_config,
                     use_scoped_temp_objects=use_scoped_temp_objects,
                     is_generated=is_generated,
+                    # Large query breakdown splits a plan into partitions: mark the
+                    # child, so that a SQL error in a partition maps to its operations.
+                    # The child plan is a copy, so it is marked with the uuid of the
+                    # node the line intervals are looked up in. Only mark in
+                    # multiline mode: single-line markers add newline bytes.
+                    child_uuid=(
+                        source_plan.children[0].uuid
+                        if creation_source == TableCreationSource.LARGE_QUERY_BREAKDOWN
+                        and source_plan is not None
+                        and analyzer_utils.NEW_LINE == "\n"
+                        and debug_config.enabled(
+                            self.session, "trace_sql_errors_to_dataframe"
+                        )
+                        else None
+                    ),
                 ),
                 child,
                 source_plan,
@@ -2553,11 +2595,15 @@ class CteSegment:
     """A part of a query compiled with CTE optimization: the definition of a CTE or the main
     query after the ``WITH`` clause. ``start`` and ``end`` are character offsets in the compiled
     sql; ``plan`` is the plan that generated the part, and its last query has the line intervals
-    of the part."""
+    of the part. ``cached_only`` is set for the queries of a plan split by
+    large query breakdown, whose schemaless compiler nodes must not be resolved during
+    diagnostics: only their cached SQL is read. It is not set for a WITH query of an
+    unsplit plan."""
 
     start: int
     end: int
     plan: "SnowflakePlan"
+    cached_only: bool = False
 
 
 class Query:
@@ -2591,7 +2637,8 @@ class Query:
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
         self.params = params or []
         self.query_line_intervals = query_line_intervals or []
-        # Set when tracing sql errors is enabled and CTE optimization added a WITH clause.
+        # Set when tracing sql errors is enabled and CTE optimization added a WITH clause,
+        # or large query breakdown split the plan into several queries.
         self.cte_segments = cte_segments
 
     def __repr__(self) -> str:
@@ -2640,4 +2687,9 @@ class BatchInsertQuery(Query):
             rows=self.rows,
         )
         copied_query.query_id_place_holder = self.query_id_place_holder
+        copied_query.is_ddl_on_temp_object = self.is_ddl_on_temp_object
+        copied_query.temp_obj_name_placeholder = self.temp_obj_name_placeholder
+        copied_query.params = self.params
+        copied_query.query_line_intervals = self.query_line_intervals
+        copied_query.cte_segments = self.cte_segments
         return copied_query

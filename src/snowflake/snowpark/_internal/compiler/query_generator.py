@@ -2,7 +2,10 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
+import dataclasses
 from typing import DefaultDict, Dict, Iterable, List, NamedTuple, Optional, Union
+
+from snowflake.snowpark._internal import debug_config
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -11,6 +14,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    CteSegment,
     PlanQueryType,
     Query,
     SnowflakePlan,
@@ -116,6 +120,10 @@ class QueryGenerator(Analyzer):
                 self.resolved_with_query_block,
                 self.resolved_with_query_block_plan,
             )
+            if len(snowflake_plans) > 1 and debug_config.enabled(
+                snowflake_plan.session, "trace_sql_errors_to_dataframe"
+            ):
+                self._annotate_breakdown_query(snowflake_plan, plan_queries)
             # we deduplicate the queries and post actions generated across the logical
             # plans because it is possible for large query breakdown to partition
             # original plan into multiple plans that may contain the same nodes which
@@ -132,6 +140,39 @@ class QueryGenerator(Analyzer):
             PlanQueryType.POST_ACTIONS: post_actions,
         }
 
+    @staticmethod
+    def _annotate_breakdown_query(
+        snowflake_plan: SnowflakePlan, plan_queries: Dict[PlanQueryType, List[Query]]
+    ) -> None:
+        """Large query breakdown split the plan: record the plan that generated the
+        last query of a partition, so that a SQL error line can be mapped back with its
+        line intervals. Only debug information, the sql is not changed.
+
+        The plans of a breakdown are schemaless compiler nodes: diagnostics must only
+        read their cached SQL. The last query is copied, so that a later compilation
+        or copy of the plan gets its own execution metadata.
+        """
+        queries = plan_queries[PlanQueryType.QUERIES] = list(
+            plan_queries[PlanQueryType.QUERIES]
+        )
+        last_query = queries[-1] = copy.copy(queries[-1])
+        if last_query.cte_segments is not None:
+            # A query compiled with the WITH clause of its referenced CTEs.
+            last_query.cte_segments = [
+                dataclasses.replace(segment, cached_only=True)
+                for segment in last_query.cte_segments
+            ]
+        elif not snowflake_plan.referenced_ctes:
+            last_query.cte_segments = [
+                CteSegment(0, len(last_query.sql), snowflake_plan, cached_only=True)
+            ]
+        else:
+            # A partition (e.g. a CREATE TABLE AS SELECT) whose sql references CTEs
+            # defined in its own sql: its lines are not located, so an error of it
+            # is not mapped. Its line intervals would locate the partition root in
+            # the original plan.
+            last_query.query_line_intervals = []
+
     def do_resolve_with_resolved_children(
         self,
         logical_plan: LogicalPlan,
@@ -140,7 +181,6 @@ class QueryGenerator(Analyzer):
             DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
         ],
     ) -> SnowflakePlan:
-
         if isinstance(logical_plan, SnowflakeCreateTable):
             from snowflake.snowpark._internal.compiler.utils import (
                 get_snowflake_plan_queries,

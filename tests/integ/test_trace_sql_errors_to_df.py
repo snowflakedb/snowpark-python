@@ -1158,19 +1158,19 @@ def _main_query_after_large_local_data_pre_actions(session):
 
 def _large_query_breakdown_partition(session):
     # The invalid column is deep in the plan, so it fails in a partition query that
-    # runs before the last query. The partition is not owned by a node of the original
-    # plan, so no source location is reported rather than a wrong one.
+    # runs before the last query, and maps to the operation in the partition.
     if not session.sql_simplifier_enabled:
         # without the simplifier, with_column resolves the schema eagerly and the
         # error is raised while the DataFrame is built, before any partition runs
         pytest.skip("SQL simplifier must be enabled for this test")
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    filter_line = Utils.get_current_line_number_sys() + 1
     df = df.filter(col("no_such_col") > 0)
     for i in range(12):
         df = df.with_column("a", col("a") + lit(i)).filter(col("a") > i)
         df = df.union_all(df.select("a", "b"))
     assert len(df._plan.execution_queries[PlanQueryType.QUERIES]) > 1
-    return df, None, []
+    return df, [filter_line], []
 
 
 @pytest.mark.parametrize(
