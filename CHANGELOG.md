@@ -28,6 +28,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug where `DataFrame.to_pandas` and `DataFrame.to_pandas_batches` failed with an error that blamed a missing `pandas` package when `pyarrow` was the package that was not installed. The error now also names `pyarrow`.
 - Fixed a bug where `DataFrameReader.dbapi` with `fetch_with_process=False` could hang instead of raising when uploading the fetched data failed while fetch threads were still running.
 - Fixed a bug where `Table.sample` and seeded `DataFrame.stat.sample_by` ignored time travel and Iceberg incremental reads and sampled the current table. For Iceberg incremental reads, `seed` and `SYSTEM`/`BLOCK` sampling are now ignored with a warning.
 - Fixed a bug where `Table.sample` and seeded `DataFrame.stat.sample_by` on a table embedded `seed` into the SQL without validating it. A `seed` that is not an integer between 0 and 2147483647 now raises `ValueError`.
