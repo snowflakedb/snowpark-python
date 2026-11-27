@@ -18,6 +18,7 @@ if IS_V5_DRIVER:
     from snowflake.connector.errors import ReauthenticationRequest
 else:
     from snowflake.connector.network import ReauthenticationRequest
+from snowflake.snowpark._internal.server_connection import _ER_NO_PYARROW
 from snowflake.snowpark.exceptions import (
     SnowparkFetchDataException,
     SnowparkQueryCancelledException,
@@ -122,6 +123,45 @@ def test_run_query_exceptions(mock_server_connection, caplog):
             SnowparkFetchDataException, match="Failed to fetch a pandas Dataframe"
         ):
             mock_server_connection.run_query("fake query", to_pandas=True)
+
+
+def test_fetch_pandas_missing_pyarrow_is_named_in_error(mock_server_connection):
+    """A missing pyarrow is reported by the connector as a missing pandas."""
+    from snowflake.connector.errors import ProgrammingError
+
+    connector_error = ProgrammingError(
+        msg="Optional dependency: 'pandas' is not installed", errno=_ER_NO_PYARROW
+    )
+
+    mock_server_connection._cursor.execute.return_value = mock_server_connection._cursor
+    mock_server_connection._cursor.sfqid = "fake id"
+    mock_server_connection._cursor.query = "fake query"
+    mock_server_connection._cursor._query_result_format = "arrow"
+    if IS_V5_DRIVER:
+        mock_server_connection._cursor.request_id = "1234"
+    else:
+        mock_server_connection._cursor._request_id = "1234"
+    with mock.patch.object(
+        mock_server_connection._cursor,
+        "fetch_pandas_all",
+        side_effect=connector_error,
+    ), mock.patch(
+        "snowflake.snowpark._internal.server_connection.installed_pyarrow", False
+    ):
+        with pytest.raises(SnowparkFetchDataException, match="'pyarrow'"):
+            mock_server_connection.run_query("fake query", to_pandas=True)
+
+    # pyarrow present: the connector's message is passed through unchanged.
+    with mock.patch.object(
+        mock_server_connection._cursor,
+        "fetch_pandas_all",
+        side_effect=connector_error,
+    ), mock.patch(
+        "snowflake.snowpark._internal.server_connection.installed_pyarrow", True
+    ):
+        with pytest.raises(SnowparkFetchDataException) as exc:
+            mock_server_connection.run_query("fake query", to_pandas=True)
+        assert "pyarrow" not in str(exc.value)
 
 
 def test_get_result_set_exception(mock_server_connection):

@@ -28,7 +28,7 @@ from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import Error, NotSupportedError, ProgrammingError
-from snowflake.snowpark._internal.options import pandas
+from snowflake.snowpark._internal.options import installed_pyarrow, pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
@@ -96,6 +96,9 @@ PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
 DEFAULT_STRING_SIZE = 16777216
 MAX_STRING_SIZE = 134217728
+# errno the connector uses for a missing pyarrow (ER_NO_PYARROW). The constant lives in
+# different modules in connector v4 and v5, so the number is repeated here.
+_ER_NO_PYARROW = 255002
 
 
 def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
@@ -630,8 +633,19 @@ class ServerConnection:
             except KeyboardInterrupt:
                 raise
             except BaseException as ex:
+                message = str(ex)
+                if (
+                    getattr(ex, "errno", None) == _ER_NO_PYARROW
+                    and not installed_pyarrow
+                ):
+                    # The connector reports a missing pyarrow (errno 255002) as a
+                    # missing pandas because pandas support needs both packages.
+                    message += (
+                        " Note: converting results to pandas also requires 'pyarrow', "
+                        "which is not installed. Please install 'pyarrow' as well."
+                    )
                 raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
-                    str(ex)
+                    message
                 )
         elif to_pandas:
             data_or_iter = _json_fallback(results_cursor, to_iter)
