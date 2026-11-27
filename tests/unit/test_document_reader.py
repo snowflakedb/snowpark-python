@@ -4,6 +4,8 @@
 
 from unittest import mock
 
+import json
+
 import pytest
 
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
@@ -11,6 +13,7 @@ import snowflake.snowpark._internal.document_extract_proc as proc
 from snowflake.snowpark._internal.document_reader import (
     _CALL_BUDGETS,
     _EXTRACTION_MODELS,
+    _MODEL_SELECTION,
     _FALLBACK_EXTRACTION_MODEL,
     _PREFERRED_EXTRACTION_MODEL,
     access,
@@ -585,6 +588,25 @@ class TestExtractWithSplitProcedureUsageComment:
         query = session.sql.call_args[0][0]
         assert query.startswith("CALL MY_PROC(")
         assert query.endswith(usage_comment(options))
+
+    @pytest.mark.parametrize("model_selection", [True, False])
+    def test_the_call_passes_the_model_selection_config(self, model_selection):
+        # run()'s selection argument, after the path: JSON null reads without it.
+        session = mock.MagicMock()
+        session.get_session_stage.return_value = "@~/session_stage"
+        options = DocumentReaderOptions(
+            parse_mode="none",
+            extraction=ExtractionSpec.from_response_format({"name": "What is it?"}),
+            model_selection=model_selection,
+        )
+        with mock.patch(
+            "snowflake.snowpark._internal.document_reader.register_extract_proc",
+            return_value="MY_PROC",
+        ):
+            extract_with_split_procedure(session, "@stage/invoices/", options)
+        params = session.sql.call_args[1]["params"]
+        assert params[0] == "@stage/invoices/"
+        assert json.loads(params[1]) == (_MODEL_SELECTION if model_selection else None)
 
     @pytest.mark.parametrize("token_usage", [True, False])
     def test_the_call_passes_whether_to_ask_for_token_usage(self, token_usage):

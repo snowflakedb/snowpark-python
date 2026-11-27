@@ -109,6 +109,40 @@ _CALL_BUDGETS = {
 # observes, up to its hard maximum.
 _MAX_CALLS_PER_FILE = 30
 
+# Model selection for schema reads, run by the extraction procedure (see
+# ``ModelSelection`` in document_extract_proc.py) unless the session's
+# PYTHON_SNOWPARK_DOCUMENTS_MODEL_SELECTION switch is off. It extracts a sample of the
+# documents (max_sample_documents, or max_sample_fraction of them if that is fewer) with
+# every model of "tiers", from the cheapest to the most expensive, scores each per field
+# against "reference" (the last tier), extracts the sample again with field
+# descriptions revised for each model but the reference, and reads the rest with the
+# cheapest model with a configuration (model and schema) whose mean agreement is at
+# least "relative_threshold" of the "baseline" model's with the user's schema. Below
+# 1 / max_sample_fraction documents there is no sample and the read uses
+# _EXTRACTION_MODELS. "max_output_tokens" caps the calls of a model whose output ceiling
+# is below _MAX_OUTPUT_TOKENS (AI_COMPLETE rejects a larger max_tokens). "image_models"
+# read images but not documents: they are only sent single-page PDFs (as a PNG of the
+# page) and images, and when one is chosen every other document goes to the cheapest
+# qualifying model that reads documents. "optimizer_documents" is how many disagreeing
+# documents each per-field prompt optimization call is shown.
+_MODEL_SELECTION_REFERENCE = "claude-opus-5"
+_MODEL_SELECTION = {
+    "reference": _MODEL_SELECTION_REFERENCE,
+    "tiers": [
+        "gemma-4-31b",
+        "gemini-3.8-flash",
+        _PREFERRED_EXTRACTION_MODEL,
+        _MODEL_SELECTION_REFERENCE,
+    ],
+    "max_output_tokens": {"gemma-4-31b": 65536, "gemini-3.8-flash": 65536},
+    "image_models": ["gemma-4-31b"],
+    "max_sample_documents": 10,
+    "max_sample_fraction": 0.2,
+    "baseline": _PREFERRED_EXTRACTION_MODEL,
+    "relative_threshold": 0.95,
+    "optimizer_documents": 5,
+}
+
 
 _EXTRACT_PROC_FILE_PATH = os.path.join(
     os.path.dirname(__file__), "document_extract_proc.py"
@@ -648,12 +682,14 @@ def extract_with_split_procedure(
     """Schema extraction straight from the FILE, splitting the PDF across several
     AI_COMPLETE calls when one response cannot hold the whole answer. The loop needs each
     call's answer before planning the next, so it runs in a stored procedure; the CALL
-    still stays lazy because Snowpark defers it to RESULT_SCAN at collect time."""
+    still stays lazy because Snowpark defers it to RESULT_SCAN at collect time. Model
+    selection (``_MODEL_SELECTION``) runs inside the same CALL."""
     proc_name = register_extract_proc(session)
     # In the order of run()'s parameters (document_extract_proc.py) and of
     # register_extract_proc()'s input_types.
     args = [
         path,
+        json.dumps(_MODEL_SELECTION if options.model_selection else None),
         json.dumps(options.extraction.ai_complete_format),
         options.prompt or _DEFAULT_EXTRACTION_PROMPT,
         json.dumps(_EXTRACTION_MODELS),
@@ -820,6 +856,7 @@ def register_extract_proc(session: "Session") -> str:
         # extract_with_split_procedure() passes to the CALL.
         input_types=[
             StringType(),  # path
+            StringType(),  # selection: _MODEL_SELECTION as JSON, or null to skip it
             StringType(),  # response_format: the JSON schema, as JSON
             StringType(),  # predicate: the prompt
             StringType(),  # models: candidates in order of preference, as JSON
@@ -829,7 +866,8 @@ def register_extract_proc(session: "Session") -> str:
             BooleanType(),  # show_details: ask AI_COMPLETE for each call's token usage
         ],
         name=name,
-        packages=["snowflake-snowpark-python", "pypdf"],
+        # pypdfium2 and pillow render a page for image-only models (model selection).
+        packages=["snowflake-snowpark-python", "pypdf", "pypdfium2", "pillow"],
         if_not_exists=True,
         # Caller's rights: the proc reads the caller's stages and writes page parts to
         # the caller's session stage.

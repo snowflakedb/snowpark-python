@@ -2987,7 +2987,7 @@ _RUN_SCHEMA = {
 }
 
 
-def _run(monkeypatch, files, answer, show_details=True):
+def _run(monkeypatch, files, answer, show_details=True, selection="null"):
     session = _RunSession(files, answer)
     monkeypatch.setattr(
         DocumentExtraction,
@@ -2997,6 +2997,7 @@ def _run(monkeypatch, files, answer, show_details=True):
     rows, schema = proc.run(
         session,
         "@s",
+        selection,
         json.dumps(_RUN_SCHEMA),
         "Extract.",
         json.dumps(["m1"]),
@@ -3134,6 +3135,7 @@ def _run_in_batches(monkeypatch, files, answer, batch_bytes):
     rows, _ = proc.run(
         session,
         "@s",
+        "null",
         json.dumps(_RUN_SCHEMA),
         "Extract.",
         json.dumps(["m1"]),

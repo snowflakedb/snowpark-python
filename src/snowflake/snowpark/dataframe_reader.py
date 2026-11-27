@@ -1608,6 +1608,7 @@ class DataFrameReader:
         options = document_reader.DocumentReaderOptions.from_reader_options(
             self._cur_options,
             token_usage=getattr(self._session, "_documents_token_usage", True),
+            model_selection=getattr(self._session, "_documents_model_selection", True),
         )
         df = document_reader.read_documents(self._session, path, options)
 

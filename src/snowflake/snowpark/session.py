@@ -272,6 +272,9 @@ _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE = (
 # turned off, AI_COMPLETE is called without show_details and no token columns are
 # returned, as before the columns were added.
 _PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE = "PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE"
+# parameter used to turn off model selection in DataFrameReader.documents() schema reads.
+# If turned off, every schema read uses the default extraction models.
+_PYTHON_SNOWPARK_DOCUMENTS_MODEL_SELECTION = "PYTHON_SNOWPARK_DOCUMENTS_MODEL_SELECTION"
 _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION = (
     "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION"
 )
@@ -826,6 +829,11 @@ class Session:
         self._documents_token_usage: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_DOCUMENTS_TOKEN_USAGE, True
+            )
+        )
+        self._documents_model_selection: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_DOCUMENTS_MODEL_SELECTION, True
             )
         )
         self._generate_multiline_queries: bool = (
