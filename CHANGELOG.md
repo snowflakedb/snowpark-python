@@ -14,6 +14,8 @@
   - `Tool.builtin` adds the MCP server's built-in tool types (such as Cortex Agent, Cortex Analyst and Cortex Search) to a server.
 - Added `get_external_secret_json` to `snowflake.snowpark.secrets` (Private Preview) to read an external secret from AWS, Azure, or GCP. It returns JSON text with the secret value under the `value` key.
 
+- ``DataFrameWriter.save_as_table`` defaults ``copy_grants`` to true and emits ``COPY GRANTS`` on ``CREATE OR REPLACE``. Older Snowpark versions omit the clause, so once BCR-2433 is enabled they copy grants on replace; this default matches that behavior. ``copy_grants=False`` emits ``IGNORE GRANTS`` so privileges on the replaced table are dropped.
+
 #### Improvements
 
 - UDFs, UDTFs, UDAFs and stored procedures registered from a free-threaded Python build (for example 3.14t) now default to the matching free-threaded `RUNTIME_VERSION` (`3.14t`) instead of the GIL runtime (`3.14`). The default artifact repository is looked up for the free-threaded version as well. Requirements that pin `python=3.14` (or `python=3.14t`) still select that runtime from either build.
