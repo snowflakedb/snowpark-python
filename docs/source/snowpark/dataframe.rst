@@ -67,6 +67,7 @@ DataFrame
     DataFrame.natural_join
     DataFrame.orderBy
     DataFrame.order_by
+    DataFrame.pipe
     DataFrame.pivot
     DataFrame.print_schema
     DataFrame.printSchema
