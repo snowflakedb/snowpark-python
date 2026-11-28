@@ -35,6 +35,7 @@
 - Fixed a bug where `trace_sql_errors_to_dataframe` of `Session.debug` (Experimental) removed empty lines inside string literals of raw SQL, which changed query results.
 - Fixed a bug in `DataFrameReader.jdbc` where a `query` that contained string literals, backslashes or newlines failed with a SQL compilation error during schema inference.
 - Fixed a bug in `DataFrameReader.jdbc` where reading failed when `DEFAULT_DDL_COLLATION` was set.
+- Fixed a bug where `DataFrame.join` dropped an escaped double quote at the start or end of a quoted column name that it re-aliased, for example `"""a"""` became `"""a"`.
 - Fixed a bug in `DataFrameReader.jdbc` where a read with many partitions failed with `This connection has been closed`.
 - Fixed a bug in `DataFrameReader.jdbc` where JDBC connections were not closed when ingestion failed or a stream was closed before exhaustion.
 - Updated `DataFrameReader.jdbc` to remove recognized credential options from URL/properties before registration and reject unsupported or ambiguous connection syntax. Supported forms include simple PostgreSQL/MySQL network URLs, SQL Server braced properties, and unquoted Oracle thin URLs and credential-free descriptors. Credentials must come from the Snowflake secret; arbitrary query and session-initialization SQL is not sanitized. Generated Java literals now preserve special characters, and JDBC failures report static stage messages without driver messages or exception causes.

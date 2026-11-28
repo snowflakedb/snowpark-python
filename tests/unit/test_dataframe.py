@@ -429,3 +429,17 @@ def test_table_source_plan(sql_simplifier_enabled):
         t._plan.source_plan,
         SelectStatement if sql_simplifier_enabled else SnowflakeTable,
     )
+
+
+@pytest.mark.parametrize(
+    "name",
+    ['"a"', '"a"""', '"""a"', '"""a"""', '"x""y"', '""""'],
+)
+def test_get_aliased_column_names_keeps_escaped_quotes(name):
+    # str.strip('"') used to drop escaped quotes ("") at either end of a name.
+    from snowflake.snowpark.dataframe import _get_aliased_column_names
+
+    assert _get_aliased_column_names(None, [name], None, None, []) == [name]
+    assert _get_aliased_column_names(None, [name], "l_", None, [name]) == [
+        '"l_' + name[1:]
+    ]
