@@ -330,11 +330,17 @@ def test_jdbc_connection_error(session, udtf_configs, jar_path):
         "imports": [jar_path],
     }
 
-    # Invalid URL
-    with pytest.raises(SnowparkSQLException, match="Failed to create JDBC connection"):
-        session.read.jdbc(
-            url="jdbc:invalid:url", udtf_configs=udtf_configs, query=SELECT_QUERY
-        ).collect()
+    # Unsupported URLs must be rejected before submitting any SQL.
+    with session.query_history(include_error=True, include_describe=True) as history:
+        with pytest.raises(
+            ValueError,
+            match="^Unsupported or malformed JDBC URL; use a supported connection URL "
+            "and the secret for credentials$",
+        ):
+            session.read.jdbc(
+                url="jdbc:invalid:url", udtf_configs=udtf_configs, query=SELECT_QUERY
+            ).collect()
+    assert history.queries == []
 
     # secret not in EAI
     with pytest.raises(
@@ -444,8 +450,8 @@ def test_postgres_session_init_statement(
 ):
     with pytest.raises(
         SnowparkSQLException,
-        match="canceling statement due to user request",
-    ):
+        match="Ingestion error: JDBC read failed",
+    ) as exc_info:
         session.read.jdbc(
             url=POSTGRES_URL,
             udtf_configs=postgres_udtf_configs,
@@ -453,6 +459,19 @@ def test_postgres_session_init_statement(
             query_timeout=1,
             session_init_statement=session_init_statement,
         ).collect()
+    error_message = str(exc_info.value)
+    assert "canceling statement due to user request" not in error_message
+    assert "org.postgresql.util.PSQLException" not in error_message
+
+    # The same initialization and query must succeed when the timeout permits it.
+    df = session.read.jdbc(
+        url=POSTGRES_URL,
+        udtf_configs=postgres_udtf_configs,
+        query=POSTGRES_SELECT_QUERY,
+        query_timeout=30,
+        session_init_statement=session_init_statement,
+    ).order_by("BIGSERIAL_COL")
+    assert df.collect() == postgres_expected_data
 
 
 def test_telemetry(session, udtf_configs):

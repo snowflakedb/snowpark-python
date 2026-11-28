@@ -8,6 +8,7 @@ from collections import defaultdict
 from enum import Enum
 from functools import cached_property
 from typing import Optional, Union, List, TYPE_CHECKING
+from urllib.parse import unquote_plus
 
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.data_source import DataSourcePartitioner
@@ -136,6 +137,252 @@ JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
 
 PARTITION_TABLE_COLUMN_NAME = "partition"
 
+# Exact credential option names, not substrings of arbitrary option values.
+_JDBC_SECRET_KEYS = {
+    "user",
+    "username",
+    "password",
+    "pwd",
+    "token",
+    "accesskey",
+    "secret",
+    "apikey",
+    "sslpassword",
+    "password1",
+    "password2",
+    "password3",
+    "certkeystorepass",
+    "clientcertificatekeystorepassword",
+    "trustcertificatekeystorepassword",
+    "accesstoken",
+    "truststorepassword",
+    "keystoresecret",
+    "clientkeypassword",
+    "keyvaultproviderclientkey",
+    "aadsecureprincipalsecret",
+    "oracle.jdbc.password",
+    "oracle.jdbc.user",
+    "oracle.jdbc.accesstoken",
+    "newpassword",
+    "oracle.jdbc.newpassword",
+    "clientsecret",
+    "oracle.jdbc.clientsecret",
+    "clientcertificatepassword",
+    "oracle.jdbc.clientcertificatepassword",
+    "oracle.net.wallet_password",
+    "websocketpassword",
+    "oracle.net.websocketpassword",
+    "javax.net.ssl.keystorepassword",
+    "javax.net.ssl.truststorepassword",
+    "oracle.net.ldap.ssl.keystorepassword",
+    "oracle.net.ldap.ssl.truststorepassword",
+    "oracle.net.ldap.ssl.walletpassword",
+    "oracle.net.ldap.security.credentials",
+    "oracle.jdbc.ons.walletpassword",
+}
+_JDBC_URL_ERROR = "Unsupported or malformed JDBC URL; use a supported connection URL and the secret for credentials"
+
+
+def _java_string_literal(value: str) -> str:
+    # Octal escapes avoid both Java's pre-lexing Unicode escapes and the SQL $$
+    # delimiter. In particular, a literal backslash-u must stay literal at runtime.
+    escapes = {
+        "\\": r"\\",
+        '"': r"\"",
+        "\n": r"\n",
+        "\r": r"\r",
+        "\t": r"\t",
+        "$": r"\044",
+    }
+    return (
+        '"'
+        + "".join(
+            escapes.get(char, f"\\{ord(char):03o}" if ord(char) < 32 else char)
+            for char in value
+        )
+        + '"'
+    )
+
+
+def _validate_jdbc_percent_encoding(value: str) -> None:
+    if re.search(r"%(?![0-9a-fA-F]{2})", value):
+        raise ValueError(_JDBC_URL_ERROR)
+
+
+def _jdbc_option_name(key: str) -> str:
+    _validate_jdbc_percent_encoding(key)
+    # MySQL decodes names. Apply that conservative interpretation to properties
+    # and other drivers too, without changing the retained spelling or values.
+    name = unquote_plus(key).strip().lower()
+    if not re.fullmatch(r"[a-z][a-z0-9_.$-]*", name):
+        raise ValueError("Unsupported JDBC option name; use the secret for credentials")
+    return name
+
+
+def _strip_jdbc_query_credentials(url: str) -> str:
+    base, separator, query = url.partition("?")
+    if not separator:
+        return url
+    retained = []
+    for option in query.split("&"):
+        if not option:
+            continue
+        key, equals, _ = option.partition("=")
+        if not equals:
+            # PostgreSQL alone accepts the exact bare ssl flag. Other bare
+            # names could be malformed credential tails and must still reject.
+            if url.startswith("jdbc:postgresql://") and option == "ssl":
+                retained.append(option)
+                continue
+            raise ValueError(_JDBC_URL_ERROR)
+        if _jdbc_option_name(key) not in _JDBC_SECRET_KEYS:
+            retained.append(option)
+    return base + ("?" + "&".join(retained) if retained else "")
+
+
+def _strip_network_jdbc_credentials(url: str, prefix: str) -> str:
+    base, separator, query = url.partition("?")
+    authority, slash, path = base[len(prefix) :].partition("/")
+    # Host-specific MySQL properties and userinfo on individual hosts need a
+    # different grammar. Reject rather than dropping hosts or partial passwords.
+    if any(char in authority for char in "()=;\\\"'") or any(
+        char in path for char in "@;="
+    ):
+        raise ValueError(_JDBC_URL_ERROR)
+    if "@" in authority:
+        if authority.count("@") != 1 or "," in authority:
+            raise ValueError(_JDBC_URL_ERROR)
+        userinfo, authority = authority.split("@")
+        if not userinfo or any(char in userinfo for char in "[]"):
+            raise ValueError(_JDBC_URL_ERROR)
+    # Simple comma-separated hosts and bracketed IPv6 are supported. Encoded
+    # authority syntax is deliberately not decoded into a different host grammar.
+    host = r"(?:\[[0-9a-fA-F:.%]+\]|[a-zA-Z0-9_.-]+)(?::[0-9]+)?"
+    if not re.fullmatch(host + r"(?:," + host + r")*", authority):
+        raise ValueError(_JDBC_URL_ERROR)
+    clean = prefix + authority + slash + path
+    return _strip_jdbc_query_credentials(
+        clean + (separator + query if separator else "")
+    )
+
+
+def _strip_sqlserver_credentials(url: str) -> str:
+    # SQL Server braces quote semicolons; doubled closing braces are literal.
+    prefix, _, properties = url.partition(";")
+    if not re.fullmatch(r"jdbc:sqlserver://[a-zA-Z0-9_.:\[\]\\-]*", prefix):
+        raise ValueError(_JDBC_URL_ERROR)
+    retained = []
+    position = 0
+    while position < len(properties):
+        if properties[position] == ";":
+            position += 1
+            continue
+        start = position
+        match = re.match(r"([^;=]+)=\s*", properties[position:])
+        if match is None:
+            raise ValueError(_JDBC_URL_ERROR)
+        key = _jdbc_option_name(match.group(1))
+        position += match.end()
+        if position < len(properties) and properties[position] == "{":
+            position += 1
+            while position < len(properties):
+                if properties[position] == "}":
+                    if properties[position : position + 2] == "}}":
+                        position += 2
+                        continue
+                    position += 1
+                    break
+                position += 1
+            else:
+                raise ValueError(_JDBC_URL_ERROR)
+            while position < len(properties) and properties[position].isspace():
+                position += 1
+            if position < len(properties) and properties[position] != ";":
+                raise ValueError(_JDBC_URL_ERROR)
+        else:
+            end = properties.find(";", position)
+            position = len(properties) if end < 0 else end
+            if any(char in properties[match.end() + start : position] for char in "{}"):
+                raise ValueError(_JDBC_URL_ERROR)
+        if key not in _JDBC_SECRET_KEYS:
+            retained.append(properties[start:position])
+        position += 1
+    return ";".join([prefix, *retained])
+
+
+def _validate_oracle_descriptor(descriptor: str) -> None:
+    # Validate nested (KEY=value) / (KEY=(...)(...)) nodes without interpreting
+    # arbitrary descriptor text as a URL. Credential nodes are not supported.
+    position = 0
+    depth = 0
+    while position < len(descriptor):
+        if descriptor[position].isspace():
+            position += 1
+        elif descriptor[position] == "(":
+            match = re.match(
+                r"\(\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*=\s*", descriptor[position:]
+            )
+            if match is None or _jdbc_option_name(match.group(1)) in _JDBC_SECRET_KEYS:
+                raise ValueError(_JDBC_URL_ERROR)
+            depth += 1
+            position += match.end()
+            if position < len(descriptor) and descriptor[position] == '"':
+                # A quoted leaf (for example SSL_SERVER_CERT_DN) may contain
+                # parentheses and equals signs, but is never another option.
+                position += 1
+                while position < len(descriptor):
+                    if descriptor[position] == '"':
+                        position += 1
+                        break
+                    if descriptor[position] == "\\":
+                        raise ValueError(_JDBC_URL_ERROR)
+                    position += 1
+                else:
+                    raise ValueError(_JDBC_URL_ERROR)
+                while position < len(descriptor) and descriptor[position].isspace():
+                    position += 1
+                if position >= len(descriptor) or descriptor[position] != ")":
+                    raise ValueError(_JDBC_URL_ERROR)
+            elif position < len(descriptor) and descriptor[position] != "(":
+                end = descriptor.find(")", position)
+                if end < 0 or any(
+                    char in descriptor[position:end] for char in "(=\"'@?\\"
+                ):
+                    raise ValueError(_JDBC_URL_ERROR)
+                position = end
+        elif descriptor[position] == ")" and depth:
+            depth -= 1
+            position += 1
+            if depth == 0 and descriptor[position:].strip():
+                raise ValueError(_JDBC_URL_ERROR)
+        else:
+            raise ValueError(_JDBC_URL_ERROR)
+    if depth:
+        raise ValueError(_JDBC_URL_ERROR)
+
+
+def _strip_oracle_credentials(url: str) -> str:
+    prefix = "jdbc:oracle:thin:"
+    # A descriptor is a separate grammar, not an Easy Connect query string.
+    if url.startswith(prefix + "@("):
+        _validate_oracle_descriptor(url[len(prefix) + 1 :])
+        return url
+    # Quoted authentication and Easy Connect query values can contain delimiters.
+    # Reject them whole until their full grammar is supported, never split them.
+    if any(char in url for char in "\"'\\"):
+        raise ValueError(_JDBC_URL_ERROR)
+    base, separator, query = url[len(prefix) :].partition("?")
+    if base.count("@") != 1:
+        raise ValueError(_JDBC_URL_ERROR)
+    credentials, target = base.split("@")
+    if credentials and not re.fullmatch(r"[^\s/@:]+/[^\s/@]+", credentials):
+        raise ValueError(_JDBC_URL_ERROR)
+    if target.startswith("("):
+        _validate_oracle_descriptor(target)
+    elif not re.fullmatch(r"(?://)?[a-zA-Z0-9_.:\[\]-]+(?:/[a-zA-Z0-9_.:-]+)?", target):
+        raise ValueError(_JDBC_URL_ERROR)
+    return _strip_jdbc_query_credentials(prefix + "@" + target + separator + query)
+
 
 class JDBC:
     def __init__(
@@ -250,7 +497,8 @@ class JDBC:
                     try {{
                         {self.generate_create_connection()}
                     }} catch (Exception e) {{
-                        throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage());
+                        // Driver messages and causes can contain credentials.
+                        throw new RuntimeException("Failed to create JDBC connection");
                     }}
                 }}
                 public static Class<?> getOutputClass() {{
@@ -290,13 +538,13 @@ class JDBC:
                                     this.conn.close();
                                     return null;
                                 }}
-                            }} catch (SQLException e) {{
-                                throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
+                            }} catch (Exception e) {{
+                                throw new RuntimeException("Ingestion error: JDBC schema metadata failed");
                             }}
                         }}).takeWhile(Objects::nonNull);
                         return resultStream;
                     }} catch (Exception e) {{
-                        throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
+                        throw new RuntimeException("Ingestion error: JDBC schema inference failed");
                     }}
 
                 }}
@@ -411,7 +659,8 @@ class JDBC:
                 try {{
                     {self.generate_create_connection()}
                 }} catch (Exception e) {{
-                    throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage(), e);
+                    // Driver messages and causes can contain credentials.
+                    throw new RuntimeException("Failed to create JDBC connection");
                 }}
             }}
 
@@ -426,8 +675,8 @@ class JDBC:
                 if (resource == null) {{
                     return;
                 }}
-                openResources.remove(resource);
                 try {{
+                    openResources.remove(resource);
                     resource.close();
                 }} catch (Exception ignored) {{
                 }}
@@ -484,7 +733,7 @@ class JDBC:
                         // Exception rather than SQLException: this block now also covers
                         // connection and statement setup, whose failures are not always
                         // SQLException.
-                        throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
+                        throw new RuntimeException("Ingestion error: JDBC read failed");
                     }}
                 }}).takeWhile(Objects::nonNull)
                   .onClose(() -> closeStream(stmtRef[0], rsRef[0]));
@@ -521,7 +770,7 @@ class JDBC:
         if self.properties is not None:
             user_properties_overwrite = "\n".join(
                 [
-                    f'properties.put("{key}", "{value}");'
+                    f"properties.put({_java_string_literal(key)}, {_java_string_literal(str(value))});"
                     for key, value in self.properties.items()
                 ]
             )
@@ -532,7 +781,7 @@ class JDBC:
                     properties.put("password", up.getPassword());
         """
         return f"""
-                String url = "{self.url}";
+                String url = {_java_string_literal(self.url)};
                 java.util.Properties properties = new java.util.Properties();
                 {get_secret}
                 {user_properties_overwrite}
@@ -622,29 +871,49 @@ class JDBC:
             return f"SELECT {', '.join(cols)} FROM {self.table_or_query}"
 
     def secret_detector(self):
-        secret_keys = {
-            "password",
-            "pwd",
-            "token",
-            "accesskey",
-            "secret",
-            "apikey",
-            "user",
-            "username",
-        }
-        if self.properties is not None:
-            for key in list(self.properties.keys()):
-                if key.lower() in secret_keys:
-                    del self.properties[key]
+        """Sanitize URL/properties before either UDTF is registered.
 
-        self.url = re.sub(
-            r"(?<=://)([^:/]+)(:[^@]+)?@", "", self.url  # Matches user[:password]@
-        )
+        Supported URL grammars are simple PostgreSQL/MySQL network URLs,
+        SQL Server semicolon properties (including braced values), and Oracle
+        thin URLs with unquoted authentication or credential-free descriptors.
+        Ambiguous/unsupported forms are rejected.
+        This does not detect or rewrite credentials in arbitrary query or
+        session-initialization SQL; callers must keep secrets out of that SQL.
+        """
+        if not isinstance(self.url, str):
+            raise ValueError("JDBC URL must be a string")
+        if self.properties is not None:
+            if not isinstance(self.properties, dict) or any(
+                not isinstance(key, str) for key in self.properties
+            ):
+                raise ValueError(
+                    "JDBC properties must be a dictionary with string keys"
+                )
+            self.properties = {
+                key: value
+                for key, value in self.properties.items()
+                if _jdbc_option_name(key) not in _JDBC_SECRET_KEYS
+            }
+        if self.url.startswith(("jdbc:postgresql://", "jdbc:mysql://")):
+            # Validate even values that will be removed. SQL Server and Oracle
+            # values use literal percent signs rather than percent encoding.
+            _validate_jdbc_percent_encoding(self.url)
+            prefix = self.url[: self.url.index("://") + 3]
+            self.url = _strip_network_jdbc_credentials(self.url, prefix)
+        elif self.url.startswith("jdbc:sqlserver://"):
+            self.url = _strip_sqlserver_credentials(self.url)
+        elif self.url.startswith("jdbc:oracle:thin:"):
+            self.url = _strip_oracle_credentials(self.url)
+        else:
+            raise ValueError(_JDBC_URL_ERROR)
 
     def generate_session_init_statement(self):
         if self.session_init_statement is not None:
             return "\n".join(
-                [f'stmt.execute("{query}");' for query in self.session_init_statement]
+                [
+                    f"stmt.execute({_java_string_literal(query)});"
+                    for query in self.session_init_statement
+                ]
             )
         else:
             return ""
